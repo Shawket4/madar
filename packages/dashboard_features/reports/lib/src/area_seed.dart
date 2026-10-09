@@ -32,8 +32,8 @@ final Expando<MockDb> _reportDb = Expando('reports-db');
 void bindReportDb(MockServer server, MockDb db) => _reportDb[server] = db;
 
 /// The branches a report read covers (`resolve_report_branches`): [branchId]
-/// itself (403 unless the persona works there, 404 when it does not exist,
-/// was deleted or is another org's), or for the all-branches sentinel every live branch of the
+/// itself (404 when it does not exist or was deleted, 403 when it is another
+/// org's or the persona does not work there), or for the all-branches sentinel every live branch of the
 /// org in scope that the persona sees. Without a bound db (a unit's mocks
 /// registered alone) the Sabah branches stand in.
 List<String> reportBranchIds(MockRequest req, String branchId) {
@@ -57,14 +57,16 @@ List<String> reportBranchIds(MockRequest req, String branchId) {
           b['id']! as String,
     ];
   }
-  req.requireBranch(branchId);
+  // `require_branch_access`'s order: gone (404), another org's (403), not
+  // assigned (403). A platform admin skips the org check, as there.
   if (db != null) {
     final b = db['branches'].find(branchId);
-    // Another org's branch is not found either (the backend scopes by org).
-    if (b == null || b['deleted_at'] != null || b['org_id'] != req.orgId) {
-      req.notFound('Branch not found');
+    if (b == null || b['deleted_at'] != null) req.notFound('Branch not found');
+    if (!req.persona.isPlatform && b['org_id'] != req.orgId) {
+      req.fail(MockResponse.forbidden('Branch belongs to a different org'));
     }
   }
+  req.requireBranch(branchId);
   return [branchId];
 }
 

@@ -1599,6 +1599,8 @@ class _InvBuilder {
             : iso(DateTime.parse(w.occurredAt!)),
         'received_at': w.occurredAt == null ? null : iso(DateTime.parse(w.at)),
         'waste_source': w.source,
+        // The unrounded cost the waste report values the line at.
+        'unit_cost_exact': cost,
         'waste_value_minor': cost == null ? null : (w.qty * cost + 0.5).floor(),
         'approved_by_name': w.approvedBy == null
             ? null
@@ -1606,7 +1608,7 @@ class _InvBuilder {
         'device_id': w.source == 'pos' ? InvIds.device(w.branch) : null,
         'device_name': w.source == 'pos' ? 'Counter 1' : null,
         'order_display_number': w.order,
-        'waste_subject_kind': w.subject == null ? 'ingredient' : 'item',
+        'waste_subject_kind': w.subject == null ? 'ingredient' : 'menu_item',
         'waste_subject_name': w.subject ?? ing.name,
         'waste_size_label': w.subjectSize,
         'waste_quantity': w.subjectQty ?? w.qty,

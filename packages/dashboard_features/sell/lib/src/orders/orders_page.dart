@@ -145,6 +145,17 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   static String _plainRefFull(OrderFull o) =>
       orderPlainRef(orderRef: o.orderRef, orderNumber: o.orderNumber);
 
+  /// What the order sheet reads on open, warmed on a row's intent.
+  void _warmSheet(Order o) {
+    ref.warm(orderDetailProvider(o.id));
+    final orgId = ref.read(orgIdProvider);
+    if (orgId != null) ref.warm(orderCatalogProvider(orgId));
+    final delivery = o.deliveryOrderId;
+    if (o.orderType == 'delivery' && delivery != null) {
+      ref.warm(orderDeliveryProvider(delivery));
+    }
+  }
+
   void _openVoid(String id, String ref) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) showVoidDialog(context, orderId: id, ref: ref, draft: _voidDraft);
@@ -179,7 +190,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       _page = 0;
     }
     final page = _page;
-    final OrdersKey key = (
+    OrdersKey keyAt(int p) => (
       branchId: scope.branchId,
       from: scope.from,
       to: scope.to,
@@ -192,8 +203,9 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       channel: _type == 'delivery' ? _channel : null,
       exclude: excludeItemsParam(excluded),
       till: widget.tillId,
-      page: page + 1,
+      page: p,
     );
+    final key = keyAt(page + 1);
     final q = watchIfOrders(ref, enabled, () => ordersListProvider(key));
     if (q.value != null) _shown = q.value;
     final data = q.value ?? (q.isLoading ? _shown : null);
@@ -291,6 +303,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
         description: t('orders.emptyBody'),
       ),
       onRowTap: (o) => _setOrder(o.id),
+      onRowIntent: _warmSheet,
       selectedRowKey: widget.orderId,
       rowActions: (context, o) => _RowActions(
         order: o,
@@ -306,6 +319,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       onPageChanged: (n) => setState(() {
         _page = n;
       }),
+      onPageIntent: (n) => ref.warm(ordersListProvider(keyAt(n + 1))),
       rowSemanticLabel: (o) => orderDisplayRef(
         orderRef: o.orderRef,
         displayNumber: o.displayNumber,

@@ -108,6 +108,7 @@ class DashFilterSelect<T> extends StatelessWidget {
     required this.onChanged,
     this.searchable = false,
     this.minWidth = 136,
+    this.onOptionIntent,
     super.key,
   });
 
@@ -121,6 +122,10 @@ class DashFilterSelect<T> extends StatelessWidget {
   final ValueChanged<T?> onChanged;
   final bool searchable;
   final double minWidth;
+
+  /// An option is about to be picked ([DashIntent]): warm the list under
+  /// that filter (null = All).
+  final ValueChanged<T?>? onOptionIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +149,9 @@ class DashFilterSelect<T> extends StatelessWidget {
       ],
       value: _All<T>(value),
       onChanged: (v) => onChanged(v.value),
+      onOptionIntent: onOptionIntent == null
+          ? null
+          : (v) => onOptionIntent!(v.value),
     );
   }
 }

@@ -1166,6 +1166,7 @@ class DashSegmentedControl<T> extends StatelessWidget {
     required this.options,
     required this.value,
     required this.onChanged,
+    this.onIntent,
     this.semanticLabel,
     this.enabled = true,
     this.expand = false,
@@ -1175,6 +1176,9 @@ class DashSegmentedControl<T> extends StatelessWidget {
   final List<DashOption<T>> options;
   final T value;
   final ValueChanged<T> onChanged;
+
+  /// A segment is about to be pressed ([DashIntent]): warm the read it shows.
+  final ValueChanged<T>? onIntent;
 
   /// Names the group for a screen reader ("Status", "View").
   final String? semanticLabel;
@@ -1190,6 +1194,7 @@ class DashSegmentedControl<T> extends StatelessWidget {
       for (final o in options)
         DashPressable(
           onTap: enabled ? () => onChanged(o.value) : null,
+          onIntent: onIntent == null ? null : () => onIntent!(o.value),
           enabled: enabled,
           selected: o.value == value,
           checked: o.value == value,

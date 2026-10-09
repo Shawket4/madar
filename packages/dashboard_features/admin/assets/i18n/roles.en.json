@@ -1,1 +1,4 @@
-{}
+{
+  "access.roleNameMin": "Too small: expected string to have >=1 characters",
+  "access.roleNameMax": "Too big: expected string to have <=80 characters"
+}

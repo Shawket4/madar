@@ -31,7 +31,9 @@ extension WebQueryCache on Ref {
   ///   background, the old data on screen meanwhile;
   /// - signing out drops it ([QueryCache.clear], the web's
   ///   `queryClient.clear()` in `signOut`).
-  void webCache() {
+  ///
+  /// [staleTime] is the query's own `staleTime` where the web sets one.
+  void webCache({Duration staleTime = kQueryStaleTime}) {
     watch(orgIdProvider);
     final now = read(clockProvider);
     final gc = read(queryCacheProvider);
@@ -44,7 +46,7 @@ extension WebQueryCache on Ref {
     // inside the listener's own build, on the next turn.
     onAddListener(() {
       gc.busy(link);
-      if (now().difference(builtAt) < kQueryStaleTime) return;
+      if (now().difference(builtAt) < staleTime) return;
       Future.microtask(() {
         if (mounted) invalidateSelf();
       });
@@ -131,4 +133,17 @@ class DashPrefetcher {
           onError: (Object _) => _container.invalidate(provider),
         );
   }
+}
+
+/// Warming a read from a control's intent hook (`onIntent`, `onRowIntent`,
+/// `onPageIntent`…): the read the press will make, with its exact key, so
+/// the press answers from the cache.
+///
+/// ```dart
+/// onRowIntent: (o) => ref.warm(orderDetailProvider(o.id)),
+/// ```
+extension DashWarm on WidgetRef {
+  void warm<T>(FutureProvider<T> provider) => DashPrefetcher(
+    ProviderScope.containerOf(context, listen: false),
+  )(provider);
 }

@@ -872,12 +872,9 @@ void main() {
 
     testWidgets('OFFR-CMB-011 / -030 / OFFR-ALL-011 a phone card drops '
         '"Fixed" under a long name instead of cutting it', (tester) async {
-      final s = combosServer();
-      OffersSeed.loadInto(s.db);
-      const long = "Kids' Cocoa, Cookie & Marshmallow Treat";
-      s.db.table(OffersTables.menuItems).find(comboId('kids-cocoa'))!['name'] =
-          long;
-      await pumpCombos(tester, seeded: s, size: DashSize.phone);
+      // "Kids' Cocoa & Cookie" fits a card's line alone, not with "Fixed".
+      const long = _kids;
+      await pumpCombos(tester, size: DashSize.phone);
       expect(nameLine(tester, long).didExceedMaxLines, isFalse);
       final badge = tester.getTopLeft(inRow(long, find.text('Fixed')));
       final text = tester.getTopLeft(inRow(long, find.text(long)));

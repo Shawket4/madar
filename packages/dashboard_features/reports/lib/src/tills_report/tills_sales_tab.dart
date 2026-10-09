@@ -176,7 +176,7 @@ class _SessionLine extends ConsumerWidget {
                   TextSpan(
                     children: [
                       TextSpan(
-                        text: r.tellerName,
+                        text: fsi(r.tellerName),
                         style: DashType.bodyMedium.copyWith(
                           color: c.textPrimary,
                         ),
@@ -184,8 +184,8 @@ class _SessionLine extends ConsumerWidget {
                       // The day too: one teller opens many tills a period.
                       TextSpan(
                         text:
-                            ' · ${r.branchName} · '
-                            '${fmtBusinessDate(f, r.businessDate)}',
+                            ' · ${fsi(r.branchName)} · '
+                            '${fsi(fmtBusinessDate(f, r.businessDate))}',
                         style: DashType.body.copyWith(color: c.textSecondary),
                       ),
                     ],

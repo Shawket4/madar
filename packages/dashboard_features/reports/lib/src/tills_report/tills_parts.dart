@@ -27,6 +27,7 @@ class TillsLoad {
     this.loaded = false,
     this.error,
     this.onRetry,
+    this.retrying = false,
   });
 
   /// The sessions (empty until they arrive).
@@ -43,6 +44,9 @@ class TillsLoad {
 
   /// Null when retrying cannot help (a refused range).
   final VoidCallback? onRetry;
+
+  /// A Retry is running: the failure stays on screen, its button spins.
+  final bool retrying;
 }
 
 /// What a Sales or Open & close tab shows instead of its body: a 256-tall
@@ -53,7 +57,11 @@ Widget? tillTabState(BuildContext context, Translator t, TillsLoad load) {
     return const DashSkeleton(height: 256, radius: Radii.xs);
   }
   if (load.error != null) {
-    return DashErrorState(message: load.error, onRetry: load.onRetry);
+    return DashErrorState(
+      message: load.error,
+      onRetry: load.onRetry,
+      retrying: load.retrying,
+    );
   }
   if (load.rows.isEmpty) {
     return DashEmptyState(title: t('reports.tills.empty'));

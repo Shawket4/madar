@@ -20,6 +20,7 @@ import 'shared/inventory_data.dart';
 import 'today/today_page.dart';
 import 'today/today_providers.dart';
 import 'transfers/transfers_page.dart';
+import 'waste/waste_data.dart';
 import 'waste/waste_page.dart';
 
 Widget _today(BuildContext context, GoRouterState state) => const TodayPage();
@@ -84,6 +85,7 @@ const List<DashRoute> inventoryRoutes = [
     titleFallback: 'Waste',
     caps: [Cap.inventoryWasteRead],
     module: OrgModule.pos,
+    prefetch: _prefetchWaste,
   ),
   DashRoute(
     path: '/inventory/transfers',
@@ -151,4 +153,12 @@ void _prefetchIngredients(DashPrefetcher warm, Scope s) {
     warm(branchesProvider);
   }
   if (s.branchId != null) warm(branchStockProvider(s.branchId!));
+}
+
+/// The web's `prefetchRoute('/inventory/waste')`: with a branch picked, its
+/// log and the period's waste by reason (nothing with All branches).
+void _prefetchWaste(DashPrefetcher warm, Scope s) {
+  if (s.branchId == null) return;
+  warm(todayWasteProvider(s.branchId!));
+  warm(wasteReportProvider(s.wasteRange));
 }

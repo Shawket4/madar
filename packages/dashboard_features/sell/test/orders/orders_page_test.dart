@@ -155,9 +155,12 @@ void main() {
     await h.tap(find.byKey(const ValueKey('export-run')));
     expect(h.server.callsTo(exportRoute).single.query['till_id'], [till]);
     await h.flushTimers();
-    await h.go('/orders');
-    await h.go('/orders?shift_id=$till');
-    expect(h.server.callsTo(listRoute).last.query['till_id'], [till]);
+    // The legacy alias, on another till (Counter 2's).
+    final counter2 = MockSeed.tillId('heliopolis', MockClock.cairoDate(MockSeed.now), 'counter2');
+    await h.go('/orders?shift_id=$counter2');
+    expect(h.server.callsTo(listRoute).last.query['till_id'], [counter2]);
+    expect(inTable(find.textContaining('-T2-')), findsWidgets);
+    expect(inTable(find.textContaining('-T1-')), findsNothing);
   });
 
   testWidgets('SELL-ORD-003/029/SELL-ALL-011 paging; a filter returns to page 1, '

@@ -19,6 +19,8 @@ import 'package:dashboard_api/dashboard_api.dart'
     show ApiException, TillSessionRow;
 import 'package:dashboard_core/dashboard_core.dart';
 
+import '../shared/report_dates.dart';
+
 /// JavaScript's `Math.round` (half up, toward +∞), not Dart's half away
 /// from zero.
 int jsRound(num v) => (v + 0.5).floor();
@@ -59,6 +61,17 @@ String fmtMinutesOfDay(DashFormat f, int? mins) {
   final m = (mins % 60).toString().padLeft(2, '0');
   return f.fmtWireTime('$h:$m');
 }
+
+/// [s] in a first-strong isolate (U+2068…U+2069): a part of a joined line
+/// ("teller · branch · date") keeps its own direction, so in Arabic the date's
+/// digits never attach to an English name beside it.
+String fsi(String s) => '\u2068$s\u2069';
+
+/// "teller · branch · business date": one session, told apart from the same
+/// teller's other days.
+String sessionLabel(DashFormat f, TillSessionRow r) =>
+    '${fsi(r.tellerName)} · ${fsi(r.branchName)} · '
+    '${fsi(fmtBusinessDate(f, r.businessDate))}';
 
 /// The drawer is still running (`status` is the API's word for it).
 bool isOpen(TillSessionRow r) => r.status == 'open';

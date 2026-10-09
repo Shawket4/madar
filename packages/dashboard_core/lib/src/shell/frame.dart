@@ -15,6 +15,7 @@ import 'package:dashboard_core/src/scope/scope.dart';
 import 'package:dashboard_core/src/shell/command_palette.dart';
 import 'package:dashboard_core/src/shell/footer.dart';
 import 'package:dashboard_core/src/shell/header.dart';
+import 'package:dashboard_core/src/shell/prefetch.dart';
 import 'package:dashboard_core/src/shell/shell_nav.dart';
 import 'package:dashboard_core/src/shell/shell_prefs.dart';
 import 'package:dashboard_core/src/shell/sidebar.dart';
@@ -238,6 +239,7 @@ class DashBottomBar extends ConsumerWidget {
                       label: t(s.labelKey, defaultValue: s.fallback),
                       active: identical(s, current),
                       onTap: () => context.go(s.to),
+                      onIntent: () => ref.prefetchRoute(s.to),
                     ),
                   ),
                 Expanded(
@@ -263,18 +265,21 @@ class _BottomItem extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
+    this.onIntent,
   });
 
   final String icon;
   final String label;
   final bool active;
   final VoidCallback onTap;
+  final VoidCallback? onIntent;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: onTap,
+      onIntent: onIntent,
       selected: active,
       pressScale: false,
       semanticLabel: label,

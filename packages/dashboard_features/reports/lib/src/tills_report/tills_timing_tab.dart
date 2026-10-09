@@ -14,7 +14,6 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/report_shared.dart';
 import 'tills_lib.dart';
 import 'tills_parts.dart';
 
@@ -73,10 +72,7 @@ class TillTimingTab extends ConsumerWidget {
                   ? '—'
                   : f.fmtDuration(longest.openedAt, longest.closedAt),
               icon: 'clock',
-              hint: longest == null
-                  ? null
-                  : '${longest.tellerName} · ${longest.branchName} · '
-                        '${fmtBusinessDate(f, longest.businessDate)}',
+              hint: longest == null ? null : sessionLabel(f, longest),
             ),
           ],
         ),

@@ -386,6 +386,7 @@ class DashTabStrip<T> extends StatelessWidget {
     required this.tabs,
     required this.value,
     required this.onChanged,
+    this.onIntent,
     this.semanticLabel,
     super.key,
   });
@@ -393,6 +394,9 @@ class DashTabStrip<T> extends StatelessWidget {
   final List<DashTab<T>> tabs;
   final T value;
   final ValueChanged<T> onChanged;
+
+  /// A tab is about to be pressed ([DashIntent]): warm the read it shows.
+  final ValueChanged<T>? onIntent;
   final String? semanticLabel;
 
   @override
@@ -415,6 +419,9 @@ class DashTabStrip<T> extends StatelessWidget {
                   first: i == 0,
                   active: tabs[i].value == value,
                   onTap: () => onChanged(tabs[i].value),
+                  onIntent: onIntent == null
+                      ? null
+                      : () => onIntent!(tabs[i].value),
                 ),
             ],
           ),
@@ -430,17 +437,20 @@ class _TabButton<T> extends StatelessWidget {
     required this.first,
     required this.active,
     required this.onTap,
+    this.onIntent,
   });
   final DashTab<T> tab;
   final bool first;
   final bool active;
   final VoidCallback onTap;
+  final VoidCallback? onIntent;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: tab.enabled ? onTap : null,
+      onIntent: onIntent,
       enabled: tab.enabled,
       selected: active,
       pressScale: false,
@@ -509,15 +519,23 @@ class DashPageTabs<T> extends StatelessWidget {
     required this.tabs,
     required this.value,
     required this.onChanged,
+    this.onIntent,
     super.key,
   });
   final List<DashTab<T>> tabs;
   final T value;
   final ValueChanged<T> onChanged;
 
+  /// A tab is about to be pressed: warm the read it shows.
+  final ValueChanged<T>? onIntent;
+
   @override
-  Widget build(BuildContext context) =>
-      DashTabStrip<T>(tabs: tabs, value: value, onChanged: onChanged);
+  Widget build(BuildContext context) => DashTabStrip<T>(
+    tabs: tabs,
+    value: value,
+    onChanged: onChanged,
+    onIntent: onIntent,
+  );
 }
 
 /// One route-level section tab: a label and where it goes.
@@ -535,12 +553,16 @@ class DashSectionTabs extends StatelessWidget {
     required this.tabs,
     required this.currentPath,
     required this.onNavigate,
+    this.onIntent,
     super.key,
   });
 
   final List<DashSectionTab> tabs;
   final String currentPath;
   final ValueChanged<String> onNavigate;
+
+  /// A tab is about to be pressed: warm its page (`ref.prefetchRoute`).
+  final ValueChanged<String>? onIntent;
 
   /// The tab [path] that is active for [current].
   static String? activeFor(List<DashSectionTab> tabs, String current) {
@@ -559,6 +581,7 @@ class DashSectionTabs extends StatelessWidget {
       tabs: [for (final t in tabs) DashTab(value: t.path, label: t.label)],
       value: activeFor(tabs, currentPath) ?? '',
       onChanged: onNavigate,
+      onIntent: onIntent,
     );
   }
 }

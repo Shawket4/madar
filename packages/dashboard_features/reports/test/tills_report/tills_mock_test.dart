@@ -24,7 +24,8 @@ Future<List<Map<String, Object?>>> _get(
   final r = await s.send(
     ApiRequest(
       method: 'GET',
-      path: '/reports/branches/${branch.isEmpty ? allBranchesId : branch}/tills',
+      path:
+          '/reports/branches/${branch.isEmpty ? allBranchesId : branch}/tills',
       query: {
         'from': [(from ?? _from).toIso8601String()],
         'to': [(to ?? _to).toIso8601String()],
@@ -77,7 +78,10 @@ void main() {
         (o) => o['status'] != 'voided' && o['status'] != 'refunded',
       );
       expect(r['orders_count'], sold.length);
-      expect(r['net_sales'], sold.fold<int>(0, (n, o) => n + _int(o['total_amount'])));
+      expect(
+        r['net_sales'],
+        sold.fold<int>(0, (n, o) => n + _int(o['total_amount'])),
+      );
       var cash = 0;
       for (final o in orders.where((o) => o['status'] != 'voided')) {
         for (final l in (o['payment_legs']! as List).cast<Map>()) {
@@ -129,22 +133,24 @@ void main() {
     expect(rows.where((r) => r['status'] == 'open'), hasLength(4));
   });
 
-  test('a force-close: the drawer the system expected, no count, no variance',
-      () async {
-    final s = tillsServer();
-    final rows = await _get(s.server);
-    final forced = rows.where((r) => r['status'] == 'force_closed').toList();
-    expect(forced, isNotEmpty);
-    for (final r in forced) {
-      expect(r['closing_cash_declared'], isNull);
-      expect(r['cash_discrepancy'], isNull);
-      expect(
-        r['closing_cash_system'],
-        _int(r['opening_cash']) + _int(r['net_cash_payment']),
-      );
-      expect(r['closed_at'], isNotNull);
-    }
-  });
+  test(
+    'a force-close: the drawer the system expected, no count, no variance',
+    () async {
+      final s = tillsServer();
+      final rows = await _get(s.server);
+      final forced = rows.where((r) => r['status'] == 'force_closed').toList();
+      expect(forced, isNotEmpty);
+      for (final r in forced) {
+        expect(r['closing_cash_declared'], isNull);
+        expect(r['cash_discrepancy'], isNull);
+        expect(
+          r['closing_cash_system'],
+          _int(r['opening_cash']) + _int(r['net_cash_payment']),
+        );
+        expect(r['closed_at'], isNotNull);
+      }
+    },
+  );
 
   test('the business date is the opening\'s day in the branch\'s zone, not '
       'UTC\'s', () async {
@@ -174,7 +180,12 @@ void main() {
     final id = till['id'];
     final m = s.db[tillMovementsTable];
     m.insert({'id': 'mv-in', 'till_id': id, 'kind': 'pay_in', 'amount': 2000});
-    m.insert({'id': 'mv-out', 'till_id': id, 'kind': 'pay_out', 'amount': -1500});
+    m.insert({
+      'id': 'mv-out',
+      'till_id': id,
+      'kind': 'pay_out',
+      'amount': -1500,
+    });
     m.insert({
       'id': 'mv-drop',
       'till_id': id,
@@ -188,26 +199,84 @@ void main() {
       'amount': -500,
       'corrects_id': 'mv-in',
     });
-    m.insert({'id': 'mv-adj', 'till_id': id, 'kind': 'correction', 'amount': 700});
-    final row = (await _get(
-      s.server,
-    )).singleWhere((r) => r['till_id'] == id);
+    m.insert({
+      'id': 'mv-adj',
+      'till_id': id,
+      'kind': 'correction',
+      'amount': 700,
+    });
+    final row = (await _get(s.server)).singleWhere((r) => r['till_id'] == id);
     expect(row['pay_ins'], 1500);
     expect(row['pay_outs'], 1500);
     expect(row['cash_drops'], 30000);
     expect(row['cash_adjustments'], 700);
   });
 
-  test('a branch manager: her branch only; another branch is refused',
+  test(
+    'a branch manager: her branch only; another branch is refused',
+    () async {
+      final s = tillsServer(persona: Persona.manager);
+      final rows = await _get(s.server);
+      expect(rows, hasLength(_tills(s.db, [SeedIds.zamalek]).length));
+      expect(rows.every((r) => r['branch_id'] == SeedIds.zamalek), isTrue);
+      final named = await _get(s.server, branch: SeedIds.zamalek);
+      expect(named, hasLength(rows.length));
+      final e = await _refused(_get(s.server, branch: SeedIds.maadi));
+      expect(e.status, 403);
+    },
+  );
+
+  group('the branch checks, in the backend\'s order', () {
+    String words(MockResponse r) => MockServer.toApiException(r).message;
+
+    test('a deleted or unknown branch: 404 "Branch not found"', () async {
+      final s = tillsServer();
+      s.db['branches'].update(SeedIds.maadi, {'deleted_at': s.db.nowIso});
+      final gone = await _refused(_get(s.server, branch: SeedIds.maadi));
+      expect(gone.status, 404);
+      expect(gone.message, words(MockResponse.notFound('Branch not found')));
+      final unknown = await _refused(
+        _get(s.server, branch: mockUuid('branch:nowhere')),
+      );
+      expect(unknown.status, 404);
+      // The sentinel leaves the deleted branch out.
+      final all = await _get(s.server);
+      expect(all.any((r) => r['branch_id'] == SeedIds.maadi), isFalse);
+      expect(all, isNotEmpty);
+    });
+
+    test(
+      'another org\'s branch: 403 "Branch belongs to a different org"',
       () async {
-    final s = tillsServer(persona: Persona.manager);
-    final rows = await _get(s.server);
-    expect(rows, hasLength(_tills(s.db, [SeedIds.zamalek]).length));
-    expect(rows.every((r) => r['branch_id'] == SeedIds.zamalek), isTrue);
-    final named = await _get(s.server, branch: SeedIds.zamalek);
-    expect(named, hasLength(rows.length));
-    final e = await _refused(_get(s.server, branch: SeedIds.maadi));
-    expect(e.status, 403);
+        final s = tillsServer();
+        final e = await _refused(
+          _get(s.server, branch: SeedIds.nakhlaBranches.first),
+        );
+        expect(e.status, 403);
+        expect(
+          e.message,
+          words(MockResponse.forbidden('Branch belongs to a different org')),
+        );
+      },
+    );
+
+    test('a branch of the org the person does not work at: 403 "Not '
+        'assigned to this branch"', () async {
+      final s = tillsServer(persona: Persona.manager);
+      final e = await _refused(_get(s.server, branch: SeedIds.maadi));
+      expect(e.status, 403);
+      expect(
+        e.message,
+        words(MockResponse.forbidden('Not assigned to this branch')),
+      );
+    });
+
+    test('a deleted branch is 404 before "not assigned"', () async {
+      final s = tillsServer(persona: Persona.manager);
+      s.db['branches'].update(SeedIds.maadi, {'deleted_at': s.db.nowIso});
+      final e = await _refused(_get(s.server, branch: SeedIds.maadi));
+      expect(e.status, 404);
+    });
   });
 
   test('till.read alone: only the caller\'s own drawers', () async {
@@ -225,23 +294,25 @@ void main() {
     expect(e.message, contains('`to` is before `from`'));
   });
 
-  test('more than $maxTillSessions sessions: a 400, never a cut list',
-      () async {
-    final s = tillsServer();
-    final base = s.db['tills'].rows.last;
-    final opened = DateTime.parse('${base['opened_at']}');
-    s.db['tills'].insertAll([
-      for (var i = 0; i < maxTillSessions; i++)
-        {
-          ...base,
-          'id': 'bulk-$i',
-          'opened_at': opened
-              .subtract(Duration(minutes: i))
-              .toIso8601String(),
-        },
-    ]);
-    final e = await _refused(_get(s.server));
-    expect(e.status, 400);
-    expect(e.message, contains('More than $maxTillSessions'));
-  });
+  test(
+    'more than $maxTillSessions sessions: a 400, never a cut list',
+    () async {
+      final s = tillsServer();
+      final base = s.db['tills'].rows.last;
+      final opened = DateTime.parse('${base['opened_at']}');
+      s.db['tills'].insertAll([
+        for (var i = 0; i < maxTillSessions; i++)
+          {
+            ...base,
+            'id': 'bulk-$i',
+            'opened_at': opened
+                .subtract(Duration(minutes: i))
+                .toIso8601String(),
+          },
+      ]);
+      final e = await _refused(_get(s.server));
+      expect(e.status, 400);
+      expect(e.message, contains('More than $maxTillSessions'));
+    },
+  );
 }

@@ -175,6 +175,20 @@ server.on('POST', '/orders/{id}/void', (req) { req.requireCap(Cap.ordersVoid); .
   arguments (`warm(provider(arg))`). The sidebar and palette call it on hover or focus. Pinned by a
   test that hovers the row and checks the page opens without a second request
   (`dashboard_admin/test/shared/prefetch_test.dart` is the pattern).
+- Intent warming (owner rule, beyond the web): any control whose press makes a READ warms exactly
+  that read (same provider, same key) on intent, so the press answers from the cache. Intent =
+  the mouse resting on it 90 ms (`kDashIntentDwell`; a pointer sweeping a table warms nothing),
+  keyboard focus, or a touch going down. Never warm a write; a press that opens a dialog warms the
+  dialog's reads. Hooks (all optional): `DashIntent(onIntent:, child:)` for any widget;
+  `onIntent` on `DashPressable`, `DashButton`, `DashIconButton`, `DashCard`, `DashListRow`,
+  `DashStatCard`, `DashMenuItem`; `DashDataTable.onRowIntent` (row → its sheet/dialog/page) and
+  `.onPageIntent` (target page, 0-based); `DashPagination.onIntent`; `DashEditableCardGrid
+  .onItemIntent` / `.onPageIntent`; `onIntent` on `DashTabStrip`, `DashPageTabs`,
+  `DashSectionTabs`, `DashSegmentedControl`; `onOptionIntent` on `DashSelect` / `DashFilterSelect`
+  (the list under that filter). Warm with `ref.warm(provider(key))` (dashboard_core), or
+  `ref.prefetchRoute(path)` (`dashboard_core/shell.dart`) for a link, card or tab that opens
+  another page. Pinned by a test that rests the mouse on the control, then presses it and checks
+  no second request (`dashboard_sell/test/orders/orders_intent_test.dart` is the pattern).
 - Gating: hide or disable exactly what the web hides or disables (`<Restricted>`, `canAny`, module
   gate, platform-only, setup-only).
 - Live updates: where the web listens to branch realtime events, subscribe through dashboard_core's

@@ -65,12 +65,23 @@ missing or broken, build a local one in your unit and list it under kit candidat
   refresh lands, until the person has edited it. A read opened on data older than 30 s refetches
   in the background (`ref.webCache()`), and a form that copied the old value once would save it
   over newer data.
-- Loading vs error vs empty: show a skeleton while there is no data (`isLoading && !hasValue`),
-  an error with Retry when it failed with no data (also while that retry runs), and the web's
-  empty state only for a real empty answer. Never flash "no results" during a load or retry.
+- Loading vs error vs empty: use dashboard_core's `DashAsyncState` getters, never a hand-written
+  `isLoading && !hasValue && !hasError` (that shows an error during Riverpod's automatic retries, and
+  an empty flash where the error check excludes loading). Skeleton while `q.awaitingFirst`; the error
+  with Retry while `q.failedFirst` (its Retry spinning while `q.isLoading`); the web's empty state
+  only for a real empty answer (`hasValue` and empty). Never flash "no results" during a load or retry.
+- Where the web gives a query its own `staleTime`, pass it: `ref.webCache(staleTime: ...)`.
 - If `MadarDashboard/src/lib/route-prefetch.ts` has a case for your path, set `prefetch:` on your
   route, warming the page's exact first-mount reads, and add a hover test: the page opens without
   a second request. `dashboard_admin/test/shared/prefetch_test.dart` is the pattern.
+- Intent warming, on EVERY page: a control whose press makes a READ warms that exact read (same
+  provider, same key) on intent: a row opening a sheet/dialog/page (`DashDataTable.onRowIntent`),
+  pager buttons (`onPageIntent`, target page, same filters), tabs/segments (`onIntent`), filter
+  options (`onOptionIntent`), menu items (`DashMenuItem.onIntent`), buttons/cards/list rows
+  (`onIntent`), anything else (`DashIntent`). Warm with `ref.warm(provider(key))`, or
+  `ref.prefetchRoute(path)` for a press that opens another page. Never warm a write; a press that
+  opens a dialog warms the dialog's reads. One test per page (mouse rests, press, no second
+  request): `dashboard_sell/test/orders/orders_intent_test.dart` is the pattern.
 - Mock handlers for EVERY endpoint you call, behaving like the backend:
   - validation 422s, and 403 refusals per capability;
   - paging, and state that persists across calls;

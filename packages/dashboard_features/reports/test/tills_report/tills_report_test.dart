@@ -8,6 +8,9 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show DashSidebar, PrefetchOnIntent;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:dashboard_reports/src/mock/tills_report_mock.dart';
+import 'package:dashboard_reports/src/shared/report_dates.dart';
+import 'package:dashboard_reports/src/tills_report/tills_lib.dart' show fsi;
 import 'package:dashboard_reports/src/tills_report/tills_parts.dart';
 import 'package:dashboard_reports/src/tills_report/tills_sessions_table.dart';
 import 'package:design_system/design_system.dart';
@@ -114,7 +117,10 @@ void main() {
       expect(call.path, '/reports/branches/$allBranchesId/tills');
       final s = h.container.read(currentScopeProvider);
       expect(call.query.keys.toSet(), {'from', 'to'});
-      expect(DateTime.parse(call.query['from']!.single), DateTime.parse(s.from));
+      expect(
+        DateTime.parse(call.query['from']!.single),
+        DateTime.parse(s.from),
+      );
       expect(DateTime.parse(call.query['to']!.single), DateTime.parse(s.to));
     });
 
@@ -132,7 +138,10 @@ void main() {
       final last = h.server.callsTo(tillsTpl).last;
       expect(last.path, '/reports/branches/${SeedIds.zamalek}/tills');
       final s = h.container.read(currentScopeProvider);
-      expect(DateTime.parse(last.query['from']!.single), DateTime.parse(s.from));
+      expect(
+        DateTime.parse(last.query['from']!.single),
+        DateTime.parse(s.from),
+      );
     });
 
     testWidgets('REP-TIL-002 (REP-ALL-009) a till event refetches the '
@@ -190,11 +199,10 @@ void main() {
       final tabs = tester.widget<DashPageTabs<String>>(
         find.byType(DashPageTabs<String>),
       );
-      expect([for (final t in tabs.tabs) t.label], [
-        'Sessions',
-        'Sales',
-        'Open & close',
-      ]);
+      expect(
+        [for (final t in tabs.tabs) t.label],
+        ['Sessions', 'Sales', 'Open & close'],
+      );
       expect(tabs.value, 'sessions');
       expect(find.byType(TillSessionsTable), findsOneWidget);
       await openTab(h, 'Sales');
@@ -233,17 +241,15 @@ void main() {
           reason: tab,
         );
       }
-      expect(
-        tester.widget<DashExportButton>(exportButton).enabled,
-        isFalse,
-      );
+      expect(tester.widget<DashExportButton>(exportButton).enabled, isFalse);
       await openTab(h, 'Sessions');
       await h.shot('range-refused');
     });
 
     testWidgets('REP-TIL-007 any other failure: the server\'s words and Retry '
-        'on every tab, never the empty sentence; Retry asks again',
-        (tester) async {
+        'on every tab, never the empty sentence; Retry asks again', (
+      tester,
+    ) async {
       final s = tillsServer();
       s.server.fail(
         'GET',
@@ -274,8 +280,9 @@ void main() {
       expect(find.byType(TillVariance), findsWidgets);
     });
 
-    testWidgets('REP-TIL-007 a refusal (403) shows the server\'s words',
-        (tester) async {
+    testWidgets('REP-TIL-007 a refusal (403) shows the server\'s words', (
+      tester,
+    ) async {
       final s = tillsServer();
       final denied = MockResponse.denied('till.read');
       s.server.fail('GET', tillsTpl, denied, times: null);
@@ -284,18 +291,77 @@ void main() {
       expect(pageText('Retry'), findsOneWidget);
     });
 
-    testWidgets('REP-TIL-016 an empty period: the empty sentence, Export off',
-        (tester) async {
+    testWidgets('REP-TIL-007 while a Retry runs the failure stays, its '
+        'button spinning: no skeleton, no empty sentence', (tester) async {
+      final s = tillsServer();
+      // A ledger that keeps failing, so each held retry fails again.
+      s.server.on(
+        'GET',
+        tillsTpl,
+        (req) => req.fail(MockResponse.error(500, 'The ledger is busy')),
+      );
+      final h = await pumpTills(tester, server: s.server, db: s.db);
+      for (final tab in ['Sessions', 'Sales', 'Open & close']) {
+        await openTab(h, tab);
+        final gate = s.server.hold('GET', tillsTpl);
+        final before = h.server.callsTo(tillsTpl).length;
+        await h.tap(pageText('Retry'));
+        expect(h.server.callsTo(tillsTpl), hasLength(before + 1), reason: tab);
+        DashErrorState state() =>
+            tester.widget<DashErrorState>(inPage(find.byType(DashErrorState)));
+        expect(state().retrying, isTrue, reason: tab);
+        expect(pageText('The ledger is busy'), findsOneWidget, reason: tab);
+        expect(inPage(find.byType(DashSkeleton)), findsNothing, reason: tab);
+        expect(
+          pageText('No till sessions opened in this period'),
+          findsNothing,
+          reason: tab,
+        );
+        if (tab == 'Sessions') await h.shot('retrying');
+        gate.release();
+        s.server.clearFailures();
+        await h.settle();
+        expect(state().retrying, isFalse, reason: tab);
+        expect(pageText('The ledger is busy'), findsOneWidget, reason: tab);
+      }
+      // The ledger answers again: the next Retry gets through.
+      registerTillsReportMocks(s.server, s.db);
+      await h.tap(pageText('Retry'));
+      expect(inPage(find.byType(DashErrorState)), findsNothing);
+      expect(pageText('Opens and closes by hour'), findsOneWidget);
+    });
+
+    testWidgets('REP-TIL-002 / 007 a deleted branch: the server\'s 404 with '
+        'Retry, not the range sentence', (tester) async {
+      final s = tillsServer();
+      s.db['branches'].update(SeedIds.maadi, {'deleted_at': s.db.nowIso});
+      final h = await pumpTills(
+        tester,
+        server: s.server,
+        db: s.db,
+        path: '$tillsPath?branchId=${SeedIds.maadi}',
+      );
+      final call = h.server.callsTo(tillsTpl).last;
+      expect(call.path, '/reports/branches/${SeedIds.maadi}/tills');
+      expect(
+        pageText(h.refusalWords(MockResponse.notFound('Branch not found'))),
+        findsOneWidget,
+      );
+      expect(pageText('Retry'), findsOneWidget);
+      expect(pageHas('Choose a shorter date range'), findsNothing);
+      expect(pageText('No till sessions opened in this period'), findsNothing);
+    });
+
+    testWidgets('REP-TIL-016 an empty period: the empty sentence, Export off', (
+      tester,
+    ) async {
       final s = serverWith(const []);
       final h = await pumpTills(tester, server: s.server, db: s.db);
       expect(
         pageText('No till sessions opened in this period'),
         findsOneWidget,
       );
-      expect(
-        tester.widget<DashExportButton>(exportButton).enabled,
-        isFalse,
-      );
+      expect(tester.widget<DashExportButton>(exportButton).enabled, isFalse);
       expect(
         pageText(
           '0 till sessions — opening float, cash through the drawer, and the '
@@ -313,9 +379,14 @@ void main() {
       final h = await pumpTills(tester, server: s.server, db: s.db);
       for (final tab in ['Sales', 'Open & close']) {
         await openTab(h, tab);
-        final sk = tester.widget<DashSkeleton>(inPage(find.byType(DashSkeleton)));
+        final sk = tester.widget<DashSkeleton>(
+          inPage(find.byType(DashSkeleton)),
+        );
         expect(sk.height, 256, reason: tab);
-        expect(pageText('No till sessions opened in this period'), findsNothing);
+        expect(
+          pageText('No till sessions opened in this period'),
+          findsNothing,
+        );
       }
       await h.shot('loading-timing');
       gate.release();
@@ -374,7 +445,9 @@ void main() {
       expect([for (final c in table.columns) c.label], labels);
       expect(table.pageSize, 50);
       expect(table.searchPlaceholder, 'Search branch or user');
-      final before = {for (final l in labels) l: find.text(l).evaluate().length};
+      final before = {
+        for (final l in labels) l: find.text(l).evaluate().length,
+      };
       await h.tap(pageText('Columns'));
       for (final l in labels) {
         expect(find.text(l), findsNWidgets(before[l]! + 1), reason: l);
@@ -417,8 +490,9 @@ void main() {
     });
 
     testWidgets('REP-TIL-010 variance: short in a true minus with "Short", '
-        'over with a plus and "Over", zero unsigned, unknown "—"',
-        (tester) async {
+        'over with a plus and "Over", zero unsigned, unknown "—"', (
+      tester,
+    ) async {
       final s = serverWith([
         ...webSessions(),
         {
@@ -430,8 +504,10 @@ void main() {
       ]);
       await pumpTills(tester, server: s.server, db: s.db);
       final handle = tester.ensureSemantics();
-      expect(inCell('till_1', 'cash_discrepancy', figure('−EGP 15.00')),
-          findsOneWidget);
+      expect(
+        inCell('till_1', 'cash_discrepancy', figure('−EGP 15.00')),
+        findsOneWidget,
+      );
       expect(
         find.descendant(
           of: cell('till_1', 'cash_discrepancy'),
@@ -439,8 +515,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(inCell('till_2', 'cash_discrepancy', figure('+EGP 7.50')),
-          findsOneWidget);
+      expect(
+        inCell('till_2', 'cash_discrepancy', figure('+EGP 7.50')),
+        findsOneWidget,
+      );
       expect(
         find.descendant(
           of: cell('till_2', 'cash_discrepancy'),
@@ -448,8 +526,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(inCell('till_even', 'cash_discrepancy', figure('EGP 0.00')),
-          findsOneWidget);
+      expect(
+        inCell('till_even', 'cash_discrepancy', figure('EGP 0.00')),
+        findsOneWidget,
+      );
       expect(inCell('till_4', 'cash_discrepancy', figure('—')), findsOneWidget);
       // The tint: destructive for short, warning for over, none at zero.
       final c = tester.element(cell('till_1', 'cash_discrepancy')).madarColors;
@@ -469,10 +549,14 @@ void main() {
         {...webSessions()[0], 'cash_adjustments': 2000},
       ]);
       await pumpTills(tester, server: s.server, db: s.db);
-      expect(inCell('till_2', 'cash_adjustments', figure('−EGP 5.00')),
-          findsOneWidget);
-      expect(inCell('till_1', 'cash_adjustments', figure('+EGP 20.00')),
-          findsOneWidget);
+      expect(
+        inCell('till_2', 'cash_adjustments', figure('−EGP 5.00')),
+        findsOneWidget,
+      );
+      expect(
+        inCell('till_1', 'cash_adjustments', figure('+EGP 20.00')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('REP-TIL-012 an open till reads "Open"; a force-close shows '
@@ -480,20 +564,29 @@ void main() {
         'known', (tester) async {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
-      expect(inCell('till_3', 'closed_at', find.byType(TillOutlineBadge)),
-          findsOneWidget);
+      expect(
+        inCell('till_3', 'closed_at', find.byType(TillOutlineBadge)),
+        findsOneWidget,
+      );
       expect(cellText(tester, 'till_3', 'closed_at'), 'Open');
-      expect(cellText(tester, 'till_4', 'closed_at'),
-          '19 Sept, 01:20 AM Force-closed');
-      expect(inCell('till_4', 'closing_cash_declared', figure('—')),
-          findsOneWidget);
-      expect(inCell('till_4', 'cash_discrepancy', figure('—')),
-          findsOneWidget);
-      expect(inCell('till_4', 'closing_cash_system', figure('EGP 732.00')),
-          findsOneWidget);
+      expect(
+        cellText(tester, 'till_4', 'closed_at'),
+        '19 Sept, 01:20 AM Force-closed',
+      );
+      expect(
+        inCell('till_4', 'closing_cash_declared', figure('—')),
+        findsOneWidget,
+      );
+      expect(inCell('till_4', 'cash_discrepancy', figure('—')), findsOneWidget);
+      expect(
+        inCell('till_4', 'closing_cash_system', figure('EGP 732.00')),
+        findsOneWidget,
+      );
       // A closed till carries no badge.
-      expect(inCell('till_1', 'closed_at', find.byType(TillOutlineBadge)),
-          findsNothing);
+      expect(
+        inCell('till_1', 'closed_at', find.byType(TillOutlineBadge)),
+        findsNothing,
+      );
       await h.shot('sessions');
     });
 
@@ -514,9 +607,8 @@ void main() {
         find.descendant(of: search, matching: find.byType(EditableText)),
         q,
       );
-      int shown() => tester
-          .widgetList(inPage(find.byType(TillVariance)))
-          .length;
+      int shown() =>
+          tester.widgetList(inPage(find.byType(TillVariance))).length;
       await look('omar');
       expect(shown(), 1);
       await look('Maadi');
@@ -532,7 +624,10 @@ void main() {
       expect(shown(), 0);
       await look('18 Sept');
       expect(shown(), 0);
-      expect(pageText('No till sessions opened in this period'), findsOneWidget);
+      expect(
+        pageText('No till sessions opened in this period'),
+        findsOneWidget,
+      );
       await look('');
       expect(shown(), 4);
     });
@@ -548,8 +643,9 @@ void main() {
   });
 
   group('the Sales tab', () {
-    testWidgets('REP-TIL-018 the four KPIs, worked out from the rows',
-        (tester) async {
+    testWidgets('REP-TIL-018 the four KPIs, worked out from the rows', (
+      tester,
+    ) async {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
       await openTab(h, 'Sales');
@@ -581,8 +677,9 @@ void main() {
     });
 
     testWidgets('REP-TIL-019 by session: ranked by net sales, teller · branch '
-        '· day, a bar against the best, orders · share of the period',
-        (tester) async {
+        '· day, a bar against the best, orders · share of the period', (
+      tester,
+    ) async {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
       await openTab(h, 'Sales');
@@ -603,7 +700,10 @@ void main() {
       expect(
         line(
           'till_1',
-          find.textContaining('Zamalek · 18 Sept 2026', findRichText: true),
+          find.textContaining(
+            '${fsi('Zamalek')} · ${fsi('18 Sept 2026')}',
+            findRichText: true,
+          ),
         ),
         findsOneWidget,
       );
@@ -628,14 +728,18 @@ void main() {
       expect(
         line(
           'till_3',
-          find.textContaining('Zamalek · 19 Sept 2026', findRichText: true),
+          find.textContaining(
+            '${fsi('Zamalek')} · ${fsi('19 Sept 2026')}',
+            findRichText: true,
+          ),
         ),
         findsOneWidget,
       );
     });
 
-    testWidgets('REP-TIL-019 a period that took nothing: shares read "—"',
-        (tester) async {
+    testWidgets('REP-TIL-019 a period that took nothing: shares read "—"', (
+      tester,
+    ) async {
       final s = serverWith([
         {...webSessions().first, 'net_sales': 0, 'orders_count': 0},
       ]);
@@ -648,7 +752,11 @@ void main() {
         'all"; it toggles back', (tester) async {
       final many = [
         for (var i = 0; i < 45; i++)
-          {...webSessions().first, 'till_id': 't-$i', 'net_sales': 1000 * (i + 1)},
+          {
+            ...webSessions().first,
+            'till_id': 't-$i',
+            'net_sales': 1000 * (i + 1),
+          },
       ];
       final s = serverWith(many);
       final h = await pumpTills(tester, server: s.server, db: s.db);
@@ -699,7 +807,7 @@ void main() {
       expect(card('Longest session').valueText, '11h 52m');
       expect(
         card('Longest session').hint,
-        'Omar Fathy · Maadi · 18 Sept 2026',
+        '${fsi('Omar Fathy')} · ${fsi('Maadi')} · ${fsi('18 Sept 2026')}',
       );
       expect(pageText('10:08 AM'), findsOneWidget);
       await h.shot('timing');
@@ -789,6 +897,25 @@ void main() {
       handle.dispose();
       expect(cellText(tester, 'till_2', 'orders_count'), contains('96'));
       await h.shot('sessions');
+      // Each part of "teller · branch · date" keeps its own direction, so
+      // the Arabic date's "18" never attaches to the English name.
+      await openTab(h, h.t('reports.tills.tabSales'));
+      final day = fmtBusinessDate(
+        h.container.read(formatProvider),
+        '2026-09-18',
+      );
+      expect(day, contains('18'));
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('till-rank:till_1')),
+          matching: find.textContaining(
+            '${fsi('Nour Adel')} · ${fsi('Zamalek')} · ${fsi(day)}',
+            findRichText: true,
+          ),
+        ),
+        findsOneWidget,
+      );
+      await h.shot('sales');
     });
 
     testWidgets('REP-TIL-024 phone: a card per session titled by its business '
@@ -812,7 +939,13 @@ void main() {
           reason: col,
         );
       }
-      for (final l in ['Branch', 'User', 'Variance', 'Closed at', 'Net sales']) {
+      for (final l in [
+        'Branch',
+        'User',
+        'Variance',
+        'Closed at',
+        'Net sales',
+      ]) {
         expect(pageText(l), findsWidgets, reason: l);
       }
       expect(pageText('Business date'), findsNothing);
@@ -822,8 +955,9 @@ void main() {
 
   group('the export', () {
     testWidgets('REP-TIL-004 / 024 Excel: one sheet "Till sessions", 18 '
-        'columns, no period line, no totals; "Madar-Till sessions-<date>"',
-        (tester) async {
+        'columns, no period line, no totals; "Madar-Till sessions-<date>"', (
+      tester,
+    ) async {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
       await h.tap(exportButton);
@@ -832,26 +966,29 @@ void main() {
       final sheet = spec.sheets.single;
       expect(sheet.name, 'Till sessions');
       expect(sheet.title, 'Till sessions');
-      expect([for (final c in sheet.columns) c.header], [
-        'Business date',
-        'Branch',
-        'Branch ref.',
-        'User',
-        'Opened at',
-        'Opening',
-        'Net cash',
-        'Pay-ins',
-        'Pay-outs',
-        'Cash drops',
-        'Adjustments',
-        'Declared',
-        'Expected',
-        'Variance',
-        'Orders',
-        'Net sales',
-        'Closed at',
-        'Status',
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        [
+          'Business date',
+          'Branch',
+          'Branch ref.',
+          'User',
+          'Opened at',
+          'Opening',
+          'Net cash',
+          'Pay-ins',
+          'Pay-outs',
+          'Cash drops',
+          'Adjustments',
+          'Declared',
+          'Expected',
+          'Variance',
+          'Orders',
+          'Net sales',
+          'Closed at',
+          'Status',
+        ],
+      );
       expect({for (final c in sheet.columns) c.width}, {20});
       expect(sheet.totalsRow, isNull);
       expect(sheet.subtitle, isNot(contains('Last 30 days')));
@@ -862,22 +999,20 @@ void main() {
       expect(sheet.rows[1][10], -5);
       expect(sheet.rows[2][11], isNull);
       expect(sheet.rows[0][14], 148);
-      expect([for (final r in sheet.rows) r[17]], [
-        'Closed',
-        'Closed',
-        'Force-closed',
-        'Open',
-      ]);
-      final stamp = isoString(h.container.read(clockProvider)()).substring(
-        0,
-        10,
+      expect(
+        [for (final r in sheet.rows) r[17]],
+        ['Closed', 'Closed', 'Force-closed', 'Open'],
       );
+      final stamp = isoString(
+        h.container.read(clockProvider)(),
+      ).substring(0, 10);
       expect(h.files.saved.single.filename, 'Madar-Till sessions-$stamp.xlsx');
       await h.expectToast('Exported 4 rows');
     });
 
-    testWidgets('REP-TIL-004 CSV: the same columns, money in pounds',
-        (tester) async {
+    testWidgets('REP-TIL-004 CSV: the same columns, money in pounds', (
+      tester,
+    ) async {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
       await h.tap(exportButton);
@@ -900,8 +1035,9 @@ void main() {
       await h.expectToast('Exported 4 rows');
     });
 
-    testWidgets('REP-TIL-004 / 024 both paths spin while they run',
-        (tester) async {
+    // The CSV path sets the same flag, but the test file gateway answers a
+    // save at once and cannot be held, so only the Excel spinner is pinned.
+    testWidgets('REP-TIL-004 / 024 Excel spins while it runs', (tester) async {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
       final hold = Completer<void>();

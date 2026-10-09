@@ -84,6 +84,8 @@ class DashEditableCardGrid<T> extends StatefulWidget {
     this.page,
     this.pageCount,
     this.onPageChanged,
+    this.onPageIntent,
+    this.onItemIntent,
     this.searchValue,
     this.onSearchChanged,
     super.key,
@@ -124,6 +126,14 @@ class DashEditableCardGrid<T> extends StatefulWidget {
   final int? page;
   final int? pageCount;
   final ValueChanged<int>? onPageChanged;
+
+  /// A pager button is about to be pressed ([DashIntent]): warm that page's
+  /// read (0-based, the same search).
+  final ValueChanged<int>? onPageIntent;
+
+  /// A card is about to be pressed: warm the read something on it opens
+  /// (its detail, its ⋯ menu's dialog).
+  final ValueChanged<T>? onItemIntent;
 
   /// Server search; with [onSearchChanged] the grid does not filter.
   final String? searchValue;
@@ -267,14 +277,19 @@ class _DashEditableCardGridState<T> extends State<DashEditableCardGrid<T>> {
       grid = _GridLayout(
         children: [
           for (final r in paged)
-            _EditableCard<T>(
-              row: r,
-              grid: widget,
-              selected: _selected.contains(widget.rowKey(r)),
-              onToggle: () => setState(() {
-                final k = widget.rowKey(r);
-                if (!_selected.remove(k)) _selected.add(k);
-              }),
+            DashIntent(
+              onIntent: widget.onItemIntent == null
+                  ? null
+                  : () => widget.onItemIntent!(r),
+              child: _EditableCard<T>(
+                row: r,
+                grid: widget,
+                selected: _selected.contains(widget.rowKey(r)),
+                onToggle: () => setState(() {
+                  final k = widget.rowKey(r);
+                  if (!_selected.remove(k)) _selected.add(k);
+                }),
+              ),
             ),
         ],
       );
@@ -327,6 +342,7 @@ class _DashEditableCardGridState<T> extends State<DashEditableCardGrid<T>> {
             onChanged: (p) => _serverPaging
                 ? widget.onPageChanged!(p)
                 : setState(() => _page = p),
+            onIntent: widget.onPageIntent,
           ),
       ],
     );

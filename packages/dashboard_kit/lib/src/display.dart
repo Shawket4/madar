@@ -13,6 +13,7 @@ class DashCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(Space.card),
     this.onTap,
+    this.onIntent,
     this.selected = false,
     this.semanticLabel,
     this.clip = false,
@@ -22,6 +23,9 @@ class DashCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
+
+  /// About to be pressed: warm the read [onTap] makes ([DashIntent]).
+  final VoidCallback? onIntent;
 
   /// The open record (accent wash, stronger edge).
   final bool selected;
@@ -56,6 +60,7 @@ class DashCard extends StatelessWidget {
     if (onTap == null) return face(const DashPressState());
     return DashPressable(
       onTap: onTap,
+      onIntent: onIntent,
       selected: selected,
       semanticLabel: semanticLabel,
       builder: (context, s) => face(s),
@@ -555,6 +560,7 @@ class DashListRow extends StatelessWidget {
     this.trailing,
     this.selected = false,
     this.onTap,
+    this.onIntent,
     this.enabled = true,
     super.key,
   });
@@ -579,6 +585,9 @@ class DashListRow extends StatelessWidget {
   final Widget? trailing;
   final bool selected;
   final VoidCallback? onTap;
+
+  /// About to be pressed: warm the read [onTap] makes ([DashIntent]).
+  final VoidCallback? onIntent;
   final bool enabled;
 
   @override
@@ -698,6 +707,7 @@ class DashListRow extends StatelessWidget {
     if (!interactive) return body(const DashPressState());
     return DashPressable(
       onTap: onTap,
+      onIntent: onIntent,
       selected: selected,
       pressScale: false,
       builder: (context, s) => body(s),

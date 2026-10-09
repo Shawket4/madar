@@ -39,6 +39,7 @@ class DashButton extends StatelessWidget {
   const DashButton({
     required this.label,
     required this.onPressed,
+    this.onIntent,
     this.variant = DashButtonVariant.primary,
     this.size = DashButtonSize.regular,
     this.icon,
@@ -54,6 +55,9 @@ class DashButton extends StatelessWidget {
 
   /// Null disables the button.
   final VoidCallback? onPressed;
+
+  /// About to be pressed: warm the read [onPressed] makes ([DashIntent]).
+  final VoidCallback? onIntent;
   final DashButtonVariant variant;
   final DashButtonSize size;
 
@@ -74,6 +78,7 @@ class DashButton extends StatelessWidget {
     final enabled = onPressed != null && !loading;
     return DashPressable(
       onTap: enabled ? onPressed : null,
+      onIntent: onIntent,
       enabled: enabled,
       tooltip: tooltip,
       semanticLabel: semanticLabel ?? label,
@@ -100,6 +105,7 @@ class DashIconButton extends StatelessWidget {
     required this.icon,
     required this.semanticLabel,
     required this.onPressed,
+    this.onIntent,
     this.variant = DashButtonVariant.ghost,
     this.loading = false,
     this.iconSize = IconSize.sm,
@@ -111,6 +117,9 @@ class DashIconButton extends StatelessWidget {
   final String icon;
   final String semanticLabel;
   final VoidCallback? onPressed;
+
+  /// About to be pressed: warm the read [onPressed] makes ([DashIntent]).
+  final VoidCallback? onIntent;
   final DashButtonVariant variant;
   final bool loading;
   final double iconSize;
@@ -126,6 +135,7 @@ class DashIconButton extends StatelessWidget {
     final enabled = onPressed != null && !loading;
     return DashPressable(
       onTap: enabled ? onPressed : null,
+      onIntent: onIntent,
       enabled: enabled,
       tooltip: tooltip ? semanticLabel : null,
       semanticLabel: semanticLabel,

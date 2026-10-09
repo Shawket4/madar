@@ -4,5 +4,6 @@
   "kitchen.item": "Item",
   "kitchen.inheritedStation": "Inherited station",
   "kitchen.overrideStation": "Override",
-  "kitchen.routedTo": "Routed to"
+  "kitchen.routedTo": "Routed to",
+  "kitchen.stationNamePlaceholder": "Grill"
 }

@@ -116,6 +116,8 @@ final orgIdProvider = Provider<String?>((ref) {
 final branchesProvider = FutureProvider<List<Branch>?>((ref) async {
   final orgId = ref.watch(orgIdProvider);
   if (orgId == null) return null;
+  // `branch.settings_changed` and `resync` refetch it (use-branch-realtime.ts).
+  ref.watch(realtimeEpochProvider('/branches'));
   return ref.watch(coreApiProvider).listBranches(orgId);
 }, retry: (_, _) => null);
 

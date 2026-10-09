@@ -23,6 +23,7 @@ import 'onboarding/onboarding_page.dart';
 import 'orgs/orgs_page.dart';
 import 'orgs/orgs_providers.dart';
 import 'review/review_page.dart';
+import 'roles/roles_data.dart' show prefetchRoles;
 import 'roles/roles_page.dart';
 import 'users/users_data.dart' show prefetchUsers;
 import 'users/users_page.dart';
@@ -81,6 +82,7 @@ const List<DashRoute> adminRoutes = [
     builder: _roles,
     titleKey: 'nav.rolesPermissions',
     titleFallback: 'Roles & Permissions',
+    prefetch: prefetchRoles,
   ),
   DashRoute(
     path: ReviewPage.path,

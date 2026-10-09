@@ -4,5 +4,6 @@
   "kitchen.item": "الصنف",
   "kitchen.inheritedStation": "المحطة الموروثة",
   "kitchen.overrideStation": "المحطة المخصّصة",
-  "kitchen.routedTo": "يُوجَّه إلى"
+  "kitchen.routedTo": "يُوجَّه إلى",
+  "kitchen.stationNamePlaceholder": "الشواية"
 }

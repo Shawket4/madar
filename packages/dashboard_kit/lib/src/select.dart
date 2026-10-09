@@ -138,6 +138,7 @@ class DashOptionList<T> extends StatefulWidget {
     required this.options,
     required this.isSelected,
     required this.onPick,
+    this.onIntent,
     this.searchable = false,
     this.searchPlaceholder,
     this.emptyText,
@@ -149,6 +150,10 @@ class DashOptionList<T> extends StatefulWidget {
   final List<DashOption<T>> options;
   final bool Function(T value) isSelected;
   final ValueChanged<T> onPick;
+
+  /// An option is about to be picked ([DashIntent]): warm the read it
+  /// leads to (the list under that filter).
+  final ValueChanged<T>? onIntent;
   final bool searchable;
   final String? searchPlaceholder;
   final String? emptyText;
@@ -216,6 +221,9 @@ class _DashOptionListState<T> extends State<DashOptionList<T>> {
               active: i == _active,
               multi: widget.multi,
               onTap: () => widget.onPick(list[i].value),
+              onIntent: widget.onIntent == null
+                  ? null
+                  : () => widget.onIntent!(list[i].value),
             ),
           );
     return Focus(
@@ -263,6 +271,7 @@ class _OptionRow<T> extends StatelessWidget {
     required this.active,
     required this.multi,
     required this.onTap,
+    this.onIntent,
   });
 
   final DashOption<T> option;
@@ -270,12 +279,14 @@ class _OptionRow<T> extends StatelessWidget {
   final bool active;
   final bool multi;
   final VoidCallback onTap;
+  final VoidCallback? onIntent;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: option.enabled ? onTap : null,
+      onIntent: onIntent,
       enabled: option.enabled,
       selected: selected,
       checked: multi ? selected : null,
@@ -363,12 +374,17 @@ class DashSelect<T> extends StatefulWidget {
     this.sheetTitle,
     this.active = false,
     this.expand = true,
+    this.onOptionIntent,
     super.key,
   });
 
   final List<DashOption<T>> options;
   final T? value;
   final ValueChanged<T> onChanged;
+
+  /// An option is about to be picked ([DashIntent]): warm the read the
+  /// change makes (the list under that filter, same other filters).
+  final ValueChanged<T>? onOptionIntent;
 
   /// Fill the line (forms) or fit the label (filter rows).
   final bool expand;
@@ -430,6 +446,7 @@ class _DashSelectState<T> extends State<DashSelect<T>> {
         searchPlaceholder: widget.searchPlaceholder,
         emptyText: widget.emptyText,
         shrinkWrap: !widget.searchable,
+        onIntent: widget.onOptionIntent,
         onPick: (v) => Navigator.of(
           sheet,
         ).pop(widget.options.firstWhere((o) => o.value == v)),
@@ -473,6 +490,7 @@ class _DashSelectState<T> extends State<DashSelect<T>> {
         searchable: widget.searchable,
         searchPlaceholder: widget.searchPlaceholder,
         emptyText: widget.emptyText,
+        onIntent: widget.onOptionIntent,
         onPick: (v) {
           c.close();
           if (v != widget.value) widget.onChanged(v);

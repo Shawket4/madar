@@ -205,16 +205,23 @@ class TillSessionsTable extends ConsumerWidget {
       ),
     ];
 
+    // A failure takes the body's place, as the table's own error state
+    // would, but its Retry spins while it runs (the kit's has no `retrying`).
+    final error = load.error;
     return DashDataTable<TillSessionRow>(
       columns: columns,
-      rows: load.rows,
+      rows: error == null ? load.rows : const [],
       rowKey: (r) => r.tillId,
       loading: load.loading,
-      errorMessage: load.error,
-      onRetry: load.onRetry,
       pageSize: 50,
       searchPlaceholder: t('reports.tills.search'),
-      empty: DashEmptyState(title: t('reports.tills.empty')),
+      empty: error == null
+          ? DashEmptyState(title: t('reports.tills.empty'))
+          : DashErrorState(
+              message: error,
+              onRetry: load.onRetry,
+              retrying: load.retrying,
+            ),
     );
   }
 }

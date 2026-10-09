@@ -165,15 +165,17 @@ void main() {
       expect(other.status, 403);
     });
 
-    test('refusals by persona: another org\'s or a deleted branch is not '
-        'found; the sentinel covers only the org in scope', () async {
+    test('refusals by persona: another org\'s branch is refused, a deleted '
+        'branch is not found; the sentinel covers only the org in scope',
+        () async {
       // Every seeded persona holds orders.read, so that gate cannot be
       // driven by one; these are the refusals the personas do reach.
       final s = opsServer(persona: Persona.dawamOnly);
       final other = await _refused(
         _get(s.server, '/reports/branches/${SeedIds.zamalek}/sales'),
       );
-      expect(other.status, 404);
+      // The backend's order (authz/scope.rs): another org's branch is a 403.
+      expect(other.status, 403);
       final mine = (_json(await _get(
         s.server,
         '/reports/branches/$allBranchesId/sales',

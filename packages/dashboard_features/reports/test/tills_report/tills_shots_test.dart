@@ -41,12 +41,7 @@ void main() {
       testWidgets('default, ${size.name} $lang ${dark ? 'dark' : 'light'}', (
         tester,
       ) async {
-        final h = await pumpTills(
-          tester,
-          size: size,
-          locale: lang,
-          dark: dark,
-        );
+        final h = await pumpTills(tester, size: size, locale: lang, dark: dark);
         await shootPage(h, 'default');
       });
     }
@@ -96,8 +91,7 @@ void main() {
             .map((e) => (e as StatefulElement).state as ScrollableState)
             .where((s) => s.position.axis == Axis.horizontal)
             .reduce(
-              (a, b) =>
-                  a.position.maxScrollExtent >= b.position.maxScrollExtent
+              (a, b) => a.position.maxScrollExtent >= b.position.maxScrollExtent
                   ? a
                   : b,
             );

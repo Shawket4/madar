@@ -7,7 +7,7 @@ library;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart' show appTimezone, inZone;
 
-import '../area_seed.dart' show isSold, reportBranchIds;
+import '../area_seed.dart' show bindReportDb, isSold, reportBranchIds;
 
 /// The cash movements the Tills page records (`POST /tills/{id}/cash-movements`,
 /// the sell area's `CashMovement` rows; empty in the core seed).
@@ -17,6 +17,9 @@ const String tillMovementsTable = 'till_cash_movements';
 const int maxTillSessions = 5000;
 
 void registerTillsReportMocks(MockServer server, MockDb db) {
+  // The branch rows `reportBranchIds` checks (404 / another org / not
+  // assigned); binding twice is harmless.
+  bindReportDb(server, db);
   // MadarRust `branch_till_sessions`: tills opened in the range, newest
   // first; every till at a branch where the caller holds `till.read.branch`,
   // elsewhere only the caller's own.

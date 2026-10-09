@@ -56,8 +56,10 @@ void main() {
       expect(fmtMinutesOfDay(en, 7 * 60 + 5), '07:05 AM');
       expect(fmtMinutesOfDay(en, 19 * 60 + 5), '07:05 PM');
       expect(fmtMinutesOfDay(en, null), '—');
-      expect(fmtMinutesOfDay(const DashFormat(lang: 'ar'), 19 * 60 + 5),
-          contains('07:05 م'));
+      expect(
+        fmtMinutesOfDay(const DashFormat(lang: 'ar'), 19 * 60 + 5),
+        contains('07:05 م'),
+      );
     });
   });
 
@@ -107,9 +109,7 @@ void main() {
     });
 
     test('has no average length when nothing has closed', () {
-      final s = timingStats([
-        _till(closedAt: null, status: 'open'),
-      ], _cairo);
+      final s = timingStats([_till(closedAt: null, status: 'open')], _cairo);
       expect(s.avgDurationMs, isNull);
       expect(s.avgClose, isNull);
       expect(s.longest, isNull);

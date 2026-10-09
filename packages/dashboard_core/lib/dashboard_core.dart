@@ -11,6 +11,7 @@ export 'src/api_provider.dart';
 export 'src/authz/authz.dart';
 export 'src/authz/authz_providers.dart';
 export 'src/authz/gates.dart';
+export 'src/data/async_state.dart';
 export 'src/data/core_api.dart';
 export 'src/data/models.dart';
 export 'src/data/query_cache.dart';

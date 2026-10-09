@@ -86,6 +86,17 @@ class _CreateIngredientDialogState
   String _cost = '';
   bool _busy = false;
 
+  /// Toasts here, or through [CreateIngredientDialog.opener] once the dialog
+  /// was closed mid-save (the web's toasts are global).
+  void _toast(void Function(BuildContext at) show) {
+    if (mounted) {
+      show(context);
+      return;
+    }
+    final opener = widget.opener;
+    if (opener != null && opener.mounted) show(opener);
+  }
+
   Future<void> _submit() async {
     final name = _name.trim();
     if (name.isEmpty) return;
@@ -96,11 +107,6 @@ class _CreateIngredientDialogState
     final invalidate = ref.menuInvalidate;
     final api = ref.read(apiProvider);
     final onCreated = widget.onCreated;
-    BuildContext? toasts() => mounted
-        ? context
-        : (widget.opener?.mounted ?? false)
-        ? widget.opener
-        : null;
     setState(() => _busy = true);
     try {
       final created = await api.inventory.createCatalogItem(
@@ -118,12 +124,10 @@ class _CreateIngredientDialogState
       );
       invalidate.recipes();
       onCreated?.call(created);
-      final at = toasts();
-      if (at != null) DashToast.success(at, t('common.savedChanges'));
+      _toast((at) => DashToast.success(at, t('common.savedChanges')));
       if (mounted) Navigator.of(context).pop(created);
     } on Object catch (e) {
-      final at = toasts();
-      if (at != null) DashToast.error(at, errorMessage(e, t));
+      _toast((at) => DashToast.error(at, errorMessage(e, t)));
       if (mounted) setState(() => _busy = false);
     }
   }

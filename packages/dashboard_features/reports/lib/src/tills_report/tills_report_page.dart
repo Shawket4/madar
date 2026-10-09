@@ -95,6 +95,7 @@ class _TillsReportPageState extends ConsumerState<TillsReportPage> {
       onRetry: error == null || refused
           ? null
           : () => ref.invalidate(tillSessionsProvider(key)),
+      retrying: error != null && q.isLoading,
     );
 
     final body = switch (_tab) {

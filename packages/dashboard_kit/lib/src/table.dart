@@ -157,6 +157,7 @@ class DashDataTable<T> extends StatefulWidget {
     this.onRetry,
     this.empty,
     this.onRowTap,
+    this.onRowIntent,
     this.selectedRowKey,
     this.expandedBuilder,
     this.rowActions,
@@ -168,6 +169,7 @@ class DashDataTable<T> extends StatefulWidget {
     this.pageIndex,
     this.pageCount,
     this.onPageChanged,
+    this.onPageIntent,
     this.loadMore,
     this.initialSort,
     this.sort,
@@ -201,6 +203,10 @@ class DashDataTable<T> extends StatefulWidget {
   final Widget? empty;
   final ValueChanged<T>? onRowTap;
 
+  /// A row is about to be pressed ([DashIntent]): warm the read its
+  /// [onRowTap] opens (the detail sheet's, with the same key).
+  final ValueChanged<T>? onRowIntent;
+
   /// The record open beside the table (split view, the open side panel).
   final Object? selectedRowKey;
 
@@ -227,6 +233,10 @@ class DashDataTable<T> extends StatefulWidget {
   final int? pageIndex;
   final int? pageCount;
   final ValueChanged<int>? onPageChanged;
+
+  /// A pager button is about to be pressed: warm that page's read (0-based,
+  /// the same filters).
+  final ValueChanged<int>? onPageIntent;
 
   /// "Load more" instead of pages.
   final DashLoadMore? loadMore;
@@ -499,6 +509,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
           pageIndex: pageIndex,
           pageCount: totalPages,
           onChanged: _goPage,
+          onIntent: widget.onPageIntent,
         ),
     ];
     return Semantics(
@@ -794,6 +805,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
         ? rowFace(const DashPressState())
         : DashPressable(
             onTap: () => widget.onRowTap!(row),
+            onIntent: _rowIntent(row),
             selected: selected,
             pressScale: false,
             semanticLabel:
@@ -820,6 +832,11 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
         if (!last) Divider(height: 1, thickness: 1, color: c.hairline),
       ],
     );
+  }
+
+  VoidCallback? _rowIntent(T row) {
+    final f = widget.onRowIntent;
+    return f == null ? null : () => f(row);
   }
 
   String? _firstText(T row) {
@@ -861,6 +878,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
       if (widget.onRowTap == null) return card;
       return DashPressable(
         onTap: () => widget.onRowTap!(row),
+        onIntent: _rowIntent(row),
         selected: selected,
         semanticLabel: widget.rowSemanticLabel?.call(row) ?? _firstText(row),
         builder: (context, s) => card,
@@ -883,6 +901,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
     final card = DashCard(
       selected: selected,
       onTap: widget.onRowTap == null ? null : () => widget.onRowTap!(row),
+      onIntent: _rowIntent(row),
       semanticLabel: widget.rowSemanticLabel?.call(row) ?? _firstText(row),
       padding: const EdgeInsets.all(Space.lg),
       child: Column(
@@ -1338,6 +1357,7 @@ class DashPagination extends StatelessWidget {
     required this.pageIndex,
     required this.pageCount,
     required this.onChanged,
+    this.onIntent,
     super.key,
   });
 
@@ -1345,6 +1365,10 @@ class DashPagination extends StatelessWidget {
   final int pageIndex;
   final int pageCount;
   final ValueChanged<int> onChanged;
+
+  /// Previous or next is about to be pressed ([DashIntent]): warm the read
+  /// of that page (0-based).
+  final ValueChanged<int>? onIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -1366,6 +1390,7 @@ class DashPagination extends StatelessWidget {
           semanticLabel: t.previous,
           variant: DashButtonVariant.outline,
           onPressed: pageIndex > 0 ? () => onChanged(pageIndex - 1) : null,
+          onIntent: onIntent == null ? null : () => onIntent!(pageIndex - 1),
         ),
         const SizedBox(width: Space.sm),
         DashIconButton(
@@ -1375,6 +1400,7 @@ class DashPagination extends StatelessWidget {
           onPressed: pageIndex < pageCount - 1
               ? () => onChanged(pageIndex + 1)
               : null,
+          onIntent: onIntent == null ? null : () => onIntent!(pageIndex + 1),
         ),
       ],
     );

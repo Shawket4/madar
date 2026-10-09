@@ -30,6 +30,19 @@ const List<String> _weekdayKeys = [
   'sat',
 ];
 
+/// A work shift's numbers as the shift dialog labels them
+/// (`SHIFT_SETTING_INVALID {field}`, `SHIFT_FIELD_LABELS`).
+const Map<String, String> _shiftFieldKeys = {
+  'grace_minutes': 'staff.graceMinutes',
+  'break_minutes': 'staff.breakMinutes',
+  'overtime_threshold_minutes': 'staff.otThreshold',
+  'checkin_window_minutes': 'staff.checkinWindow',
+  'half_day_threshold_minutes': 'staff.halfDayThreshold',
+  'overtime_multiplier': 'staff.otMultiplier',
+  'ot_day_multiplier': 'staff.otDayMultiplier',
+  'ot_night_multiplier': 'staff.otNightMultiplier',
+};
+
 const Map<String, String> _periodStatusKeys = {
   'draft': 'dawam.phase_open',
   'generated': 'dawam.phase_approved',
@@ -102,8 +115,19 @@ String attendanceErrorText(Object? error, Translator t, DashFormat f) {
         if (key != null) vars[k] = t(key);
       }
     }
+    // A work shift's refused number, by the shift dialog's label.
+    final shiftField = code == 'SHIFT_SETTING_INVALID' && vars['field'] is String
+        ? _shiftFieldKeys[vars['field']]
+        : null;
+    if (shiftField != null) vars['field'] = t(shiftField);
     final key = code == 'PERIOD_CLOSED' && vars['paid'] == true
         ? 'PERIOD_CLOSED_paid'
+        // Refusals that name who or what, when the server sends the figures.
+        : (code == 'ALREADY_ROSTERED' || code == 'SHIFT_DAYS_IN_USE') &&
+              vars['name'] is String
+        ? '${code}_named'
+        : code == 'SHIFTS_OVERLAP' && vars['a'] is String
+        ? 'SHIFTS_OVERLAP_named'
         : code;
     if (key != null && t.exists('errors.codes.$key')) {
       return t('errors.codes.$key', args: vars);

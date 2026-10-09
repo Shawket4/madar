@@ -260,6 +260,7 @@ class DashStatCard extends StatelessWidget {
     this.dense = false,
     this.action,
     this.onTap,
+    this.onIntent,
     this.reserveFooter = false,
     super.key,
   });
@@ -289,6 +290,9 @@ class DashStatCard extends StatelessWidget {
   /// A small control in the header row.
   final Widget? action;
   final VoidCallback? onTap;
+
+  /// About to be pressed: warm the read [onTap] makes ([DashIntent]).
+  final VoidCallback? onIntent;
 
   /// Keep the trend/hint line's room even without one, so cards in a strip
   /// share a height.
@@ -452,6 +456,7 @@ class DashStatCard extends StatelessWidget {
     return DashCard(
       padding: pad,
       onTap: onTap,
+      onIntent: onIntent,
       semanticLabel: label,
       child: body,
     );

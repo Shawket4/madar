@@ -1,8 +1,70 @@
+import 'dart:async';
+
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'tokens.dart';
+
+/// How long a mouse pointer must rest on a control before it counts as
+/// intent: a pointer sweeping across a table warms nothing.
+const Duration kDashIntentDwell = Duration(milliseconds: 90);
+
+/// Calls [onIntent] when someone is about to press [child]: a mouse pointer
+/// resting on it for [kDashIntentDwell], keyboard focus landing in it, or a
+/// pointer (a finger, a pen, a click) going down on it, before the tap
+/// completes. Warm the READ the press will make there, with the exact key it
+/// reads (`ref.warm(provider(key))`), so the press answers from the cache.
+/// Never a write.
+class DashIntent extends StatefulWidget {
+  const DashIntent({required this.child, this.onIntent, super.key});
+
+  /// Null: nothing fires (the tree stays the same, so focus is kept).
+  final VoidCallback? onIntent;
+  final Widget child;
+
+  @override
+  State<DashIntent> createState() => _DashIntentState();
+}
+
+class _DashIntentState extends State<DashIntent> {
+  Timer? _dwell;
+
+  void _fire() {
+    _dwell?.cancel();
+    _dwell = null;
+    widget.onIntent?.call();
+  }
+
+  @override
+  void dispose() {
+    _dwell?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    onPointerDown: (_) => _fire(),
+    child: MouseRegion(
+      onEnter: (_) {
+        _dwell?.cancel();
+        if (widget.onIntent != null) _dwell = Timer(kDashIntentDwell, _fire);
+      },
+      onExit: (_) {
+        _dwell?.cancel();
+        _dwell = null;
+      },
+      child: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onFocusChange: (focused) {
+          if (focused) _fire();
+        },
+        child: widget.child,
+      ),
+    ),
+  );
+}
 
 /// What a [DashPressable] is going through right now.
 @immutable
@@ -33,6 +95,7 @@ class DashPressable extends StatefulWidget {
     required this.builder,
     this.onTap,
     this.onLongPress,
+    this.onIntent,
     this.enabled = true,
     this.semanticLabel,
     this.tooltip,
@@ -50,6 +113,10 @@ class DashPressable extends StatefulWidget {
   final Widget Function(BuildContext context, DashPressState state) builder;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+
+  /// About to be pressed ([DashIntent]): warm the read [onTap] makes. Fires
+  /// only while the control is enabled.
+  final VoidCallback? onIntent;
   final bool enabled;
 
   /// What a screen reader calls it — REQUIRED for a glyph-only control.
@@ -135,6 +202,12 @@ class _DashPressableState extends State<DashPressable> {
       },
       child: child,
     );
+    if (widget.onIntent != null) {
+      child = DashIntent(
+        onIntent: _active ? widget.onIntent : null,
+        child: child,
+      );
+    }
     child = Semantics(
       container: true,
       button: widget.isButton,

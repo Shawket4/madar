@@ -27,9 +27,17 @@ apart from running tests and writing screenshots.
    - both layouts (>= 760, phone).
 4. Caching: every autoDispose read calls `ref.webCache()`, keyed by exactly the request's
    arguments. Prefetch: if the web has a prefetch case for the path, the route warms the page's
-   exact first reads.
+   exact first reads. Intent: every press that makes a READ (a row opening a detail, a pager
+   button, a tab, a filter option, a menu item opening a dialog, a link to another page) warms
+   that exact read through the kit's hook (`onRowIntent`, `onPageIntent`, `onItemIntent`,
+   `onIntent`, `onOptionIntent`, `DashIntent`) with `ref.warm(provider(sameKey))` or
+   `ref.prefetchRoute(path)`; no write is ever warmed; a test rests the mouse, presses, and sees
+   no second request.
 5. Is every logged divergence a real web bug (or a platform limit), not a shortcut?
-6. Every form seeded from cached data re-seeds when a background refresh lands, until edited (else
+6. Loading/error/empty use `awaitingFirst` / `failedFirst` (dashboard_core DashAsyncState), not a
+   hand-written `isLoading && !hasValue && !hasError`; a query with its own web `staleTime` passes it to
+   `webCache(staleTime:)`.
+   Every form seeded from cached data re-seeds when a background refresh lands, until edited (else
    a stale copy is saved over newer data). Every save refreshes even if the dialog closed
    mid-request. No load or retry flashes an empty state.
 
