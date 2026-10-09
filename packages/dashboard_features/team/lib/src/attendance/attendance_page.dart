@@ -26,6 +26,7 @@ import '../shared/refresh_toast.dart';
 import '../shared/staff_query.dart';
 import '../shared/team_format.dart';
 import '../shared/team_util.dart';
+import '../shared/week.dart' show addDays;
 import 'attendance_data.dart';
 import 'attendance_dialogs.dart';
 import 'attendance_providers.dart';
@@ -89,6 +90,11 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     status: _status,
     employeeId: _person,
   );
+
+  /// Warms the rows and the cards a filter option would show.
+  void _warm(AttendanceQuery k) => ref
+    ..warm(attendanceListProvider(k))
+    ..warm(attendanceSummaryProvider(k));
 
   AttendanceQuery get _key =>
       _keyFor(ref.read(scopeProvider.select((s) => s.branchId)));
@@ -198,6 +204,17 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
           DashButton(
             label: t('staff.addRecord'),
             icon: 'plus',
+            // The add dialog's reads: who, their shifts, and the 40 days
+            // ahead of today (its first date).
+            onIntent: () {
+              final d = teamTodayIsoOf(ref);
+              ref
+                ..warm(staffActiveEmployeesProvider)
+                ..warm(staffWorkShiftsProvider)
+                ..warm(
+                  attendanceListProvider(attendanceWindow(d, addDays(d, 40))),
+                );
+            },
             onPressed: () => showAttendanceAddDialog(context, branchId),
           ),
       ],
@@ -214,6 +231,20 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         }),
         onPerson: (v) => setState(() => _person = v),
         onStatus: (v) => setState(() => _status = v),
+        onPersonIntent: (v) => _warm((
+          from: _from,
+          to: _to,
+          branchId: branchId,
+          status: _status,
+          employeeId: v,
+        )),
+        onStatusIntent: (v) => _warm((
+          from: _from,
+          to: _to,
+          branchId: branchId,
+          status: v,
+          employeeId: _person,
+        )),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -225,11 +256,13 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
             columns: _columns(context, records, zones),
             rows: records,
             rowKey: (r) => r.id,
-            loading:
-                recordsQ.isLoading && !recordsQ.hasValue && !recordsQ.hasError,
+            loading: recordsQ.awaitingFirst,
             // A failed refresh replaces the rows (the web's table takes the
             // raw query error, TEAM-ALL-010); the cards keep their figures.
-            errorMessage: recordsQ.hasError ? _err(recordsQ.error) : null,
+            // An attempt Riverpod will retry is still loading.
+            errorMessage: recordsQ.hasError && !recordsQ.retrying
+                ? _err(recordsQ.error)
+                : null,
             onRetry: () => ref.invalidate(attendanceListProvider(key)),
             searchPlaceholder: t('staff.searchEmployees'),
             rowActions: canCorrect
@@ -431,7 +464,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         id: 'late',
         label: t('dawamOps.lateEarly'),
         numeric: true,
-        minWidth: 128,
+        minWidth: 168,
         searchable: false,
         cell: (context, r) {
           if (r.lateMinutes <= 0 && r.earlyLeaveMinutes <= 0) {
@@ -497,6 +530,8 @@ class _Filters extends ConsumerWidget {
     required this.onRange,
     required this.onPerson,
     required this.onStatus,
+    required this.onPersonIntent,
+    required this.onStatusIntent,
   });
 
   final String from;
@@ -508,6 +543,10 @@ class _Filters extends ConsumerWidget {
   final void Function(String from, String to) onRange;
   final ValueChanged<String?> onPerson;
   final ValueChanged<String?> onStatus;
+
+  /// Warm the window a person / status option would show (null: all).
+  final ValueChanged<String?> onPersonIntent;
+  final ValueChanged<String?> onStatusIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -576,6 +615,8 @@ class _Filters extends ConsumerWidget {
                         DashOption(value: e.id, label: e.name),
                     ],
                     onChanged: (v) => onPerson(v == _all ? null : v),
+                    onOptionIntent: (v) =>
+                        onPersonIntent(v == _all ? null : v),
                   ),
                   DashFilterSelect<String>(
                     label: t('staff.attendanceStatus'),
@@ -587,6 +628,7 @@ class _Filters extends ConsumerWidget {
                         DashOption(value: s, label: attendanceStatusText(t, s)),
                     ],
                     onChanged: onStatus,
+                    onOptionIntent: onStatusIntent,
                   ),
                 ],
               ),
@@ -609,8 +651,8 @@ class _StatCards extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final lang = ref.watch(localeProvider);
-    final loading = summary.isLoading && !summary.hasValue && !summary.hasError;
-    final failed = failedEmpty(summary);
+    final loading = summary.awaitingFirst;
+    final failed = summary.failedFirst;
     final totals = attendanceTotals(summary.value ?? const []);
     final cols = MediaQuery.sizeOf(context).width >= DashBreakpoints.lg ? 4 : 2;
     final cards = [

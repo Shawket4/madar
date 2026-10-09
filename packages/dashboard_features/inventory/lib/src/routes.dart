@@ -19,6 +19,7 @@ import 'purchasing/purchasing_page.dart';
 import 'shared/inventory_data.dart';
 import 'today/today_page.dart';
 import 'today/today_providers.dart';
+import 'transfers/transfers_data.dart';
 import 'transfers/transfers_page.dart';
 import 'waste/waste_data.dart';
 import 'waste/waste_page.dart';
@@ -94,6 +95,7 @@ const List<DashRoute> inventoryRoutes = [
     titleFallback: 'Transfers',
     caps: [Cap.inventoryTransfersRead],
     module: OrgModule.pos,
+    prefetch: _prefetchTransfers,
   ),
   DashRoute(
     path: '/inventory/settings',
@@ -161,4 +163,12 @@ void _prefetchWaste(DashPrefetcher warm, Scope s) {
   if (s.branchId == null) return;
   warm(todayWasteProvider(s.branchId!));
   warm(wasteReportProvider(s.wasteRange));
+}
+
+/// The web's `prefetchRoute('/inventory/transfers')`: the org's branches and
+/// the page's first list (every direction), with the page's own key (the
+/// all-branches id with All branches, as Purchasing does).
+void _prefetchTransfers(DashPrefetcher warm, Scope s) {
+  if (s.orgId != null) warm(branchesProvider);
+  warm(transfersProvider(s.transfersKey(null)));
 }

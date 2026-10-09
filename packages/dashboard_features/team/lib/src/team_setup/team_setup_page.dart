@@ -12,6 +12,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../employees/add_employee_dialog.dart';
+import '../employees/employees_providers.dart' show linkableUsersProvider;
 import '../employees/import_people_dialog.dart';
 import '../shared/page_gate.dart';
 import '../shared/refresh_button.dart';
@@ -212,6 +214,7 @@ class _SetupBodyState extends ConsumerState<_SetupBody> {
         employees: data.employees ?? const [],
         canCreate: authz.can(Cap.hrStaffCreate),
         onAddOne: () => showAddEmployeeDialog(context),
+        onAddIntent: () => ref.warm(linkableUsersProvider),
         onImport: () => showImportPeopleDialog(context),
       ),
       SetupStep.shifts => SetupShiftsStep(
@@ -538,6 +541,7 @@ class _AllSet extends ConsumerWidget {
                         key: const ValueKey('setup-go-schedule'),
                         label: t('dawam.setupGoSchedule'),
                         size: DashButtonSize.compact,
+                        onIntent: () => ref.prefetchRoute('/staff/schedule'),
                         onPressed: () => context.go('/staff/schedule'),
                       ),
                       DashButton(
@@ -545,6 +549,7 @@ class _AllSet extends ConsumerWidget {
                         label: t('dawam.setupGoTeam'),
                         size: DashButtonSize.compact,
                         variant: DashButtonVariant.outline,
+                        onIntent: () => ref.prefetchRoute('/staff/team'),
                         onPressed: () => context.go('/staff/team'),
                       ),
                     ],

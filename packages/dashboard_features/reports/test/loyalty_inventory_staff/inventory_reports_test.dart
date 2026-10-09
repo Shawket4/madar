@@ -490,7 +490,8 @@ void main() {
     ) async {
       final s = unitServer();
       final denied = MockResponse.denied('inventory.read');
-      s.server.fail('GET', orgTpl('waste-report'), denied);
+      // Twice: the press's warm-up fails, is dropped, and the tab reads again.
+      s.server.fail('GET', orgTpl('waste-report'), denied, times: 2);
       final h = await pumpUnit(
         tester,
         path: inventoryPath,
@@ -843,7 +844,8 @@ void main() {
     ) async {
       final s = unitServer();
       final down = MockResponse.error(500, 'Stock is being recounted');
-      s.server.fail('GET', orgTpl('low-stock'), down);
+      // Twice: the press's warm-up fails, is dropped, and the tab reads again.
+      s.server.fail('GET', orgTpl('low-stock'), down, times: 2);
       final h = await pumpUnit(
         tester,
         path: inventoryPath,
@@ -859,7 +861,7 @@ void main() {
       );
       await h.shot('inventory/low-stock-failed');
       await h.tap(inPage(find.text('Retry')));
-      expect(h.server.callsTo(orgTpl('low-stock')), hasLength(2));
+      expect(h.server.callsTo(orgTpl('low-stock')), hasLength(3));
       expect(inPage(find.text('Oat milk')), findsOneWidget);
       // No reorder actions here.
       expect(inPage(find.text('Create PO')), findsNothing);

@@ -414,7 +414,13 @@ void main() {
 
     testWidgets('REP-LOY-011 failed: ErrorState + Retry', (tester) async {
       final s = unitServer();
-      s.server.fail('GET', campaignsTpl, MockResponse.error(500, 'boom'));
+      // Twice: the press's warm-up fails, is dropped, and the tab reads again.
+      s.server.fail(
+        'GET',
+        campaignsTpl,
+        MockResponse.error(500, 'boom'),
+        times: 2,
+      );
       final h = await pumpUnit(
         tester,
         path: loyaltyPath,
@@ -426,7 +432,7 @@ void main() {
       await h.shot('loyalty/campaigns-failed');
       final behavior = h.server.callsTo(behaviorTpl).length;
       await h.tap(inPage(find.text('Retry')));
-      expect(h.server.callsTo(campaignsTpl), hasLength(2));
+      expect(h.server.callsTo(campaignsTpl), hasLength(3));
       expect(h.server.callsTo(behaviorTpl), hasLength(behavior));
       expect(inPage(find.text('Win-back')), findsOneWidget);
     });
@@ -642,7 +648,13 @@ void main() {
     testWidgets('REP-LOY-016/018 failed: ErrorState + Retry inside the '
         'card', (tester) async {
       final s = unitServer();
-      s.server.fail('GET', liabilityTpl, MockResponse.error(500, 'boom'));
+      // Twice: the press's warm-up fails, is dropped, and the tab reads again.
+      s.server.fail(
+        'GET',
+        liabilityTpl,
+        MockResponse.error(500, 'boom'),
+        times: 2,
+      );
       final h = await pumpUnit(
         tester,
         path: loyaltyPath,
@@ -660,7 +672,7 @@ void main() {
       );
       await h.shot('loyalty/liability-failed');
       await h.tap(inPage(find.text('Retry')));
-      expect(h.server.callsTo(liabilityTpl), hasLength(2));
+      expect(h.server.callsTo(liabilityTpl), hasLength(3));
       expect(find.byType(LiabilityChart), findsOneWidget);
     });
 

@@ -288,3 +288,5 @@ BUILT team/payroll (PAY 38/38 + MNY 22/22 + ALL rows, 116 tests) → VERIFY QUEU
 CORE TODO: shared date format prints "Sept" (Dart intl CLDR) where the web's Intl prints "Sep" → normalise in core format. TEAM AREA CHECK: approvals' own review-advance/reject dialogs duplicate payroll's money_dialogs → share; remove schedule's and payroll's local refresh-listener workarounds now that core webCache ignores re-listens.
 VERIFIED team/team_setup (2 major intent) + attendance (3 major: retry flashes incl. shared helpers, intent, cut header) → pending/team-setup-attendance.md
 DONE sell/floor (fixed; floor+bookings+orders+customers 606 pass) → sell area: orders, tills, bookings, customers, floor all done
+DONE reports/loyalty_inventory_staff (fixed; 160 tests). KIT: free-text cell direction from content (.Delta Dairy Co in AR phone cards). Reports area done except: operations/legal/tills_report/financial/basira/spb all done; reports area complete pending area check.
+DONE inventory/today + counts (fixed; inventory 528 pass)

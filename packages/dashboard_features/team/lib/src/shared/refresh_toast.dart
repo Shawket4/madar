@@ -23,7 +23,8 @@ void listenStaffRefreshFailure<T>(
   ProviderListenable<AsyncValue<T>> read,
 ) {
   ref.listen<AsyncValue<T>>(read, (prev, next) {
-    if (!next.hasError || !next.hasValue) return;
+    // An attempt Riverpod will retry is not a failure yet.
+    if (!next.hasError || !next.hasValue || next.retrying) return;
     if (prev != null && prev.hasError && identical(prev.error, next.error)) {
       return;
     }

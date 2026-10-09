@@ -131,8 +131,10 @@ int watchStaffPath(Ref ref, String path) =>
 
 /// A read that failed with nothing to show: the page's error state. A
 /// refresh that fails while the last data is on screen keeps that data
-/// (and toasts, see `refresh_toast.dart`).
-bool failedEmpty(AsyncValue<Object?> v) => v.hasError && !v.hasValue;
+/// (and toasts, see `refresh_toast.dart`). While Riverpod retries it is
+/// still loading (the web stays pending), never the error.
+bool failedEmpty(AsyncValue<Object?> v) =>
+    v.hasError && !v.hasValue && !v.retrying;
 
 /// Whether any of [reads] is fetching (first load or a refresh): the Refresh
 /// button spins.

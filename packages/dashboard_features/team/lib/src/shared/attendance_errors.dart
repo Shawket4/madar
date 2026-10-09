@@ -108,8 +108,23 @@ Map<String, Object?> _codedVars(
   return out;
 }
 
-/// What a person reads for [error] (`getErrorMessage(err)`).
-String attendanceErrorText(Object? error, Translator t, DashFormat f) {
+/// `SETTING_OUT_OF_RANGE` comes in four shapes: a list of allowed values, or
+/// a range whose ends may be open (`settingKey`).
+String _settingKey(Map<String, Object?> vars) {
+  if (vars['allowed'] is List) return 'SETTING_OUT_OF_RANGE_choice';
+  if (vars['min_inclusive'] == false) return 'SETTING_OUT_OF_RANGE_above';
+  if (vars['max_inclusive'] == false) return 'SETTING_OUT_OF_RANGE_below';
+  return 'SETTING_OUT_OF_RANGE';
+}
+
+/// What a person reads for [error] (`getErrorMessage(err, {fieldLabel})`):
+/// [fieldLabel] names a refused field by its page label (the Rules save).
+String attendanceErrorText(
+  Object? error,
+  Translator t,
+  DashFormat f, {
+  String Function(String field)? fieldLabel,
+}) {
   if (error is ApiException) {
     final status = error.status;
     final code = error.code;
@@ -125,7 +140,11 @@ String attendanceErrorText(Object? error, Translator t, DashFormat f) {
     final shiftField = code == 'SHIFT_SETTING_INVALID' && vars['field'] is String
         ? _shiftFieldKeys[vars['field']]
         : null;
-    if (shiftField != null) vars['field'] = t(shiftField);
+    final field = vars['field'];
+    if (field is String) {
+      vars['field'] =
+          fieldLabel?.call(field) ?? (shiftField != null ? t(shiftField) : field);
+    }
     final variant =
         raw['status'] is String &&
             (_statusVariants[code]?.contains(raw['status']) ?? false)
@@ -135,6 +154,8 @@ String attendanceErrorText(Object? error, Translator t, DashFormat f) {
         variant ??
         (code == 'PERIOD_CLOSED' && vars['paid'] == true
             ? 'PERIOD_CLOSED_paid'
+            : code == 'SETTING_OUT_OF_RANGE'
+            ? _settingKey(vars)
             // Refusals that name who or what, when the server sends the
             // figures.
             : (code == 'ALREADY_ROSTERED' || code == 'SHIFT_DAYS_IN_USE') &&

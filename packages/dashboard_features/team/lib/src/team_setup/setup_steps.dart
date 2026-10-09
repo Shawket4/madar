@@ -6,6 +6,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +30,7 @@ class SetupPeopleStep extends ConsumerWidget {
     required this.canCreate,
     required this.onAddOne,
     required this.onImport,
+    this.onAddIntent,
     super.key,
   });
 
@@ -38,6 +40,9 @@ class SetupPeopleStep extends ConsumerWidget {
   final bool canCreate;
   final VoidCallback onAddOne;
   final VoidCallback onImport;
+
+  /// Warms the add dialog's reads (the pointer resting on Add employee).
+  final VoidCallback? onAddIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -61,6 +66,7 @@ class SetupPeopleStep extends ConsumerWidget {
                 key: const ValueKey('setup-add-employee'),
                 label: t('dawam.addEmployee'),
                 icon: 'user-round-plus',
+                onIntent: onAddIntent,
                 onPressed: onAddOne,
               ),
               DashButton(
@@ -285,6 +291,7 @@ class SetupShiftsStep extends ConsumerWidget {
               key: const ValueKey('setup-open-shifts'),
               label: t('dawam.setupOpenShifts'),
               variant: DashButtonVariant.link,
+              onIntent: () => ref.prefetchRoute('/staff/shifts'),
               onPressed: () => context.go('/staff/shifts'),
             ),
           ],
@@ -614,6 +621,7 @@ class _SetupRulesStepState extends ConsumerState<SetupRulesStep> {
               variant: saved
                   ? DashButtonVariant.primary
                   : DashButtonVariant.outline,
+              onIntent: () => ref.prefetchRoute('/staff/rules'),
               onPressed: () => context.go('/staff/rules'),
             ),
           ],

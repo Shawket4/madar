@@ -9,6 +9,7 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:design_system/design_system.dart' show MadarClippedText;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -238,6 +239,26 @@ void main() {
       // total_items 0 is still a figure: "· 0/0".
       expect(inTable(textHas('By category · ${ltr('0/0')}')), findsOneWidget);
       expect(inTable(find.text('—')), findsNWidgets(2));
+      final clipped = tester
+          .widgetList<MadarClippedText>(inTable(find.byType(MadarClippedText)))
+          .toList();
+      // By nobody: a plain "—", as the web's cell (not muted).
+      final dashes = clipped.where((w) => w.data == '—');
+      expect(dashes, hasLength(2));
+      Color? shown(MadarClippedText w) => tester
+          .widget<RichText>(
+            find.descendant(
+              of: find.byWidget(w),
+              matching: find.byType(RichText),
+            ),
+          )
+          .text
+          .style
+          ?.color;
+      // The same ink as the Finalized "—" beside it.
+      expect({for (final w in dashes) shown(w)}, hasLength(1));
+      // Every scope cell is clipped with the hold hint.
+      expect(clipped.where((w) => w.textSpan != null), hasLength(3));
     });
 
     testWidgets('INV-CNT-015/016 View report only on finalized rows; the '
