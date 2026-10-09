@@ -132,6 +132,19 @@ class _BookingDialogState extends ConsumerState<BookingDialog> {
 
   bool get _editing => _b != null;
 
+  /// The availability the form asks for with [sectionId]; null = none (the
+  /// web's `enabled`).
+  BookingAvailabilityKey? _availKey(String? sectionId) =>
+      _day.isEmpty || _partyN <= 0
+      ? null
+      : (
+          branchId: widget.branchId,
+          date: _day,
+          partySize: _partyN,
+          sectionId: sectionId,
+          excludeBookingId: _b?.id,
+        );
+
   @override
   void initState() {
     super.initState();
@@ -282,16 +295,11 @@ class _BookingDialogState extends ConsumerState<BookingDialog> {
     );
     final sections =
         ref.watch(floorSectionsProvider(widget.branchId)).value ?? const [];
+    final availKey = _availKey(_sectionId);
     final availQ = watchIf(
       ref,
-      _day.isNotEmpty && _partyN > 0,
-      () => bookingAvailabilityProvider((
-        branchId: widget.branchId,
-        date: _day,
-        partySize: _partyN < 1 ? 1 : _partyN,
-        sectionId: _sectionId,
-        excludeBookingId: _b?.id,
-      )),
+      availKey != null,
+      () => bookingAvailabilityProvider(availKey!),
     );
     final slots = availQ.value?.slots ?? const [];
     final selected = slots
@@ -600,6 +608,10 @@ class _BookingDialogState extends ConsumerState<BookingDialog> {
                   ],
                   onChanged: (v) =>
                       setState(() => _sectionId = v.isEmpty ? null : v),
+                  onOptionIntent: (v) {
+                    final k = _availKey(v.isEmpty ? null : v);
+                    if (k != null) ref.warm(bookingAvailabilityProvider(k));
+                  },
                 ),
               ),
               DashTextField(
