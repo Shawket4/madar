@@ -240,6 +240,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
             ? muted('—')
             : MadarClippedText(
                 po.supplierName!,
+                textDirection: dashTextDirectionOf(po.supplierName!),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -281,6 +282,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
       loading: async.awaitingFirst,
       errorMessage: async.errorText(t),
       onRetry: () => ref.invalidate(purchaseOrdersProvider(widget.ordersKey)),
+      retrying: async.isLoading,
       empty: DashEmptyState(
         icon: 'truck',
         title: t('inventory.purchasing.noOrders'),

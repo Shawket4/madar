@@ -311,7 +311,15 @@ void main() {
       expect(find.text("Couldn't load this"), findsOneWidget);
       expect(find.text('Internal error'), findsOneWidget);
       expect(find.text('No devices yet'), findsNothing);
+      final gate = b.server.hold('GET', DevicesRoutes.devices);
       await h.tapText('Retry');
+      // Retrying: the table's Retry spins.
+      expect(
+        tester.widget<DashErrorState>(find.byType(DashErrorState)).retrying,
+        isTrue,
+      );
+      gate.release();
+      await h.settle();
       expect(deviceRows(), findsNWidgets(5));
       expect(h.server.callsTo(DevicesRoutes.devices), hasLength(2));
     });

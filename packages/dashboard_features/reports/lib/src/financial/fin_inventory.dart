@@ -97,7 +97,7 @@ class FinValuationTab extends ConsumerWidget {
     final q = finValuationOf(ref, scope, inv);
     final org = scope.orgId;
     final catalog = org == null ? null : ref.watch(finCatalogProvider(org));
-    if (q != null && q.failedFirst) {
+    if (q != null && q.failed) {
       return DashErrorState(
         title: t('inventory.reports.valuationFailed'),
         retrying: q.isLoading,
@@ -243,7 +243,8 @@ class FinSpendTab extends ConsumerWidget {
       key: const ValueKey('fin-spend'),
       emptyTitle: t('inventory.reports.noDataPeriod'),
       loading: q?.awaitingFirst ?? false,
-      error: q != null && q.failedFirst ? q.error : null,
+      retrying: q?.isLoading ?? false,
+      error: q != null && q.failed ? q.error : null,
       onRetry: () => _retry(ref, scope, inv, spend: true),
       head: [
         ReportHead(t('inventory.reports.supplier')),
@@ -304,7 +305,8 @@ class FinTrendTab extends ConsumerWidget {
       rows: q?.value ?? const [],
       rowKey: (r) => r.orgIngredientId,
       loading: q?.awaitingFirst ?? false,
-      errorMessage: q != null && q.failedFirst
+      retrying: q?.isLoading ?? false,
+      errorMessage: q != null && q.failed
           ? errorMessage(q.error, t)
           : null,
       onRetry: () => _retry(ref, scope, inv, spend: false),
@@ -352,8 +354,10 @@ class FinTrendTab extends ConsumerWidget {
           text: (r) => _streak(t, f, r),
           cell: (context, r) => Align(
             alignment: AlignmentDirectional.centerEnd,
-            child: FinWrapBadge(
-              _streak(t, f, r),
+            child: DashStatusPill(
+              label: _streak(t, f, r),
+              small: true,
+              wrap: true,
               tone: DashTone.danger,
               icon: 'trending-up',
             ),
@@ -369,8 +373,10 @@ class FinTrendTab extends ConsumerWidget {
               ? none
               : Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: FinWrapBadge(
-                    _switch(t, f, r),
+                  child: DashStatusPill(
+                    label: _switch(t, f, r),
+                    small: true,
+                    wrap: true,
                     tone: DashTone.neutral,
                     icon: Directionality.of(context) == TextDirection.rtl
                         ? 'arrow-left'
@@ -402,46 +408,3 @@ String _switch(Translator t, DashFormat f, MaterialCostTrendRow r) => t(
   },
 );
 
-/// The web's small `Badge` with a glyph, wrapping instead of cutting its
-/// words when the cell is narrow (a phone card).
-class FinWrapBadge extends StatelessWidget {
-  const FinWrapBadge(
-    this.label, {
-    required this.tone,
-    required this.icon,
-    super.key,
-  });
-
-  final String label;
-  final DashTone tone;
-  final String icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    final fg = tone.foreground(c);
-    return Container(
-      padding: const EdgeInsetsDirectional.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        color: tone.wash(c),
-        borderRadius: BorderRadius.circular(Radii.sm),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: Space.xs,
-        children: [
-          DashIcon(icon, size: 12, color: fg),
-          Flexible(
-            child: Text(
-              label,
-              style: DashType.tableHeader.copyWith(color: fg, letterSpacing: 0),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

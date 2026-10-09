@@ -102,12 +102,17 @@ void main() {
     expect(_inRow('croissant', find.text('Bakery')), findsOneWidget);
     expect(_inRow('croissant', find.text('67 pcs')), findsOneWidget);
     expect(_inRow('croissant', find.text('62')), findsOneWidget);
-    final diff = tester.widget<Text>(_inRow('croissant', find.text('${_minus}5')));
+    final diff = tester.widget<Text>(
+      _inRow('croissant', find.text('${_minus}5')),
+    );
     expect(
       diff.style!.color,
       DashTone.danger.foreground(tester.element(report).madarColors),
     );
-    expect(_inRow('croissant', find.text('${_minus}EGP 45.00')), findsOneWidget);
+    expect(
+      _inRow('croissant', find.text('${_minus}EGP 45.00')),
+      findsOneWidget,
+    );
     expect(_inRow('croissant', find.text('Miscount')), findsOneWidget);
     expect(_inRow('full-cream', find.text('+490')), findsOneWidget);
     expect(_inRow('full-cream', find.text('EGP 24.50')), findsOneWidget);
@@ -214,7 +219,11 @@ void main() {
         .toSet();
     expect(
       dash,
-      isNot(contains(DashTone.danger.foreground(tester.element(report).madarColors))),
+      isNot(
+        contains(
+          DashTone.danger.foreground(tester.element(report).madarColors),
+        ),
+      ),
     );
   });
 
@@ -227,7 +236,9 @@ void main() {
       find.descendant(
         of: inReport(byKey('variance-table')),
         matching: find.byWidgetPredicate(
-          (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+          (w) =>
+              w is SingleChildScrollView &&
+              w.scrollDirection == Axis.horizontal,
         ),
       ),
       findsOneWidget,

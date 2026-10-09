@@ -151,7 +151,7 @@ class _PersonSurface extends StatelessWidget {
                         header: true,
                         child: Text(
                           title,
-                          textDirection: autoDirection(title),
+                          textDirection: dashTextDirectionOf(title),
                           style: DashType.sectionTitle.copyWith(
                             color: c.textPrimary,
                           ),
@@ -417,7 +417,7 @@ class LedgerList extends ConsumerWidget {
         if (e.rewardName case final r? when r.isNotEmpty)
           Text(r, style: DashType.small.copyWith(color: c.textPrimary)),
         if (e.note case final n? when n.isNotEmpty)
-          Text('“$n”', textDirection: autoDirection(n), style: muted),
+          Text('“$n”', textDirection: dashTextDirectionOf(n), style: muted),
       ],
     );
 

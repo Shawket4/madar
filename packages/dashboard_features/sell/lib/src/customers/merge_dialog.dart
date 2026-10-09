@@ -17,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'customers_data.dart';
 import 'people_widgets.dart';
 import 'person_surface.dart';
+import '../shared/error_text.dart';
 
 /// Opens the merge for [duplicate]; resolves with the customer that was
 /// kept, or null when cancelled.
@@ -84,7 +85,7 @@ class _MergeDialogState extends ConsumerState<MergeDialog> {
         setState(() => _refused = true);
         return;
       }
-      DashToast.error(context, peopleErrorMessage(e, t));
+      DashToast.error(context, sellErrorText(e, t));
     } finally {
       if (mounted) setState(() => _pending = false);
     }

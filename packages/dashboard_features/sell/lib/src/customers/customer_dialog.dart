@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/phone.dart';
 import 'customers_data.dart';
+import '../shared/error_text.dart';
 
 /// Opens the form: [customer] present = edit it; absent = add one.
 /// Resolves with the saved customer, or null when cancelled. [onSaved] runs
@@ -140,7 +141,7 @@ class _CustomerDialogState extends ConsumerState<CustomerDialog> {
         _phoneFocus.requestFocus();
         return;
       }
-      _toast(peopleErrorMessage(e, t), error: true);
+      _toast(sellErrorText(e, t), error: true);
     } finally {
       if (mounted) setState(() => _pending = false);
     }

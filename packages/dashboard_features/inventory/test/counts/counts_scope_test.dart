@@ -41,12 +41,18 @@ void main() {
     final select = tester.widget<DashSelect<Object?>>(
       inScope(byKey('count-scope')),
     );
-    expect([for (final o in select.options) o.label], [
-      'Whole branch — every ingredient',
-      'One category',
-      'Specific ingredients',
-    ]);
-    expect(inScope(find.text('Whole branch — every ingredient')), findsOneWidget);
+    expect(
+      [for (final o in select.options) o.label],
+      [
+        'Whole branch — every ingredient',
+        'One category',
+        'Specific ingredients',
+      ],
+    );
+    expect(
+      inScope(find.text('Whole branch — every ingredient')),
+      findsOneWidget,
+    );
     expect(_enabled(tester), isTrue);
     // Cancel closes it.
     await h.tap(inScope(find.text('Cancel')));
@@ -225,7 +231,10 @@ void main() {
     await pickSearch(h, inScope(byKey('count-scope-add')), 'Oat Milk');
     await h.tap(inScope(find.text('Cancel')));
     await h.tap(inPage(byKey('counts-start')));
-    expect(inScope(find.text('Whole branch — every ingredient')), findsOneWidget);
+    expect(
+      inScope(find.text('Whole branch — every ingredient')),
+      findsOneWidget,
+    );
     expect(inScope(byKey('count-scope-add')), findsNothing);
     await _scope(h, 'Specific ingredients');
     expect(inScope(byKey('count-scope-items')), findsNothing);

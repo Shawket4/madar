@@ -18,6 +18,8 @@ import 'package:flutter_riverpod/misc.dart'
 
 import '../attendance/attendance_providers.dart';
 import '../employees/employees_providers.dart' show employeesListProvider;
+import '../payroll/money_dialogs.dart'
+    show showRejectDialog, showReviewAdvanceDialog;
 import '../shared/page_gate.dart';
 import '../shared/refresh_button.dart';
 import '../shared/refresh_toast.dart';
@@ -260,7 +262,7 @@ class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
       case ApproveMode.withPay:
         showApproveWithPayDialog(context, i.source as StaffRequest);
       case ApproveMode.review:
-        showReviewAdvanceDialog(context, i.source as SalaryAdvance);
+        showReviewAdvanceDialog(context, advance: i.source as SalaryAdvance);
       case ApproveMode.mission:
         _run(i.key, () async {
           final r = i.source as StaffRequest;
@@ -281,7 +283,7 @@ class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
     final title = t('dawam.rejectTitle', args: {'name': i.who, 'kind': i.kind});
     final requests = i.section == ApprovalSection.requests;
     if (i.reasonRequired || i.reasonOptional) {
-      await showRejectReasonDialog(
+      await showRejectDialog(
         context,
         title: title,
         description: requests
@@ -862,20 +864,7 @@ class PendingRow extends ConsumerWidget {
   Widget _badge(BuildContext context, PendingBadge b) {
     final c = context.madarColors;
     return switch (b) {
-      OutlineBadge() => Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Space.sm,
-          vertical: DashMetrics.hair,
-        ),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Radii.pill),
-          border: Border.all(color: c.hairline),
-        ),
-        child: Text(
-          b.text,
-          style: DashType.smallMedium.copyWith(color: c.textPrimary),
-        ),
-      ),
+      OutlineBadge() => DashBadge(b.text, outline: true),
       PillBadge(:final tone) => DashStatusPill(
         label: b.text,
         tone: tone,

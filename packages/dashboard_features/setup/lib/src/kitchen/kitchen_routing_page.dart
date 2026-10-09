@@ -27,6 +27,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/export_logo.dart';
 import 'kitchen_data.dart';
 import 'kitchen_stations_page.dart' show kitchenSelectWidth;
 
@@ -144,7 +145,7 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
     final title = t('kitchen.routingTitle');
     final config = ExcelConfig(
       filename: 'Madar-Order-Routing',
-      logoUrl: brand?.customBranding == true ? brand?.logoUrl : null,
+      logoUrl: exportLogoUrl(brand),
       sheets: [
         ExcelSheet<Category>(
           name: t('kitchen.byCategory'),

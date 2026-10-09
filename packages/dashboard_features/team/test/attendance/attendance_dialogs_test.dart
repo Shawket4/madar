@@ -22,14 +22,6 @@ List<MockCall> patches(DashHarness h) =>
 
 Map<String, Object?> bodyOf(MockCall c) => (c.body! as Map).cast();
 
-/// A taller window: the kit's calendar popover does not scroll, and a 1440 ×
-/// 900 window leaves it half a pixel short under the Add dialog's In field
-/// (reported as a kit candidate).
-Future<void> tall(DashHarness h) async {
-  h.tester.view.physicalSize = const Size(1440, 1200) * DashSize.pixelRatio;
-  await h.settle();
-}
-
 Future<void> openAdd(DashHarness h) async {
   await h.tap(pageText('Add record'));
   expect(find.byType(AttendanceAddDialog), findsOneWidget);
@@ -188,7 +180,6 @@ void main() {
       'asked; the record is saved on the branch\'s clock with a derived '
       'status, toasted, and the list refetched', (tester) async {
     final h = await pumpAttendance(tester);
-    await tall(h);
     await h.tap(find.text('All branches'));
     await h.tap(find.text('Zamalek').hitTestable());
     final lists = pageListCalls(h).length;
@@ -320,7 +311,6 @@ void main() {
       edit: (db) =>
           db['branches'].find(SeedIds.zamalek)!['timezone'] = 'Asia/Tokyo',
     );
-    await tall(h);
     await openAdd(h);
     expect(
       surfaceText("Times are the branch's clock (Africa/Cairo)."),
@@ -353,7 +343,6 @@ void main() {
   testWidgets('TEAM-ATT-029 a day with no time yet is not a punch: nothing '
       'is sent for it', (tester) async {
     final h = await pumpAttendance(tester);
-    await tall(h);
     await openAdd(h);
     await pick(h, 'Pick an employee', 'Mariam Fathy');
     await pickDay(h, dayOf(0), '8');
@@ -367,7 +356,6 @@ void main() {
     tester,
   ) async {
     final h = await pumpAttendance(tester);
-    await tall(h);
     await openAdd(h);
     await pick(h, 'Pick an employee', 'Mariam Fathy');
     await pickDay(h, dayOf(0), '8');
@@ -387,7 +375,6 @@ void main() {
     tester,
   ) async {
     final h = await pumpAttendance(tester);
-    await tall(h);
     await openAdd(h);
     await pick(h, 'Pick an employee', 'Mariam Fathy');
     await pickDay(h, inSurface(find.byType(DashDateFormField)), '7');
@@ -604,7 +591,6 @@ void main() {
         ),
       ),
     );
-    await tall(h);
     await h.enterText(inPage(find.byType(DashSearchInput)), 'mariam');
     await h.settle();
     await h.tap(

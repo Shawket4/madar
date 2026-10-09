@@ -1,8 +1,7 @@
 /// Pieces the three Till sessions tabs share: the one read's state as each
 /// tab sees it ([TillsLoad]), the tab-level loading / failed / empty
-/// states (REP-TIL-006, -007, -017), the web's outline `Badge`
-/// ([TillOutlineBadge]) and the opens-and-closes chart ([TillHourChart],
-/// REP-TIL-022).
+/// states (REP-TIL-006, -007, -017) and the opens-and-closes chart
+/// ([TillHourChart], REP-TIL-022).
 library;
 
 import 'dart:math' as math;
@@ -67,34 +66,6 @@ Widget? tillTabState(BuildContext context, Translator t, TillsLoad load) {
     return DashEmptyState(title: t('reports.tills.empty'));
   }
   return null;
-}
-
-/// The web's `<Badge variant="outline">`: a hairline pill, 12/500 ink text.
-class TillOutlineBadge extends StatelessWidget {
-  const TillOutlineBadge(this.label, {super.key});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: c.border),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        softWrap: false,
-        style: DashType.smallMedium.copyWith(color: c.textPrimary),
-      ),
-    );
-  }
 }
 
 /// "Opens and closes by hour": 24 local-hour buckets, "Opened" in the lead

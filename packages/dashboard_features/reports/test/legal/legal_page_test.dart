@@ -3,7 +3,6 @@
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
-import 'package:dashboard_kit/dashboard_kit.dart' show DashErrorState;
 import 'package:dashboard_reports/src/legal/legal_page.dart';
 import 'package:dashboard_reports/src/legal/legal_words.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,8 +59,9 @@ void main() {
     expect(find.text(h.t('reports.noAccess')), findsOneWidget);
   });
 
-  testWidgets('REP-ALL-030 rights that could not be read: the error with '
-      'Retry, which asks again', (tester) async {
+  testWidgets('REP-ALL-030 rights that could not be read: the shell\'s error '
+      'with Retry (the web ModuleGate\'s useAuthzLoadError), which asks '
+      'again', (tester) async {
     final s = legalServer();
     s.server.fail(
       'GET',
@@ -70,13 +70,10 @@ void main() {
       times: 1,
     );
     final h = await pumpLegal(tester, server: s.server, db: s.db);
-    final page = find.byType(LegalReportPage);
-    expect(
-      find.descendant(of: page, matching: find.byType(DashErrorState)),
-      findsOneWidget,
-    );
+    expect(find.text(h.t('shell.accessLoadError')), findsOneWidget);
+    expect(find.byType(LegalReportPage), findsNothing);
     expect(legalCalls(h), isEmpty);
-    await h.tap(find.descendant(of: page, matching: find.text('Retry')));
+    await h.tap(find.text('Retry'));
     expect(legalStrip, findsOneWidget);
     expect(h.server.callsTo(taxRoute), hasLength(1));
   });

@@ -12,8 +12,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/report_shared.dart' show ReportAsync;
 import 'fin_data.dart';
-import 'fin_profitability.dart';
 
 /// REP-FIN-046…049 underpriced items with a target-restoring price.
 class FinRepricingTab extends ConsumerWidget {
@@ -132,7 +132,7 @@ class FinRepricingTab extends ConsumerWidget {
       );
     }
     final data = q.value;
-    if (q.failedFirst || data == null) {
+    if (q.failed || data == null) {
       return DashErrorState(
         title: t('insights.repricing.error'),
         retrying: q.isLoading,
@@ -230,7 +230,8 @@ class FinDecisionsTab extends ConsumerWidget {
       rows: q.value ?? const [],
       rowKey: (r) => r.id,
       loading: q.awaitingFirst,
-      errorMessage: q.failedFirst ? errorMessage(q.error, t) : null,
+      retrying: q.isLoading,
+      errorMessage: q.failed ? errorMessage(q.error, t) : null,
       onRetry: () => ref.invalidate(finDecisionsProvider(key)),
       hideViewOptions: true,
       empty: DashEmptyState(
@@ -256,7 +257,7 @@ class FinDecisionsTab extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
                 style: DashType.bodyMedium.copyWith(color: c.textPrimary),
               ),
-              if (r.sizeLabel != 'one_size') FinOutlineBadge(r.sizeLabel),
+              if (r.sizeLabel != 'one_size') DashBadge(r.sizeLabel, outline: true),
             ],
           ),
         ),

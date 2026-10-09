@@ -6,6 +6,7 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/approvals/approvals_data.dart';
 import 'package:dashboard_team/src/approvals/approvals_dialogs.dart';
+import 'package:dashboard_team/src/payroll/money_dialogs.dart';
 import 'package:dashboard_team/src/approvals/approvals_page.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:flutter/gestures.dart';
@@ -487,7 +488,7 @@ void main() {
     await h.tap(rejectIn('Renewing my national ID'));
     await h.tap(inSurface(find.text(h.t('common.reject'))).last);
     await h.expectToast(h.t('errors.codes.REASON_REQUIRED_decline'));
-    expect(find.byType(RejectReasonDialog), findsOneWidget);
+    expect(find.byType(ReasonDialog), findsOneWidget);
   });
 
   // ── money ────────────────────────────────────────────────────────────────

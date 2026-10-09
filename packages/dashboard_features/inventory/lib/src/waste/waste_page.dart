@@ -17,7 +17,6 @@ import '../shared/inventory_data.dart';
 import '../shared/inventory_export.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart';
-import '../today/today_providers.dart' show todayWasteProvider;
 import 'waste_data.dart';
 import 'waste_dialog.dart';
 
@@ -183,6 +182,7 @@ class _WastePageState extends ConsumerState<WastePage> {
       // Kept while Retry runs (no false "No waste recorded" in between).
       errorText: log.failedFirst ? errorMessage(log.error, t) : null,
       onRetry: () => ref.invalidate(todayWasteProvider(logKey)),
+      retrying: log.isLoading,
     );
     final reasons = WasteByReason(range: scope.wasteRange);
 
@@ -233,6 +233,7 @@ class WasteTable extends ConsumerWidget {
     required this.loading,
     required this.errorText,
     required this.onRetry,
+    this.retrying = false,
     super.key,
   });
 
@@ -241,6 +242,7 @@ class WasteTable extends ConsumerWidget {
   final bool loading;
   final String? errorText;
   final VoidCallback onRetry;
+  final bool retrying;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -256,6 +258,7 @@ class WasteTable extends ConsumerWidget {
         // The web's cells never wrap (`whitespace-nowrap`): one line each.
         MadarClippedText(
           main,
+          textDirection: dashTextDirectionOf(main),
           maxLines: 1,
           softWrap: false,
           overflow: TextOverflow.ellipsis,
@@ -278,6 +281,7 @@ class WasteTable extends ConsumerWidget {
       loading: loading,
       errorMessage: errorText,
       onRetry: onRetry,
+      retrying: retrying,
       searchPlaceholder: t('common.search'),
       empty: DashEmptyState(
         icon: 'trash-2',
@@ -377,9 +381,10 @@ class WasteTable extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               spacing: DashMetrics.hair,
               children: [
-                SourceBadge(
+                // The web's `Badge`: `secondary` for a till's, `outline` else.
+                DashBadge(
                   wasteSourceLabel(t, source),
-                  filled: source == 'pos',
+                  outline: source != 'pos',
                 ),
                 if (m.deviceName != null)
                   MadarClippedText(
@@ -407,38 +412,6 @@ class WasteTable extends ConsumerWidget {
           minWidth: Space.xxl * 4,
         ),
       ],
-    );
-  }
-}
-
-/// The web's `Badge`: `secondary` (filled) for a till's waste, `outline`
-/// for the others.
-class SourceBadge extends StatelessWidget {
-  const SourceBadge(this.label, {required this.filled, super.key});
-
-  final String label;
-  final bool filled;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        color: filled ? DashTone.neutral.wash(c) : null,
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: filled ? Colors.transparent : c.hairline),
-      ),
-      // The web's cells never wrap (`whitespace-nowrap`).
-      child: Text(
-        label,
-        maxLines: 1,
-        softWrap: false,
-        style: DashType.smallMedium.copyWith(color: c.textPrimary),
-      ),
     );
   }
 }

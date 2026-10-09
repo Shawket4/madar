@@ -54,13 +54,18 @@ class SuppliersTab extends ConsumerWidget {
     final c = context.madarColors;
     final async = ref.watch(inventorySuppliersProvider(orgId));
 
-    // Email and phone read left to right in Arabic too (cut at their end).
+    // Email and phone read left to right in Arabic too (cut at their end);
+    // a name in its own direction.
     Widget orDash(String? v, {bool mono = false, bool ltr = false}) =>
         MadarClippedText(
           v ?? '—',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          textDirection: (mono || ltr) && v != null ? TextDirection.ltr : null,
+          textDirection: v == null
+              ? null
+              : mono || ltr
+              ? TextDirection.ltr
+              : dashTextDirectionOf(v),
           style: (mono && v != null ? DashType.mono : DashType.body).copyWith(
             color: c.textPrimary,
           ),
@@ -75,6 +80,7 @@ class SuppliersTab extends ConsumerWidget {
           text: (s) => s.name,
           cell: (context, s) => MadarClippedText(
             s.name,
+            textDirection: dashTextDirectionOf(s.name),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: DashType.bodyMedium.copyWith(color: c.textPrimary),
@@ -128,6 +134,7 @@ class SuppliersTab extends ConsumerWidget {
       loading: async.awaitingFirst,
       errorMessage: async.errorText(t),
       onRetry: () => ref.invalidate(inventorySuppliersProvider(orgId)),
+      retrying: async.isLoading,
       searchPlaceholder: t('common.search'),
       empty: DashEmptyState(
         icon: 'users',

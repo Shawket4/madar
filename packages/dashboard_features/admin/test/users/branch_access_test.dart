@@ -151,7 +151,10 @@ void main() {
     final h = await _open(tester, server: s.server, db: s.db);
     s.server.fail('GET', userBranchesRoute, MockResponse.error(500, 'boom'));
     await h.tap(field('branch-access-${SeedIds.zamalek}'));
-    expect(h.server.callsTo(userBranchesRoute, method: 'POST').single.status, 204);
+    expect(
+      h.server.callsTo(userBranchesRoute, method: 'POST').single.status,
+      204,
+    );
     expect(find.text('boom'), findsNothing);
     expect(_switch(tester, SeedIds.zamalek).onChanged, isNotNull);
     await h.flushTimers();

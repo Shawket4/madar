@@ -17,9 +17,8 @@ Finder _inCard(String text) =>
 DashSegmentedControl<bool> _control(WidgetTester tester, String cap) =>
     tester.widget(policyControl(cap));
 
-Future<void> _choose(DashHarness h, String cap, String label) => h.tap(
-  find.descendant(of: policyControl(cap), matching: find.text(label)),
-);
+Future<void> _choose(DashHarness h, String cap, String label) =>
+    h.tap(find.descendant(of: policyControl(cap), matching: find.text(label)));
 
 void main() {
   testWidgets('ADM-ROL-019 the card under the role, with roles.manage: '
@@ -47,7 +46,10 @@ void main() {
     final caps = approvalCapabilities();
     expect(caps, hasLength(15));
     expect(
-      find.descendant(of: _card, matching: find.byType(DashSegmentedControl<bool>)),
+      find.descendant(
+        of: _card,
+        matching: find.byType(DashSegmentedControl<bool>),
+      ),
       findsNWidgets(caps.length),
     );
     expect(_inCard('Void orders'), findsOneWidget);
@@ -73,8 +75,9 @@ void main() {
     await h.shot('roles/ask-manager');
   });
 
-  testWidgets('ADM-ROL-020 loading: one skeleton per capability',
-      (tester) async {
+  testWidgets('ADM-ROL-020 loading: one skeleton per capability', (
+    tester,
+  ) async {
     final s = rolesServer();
     final gate = s.server.hold('GET', policyRoute);
     final h = await pumpRoles(tester, server: s.server, db: s.db);
@@ -188,8 +191,9 @@ void main() {
     expect(_control(tester, 'orders.void').value, isTrue);
   });
 
-  testWidgets('ADM-ROL-020 Arabic: capability names and choices in Arabic',
-      (tester) async {
+  testWidgets('ADM-ROL-020 Arabic: capability names and choices in Arabic', (
+    tester,
+  ) async {
     await pumpRoles(tester, locale: 'ar');
     expect(_inCard('عندما لا يُسمح لشخص'), findsOneWidget);
     expect(

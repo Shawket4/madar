@@ -6,7 +6,8 @@
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
+import 'package:dashboard_core/shell.dart'
+    show DashRoutePrefetch, publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import '../shared/refresh_button.dart';
 import '../shared/refresh_toast.dart';
 import '../shared/rules_banner.dart';
 import '../shared/staff_query.dart';
+import '../shared/export_logo.dart';
 import '../shared/team_format.dart';
 import 'money_dialogs.dart';
 import 'money_errors.dart';
@@ -128,7 +130,7 @@ class _PayrollBodyState extends ConsumerState<_PayrollBody> {
           rows: s.rows,
           people: s.people,
           period: s.period,
-          logoUrl: payrollExportLogo(ref),
+          logoUrl: teamExportLogo(ref.read(publicBrandProvider).value),
         ),
       );
     } on Object catch (e) {
@@ -561,6 +563,8 @@ class _PayslipsTable extends ConsumerWidget {
           cell: (context, r) => MadarClippedText(
             r.name,
             style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+            textDirection: dashTextDirectionOf(r.name),
+            textAlign: startEdge(context),
           ),
         ),
         DashColumn<SlipRow>(

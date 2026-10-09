@@ -11,8 +11,8 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orgs/org_errors.dart' show orgErrorWords;
 import '../shared/capability_catalog.dart' show approvalCapabilities;
+import '../shared/org_errors.dart' show orgErrorWords;
 import 'roles_data.dart';
 
 class AskManagerCard extends ConsumerStatefulWidget {

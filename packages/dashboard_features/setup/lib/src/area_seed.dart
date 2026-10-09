@@ -4,7 +4,7 @@
 /// | table | rows | read by |
 /// |---|---|---|
 /// | `delivery_settings` | [BranchDeliverySettings], one per Sabah branch | delivery; links (the "Order now" module); QR (in-mall code) |
-/// | `booking_settings` | [BookingSettings]; New Cairo has none (never set up) | booking_settings; links ("Book a table"); QR (booking codes) |
+/// | `booking_settings` | [BookingSettings]; sell's rows, one per branch | booking_settings; links ("Book a table"); QR (booking codes) |
 /// | `loyalty_settings` | [LoyaltySettings]: the org's programme + Zamalek's own | loyalty; links ("Rewards card") |
 ///
 /// Every row is a generated model's `toJson()` (the spec's exact shape) and
@@ -141,64 +141,37 @@ abstract final class SetupSeed {
 
   // ── bookings ───────────────────────────────────────────────────────────
 
-  static List<HoursEntry> _week(String open, String close, {Set<int>? days}) =>
-      [
-        for (var dow = 0; dow < 7; dow++)
-          if (days == null || days.contains(dow))
-            HoursEntry(dow: dow, open: open, close: close),
-      ];
-
-  /// Heliopolis and Zamalek take online bookings; Maadi has rules but is
-  /// switched off; New Cairo was never set up (no row).
+  /// Sell's rows (`SellSeed.bookingSettings`), value for value: the app
+  /// loads both seeds into one table, and this area's tests run without
+  /// sell's. Every branch takes online bookings but Zamalek; only
+  /// Heliopolis asks for a code, caps covers and has a blackout day.
   static final List<BookingSettings> bookingSettings = [
-    BookingSettings(
-      branchId: SeedIds.heliopolis,
-      enabled: true,
-      requireOtp: true,
-      hours: [
-        ..._week('12:00', '23:00', days: {0, 1, 2, 3, 4}),
-        ..._week('12:00', '00:30', days: {5, 6}),
-      ],
-      slotMinutes: 30,
-      defaultDurationMinutes: 90,
-      minParty: 1,
-      maxParty: 8,
-      leadTimeMinutes: 60,
-      horizonDays: 30,
-      holdMinutes: 30,
-      autoNoShowMinutes: 20,
-      reminderLeadMinutes: 120,
-      blackoutDates: const ['2026-10-25', '2026-12-31'],
-    ),
-    BookingSettings(
-      branchId: SeedIds.maadi,
-      enabled: false,
-      requireOtp: true,
-      hours: _week('13:00', '22:00'),
-      slotMinutes: 30,
-      defaultDurationMinutes: 90,
-      minParty: 2,
-      maxParty: 6,
-      leadTimeMinutes: 120,
-      horizonDays: 14,
-      holdMinutes: 15,
-      blackoutDates: const [],
-    ),
-    BookingSettings(
-      branchId: SeedIds.zamalek,
-      enabled: true,
-      requireOtp: false,
-      hours: _week('09:00', '22:00', days: {0, 1, 2, 3, 4, 6}),
-      slotMinutes: 15,
-      defaultDurationMinutes: 60,
-      minParty: 1,
-      maxParty: 6,
-      leadTimeMinutes: 30,
-      horizonDays: 21,
-      holdMinutes: 20,
-      maxCoversPerSlot: 12,
-      blackoutDates: const ['2026-11-06'],
-    ),
+    for (final b in const ['heliopolis', 'maadi', 'new-cairo', 'zamalek'])
+      BookingSettings(
+        branchId: MockSeed.branchIdOf(b),
+        enabled: b != 'zamalek',
+        requireOtp: b == 'heliopolis',
+        slotMinutes: b == 'new-cairo' ? 15 : 30,
+        defaultDurationMinutes: 90,
+        minParty: 1,
+        maxParty: 8,
+        leadTimeMinutes: 60,
+        horizonDays: 30,
+        holdMinutes: 30,
+        autoNoShowMinutes: b == 'maadi' ? null : 20,
+        reminderLeadMinutes: b == 'new-cairo' ? null : 120,
+        maxCoversPerSlot: b == 'heliopolis' ? 16 : null,
+        blackoutDates: b == 'heliopolis'
+            ? const ['2026-10-31']
+            : const <String>[],
+        hours: [
+          for (var dow = 0; dow < 7; dow++)
+            // Friday opens after prayers and runs past midnight.
+            dow == 5
+                ? const HoursEntry(dow: 5, open: '13:00', close: '01:00')
+                : HoursEntry(dow: dow, open: '09:00', close: '23:00'),
+        ],
+      ),
   ];
 
   // ── loyalty ────────────────────────────────────────────────────────────

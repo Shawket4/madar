@@ -15,7 +15,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'customers_data.dart';
+import '../shared/error_text.dart';
 
 /// `GET /loyalty/members/{id}/google-object`: a live read of Google, never
 /// cached (`staleTime: 0, gcTime: 0`) — so no `webCache()`: it goes the
@@ -146,7 +146,7 @@ class _GoogleObjectDialogState extends ConsumerState<GoogleObjectDialog> {
         ],
       ),
       if (_refreshError != null)
-        errorLine(peopleErrorMessage(_refreshError, t)),
+        errorLine(sellErrorText(_refreshError, t)),
       if (report != null) ...[
         figures([
           (t('loyalty.branchesSent'), report.sentLocations, false),
@@ -205,7 +205,7 @@ class _GoogleObjectDialogState extends ConsumerState<GoogleObjectDialog> {
             if (value.object case final o?) _JsonBlock(json: o),
           ],
         ),
-        _ when q.failedFirst => errorLine(peopleErrorMessage(q.error, t)),
+        _ when q.failedFirst => errorLine(sellErrorText(q.error, t)),
         _ => const DashSkeleton(height: Space.xxl * 6),
       },
     ];

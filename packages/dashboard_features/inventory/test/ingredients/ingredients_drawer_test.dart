@@ -61,14 +61,17 @@ void main() {
     final h = await pumpIngredients(tester, branch: SeedIds.heliopolis);
     await openDrawer(h, 'Full Cream Milk');
     expect(
-      inDrawer(textHas('Standard cost: ${dashFigure('EGP 0.05')} · Delta Dairy')),
+      inDrawer(
+        textHas('Standard cost: ${dashFigure('EGP 0.05')} · Delta Dairy'),
+      ),
       findsOneWidget,
     );
   });
 
   testWidgets('INV-ING-034 / INV-ING-048 All branches: "Select a branch to '
-      'manage its stock", Edit and View recipes only, no history read',
-      (tester) async {
+      'manage its stock", Edit and View recipes only, no history read', (
+    tester,
+  ) async {
     final h = await pumpIngredients(tester);
     await openDrawer(h, 'Oat Milk');
     expect(
@@ -82,12 +85,15 @@ void main() {
     expect(h.server.callsTo(movementsRoute), isEmpty);
   });
 
-  testWidgets('INV-ING-047 unknown cost reads "—" in the drawer',
-      (tester) async {
+  testWidgets('INV-ING-047 unknown cost reads "—" in the drawer', (
+    tester,
+  ) async {
     final h = await pumpIngredients(tester);
     await openDrawer(h, 'Dried Hibiscus');
     expect(
-      inDrawer(textHas('Standard cost: ${dashFigure('—')} · Cairo Fresh Produce')),
+      inDrawer(
+        textHas('Standard cost: ${dashFigure('—')} · Cairo Fresh Produce'),
+      ),
       findsOneWidget,
     );
   });
@@ -105,8 +111,10 @@ void main() {
     final rec = stockRow(s.db, SeedIds.zamalek, 'oat')!;
     await openDrawer(h, 'Oat Milk');
     final box = byKey('ingredient-drawer-on-hand');
-    expect(find.descendant(of: box, matching: find.text('On hand')),
-        findsOneWidget);
+    expect(
+      find.descendant(of: box, matching: find.text('On hand')),
+      findsOneWidget,
+    );
     expect(
       find.descendant(
         of: box,
@@ -114,8 +122,10 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.descendant(of: box, matching: find.text('Below zero')),
-        findsOneWidget);
+    expect(
+      find.descendant(of: box, matching: find.text('Below zero')),
+      findsOneWidget,
+    );
     expect(
       find.descendant(
         of: box,
@@ -169,8 +179,9 @@ void main() {
     expect(open, isNotNull);
   });
 
-  testWidgets('INV-ING-036 with a count open it just goes there',
-      (tester) async {
+  testWidgets('INV-ING-036 with a count open it just goes there', (
+    tester,
+  ) async {
     final h = await pumpIngredients(tester, branch: SeedIds.newCairo);
     await openDrawer(h, 'Sugar');
     await h.tap(inDrawer(byKey('ingredient-drawer-count')));
@@ -178,8 +189,9 @@ void main() {
     expect(h.location.path, '/inventory/counts');
   });
 
-  testWidgets('INV-ING-036 a refused count toasts and keeps the drawer',
-      (tester) async {
+  testWidgets('INV-ING-036 a refused count toasts and keeps the drawer', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     s.server.fail(
       'POST',
@@ -248,15 +260,19 @@ void main() {
         .text;
     expect(inDrawer(find.text('Reorder levels')), findsOneWidget);
     expect(inDrawer(find.text('Reorder point (ml)')), findsOneWidget);
-    expect(field('ingredient-drawer-par-min'),
-        '${(rec['par_min']! as num).toInt()}');
+    expect(
+      field('ingredient-drawer-par-min'),
+      '${(rec['par_min']! as num).toInt()}',
+    );
     await h.enterText(inDrawer(byKey('ingredient-drawer-par-min')), '2500');
     await h.enterText(inDrawer(byKey('ingredient-drawer-par-max')), '');
     await h.tap(inDrawer(byKey('ingredient-drawer-par-save')));
     await h.expectToast('Changes saved');
     final put = h.server.callsTo(parRoute, method: 'PUT').single;
-    expect(put.path,
-        '/inventory/branches/${SeedIds.zamalek}/stock/${InvIds.ingredient('almond')}/par');
+    expect(
+      put.path,
+      '/inventory/branches/${SeedIds.zamalek}/stock/${InvIds.ingredient('almond')}/par',
+    );
     expect(put.body, {'par_max': null, 'par_min': 2500});
     expect(stockRow(s.db, SeedIds.zamalek, 'almond')!['par_min'], 2500);
     expect(drawer, findsOneWidget);
@@ -270,8 +286,10 @@ void main() {
     await h.enterText(inDrawer(byKey('ingredient-drawer-par-max')), '');
     await h.tap(inDrawer(byKey('ingredient-drawer-par-save')));
     expect(textHas('Par levels cannot be negative'), findsOneWidget);
-    expect(h.server.callsTo(parRoute, method: 'PUT').last.body,
-        {'par_max': null, 'par_min': -5});
+    expect(h.server.callsTo(parRoute, method: 'PUT').last.body, {
+      'par_max': null,
+      'par_min': -5,
+    });
     await h.flushTimers();
   });
 
@@ -345,7 +363,9 @@ void main() {
     expect(
       find.descendant(
         of: row,
-        matching: find.text(dashFigure(f.fmtNumber(first['balance_after']! as num))),
+        matching: find.text(
+          dashFigure(f.fmtNumber(first['balance_after']! as num)),
+        ),
       ),
       findsOneWidget,
     );
@@ -368,8 +388,9 @@ void main() {
     }
   });
 
-  testWidgets('INV-ING-039 stock history loading: four skeleton rows',
-      (tester) async {
+  testWidgets('INV-ING-039 stock history loading: four skeleton rows', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     final gate = s.server.hold('GET', movementsRoute);
     final h = await pumpIngredients(
@@ -431,14 +452,12 @@ void main() {
       findsOneWidget,
     );
     // Nothing on hand: nothing to waste.
-    expect(
-      drawerButton(tester, 'ingredient-drawer-waste').onPressed,
-      isNull,
-    );
+    expect(drawerButton(tester, 'ingredient-drawer-waste').onPressed, isNull);
   });
 
-  testWidgets('INV-ING-053 a movement type with no word reads its code',
-      (tester) async {
+  testWidgets('INV-ING-053 a movement type with no word reads its code', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     final rows = movementsOf(s.db, SeedIds.zamalek, 'oat');
     s.db[InvTables.movements].update(rows.first['id']! as String, {
@@ -455,8 +474,9 @@ void main() {
     expect(inDrawer(find.text('barter_in')), findsOneWidget);
   });
 
-  testWidgets('INV-ING-042 Edit closes the drawer and opens Edit ingredient',
-      (tester) async {
+  testWidgets('INV-ING-042 Edit closes the drawer and opens Edit ingredient', (
+    tester,
+  ) async {
     final h = await pumpIngredients(tester, branch: SeedIds.zamalek);
     await openDrawer(h, 'Oat Milk');
     await h.tap(inDrawer(byKey('ingredient-drawer-edit')));
@@ -483,8 +503,9 @@ void main() {
     expect(w.presetIngredientId, InvIds.ingredient('almond'));
   });
 
-  testWidgets('INV-ING-044 View recipes goes to the menu items',
-      (tester) async {
+  testWidgets('INV-ING-044 View recipes goes to the menu items', (
+    tester,
+  ) async {
     final h = await pumpIngredients(tester, branch: SeedIds.zamalek);
     h.allowUnmatched = true;
     await openDrawer(h, 'Oat Milk');
@@ -509,8 +530,9 @@ void main() {
     expect(drawer, findsNothing);
   });
 
-  testWidgets('INV-ING-051 phone: the drawer is the whole screen',
-      (tester) async {
+  testWidgets('INV-ING-051 phone: the drawer is the whole screen', (
+    tester,
+  ) async {
     final h = await pumpIngredients(
       tester,
       size: DashSize.phone,

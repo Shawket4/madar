@@ -43,51 +43,68 @@ void main() {
       expect(all.last.name, 'Ziad Amr');
       final m = _api(Persona.manager);
       final mine = await m.api.users.listUsers(orgId: SeedIds.sabahOrg);
-      expect([for (final u in mine) u.name], [
-        'Adham Reda',
-        'Hassan Ibrahim',
-        'Karim Adel',
-        'Laila Ehab',
-        'Mariam Fathy',
-        'Youssef Samir',
-      ]);
       expect(
-        await _status(_api(Persona.limited).api.users.listUsers()),
-        403,
+        [for (final u in mine) u.name],
+        [
+          'Adham Reda',
+          'Hassan Ibrahim',
+          'Karim Adel',
+          'Laila Ehab',
+          'Mariam Fathy',
+          'Youssef Samir',
+        ],
       );
+      expect(await _status(_api(Persona.limited).api.users.listUsers()), 403);
     });
   });
 
   group('create', () {
     test('validation in the backend\'s order', () async {
       final o = _api();
-      CreateUserRequest req(UserRole role, {String? pin, String? email, String? password, String name = 'Sara Lotfy'}) =>
-          CreateUserRequest(
-            name: name,
-            role: role,
-            orgId: SeedIds.sabahOrg,
-            pin: pin,
-            email: email,
-            password: password,
-          );
+      CreateUserRequest req(
+        UserRole role, {
+        String? pin,
+        String? email,
+        String? password,
+        String name = 'Sara Lotfy',
+      }) => CreateUserRequest(
+        name: name,
+        role: role,
+        orgId: SeedIds.sabahOrg,
+        pin: pin,
+        email: email,
+        password: password,
+      );
       expect(
         await _error(o.api.users.createUser(body: req(UserRole.teller))),
         'Bad request: Tellers, waiters and kitchen users require a PIN',
       );
       expect(
-        await _error(o.api.users.createUser(body: req(UserRole.teller, pin: '1234'))),
+        await _error(
+          o.api.users.createUser(body: req(UserRole.teller, pin: '1234')),
+        ),
         'Bad request: A new PIN must be 6 digits',
       );
       expect(
-        await _error(o.api.users.createUser(body: req(UserRole.teller, pin: '482915'))),
+        await _error(
+          o.api.users.createUser(body: req(UserRole.teller, pin: '482915')),
+        ),
         'Conflict: Someone in this organization already uses that PIN',
       );
       expect(
-        await _error(o.api.users.createUser(body: req(UserRole.branchManager, email: 'x@y.z'))),
+        await _error(
+          o.api.users.createUser(
+            body: req(UserRole.branchManager, email: 'x@y.z'),
+          ),
+        ),
         'Bad request: Admins and managers require a password',
       );
       expect(
-        await _error(o.api.users.createUser(body: req(UserRole.branchManager, password: 'p'))),
+        await _error(
+          o.api.users.createUser(
+            body: req(UserRole.branchManager, password: 'p'),
+          ),
+        ),
         'Bad request: Admins and managers require an email',
       );
       expect(
@@ -108,7 +125,11 @@ void main() {
       );
       // The PIN is now taken.
       expect(
-        await _status(o.api.users.createUser(body: req(UserRole.teller, pin: '111222', name: 'Other'))),
+        await _status(
+          o.api.users.createUser(
+            body: req(UserRole.teller, pin: '111222', name: 'Other'),
+          ),
+        ),
         409,
       );
     });
@@ -155,61 +176,74 @@ void main() {
   });
 
   group('edit and delete', () {
-    test('null keeps; self cannot demote or deactivate; last owner kept', () async {
-      final o = _api();
-      final u = await o.api.users.updateUser(
-        id: uid('mariam'),
-        body: const UpdateUserRequest(name: 'Mariam F.', explicitNulls: {'email'}),
-      );
-      expect(u.name, 'Mariam F.');
-      expect(u.phone, '+201110001111');
-      expect(
-        await _error(
-          o.api.users.updateUser(
-            id: SeedIds.owner,
-            body: const UpdateUserRequest(isActive: false),
+    test(
+      'null keeps; self cannot demote or deactivate; last owner kept',
+      () async {
+        final o = _api();
+        final u = await o.api.users.updateUser(
+          id: uid('mariam'),
+          body: const UpdateUserRequest(
+            name: 'Mariam F.',
+            explicitNulls: {'email'},
           ),
-        ),
-        'Forbidden: You cannot change your own role or deactivate yourself',
-      );
-      expect(
-        await _error(
-          o.api.users.updateUser(
-            id: uid('karim'),
-            body: const UpdateUserRequest(email: 'nour@sabah.test'),
+        );
+        expect(u.name, 'Mariam F.');
+        expect(u.phone, '+201110001111');
+        expect(
+          await _error(
+            o.api.users.updateUser(
+              id: SeedIds.owner,
+              body: const UpdateUserRequest(isActive: false),
+            ),
           ),
-        ),
-        'Conflict: Email already in use',
-      );
-      final m = _api(Persona.manager);
-      expect(
-        await _error(
-          m.api.users.updateUser(
-            id: uid('dina'),
-            body: const UpdateUserRequest(name: 'D'),
+          'Forbidden: You cannot change your own role or deactivate yourself',
+        );
+        expect(
+          await _error(
+            o.api.users.updateUser(
+              id: uid('karim'),
+              body: const UpdateUserRequest(email: 'nour@sabah.test'),
+            ),
           ),
-        ),
-        'Forbidden: You cannot manage a user with this role',
-      );
-    });
+          'Conflict: Email already in use',
+        );
+        final m = _api(Persona.manager);
+        expect(
+          await _error(
+            m.api.users.updateUser(
+              id: uid('dina'),
+              body: const UpdateUserRequest(name: 'D'),
+            ),
+          ),
+          'Forbidden: You cannot manage a user with this role',
+        );
+      },
+    );
 
-    test('delete: gone from the list; yourself refused; manager refused', () async {
-      final o = _api();
-      await o.api.users.deleteUser(id: uid('ziad'));
-      expect(
-        (await o.api.users.listUsers(orgId: SeedIds.sabahOrg)).map((u) => u.name),
-        isNot(contains('Ziad Amr')),
-      );
-      expect(
-        await _error(o.api.users.deleteUser(id: SeedIds.owner)),
-        'Forbidden: You cannot delete yourself',
-      );
-      expect(await _status(o.api.users.deleteUser(id: 'missing')), 404);
-      expect(
-        await _status(_api(Persona.manager).api.users.deleteUser(id: uid('mariam'))),
-        403,
-      );
-    });
+    test(
+      'delete: gone from the list; yourself refused; manager refused',
+      () async {
+        final o = _api();
+        await o.api.users.deleteUser(id: uid('ziad'));
+        expect(
+          (await o.api.users.listUsers(
+            orgId: SeedIds.sabahOrg,
+          )).map((u) => u.name),
+          isNot(contains('Ziad Amr')),
+        );
+        expect(
+          await _error(o.api.users.deleteUser(id: SeedIds.owner)),
+          'Forbidden: You cannot delete yourself',
+        );
+        expect(await _status(o.api.users.deleteUser(id: 'missing')), 404);
+        expect(
+          await _status(
+            _api(Persona.manager).api.users.deleteUser(id: uid('mariam')),
+          ),
+          403,
+        );
+      },
+    );
   });
 
   group('branches', () {
@@ -221,7 +255,10 @@ void main() {
         id: uid('dina'),
         body: AssignBranchRequest(branchId: SeedIds.zamalek),
       );
-      await o.api.users.unassignBranch(id: uid('dina'), branchId: SeedIds.maadi);
+      await o.api.users.unassignBranch(
+        id: uid('dina'),
+        branchId: SeedIds.maadi,
+      );
       final after = await o.api.users.listUserBranches(id: uid('dina'));
       expect([for (final b in after) b.branchName], ['New Cairo', 'Zamalek']);
       expect(
@@ -237,29 +274,32 @@ void main() {
   });
 
   group('access', () {
-    test('a teller\'s access: core, role, the person\'s own, at a branch', () async {
-      final o = _api();
-      final a = await o.api.authz.userAccess(id: uid('youssef'));
-      CapabilityAccess row(UserAccess x, String k) =>
-          x.capabilities.firstWhere((c) => c.capability == k);
-      expect(a.canEdit, isTrue);
-      expect(a.assignments.single.roleNameEn, 'Cashier');
-      expect(row(a, 'branches.read').source, 'core');
-      expect(row(a, 'orders.void').source, 'role');
-      expect(row(a, 'orders.void').fromRoles, ['Cashier']);
-      expect(effectAt(row(a, 'orders.void'), null), 'inherit');
-      final z = await o.api.authz.userAccess(
-        id: uid('youssef'),
-        branchId: SeedIds.zamalek,
-      );
-      expect(row(z, 'orders.void').source, 'deny');
-      expect(row(z, 'orders.void').effective, isFalse);
-      expect(effectAt(row(z, 'orders.void'), SeedIds.zamalek), 'deny');
-      expect(
-        a.capabilities.any((c) => c.capability.startsWith('legacy.')),
-        isFalse,
-      );
-    });
+    test(
+      'a teller\'s access: core, role, the person\'s own, at a branch',
+      () async {
+        final o = _api();
+        final a = await o.api.authz.userAccess(id: uid('youssef'));
+        CapabilityAccess row(UserAccess x, String k) =>
+            x.capabilities.firstWhere((c) => c.capability == k);
+        expect(a.canEdit, isTrue);
+        expect(a.assignments.single.roleNameEn, 'Cashier');
+        expect(row(a, 'branches.read').source, 'core');
+        expect(row(a, 'orders.void').source, 'role');
+        expect(row(a, 'orders.void').fromRoles, ['Cashier']);
+        expect(effectAt(row(a, 'orders.void'), null), 'inherit');
+        final z = await o.api.authz.userAccess(
+          id: uid('youssef'),
+          branchId: SeedIds.zamalek,
+        );
+        expect(row(z, 'orders.void').source, 'deny');
+        expect(row(z, 'orders.void').effective, isFalse);
+        expect(effectAt(row(z, 'orders.void'), SeedIds.zamalek), 'deny');
+        expect(
+          a.capabilities.any((c) => c.capability.startsWith('legacy.')),
+          isFalse,
+        );
+      },
+    );
 
     test('locked reasons by who is looking', () async {
       expect(
@@ -267,18 +307,18 @@ void main() {
         'self',
       );
       expect(
-        await _error(_api(Persona.platform).api.authz.userAccess(id: SeedIds.owner)),
+        await _error(
+          _api(Persona.platform).api.authz.userAccess(id: SeedIds.owner),
+        ),
         'Forbidden: No organization selected',
         reason: 'no org picked: the platform admin acts in none',
       );
       final o = _api();
+      expect((await o.api.authz.userAccess(id: uid('karim'))).canEdit, isTrue);
       expect(
-        (await o.api.authz.userAccess(id: uid('karim'))).canEdit,
-        isTrue,
-      );
-      expect(
-        (await _api(Persona.manager).api.authz.userAccess(id: SeedIds.manager))
-            .lockedReason,
+        (await _api(
+          Persona.manager,
+        ).api.authz.userAccess(id: SeedIds.manager)).lockedReason,
         'self',
         reason: 'anyone may read their own access',
       );
@@ -295,16 +335,23 @@ void main() {
           limits: LimitsView(maxAmount: 30000, maxPercent: 500),
         ),
       );
-      final r = after.capabilities.firstWhere((c) => c.capability == 'refunds.create');
+      final r = after.capabilities.firstWhere(
+        (c) => c.capability == 'refunds.create',
+      );
       expect(r.source, 'allow');
       expect(r.limits?.maxAmount, 30000);
       expect(r.limits?.maxPercent, isNull);
       final back = await o.api.authz.setOverride(
         id: uid('mariam'),
-        body: const SetOverrideRequest(capability: 'refunds.create', effect: 'inherit'),
+        body: const SetOverrideRequest(
+          capability: 'refunds.create',
+          effect: 'inherit',
+        ),
       );
       expect(
-        back.capabilities.firstWhere((c) => c.capability == 'refunds.create').source,
+        back.capabilities
+            .firstWhere((c) => c.capability == 'refunds.create')
+            .source,
         'role',
       );
       expect(
@@ -320,7 +367,10 @@ void main() {
         await _status(
           o.api.authz.setOverride(
             id: SeedIds.owner,
-            body: const SetOverrideRequest(capability: 'orders.void', effect: 'deny'),
+            body: const SetOverrideRequest(
+              capability: 'orders.void',
+              effect: 'deny',
+            ),
           ),
         ),
         403,
@@ -329,44 +379,52 @@ void main() {
         await _status(
           _api(Persona.manager).api.authz.setOverride(
             id: uid('mariam'),
-            body: const SetOverrideRequest(capability: 'orders.void', effect: 'deny'),
+            body: const SetOverrideRequest(
+              capability: 'orders.void',
+              effect: 'deny',
+            ),
           ),
         ),
         403,
       );
     });
 
-    test('assignments replace the roles; at least one; branches or all', () async {
-      final o = _api();
-      final teller = mockUuid('role:sabah:teller');
-      expect(
-        await _error(
-          o.api.authz.setAssignments(
-            id: uid('mariam'),
-            body: const SetAssignmentsRequest(assignments: []),
-          ),
-        ),
-        'Bad request: A person needs at least one role',
-      );
-      expect(
-        await _error(
-          o.api.authz.setAssignments(
-            id: uid('mariam'),
-            body: SetAssignmentsRequest(
-              assignments: [AssignmentInput(roleId: teller, allBranches: false)],
+    test(
+      'assignments replace the roles; at least one; branches or all',
+      () async {
+        final o = _api();
+        final teller = mockUuid('role:sabah:teller');
+        expect(
+          await _error(
+            o.api.authz.setAssignments(
+              id: uid('mariam'),
+              body: const SetAssignmentsRequest(assignments: []),
             ),
           ),
-        ),
-        'Bad request: Choose the branches, or all branches',
-      );
-      final a = await o.api.authz.setAssignments(
-        id: uid('mariam'),
-        body: SetAssignmentsRequest(
-          assignments: [AssignmentInput(roleId: teller, allBranches: true)],
-        ),
-      );
-      expect(a.assignments.single.allBranches, isTrue);
-    });
+          'Bad request: A person needs at least one role',
+        );
+        expect(
+          await _error(
+            o.api.authz.setAssignments(
+              id: uid('mariam'),
+              body: SetAssignmentsRequest(
+                assignments: [
+                  AssignmentInput(roleId: teller, allBranches: false),
+                ],
+              ),
+            ),
+          ),
+          'Bad request: Choose the branches, or all branches',
+        );
+        final a = await o.api.authz.setAssignments(
+          id: uid('mariam'),
+          body: SetAssignmentsRequest(
+            assignments: [AssignmentInput(roleId: teller, allBranches: true)],
+          ),
+        );
+        expect(a.assignments.single.allBranches, isTrue);
+      },
+    );
 
     test('explain: the steps the backend writes', () async {
       final e = await _api().api.authz.explain(
@@ -374,29 +432,25 @@ void main() {
         capability: 'refunds.create',
       );
       expect(e.effective, isTrue);
-      expect([for (final s in e.steps) s.kind], [
-        'assignment',
-        'override_allow',
-        'limit',
-      ]);
+      expect(
+        [for (final s in e.steps) s.kind],
+        ['assignment', 'override_allow', 'limit'],
+      );
       final n = await _api().api.authz.explain(
         userId: uid('youssef'),
         capability: 'orders.void',
         branchId: SeedIds.zamalek,
       );
       expect(n.effective, isFalse);
-      expect([for (final s in n.steps) s.kind], [
-        'assignment',
-        'override_deny',
-        'ask_manager',
-        'not_held',
-      ]);
+      expect(
+        [for (final s in n.steps) s.kind],
+        ['assignment', 'override_deny', 'ask_manager', 'not_held'],
+      );
       expect(
         await _status(
-          _api(Persona.manager).api.authz.explain(
-            userId: uid('mariam'),
-            capability: 'orders.void',
-          ),
+          _api(
+            Persona.manager,
+          ).api.authz.explain(userId: uid('mariam'), capability: 'orders.void'),
         ),
         403,
       );

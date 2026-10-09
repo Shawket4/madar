@@ -24,7 +24,6 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/menu_options.dart';
@@ -306,7 +305,7 @@ class _DealDialogState extends ConsumerState<DealDialog> {
         onChanged: onChanged,
         semanticLabel: label,
         keyboardType: TextInputType.number,
-        inputFormatters: const [_NumberText()],
+        inputFormatters: const [NumberText()],
         textDirection: TextDirection.ltr,
         mono: true,
         invalid: error != null,
@@ -561,23 +560,6 @@ num _numberOr(String text, num fallback) {
 /// `moneyIn(text) ?? 0` for the preview (junk reads as no price at all).
 num _moneyOrZero(String text) {
   return moneyIn(text) ?? 0;
-}
-
-/// What a number box takes (the web's `type="number"`): digits, a point and
-/// a minus; Arabic-Indic digits are read as Western ones.
-class _NumberText extends TextInputFormatter {
-  const _NumberText();
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final latin = DashTime.latinDigits(newValue.text);
-    if (!RegExp(r'^[0-9.\-]*$').hasMatch(latin)) return oldValue;
-    if (latin == newValue.text) return newValue;
-    return newValue.copyWith(text: latin);
-  }
 }
 
 /// A label, a control, then its red line or its quiet hint (the web's

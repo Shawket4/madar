@@ -18,6 +18,7 @@ import 'staff_query.dart';
 /// `GET /staff/employees?employment_status=active`.
 final setupActiveEmployeesProvider =
     FutureProvider.autoDispose<List<Employee>?>((ref) async {
+      ref.webCache();
       watchStaffPath(ref, '/staff/employees');
       if (ref.watch(orgIdProvider) == null) return null;
       return ref.watch(staffActiveEmployeesProvider.future);
@@ -27,6 +28,7 @@ final setupActiveEmployeesProvider =
 final setupWorkShiftsProvider = FutureProvider.autoDispose<List<WorkShift>?>((
   ref,
 ) async {
+  ref.webCache();
   watchStaffPath(ref, '/staff/work-shifts');
   if (ref.watch(orgIdProvider) == null) return null;
   return ref.watch(staffWorkShiftsProvider.future);
@@ -35,6 +37,7 @@ final setupWorkShiftsProvider = FutureProvider.autoDispose<List<WorkShift>?>((
 /// `GET /staff/attendance/settings` (the business's rules).
 final setupAttendanceSettingsProvider =
     FutureProvider.autoDispose<AttendanceSettings?>((ref) async {
+      ref.webCache();
       watchStaffPath(ref, '/staff/attendance/settings');
       if (ref.watch(orgIdProvider) == null) return null;
       return ref.watch(staffAttendanceSettingsProvider.future);
@@ -83,7 +86,7 @@ final teamSetupDataProvider = Provider.autoDispose<TeamSetupData>((ref) {
     ref.watch(setupWorkShiftsProvider),
     ref.watch(setupAttendanceSettingsProvider),
   ];
-  final failed = reads.where(failedEmpty);
+  final failed = reads.where((r) => r.failedFirst);
   return TeamSetupData(
     branches: ref.watch(branchesProvider).value,
     employees: ref.watch(setupActiveEmployeesProvider).value,
@@ -96,19 +99,19 @@ final teamSetupDataProvider = Provider.autoDispose<TeamSetupData>((ref) {
 /// Asks again only the checklist reads that failed with nothing to show
 /// (TEAM-SET-005 Retry).
 void retryTeamSetup(WidgetRef ref) {
-  if (failedEmpty(ref.read(branchesProvider))) ref.invalidate(branchesProvider);
+  if (ref.read(branchesProvider).failedFirst) ref.invalidate(branchesProvider);
   // A failed page read waits on the shared one: that one asks again too.
-  if (failedEmpty(ref.read(setupActiveEmployeesProvider))) {
+  if (ref.read(setupActiveEmployeesProvider).failedFirst) {
     ref
       ..invalidate(staffActiveEmployeesProvider)
       ..invalidate(setupActiveEmployeesProvider);
   }
-  if (failedEmpty(ref.read(setupWorkShiftsProvider))) {
+  if (ref.read(setupWorkShiftsProvider).failedFirst) {
     ref
       ..invalidate(staffWorkShiftsProvider)
       ..invalidate(setupWorkShiftsProvider);
   }
-  if (failedEmpty(ref.read(setupAttendanceSettingsProvider))) {
+  if (ref.read(setupAttendanceSettingsProvider).failedFirst) {
     ref
       ..invalidate(staffAttendanceSettingsProvider)
       ..invalidate(setupAttendanceSettingsProvider);

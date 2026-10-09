@@ -71,7 +71,10 @@ void main() {
         findsOneWidget,
       );
       expect(searchBox(), findsNothing);
-      expect(inPage(find.byWidgetPredicate((w) => w is DashDataTable)), findsNothing);
+      expect(
+        inPage(find.byWidgetPredicate((w) => w is DashDataTable)),
+        findsNothing,
+      );
       expect(pageButton('New combo'), findsNothing);
       expect(callsTo(h, combosApi), isEmpty);
       expect(callsTo(h, categoriesApi), isEmpty);
@@ -105,10 +108,7 @@ void main() {
       final link = pageButton('Channels and margin');
       expect(link, findsOneWidget);
       expect(tester.widget<DashButton>(link).trailingIcon, 'arrow-right');
-      expect(
-        tester.widget<DashButton>(link).variant,
-        DashButtonVariant.ghost,
-      );
+      expect(tester.widget<DashButton>(link).variant, DashButtonVariant.ghost);
       h.allowUnmatched = true; // /settings/combos is the setup area's
       await h.tap(link);
       expect(h.location.path, '/settings/combos');
@@ -165,10 +165,7 @@ void main() {
         'English or the Arabic name', (tester) async {
       final h = await pumpCombos(tester);
       final box = searchBox();
-      expect(
-        tester.widget<DashSearchInput>(box).placeholder,
-        'Search combos',
-      );
+      expect(tester.widget<DashSearchInput>(box).placeholder, 'Search combos');
       expect(find.bySemanticsLabel('Search combos'), findsWidgets);
       expect(tester.getSize(box).width, CombosMetrics.search);
       final before = callsTo(h, combosApi).length;
@@ -201,12 +198,13 @@ void main() {
       expect(find.bySemanticsLabel('Category: All categories'), findsWidgets);
       await h.tap(select);
       final names = [
-        for (final e in find
-            .descendant(
-              of: find.byWidgetPredicate((w) => w is DashOptionList),
-              matching: find.byType(Text),
-            )
-            .evaluate())
+        for (final e
+            in find
+                .descendant(
+                  of: find.byWidgetPredicate((w) => w is DashOptionList),
+                  matching: find.byType(Text),
+                )
+                .evaluate())
           (e.widget as Text).data,
       ];
       expect(names.first, 'All categories');
@@ -307,8 +305,10 @@ void main() {
         'on fixed bundles, the Arabic name under it', (tester) async {
       final s = combosServer();
       OffersSeed.loadInto(s.db);
-      s.db.table(OffersTables.menuItems).find(comboId('morning-croissant'))![
-          'image_url'] = 'https://cdn.madar.test/combos/morning.jpg';
+      s.db
+              .table(OffersTables.menuItems)
+              .find(comboId('morning-croissant'))!['image_url'] =
+          'https://cdn.madar.test/combos/morning.jpg';
       await pumpCombos(tester, seeded: s);
       expect(inPage(find.text('Fixed')), findsNWidgets(2));
       expect(inRow(_cookie, find.text('Fixed')), findsOneWidget);
@@ -393,13 +393,14 @@ void main() {
       expect(h.location.path, '/menu/combos/${comboId('iced-afternoon')}');
     });
 
-    testWidgets('OFFR-CMB-017 Enter on a focused row opens it', (
-      tester,
-    ) async {
+    testWidgets('OFFR-CMB-017 Enter on a focused row opens it', (tester) async {
       final h = await pumpCombos(tester);
       h.allowUnmatched = true;
       final inner = find
-          .descendant(of: rowOf(_cookie), matching: find.byType(GestureDetector))
+          .descendant(
+            of: rowOf(_cookie),
+            matching: find.byType(GestureDetector),
+          )
           .first;
       Focus.of(tester.element(inner)).requestFocus();
       await tester.pump();
@@ -459,25 +460,26 @@ void main() {
       await h.tapText('إلغاء');
     });
 
-    testWidgets('OFFR-CMB-020 / OFFR-ALL-014 Cancel, Escape and a click outside do nothing', (
-      tester,
-    ) async {
-      final h = await pumpCombos(tester);
-      await h.tap(rowButton(_iced, 'Delete'));
-      await h.tapText('Cancel');
-      expect(find.byType(DashConfirmDialog), findsNothing);
-      await h.tap(rowButton(_iced, 'Delete'));
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await h.settle();
-      expect(find.byType(DashConfirmDialog), findsNothing);
-      await h.tap(rowButton(_iced, 'Delete'));
-      await tester.tapAt(const Offset(4, 4));
-      await h.settle();
-      expect(find.byType(DashConfirmDialog), findsNothing);
-      expect(callsTo(h, deleteApi, method: 'DELETE'), isEmpty);
-      expect(shownNames(tester), _all);
-      expect(find.text('Combo deleted'), findsNothing);
-    });
+    testWidgets(
+      'OFFR-CMB-020 / OFFR-ALL-014 Cancel, Escape and a click outside do nothing',
+      (tester) async {
+        final h = await pumpCombos(tester);
+        await h.tap(rowButton(_iced, 'Delete'));
+        await h.tapText('Cancel');
+        expect(find.byType(DashConfirmDialog), findsNothing);
+        await h.tap(rowButton(_iced, 'Delete'));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await h.settle();
+        expect(find.byType(DashConfirmDialog), findsNothing);
+        await h.tap(rowButton(_iced, 'Delete'));
+        await tester.tapAt(const Offset(4, 4));
+        await h.settle();
+        expect(find.byType(DashConfirmDialog), findsNothing);
+        expect(callsTo(h, deleteApi, method: 'DELETE'), isEmpty);
+        expect(shownNames(tester), _all);
+        expect(find.text('Combo deleted'), findsNothing);
+      },
+    );
 
     testWidgets('OFFR-CMB-021 confirming deletes it as a menu item, says so '
         'and refetches the list', (tester) async {
@@ -526,7 +528,10 @@ void main() {
       tester,
     ) async {
       final s = combosServer();
-      final failure = MockResponse.error(500, 'Database error: connection reset');
+      final failure = MockResponse.error(
+        500,
+        'Database error: connection reset',
+      );
       s.server.fail('DELETE', deleteApi, failure);
       final h = await pumpCombos(tester, seeded: s);
       await h.tap(rowButton(_iced, 'Delete'));
@@ -554,37 +559,40 @@ void main() {
   });
 
   group('pages and states', () {
-    testWidgets('OFFR-CMB-024 / OFFR-ALL-013 the server\'s pages: "Page 1 of 2", Next and '
-        'Previous keep the filters', (tester) async {
-      final s = combosServer();
-      addCombos(s.db, 30);
-      final h = await pumpCombos(tester, seeded: s);
-      expect(pageText('Page 1 of 2'), findsOneWidget);
-      expect(shownNames(tester), hasLength(25));
-      await h.tap(filterSelect('Status'));
-      await h.tap(option('Active'));
-      expect(pageText('Page 1 of 2'), findsOneWidget);
-      await h.tap(inPage(find.bySemanticsLabel('Next')));
-      expect(lastQuery(h), {
-        'is_active': ['true'],
-        'page': ['2'],
-        'per_page': ['25'],
-      });
-      expect(pageText('Page 2 of 2'), findsOneWidget);
-      expect(shownNames(tester), hasLength(10));
-      final next = tester.widget<DashIconButton>(
-        inPage(
-          find.byWidgetPredicate(
-            (w) => w is DashIconButton && w.semanticLabel == 'Next',
+    testWidgets(
+      'OFFR-CMB-024 / OFFR-ALL-013 the server\'s pages: "Page 1 of 2", Next and '
+      'Previous keep the filters',
+      (tester) async {
+        final s = combosServer();
+        addCombos(s.db, 30);
+        final h = await pumpCombos(tester, seeded: s);
+        expect(pageText('Page 1 of 2'), findsOneWidget);
+        expect(shownNames(tester), hasLength(25));
+        await h.tap(filterSelect('Status'));
+        await h.tap(option('Active'));
+        expect(pageText('Page 1 of 2'), findsOneWidget);
+        await h.tap(inPage(find.bySemanticsLabel('Next')));
+        expect(lastQuery(h), {
+          'is_active': ['true'],
+          'page': ['2'],
+          'per_page': ['25'],
+        });
+        expect(pageText('Page 2 of 2'), findsOneWidget);
+        expect(shownNames(tester), hasLength(10));
+        final next = tester.widget<DashIconButton>(
+          inPage(
+            find.byWidgetPredicate(
+              (w) => w is DashIconButton && w.semanticLabel == 'Next',
+            ),
           ),
-        ),
-      );
-      expect(next.onPressed, isNull);
-      final asked = callsTo(h, combosApi).length;
-      await h.tap(inPage(find.bySemanticsLabel('Previous')));
-      expect(pageText('Page 1 of 2'), findsOneWidget);
-      expect(callsTo(h, combosApi), hasLength(asked), reason: 'from cache');
-    });
+        );
+        expect(next.onPressed, isNull);
+        final asked = callsTo(h, combosApi).length;
+        await h.tap(inPage(find.bySemanticsLabel('Previous')));
+        expect(pageText('Page 1 of 2'), findsOneWidget);
+        expect(callsTo(h, combosApi), hasLength(asked), reason: 'from cache');
+      },
+    );
 
     testWidgets('OFFR-CMB-024 one page: no footer', (tester) async {
       await pumpCombos(tester);
@@ -644,19 +652,22 @@ void main() {
       expect(empty.description, isNull);
     });
 
-    testWidgets('OFFR-CMB-027 / OFFR-ALL-012 loading: skeleton rows in the table, then the '
-        'rows', (tester) async {
-      final s = combosServer();
-      final gate = s.server.hold('GET', combosApi);
-      final h = await pumpCombos(tester, seeded: s);
-      expect(inPage(find.byType(DashSkeleton)), findsWidgets);
-      expect(inPage(find.text('COMBO')), findsOneWidget, reason: 'header');
-      expect(shownNames(tester), isEmpty);
-      gate.release();
-      await h.settle();
-      expect(inPage(find.byType(DashSkeleton)), findsNothing);
-      expect(shownNames(tester), _all);
-    });
+    testWidgets(
+      'OFFR-CMB-027 / OFFR-ALL-012 loading: skeleton rows in the table, then the '
+      'rows',
+      (tester) async {
+        final s = combosServer();
+        final gate = s.server.hold('GET', combosApi);
+        final h = await pumpCombos(tester, seeded: s);
+        expect(inPage(find.byType(DashSkeleton)), findsWidgets);
+        expect(inPage(find.text('COMBO')), findsOneWidget, reason: 'header');
+        expect(shownNames(tester), isEmpty);
+        gate.release();
+        await h.settle();
+        expect(inPage(find.byType(DashSkeleton)), findsNothing);
+        expect(shownNames(tester), _all);
+      },
+    );
 
     testWidgets('OFFR-CMB-027 loading on a phone: four skeleton cards', (
       tester,
@@ -670,67 +681,87 @@ void main() {
       expect(shownNames(tester), _all);
     });
 
-    testWidgets('OFFR-CMB-028 / OFFR-ALL-012 a failed list: the words, the server\'s '
-        'reason, Retry asks the list again', (tester) async {
-      final s = combosServer();
-      final failure = MockResponse.error(500, 'Database error: pool timed out');
-      s.server.fail('GET', combosApi, failure);
-      final h = await pumpCombos(tester, seeded: s);
-      expect(pageText("Couldn't load this"), findsOneWidget);
-      expect(pageText(h.refusalWords(failure)), findsOneWidget);
-      expect(shownNames(tester), isEmpty);
-      final cats = callsTo(h, categoriesApi).length;
-      // While the Retry runs the failure stays, never "no combos".
-      final gate = h.server.hold('GET', combosApi);
-      await h.tap(inPage(find.text('Retry')));
-      expect(pageText("Couldn't load this"), findsOneWidget);
-      expect(pageText('No combos yet'), findsNothing);
-      expect(inPage(find.byType(DashSkeleton)), findsNothing);
-      gate.release();
-      await h.settle();
-      expect(callsTo(h, combosApi), hasLength(2));
-      expect(callsTo(h, categoriesApi), hasLength(cats));
-      expect(pageText("Couldn't load this"), findsNothing);
-      expect(shownNames(tester), _all);
-    });
+    testWidgets(
+      'OFFR-CMB-028 / OFFR-ALL-012 a failed list: the words, the server\'s '
+      'reason, Retry asks the list again',
+      (tester) async {
+        final s = combosServer();
+        final failure = MockResponse.error(
+          500,
+          'Database error: pool timed out',
+        );
+        s.server.fail('GET', combosApi, failure);
+        final h = await pumpCombos(tester, seeded: s);
+        expect(pageText("Couldn't load this"), findsOneWidget);
+        expect(pageText(h.refusalWords(failure)), findsOneWidget);
+        expect(shownNames(tester), isEmpty);
+        final cats = callsTo(h, categoriesApi).length;
+        // While the Retry runs the failure stays, never "no combos".
+        final gate = h.server.hold('GET', combosApi);
+        await h.tap(inPage(find.text('Retry')));
+        expect(pageText("Couldn't load this"), findsOneWidget);
+        expect(pageText('No combos yet'), findsNothing);
+        expect(inPage(find.byType(DashSkeleton)), findsNothing);
+        gate.release();
+        await h.settle();
+        expect(callsTo(h, combosApi), hasLength(2));
+        expect(callsTo(h, categoriesApi), hasLength(cats));
+        expect(pageText("Couldn't load this"), findsNothing);
+        expect(shownNames(tester), _all);
+      },
+    );
 
-    testWidgets('OFFR-CMB-029 / OFFR-ALL-010 Columns: Category, Price, Slots, Margin and '
-        'Status can be hidden, Combo cannot', (tester) async {
-      final h = await pumpCombos(tester);
-      await h.tap(pageButton('Columns'));
-      final menu = tester.widget<DashMenu>(inPage(find.byType(DashMenu)));
-      expect(
-        [for (final i in menu.items) i.label],
-        ['Category', 'Price', 'Slots', 'Margin', 'Status'],
-      );
-      await h.tap(find.text('Category').last);
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-      await h.settle();
-      expect(inPage(find.text('CATEGORY')), findsNothing);
-      expect(inRow(_brunch, find.text('Breakfast')), findsNothing);
-      expect(inPage(find.text('COMBO')), findsOneWidget);
-    });
+    testWidgets(
+      'OFFR-CMB-029 / OFFR-ALL-010 Columns: Category, Price, Slots, Margin and '
+      'Status can be hidden, Combo cannot',
+      (tester) async {
+        final h = await pumpCombos(tester);
+        await h.tap(pageButton('Columns'));
+        final menu = tester.widget<DashMenu>(inPage(find.byType(DashMenu)));
+        expect(
+          [for (final i in menu.items) i.label],
+          ['Category', 'Price', 'Slots', 'Margin', 'Status'],
+        );
+        await h.tap(find.text('Category').last);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await h.settle();
+        expect(inPage(find.text('CATEGORY')), findsNothing);
+        expect(inRow(_brunch, find.text('Breakfast')), findsNothing);
+        expect(inPage(find.text('COMBO')), findsOneWidget);
+      },
+    );
 
-    testWidgets('OFFR-CMB-030 / OFFR-ALL-011 a phone: full-width search, each combo a '
-        'card with its actions and label/value pairs; a tap opens it', (
-      tester,
-    ) async {
-      final h = await pumpCombos(tester, size: DashSize.phone);
-      final pageWidth = tester.getSize(
-        inPage(find.byWidgetPredicate((w) => w is DashDataTable)),
-      );
-      expect(tester.getSize(searchBox()).width, pageWidth.width);
-      expect(pageButton('Columns'), findsNothing);
-      expect(inPage(find.byType(DashCard)), findsWidgets);
-      for (final label in ['Category', 'Price', 'Slots', 'Margin', 'Status']) {
-        expect(inRow(_brunch, find.text(label)), findsOneWidget, reason: label);
-      }
-      expect(rowButton(_brunch, 'Edit'), findsOneWidget);
-      expect(rowButton(_brunch, 'Delete'), findsOneWidget);
-      h.allowUnmatched = true;
-      await h.tap(inRow(_brunch, find.text('Breakfast')));
-      expect(h.location.path, '/menu/combos/${comboId('brunch-for-two')}');
-    });
+    testWidgets(
+      'OFFR-CMB-030 / OFFR-ALL-011 a phone: full-width search, each combo a '
+      'card with its actions and label/value pairs; a tap opens it',
+      (tester) async {
+        final h = await pumpCombos(tester, size: DashSize.phone);
+        final pageWidth = tester.getSize(
+          inPage(find.byWidgetPredicate((w) => w is DashDataTable)),
+        );
+        expect(tester.getSize(searchBox()).width, pageWidth.width);
+        expect(pageButton('Columns'), findsNothing);
+        expect(inPage(find.byType(DashCard)), findsWidgets);
+        for (final label in [
+          'Category',
+          'Price',
+          'Slots',
+          'Margin',
+          'Status',
+        ]) {
+          expect(
+            inRow(_brunch, find.text(label)),
+            findsOneWidget,
+            reason: label,
+          );
+        }
+        expect(rowButton(_brunch, 'Edit'), findsOneWidget);
+        expect(rowButton(_brunch, 'Delete'), findsOneWidget);
+        h.allowUnmatched = true;
+        await h.tap(inRow(_brunch, find.text('Breakfast')));
+        expect(h.location.path, '/menu/combos/${comboId('brunch-for-two')}');
+      },
+    );
 
     testWidgets('OFFR-CMB-031 a platform admin with no org picked: "No '
         'combos yet", nothing asked', (tester) async {
@@ -792,7 +823,10 @@ void main() {
       await h.go(combosPath);
       expect(shownNames(tester), _all);
       expect(tester.widget<DashSearchInput>(searchBox()).value, '');
-      expect(find.bySemanticsLabel('Status: Active and inactive'), findsWidgets);
+      expect(
+        find.bySemanticsLabel('Status: Active and inactive'),
+        findsWidgets,
+      );
     });
 
     testWidgets('OFFR-CMB-035 (divergence) opening a combo keeps the scope', (

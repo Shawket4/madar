@@ -11,7 +11,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orgs/org_errors.dart';
+import '../shared/org_errors.dart';
 import 'devices_data.dart';
 import 'devices_table.dart';
 
@@ -78,6 +78,7 @@ class ClientVersionsView extends ConsumerWidget {
           rows: rows,
           loading: loading,
           errorMessage: q.failedFirst ? orgErrorWords(q.error, t) : null,
+          retrying: q.isLoading,
           onRetry: () => ref.invalidate(clientVersionsProvider(key)),
           showBranch: branchId == null,
           days: days,
@@ -189,6 +190,7 @@ class ClientVersionsTable extends ConsumerWidget {
     required this.legacyOnly,
     this.loading = false,
     this.errorMessage,
+    this.retrying = false,
     this.onRetry,
     this.showBranch = false,
     this.toolbar,
@@ -198,6 +200,7 @@ class ClientVersionsTable extends ConsumerWidget {
   final List<ClientSeen> rows;
   final bool loading;
   final String? errorMessage;
+  final bool retrying;
   final VoidCallback? onRetry;
   final bool showBranch;
   final int days;
@@ -221,6 +224,7 @@ class ClientVersionsTable extends ConsumerWidget {
           '${r.deviceId ?? ''}|${r.client ?? ''}|${r.firstSeenAt.toIso8601String()}',
       loading: loading,
       errorMessage: errorMessage,
+      retrying: retrying,
       onRetry: onRetry,
       hideViewOptions: true,
       pageSize: 20,

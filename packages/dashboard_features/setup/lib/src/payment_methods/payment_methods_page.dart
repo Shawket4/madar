@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/export_logo.dart';
 import 'availability_tab.dart';
 import 'payment_method_dialog.dart';
 import 'pm_data.dart';
@@ -102,7 +103,7 @@ class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage> {
         .exportToExcel(
           ExcelConfig(
             filename: 'Madar-PaymentMethods',
-            logoUrl: brand?.customBranding == true ? brand?.logoUrl : null,
+            logoUrl: exportLogoUrl(brand),
             sheets: [
               ExcelSheet<OrgPaymentMethod>(
                 name: title,
@@ -488,6 +489,7 @@ class PmNameCell extends ConsumerWidget {
             children: [
               MadarClippedText(
                 labelOf(method, lang),
+                textDirection: dashTextDirectionOf(labelOf(method, lang)),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: DashType.bodyMedium.copyWith(

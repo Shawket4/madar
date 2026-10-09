@@ -12,10 +12,10 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orders/error_text.dart';
 import '../shared/invalidate.dart';
 import 'floor_providers.dart';
 import 'floor_util.dart';
+import '../shared/error_text.dart';
 
 Future<void> showAddTableDialog(
   BuildContext context, {
@@ -113,7 +113,7 @@ class _AddTableDialogState extends ConsumerState<AddTableDialog> {
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;
-      DashToast.error(context, ordersErrorText(e, t));
+      DashToast.error(context, sellErrorText(e, t));
       setState(() => _busy = false);
     }
   }
@@ -282,7 +282,7 @@ class _SectionDialogState extends ConsumerState<SectionDialog> {
       if (mounted) Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;
-      DashToast.error(context, ordersErrorText(e, t));
+      DashToast.error(context, sellErrorText(e, t));
       setState(() => _busy = false);
     }
   }

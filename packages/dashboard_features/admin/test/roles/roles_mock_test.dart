@@ -30,14 +30,17 @@ void main() {
   test('the list: built-in roles by kind, then Senior cashier; members '
       'counted from who holds each role', () async {
     final roles = await _api().api.listRoles();
-    expect([for (final r in roles) (r.nameEn, r.members, r.isSystem)], [
-      ('Owner', 1, true),
-      ('Branch manager', 4, true),
-      ('Cashier', 8, true),
-      ('Waiter', 2, true),
-      ('Kitchen', 1, true),
-      ('Senior cashier', 0, false),
-    ]);
+    expect(
+      [for (final r in roles) (r.nameEn, r.members, r.isSystem)],
+      [
+        ('Owner', 1, true),
+        ('Branch manager', 4, true),
+        ('Cashier', 8, true),
+        ('Waiter', 2, true),
+        ('Kitchen', 1, true),
+        ('Senior cashier', 0, false),
+      ],
+    );
     expect(roles.first.editable, isFalse);
     final senior = roles.last;
     expect(senior.kind, 'teller');
@@ -45,7 +48,8 @@ void main() {
     // The cashier's grants plus voiding, refunds capped at EGP 1,000.
     expect(_caps(senior), containsAll(['orders.create', 'orders.void']));
     expect(
-      senior.grants.firstWhere((g) => g.capability == 'refunds.create')
+      senior.grants
+          .firstWhere((g) => g.capability == 'refunds.create')
           .limits
           .maxAmount,
       100000,
@@ -64,11 +68,17 @@ void main() {
         ),
       );
       expect(a.server.calls.last.status, 201);
-      expect((r.nameEn, r.nameAr, r.kind), ('Shift lead', 'مشرف الوردية', 'teller'));
+      expect(
+        (r.nameEn, r.nameAr, r.kind),
+        ('Shift lead', 'مشرف الوردية', 'teller'),
+      );
       expect((r.isSystem, r.editable, r.members), (false, true, 0));
       expect(r.key, startsWith('shift_lead_'));
       final caps = _caps(r);
-      expect(caps, containsAll(['orders.create', 'refunds.create', 'till.open']));
+      expect(
+        caps,
+        containsAll(['orders.create', 'refunds.create', 'till.open']),
+      );
       // Core for a cashier: never stored.
       expect(caps, isNot(contains('orders.read')));
       expect(caps, isNot(contains('pos.sign_in')));
@@ -99,7 +109,9 @@ void main() {
       );
       expect(_caps(r), _caps(senior));
       expect(
-        r.grants.firstWhere((g) => g.capability == 'refunds.create').limits
+        r.grants
+            .firstWhere((g) => g.capability == 'refunds.create')
+            .limits
             .maxAmount,
         isNull,
       );
@@ -107,18 +119,21 @@ void main() {
 
     test('refusals in the backend\'s order', () async {
       final a = _api();
-      Future<(int, String)> create(String en, String ar, String kind,
-              [String? from]) =>
-          _fails(
-            a.api.createRole(
-              body: CreateRoleRequest(
-                nameEn: en,
-                nameAr: ar,
-                kind: kind,
-                copyFrom: from,
-              ),
-            ),
-          );
+      Future<(int, String)> create(
+        String en,
+        String ar,
+        String kind, [
+        String? from,
+      ]) => _fails(
+        a.api.createRole(
+          body: CreateRoleRequest(
+            nameEn: en,
+            nameAr: ar,
+            kind: kind,
+            copyFrom: from,
+          ),
+        ),
+      );
       expect(
         (await create('Boss', 'رئيس', 'org_admin')).$2,
         contains('kind must be branch_manager, teller, waiter or kitchen'),
@@ -128,15 +143,9 @@ void main() {
         contains('A role needs an English and an Arabic name'),
       );
       // 41 Arabic letters are 82 bytes: over the backend's 80.
-      expect(
-        (await create('Long', 'ع' * 41, 'teller')).$1,
-        400,
-      );
+      expect((await create('Long', 'ع' * 41, 'teller')).$1, 400);
       expect((await create('Long', 'ع' * 40, 'teller')).$1, 200);
-      expect(
-        (await create('Copy', 'نسخة', 'teller', 'missing')).$1,
-        404,
-      );
+      expect((await create('Copy', 'نسخة', 'teller', 'missing')).$1, 404);
       // No roles.manage: refused before anything is looked at.
       final m = _api(Persona.manager);
       final (status, words) = await _fails(
@@ -186,8 +195,7 @@ void main() {
   });
 
   group('grants', () {
-    test('on and off; limits kept to the ones the capability takes',
-        () async {
+    test('on and off; limits kept to the ones the capability takes', () async {
       final a = _api();
       final id = roleId('waiter');
       var r = await a.api.setRoleGrant(
@@ -204,13 +212,18 @@ void main() {
         ),
       );
       expect(
-        r.grants.firstWhere((g) => g.capability == 'refunds.create').limits
+        r.grants
+            .firstWhere((g) => g.capability == 'refunds.create')
+            .limits
             .toJson(),
         {'max_amount': 5000},
       );
       r = await a.api.setRoleGrant(
         id: id,
-        body: const SetGrantRequest(capability: 'branches.edit', granted: false),
+        body: const SetGrantRequest(
+          capability: 'branches.edit',
+          granted: false,
+        ),
       );
       expect(_caps(r), isNot(contains('branches.edit')));
     });
@@ -231,7 +244,9 @@ void main() {
         contains('The owner role holds everything and cannot be edited'),
       );
       expect((await set(roleId('teller'), 'nope.nope', true)).$1, 400);
-      final legacy = capabilityRegistry.firstWhere((c) => c.tier == 'legacy').key;
+      final legacy = capabilityRegistry
+          .firstWhere((c) => c.tier == 'legacy')
+          .key;
       expect(
         (await set(roleId('teller'), legacy, true)).$2,
         contains('kept for older tablets'),
@@ -296,10 +311,9 @@ void main() {
       );
       await a.api.deleteRole(id: RolesSeed.seniorCashier);
       expect(a.server.calls.last.status, 204);
-      expect(
-        [for (final r in await a.api.listRoles()) r.id],
-        isNot(contains(RolesSeed.seniorCashier)),
-      );
+      expect([
+        for (final r in await a.api.listRoles()) r.id,
+      ], isNot(contains(RolesSeed.seniorCashier)));
       expect(
         (await _fails(_api(Persona.manager).api.deleteRole(id: 'x'))).$1,
         403,
@@ -308,15 +322,20 @@ void main() {
   });
 
   group('policy', () {
-    test('every approval capability, three asked; any member may read it',
-        () async {
-      final list = await _api(Persona.limited).api.getPolicy();
-      expect(list, hasLength(15));
-      expect(
-        {for (final p in list) if (p.askManager) p.capability},
-        {'orders.void', 'refunds.create', 'orders.discount.manual_percent'},
-      );
-    });
+    test(
+      'every approval capability, three asked; any member may read it',
+      () async {
+        final list = await _api(Persona.limited).api.getPolicy();
+        expect(list, hasLength(15));
+        expect(
+          {
+            for (final p in list)
+              if (p.askManager) p.capability,
+          },
+          {'orders.void', 'refunds.create', 'orders.discount.manual_percent'},
+        );
+      },
+    );
 
     test('a change answers the whole list; refusals', () async {
       final a = _api();
@@ -335,7 +354,10 @@ void main() {
       );
       final notApproval = await _fails(
         a.api.setPolicy(
-          body: const PolicyEntry(capability: 'branches.edit', askManager: true),
+          body: const PolicyEntry(
+            capability: 'branches.edit',
+            askManager: true,
+          ),
         ),
       );
       expect(notApproval.$1, 400);
@@ -343,7 +365,10 @@ void main() {
       expect(
         (await _fails(
           _api(Persona.manager).api.setPolicy(
-            body: const PolicyEntry(capability: 'orders.void', askManager: true),
+            body: const PolicyEntry(
+              capability: 'orders.void',
+              askManager: true,
+            ),
           ),
         )).$1,
         403,

@@ -10,8 +10,8 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/org_errors.dart';
 import '../shared/row_action.dart';
-import '../orgs/org_errors.dart';
 import 'devices_data.dart';
 
 /// `devices.kinds.<kind>`, or the raw kind a newer server sent.
@@ -71,6 +71,7 @@ class DevicesSection extends ConsumerWidget {
       devices: q.value ?? const [],
       loading: q.awaitingFirst,
       errorMessage: q.failedFirst ? orgErrorWords(q.error, t) : null,
+      retrying: q.isLoading,
       onRetry: () => ref.invalidate(devicesListProvider(branchId)),
       onEdit: onEdit,
     );
@@ -83,6 +84,7 @@ class DevicesTable extends ConsumerWidget {
     required this.onEdit,
     this.loading = false,
     this.errorMessage,
+    this.retrying = false,
     this.onRetry,
     super.key,
   });
@@ -90,6 +92,7 @@ class DevicesTable extends ConsumerWidget {
   final List<Device> devices;
   final bool loading;
   final String? errorMessage;
+  final bool retrying;
   final VoidCallback? onRetry;
   final ValueChanged<Device> onEdit;
 
@@ -109,6 +112,7 @@ class DevicesTable extends ConsumerWidget {
       rowKey: (d) => d.id,
       loading: loading,
       errorMessage: errorMessage,
+      retrying: retrying,
       onRetry: onRetry,
       onRowTap: onEdit,
       hideViewOptions: true,
@@ -164,6 +168,7 @@ class DevicesTable extends ConsumerWidget {
               ? const DevicesDash()
               : MadarClippedText(
                   d.label!,
+                  textDirection: dashTextDirectionOf(d.label!),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: DashType.body.copyWith(color: c.textPrimary),

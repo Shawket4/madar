@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'till_badges.dart';
 import 'tills_data.dart';
+import '../shared/error_text.dart';
 
 /// The web's `sm:max-w-md`.
 const double tillReportWidth = 448;
@@ -842,7 +843,7 @@ class TillSpotViews extends ConsumerWidget {
       return Semantics(
         liveRegion: true,
         child: Text(
-          tillsErrorMessage(q.error, t),
+          sellErrorText(q.error, t),
           key: const ValueKey('spot-views-error'),
           style: DashType.body.copyWith(color: c.textSecondary),
         ),

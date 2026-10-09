@@ -6,9 +6,10 @@ import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_team/src/shared/time_range_field.dart'
+    show endsNextDay, spanMinutes;
 import 'package:dashboard_team/src/team_setup/geo.dart';
 import 'package:dashboard_team/src/team_setup/setup_rules.dart';
-import 'package:dashboard_team/src/team_setup/setup_steps.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'setup_support.dart';

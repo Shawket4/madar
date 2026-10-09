@@ -123,8 +123,10 @@ void main() {
       greaterThan(lists),
     );
     expect(inHeader('Shift lead'), findsOneWidget);
-    expect(inHeader('Works like Branch manager on older tablets'),
-        findsOneWidget);
+    expect(
+      inHeader('Works like Branch manager on older tablets'),
+      findsOneWidget,
+    );
     expect(inHeader('Built in'), findsNothing);
     expect(
       tester.widget<DashListRow>(roleRow(created['id']! as String)).selected,
@@ -163,7 +165,8 @@ void main() {
     await h.expectToast(shown(h, refusal));
     expect(find.byType(RoleDialog), findsOneWidget);
     expect(
-      tester.widget<DashButton>(find.byKey(const ValueKey('role-submit')))
+      tester
+          .widget<DashButton>(find.byKey(const ValueKey('role-submit')))
           .onPressed,
       isNotNull,
     );
@@ -171,7 +174,10 @@ void main() {
 
   testWidgets('ADM-ROL-018 Rename: "Rename role", names only; PATCH '
       '{name_en, name_ar}; closes and selects it', (tester) async {
-    final h = await pumpRoles(tester, path: '$rolesPath?role=${roleId('waiter')}');
+    final h = await pumpRoles(
+      tester,
+      path: '$rolesPath?role=${roleId('waiter')}',
+    );
     await h.tapKey(const ValueKey('role-rename'));
     expect(inSurface('Rename role'), findsOneWidget);
     expect(field('role-kind'), findsNothing);
@@ -203,8 +209,9 @@ void main() {
   });
 
   testWidgets('ADM-ROL-024 Save is disabled while it saves (no spinner); '
-      'Cancel stays enabled and closing mid-save still selects the role',
-      (tester) async {
+      'Cancel stays enabled and closing mid-save still selects the role', (
+    tester,
+  ) async {
     final s = rolesServer();
     final gate = s.server.hold('POST', rolesRoute);
     final h = await _openNew(tester, server: s.server, db: s.db);
@@ -253,8 +260,9 @@ void main() {
     expect(body['copy_from'], isNull);
   });
 
-  testWidgets('ADM-ROL-024 the dialog starts blank each time it opens',
-      (tester) async {
+  testWidgets('ADM-ROL-024 the dialog starts blank each time it opens', (
+    tester,
+  ) async {
     final h = await _openNew(tester);
     await _type(h, 'role-name-en', 'Shift lead');
     await h.tap(field('role-kind'));
@@ -268,8 +276,9 @@ void main() {
     );
   });
 
-  testWidgets('ADM-ROL-017 phone: the dialog is a full-screen sheet',
-      (tester) async {
+  testWidgets('ADM-ROL-017 phone: the dialog is a full-screen sheet', (
+    tester,
+  ) async {
     await _openNew(tester, size: DashSize.phone);
     expect(
       tester.getSize(surface).width,
@@ -280,7 +289,10 @@ void main() {
 
   testWidgets('ADM-ROL-018 a rename opened on old data takes the newer names '
       'until it is typed into', (tester) async {
-    final h = await pumpRoles(tester, path: '$rolesPath?role=${roleId('waiter')}');
+    final h = await pumpRoles(
+      tester,
+      path: '$rolesPath?role=${roleId('waiter')}',
+    );
     await h.tapKey(const ValueKey('role-rename'));
     h.db!['roles'].find(roleId('waiter'))!['name_en'] = 'Server';
     h.container.invalidate(accessRolesProvider);

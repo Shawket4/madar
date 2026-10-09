@@ -18,6 +18,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/export_logo.dart';
 import 'google_object_dialog.dart';
 import 'loyalty_data.dart';
 import 'member_sheet.dart';
@@ -43,8 +44,8 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
   /// (`placeholderData: keepPreviousData`).
   List<PersonRow>? _previous;
 
-  int _limit(MembersSource s) => math.min(
-    membersPageSize * _pages,
+  int _limit(MembersSource s, [int? pages]) => math.min(
+    membersPageSize * (pages ?? _pages),
     s == MembersSource.customers ? customersLimitMax : membersLimitMax,
   );
 
@@ -54,8 +55,11 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
     limit: limit ?? _limit(MembersSource.customers),
   );
 
-  MembersQuery _membersKey() =>
-      (branchId: widget.branchId, q: _q, limit: _limit(MembersSource.members));
+  MembersQuery _membersKey([int? pages]) => (
+    branchId: widget.branchId,
+    q: _q,
+    limit: _limit(MembersSource.members, pages),
+  );
 
   /// A new search or filter starts the window over.
   void _reset(VoidCallback change) => setState(() {
@@ -157,7 +161,7 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
         r.name,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        textDirection: autoDirection(r.name),
+        textDirection: dashTextDirectionOf(r.name),
         style: DashType.bodyMedium.copyWith(color: c.textPrimary),
       ),
     );
@@ -325,6 +329,7 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
         rowKey: (r) => r.id,
         loading: loading,
         errorMessage: failed ? errorMessage(list.error, t) : null,
+        retrying: list.isLoading,
         onRetry: () => fromCustomers
             ? ref.invalidate(memberCustomersProvider(_customersKey()))
             : ref.invalidate(loyaltyMembersProvider(_membersKey())),
@@ -338,6 +343,15 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
           hasMore: hasMore,
           loading: list.isLoading,
           onLoadMore: () => setState(() => _pages++),
+          onIntent: () => fromCustomers
+              ? ref.warm(
+                  memberCustomersProvider(
+                    _customersKey(
+                      limit: _limit(MembersSource.customers, _pages + 1),
+                    ),
+                  ),
+                )
+              : ref.warm(loyaltyMembersProvider(_membersKey(_pages + 1))),
         ),
         rowActions: access.canInspectWallet
             ? (context, r) => DashIconButton(
@@ -482,7 +496,6 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
       final title = t('loyalty.members');
       // `useExportLogo`: the shop's own on the branding tier.
       final brand = ref.read(publicBrandProvider).value;
-      final logoUrl = brand?.logoUrl?.trim() ?? '';
       if (!mounted) return;
       if (people.isEmpty) {
         DashToast.error(context, const ExportNothing().message(t));
@@ -492,9 +505,7 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
       final outcome = await exporter.exportToExcel(
         ExcelConfig(
           filename: 'Madar-Loyalty-Members',
-          logoUrl: brand != null && brand.customBranding && logoUrl.isNotEmpty
-              ? logoUrl
-              : null,
+          logoUrl: exportLogoUrl(brand),
           sheets: [
             ExcelSheet<PersonRow>(
               name: title,

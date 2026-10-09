@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dashboard_admin/dashboard_admin.dart';
-import 'package:dashboard_admin/src/orgs/org_errors.dart' show orgErrorWords;
+import 'package:dashboard_admin/src/shared/org_errors.dart' show orgErrorWords;
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';

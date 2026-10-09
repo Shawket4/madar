@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_catalog_menu/src/area_seed.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
@@ -105,6 +106,13 @@ void main() {
         matches(RegExp(r'^Madar-Menu-\d{4}-\d{2}-\d{2}\.xlsx$')),
       );
       expect(spec.logoUrl, 'https://cdn.madar.test/sabah-logo.png');
+      // A blank logo is no logo (use-brand.ts: `logo_url?.trim() || null`).
+      s.db['orgs'].update(sabahOrg, {'logo_url': '   '});
+      h.container.invalidate(publicBrandProvider);
+      await h.settle();
+      await h.tap(_export);
+      await h.settle();
+      expect(h.exports.built.last.logoUrl, isNull);
       expect(
         [for (final sh in spec.sheets) sh.title],
         ['Items', 'Categories', 'Addons'],

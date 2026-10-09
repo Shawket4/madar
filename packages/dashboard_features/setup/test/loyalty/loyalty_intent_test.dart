@@ -106,6 +106,23 @@ void main() {
     expect(online(), 1);
   });
 
+  testWidgets('SET-LOY-058 Load more warms the wider window; the press asks '
+      'nothing more', (tester) async {
+    final h = await pumpLoyalty(tester);
+    await openTab(h, 'Members');
+    int wide() => [
+      for (final c in h.server.callsTo(LoyaltyRoutes.customers))
+        if (c.query['limit']?.single == '100') c,
+    ].length;
+    final mouse = await _mouse(tester);
+    final more = inPage(find.text('Load more'));
+    expect(wide(), 0);
+    await _rest(h, mouse, more);
+    expect(wide(), 1);
+    await h.tap(more);
+    expect(wide(), 1);
+  });
+
   testWidgets('SET-LOY-004 the code button warms the code; the press asks '
       'nothing more', (tester) async {
     final h = await pumpLoyalty(tester, query: atBranch(SeedIds.zamalek));

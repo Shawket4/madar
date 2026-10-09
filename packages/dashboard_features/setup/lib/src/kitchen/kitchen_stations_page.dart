@@ -96,6 +96,7 @@ class _KitchenStationsPageState extends ConsumerState<KitchenStationsPage> {
             stations: list.value ?? const [],
             loading: loading,
             errorText: error == null ? null : errorMessage(error, t),
+            retrying: list.isLoading,
             onRetry: () => ref.invalidate(kitchenStationsProvider(branchId)),
             onEdit: (s) => _open(branchId, s),
             onDelete: _remove,
@@ -234,6 +235,7 @@ class StationsTable extends ConsumerWidget {
     required this.stations,
     required this.loading,
     required this.errorText,
+    required this.retrying,
     required this.onRetry,
     required this.onEdit,
     required this.onDelete,
@@ -244,6 +246,7 @@ class StationsTable extends ConsumerWidget {
   final List<KitchenStation> stations;
   final bool loading;
   final String? errorText;
+  final bool retrying;
   final VoidCallback onRetry;
   final ValueChanged<KitchenStation> onEdit;
   final ValueChanged<KitchenStation> onDelete;
@@ -259,6 +262,7 @@ class StationsTable extends ConsumerWidget {
       rowKey: (s) => s.id,
       loading: loading,
       errorMessage: errorText,
+      retrying: retrying,
       onRetry: onRetry,
       onRowTap: onEdit,
       hideViewOptions: true,
@@ -303,6 +307,7 @@ class StationsTable extends ConsumerWidget {
               Flexible(
                 child: MadarClippedText(
                   s.name,
+                  textDirection: dashTextDirectionOf(s.name),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: DashType.bodyStrong.copyWith(color: c.textPrimary),

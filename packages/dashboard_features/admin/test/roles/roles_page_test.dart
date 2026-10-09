@@ -84,8 +84,9 @@ void main() {
       await h.shot('roles/layout-wide');
     });
 
-    testWidgets('ADM-ROL-003 below 1024 px the list sits above the role',
-        (tester) async {
+    testWidgets('ADM-ROL-003 below 1024 px the list sits above the role', (
+      tester,
+    ) async {
       final h = await pumpRoles(tester);
       tester.view.physicalSize = const Size(900, 900) * DashSize.pixelRatio;
       await h.settle();
@@ -95,11 +96,14 @@ void main() {
       expect(card.width, closeTo(list.width, 1));
     });
 
-    testWidgets('ADM-ROL-003 phone: stacked, every part reachable',
-        (tester) async {
+    testWidgets('ADM-ROL-003 phone: stacked, every part reachable', (
+      tester,
+    ) async {
       final h = await pumpRoles(tester, size: DashSize.phone);
-      expect(tester.getRect(header).top,
-          greaterThan(tester.getRect(find.byType(DashListCard)).bottom));
+      expect(
+        tester.getRect(header).top,
+        greaterThan(tester.getRect(find.byType(DashListCard)).bottom),
+      );
       // A short phone: the role opens below the fold, and selecting brings
       // it into view.
       const viewHeight = 500.0;
@@ -108,8 +112,10 @@ void main() {
       await h.settle();
       expect(tester.getRect(header).top, greaterThan(viewHeight));
       // The teller's row is in sight: pressing it scrolls nothing by itself.
-      expect(tester.getRect(roleRow(roleId('teller'))).bottom,
-          lessThan(viewHeight));
+      expect(
+        tester.getRect(roleRow(roleId('teller'))).bottom,
+        lessThan(viewHeight),
+      );
       await tester.tap(roleRow(roleId('teller')));
       await h.settle();
       expect(h.location.queryParameters['role'], roleId('teller'));
@@ -172,9 +178,7 @@ void main() {
       await h.tap(find.descendant(of: page, matching: find.text('Retry')));
       // Retrying: the button spins.
       expect(
-        tester
-            .widget<DashErrorState>(find.byType(DashErrorState))
-            .retrying,
+        tester.widget<DashErrorState>(find.byType(DashErrorState)).retrying,
         isTrue,
       );
       gate.release();
@@ -234,8 +238,9 @@ void main() {
       ]);
     });
 
-    testWidgets('ADM-ROL-007 Arabic: Arabic names, kinds and plurals',
-        (tester) async {
+    testWidgets('ADM-ROL-007 Arabic: Arabic names, kinds and plurals', (
+      tester,
+    ) async {
       await pumpRoles(tester, locale: 'ar');
       final row = tester.widget<DashListRow>(roleRow(roleId('waiter')));
       expect(row.title, 'نادل');
@@ -256,8 +261,9 @@ void main() {
       ('?role=gone', 'branch_manager'),
       ('?user=abc', 'branch_manager'),
     ]) {
-      testWidgets('ADM-ROL-008 default selection "$query" → $expected',
-          (tester) async {
+      testWidgets('ADM-ROL-008 default selection "$query" → $expected', (
+        tester,
+      ) async {
         await pumpRoles(tester, path: '$rolesPath$query');
         expect(
           tester.widget<DashListRow>(roleRow(roleId(expected))).selected,
@@ -266,8 +272,9 @@ void main() {
       });
     }
 
-    testWidgets('ADM-ROL-008 no branch manager role: the first role',
-        (tester) async {
+    testWidgets('ADM-ROL-008 no branch manager role: the first role', (
+      tester,
+    ) async {
       final s = rolesServer();
       s.db['roles'].removeWhere((r) => r['kind'] == 'branch_manager');
       await pumpRoles(tester, server: s.server, db: s.db);
@@ -275,8 +282,13 @@ void main() {
         tester.widget<DashListRow>(roleRow(roleId('org_admin'))).selected,
         isTrue,
       );
-      expect(inHeader('The owner can do everything. This role cannot be '
-          'changed.'), findsOneWidget);
+      expect(
+        inHeader(
+          'The owner can do everything. This role cannot be '
+          'changed.',
+        ),
+        findsOneWidget,
+      );
     });
   });
 
@@ -330,9 +342,7 @@ void main() {
       await h.tapKey(const ValueKey('role-rename'));
       expect(inSurface('Rename role'), findsOneWidget);
       expect(
-        tester
-            .widget<DashTextField>(field('role-name-en'))
-            .value,
+        tester.widget<DashTextField>(field('role-name-en')).value,
         'Branch manager',
       );
       expect(
@@ -452,8 +462,9 @@ void main() {
       );
     });
 
-    testWidgets('ADM-ROL-014 core → "Always on"; held → on; not held → off',
-        (tester) async {
+    testWidgets('ADM-ROL-014 core → "Always on"; held → on; not held → off', (
+      tester,
+    ) async {
       await pumpRoles(tester);
       // Branch manager: "See orders" is core for the kind.
       expect(grantSwitch('orders.read'), findsNothing);
@@ -472,9 +483,10 @@ void main() {
     testWidgets('ADM-ROL-014 (divergence) a switch is named by the '
         "capability's words, not its key", (tester) async {
       await pumpRoles(tester);
-      expect(switchOf(tester, 'branches.edit').semanticLabel, isNot(
-        'branches.edit',
-      ));
+      expect(
+        switchOf(tester, 'branches.edit').semanticLabel,
+        isNot('branches.edit'),
+      );
       expect(
         find.descendant(
           of: capabilityRow(switchOf(tester, 'branches.edit').semanticLabel),
@@ -541,16 +553,20 @@ void main() {
         find.byKey(const ValueKey('limits-orders.discount.preset')),
         findsOneWidget,
       );
-      expect(find.byKey(const ValueKey('limits-inventory.waste.record')),
-          findsNothing);
+      expect(
+        find.byKey(const ValueKey('limits-inventory.waste.record')),
+        findsNothing,
+      );
       final limits = find.byKey(const ValueKey('limits-refunds.create'));
       // EGP 1,000 already set → "Limited", 1000 in the box.
       await h.tap(find.descendant(of: limits, matching: find.text('Limited')));
       final box = find.byWidgetPredicate(
         (w) => w is DashTextInput && w.semanticLabel == 'Most per action (EGP)',
       );
-      expect(find.descendant(of: box, matching: find.text('1000')),
-          findsOneWidget);
+      expect(
+        find.descendant(of: box, matching: find.text('1000')),
+        findsOneWidget,
+      );
       await h.shot('roles/limits');
       await h.enterText(box, '250');
       await h.tap(find.text('Save').hitTestable().last);
@@ -582,8 +598,8 @@ void main() {
       Future<void> refreshWith(int minor) async {
         roles.update(RolesSeed.seniorCashier, {
           'grants': [
-            for (final g in roles.find(RolesSeed.seniorCashier)!['grants']!
-                as List)
+            for (final g
+                in roles.find(RolesSeed.seniorCashier)!['grants']! as List)
               (g as Map)['capability'] == 'refunds.create'
                   ? {
                       ...g,
@@ -592,7 +608,9 @@ void main() {
                   : g,
           ],
         });
-        h.container.read(realtimeBusProvider).invalidate(const ['/authz/roles']);
+        h.container.read(realtimeBusProvider).invalidate(const [
+          '/authz/roles',
+        ]);
         await h.settle();
       }
 
@@ -601,7 +619,8 @@ void main() {
       final box = find.byWidgetPredicate(
         (w) => w is DashTextInput && w.semanticLabel == 'Most per action (EGP)',
       );
-      Finder reads(String v) => find.descendant(of: box, matching: find.text(v));
+      Finder reads(String v) =>
+          find.descendant(of: box, matching: find.text(v));
       expect(reads('1000'), findsOneWidget);
       await refreshWith(50000);
       expect(reads('500'), findsOneWidget);
@@ -610,8 +629,9 @@ void main() {
       expect(reads('300'), findsOneWidget);
     });
 
-    testWidgets('ADM-ROL-016 a capability without limits set reads "Limit"',
-        (tester) async {
+    testWidgets('ADM-ROL-016 a capability without limits set reads "Limit"', (
+      tester,
+    ) async {
       await pumpRoles(tester);
       expect(
         find.descendant(

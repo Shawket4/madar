@@ -16,6 +16,7 @@ import 'dart:typed_data';
 import 'package:dashboard_api/dashboard_api.dart'
     show
         AddonItem,
+        ApiException,
         ApiFilePart,
         GroupOut,
         Category,
@@ -68,13 +69,13 @@ Future<void> showMenuItemDialog(
   ),
 );
 
-/// Words to show under the uploader (its error is the thrown value's text).
-class _Words implements Exception {
-  const _Words(this.text);
-  final String text;
+/// A failed upload or Remove, worded for the person (shown under the box).
+/// An [ApiException], because the kit words anything else as "unexpected".
+class _Words extends ApiException {
+  const _Words(String text) : super(status: 0, message: text);
 
   @override
-  String toString() => text;
+  String toString() => message;
 }
 
 class _SizeRow {

@@ -7,12 +7,12 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_sell/src/area_seed.dart';
 import 'package:dashboard_sell/src/floor/floor_page.dart';
 import 'package:dashboard_sell/src/mock/register.dart';
-import 'package:dashboard_sell/src/orders/error_text.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/sell_harness.dart';
+import 'package:dashboard_sell/src/shared/error_text.dart';
 
 const sectionsPath = '/floor/sections';
 const tablesPath = '/floor/tables';
@@ -127,7 +127,7 @@ Future<void> letSave(DashHarness h) async {
 /// 403 is the permission sentence, a "Kind: " prefix is dropped).
 String shownFor(DashHarness h, MockResponse r) {
   final e = MockServer.toApiException(r);
-  return ordersErrorText(
+  return sellErrorText(
     ApiException(
       status: e.status,
       code: e.code,

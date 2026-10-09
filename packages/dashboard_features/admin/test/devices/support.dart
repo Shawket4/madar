@@ -11,7 +11,7 @@ import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_admin/src/devices/devices_page.dart';
 import 'package:dashboard_admin/src/devices/devices_table.dart';
 import 'package:dashboard_admin/src/mock/devices_mock.dart';
-import 'package:dashboard_admin/src/orgs/org_errors.dart';
+import 'package:dashboard_admin/src/shared/org_errors.dart';
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';

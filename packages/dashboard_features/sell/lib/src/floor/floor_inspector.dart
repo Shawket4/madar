@@ -14,11 +14,11 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orders/error_text.dart';
 import '../shared/customer_link.dart';
 import '../shared/invalidate.dart';
 import 'floor_providers.dart';
 import 'floor_util.dart';
+import '../shared/error_text.dart';
 
 class FloorInspector extends ConsumerWidget {
   const FloorInspector({
@@ -66,7 +66,7 @@ class FloorInspector extends ConsumerWidget {
       adoptToken(row.id, row.updatedAt);
       bus.invalidate(SellInvalidate.floor);
     } on Object catch (e) {
-      if (context.mounted) DashToast.error(context, ordersErrorText(e, t));
+      if (context.mounted) DashToast.error(context, sellErrorText(e, t));
     }
   }
 

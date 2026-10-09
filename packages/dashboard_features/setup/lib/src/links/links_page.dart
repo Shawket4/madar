@@ -9,7 +9,6 @@
 library;
 
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart'
@@ -24,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/qr_preview_dialog.dart';
 import '../shared/social_links.dart';
+import '../shared/sticky_beside.dart';
 import 'links_data.dart';
 import 'links_preview.dart';
 import 'links_providers.dart';
@@ -315,7 +315,12 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
         ),
       ],
       body: viewport >= LinksMetrics.besideFrom
-          ? _StickyBeside(main: form, aside: preview)
+          ? StickyBeside(
+              main: form,
+              side: preview,
+              sideWidth: LinksMetrics.preview,
+              gap: Space.xl,
+            )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: Space.xl,
@@ -865,76 +870,6 @@ class _Preview extends ConsumerWidget {
           child: SingleChildScrollView(
             primary: false,
             child: LinksPublicPreview(orgId: orgId),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// The form with the preview beside it, the preview following the page's
-/// scroll 16 below the top until the form ends (`xl:sticky xl:top-4`).
-class _StickyBeside extends StatefulWidget {
-  const _StickyBeside({required this.main, required this.aside});
-
-  final Widget main;
-  final Widget aside;
-
-  @override
-  State<_StickyBeside> createState() => _StickyBesideState();
-}
-
-class _StickyBesideState extends State<_StickyBeside> {
-  final _aside = GlobalKey();
-  ScrollableState? _scrollable;
-  double _shift = 0;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final s = Scrollable.maybeOf(context);
-    if (s != _scrollable) {
-      _scrollable?.position.removeListener(_follow);
-      _scrollable = s?..position.addListener(_follow);
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollable?.position.removeListener(_follow);
-    super.dispose();
-  }
-
-  void _follow() {
-    final row = context.findRenderObject() as RenderBox?;
-    final aside = _aside.currentContext?.findRenderObject() as RenderBox?;
-    final view = _scrollable?.context.findRenderObject() as RenderBox?;
-    if (row == null || aside == null || view == null) return;
-    if (!row.hasSize || !aside.hasSize || !row.attached || !view.attached) {
-      return;
-    }
-    final top = row.localToGlobal(Offset.zero, ancestor: view).dy;
-    final room = math.max(0.0, row.size.height - aside.size.height);
-    final next = (Space.lg - top).clamp(0.0, room);
-    if (next != _shift) setState(() => _shift = next);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _follow();
-    });
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Space.xl,
-      children: [
-        Expanded(child: widget.main),
-        Transform.translate(
-          offset: Offset(0, _shift),
-          child: SizedBox(
-            key: _aside,
-            width: LinksMetrics.preview,
-            child: widget.aside,
           ),
         ),
       ],

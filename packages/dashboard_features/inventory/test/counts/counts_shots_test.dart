@@ -21,9 +21,10 @@ const _states = [
 /// Shoots the page top to bottom: `<name>-1`, `<name>-2`, …
 Future<void> shootPage(DashHarness h, String name) async {
   ScrollableState? state;
-  for (final e in find
-      .descendant(of: page, matching: find.byType(Scrollable))
-      .evaluate()) {
+  for (final e
+      in find
+          .descendant(of: page, matching: find.byType(Scrollable))
+          .evaluate()) {
     final s = (e as StatefulElement).state as ScrollableState;
     if (s.position.axis == Axis.vertical && s.position.maxScrollExtent > 0) {
       state = s;
@@ -226,7 +227,9 @@ void main() {
         ),
       );
       await h.shot('counts/editor-flagged');
-      await h.tap(inEditor(byKey('count-reason-${InvIds.ingredient('croissant')}')));
+      await h.tap(
+        inEditor(byKey('count-reason-${InvIds.ingredient('croissant')}')),
+      );
       await h.shot('counts/editor-reason-open');
       await h.flushTimers();
     });

@@ -18,6 +18,7 @@ import '../shared/attendance_errors.dart';
 import '../shared/refresh_button.dart';
 import '../shared/refresh_toast.dart';
 import '../shared/staff_query.dart';
+import '../shared/team_format.dart' show startEdge;
 import '../shared/team_util.dart';
 import 'add_employee_dialog.dart';
 import 'departments_dialog.dart';
@@ -193,8 +194,10 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
         loading: q.awaitingFirst,
         // A failed refresh replaces the rows (the web's table takes the raw
         // query error, TEAM-ALL-010); the stale-data toast says it too.
-        errorMessage: q.hasError ? _err(q.error) : null,
+        // An attempt Riverpod will retry is still loading.
+        errorMessage: q.hasError && !q.retrying ? _err(q.error) : null,
         onRetry: () => ref.invalidate(read),
+        retrying: q.isLoading,
         onRowIntent: (_) {
           if (canSetPay) ref.warm(staffAttendanceSettingsProvider);
         },
@@ -246,17 +249,22 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Free text reads in its own direction (`dir="auto"`).
         MadarClippedText(
           top,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: topStyle,
+          textDirection: dashTextDirectionOf(top),
+          textAlign: startEdge(context),
         ),
         MadarClippedText(
           below,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: muted,
+          textDirection: dashTextDirectionOf(below),
+          textAlign: startEdge(context),
         ),
       ],
     );
@@ -365,6 +373,8 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
           dash(e.departmentName),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          textDirection: dashTextDirectionOf(dash(e.departmentName)),
+          textAlign: startEdge(context),
         ),
       ),
       DashColumn(

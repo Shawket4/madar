@@ -41,9 +41,8 @@ Future<DashHarness> pumpOpen(
 Finder get _finalize => inEditor(byKey('count-finalize'));
 
 /// Every toast on screen.
-Finder get _toasts => find.byWidgetPredicate(
-  (w) => w.runtimeType.toString() == '_ToastCard',
-);
+Finder get _toasts =>
+    find.byWidgetPredicate((w) => w.runtimeType.toString() == '_ToastCard');
 bool _canFinalize(WidgetTester t) =>
     t.widget<DashButton>(_finalize).onPressed != null;
 
@@ -52,7 +51,8 @@ List<String> shownRows(WidgetTester tester) {
   final rows = find.descendant(
     of: inEditor(byKey('count-table')),
     matching: find.byWidgetPredicate(
-      (w) => w.key is ValueKey<String> &&
+      (w) =>
+          w.key is ValueKey<String> &&
           (w.key! as ValueKey<String>).value.startsWith('count-row-'),
     ),
   );
@@ -608,7 +608,9 @@ void main() {
       expect(inRow('decaf', find.text('Flagged')), findsOneWidget);
       await waitAutosave(h);
       await h.expectToast(
-        h.refusalWords(MockResponse.badRequest('counted_qty cannot be negative')),
+        h.refusalWords(
+          MockResponse.badRequest('counted_qty cannot be negative'),
+        ),
       );
       // Still due: the next edit sends it again (fixed now).
       await typeCount(h, 'decaf', '470');
@@ -723,13 +725,10 @@ void main() {
       await h.tap(inEditor(byKey('count-cancel')));
       await h.tap(find.text('Cancel stocktake').last);
       await waitAutosave(h);
-      expect(
-        [
-          for (final c in h.server.callsTo(itemsRoute))
-            if (c.status != 200) c,
-        ],
-        isEmpty,
-      );
+      expect([
+        for (final c in h.server.callsTo(itemsRoute))
+          if (c.status != 200) c,
+      ], isEmpty);
       expect(_toasts, findsNothing);
     });
   });
@@ -740,7 +739,10 @@ void main() {
         'figure', (tester) async {
       final s = countsServer();
       final st = s.db[InvTables.stocktakes].find(openNewCairo)!;
-      st['scope'] = {'kind': 'category', 'category_id': InvIds.category('milk')};
+      st['scope'] = {
+        'kind': 'category',
+        'category_id': InvIds.category('milk'),
+      };
       s.db[InvTables.stocktakeItems].removeWhere(
         (i) =>
             i['stocktake_id'] == openNewCairo &&
@@ -777,10 +779,7 @@ void main() {
       // The next read holds it: still one row.
       await h.tester.pump(const Duration(seconds: 30));
       await h.settle();
-      expect(
-        shownRows(tester).where((n) => n == 'Sugar'),
-        hasLength(1),
-      );
+      expect(shownRows(tester).where((n) => n == 'Sugar'), hasLength(1));
       expect(
         tester
             .widget<DashSelect<String>>(inEditor(byKey('count-add')))
@@ -861,7 +860,10 @@ void main() {
       expect(editor, findsNothing);
       expect(inPage(find.text('Start a count')), findsOneWidget);
       expect(_toasts, findsNothing);
-      expect(s.db[InvTables.stocktakes].find(openNewCairo)!['status'], 'cancelled');
+      expect(
+        s.db[InvTables.stocktakes].find(openNewCairo)!['status'],
+        'cancelled',
+      );
     });
 
     testWidgets('INV-CNT-045 a refused cancel is a toast; the editor stays', (
@@ -899,10 +901,9 @@ void main() {
       ];
       expect(after, ['PUT $itemsRoute', 'POST $finalizeRoute']);
       expect(
-        ((lastBody(h, itemsRoute, 'PUT')! as Map)['items']! as List)
-            .firstWhere(
-              (i) => (i as Map)['org_ingredient_id'] == _id('croissant'),
-            ),
+        ((lastBody(h, itemsRoute, 'PUT')! as Map)['items']! as List).firstWhere(
+          (i) => (i as Map)['org_ingredient_id'] == _id('croissant'),
+        ),
         {
           'counted_qty': 37,
           'org_ingredient_id': _id('croissant'),
@@ -990,7 +991,9 @@ void main() {
       find.descendant(
         of: inEditor(byKey('count-table')),
         matching: find.byWidgetPredicate(
-          (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+          (w) =>
+              w is SingleChildScrollView &&
+              w.scrollDirection == Axis.horizontal,
         ),
       ),
       findsOneWidget,

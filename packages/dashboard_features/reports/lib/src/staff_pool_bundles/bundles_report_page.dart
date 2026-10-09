@@ -67,7 +67,6 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
       kind: _kind.wire,
     );
     final q = watchWhen(ref, canSee, bundlesReportProvider(query));
-    final logo = exportLogoUrl(ref);
     final rows = q.value?.rows ?? const <BundlesRow>[];
     final totals = q.value?.totals;
     final loading = q.awaitingFirst;
@@ -92,7 +91,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
         DashExportButton(
           loading: _exporting,
           enabled: rows.isNotEmpty,
-          onExport: () => _export(query, rows, scope, logo),
+          onExport: () => _export(query, rows, scope),
         ),
       ],
       filters: Align(
@@ -161,6 +160,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
             rows: rows,
             rowKey: (r) => '${r.kind}:${r.id}',
             loading: loading,
+            retrying: q.isLoading,
             errorMessage: q.failed ? errorMessage(q.error, t) : null,
             onRetry: () => ref.invalidate(bundlesReportProvider(query)),
             onRowTap: _combos
@@ -290,7 +290,6 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
     BundlesQuery query,
     List<BundlesRow> rows,
     Scope scope,
-    String? logo,
   ) async {
     final t = ref.read(tProvider);
     final f = ref.read(formatProvider);
@@ -300,7 +299,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
       final config = ExcelConfig(
         filename:
             'Madar-Bundles-${_combos ? 'Combos' : 'Deals'}-${query.from}_${query.to}',
-        logoUrl: logo,
+        logoUrl: exportLogoUrl(ref),
         sheets: [
           ExcelSheet<BundlesRow>(
             name: _combos

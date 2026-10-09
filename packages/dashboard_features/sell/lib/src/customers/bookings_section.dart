@@ -16,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import '../shared/booking_status.dart';
 import 'customers_data.dart';
 import 'people_widgets.dart';
+import '../shared/error_text.dart';
 
 class BookingsSection extends ConsumerStatefulWidget {
   const BookingsSection({required this.customerId, super.key});
@@ -83,7 +84,7 @@ class _BookingsSectionState extends ConsumerState<BookingsSection> {
     if (failed) {
       // Stays up, its Retry spinning, while the retry runs.
       body = InlineFailure(
-        message: peopleErrorMessage(q.error, t),
+        message: sellErrorText(q.error, t),
         retrying: q.isLoading,
         onRetry: () => ref.invalidate(customerBookingsProvider(_key)),
       );

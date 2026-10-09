@@ -360,6 +360,7 @@ class _DealName extends StatelessWidget {
           deal.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          textDirection: dashTextDirectionOf(deal.name),
           style: (phone ? DashType.sectionTitle : DashType.bodyStrong).copyWith(
             color: c.textPrimary,
           ),

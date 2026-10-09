@@ -4,7 +4,6 @@
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart' show Space;
 import 'package:flutter/widgets.dart';
@@ -40,12 +39,6 @@ Widget? lisGate(
   }
   if (canSee(a)) return null;
   return Restricted(title: title, who: t('reports.noAccess'));
-}
-
-/// `useExportLogo`: the shop's own logo on the branding tier, else Madar's.
-String? lisExportLogo(WidgetRef ref) {
-  final brand = ref.watch(publicBrandProvider).value;
-  return brand != null && brand.customBranding ? brand.logoUrl : null;
 }
 
 /// `exportToExcel(config)`: "Nothing to export", or "Gathering data…"

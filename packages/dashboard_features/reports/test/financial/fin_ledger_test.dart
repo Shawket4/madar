@@ -506,6 +506,18 @@ void main() {
     expect(shownRows(), isNotEmpty);
   });
 
+  testWidgets('REP-ALL-018 a failed refetch replaces the ledger rows with '
+      'the error', (tester) async {
+    final s = finServer();
+    final h = await pumpFin(tester, server: s.server, db: s.db);
+    expect(shownRows(), isNotEmpty);
+    s.server.fail('GET', ledgerRoute, MockResponse.error(500, 'Down'));
+    invalidateInsights(h.container.read(realtimeBusProvider));
+    await h.settle();
+    expect(inLedger(find.text('Retry')), findsOneWidget);
+    expect(shownRows(), isEmpty);
+  });
+
   group('export', () {
     Finder exportButton() => find.byKey(const ValueKey('fin-ledger-export'));
     Future<void> menu(DashHarness h, String item) async {

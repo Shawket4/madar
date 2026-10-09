@@ -364,6 +364,32 @@ void main() {
     expect(_refs(tester), _zamalek);
   });
 
+  testWidgets('INV-TRF-010 Retry while the list is out: the failure stays '
+      'up and its Retry spins', (tester) async {
+    final s = transfersServer();
+    s.server.fail('GET', listRoute, MockResponse.error(500, 'Down'));
+    final h = await pumpTransfers(
+      tester,
+      server: s.server,
+      db: s.db,
+      branch: SeedIds.zamalek,
+    );
+    s.server.clearFailures();
+    final gate = s.server.hold('GET', listRoute);
+    await tester.tap(inTable(find.text('Retry')));
+    await tester.pump();
+    expect(inTable(find.text('Couldn\'t load this')), findsOneWidget);
+    expect(
+      tester
+          .widget<DashErrorState>(inTable(find.byType(DashErrorState)))
+          .retrying,
+      isTrue,
+    );
+    gate.release();
+    await h.settle();
+    expect(_refs(tester), _zamalek);
+  });
+
   testWidgets('INV-TRF-010 empty: "No transfers found"', (tester) async {
     final h = await pumpTransfers(tester, branch: SeedIds.heliopolis);
     await h.tap(inPage(find.text('Cancelled')));

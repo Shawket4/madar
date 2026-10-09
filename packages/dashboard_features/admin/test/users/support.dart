@@ -8,7 +8,7 @@
 // wires in (`lib/src/routes.dart`, `lib/src/mock/register.dart`).
 import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_admin/src/mock/users_mock.dart';
-import 'package:dashboard_admin/src/orgs/org_errors.dart';
+import 'package:dashboard_admin/src/shared/org_errors.dart';
 import 'package:dashboard_admin/src/users/users_data.dart';
 import 'package:dashboard_admin/src/users/users_page.dart';
 import 'package:dashboard_api/dashboard_api.dart' show ApiException;

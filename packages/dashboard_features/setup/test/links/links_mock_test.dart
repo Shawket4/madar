@@ -51,7 +51,7 @@ void main() {
       'New Cairo',
       'Zamalek',
     ]);
-    expect(m['book']!.branchNames, ['Heliopolis', 'Zamalek']);
+    expect(m['book']!.branchNames, ['Heliopolis', 'Maadi', 'New Cairo']);
     expect(m['rewards']!.available, isTrue);
     expect(s.loyaltyMode, 'visits');
     expect(s.branches.map((b) => (b.name, b.visible, b.mapsUrl)), [

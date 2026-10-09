@@ -37,11 +37,21 @@ void main() {
     expect(h.server.callsTo(policyRoute), hasLength(1), reason: 'cached');
   });
 
-  testWidgets('ADM-ROL-001 a refused warm-up leaves nothing cached',
-      (tester) async {
+  testWidgets('ADM-ROL-001 a refused warm-up leaves nothing cached', (
+    tester,
+  ) async {
     final s = rolesServer();
-    s.server.fail('GET', rolesRoute, MockResponse.denied('staff.permissions.read'));
-    final h = await pumpRoles(tester, path: linkPath, server: s.server, db: s.db);
+    s.server.fail(
+      'GET',
+      rolesRoute,
+      MockResponse.denied('staff.permissions.read'),
+    );
+    final h = await pumpRoles(
+      tester,
+      path: linkPath,
+      server: s.server,
+      db: s.db,
+    );
     final link = find.byKey(const ValueKey('roles-link'));
     await hover(tester, link);
     await h.settle();

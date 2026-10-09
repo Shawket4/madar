@@ -2,8 +2,9 @@
 /// (`waste-page.tsx`): the by-reason report keyed by the scope's period,
 /// the by-reason sums, and the export walk of the whole log.
 ///
-/// The log itself is Today's read (`todayWasteProvider`, the same
-/// `/inventory/branches/{id}/waste` key), so the two pages share a cache.
+/// The log itself is the read Today also shows (`todayWasteProvider` in
+/// `shared/inventory_data.dart`, the same `/inventory/branches/{id}/waste`
+/// key), so the two pages share a cache.
 library;
 
 import 'package:collection/collection.dart';

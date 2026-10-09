@@ -19,10 +19,10 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../purchasing/purchasing_widgets.dart' show PoNumberInput;
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart' show jsNumberString;
+import '../shared/number_input.dart';
 import 'transfer_dialog.dart';
 import 'transfers_data.dart';
 import 'transfers_page.dart' show TransferRoute, transferBranches;

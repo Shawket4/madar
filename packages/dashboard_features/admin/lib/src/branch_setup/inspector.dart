@@ -13,7 +13,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orgs/org_errors.dart' show orgErrorWords;
+import '../shared/org_errors.dart' show orgErrorWords;
 import 'branch_setup_providers.dart';
 import 'builder_canvas.dart' show PresenceDot, PresenceTone;
 import 'plan.dart';

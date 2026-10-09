@@ -186,6 +186,16 @@ class _ReportsBodyState extends ConsumerState<_ReportsBody> {
               DashQuickRange.thisWeek,
             ],
             periodStartDay: periodStartDay,
+            // A quick range warms the tab's read for that range.
+            onQuickIntent: tab == null
+                ? null
+                : (f, to) => ref.warm(
+                    reportReadOf(tab, (
+                      from: dashYmd(f),
+                      to: dashYmd(to),
+                      branchId: branchId,
+                    )),
+                  ),
             onChanged: (f, to) => setState(
               () => _range = (
                 from: f == null ? range.from : dashYmd(f),

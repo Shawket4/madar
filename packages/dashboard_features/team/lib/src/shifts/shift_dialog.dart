@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/attendance_errors.dart';
 import '../shared/staff_query.dart';
 import '../shared/team_format.dart';
+import '../shared/time_range_field.dart';
 import '../shared/week.dart';
 import 'shift_form.dart';
 import 'shift_inputs.dart';
@@ -206,6 +207,8 @@ class _WorkShiftDialogState extends ConsumerState<WorkShiftDialog> {
         builder: (context, invalid) => DashNumberInput(
           value: value,
           onChanged: (n) => _edit(() => set(n)),
+          // The web's `<form>` submits on Enter.
+          onSubmitted: (_) => _save(),
           step: duration ? step : 0.05,
           decimals: duration ? 0 : 2,
           stepper: duration,
@@ -336,6 +339,7 @@ class _WorkShiftDialogState extends ConsumerState<WorkShiftDialog> {
           value: _v.name,
           errorText: problems['name'],
           onChanged: (v) => _edit(() => _v.name = v),
+          onSubmitted: (_) => _save(),
         ),
         DashSelectField<String>(
           label: t('staff.shiftBranch'),
@@ -349,7 +353,7 @@ class _WorkShiftDialogState extends ConsumerState<WorkShiftDialog> {
           ],
           onChanged: (v) => _edit(() => _v.branchId = v),
         ),
-        ShiftTimeRange(
+        TeamTimeRangeField(
           start: _v.start,
           end: _v.end,
           startLabel: t('staff.startTime'),
@@ -416,7 +420,7 @@ class _WorkShiftDialogState extends ConsumerState<WorkShiftDialog> {
                       ),
                     ),
                     Expanded(
-                      child: ShiftTimeRange(
+                      child: TeamTimeRangeField(
                         start: _v.dayTimes[dow]?.start ?? '',
                         end: _v.dayTimes[dow]?.end ?? '',
                         optional: true,

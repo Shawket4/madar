@@ -191,6 +191,7 @@ class _IntegrationsPageState extends ConsumerState<IntegrationsPage> {
             rows: rows,
             loading: q.awaitingFirst,
             errorText: q.failedFirst ? errorMessage(q.error, t) : null,
+            retrying: q.isLoading,
             onRetry: () => ref.invalidate(integrationCredentialsProvider),
             onRotate: platform ? _rotate : null,
             onRevoke: platform ? _revoke : null,
@@ -284,6 +285,7 @@ class _CredentialsTable extends ConsumerWidget {
     required this.rows,
     required this.loading,
     required this.errorText,
+    required this.retrying,
     required this.onRetry,
     required this.onRotate,
     required this.onRevoke,
@@ -292,6 +294,7 @@ class _CredentialsTable extends ConsumerWidget {
   final List<CredentialSummary> rows;
   final bool loading;
   final String? errorText;
+  final bool retrying;
   final VoidCallback onRetry;
 
   /// Null for a viewer who may only audit: no actions at all.
@@ -310,6 +313,7 @@ class _CredentialsTable extends ConsumerWidget {
       rowKey: (r) => r.id,
       loading: loading,
       errorMessage: errorText,
+      retrying: retrying,
       onRetry: onRetry,
       hideViewOptions: true,
       searchPlaceholder: t('common.search'),
@@ -413,6 +417,7 @@ class _LabelCell extends StatelessWidget {
       children: [
         MadarClippedText(
           credential.name,
+          textDirection: dashTextDirectionOf(credential.name),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: DashType.bodyStrong.copyWith(color: c.textPrimary),

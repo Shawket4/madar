@@ -192,7 +192,9 @@ void registerCountsMocks(MockServer server, MockDb db) {
         );
       }
     }
-    if (stocktakes.firstWhere((s) => s['branch_id'] == branchId && _isOpen(s)) !=
+    if (stocktakes.firstWhere(
+          (s) => s['branch_id'] == branchId && _isOpen(s),
+        ) !=
         null) {
       req.conflict(
         'An open stocktake already exists for this branch. Finalize or '
@@ -273,7 +275,9 @@ void registerCountsMocks(MockServer server, MockDb db) {
         'variance_reason': line['variance_reason'],
       };
       final it = items.firstWhere(
-        (i) => i['stocktake_id'] == st['id'] && i['org_ingredient_id'] == ing['id'],
+        (i) =>
+            i['stocktake_id'] == st['id'] &&
+            i['org_ingredient_id'] == ing['id'],
       );
       if (it == null) {
         newItem(st, ing, set); // a found item outside the count's scope
@@ -294,9 +298,9 @@ void registerCountsMocks(MockServer server, MockDb db) {
     );
     String nameOf(MockRow it) =>
         (db[InvTables.ingredients].find(
-              it['org_ingredient_id']! as String,
-            )?['name'] ??
-            it['ingredient_name'])!
+                  it['org_ingredient_id']! as String,
+                )?['name'] ??
+                it['ingredient_name'])!
             as String;
     counted.sort((a, b) => compareJson(nameOf(a), nameOf(b)));
     final unexplained = [

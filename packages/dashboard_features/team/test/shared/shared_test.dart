@@ -8,7 +8,10 @@ import 'package:dashboard_core/dashboard_core.dart'
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_team/dashboard_team.dart';
 import 'package:dashboard_team/src/area_seed.dart';
+import 'package:dashboard_team/src/shared/export_logo.dart';
+import 'package:dashboard_team/src/shared/ladder_pricing.dart';
 import 'package:dashboard_team/src/shared/rules_banner.dart';
+import 'package:dashboard_team/src/shared/setup_data.dart';
 import 'package:dashboard_team/src/shared/staff_query.dart';
 import 'package:dashboard_team/src/shared/team_format.dart';
 import 'package:dashboard_team/src/shared/team_util.dart';
@@ -109,6 +112,51 @@ void main() {
       expect(rdiv(-5, 2), -3);
       expect(rdiv(310000 * 16, 31), 160000);
       expect(rdiv(1, 0), 0);
+    });
+
+    test('ladder pricing: one copy for Rules and Set-up (tierPiastres)', () {
+      const ex = PayExample.initial; // 12,000 EGP, 30 days, 480 min
+      // A minute of pay: 1,200,000 × 15 / (30 × 480) = 1,250.
+      expect(rungPiastres('minutes', 15, ex), 1250);
+      // A quarter day: 1,200,000 × 0.25 / 30 = 10,000.
+      expect(rungPiastres('day_fraction', 0.25, ex), 10000);
+      expect(rungPiastres('piastres', 5000, ex), 5000);
+      expect(rungPiastres('piastres', -5, ex), 0);
+      // Half away from zero: 1 × 1 / (2 × 1) = 0.5 → 1.
+      expect(
+        rungPiastres(
+          'minutes',
+          1,
+          const PayExample(salary: 1, workingDays: 2, shiftMinutes: 1),
+        ),
+        1,
+      );
+      expect(rungPiastres('day_fraction', 1, ex.copyWith(workingDays: 0)), 0);
+      expect(rungPiastres('minutes', 1, ex.copyWith(shiftMinutes: 0)), 0);
+      expect(rungPiastres('piastres', double.nan, ex), isNaN);
+      expect(dayPiastres(ex), 40000);
+      expect(dayPiastres(ex, 0.5), 20000);
+    });
+
+    test('export logo: the own brand only, trimmed, blank is none', () {
+      PublicBrand brand({required bool own, String? logo}) => PublicBrand(
+        accentColor: '#000000',
+        backgroundColor: '#ffffff',
+        customBranding: own,
+        foregroundColor: '#000000',
+        logoIsMark: false,
+        logoUrl: logo,
+        name: 'Sabah',
+        orgId: 'org',
+      );
+      expect(teamExportLogo(null), isNull);
+      expect(
+        teamExportLogo(brand(own: true, logo: ' https://x/l.png ')),
+        'https://x/l.png',
+      );
+      expect(teamExportLogo(brand(own: true, logo: '   ')), isNull);
+      expect(teamExportLogo(brand(own: true)), isNull);
+      expect(teamExportLogo(brand(own: false, logo: 'https://x/l.png')), isNull);
     });
 
     test('stale refusals', () {
@@ -305,5 +353,28 @@ void main() {
     );
     expect(find.text(h.t('dawam.rulesFirstAction')), findsOneWidget);
     await h.shot('rules-banner');
+  });
+
+  testWidgets('the set-up reads come back at once on a remount (webCache)', (
+    tester,
+  ) async {
+    final h = await DashHarness.pump(
+      tester,
+      areas: const [teamArea],
+      path: '/staff/team',
+    );
+    final reads = [
+      setupActiveEmployeesProvider,
+      setupWorkShiftsProvider,
+      setupAttendanceSettingsProvider,
+    ];
+    await h.go('/staff/employees');
+    h.router.go('/staff/team');
+    await tester.pump();
+    // The banner's reads were kept, not started again: no skeleton frame.
+    for (final r in reads) {
+      final v = h.container.read(r);
+      expect(v.hasValue && !v.isLoading, isTrue, reason: '$r');
+    }
   });
 }

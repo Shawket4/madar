@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'till_badges.dart';
 import 'tills_data.dart';
+import '../shared/error_text.dart';
 
 /// The four KPIs (SELL-TIL-009), a branch selected only.
 class TillsKpis extends ConsumerWidget {
@@ -109,7 +110,7 @@ class OpenNowSection extends ConsumerWidget {
     } else if (openNow.failedFirst) {
       content = DashErrorState(
         key: const ValueKey('open-now-error'),
-        message: tillsErrorMessage(openNow.error, t),
+        message: sellErrorText(openNow.error, t),
         onRetry: onRetry,
         retrying: openNow.isLoading,
       );
@@ -573,7 +574,7 @@ class AllTillsSection extends ConsumerWidget {
           rowKey: (s) => s.id,
           loading: list.awaitingFirst,
           errorMessage: list.hasError && !list.retrying
-              ? tillsErrorMessage(list.error, t)
+              ? sellErrorText(list.error, t)
               : null,
           onRetry: onRetry,
           onRowTap: (s) => onOpenReport(s.id),

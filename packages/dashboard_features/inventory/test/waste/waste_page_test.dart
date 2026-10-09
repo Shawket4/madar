@@ -10,7 +10,6 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_inventory/src/waste/waste_dialog.dart';
-import 'package:dashboard_inventory/src/waste/waste_page.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -208,10 +207,10 @@ void main() {
       expect(inTable(find.text('Till')), findsNWidgets(4));
       expect(inTable(find.text('Dashboard')), findsNWidgets(4));
       expect(inTable(find.text('Device Counter 1')), findsNWidgets(4));
-      final till = tester.widget<SourceBadge>(
-        inTable(find.byType(SourceBadge)).first,
+      final till = tester.widget<DashBadge>(
+        inTable(find.byType(DashBadge)).first,
       );
-      expect(till.filled, isTrue);
+      expect(till.outline, isFalse);
       expect(h.server.callsTo(stockRoute), isEmpty);
     });
 

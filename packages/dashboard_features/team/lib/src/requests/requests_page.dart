@@ -16,6 +16,7 @@ import '../approvals/approvals_data.dart';
 import '../approvals/approvals_dialogs.dart';
 import '../attendance/attendance_providers.dart';
 import '../employees/employees_providers.dart';
+import '../payroll/money_dialogs.dart' show showRejectDialog;
 import '../shared/refresh_button.dart';
 import '../shared/refresh_toast.dart';
 import '../shared/staff_query.dart';
@@ -116,11 +117,11 @@ class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage> {
   }
 
   /// Rejected with an optional reason the requester reads (D8 wording).
-  Future<void> _reject(StaffRequest r) {
+  Future<bool> _reject(StaffRequest r) {
     final t = ref.read(tProvider);
     final api = ref.read(apiProvider);
     final staff = ref.read(staffRevisionsProvider.notifier);
-    return showRejectReasonDialog(
+    return showRejectDialog(
       context,
       title: t(
         'staff.rejectRequestTitle',

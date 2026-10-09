@@ -1,14 +1,18 @@
 /// What Set-up's rules step (TEAM-SET-031…035) reads and sends: the web's
 /// `staff/rules-form.ts` `valuesFrom(settings, {suggest: true})` and
 /// `fullBody`, `dawam/rules-card.tsx` `rulesFrom` / `rulesRequest`, and
-/// `staff/rules-preview.ts` `tierPiastres`. Only the parts the step uses: it
+/// `staff/rules-preview.ts` `tierPiastres` (priced by
+/// `shared/ladder_pricing.dart`). Only the parts the step uses: it
 /// shows the values and saves them unchanged. Pure, so it is tested
 /// directly.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart';
 
+import '../shared/ladder_pricing.dart';
 import 'geo.dart' show jsNumber;
+
+export '../shared/ladder_pricing.dart' show PayExample;
 
 /// One rung of the late-penalty ladder, in the shape the API stores.
 class SetupTier {
@@ -189,41 +193,6 @@ class SetupRules {
 
 String _hhmmss(String s) => s.length == 5 ? '$s:00' : s;
 
-/// A pay example for the worked figures (`PayExample`).
-class PayExample {
-  const PayExample({
-    required this.salary,
-    required this.workingDays,
-    required this.shiftMinutes,
-  });
-
-  /// Set-up's example: EGP 12,000 a month, a 480-minute shift.
-  static const int setupSalary = 1200000;
-  static const int setupShiftMinutes = 480;
-
-  /// Monthly salary, piastres.
-  final int salary;
-  final double workingDays;
-
-  /// The shift's scheduled minutes a day (the minute-rate divisor).
-  final int shiftMinutes;
-}
-
-/// `Math.sign(x) * Math.round(Math.abs(x))`.
-int _roundHalfAway(double x) =>
-    x < 0 ? -((-x) + 0.5).floor() : (x + 0.5).floor();
-
-/// What a rung costs in piastres for one pay example (`tierPiastres`,
-/// mirroring the server's `late_deduction_piastres`).
-int tierPiastres(SetupTier tier, PayExample ex) {
-  int nonNeg(int v) => v < 0 ? 0 : v;
-  if (tier.kind == 'piastres') return nonNeg(_roundHalfAway(tier.value));
-  if (ex.workingDays <= 0) return 0;
-  if (tier.kind == 'day_fraction') {
-    return nonNeg(_roundHalfAway(ex.salary * tier.value / ex.workingDays));
-  }
-  if (ex.shiftMinutes <= 0) return 0;
-  return nonNeg(
-    _roundHalfAway(ex.salary * tier.value / (ex.workingDays * ex.shiftMinutes)),
-  );
-}
+/// What a rung costs in piastres for one pay example (`tierPiastres`).
+num tierPiastres(SetupTier tier, PayExample ex) =>
+    rungPiastres(tier.kind, tier.value, ex);

@@ -24,6 +24,7 @@ import '../shared/attendance_errors.dart';
 import '../shared/refresh_button.dart';
 import '../shared/refresh_toast.dart';
 import '../shared/staff_query.dart';
+import '../shared/export_logo.dart';
 import '../shared/team_format.dart';
 import '../shared/team_util.dart';
 import '../shared/week.dart' show addDays;
@@ -121,7 +122,6 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     final t = ref.read(tProvider);
     final exporter = ref.read(exporterProvider);
     final transport = ref.read(transportProvider);
-    final brand = ref.read(publicBrandProvider).value;
     final key = _key;
     setState(() => _exporting = true);
     try {
@@ -139,7 +139,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
           from: key.from,
           to: key.to,
           status: key.status,
-          logoUrl: brand != null && brand.customBranding ? brand.logoUrl : null,
+          logoUrl: teamExportLogo(ref.read(publicBrandProvider).value),
         ),
       );
       toast.update(
@@ -246,6 +246,13 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
           status: v,
           employeeId: _person,
         )),
+        onRangeIntent: (from, to) => _warm((
+          from: from,
+          to: to,
+          branchId: branchId,
+          status: _status,
+          employeeId: _person,
+        )),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -265,6 +272,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
                 ? _err(recordsQ.error)
                 : null,
             onRetry: () => ref.invalidate(attendanceListProvider(key)),
+            retrying: recordsQ.isLoading,
             searchPlaceholder: t('staff.searchEmployees'),
             rowActions: canCorrect
                 ? (context, r) => r.monthClosed == true
@@ -329,7 +337,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
 
     Widget method(String? m) {
       final text = punchMethodText(t, m);
-      return text.isEmpty ? const SizedBox.shrink() : _OutlineBadge(text);
+      return text.isEmpty ? const SizedBox.shrink() : DashBadge(text, outline: true);
     }
 
     // `text` is what the web's search reads (the accessor: the name, the ISO
@@ -346,17 +354,22 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Free text reads in its own direction (`dir="auto"`).
             MadarClippedText(
               r.employeeName ?? '—',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+              textDirection: dashTextDirectionOf(r.employeeName ?? ''),
+              textAlign: startEdge(context),
             ),
             MadarClippedText(
               r.workShiftName ?? t('staff.unscheduled'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: muted,
+              textDirection: dashTextDirectionOf(r.workShiftName ?? ''),
+              textAlign: startEdge(context),
             ),
           ],
         ),
@@ -392,10 +405,10 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
               ),
               // Its month is approved or paid: the server refuses a
               // correction (PERIOD_CLOSED).
-              if (r.monthClosed == true) _OutlineBadge(t('staff.monthClosed')),
+              if (r.monthClosed == true) DashBadge(t('staff.monthClosed'), outline: true),
               // A colleague covers this shift: no punch goes on it (D1).
               if (coverer != null)
-                _OutlineBadge(t('dawam.coveredBy', args: {'name': coverer})),
+                DashBadge(t('dawam.coveredBy', args: {'name': coverer}), outline: true),
             ],
           );
         },
@@ -533,6 +546,7 @@ class _Filters extends ConsumerWidget {
     required this.onStatus,
     required this.onPersonIntent,
     required this.onStatusIntent,
+    required this.onRangeIntent,
   });
 
   final String from;
@@ -548,6 +562,9 @@ class _Filters extends ConsumerWidget {
   /// Warm the window a person / status option would show (null: all).
   final ValueChanged<String?> onPersonIntent;
   final ValueChanged<String?> onStatusIntent;
+
+  /// Warm the window a quick-range pill would show.
+  final void Function(String from, String to) onRangeIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -585,6 +602,7 @@ class _Filters extends ConsumerWidget {
                 periodStartDay: periodStartDay,
                 fromLabel: t('staff.from'),
                 toLabel: t('staff.to'),
+                onQuickIntent: (f, to) => onRangeIntent(dashYmd(f), dashYmd(to)),
                 onChanged: (f, to) => onRange(
                   f == null ? from : dashYmd(f),
                   to == null ? this.to : dashYmd(to),
@@ -793,28 +811,3 @@ class _AttendanceWordsState extends ConsumerState<_AttendanceWords> {
   }
 }
 
-/// The web's `<Badge variant="outline">`: a hairline pill.
-class _OutlineBadge extends StatelessWidget {
-  const _OutlineBadge(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: c.hairline),
-      ),
-      child: Text(
-        label,
-        style: DashType.smallMedium.copyWith(color: c.textPrimary),
-      ),
-    );
-  }
-}

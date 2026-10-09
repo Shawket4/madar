@@ -80,6 +80,15 @@ final stocktakesProvider = FutureProvider.autoDispose
           .listStocktakes(branchId: branchId);
     });
 
+/// `GET /inventory/branches/{branch_id}/waste` (the server's default page:
+/// the 200 most recent): Today's waste section and the Waste log share it.
+final todayWasteProvider = FutureProvider.autoDispose
+    .family<List<StockMovement>, String>((ref, branchId) {
+      ref.webCache();
+      ref.watch(realtimeEpochProvider('/inventory/branches/$branchId/waste'));
+      return ref.watch(apiProvider).inventory.listWaste(branchId: branchId);
+    });
+
 /// The active suppliers a picker offers (inactive ones are listed on the
 /// Suppliers tab only, INV-PUR-059).
 List<Supplier> activeSuppliers(List<Supplier> all) => [

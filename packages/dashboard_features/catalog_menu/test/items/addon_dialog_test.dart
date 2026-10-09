@@ -364,6 +364,26 @@ void main() {
       expect(callsOf(h, 'GET', '/modifier-groups'), hasLength(groups + 1));
     });
 
+    testWidgets('MENU-ITEMS-052 (intent) pointing at New add-on warms the '
+        'groups; opening the dialog asks nothing more', (tester) async {
+      final h = await _onAddons(tester);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      // Stale first, so only the button's warm-up can ask for them.
+      h.container.invalidate(
+        modifierGroupsProvider((orgId: sabahOrg, includeInactive: false)),
+      );
+      final groups = callsOf(h, 'GET', '/modifier-groups').length;
+      final add = find.text('New add-on').hitTestable();
+      await mouse.moveTo(tester.getCenter(add));
+      await h.settle();
+      expect(callsOf(h, 'GET', '/modifier-groups'), hasLength(groups + 1));
+      await h.tap(add);
+      expect(inSurface(find.text('New add-on')), findsOneWidget);
+      expect(callsOf(h, 'GET', '/modifier-groups'), hasLength(groups + 1));
+    });
+
     testWidgets('MENU-ITEMS-103 (divergence) a failed lines read: words and '
         'Retry, never an empty builder whose Save would wipe the lines', (
       tester,

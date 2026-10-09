@@ -337,6 +337,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
                   ? errorMessage(diffs.error, t)
                   : null,
               onRetry: () => ref.invalidate(transferDifferencesProvider(dkey!)),
+              retrying: diffs?.isLoading ?? false,
             )
           : TransfersTable(
               rows: rows,
@@ -344,6 +345,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               // Kept while Retry runs (no false "No transfers found" between).
               errorText: list.failedFirst ? errorMessage(list.error, t) : null,
               onRetry: () => ref.invalidate(transfersProvider(key)),
+              retrying: list.isLoading,
               onOpen: _open,
               onIntent: (tr) => warmDrawer(ref, tr),
             ),
@@ -380,10 +382,14 @@ class TransferRoute extends StatelessWidget {
       runSpacing: Space.xs,
       children: [
         if (sourceWarehouse) glyph('warehouse'),
-        Text(source, style: style),
+        Text(source, textDirection: dashTextDirectionOf(source), style: style),
         glyph(DashIcon.arrowForward(context)),
         if (destinationWarehouse) glyph('warehouse'),
-        Text(destination, style: style),
+        Text(
+          destination,
+          textDirection: dashTextDirectionOf(destination),
+          style: style,
+        ),
       ],
     );
   }
@@ -398,6 +404,7 @@ class TransfersTable extends ConsumerWidget {
     required this.loading,
     required this.errorText,
     required this.onRetry,
+    this.retrying = false,
     required this.onOpen,
     required this.onIntent,
     super.key,
@@ -407,6 +414,7 @@ class TransfersTable extends ConsumerWidget {
   final bool loading;
   final String? errorText;
   final VoidCallback onRetry;
+  final bool retrying;
   final ValueChanged<StockTransfer> onOpen;
   final ValueChanged<StockTransfer> onIntent;
 
@@ -422,6 +430,7 @@ class TransfersTable extends ConsumerWidget {
       loading: loading,
       errorMessage: errorText,
       onRetry: onRetry,
+      retrying: retrying,
       onRowTap: onOpen,
       onRowIntent: onIntent,
       empty: DashEmptyState(
@@ -499,6 +508,7 @@ class DifferencesTable extends ConsumerWidget {
     required this.loading,
     required this.errorText,
     required this.onRetry,
+    this.retrying = false,
     super.key,
   });
 
@@ -506,6 +516,7 @@ class DifferencesTable extends ConsumerWidget {
   final bool loading;
   final String? errorText;
   final VoidCallback onRetry;
+  final bool retrying;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -519,6 +530,7 @@ class DifferencesTable extends ConsumerWidget {
       loading: loading,
       errorMessage: errorText,
       onRetry: onRetry,
+      retrying: retrying,
       empty: DashEmptyState(
         icon: 'arrow-left-right',
         title: t('inventory.transfers.noDifferences'),
@@ -555,7 +567,10 @@ class DifferencesTable extends ConsumerWidget {
         DashColumn(
           id: 'ingredient_name',
           label: t('inventory.transfers.ingredient'),
-          cell: (context, r) => Text(r.ingredientName),
+          cell: (context, r) => Text(
+            r.ingredientName,
+            textDirection: dashTextDirectionOf(r.ingredientName),
+          ),
           minWidth: Space.xxl * 5,
         ),
         DashColumn(
@@ -579,7 +594,10 @@ class DifferencesTable extends ConsumerWidget {
         DashColumn(
           id: 'note',
           label: t('inventory.transfers.note'),
-          cell: (context, r) => Text(r.note ?? '—'),
+          cell: (context, r) => Text(
+            r.note ?? '—',
+            textDirection: dashTextDirectionOf(r.note ?? ''),
+          ),
           minWidth: Space.xxl * 5,
         ),
       ],

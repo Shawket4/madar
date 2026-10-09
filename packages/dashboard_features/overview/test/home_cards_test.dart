@@ -14,7 +14,6 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
-import 'package:dashboard_overview/src/home/delivery.dart';
 import 'package:dashboard_overview/src/home/keep_building.dart';
 import 'package:dashboard_overview/src/home/home_charts.dart';
 import 'package:dashboard_overview/src/home/home_data.dart';
@@ -658,7 +657,7 @@ void main() {
       final gate = s.server.hold('GET', _delivery);
       final h = await pumpHome(tester, server: s.server, db: s.db);
       expect(kpi(tester, 'Delivery revenue').loading, isTrue);
-      expect(inHome(find.byType(HomeChannelSkeleton)), findsNWidgets(2));
+      expect(inHome(find.byType(DeliveryChannelSkeleton)), findsNWidgets(2));
       expect(homeText('Outside delivery'), findsNothing);
       gate.release();
       await h.settle();

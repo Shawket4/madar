@@ -10,21 +10,12 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/report_shared.dart';
 import 'fin_data.dart';
-
-/// `useExportLogo`: the shop's own logo on the branding tier, else Madar's.
-String? finExportLogo(WidgetRef ref) {
-  final brand = ref.read(publicBrandProvider).value;
-  final logo = brand?.logoUrl?.trim();
-  if (brand == null || !brand.customBranding) return null;
-  return logo == null || logo.isEmpty ? null : logo;
-}
 
 /// `exportToExcel` with the web's toasts. [sheets] may throw (a re-read):
 /// its words are the toast.
@@ -37,7 +28,7 @@ Future<void> finExcel(
 }) async {
   final t = ref.read(tProvider);
   final exporter = ref.read(exporterProvider);
-  final logo = finExportLogo(ref);
+  final logo = exportLogoUrl(ref);
   try {
     final s = await sheets();
     if (!context.mounted) return;

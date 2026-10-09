@@ -14,7 +14,6 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart' as intl;
 
 import '../shared/report_shared.dart';
 import 'staff_drink_money.dart';
@@ -35,6 +34,7 @@ class StaffDrinksTable extends ConsumerWidget {
     this.loading = false,
     this.error,
     this.onRetry,
+    this.retrying = false,
     this.showDate = false,
     this.onOpenOrder,
     super.key,
@@ -46,6 +46,9 @@ class StaffDrinksTable extends ConsumerWidget {
   /// A failed load (its words are shown with Retry).
   final Object? error;
   final VoidCallback? onRetry;
+
+  /// A manual Retry is running: the error stays, its Retry spins.
+  final bool retrying;
 
   /// More than one business day is on screen, so each row says which.
   final bool showDate;
@@ -119,7 +122,6 @@ class StaffDrinksTable extends ConsumerWidget {
         cell: (context, d) {
           final money = staffDrinkMoney(d);
           // `dir="auto"`: the first strong character decides.
-          final rtl = intl.Bidi.startsWithRtl(d.note);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
@@ -127,7 +129,7 @@ class StaffDrinksTable extends ConsumerWidget {
             children: [
               Text(
                 d.note,
-                textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+                textDirection: dashTextDirectionOf(d.note),
                 style: DashType.body.copyWith(color: c.textPrimary),
               ),
               if (money is StaffDrinkPriced && money.tillSaid != null)
@@ -222,6 +224,7 @@ class StaffDrinksTable extends ConsumerWidget {
           loading: loading,
           errorMessage: error == null ? null : errorMessage(error, t),
           onRetry: onRetry,
+          retrying: retrying,
           empty: DashEmptyState(title: t('staffPool.drinksEmpty')),
         ),
         if (anyUnpriced)

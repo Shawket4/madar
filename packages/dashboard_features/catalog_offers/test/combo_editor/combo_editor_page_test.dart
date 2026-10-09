@@ -144,6 +144,25 @@ void main() {
       expect(inEditor(find.byType(DashSkeleton)), findsNothing);
     });
 
+    testWidgets('OFFR-ALL-018 (divergence) while the rights load: the '
+        'skeleton and nothing asked; then the form', (tester) async {
+      final s = editorServer();
+      final rights = s.server.hold('GET', '/authz/me');
+      final h = await DashHarness.pump(
+        tester,
+        areas: const [catalogOffersArea],
+        path: comboPath('coffee-cookie'),
+        server: s.server,
+        db: s.db,
+      );
+      expect(labelled('Back'), findsOneWidget);
+      expect(inEditor(find.byType(DashSkeleton)), findsNWidgets(3));
+      expect(h.server.callsTo(_combo), isEmpty);
+      rights.release();
+      await debounce(h);
+      expect(labelled('Name'), findsOneWidget);
+    });
+
     testWidgets('OFFR-CED-005 a failed load: "Couldn\'t load this combo", the '
         'server\'s words, Retry asks again (the error stays while it runs)', (
       tester,
@@ -389,6 +408,14 @@ void main() {
       tester,
     ) async {
       final h = await pumpEditor(tester, path: comboPath('morning-croissant'));
+      // An outline button with red text, as on the web.
+      final delete = inEditor(
+        find.byWidgetPredicate((w) => w is DashButton && w.label == 'Delete'),
+      );
+      expect(
+        tester.widget<DashButton>(delete).variant,
+        DashButtonVariant.outlineDanger,
+      );
       await typeInto(h, 'Name', 'Morning Croissant');
       await tapLabelled(h, 'Delete');
       expect(find.text('Delete Morning Croissant?'), findsOneWidget);

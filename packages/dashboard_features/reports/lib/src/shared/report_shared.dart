@@ -7,3 +7,4 @@ export 'inventory_scope.dart';
 export 'report_dates.dart';
 export 'report_labels.dart';
 export 'report_period_subtitle.dart';
+export 'report_rules.dart';

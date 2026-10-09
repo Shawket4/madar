@@ -4,7 +4,8 @@
 /// toasts and the switch stays as the server has it.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart' show AssignBranchRequest, Branch, UserPublic;
+import 'package:dashboard_api/dashboard_api.dart'
+    show AssignBranchRequest, Branch, UserPublic;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -12,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../branches/branches_data.dart' show adminBranchesProvider;
-import '../orgs/org_errors.dart' show orgErrorWords;
+import '../shared/org_errors.dart' show orgErrorWords;
 import 'users_data.dart';
 
 /// Opens Branch Access for [user]; resolves when it closes.

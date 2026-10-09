@@ -151,7 +151,17 @@ void main() {
       expect(inCodes(find.byType(DashErrorState)), findsOneWidget);
       expect(find.text('No codes yet'), findsNothing);
       final devices = h.server.callsTo(DevicesRoutes.devices).length;
+      final gate = backend.server.hold('GET', DevicesRoutes.codes);
       await h.tap(inCodes(find.text('Retry')));
+      // Retrying: the table's Retry spins.
+      expect(
+        tester
+            .widget<DashErrorState>(inCodes(find.byType(DashErrorState)))
+            .retrying,
+        isTrue,
+      );
+      gate.release();
+      await h.settle();
       expect(codeCells(), findsNWidgets(4));
       expect(_codeReads(h), 2);
       expect(h.server.callsTo(DevicesRoutes.devices), hasLength(devices));

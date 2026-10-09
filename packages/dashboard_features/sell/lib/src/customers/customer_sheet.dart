@@ -30,6 +30,7 @@ import 'member_section.dart';
 import 'merge_dialog.dart';
 import 'people_widgets.dart';
 import 'person_surface.dart';
+import '../shared/error_text.dart';
 
 /// Opens [customerId]'s sheet from the end side (full screen on a phone) and
 /// resolves when it closes.
@@ -126,7 +127,7 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
       DashToast.success(context, t('customers.erased'));
       _close();
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, peopleErrorMessage(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     } finally {
       if (mounted) setState(() => _erasing = false);
     }
@@ -172,7 +173,7 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
         title: access.canViewCustomers
             ? t('customers.loadFailed')
             : t('loyalty.memberLoadFailed'),
-        description: peopleErrorMessage(primary.error, t),
+        description: sellErrorText(primary.error, t),
         action: DashButton(
           label: t('common.retry'),
           variant: DashButtonVariant.outline,
@@ -250,7 +251,7 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
                 ),
                 _ when card.failedFirst => DashEmptyState(
                   title: t('loyalty.memberLoadFailed'),
-                  description: peopleErrorMessage(card.error, t),
+                  description: sellErrorText(card.error, t),
                   action: DashButton(
                     label: t('common.retry'),
                     variant: DashButtonVariant.outline,

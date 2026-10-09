@@ -89,17 +89,33 @@ void main() {
     });
 
     // The list's states, and the refusal screen.
-    final states = <(String, Persona, void Function(MockServer, MockDb), Finder)>[
-      ('loading', Persona.owner, (s, _) => s.hold('GET', rolesRoute),
-          find.byKey(const ValueKey('roles-loading'))),
-      ('failed', Persona.owner,
-          (s, _) => s.fail('GET', rolesRoute, MockResponse.error(500, 'boom'),
-              times: null),
-          find.byType(DashErrorState)),
-      ('empty', Persona.owner, (_, db) => db['roles'].clear(),
-          find.byType(DashEmptyState)),
-      ('refused', Persona.limited, (_, _) {}, find.byType(DashEmptyState)),
-    ];
+    final states =
+        <(String, Persona, void Function(MockServer, MockDb), Finder)>[
+          (
+            'loading',
+            Persona.owner,
+            (s, _) => s.hold('GET', rolesRoute),
+            find.byKey(const ValueKey('roles-loading')),
+          ),
+          (
+            'failed',
+            Persona.owner,
+            (s, _) => s.fail(
+              'GET',
+              rolesRoute,
+              MockResponse.error(500, 'boom'),
+              times: null,
+            ),
+            find.byType(DashErrorState),
+          ),
+          (
+            'empty',
+            Persona.owner,
+            (_, db) => db['roles'].clear(),
+            find.byType(DashEmptyState),
+          ),
+          ('refused', Persona.limited, (_, _) {}, find.byType(DashEmptyState)),
+        ];
     for (final (name, persona, edit, shows) in states) {
       testWidgets('shots: $name ($tag)', (tester) async {
         final s = rolesServer(persona: persona);
@@ -120,10 +136,7 @@ void main() {
 
     testWidgets('shots: the owner role ($tag)', (tester) async {
       final h = await open(tester, '?role=${roleId('org_admin')}');
-      expect(
-        inHeader(h.t('access.ownerHoldsAll')),
-        findsOneWidget,
-      );
+      expect(inHeader(h.t('access.ownerHoldsAll')), findsOneWidget);
       await h.shot('roles/owner-role');
     });
   }

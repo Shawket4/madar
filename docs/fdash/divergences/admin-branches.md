@@ -5,7 +5,6 @@ the web's behaviour as it is and ask the owner whether it is intended.
 
 | Row | Web | Flutter | Why |
 |---|---|---|---|
-| ADM-BRA-004 the read | `useListBranches({org_id})` (af50aa63): since MadarRust b14f323 the answer leaves warehouses out. | `GET /branches?org_id=…&include_warehouses=true`, so the Warehouses stat, pill and editor see them. | The web's next batch sends the same flag (inventory ADM-BRA-004); without it the warehouse rows this page manages never show. |
 | ADM-BRA-024 out-of-range hours | zod's own English ("Number must be less than or equal to 168"), in both languages. | The kit's range words in the active language ("between 1 and 168"). | English inside the Arabic UI is a web bug (SPEC 6.3). Pinned by `branch_dialog_test` ADM-BRA-024. |
 | ADM-BRA-022, 026 clearing a stored phone or address | A blank box is sent as `null`; the backend `COALESCE`s null, so a stored phone or address can never be cleared. | On an edit, a box emptied of a stored value is sent as `""` (which clears it); a new branch still sends `null`. | Port the intent: emptying a field must empty it, never silently keep the old value. |
 | ADM-BRA-034 tax override on a new branch | The POST carries the four rates, which `CreateBranchRequest` does not take, so a platform admin's override on a new branch is dropped without a word. | The rates ride the follow-up `PATCH` with the till settings (only when a platform admin switched the override on). | A save that silently loses what was typed is a web bug. Pinned by `branch_dialog_test` "ADM-BRA-034 (divergence)…". |

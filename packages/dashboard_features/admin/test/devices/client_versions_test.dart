@@ -1,6 +1,6 @@
 // `/devices?view=clients`, the Client versions view, driven through the real
 // app shell (inventory rows ADM-DEV-021..028).
-import 'package:dashboard_admin/src/orgs/org_errors.dart';
+import 'package:dashboard_admin/src/shared/org_errors.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
@@ -282,7 +282,17 @@ void main() {
       final h = await pumpDevices(tester, query: _clients, backend: backend);
       expect(inClients(find.byType(DashErrorState)), findsOneWidget);
       expect(find.text('No legacy clients'), findsNothing);
+      final gate = backend.server.hold('GET', DevicesRoutes.clients);
       await h.tap(inClients(find.text('Retry')));
+      // Retrying: the table's Retry spins.
+      expect(
+        tester
+            .widget<DashErrorState>(inClients(find.byType(DashErrorState)))
+            .retrying,
+        isTrue,
+      );
+      gate.release();
+      await h.settle();
       expect(clientRows(), findsNWidgets(3));
       expect(h.server.callsTo(DevicesRoutes.clients), hasLength(2));
     });

@@ -179,7 +179,7 @@ class TillSessionsTable extends ConsumerWidget {
           final closed = r.closedAt;
           final Widget child;
           if (isOpen(r) || closed == null) {
-            child = TillOutlineBadge(t('reports.tills.stillOpen'));
+            child = DashBadge(t('reports.tills.stillOpen'), outline: true);
           } else {
             child = Wrap(
               spacing: Space.sm,
@@ -190,7 +190,7 @@ class TillSessionsTable extends ConsumerWidget {
                 // No teller count behind this close, which is why Declared
                 // and Variance are blank: say so rather than a silent dash.
                 if (isForceClosed(r))
-                  TillOutlineBadge(t('reports.tills.forceClosed')),
+                  DashBadge(t('reports.tills.forceClosed'), outline: true),
               ],
             );
           }
@@ -205,23 +205,17 @@ class TillSessionsTable extends ConsumerWidget {
       ),
     ];
 
-    // A failure takes the body's place, as the table's own error state
-    // would, but its Retry spins while it runs (the kit's has no `retrying`).
-    final error = load.error;
     return DashDataTable<TillSessionRow>(
       columns: columns,
-      rows: error == null ? load.rows : const [],
+      rows: load.rows,
       rowKey: (r) => r.tillId,
       loading: load.loading,
+      errorMessage: load.error,
+      onRetry: load.onRetry,
+      retrying: load.retrying,
       pageSize: 50,
       searchPlaceholder: t('reports.tills.search'),
-      empty: error == null
-          ? DashEmptyState(title: t('reports.tills.empty'))
-          : DashErrorState(
-              message: error,
-              onRetry: load.onRetry,
-              retrying: load.retrying,
-            ),
+      empty: DashEmptyState(title: t('reports.tills.empty')),
     );
   }
 }

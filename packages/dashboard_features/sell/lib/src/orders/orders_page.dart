@@ -168,7 +168,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     final fmt = ref.watch(formatProvider);
     final c = context.madarColors;
     final scope = ref.watch(currentScopeProvider);
-    final excluded = ref.watch(ordersExcludedProvider(scope.orgId));
+    final excluded = ref.watch(excludedItemsProvider(scope.orgId));
     final enabled = scope.ordersEnabled;
     final phone = DashBreakpoints.isPhone(context);
 
@@ -283,7 +283,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                 title: t('delivery.kpisTitle'),
                 description: t('delivery.byChannel'),
               ),
-              OrdersDeliveryChannels(
+              DeliveryChannels(
                 data: deliveryData,
                 loading: delivery.awaitingFirst,
               ),

@@ -230,8 +230,10 @@ class _DeliverySettingsFormState extends ConsumerState<DeliverySettingsForm> {
               label: t('delivery.prepTime'),
               description: t('delivery.prepTimeHint'),
               value: f.prepMinutes,
-              validator: (v) =>
-                  DeliveryForm.prepOk(v) ? null : t('delivery.errPrepNonNeg'),
+              // The live value: Enter validates before the field rebuilds.
+              validator: (_) => DeliveryForm.prepOk(f.prepMinutes)
+                  ? null
+                  : t('delivery.errPrepNonNeg'),
               builder: (context, invalid) => Align(
                 alignment: AlignmentDirectional.centerStart,
                 child: SizedBox(
@@ -244,6 +246,7 @@ class _DeliverySettingsFormState extends ConsumerState<DeliverySettingsForm> {
                     invalid: invalid,
                     semanticLabel: t('delivery.prepTime'),
                     onChanged: (v) => _edit(() => f.prepMinutes = v),
+                    onSubmitted: (_) => _save(),
                   ),
                 ),
               ),
@@ -338,6 +341,7 @@ class _DeliverySettingsFormState extends ConsumerState<DeliverySettingsForm> {
                 f.maxDistance = v;
                 f.maxDistanceEdited = true;
               }),
+              onSubmitted: (_) => _save(),
             ),
           )
           ..add(discount);
@@ -354,9 +358,11 @@ class _DeliverySettingsFormState extends ConsumerState<DeliverySettingsForm> {
               description: c.channel == DeliveryChannel.pickup
                   ? t('delivery.pickupFeeHint')
                   : null,
-              validator: (v) =>
-                  DeliveryForm.feeOk(v) ? null : t('delivery.errFeeNonNeg'),
+              validator: (_) => DeliveryForm.feeOk(ch.fee)
+                  ? null
+                  : t('delivery.errFeeNonNeg'),
               onChanged: (v) => _edit(() => ch.fee = v),
+              onSubmitted: (_) => _save(),
             ),
             discount,
           ),

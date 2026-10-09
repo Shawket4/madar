@@ -19,10 +19,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../purchasing/purchasing_widgets.dart' show PoNumberInput;
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart';
+import '../shared/number_input.dart';
 import '../shared/on_hand.dart';
 
 /// Opens the dialog for [branchId] (with [presetIngredientId] picked); true

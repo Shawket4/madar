@@ -56,9 +56,7 @@ void main() {
       'cancelled one warms nothing', (tester) async {
     final h = await pumpCounts(tester, branch: SeedIds.zamalek);
     // The row's own band, well clear of its View report button.
-    final full = tester.getCenter(
-      inTable(byKey('counts-report-$zamalekFull')),
-    );
+    final full = tester.getCenter(inTable(byKey('counts-report-$zamalekFull')));
     final mouse = await restAt(h, full - const Offset(600, 0));
     final warmed = h.server.callsTo(reportRoute, method: 'GET');
     expect(warmed, hasLength(1));

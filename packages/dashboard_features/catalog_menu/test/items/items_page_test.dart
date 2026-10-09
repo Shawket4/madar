@@ -656,6 +656,24 @@ void main() {
       expect(inSurface(find.text('Bakery')), findsOneWidget);
     });
 
+    testWidgets('MENU-ITEMS-024 (intent) pointing at New item warms the '
+        "dialog's reads; opening it asks nothing more", (tester) async {
+      final h = await pumpItems(tester);
+      int gets() => h.server.calls.where((c) => c.method == 'GET').length;
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      expect(callsOf(h, 'GET', '/modifier-groups'), isEmpty);
+      final add = find.text('New item').hitTestable();
+      await mouse.moveTo(tester.getCenter(add));
+      await h.settle();
+      expect(callsOf(h, 'GET', '/modifier-groups'), hasLength(1));
+      final warmed = gets();
+      await h.tap(add);
+      expect(inSurface(find.text('New item')), findsOneWidget);
+      expect(gets(), warmed, reason: 'every dialog read from the cache');
+    });
+
     testWidgets('MENU-ITEMS-025 card actions; full editor opens the studio', (
       tester,
     ) async {

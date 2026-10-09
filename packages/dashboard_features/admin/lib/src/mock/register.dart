@@ -25,6 +25,6 @@ void registerAdminMocks(MockServer server, MockDb db) {
   registerDevicesMocks(server, db);
   registerRolesMocks(server, db);
   registerReviewMocks(server, db);
-  // After the Devices mocks: it also answers a setup code made for a slot.
+  // After the Devices mocks, which own POST /devices/activation-codes.
   registerBranchSetupMocks(server, db);
 }

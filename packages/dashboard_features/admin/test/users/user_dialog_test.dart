@@ -37,7 +37,8 @@ List<String> _roleOptions(WidgetTester tester) => [
       in tester
           .widget<DashSelectField<Object?>>(
             find.byWidgetPredicate(
-              (w) => w is DashSelectField && w.key == const ValueKey('user-role'),
+              (w) =>
+                  w is DashSelectField && w.key == const ValueKey('user-role'),
             ),
           )
           .options)
@@ -77,9 +78,7 @@ void main() {
     expect(h.server.callsTo(listRoute, method: 'POST'), isEmpty);
   });
 
-  testWidgets('ADM-USR-022 role options by the viewer\'s role', (
-    tester,
-  ) async {
+  testWidgets('ADM-USR-022 role options by the viewer\'s role', (tester) async {
     await _new(tester);
     expect(_roleOptions(tester), [
       'Organization Admin',
@@ -171,9 +170,7 @@ void main() {
     final gate = s.server.hold('GET', pinRoute);
     final h = await _new(tester, server: s.server, db: s.db);
     await h.tapKey(const ValueKey('user-generate-pin'));
-    final btn = tester.widget<DashButton>(
-      field('user-generate-pin'),
-    );
+    final btn = tester.widget<DashButton>(field('user-generate-pin'));
     expect(btn.loading, isTrue);
     s.server.clearFailures();
     final refusal = MockResponse.badRequest('Choose an organization first');
@@ -266,7 +263,10 @@ void main() {
     expect(inSurface('Save Changes'), findsOneWidget);
     await _type(h, 'user-phone', '+201110001112');
     await h.tap(
-      find.descendant(of: field('user-active'), matching: find.byType(DashSwitch)),
+      find.descendant(
+        of: field('user-active'),
+        matching: find.byType(DashSwitch),
+      ),
     );
     await h.tapKey(const ValueKey('user-submit'));
     await h.expectToast('User updated');
@@ -279,7 +279,10 @@ void main() {
     });
     expect(surface, findsNothing);
     final row = rowOf('Mariam Fathy').first;
-    expect(find.descendant(of: row, matching: find.text('Inactive')), findsOneWidget);
+    expect(
+      find.descendant(of: row, matching: find.text('Inactive')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('ADM-USR-031 a new PIN and password are sent when typed', (
@@ -366,12 +369,12 @@ void main() {
 
   testWidgets('ADM-USR-054 deactivating yourself is refused: '
       '"You don\'t have permission…"', (tester) async {
-    final h = await pumpUsers(
-      tester,
-      path: '$usersPath?edit=${SeedIds.owner}',
-    );
+    final h = await pumpUsers(tester, path: '$usersPath?edit=${SeedIds.owner}');
     await h.tap(
-      find.descendant(of: field('user-active'), matching: find.byType(DashSwitch)),
+      find.descendant(
+        of: field('user-active'),
+        matching: find.byType(DashSwitch),
+      ),
     );
     await h.tapKey(const ValueKey('user-submit'));
     await h.expectToast(h.t('errors.unauthorized'));

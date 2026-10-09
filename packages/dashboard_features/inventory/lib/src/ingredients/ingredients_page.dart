@@ -241,6 +241,7 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage> {
         // "No ingredients yet" in between).
         errorText: catalog.errorText(t),
         onRetry: () => ref.invalidate(inventoryCatalogProvider(orgId)),
+        retrying: catalog.isLoading,
         onOpen: (it) => _openDrawer(orgId, branchId, it),
         // The drawer's one read the page does not hold: the movements.
         onIntent: branchId == null
@@ -270,6 +271,7 @@ class IngredientsTable extends ConsumerWidget {
     required this.loading,
     required this.errorText,
     required this.onRetry,
+    this.retrying = false,
     required this.onOpen,
     this.onIntent,
     super.key,
@@ -281,6 +283,7 @@ class IngredientsTable extends ConsumerWidget {
   final bool loading;
   final String? errorText;
   final VoidCallback onRetry;
+  final bool retrying;
   final ValueChanged<OrgIngredient> onOpen;
   final ValueChanged<OrgIngredient>? onIntent;
 
@@ -289,7 +292,8 @@ class IngredientsTable extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
-    Widget dash() => Text('—', style: DashType.body.copyWith(color: c.textMuted));
+    Widget dash() =>
+        Text('—', style: DashType.body.copyWith(color: c.textMuted));
     return DashDataTable<OrgIngredient>(
       key: const ValueKey('ingredients-table'),
       rows: rows,
@@ -297,10 +301,14 @@ class IngredientsTable extends ConsumerWidget {
       loading: loading,
       errorMessage: errorText,
       onRetry: onRetry,
+      retrying: retrying,
       onRowTap: onOpen,
       onRowIntent: onIntent,
       searchPlaceholder: t('inventory.catalog.search'),
-      empty: DashEmptyState(icon: 'boxes', title: t('inventory.catalog.noItems')),
+      empty: DashEmptyState(
+        icon: 'boxes',
+        title: t('inventory.catalog.noItems'),
+      ),
       columns: [
         DashColumn(
           id: 'name',
@@ -308,6 +316,7 @@ class IngredientsTable extends ConsumerWidget {
           text: (it) => it.name,
           cell: (context, it) => MadarClippedText(
             it.name,
+            textDirection: dashTextDirectionOf(it.name),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: DashType.bodyMedium.copyWith(color: c.textPrimary),
@@ -329,9 +338,8 @@ class IngredientsTable extends ConsumerWidget {
           id: 'cost_per_unit',
           label: t('inventory.catalog.standardCost'),
           // Searched by its raw figure, as the web's accessor (INV-ALL-021).
-          text: (it) => it.costPerUnit == null
-              ? ''
-              : jsNumberString(it.costPerUnit!),
+          text: (it) =>
+              it.costPerUnit == null ? '' : jsNumberString(it.costPerUnit!),
           cell: (context, it) => Text(dashFigure(f.fmtMoney(it.costPerUnit))),
           numeric: true,
           width: _figureWidth,
@@ -344,6 +352,7 @@ class IngredientsTable extends ConsumerWidget {
               ? dash()
               : MadarClippedText(
                   it.supplierName!,
+                  textDirection: dashTextDirectionOf(it.supplierName!),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -370,9 +379,7 @@ class IngredientsTable extends ConsumerWidget {
             cell: (context, it) {
               final s = stock[it.id];
               if (s?.parMin == null) return dash();
-              return Text(
-                ltr('${f.fmtNumber(s!.parMin)} ${fmtUnit(s.unit)}'),
-              );
+              return Text(ltr('${f.fmtNumber(s!.parMin)} ${fmtUnit(s.unit)}'));
             },
             numeric: true,
             width: _figureWidth + Space.lg,

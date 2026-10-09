@@ -10,6 +10,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/report_shared.dart' show ReportAsync, exportLogoUrl;
 import 'legal_export.dart';
 import 'legal_providers.dart';
 import 'legal_sheets.dart';
@@ -97,7 +98,7 @@ class _LegalTaxTabState extends ConsumerState<LegalTaxTab> {
     );
     return ExcelConfig(
       filename: t('reports.legal.tabs.tax'),
-      logoUrl: legalExportLogo(ref),
+      logoUrl: exportLogoUrl(ref),
       sheets: [
         taxSheet(t, note, [
           for (final k in _kpis(t, d, false))
@@ -136,7 +137,7 @@ class _LegalTaxTabState extends ConsumerState<LegalTaxTab> {
     final AsyncValue<TaxReport?> q = widget.enabled && query != null
         ? ref.watch(legalTaxProvider(query))
         : const AsyncData<TaxReport?>(null);
-    if (q.hasError && !q.retrying) {
+    if (q.failed) {
       // The error stays (its Retry spinning) while a retry runs.
       return DashErrorState(
         retrying: q.isLoading,

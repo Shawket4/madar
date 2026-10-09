@@ -34,6 +34,7 @@ class ReorderTab extends ConsumerWidget {
         text: (l) => l.ingredientName,
         cell: (context, l) => MadarClippedText(
           l.ingredientName,
+          textDirection: dashTextDirectionOf(l.ingredientName),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: DashType.bodyMedium.copyWith(color: c.textPrimary),

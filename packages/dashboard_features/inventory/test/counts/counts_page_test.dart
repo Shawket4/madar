@@ -23,11 +23,7 @@ List<String> startedColumn(WidgetTester tester) {
   final rows = tester.widget<DashDataTable<Stocktake>>(table).rows;
   final started = [
     for (final s in rows)
-      tester
-          .widget<DashDataTable<Stocktake>>(table)
-          .columns
-          .first
-          .text!(s),
+      tester.widget<DashDataTable<Stocktake>>(table).columns.first.text!(s),
   ];
   for (final s in started) {
     expect(inTable(find.text(s)), findsWidgets, reason: s);
@@ -42,7 +38,9 @@ void main() {
       final h = await pumpCounts(tester, branch: SeedIds.zamalek);
       expect(inPage(find.text('Stock counts')), findsOneWidget);
       expect(
-        inPage(find.text('Count the shelf; everything else follows from the count.')),
+        inPage(
+          find.text('Count the shelf; everything else follows from the count.'),
+        ),
         findsOneWidget,
       );
       expect(inPage(byKey('counts-export')), findsOneWidget);
@@ -57,7 +55,9 @@ void main() {
     });
 
     testWidgets('INV-CNT-003 / INV-CNT-056 All branches: the hint, the '
-        'sentinel read, no Start, no first-run card, no editor', (tester) async {
+        'sentinel read, no Start, no first-run card, no editor', (
+      tester,
+    ) async {
       final h = await pumpCounts(tester);
       expect(
         inPage(
@@ -204,7 +204,10 @@ void main() {
       expect(inTable(find.text('New Cairo')), findsNWidgets(2));
       expect(inTable(textHas('Whole branch · ${ltr('9/25')}')), findsOneWidget);
       expect(inTable(textHas('By category · ${ltr('1/2')}')), findsOneWidget);
-      expect(inTable(textHas('Selected items · ${ltr('2/2')}')), findsOneWidget);
+      expect(
+        inTable(textHas('Selected items · ${ltr('2/2')}')),
+        findsOneWidget,
+      );
       expect(inTable(find.text('Dina Fouad')), findsNWidgets(2));
       expect(inTable(find.text('Karim Adel')), findsNWidgets(3));
       // Finalized: a date, or "—" for the open and the cancelled one.
@@ -388,7 +391,9 @@ void main() {
       await pumpCounts(tester, branch: SeedIds.heliopolis);
       expect(inTable(find.text('No counts yet')), findsOneWidget);
       expect(
-        inTable(find.text("Start a count to bring this branch's stock to life.")),
+        inTable(
+          find.text("Start a count to bring this branch's stock to life."),
+        ),
         findsOneWidget,
       );
       final empty = tester.widget<DashEmptyState>(
@@ -408,28 +413,27 @@ void main() {
       final sheet = spec.sheets.single;
       expect(sheet.name, 'Stock counts');
       expect(sheet.title, 'Stock counts');
-      expect([for (final c in sheet.columns) c.header], [
-        'Started',
-        'By',
-        'Scope',
-        'Status',
-        'Finalized',
-        'Note',
-      ]);
-      expect([for (final c in sheet.columns) c.width], [20, 20, 16, 14, 20, 30]);
-      expect([for (final r in sheet.rows) r.sublist(1, 4)], [
-        ['Karim Adel', 'By category', 'Finalized'],
-        ['Karim Adel', 'By category', 'Cancelled'],
-        ['Karim Adel', 'Whole branch', 'Finalized'],
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        ['Started', 'By', 'Scope', 'Status', 'Finalized', 'Note'],
+      );
+      expect(
+        [for (final c in sheet.columns) c.width],
+        [20, 20, 16, 14, 20, 30],
+      );
+      expect(
+        [for (final r in sheet.rows) r.sublist(1, 4)],
+        [
+          ['Karim Adel', 'By category', 'Finalized'],
+          ['Karim Adel', 'By category', 'Cancelled'],
+          ['Karim Adel', 'Whole branch', 'Finalized'],
+        ],
+      );
       expect(sheet.rows[1][4], isNull, reason: 'never finalized: blank');
       expect(sheet.rows[1][5], 'Started by mistake');
       expect(sheet.rows[0][5], '');
       expect(sheet.rows[0][0], isNotNull);
-      expect(
-        h.files.saved.single.filename,
-        'Madar-Stocktakes-2026-10-08.xlsx',
-      );
+      expect(h.files.saved.single.filename, 'Madar-Stocktakes-2026-10-08.xlsx');
     });
 
     testWidgets('INV-CNT-005 All branches: every closed count, no Branch '
@@ -503,7 +507,10 @@ void main() {
       expect(inPage(find.text('Start a count')), findsNothing);
       expect(inTable(find.text('Karim Adel')), findsNWidgets(3));
       expect(inTable(find.text('Dina Fouad')), findsNothing);
-      expect(h.server.callsTo(listRoute).single.path, '/stocktakes/branches/$_all');
+      expect(
+        h.server.callsTo(listRoute).single.path,
+        '/stocktakes/branches/$_all',
+      );
     });
 
     testWidgets('INV-CNT-017 a refused list shows the server\'s words', (

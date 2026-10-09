@@ -18,10 +18,10 @@ import '../shared/invalidate.dart';
 import '../shared/phone.dart';
 import '../floor/floor_providers.dart'
     show floorSectionsProvider, floorTablesProvider;
-import 'booking_errors.dart';
 import 'bookings_parts.dart';
 import 'bookings_providers.dart';
 import 'bookings_util.dart';
+import '../shared/error_text.dart';
 
 /// Opens the dialog: [booking] present = edit it; absent = a new one on
 /// [date] (the page's day).
@@ -261,7 +261,7 @@ class _BookingDialogState extends ConsumerState<BookingDialog> {
       Navigator.of(context).pop();
     } on Object catch (e) {
       // The server's words on the dialog's own line, not a toast.
-      if (mounted) setState(() => _error = bookingErrorText(e, t));
+      if (mounted) setState(() => _error = sellErrorText(e, t));
     } finally {
       if (mounted) setState(() => _busy = false);
     }

@@ -59,9 +59,7 @@ Future<DashHarness> _edit(
 /// A platform admin with Sabah picked, on [path].
 Future<DashHarness> _asPlatform(WidgetTester tester, String path) async {
   final h = await pumpBranches(tester, persona: Persona.platform);
-  await h.container
-      .read(selectedOrgProvider.notifier)
-      .select(SeedIds.sabahOrg);
+  await h.container.read(selectedOrgProvider.notifier).select(SeedIds.sabahOrg);
   await h.settle();
   await h.go(path);
   return h;
@@ -103,8 +101,13 @@ void main() {
     final h = await pumpBranches(tester, path: '$branchesPath?edit=new');
     expect(h.server.callsTo(timezonesRoute), hasLength(1));
     expect(_dialogText('Africa/Cairo'), findsOneWidget);
-    expect(_dialogText('Optional. Used to auto-resolve which branch a device '
-        'is at.'), findsOneWidget);
+    expect(
+      _dialogText(
+        'Optional. Used to auto-resolve which branch a device '
+        'is at.',
+      ),
+      findsOneWidget,
+    );
     expect(fieldText(tester, 'branch-radius'), '200');
     await _type(h, 'branch-name', 'Sheikh Zayed');
     await _type(h, 'branch-latitude', '30.0444');
@@ -158,6 +161,17 @@ void main() {
     expect(_patches(h), isEmpty);
     await _type(h, 'branch-old-bill-hours', '12');
     await _submit(h);
+    expect(_patch(h)['old_bill_hours'], 12);
+    await h.flushTimers();
+  });
+
+  testWidgets('ADM-BRA-024 Enter in a number box submits, as in the web form', (
+    tester,
+  ) async {
+    final h = await _edit(tester, SeedIds.zamalek);
+    await _type(h, 'branch-old-bill-hours', '12');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await h.settle();
     expect(_patch(h)['old_bill_hours'], 12);
     await h.flushTimers();
   });
@@ -218,9 +232,10 @@ void main() {
     );
     expect(_dialogText('This branch taxes differently'), findsOneWidget);
     // Every seed branch carries its own rates: the switch is on.
-    expect(tester.widget<DashSwitch>(
-      _switch('This branch taxes differently'),
-    ).value, isTrue);
+    expect(
+      tester.widget<DashSwitch>(_switch('This branch taxes differently')).value,
+      isTrue,
+    );
     await _type(h, 'branch-tax-rate', '5');
     await _type(h, 'branch-service-charge', '12');
     await h.tap(_switch('Menu prices include tax'));
@@ -297,8 +312,10 @@ void main() {
       '"Branch updated", the list asked again, closed', (tester) async {
     final s = branchesServer();
     final h = await _edit(tester, SeedIds.zamalek, s: s);
-    expect(_dialogText('Inactive branches are hidden from the POS.'),
-        findsOneWidget);
+    expect(
+      _dialogText('Inactive branches are hidden from the POS.'),
+      findsOneWidget,
+    );
     await _type(h, 'branch-name', 'Zamalek Riverside');
     await h.tap(_switch('Active'));
     final lists = h.server.callsTo(listRoute, method: 'GET').length;
@@ -420,7 +437,9 @@ void main() {
     final h = await _edit(tester, SeedIds.zamalek, s: s);
     await _submit(h);
     DashButton btn(String label) => tester.widget(
-      _inDialog(find.byWidgetPredicate((w) => w is DashButton && w.label == label)),
+      _inDialog(
+        find.byWidgetPredicate((w) => w is DashButton && w.label == label),
+      ),
     );
     expect(btn('Save').loading, isTrue);
     expect(btn('Cancel').onPressed, isNull);
@@ -503,25 +522,33 @@ void main() {
       _dialogText('Sells through tills and devices, and keeps its own stock.'),
       findsOneWidget,
     );
-    expect(_inDialog(find.textContaining('It must have no open tills')),
-        findsNothing);
+    expect(
+      _inDialog(find.textContaining('It must have no open tills')),
+      findsNothing,
+    );
     await _kind(h, 'Warehouse');
     expect(
-      _dialogText('Holds stock and sends it to branches. It never sells: no '
-          'tills, devices or menu.'),
+      _dialogText(
+        'Holds stock and sends it to branches. It never sells: no '
+        'tills, devices or menu.',
+      ),
       findsOneWidget,
     );
     expect(
-      _dialogText('It must have no open tills, open orders or bills, and no '
-          'paired devices. Its menu settings are kept for if you switch it '
-          'back.'),
+      _dialogText(
+        'It must have no open tills, open orders or bills, and no '
+        'paired devices. Its menu settings are kept for if you switch it '
+        'back.',
+      ),
       findsOneWidget,
     );
     expect(field('branch-old-bill-hours'), findsNothing);
     expect(_dialogText('Printer Configuration'), findsNothing);
     await _kind(h, 'Branch');
-    expect(_inDialog(find.textContaining('It must have no open tills')),
-        findsNothing);
+    expect(
+      _inDialog(find.textContaining('It must have no open tills')),
+      findsNothing,
+    );
     expect(field('branch-old-bill-hours'), findsOneWidget);
   });
 
@@ -533,8 +560,10 @@ void main() {
     expect(_dialogText('Edit warehouse'), findsOneWidget);
     await _kind(h, 'Branch');
     expect(
-      _dialogText('Its stock stays. Set up its menu, tills and devices to '
-          'start selling.'),
+      _dialogText(
+        'Its stock stays. Set up its menu, tills and devices to '
+        'start selling.',
+      ),
       findsOneWidget,
     );
     await _submit(h);

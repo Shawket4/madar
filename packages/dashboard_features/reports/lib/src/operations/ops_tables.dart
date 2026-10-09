@@ -120,7 +120,7 @@ List<String> opsSectionsOf(List<OpsTableRow> rows) =>
 
 /// Whether the request failed or any widget came back as an error.
 bool opsTablesFailed(AsyncValue<MetricsQueryResponse> q) =>
-    (q.hasError && !q.retrying) ||
+    q.failed ||
     (q.value?.results.values.any((r) => r is WidgetOutcomeError) ?? false);
 
 // ── the tab ───────────────────────────────────────────────────────────────

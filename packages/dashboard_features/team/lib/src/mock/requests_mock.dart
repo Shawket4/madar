@@ -219,11 +219,13 @@ MockRow requestForCaller(MockRequest req, MockDb db, MockRow r) {
       }
       final from = _hhmm(b['from_time']);
       final to = _hhmm(b['to_time']);
-      if (from == to)
+      if (from == to) {
         bad('WINDOW_EMPTY', 'The window must end after it starts');
+      }
       // Ending at or before it starts on the clock = past midnight.
-      if (to.compareTo(from) < 0)
+      if (to.compareTo(from) < 0) {
         return (end: _nextDay(on), half: null, title: null);
+      }
     case 'mission':
       final title = _clean(b['title']) ?? _clean(b['reason']);
       if (title == null) {
@@ -351,8 +353,9 @@ void registerRequestsMocks(MockServer server, MockDb db) {
     }
     final kind = b['kind'] as String? ?? '';
     final on = b['on_date'] as String?;
-    if (on == null)
+    if (on == null) {
       req.badRequest('Json deserialize error: missing field `on_date`');
+    }
     // Approved as it is filed: the filer's own, with the right (RQ-5).
     final selfApproves =
         _isOwn(req, e) && req.persona.can('hr.requests.self_approve');

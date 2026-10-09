@@ -15,11 +15,12 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/org_errors.dart';
+import '../shared/export_logo.dart';
 import '../shared/row_action.dart';
 import '../shared/tax_rate.dart';
 import '../shared/url_params.dart';
 import 'org_dialog.dart';
-import 'org_errors.dart';
 import 'org_logo.dart';
 import 'orgs_providers.dart';
 import 'provision_wizard.dart';
@@ -119,13 +120,12 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
     ExportOutcome outcome;
     try {
       final brand = await ref.read(publicBrandProvider.future);
-      final logo = brand != null && brand.customBranding ? brand.logoUrl : null;
       outcome = await ref
           .read(exporterProvider)
           .exportToExcel(
             ExcelConfig(
               filename: 'Madar-Organizations',
-              logoUrl: logo,
+              logoUrl: exportLogoUrl(brand),
               sheets: [
                 ExcelSheet<Org>(
                   name: t('orgs.title'),
@@ -318,6 +318,7 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
             rowKey: (o) => o.id,
             loading: firstLoad,
             errorMessage: failed ? orgErrorWords(list.error, t) : null,
+            retrying: list.isLoading,
             onRetry: () => ref.invalidate(orgsProvider),
             onRowTap: (o) => _openEditor(o.id),
             onRowIntent: (_) => _warmEditor(),

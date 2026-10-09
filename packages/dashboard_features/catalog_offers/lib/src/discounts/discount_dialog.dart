@@ -23,7 +23,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/offers_cache.dart';
-import '../shared/offers_format.dart' show arabicOf;
+import '../shared/offers_format.dart' show NumberText, arabicOf;
 import 'discounts_data.dart';
 
 /// Where the dialog's toasts go: the page that opened it, so a save that
@@ -294,7 +294,7 @@ class _DiscountDialogState extends ConsumerState<DiscountDialog> {
         invalid: e.value != null,
         direction: TextDirection.ltr,
         keyboard: const TextInputType.numberWithOptions(decimal: true),
-        formatters: const [_NumberText()],
+        formatters: const [NumberText()],
         onChanged: (s) => setState(() => _value = s),
       ),
     );
@@ -373,23 +373,6 @@ class _DiscountDialogState extends ConsumerState<DiscountDialog> {
         ),
       ],
     );
-  }
-}
-
-/// What the number box takes (`type="number"`): digits, a point and a
-/// minus; Arabic-Indic digits are read as Western ones.
-class _NumberText extends TextInputFormatter {
-  const _NumberText();
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final latin = DashTime.latinDigits(newValue.text);
-    if (!RegExp(r'^[0-9.\-]*$').hasMatch(latin)) return oldValue;
-    if (latin == newValue.text) return newValue;
-    return newValue.copyWith(text: latin);
   }
 }
 

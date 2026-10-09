@@ -409,8 +409,7 @@ class _ParBox extends ConsumerWidget {
               Expanded(
                 child: IngredientNumberField(
                   key: const ValueKey('ingredient-drawer-par-min'),
-                  label:
-                      '${t('inventory.catalog.parMin')} (${fmtUnit(unit)})',
+                  label: '${t('inventory.catalog.parMin')} (${fmtUnit(unit)})',
                   value: parMin,
                   onChanged: onMin,
                 ),
@@ -539,9 +538,7 @@ class _MovementRow extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: Space.sm),
       margin: EdgeInsets.only(bottom: last ? 0 : Space.sm),
       decoration: BoxDecoration(
-        border: last
-            ? null
-            : Border(bottom: BorderSide(color: c.hairline)),
+        border: last ? null : Border(bottom: BorderSide(color: c.hairline)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

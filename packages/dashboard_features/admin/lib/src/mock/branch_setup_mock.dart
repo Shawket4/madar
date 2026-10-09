@@ -28,10 +28,10 @@
 ///   first POS printing receipts on a network printer; brand kept when the
 ///   plan's is Other) written, a version row stored, the version bumped and
 ///   `branch.plan_changed` published on the branch stream.
-/// - `POST /devices/activation-codes` (create_code) is answered here too, so
-///   a code made for a slot (`slot_id`) takes the slot's kind (a kitchen
-///   screen runs the KDS app) and name, and a slot a save removed is 404.
-///   Without `slot_id` it answers exactly as the Devices mock does.
+/// - `POST /devices/activation-codes` (create_code) belongs to the Devices
+///   mock (a code made for a slot takes the slot's kind and name; a slot a
+///   save removed is 404); registered here, with the same answer, only when
+///   the Devices mocks are not.
 ///
 /// Data: the kitchen stations, routes and routing modes are the setup
 /// area's (`KitchenSeed`, the same rows, seeded only when absent, since in
@@ -591,61 +591,65 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
     return {...c, 'state': state};
   }
 
-  server.on('POST', BranchPlanRoutes.codes, (req) {
-    final body = req.bodyAs(CreateActivationCodeRequest.fromJson);
-    branchAccess(req, body.branchId);
-    req.requireCap('branches.edit', branchId: body.branchId);
-    final slotId = body.slotId;
-    MockRow? slot;
-    if (slotId != null) {
-      slot = t(
-        BranchPlanTables.slots,
-      ).firstWhere((s) => s['id'] == slotId && s['branch_id'] == body.branchId);
-      if (slot == null) req.notFound(BranchPlanRefusals.slotGone);
-    }
-    final kind = slot != null
-        ? (slot['kind'] == 'kitchen' ? 'kds' : slot['kind']! as String)
-        : body.kind?.value ?? 'pos';
-    if (!const {'pos', 'kds', 'waiter'}.contains(kind)) {
-      req.badRequest('kind must be pos, kds or waiter');
-    }
-    final l = body.label?.trim();
-    final given = l == null || l.isEmpty ? (slot?['name'] as String?) : l;
-    final label = given == null
-        ? null
-        : String.fromCharCodes(given.runes.take(120));
-    final now = req.now;
-    final codes = t(AdminTables.activationCodes);
-    // Eight digits, unique among the codes still free, deterministic per run
-    // (the Devices mock's sequence).
-    final live = {
-      for (final c in codes.rows)
-        if (codeOut(c, now)['state'] == 'free') c['code'],
-    };
-    var n = codes.length;
-    String code;
-    do {
-      n++;
-      final h = mockUuid('activation-code#$n').replaceAll('-', '');
-      code = (int.parse(h.substring(0, 12), radix: 16) % 100000000)
-          .toString()
-          .padLeft(8, '0');
-    } while (live.contains(code));
-    final row = codes.insert({
-      'id': db.newId(AdminTables.activationCodes),
-      'branch_id': body.branchId,
-      'code': code,
-      'label': label,
-      'kind': kind,
-      'created_at': now.toIso8601String(),
-      'expires_at': now.add(const Duration(hours: 24)).toIso8601String(),
-      'used_at': null,
-      'used_by_device': null,
-      'revoked_at': null,
-      'slot_id': slotId,
-    }, timestamps: false);
-    return MockResponse.created(codeOut(row, now));
-  });
+  // The Devices mock owns this route (the same answer); it is registered
+  // here only when the Devices mocks are not.
+  if (!server.handles('POST', BranchPlanRoutes.codes)) {
+    server.on('POST', BranchPlanRoutes.codes, (req) {
+      final body = req.bodyAs(CreateActivationCodeRequest.fromJson);
+      branchAccess(req, body.branchId);
+      req.requireCap('branches.edit', branchId: body.branchId);
+      final slotId = body.slotId;
+      MockRow? slot;
+      if (slotId != null) {
+        slot = t(BranchPlanTables.slots).firstWhere(
+          (s) => s['id'] == slotId && s['branch_id'] == body.branchId,
+        );
+        if (slot == null) req.notFound(BranchPlanRefusals.slotGone);
+      }
+      final kind = slot != null
+          ? (slot['kind'] == 'kitchen' ? 'kds' : slot['kind']! as String)
+          : body.kind?.value ?? 'pos';
+      if (!const {'pos', 'kds', 'waiter'}.contains(kind)) {
+        req.badRequest('kind must be pos, kds or waiter');
+      }
+      final l = body.label?.trim();
+      final given = l == null || l.isEmpty ? (slot?['name'] as String?) : l;
+      final label = given == null
+          ? null
+          : String.fromCharCodes(given.runes.take(120));
+      final now = req.now;
+      final codes = t(AdminTables.activationCodes);
+      // Eight digits, unique among the codes still free, deterministic per run
+      // (the Devices mock's sequence).
+      final live = {
+        for (final c in codes.rows)
+          if (codeOut(c, now)['state'] == 'free') c['code'],
+      };
+      var n = codes.length;
+      String code;
+      do {
+        n++;
+        final h = mockUuid('activation-code#$n').replaceAll('-', '');
+        code = (int.parse(h.substring(0, 12), radix: 16) % 100000000)
+            .toString()
+            .padLeft(8, '0');
+      } while (live.contains(code));
+      final row = codes.insert({
+        'id': db.newId(AdminTables.activationCodes),
+        'branch_id': body.branchId,
+        'code': code,
+        'label': label,
+        'kind': kind,
+        'created_at': now.toIso8601String(),
+        'expires_at': now.add(const Duration(hours: 24)).toIso8601String(),
+        'used_at': null,
+        'used_by_device': null,
+        'revoked_at': null,
+        'slot_id': slotId,
+      }, timestamps: false);
+      return MockResponse.created(codeOut(row, now));
+    });
+  }
 }
 
 /// The device side (not a dashboard call): a tablet types a slot's code and

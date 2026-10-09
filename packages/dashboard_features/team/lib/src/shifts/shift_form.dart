@@ -2,11 +2,14 @@
 /// (`staff/work-shift-dialog.tsx`: `SHIFT_PRESETS`, `shiftSchema`,
 /// `valuesOf`, `bodyOf`) and the clock arithmetic of a shift that may run
 /// past midnight (`inputs/time.ts`: `spanMinutes`, `endsNextDay`,
-/// `suggestEnd`). Pure Dart: the page, the dialog and their tests share it.
+/// `suggestEnd`, the area's one copy in `shared/time_range_field.dart`).
+/// The page, the dialog and their tests share it.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart';
-import 'package:dashboard_kit/dashboard_kit.dart' show DashTime;
+
+export '../shared/time_range_field.dart'
+    show endsNextDay, spanMinutes, suggestEnd;
 
 /// The branch select's "Every branch" (`WHOLE_BUSINESS`).
 const String wholeBusiness = '__all__';
@@ -23,38 +26,6 @@ const List<ShiftPreset> shiftPresets = [
   (labelKey: 'staff.presetEvening', start: '16:00', end: '00:00'),
   (labelKey: 'staff.presetNight', start: '22:00', end: '06:00'),
 ];
-
-const int _dayMinutes = 1440;
-
-/// Minutes from [start] to [end] (`spanMinutes`): an end at or before the
-/// start runs into the next day; 0 when they are equal; null when either is
-/// not a time.
-int? spanMinutes(String? start, String? end) {
-  final a = DashTime.minutesOf(start);
-  final b = DashTime.minutesOf(end);
-  if (a == null || b == null) return null;
-  if (a == b) return 0;
-  return b > a ? b - a : b + _dayMinutes - a;
-}
-
-/// Whether [start] → [end] finishes on the next calendar day.
-bool endsNextDay(String? start, String? end) {
-  final a = DashTime.minutesOf(start);
-  final b = DashTime.minutesOf(end);
-  return a != null && b != null && b < a;
-}
-
-/// "9 to 5" typed as 09:00 → 05:00 is a 20-hour night: an overnight longer
-/// than 14 h whose end twelve hours later is a same-day shift gets that end
-/// offered (`suggestEnd`).
-String? suggestEnd(String? start, String? end) {
-  final a = DashTime.minutesOf(start);
-  final b = DashTime.minutesOf(end);
-  if (a == null || b == null || b >= a) return null;
-  if (b + _dayMinutes - a <= 14 * 60) return null;
-  final alt = b + 12 * 60;
-  return alt < _dayMinutes && alt > a ? DashTime.hhmmOf(alt) : null;
-}
 
 /// A wire time's `HH:MM`.
 String hhmm(String? v) => (v ?? '').length >= 5 ? v!.substring(0, 5) : v ?? '';

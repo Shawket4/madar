@@ -7,7 +7,6 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart'
     show
-        ApiException,
         CloseTillPreview,
         DeductionLogRow,
         OpenBillsNotice,
@@ -191,45 +190,6 @@ final closePreviewProvider = FutureProvider.autoDispose
 VoidCallback tillsInvalidator(WidgetRef ref) {
   final bus = ref.read(realtimeBusProvider);
   return () => bus.invalidate(SellInvalidate.tills);
-}
-
-/// The kinds the backend's `AppError` writes before its sentence.
-final RegExp _serverKindPrefix = RegExp(
-  r'^(?:Unauthorized|Forbidden|Not found|Bad request|Conflict|'
-  r'Service unavailable|Database error): ',
-);
-
-/// `getErrorMessage` (`data/api/errors.ts`): a coded refusal the tables know
-/// reads in the person's language; an uncoded 429 or 403 has its own words
-/// (never the server's English); otherwise the server's sentence without its
-/// "Kind: " prefix; then by status.
-String tillsErrorMessage(Object? error, Translator t) {
-  if (error is ApiException) {
-    final code = error.code;
-    final details = error.details;
-    final vars = details is Map && details['vars'] is Map
-        ? (details['vars']! as Map).cast<String, Object?>()
-        : const <String, Object?>{};
-    if (code != null && t.exists('errors.codes.$code')) {
-      return t('errors.codes.$code', args: vars);
-    }
-    final status = error.status;
-    if (status == 429 && code == null) return t('errors.tooManyRequests');
-    if (status == 403 && code == null) return t('errors.unauthorized');
-    final message = error.message.replaceFirst(_serverKindPrefix, '');
-    if (message.isNotEmpty && message != 'HTTP $status') return message;
-    if (status <= 0) return t('errors.networkError');
-    return switch (status) {
-      401 => t('errors.sessionExpired'),
-      403 => t('errors.unauthorized'),
-      404 => t('errors.notFound'),
-      409 => t('errors.conflict'),
-      422 => t('errors.validation'),
-      >= 500 => t('errors.server'),
-      _ => message,
-    };
-  }
-  return t('errors.unknown');
 }
 
 /// A payment method's name: `payments.<method>` when the tables have it,

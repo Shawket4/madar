@@ -13,8 +13,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/org_errors.dart';
 import '../shared/tax_rate.dart' show jsNumber;
-import 'org_errors.dart';
 import 'org_form_parts.dart';
 import 'orgs_providers.dart';
 import 'provision.dart';

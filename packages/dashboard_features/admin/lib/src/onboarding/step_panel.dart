@@ -60,10 +60,11 @@ class OnbStepPanel extends ConsumerWidget {
   static const double minHeight = 448;
 
   /// The step [delta] away (Back / Continue's target, as the page clamps).
-  OnbStep _step(int delta) => OnbStep.values[(active.index + delta).clamp(
-    0,
-    OnbStep.values.length - 1,
-  )];
+  OnbStep _step(int delta) =>
+      OnbStep.values[(active.index + delta).clamp(
+        0,
+        OnbStep.values.length - 1,
+      )];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -489,11 +490,8 @@ class _RecipesBody extends ConsumerWidget {
                           label: t('$k.addFor'),
                           variant: DashButtonVariant.outline,
                           size: DashButtonSize.compact,
-                          onIntent: () => warmMenuItemDialog(
-                            ref,
-                            orgId,
-                            itemId: item.id,
-                          ),
+                          onIntent: () =>
+                              warmMenuItemDialog(ref, orgId, itemId: item.id),
                           onPressed: () async {
                             final refresh = onbRefreshers(
                               context,

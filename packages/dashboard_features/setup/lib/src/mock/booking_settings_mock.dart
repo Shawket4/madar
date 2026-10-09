@@ -9,7 +9,8 @@
 ///   word (400s); the whole row is replaced and returned.
 ///
 /// The rows are the area seed's (`SetupSeed.bookingSettings`, table
-/// `booking_settings`, one row per branch, no `id`; New Cairo never set up).
+/// `booking_settings`, one row per branch, no `id`; sell's rows, value for
+/// value).
 /// The sell area answers the same two routes for its bookings page from the
 /// same table, so the app registers whichever area comes first and both read
 /// one record. In this package's own tests these handlers answer.

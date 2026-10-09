@@ -107,7 +107,6 @@ class _QrPreviewDialogState extends ConsumerState<QrPreviewDialog> {
     final c = context.madarColors;
     final qr = widget.qr;
     final label = widget.title ?? t('qr.preview.title');
-    final bytes = qrImageBytes(qr.qrDataUrl);
     final stacked = MediaQuery.sizeOf(context).width < DashBreakpoints.sm;
 
     final image = Container(
@@ -121,39 +120,9 @@ class _QrPreviewDialogState extends ConsumerState<QrPreviewDialog> {
         child: ConstrainedBox(
           // `max-w-56`: big enough to scan off a screen, never the dialog.
           constraints: const BoxConstraints(maxWidth: 224),
-          child: Container(
-            padding: const EdgeInsets.all(Space.xs),
-            decoration: BoxDecoration(
-              // The quiet zone is white in both themes (the light paper's
-              // card): a code on a dark card does not scan.
-              color: MadarColors.light.surface,
-              borderRadius: BorderRadius.circular(Space.xs),
-            ),
-            child: AspectRatio(
-              aspectRatio: 1,
-              child: bytes == null
-                  ? Center(
-                      child: DashIcon(
-                        'qr-code',
-                        size: IconSize.xl,
-                        color: c.textMuted,
-                      ),
-                    )
-                  : Image.memory(
-                      bytes,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.none,
-                      gaplessPlayback: true,
-                      semanticLabel: t('qr.imageAlt', args: {'title': label}),
-                      errorBuilder: (_, _, _) => Center(
-                        child: DashIcon(
-                          'qr-code',
-                          size: IconSize.xl,
-                          color: c.textMuted,
-                        ),
-                      ),
-                    ),
-            ),
+          child: QrImage(
+            dataUrl: qr.qrDataUrl,
+            semanticLabel: t('qr.imageAlt', args: {'title': label}),
           ),
         ),
       ),
@@ -247,6 +216,48 @@ class _QrPreviewDialogState extends ConsumerState<QrPreviewDialog> {
               ],
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// A code image on white (the light paper's surface in both themes: a code
+/// on a dark card does not scan), square, scaled to its box.
+class QrImage extends StatelessWidget {
+  const QrImage({
+    required this.dataUrl,
+    required this.semanticLabel,
+    super.key,
+  });
+
+  final String dataUrl;
+  final String semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.madarColors;
+    final bytes = qrImageBytes(dataUrl);
+    final missing = Center(
+      child: DashIcon('qr-code', size: IconSize.xl, color: c.textMuted),
+    );
+    return Container(
+      padding: const EdgeInsets.all(Space.xs),
+      decoration: BoxDecoration(
+        color: MadarColors.light.surface,
+        borderRadius: BorderRadius.circular(Space.xs),
+      ),
+      child: AspectRatio(
+        aspectRatio: 1,
+        child: bytes == null
+            ? missing
+            : Image.memory(
+                bytes,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.none,
+                gaplessPlayback: true,
+                semanticLabel: semanticLabel,
+                errorBuilder: (_, _, _) => missing,
+              ),
       ),
     );
   }

@@ -17,13 +17,13 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show TillSessionRow;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/report_shared.dart' show ReportAsync, exportLogoUrl;
 import 'tills_lib.dart';
 import 'tills_parts.dart';
 import 'tills_providers.dart';
@@ -82,7 +82,7 @@ class _TillsReportPageState extends ConsumerState<TillsReportPage> {
     final key = tillSessionsKey(scope);
     final q = ref.watch(tillSessionsProvider(key));
     // Riverpod's automatic retries keep the skeleton, never the error.
-    final error = q.hasError && !q.retrying ? q.error : null;
+    final error = q.failed ? q.error : null;
     final refused = isRangeRefused(error);
     final load = TillsLoad(
       rows: q.value ?? const <TillSessionRow>[],
@@ -158,16 +158,10 @@ class _TillsReportPageState extends ConsumerState<TillsReportPage> {
   Future<void> _export(List<TillSessionRow> rows, {required bool excel}) async {
     final t = ref.read(tProvider);
     final exporter = ref.read(exporterProvider);
-    final brand = ref.read(publicBrandProvider).value;
-    final logo = brand?.logoUrl?.trim();
-    final ownLogo =
-        (brand?.customBranding ?? false) && logo != null && logo.isNotEmpty
-        ? logo
-        : null;
     final title = t('reports.tills.title');
     final config = ExcelConfig(
       filename: 'Madar-$title',
-      logoUrl: ownLogo,
+      logoUrl: exportLogoUrl(ref),
       sheets: [
         ExcelSheet<TillSessionRow>(
           name: title,

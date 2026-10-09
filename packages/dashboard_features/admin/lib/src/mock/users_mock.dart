@@ -179,7 +179,9 @@ void registerUsersMocks(MockServer server, MockDb db) {
     req.requireCap('staff.users.read');
     final p = req.persona;
     final orgId = p.isPlatform ? req.q('org_id') : p.orgId;
-    if (!p.isPlatform && orgId == null) req.fail(MockResponse.forbidden('No org assigned'));
+    if (!p.isPlatform && orgId == null) {
+      req.fail(MockResponse.forbidden('No org assigned'));
+    }
     final rows = users.query(
       filters: {'org_id': orgId},
       where: (u) {
@@ -294,7 +296,9 @@ void registerUsersMocks(MockServer server, MockDb db) {
     // Deterministic, and never one somebody in the org already holds.
     for (var n = 402913; ; n = (n + 104729) % 1000000) {
       final pin = n.toString().padLeft(6, '0');
-      if (!pinTaken(orgId, pin)) return MockResponse.ok(PinSuggestion(pin: pin));
+      if (!pinTaken(orgId, pin)) {
+        return MockResponse.ok(PinSuggestion(pin: pin));
+      }
     }
   });
 
@@ -464,7 +468,9 @@ void registerUsersMocks(MockServer server, MockDb db) {
   /// `org_of` + `target_row`: the person, in the org acted in.
   Map<String, Object?> targetIn(MockRequest req, String id) {
     final org = req.orgId;
-    if (org == null) req.fail(MockResponse.forbidden('No organization selected'));
+    if (org == null) {
+      req.fail(MockResponse.forbidden('No organization selected'));
+    }
     final u = users.find(id);
     if (!live(u) || u!['org_id'] != org) req.notFound('User not found');
     return u;
@@ -615,9 +621,7 @@ void registerUsersMocks(MockServer server, MockDb db) {
     final target = targetIn(req, userId);
     final meta = _meta(key);
     if (meta == null) req.badRequest('Unknown capability');
-    return MockResponse.ok(
-      _explain(db, target, meta, req.q('branch_id')),
-    );
+    return MockResponse.ok(_explain(db, target, meta, req.q('branch_id')));
   });
 
   // ── Make employee (ADM-USR-014) ──────────────────────────────────────
@@ -660,7 +664,8 @@ CapabilityMeta? _meta(String key) =>
     capabilityRegistry.firstWhereOrNull((c) => c.key == key);
 
 /// Whether [meta] is always on for a person whose role is [kind].
-bool isCoreForKind(CapabilityMeta meta, String kind) => meta.core.contains(kind);
+bool isCoreForKind(CapabilityMeta meta, String kind) =>
+    meta.core.contains(kind);
 
 LimitsView _restrict(LimitsView l, CapabilityMeta meta) => LimitsView(
   maxAmount: meta.limits.contains('max_amount') ? l.maxAmount : null,

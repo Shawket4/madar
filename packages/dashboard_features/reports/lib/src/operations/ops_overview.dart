@@ -67,7 +67,7 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
     void retry() => ref.invalidate(opsSalesProvider(key));
     final d = q.value;
     final loading = q.awaitingFirst;
-    final failed = q.hasError && !q.retrying;
+    final failed = q.failed;
     final aov = d != null && d.totalOrders > 0
         ? (d.totalRevenue / d.totalOrders).round()
         : 0;
@@ -84,9 +84,6 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
         ),
     ]..sort((a, b) => b.$2.compareTo(a.$2));
     final topCategories = byCategory.take(10).toList();
-    // Every card keeps the exclude button's 44 pt row, so the strip's cards
-    // share one height.
-    const room = SizedBox(height: DashMetrics.target);
 
     final kpis = DashLedgerStrip(
       items: [
@@ -97,7 +94,6 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
           value: d?.totalRevenue ?? 0,
           format: DashStatFormat.money,
           loading: loading,
-          action: room,
         ),
         DashLedgerItem(
           key: 'tax',
@@ -107,7 +103,6 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
           value: d?.totalTax ?? 0,
           format: DashStatFormat.money,
           loading: loading,
-          action: room,
         ),
         DashLedgerItem(
           key: 'orders',
@@ -117,7 +112,6 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
           value: d?.totalOrders ?? 0,
           format: DashStatFormat.number,
           loading: loading,
-          action: room,
         ),
         DashLedgerItem(
           key: 'line_items',
@@ -140,7 +134,6 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
           value: aov,
           format: DashStatFormat.money,
           loading: loading,
-          action: room,
         ),
         DashLedgerItem(
           key: 'voided',
@@ -150,7 +143,6 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
           value: d?.voidedOrders ?? 0,
           format: DashStatFormat.number,
           loading: loading,
-          action: room,
         ),
       ],
     );

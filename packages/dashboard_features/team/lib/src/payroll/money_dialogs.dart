@@ -185,10 +185,12 @@ Widget _text({
   String? description,
   DashValidator<String>? validator,
   int maxLength = 500,
+  ValueChanged<String>? onSubmitted,
 }) => DashTextField(
   label: label,
   value: value,
   onChanged: onChanged,
+  onSubmitted: onSubmitted,
   description: description,
   validator: validator,
   maxLength: maxLength,
@@ -366,6 +368,8 @@ class _AdjustmentDialogState extends ConsumerState<AdjustmentDialog>
           ),
         if (percent)
           DashNumberField(
+            // The web's form submits on Enter.
+            onSubmitted: (_) => _save(),
             key: const ValueKey('adj-percent'),
             label: t('dawam.percent'),
             value: _amount,
@@ -389,6 +393,7 @@ class _AdjustmentDialogState extends ConsumerState<AdjustmentDialog>
                 p == null || p <= 0 ? t('dawam.amountRequired') : null,
           ),
         _text(
+          onSubmitted: (_) => _save(),
           label: t('staff.reason'),
           value: _reason,
           onChanged: (v) => setState(() => _reason = v),
@@ -483,6 +488,8 @@ class _RecordAdvanceDialogState extends ConsumerState<RecordAdvanceDialog>
               p == null || p <= 0 ? t('dawam.amountRequired') : null,
         ),
         DashNumberField(
+          // The web's form submits on Enter.
+          onSubmitted: (_) => _save(),
           label: t('dawam.installments'),
           description: t('dawam.installmentsHint'),
           value: _installments,
@@ -492,6 +499,7 @@ class _RecordAdvanceDialogState extends ConsumerState<RecordAdvanceDialog>
           validator: (v) => _installmentsProblem(t, v),
         ),
         _text(
+          onSubmitted: (_) => _save(),
           label: t('dawam.whatFor'),
           value: _reason,
           onChanged: (v) => setState(() => _reason = v),
@@ -564,6 +572,7 @@ class _ExpenseAdvanceDialogState extends ConsumerState<ExpenseAdvanceDialog>
               p == null || p <= 0 ? t('dawam.amountRequired') : null,
         ),
         _text(
+          onSubmitted: (_) => _save(),
           label: t('dawam.purpose'),
           value: _purpose,
           onChanged: (v) => setState(() => _purpose = v),
@@ -677,6 +686,7 @@ class _CorrectExpenseTagDialogState
                 : null,
           ),
         _text(
+          onSubmitted: (_) => _save(),
           label: t('staff.reason'),
           value: _reason,
           onChanged: (v) => setState(() => _reason = v),
@@ -871,6 +881,8 @@ class _ReasonDialogState extends ConsumerState<ReasonDialog> with _MoneyForm {
           value: _reason,
           description: widget.hint,
           onChanged: (v) => setState(() => _reason = v),
+          // The web's form submits on Enter.
+          onSubmitted: (_) => _save(),
           maxLength: widget.optional ? null : 500,
           validator: (v) => widget.optional
               ? (v.trim().length > 500 ? t('staff.noteTooLong') : null)
@@ -1095,6 +1107,7 @@ class _OverrideDialogState extends ConsumerState<OverrideDialog>
               p == null || p < 0 ? t('dawam.amountRequired') : null,
         ),
         _text(
+          onSubmitted: (_) => _save(),
           label: t('staff.reason'),
           value: _reason,
           onChanged: (v) => edit(() => _reason = v),
@@ -1182,6 +1195,8 @@ class _ReviewAdvanceDialogState extends ConsumerState<ReviewAdvanceDialog>
               p == null || p <= 0 ? t('dawam.amountRequired') : null,
         ),
         DashNumberField(
+          // The web's form submits on Enter.
+          onSubmitted: (_) => _save(),
           label: t('dawam.installments'),
           value: _installments,
           stepper: true,
@@ -1190,6 +1205,7 @@ class _ReviewAdvanceDialogState extends ConsumerState<ReviewAdvanceDialog>
           validator: (v) => _installmentsProblem(t, v),
         ),
         _text(
+          onSubmitted: (_) => _save(),
           label: t('staff.note'),
           value: _note,
           onChanged: (v) => edit(() => _note = v),

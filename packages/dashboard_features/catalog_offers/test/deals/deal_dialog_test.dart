@@ -870,9 +870,7 @@ void main() {
 
     testWidgets('OFFR-DEA-046 (divergence) the deal saved but a branch call '
         'failed: the list shows it, the dialog becomes "Edit deal" and the '
-        'next Save updates it, never creating a second', (
-      tester,
-    ) async {
+        'next Save updates it, never creating a second', (tester) async {
       final s = dealsServer();
       final refusal = MockResponse.denied('menu.deals.edit');
       s.server.fail('PUT', branchRoute, refusal);
@@ -1024,9 +1022,7 @@ void main() {
 
     testWidgets('OFFR-DEA-049 PUTs then DELETEs, one at a time; the first '
         'failure stops the rest and keeps the dialog; the saved deal is '
-        'refetched (divergence)', (
-      tester,
-    ) async {
+        'refetched (divergence)', (tester) async {
       final s = dealsServer();
       final boom = MockResponse.error(500, 'branch write failed');
       s.server.fail('PUT', branchRoute, boom);

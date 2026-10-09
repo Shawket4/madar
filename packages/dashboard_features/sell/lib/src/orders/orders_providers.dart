@@ -166,51 +166,6 @@ final ordersExportBranchProvider = FutureProvider.autoDispose
       return ref.watch(apiProvider).branches.getBranch(id: id);
     });
 
-// ── the excluded items (SELL-ORD-015) ─────────────────────────────────────
-
-/// The device setting's key, shared with the Operations report's Items Sold
-/// (`madar.excluded-line-items.<orgId>`).
-String excludedItemsPrefKey(String orgId) => 'madar.excluded-line-items.$orgId';
-
-/// The menu item ids left out of Items Sold, per org on this device; read
-/// again when the org changes.
-class OrdersExcludedItems extends Notifier<List<String>> {
-  OrdersExcludedItems(this.orgId);
-
-  final String? orgId;
-
-  @override
-  List<String> build() {
-    final org = orgId;
-    if (org == null) return const [];
-    final raw = ref
-        .read(preferencesProvider)
-        .getJson(excludedItemsPrefKey(org));
-    return raw is List ? [for (final v in raw) '$v'] : const [];
-  }
-
-  void set(List<String> ids) {
-    state = List.unmodifiable(ids);
-    final org = orgId;
-    if (org != null) {
-      ref.read(preferencesProvider).setJson(excludedItemsPrefKey(org), ids);
-    }
-  }
-
-  void toggle(String id) => set(
-    state.contains(id) ? [...state.where((x) => x != id)] : [...state, id],
-  );
-}
-
-final ordersExcludedProvider = NotifierProvider.autoDispose
-    .family<OrdersExcludedItems, List<String>, String?>(
-      OrdersExcludedItems.new,
-    );
-
-/// `excludeItemsParam`: the comma list, or null when nothing is excluded.
-String? excludeItemsParam(List<String> ids) =>
-    ids.isEmpty ? null : ids.join(',');
-
 // ── helpers ───────────────────────────────────────────────────────────────
 
 /// Watches [provider] only when [enabled] (a web query's `enabled: false`

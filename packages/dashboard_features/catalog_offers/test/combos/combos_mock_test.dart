@@ -86,8 +86,7 @@ void main() {
     test('on sale follows the clock: Iced Afternoon at 16:00, Kids\' Cocoa '
         'on a Friday', () async {
       final o = _api();
-      Future<bool> now(String key) async => (await o.api.menu.listCombos())
-          .data
+      Future<bool> now(String key) async => (await o.api.menu.listCombos()).data
           .firstWhere((c) => c.id == comboId(key))
           .availableNow;
       expect(await now('iced-afternoon'), isFalse);
@@ -98,23 +97,26 @@ void main() {
       expect(await now('iced-afternoon'), isFalse);
     });
 
-    test('q: the English or the Arabic name, any case, % and _ literal', () async {
-      final o = _api();
-      expect(_names(await o.api.menu.listCombos(q: 'COOKIE')), [
-        'Coffee & Cookie',
-        "Kids' Cocoa & Cookie",
-      ]);
-      expect(_names(await o.api.menu.listCombos(q: 'كوكيز')), [
-        'Coffee & Cookie',
-        "Kids' Cocoa & Cookie",
-      ]);
-      expect(_names(await o.api.menu.listCombos(q: '  brunch ')), [
-        'Brunch for Two',
-      ]);
-      expect((await o.api.menu.listCombos(q: '%')).data, isEmpty);
-      expect((await o.api.menu.listCombos(q: '_')).data, isEmpty);
-      expect((await o.api.menu.listCombos(q: '   ')).total, 6);
-    });
+    test(
+      'q: the English or the Arabic name, any case, % and _ literal',
+      () async {
+        final o = _api();
+        expect(_names(await o.api.menu.listCombos(q: 'COOKIE')), [
+          'Coffee & Cookie',
+          "Kids' Cocoa & Cookie",
+        ]);
+        expect(_names(await o.api.menu.listCombos(q: 'كوكيز')), [
+          'Coffee & Cookie',
+          "Kids' Cocoa & Cookie",
+        ]);
+        expect(_names(await o.api.menu.listCombos(q: '  brunch ')), [
+          'Brunch for Two',
+        ]);
+        expect((await o.api.menu.listCombos(q: '%')).data, isEmpty);
+        expect((await o.api.menu.listCombos(q: '_')).data, isEmpty);
+        expect((await o.api.menu.listCombos(q: '   ')).total, 6);
+      },
+    );
 
     test('category_id and is_active narrow it', () async {
       final o = _api();
@@ -198,8 +200,10 @@ void main() {
     test('deleted combos and plain items never show', () async {
       final o = _api();
       OffersSeed.loadInto(o.db);
-      o.db.table(OffersTables.menuItems).find(comboId('suhoor-box'))![
-          'deleted_at'] = '2026-10-01T09:00:00.000Z';
+      o.db
+              .table(OffersTables.menuItems)
+              .find(comboId('suhoor-box'))!['deleted_at'] =
+          '2026-10-01T09:00:00.000Z';
       final p = await o.api.menu.listCombos();
       expect(p.total, 5);
       expect(_names(p), isNot(contains('Ramadan Suhoor Box')));
@@ -208,21 +212,24 @@ void main() {
   });
 
   group('DELETE /menu-items/{id}', () {
-    test('needs menu.items.delete; a delete takes the combo off the list', () async {
-      final limited = _api(Persona.limited);
-      final e = await _error(
-        limited.api.menu.deleteMenuItem(id: comboId('iced-afternoon')),
-      );
-      expect(e.status, 403);
-      expect(e.code, isNull, reason: 'uncoded: the web words it itself');
+    test(
+      'needs menu.items.delete; a delete takes the combo off the list',
+      () async {
+        final limited = _api(Persona.limited);
+        final e = await _error(
+          limited.api.menu.deleteMenuItem(id: comboId('iced-afternoon')),
+        );
+        expect(e.status, 403);
+        expect(e.code, isNull, reason: 'uncoded: the web words it itself');
 
-      final o = _api();
-      await o.api.menu.deleteMenuItem(id: comboId('iced-afternoon'));
-      final p = await o.api.menu.listCombos();
-      expect(p.total, 5);
-      expect(_names(p), isNot(contains('Iced Afternoon')));
-      // Again: still 204, as the backend answers.
-      await o.api.menu.deleteMenuItem(id: comboId('iced-afternoon'));
-    });
+        final o = _api();
+        await o.api.menu.deleteMenuItem(id: comboId('iced-afternoon'));
+        final p = await o.api.menu.listCombos();
+        expect(p.total, 5);
+        expect(_names(p), isNot(contains('Iced Afternoon')));
+        // Again: still 204, as the backend answers.
+        await o.api.menu.deleteMenuItem(id: comboId('iced-afternoon'));
+      },
+    );
   });
 }

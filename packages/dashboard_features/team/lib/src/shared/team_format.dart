@@ -4,6 +4,7 @@
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// "42m", "7h 25m", "1d 03h" from a minute count (`fmtMinutes`): attendance
@@ -80,3 +81,11 @@ String teamTodayIsoOf(WidgetRef ref, [int days = 0]) => isoDaysFromToday(
   timezone: ref.read(activeTimezoneProvider),
   now: ref.read(clockProvider)(),
 );
+
+/// The line's start edge as a fixed side: free text set in its own direction
+/// (`dashTextDirectionOf`, the web's `dir="auto"`) in a custom table cell
+/// still sits where the kit's own cells put it.
+TextAlign startEdge(BuildContext context) =>
+    Directionality.of(context) == TextDirection.rtl
+    ? TextAlign.right
+    : TextAlign.left;

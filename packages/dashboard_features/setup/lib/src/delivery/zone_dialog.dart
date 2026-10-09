@@ -174,10 +174,12 @@ class _ZoneDialogState extends ConsumerState<ZoneDialog> {
                     step: 0.5,
                     decimals: 3,
                     allowEmpty: true,
-                    validator: (v) => v != null && !v.isNaN && v > 0
+                    // The live value: Enter validates before the field rebuilds.
+                    validator: (_) => _km != null && !_km!.isNaN && _km! > 0
                         ? null
                         : t('delivery.errDistancePositive'),
                     onChanged: (v) => _edit(() => _km = v),
+                    onSubmitted: (_) => _save(fallbackName),
                   ),
                 ),
                 Expanded(
@@ -188,9 +190,11 @@ class _ZoneDialogState extends ConsumerState<ZoneDialog> {
                     value: _fee,
                     decimals: 2,
                     allowEmpty: true,
-                    validator: (v) =>
-                        DeliveryForm.feeOk(v) ? null : t('delivery.errFeeNonNeg'),
+                    validator: (_) => DeliveryForm.feeOk(_fee)
+                        ? null
+                        : t('delivery.errFeeNonNeg'),
                     onChanged: (v) => _edit(() => _fee = v),
+                    onSubmitted: (_) => _save(fallbackName),
                   ),
                 ),
               ],

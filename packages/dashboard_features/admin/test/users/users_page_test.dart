@@ -5,6 +5,7 @@ import 'package:dashboard_api/dashboard_api.dart' show MyAuthz;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/shell.dart' show DashSidebar;
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:design_system/design_system.dart' show MadarClippedText;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,10 +62,9 @@ void main() {
     testWidgets('ADM-USR-005 a Dawam-only owner sees their own org\'s '
         'accounts', (tester) async {
       final h = await pumpUsers(tester, persona: Persona.dawamOnly);
-      expect(
-        h.server.callsTo(listRoute).single.query['org_id'],
-        [SeedIds.nakhlaOrg],
-      );
+      expect(h.server.callsTo(listRoute).single.query['org_id'], [
+        SeedIds.nakhlaOrg,
+      ]);
       expect(onPage('Yasmin Ghali'), findsOneWidget);
       expect(stat(tester, 'Total Users').value, 1);
     });
@@ -180,7 +180,12 @@ void main() {
       }
 
       await type('branch_manager');
-      for (final n in ['Dina Fouad', 'Karim Adel', 'Rana Helmy', 'Tarek Saber']) {
+      for (final n in [
+        'Dina Fouad',
+        'Karim Adel',
+        'Rana Helmy',
+        'Tarek Saber',
+      ]) {
         expect(onPage(n), findsOneWidget);
       }
       expect(onPage('Mariam Fathy'), findsNothing);
@@ -238,9 +243,32 @@ void main() {
       expect(onPage('pool timed out'), findsOneWidget);
       s.server.clearFailures();
       final before = h.server.callsTo(listRoute).length;
+      final gate = s.server.hold('GET', listRoute);
       await h.tap(find.descendant(of: page, matching: find.text('Retry')));
+      // Retrying: the table's Retry spins.
+      expect(
+        tester.widget<DashErrorState>(find.byType(DashErrorState)).retrying,
+        isTrue,
+      );
+      gate.release();
+      await h.settle();
       expect(h.server.callsTo(listRoute).length, before + 1);
       expect(onPage('Adham Reda'), findsOneWidget);
+    });
+
+    testWidgets('ADM-USR-009 a Latin name reads left to right in Arabic', (
+      tester,
+    ) async {
+      await pumpUsers(tester, locale: 'ar');
+      final name = tester.widget<MadarClippedText>(
+        find
+            .ancestor(
+              of: onPage('Adham Reda'),
+              matching: find.byType(MadarClippedText),
+            )
+            .first,
+      );
+      expect(name.textDirection, TextDirection.ltr);
     });
 
     testWidgets('ADM-USR-009 phone: one card per person with its actions', (
@@ -278,7 +306,9 @@ void main() {
         MockResponse.denied('staff.users.edit'),
       );
       final h = await pumpUsers(tester, server: s.server, db: s.db);
-      await h.tap(find.descendant(of: page, matching: find.text('Mariam Fathy')));
+      await h.tap(
+        find.descendant(of: page, matching: find.text('Mariam Fathy')),
+      );
       expect(h.location.queryParameters['edit'], uid('mariam'));
       expect(inSurface('Edit User'), findsOneWidget);
       await h.tapKey(const ValueKey('user-submit'));
@@ -382,7 +412,9 @@ void main() {
         'no linkable read and no button', (tester) async {
       final s = usersServer();
       s.db['employees'].removeWhere((e) => e['user_id'] == uid('mariam'));
-      s.db['orgs'].update(SeedIds.sabahOrg, {'modules': ['pos']});
+      s.db['orgs'].update(SeedIds.sabahOrg, {
+        'modules': ['pos'],
+      });
       final h = await pumpUsers(
         tester,
         server: s.server,
@@ -469,13 +501,10 @@ void main() {
       await h.expectToast('Exported 16 rows');
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'Users');
-      expect([for (final c in sheet.columns) c.header], [
-        'Name',
-        'Email address',
-        'Phone',
-        'Role',
-        'Status',
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        ['Name', 'Email address', 'Phone', 'Role', 'Status'],
+      );
       expect([for (final c in sheet.columns) c.width], [28, 30, 18, 18, 12]);
       expect(sheet.rows.first, [
         'Adham Reda',

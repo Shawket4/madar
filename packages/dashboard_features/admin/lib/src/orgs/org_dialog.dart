@@ -18,8 +18,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/org_errors.dart';
 import '../shared/tax_rate.dart';
-import 'org_errors.dart';
 import 'org_form_parts.dart';
 import 'org_logo.dart';
 import 'orgs_providers.dart';

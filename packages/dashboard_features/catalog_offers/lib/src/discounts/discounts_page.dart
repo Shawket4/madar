@@ -272,10 +272,11 @@ class _DiscountsPageState extends ConsumerState<DiscountsPage> {
       id: 'dtype',
       label: t('common.type'),
       text: (d) => d.dtype,
-      cell: (context, d) => _OutlineBadge(
+      cell: (context, d) => DashBadge(
         d.dtype == DiscountType.percentage
             ? t('discounts.percentage')
             : t('discounts.fixed'),
+        outline: true,
       ),
       hideable: false,
       flex: 2,
@@ -542,6 +543,7 @@ class _DiscountName extends StatelessWidget {
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            textDirection: dashTextDirectionOf(name),
             style: (phone ? DashType.sectionTitle : DashType.bodyStrong)
                 .copyWith(color: c.textPrimary),
           ),
@@ -593,30 +595,4 @@ class _StatusToggle extends StatelessWidget {
       ),
     ),
   );
-}
-
-/// An outline badge (`<Badge variant="outline">`): a hairline, no fill.
-class _OutlineBadge extends StatelessWidget {
-  const _OutlineBadge(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: c.hairline),
-      ),
-      child: Text(
-        label,
-        style: DashType.smallMedium.copyWith(color: c.textPrimary),
-      ),
-    );
-  }
 }

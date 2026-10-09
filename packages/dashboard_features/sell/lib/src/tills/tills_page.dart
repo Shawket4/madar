@@ -22,6 +22,7 @@ import 'open_till_dialog.dart';
 import 'till_report_sheet.dart';
 import 'tills_data.dart';
 import 'tills_sections.dart';
+import '../shared/error_text.dart';
 
 class TillsPage extends ConsumerStatefulWidget {
   const TillsPage({this.query = const {}, super.key});
@@ -158,7 +159,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
       refresh();
       if (mounted) DashToast.success(context, t('tills.forceClosed'));
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, tillsErrorMessage(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     }
   }
 
@@ -182,7 +183,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
       refresh();
       if (mounted) DashToast.success(context, t('tills.deleted'));
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, tillsErrorMessage(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     }
   }
 
@@ -212,7 +213,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
         outcome.message(t),
       );
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, tillsErrorMessage(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }

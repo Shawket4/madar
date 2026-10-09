@@ -77,7 +77,13 @@ Future<void> exportMenu(
       .exportToExcel(
         ExcelConfig(
           filename: 'Madar-Menu',
-          logoUrl: brand?.customBranding == true ? brand?.logoUrl : null,
+          // `logoUrl?.trim() || null` (use-brand.ts): blank means no logo.
+          logoUrl: brand?.customBranding == true
+              ? switch (brand?.logoUrl?.trim()) {
+                  final String u when u.isNotEmpty => u,
+                  _ => null,
+                }
+              : null,
           sheets: [
             ExcelSheet<MenuItemWithCosts>(
               name: t('nav.items'),

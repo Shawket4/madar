@@ -19,6 +19,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/export_logo.dart';
 import '../shared/pick_org_state.dart';
 import '../shared/row_action.dart';
 import '../shared/url_params.dart';
@@ -101,7 +102,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
         .exportToExcel(
           ExcelConfig(
             filename: 'Madar-Branches',
-            logoUrl: brand?.customBranding == true ? brand?.logoUrl : null,
+            logoUrl: exportLogoUrl(brand),
             sheets: [
               ExcelSheet<Branch>(
                 name: t('branches.title'),
@@ -236,6 +237,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
             branches: branches,
             loading: loading,
             errorText: error == null ? null : branchErrorText(error, t),
+            retrying: list.isLoading,
             onRetry: () => ref.invalidate(branchesProvider),
             onEdit: (b) => context.setQueryParams({'edit': b.id}),
             onEditIntent: _warmDialog,
@@ -282,6 +284,7 @@ class _BranchesTable extends ConsumerWidget {
     required this.branches,
     required this.loading,
     required this.errorText,
+    required this.retrying,
     required this.onRetry,
     required this.onEdit,
     required this.onEditIntent,
@@ -291,6 +294,7 @@ class _BranchesTable extends ConsumerWidget {
   final List<Branch> branches;
   final bool loading;
   final String? errorText;
+  final bool retrying;
   final VoidCallback onRetry;
   final ValueChanged<Branch> onEdit;
   final VoidCallback onEditIntent;
@@ -309,6 +313,7 @@ class _BranchesTable extends ConsumerWidget {
       rowKey: (b) => b.id,
       loading: loading,
       errorMessage: errorText,
+      retrying: retrying,
       onRetry: onRetry,
       onRowTap: onEdit,
       onRowIntent: (_) => onEditIntent(),
@@ -475,6 +480,7 @@ class _NameCell extends ConsumerWidget {
                 children: [
                   MadarClippedText(
                     branch.name,
+                    textDirection: dashTextDirectionOf(branch.name),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: DashType.bodyStrong.copyWith(color: c.textPrimary),
@@ -500,6 +506,7 @@ class _NameCell extends ConsumerWidget {
                     Flexible(
                       child: MadarClippedText(
                         address!,
+                        textDirection: dashTextDirectionOf(address),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: DashType.small.copyWith(color: c.textSecondary),

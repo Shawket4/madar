@@ -46,17 +46,18 @@ void main() {
   });
 
   test('rows: the snapshot in order, then found items it does not hold', () {
-    final rows = countEditorRows(
-      [item('a'), item('b')],
-      [row('b'), row('z')],
-    );
+    final rows = countEditorRows([item('a'), item('b')], [row('b'), row('z')]);
     expect(rows.map((r) => r.orgIngredientId), ['a', 'b', 'z']);
     expect(rows[1].ingredientName, 'Item b', reason: 'the server wins');
   });
 
   test('categories in first-seen order', () {
     expect(
-      countRowCategories([row('a', cat: 'm'), row('b', cat: 'k'), row('c', cat: 'm')]),
+      countRowCategories([
+        row('a', cat: 'm'),
+        row('b', cat: 'k'),
+        row('c', cat: 'm'),
+      ]),
       [('m', 'Cat m'), ('k', 'Cat k')],
     );
   });

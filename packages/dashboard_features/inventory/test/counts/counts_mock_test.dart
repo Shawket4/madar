@@ -23,49 +23,55 @@ Matcher refused(int status, String words) => throwsA(
 
 String ing(String key) => InvIds.ingredient(key);
 
-ItemCountInput line(String key, double qty, [String? reason]) =>
-    ItemCountInput(
-      orgIngredientId: ing(key),
-      countedQty: qty,
-      varianceReason: reason,
-    );
+ItemCountInput line(String key, double qty, [String? reason]) => ItemCountInput(
+  orgIngredientId: ing(key),
+  countedQty: qty,
+  varianceReason: reason,
+);
 
 void main() {
   group('GET /stocktakes/{id}', () {
-    test('the open count: live book stock, category order, threshold', () async {
-      final b = backend();
-      final st = await b.api.stocktakes.getStocktake(id: openNewCairo);
-      expect(st.status, 'in_progress');
-      expect(st.varianceThresholdPct, invVarianceThresholdPct);
-      expect(st.items, hasLength(25));
-      // Book = the branch's on hand right now, not the opening snapshot.
-      final oat = st.items.firstWhere((i) => i.orgIngredientId == ing('oat'));
-      final rec = stockRow(b.db, SeedIds.newCairo, 'oat')!;
-      expect(oat.bookQty, rec['on_hand']);
-      expect(oat.variance, oat.countedQty! - oat.bookQty);
-      rec['on_hand'] = 6000.0;
-      final again = await b.api.stocktakes.getStocktake(id: openNewCairo);
-      final oat2 = again.items.firstWhere((i) => i.orgIngredientId == ing('oat'));
-      expect(oat2.bookQty, 6000);
-      expect(oat2.variance, oat2.countedQty! - 6000);
-      // By category sort order, then name.
-      final cats = [for (final c in b.db[InvTables.categories].rows) c];
-      int order(String id) =>
-          cats.firstWhere((c) => c['id'] == id)['sort_order']! as int;
-      for (var i = 1; i < st.items.length; i++) {
-        final a = st.items[i - 1], c = st.items[i];
-        final o = order(a.categoryId).compareTo(order(c.categoryId));
-        expect(o <= 0, isTrue);
-        if (o == 0 && a.categoryId == c.categoryId) {
-          expect(a.ingredientName.compareTo(c.ingredientName) < 0, isTrue);
+    test(
+      'the open count: live book stock, category order, threshold',
+      () async {
+        final b = backend();
+        final st = await b.api.stocktakes.getStocktake(id: openNewCairo);
+        expect(st.status, 'in_progress');
+        expect(st.varianceThresholdPct, invVarianceThresholdPct);
+        expect(st.items, hasLength(25));
+        // Book = the branch's on hand right now, not the opening snapshot.
+        final oat = st.items.firstWhere((i) => i.orgIngredientId == ing('oat'));
+        final rec = stockRow(b.db, SeedIds.newCairo, 'oat')!;
+        expect(oat.bookQty, rec['on_hand']);
+        expect(oat.variance, oat.countedQty! - oat.bookQty);
+        rec['on_hand'] = 6000.0;
+        final again = await b.api.stocktakes.getStocktake(id: openNewCairo);
+        final oat2 = again.items.firstWhere(
+          (i) => i.orgIngredientId == ing('oat'),
+        );
+        expect(oat2.bookQty, 6000);
+        expect(oat2.variance, oat2.countedQty! - 6000);
+        // By category sort order, then name.
+        final cats = [for (final c in b.db[InvTables.categories].rows) c];
+        int order(String id) =>
+            cats.firstWhere((c) => c['id'] == id)['sort_order']! as int;
+        for (var i = 1; i < st.items.length; i++) {
+          final a = st.items[i - 1], c = st.items[i];
+          final o = order(a.categoryId).compareTo(order(c.categoryId));
+          expect(o <= 0, isTrue);
+          if (o == 0 && a.categoryId == c.categoryId) {
+            expect(a.ingredientName.compareTo(c.ingredientName) < 0, isTrue);
+          }
         }
-      }
-      // Never stocked here: new.
-      expect(
-        st.items.firstWhere((i) => i.orgIngredientId == ing('hibiscus')).isNew,
-        isTrue,
-      );
-    });
+        // Never stocked here: new.
+        expect(
+          st.items
+              .firstWhere((i) => i.orgIngredientId == ing('hibiscus'))
+              .isNew,
+          isTrue,
+        );
+      },
+    );
 
     test('a closed count keeps its frozen book stock', () async {
       final b = backend();
@@ -73,7 +79,10 @@ void main() {
       final full = st.items.firstWhere(
         (i) => i.orgIngredientId == ing('full-cream'),
       );
-      expect(full.bookQty, itemRow(b.db, zamalekMilk, 'full-cream')['book_qty']);
+      expect(
+        full.bookQty,
+        itemRow(b.db, zamalekMilk, 'full-cream')['book_qty'],
+      );
     });
 
     test('404, the capability, the branch', () async {
@@ -173,7 +182,10 @@ void main() {
         refused(400, 'Pass either category_id or org_ingredient_ids'),
       );
       await expectLater(
-        make(SeedIds.zamalek, const CreateStocktakeRequest(orgIngredientIds: [])),
+        make(
+          SeedIds.zamalek,
+          const CreateStocktakeRequest(orgIngredientIds: []),
+        ),
         refused(400, 'org_ingredient_ids cannot be empty'),
       );
       await expectLater(
@@ -210,7 +222,8 @@ void main() {
       );
       expect(
         b.db[InvTables.stocktakes].where(
-          (s) => s['branch_id'] == SeedIds.zamalek && s['status'] == 'in_progress',
+          (s) =>
+              s['branch_id'] == SeedIds.zamalek && s['status'] == 'in_progress',
         ),
         isEmpty,
       );
@@ -239,7 +252,10 @@ void main() {
         (i) => i.orgIngredientId == ing('sugar'),
       );
       expect(sugar.countedQty, 500);
-      expect(sugar.openingQty, stockRow(b.db, SeedIds.zamalek, 'sugar')!['on_hand']);
+      expect(
+        sugar.openingQty,
+        stockRow(b.db, SeedIds.zamalek, 'sugar')!['on_hand'],
+      );
       expect(saved.items, hasLength(st.items.length + 1));
       // A reason sent as null clears it.
       final cleared = await b.api.stocktakes.upsertItems(
@@ -268,9 +284,7 @@ void main() {
       await expectLater(
         b.api.stocktakes.upsertItems(
           id: openNewCairo,
-          body: UpsertItemsRequest(
-            items: [line('sugar', 1), line('oat', -2)],
-          ),
+          body: UpsertItemsRequest(items: [line('sugar', 1), line('oat', -2)]),
         ),
         refused(400, 'counted_qty cannot be negative'),
       );
@@ -302,7 +316,10 @@ void main() {
           id: zamalekMilk,
           body: UpsertItemsRequest(items: [line('oat', 1)]),
         ),
-        refused(409, 'Cannot edit counts on a finalized or cancelled stocktake'),
+        refused(
+          409,
+          'Cannot edit counts on a finalized or cancelled stocktake',
+        ),
       );
       await expectLater(
         backend(Persona.limited).api.stocktakes.upsertItems(
@@ -365,7 +382,10 @@ void main() {
         stockRow(b.db, SeedIds.newCairo, 'sugar')!['last_counted_at'],
         b.db.nowIso,
       );
-      expect(itemRow(b.db, openNewCairo, 'croissant')['book_qty'], book['croissant']);
+      expect(
+        itemRow(b.db, openNewCairo, 'croissant')['book_qty'],
+        book['croissant'],
+      );
       // Book stays frozen after the ledger moves on.
       stockRow(b.db, SeedIds.newCairo, 'croissant')!['on_hand'] = 5.0;
       final later = await b.api.stocktakes.getStocktake(id: openNewCairo);
@@ -430,7 +450,12 @@ void main() {
   group('GET /stocktakes/{id}/variance-report', () {
     test('figures from the raw rows: by name, valued, totals', () async {
       final b = backend();
-      for (final id in [zamalekFull, zamalekMilk, maadiSpot, zamalekCancelled]) {
+      for (final id in [
+        zamalekFull,
+        zamalekMilk,
+        maadiSpot,
+        zamalekCancelled,
+      ]) {
         final r = await b.api.stocktakes.varianceReport(id: id);
         final raw = b.db[InvTables.stocktakeItems].where(
           (i) => i['stocktake_id'] == id,
@@ -465,7 +490,9 @@ void main() {
       expect(milk.totalShrinkageValue, 23150);
       expect(milk.totalOverageValue, 1440);
       expect(milk.netVarianceValue, -21710);
-      final fullCream = milk.rows.firstWhere((x) => x.ingredientName == 'Full Cream Milk');
+      final fullCream = milk.rows.firstWhere(
+        (x) => x.ingredientName == 'Full Cream Milk',
+      );
       expect(fullCream.isFlagged, isTrue);
       expect(fullCream.varianceReason, 'spoilage');
       expect(fullCream.varianceValue, -23150);
@@ -473,7 +500,9 @@ void main() {
       final full = await b.api.stocktakes.varianceReport(id: zamalekFull);
       expect(full.unknownCostCount, 1);
       expect(
-        full.rows.firstWhere((x) => x.ingredientName == 'Dried Hibiscus').varianceValue,
+        full.rows
+            .firstWhere((x) => x.ingredientName == 'Dried Hibiscus')
+            .varianceValue,
         isNull,
       );
       // A cancelled count's uncounted row: no figures, not flagged.

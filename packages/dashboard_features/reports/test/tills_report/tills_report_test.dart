@@ -99,11 +99,14 @@ void main() {
         times: null,
       );
       final h = await pumpTills(tester, server: s.server, db: s.db);
-      expect(pageText(h.t('shell.accessLoadError')), findsOneWidget);
-      expect(pageText('Rights unavailable'), findsOneWidget);
+      // The shell's gate answers before the page is built (the web's
+      // ModuleGate / useAuthzLoadError).
+      expect(find.text(h.t('shell.accessLoadError')), findsOneWidget);
+      expect(find.text('Rights unavailable'), findsOneWidget);
+      expect(tillsPage, findsNothing);
       expect(h.server.callsTo(tillsTpl), isEmpty);
       s.server.clearFailures();
-      await h.tap(pageText('Retry'));
+      await h.tap(find.text('Retry'));
       expect(find.byType(DashPageTabs<String>), findsOneWidget);
       expect(h.server.callsTo(tillsTpl), hasLength(1));
     });
@@ -565,7 +568,7 @@ void main() {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
       expect(
-        inCell('till_3', 'closed_at', find.byType(TillOutlineBadge)),
+        inCell('till_3', 'closed_at', find.byWidgetPredicate((w) => w is DashBadge && w.outline)),
         findsOneWidget,
       );
       expect(cellText(tester, 'till_3', 'closed_at'), 'Open');
@@ -584,7 +587,7 @@ void main() {
       );
       // A closed till carries no badge.
       expect(
-        inCell('till_1', 'closed_at', find.byType(TillOutlineBadge)),
+        inCell('till_1', 'closed_at', find.byWidgetPredicate((w) => w is DashBadge && w.outline)),
         findsNothing,
       );
       await h.shot('sessions');

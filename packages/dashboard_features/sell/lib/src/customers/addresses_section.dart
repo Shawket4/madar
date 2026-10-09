@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'customers_data.dart';
 import 'people_widgets.dart';
 import 'person_surface.dart';
+import '../shared/error_text.dart';
 
 class AddressesSection extends ConsumerWidget {
   const AddressesSection({required this.customerId, super.key});
@@ -28,7 +29,7 @@ class AddressesSection extends ConsumerWidget {
     final Widget body;
     if (q.failedFirst) {
       body = InlineFailure(
-        message: peopleErrorMessage(q.error, t),
+        message: sellErrorText(q.error, t),
         retrying: q.isLoading,
         onRetry: () => ref.invalidate(customerAddressesProvider(customerId)),
       );

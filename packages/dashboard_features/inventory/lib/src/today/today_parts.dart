@@ -364,6 +364,7 @@ class TodayLowStockSection extends ConsumerWidget {
           loading: low.firstLoad,
           errorMessage: low.errorText(t),
           onRetry: data.retryLowStock,
+          retrying: low.isLoading,
           pageSize: 12,
           hideViewOptions: true,
           rowActionsWidth: actionsWidth,
@@ -425,6 +426,7 @@ class TodayLowStockSection extends ConsumerWidget {
               text: (r) => r.supplierName ?? '—',
               cell: (context, r) => MadarClippedText(
                 r.supplierName ?? '—',
+                textDirection: dashTextDirectionOf(r.supplierName ?? ''),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: r.supplierName == null
@@ -482,6 +484,7 @@ class _NameCell extends ConsumerWidget {
       children: [
         Text(
           row.ingredientName,
+          textDirection: dashTextDirectionOf(row.ingredientName),
           style: base.copyWith(fontWeight: FontWeight.w500),
         ),
         critical

@@ -98,19 +98,22 @@ void main() {
       prefs: sabahPicked(),
     );
     expect(inTable(find.text('Almond Milk')), findsOneWidget);
-    expect(h.server.callsTo(catalogRoute).single.path,
-        '/inventory/orgs/${SeedIds.sabahOrg}/catalog');
+    expect(
+      h.server.callsTo(catalogRoute).single.path,
+      '/inventory/orgs/${SeedIds.sabahOrg}/catalog',
+    );
   });
 
   testWidgets('INV-ING-003 reads with All branches: catalog and branches, no '
       'stock and no counts', (tester) async {
     final h = await pumpIngredients(tester);
-    expect(h.server.callsTo(catalogRoute).single.path,
-        '/inventory/orgs/${SeedIds.sabahOrg}/catalog');
     expect(
-      h.server.callsTo(branchesRoute).last.query['org_id'],
-      [SeedIds.sabahOrg],
+      h.server.callsTo(catalogRoute).single.path,
+      '/inventory/orgs/${SeedIds.sabahOrg}/catalog',
     );
+    expect(h.server.callsTo(branchesRoute).last.query['org_id'], [
+      SeedIds.sabahOrg,
+    ]);
     expect(h.server.callsTo(stockRoute), isEmpty);
     expect(h.server.callsTo(stocktakesRoute), isEmpty);
     expect(h.server.callsTo(suppliersRoute), isEmpty);
@@ -120,20 +123,27 @@ void main() {
   testWidgets('INV-ING-003 with Zamalek picked: its stock and its counts, '
       'once each', (tester) async {
     final h = await pumpIngredients(tester, branch: SeedIds.zamalek);
-    expect(h.server.callsTo(stockRoute).single.path,
-        '/inventory/branches/${SeedIds.zamalek}/stock');
-    expect(h.server.callsTo(stocktakesRoute).single.path,
-        '/stocktakes/branches/${SeedIds.zamalek}');
+    expect(
+      h.server.callsTo(stockRoute).single.path,
+      '/inventory/branches/${SeedIds.zamalek}/stock',
+    );
+    expect(
+      h.server.callsTo(stocktakesRoute).single.path,
+      '/stocktakes/branches/${SeedIds.zamalek}',
+    );
   });
 
-  testWidgets('INV-ALL-008 a ?branchId= deep link reads that branch',
-      (tester) async {
+  testWidgets('INV-ALL-008 a ?branchId= deep link reads that branch', (
+    tester,
+  ) async {
     final h = await pumpIngredients(
       tester,
       path: '$ingredientsPath?branchId=${SeedIds.maadi}',
     );
-    expect(h.server.callsTo(stockRoute).last.path,
-        '/inventory/branches/${SeedIds.maadi}/stock');
+    expect(
+      h.server.callsTo(stockRoute).last.path,
+      '/inventory/branches/${SeedIds.maadi}/stock',
+    );
     expect(inPage(byKey('ingredients-filter')), findsOneWidget);
   });
 
@@ -187,14 +197,16 @@ void main() {
     await search(h, 'House Blend');
     final hb = stockRow(s.db, SeedIds.zamalek, 'house-blend')!;
     expect(
-      inTable(find.text(hb['on_hand']! as num > (hb['par_min']! as num)
-          ? 'OK'
-          : 'Low')),
+      inTable(
+        find.text(
+          hb['on_hand']! as num > (hb['par_min']! as num) ? 'OK' : 'Low',
+        ),
+      ),
       findsOneWidget,
     );
-    final par = h.container.read(formatProvider).fmtNumber(
-      hb['par_min']! as num,
-    );
+    final par = h.container
+        .read(formatProvider)
+        .fmtNumber(hb['par_min']! as num);
     expect(inTable(textHas('$par g')), findsWidgets);
   });
 
@@ -214,8 +226,9 @@ void main() {
     expect(inTable(find.byType(DashStatusPill)), findsNothing);
   });
 
-  testWidgets('INV-ING-006 filter Low stock / Never counted (branch only)',
-      (tester) async {
+  testWidgets('INV-ING-006 filter Low stock / Never counted (branch only)', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     final h = await pumpIngredients(
       tester,
@@ -236,16 +249,18 @@ void main() {
     expect(find.text('Page 1 of 3'), findsOneWidget);
   });
 
-  testWidgets('INV-ING-006 the filter is not offered with All branches',
-      (tester) async {
+  testWidgets('INV-ING-006 the filter is not offered with All branches', (
+    tester,
+  ) async {
     await pumpIngredients(tester);
     expect(inPage(byKey('ingredients-filter')), findsNothing);
     expect(inPage(find.text('Low stock')), findsNothing);
   });
 
   testWidgets('INV-ING-054 a filter that matches nothing shows "No '
-      'ingredients yet" and turns Export off; it is kept across All branches',
-      (tester) async {
+      'ingredients yet" and turns Export off; it is kept across All branches', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     // Nothing low at Zamalek.
     for (final r in s.db[InvTables.branchStock].where(
@@ -278,8 +293,9 @@ void main() {
   });
 
   testWidgets('INV-ING-007 / INV-ALL-021 / INV-ALL-025 search: name, '
-      'category, supplier and the raw cost; never the rendered words',
-      (tester) async {
+      'category, supplier and the raw cost; never the rendered words', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     final h = await pumpIngredients(tester, server: s.server, db: s.db);
     expect(
@@ -347,8 +363,9 @@ void main() {
     expect(shownNames(s.db), never.skip(10).toList());
   });
 
-  testWidgets('INV-ING-012 / INV-ALL-017 Columns menu hides a column',
-      (tester) async {
+  testWidgets('INV-ING-012 / INV-ALL-017 Columns menu hides a column', (
+    tester,
+  ) async {
     final h = await pumpIngredients(tester, branch: SeedIds.zamalek);
     await h.tap(inPage(find.text('Columns')));
     for (final c in [
@@ -415,8 +432,9 @@ void main() {
   });
 
   testWidgets('INV-ING-011 / INV-ALL-018 / INV-ALL-026 error: "Couldn\'t load '
-      'this", the server\'s words, Retry refetches the catalog only',
-      (tester) async {
+      'this", the server\'s words, Retry refetches the catalog only', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     s.server.fail(
       'GET',
@@ -507,8 +525,9 @@ void main() {
     expect(hit, findsOneWidget);
   });
 
-  testWidgets('INV-ALL-004 no palette entry without inventory.read',
-      (tester) async {
+  testWidgets('INV-ALL-004 no palette entry without inventory.read', (
+    tester,
+  ) async {
     final h = await pumpIngredients(tester, persona: Persona.limited);
     await openPalette(h, 'Ingred');
     expect(
@@ -598,16 +617,19 @@ void main() {
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.title, 'Ingredients');
       expect(sheet.name, 'Ingredients');
-      expect([for (final c in sheet.columns) c.header], [
-        'Name',
-        'Category',
-        'Cost / unit (EGP)',
-        'Unit',
-        'Supplier',
-        'On hand',
-        'Reorder point',
-        'Status',
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        [
+          'Name',
+          'Category',
+          'Cost / unit (EGP)',
+          'Unit',
+          'Supplier',
+          'On hand',
+          'Reorder point',
+          'Status',
+        ],
+      );
       expect([for (final r in sheet.rows) r.first], low);
       final oat = sheet.rows.firstWhere((r) => r.first == 'Oat Milk');
       final rec = stockRow(s.db, SeedIds.zamalek, 'oat')!;
@@ -616,7 +638,10 @@ void main() {
       expect(oat[5], rec['on_hand']);
       expect(oat[6], rec['par_min']);
       expect(oat[7], 'Low');
-      expect(h.files.saved.single.filename, 'Madar-Ingredients-2026-10-08.xlsx');
+      expect(
+        h.files.saved.single.filename,
+        'Madar-Ingredients-2026-10-08.xlsx',
+      );
     });
 
     testWidgets('All branches: 5 columns; unknown cost blank, no supplier '
@@ -638,8 +663,9 @@ void main() {
       expect(litre, isEmpty, reason: 'no litre item in the seed');
     });
 
-    testWidgets('spinner while exporting; "Export failed" on a failure',
-        (tester) async {
+    testWidgets('spinner while exporting; "Export failed" on a failure', (
+      tester,
+    ) async {
       final h = await pumpIngredients(tester);
       final hold = Completer<void>();
       h.exports.hold = hold.future;

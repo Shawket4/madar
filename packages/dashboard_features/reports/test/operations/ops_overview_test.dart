@@ -8,7 +8,6 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/area_seed.dart';
 import 'package:dashboard_reports/src/mock/operations_mock.dart';
 import 'package:dashboard_reports/src/operations/ops_charts.dart';
-import 'package:dashboard_reports/src/operations/ops_data.dart';
 import 'package:dashboard_reports/src/operations/ops_support.dart';
 import 'package:design_system/design_system.dart';
 import 'package:dashboard_core/mock.dart' show MemoryPreferences;

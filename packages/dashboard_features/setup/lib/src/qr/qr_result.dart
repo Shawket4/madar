@@ -19,48 +19,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/qr_preview_dialog.dart';
 
-/// A code image on white (the light paper's surface in both themes: a code
-/// on a dark card does not scan), square, scaled to its box.
-class QrImage extends StatelessWidget {
-  const QrImage({
-    required this.dataUrl,
-    required this.semanticLabel,
-    super.key,
-  });
-
-  final String dataUrl;
-  final String semanticLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    final bytes = qrImageBytes(dataUrl);
-    final missing = Center(
-      child: DashIcon('qr-code', size: IconSize.xl, color: c.textMuted),
-    );
-    return Container(
-      padding: const EdgeInsets.all(Space.xs),
-      decoration: BoxDecoration(
-        color: MadarColors.light.surface,
-        borderRadius: BorderRadius.circular(Space.xs),
-      ),
-      child: AspectRatio(
-        aspectRatio: 1,
-        child: bytes == null
-            ? missing
-            : Image.memory(
-                bytes,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.none,
-                gaplessPlayback: true,
-                semanticLabel: semanticLabel,
-                errorBuilder: (_, _, _) => missing,
-              ),
-      ),
-    );
-  }
-}
-
 class QrResultCard extends ConsumerStatefulWidget {
   const QrResultCard({required this.qr, required this.title, super.key});
 

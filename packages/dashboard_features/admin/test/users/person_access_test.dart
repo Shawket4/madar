@@ -78,10 +78,9 @@ void main() {
     final read = h.server.callsTo(accessRoute).single;
     expect(read.path, '/authz/users/${uid('mariam')}');
     expect(read.query, isEmpty);
-    expect(
-      h.server.callsTo(branchesRoute).last.query['org_id'],
-      [SeedIds.sabahOrg],
-    );
+    expect(h.server.callsTo(branchesRoute).last.query['org_id'], [
+      SeedIds.sabahOrg,
+    ]);
   });
 
   testWidgets('ADM-USR-038 loading: six skeleton rows', (tester) async {
@@ -212,7 +211,11 @@ void main() {
           'branch_ids': [SeedIds.newCairo, SeedIds.maadi],
           'role_id': _roleId('branch_manager'),
         },
-        {'all_branches': true, 'branch_ids': <String>[], 'role_id': _roleId('teller')},
+        {
+          'all_branches': true,
+          'branch_ids': <String>[],
+          'role_id': _roleId('teller'),
+        },
       ],
     });
     expect(h.server.callsTo(accessRoute).length, greaterThan(reads));
@@ -241,10 +244,9 @@ void main() {
     expect(_selected(tester, 'orders.void'), 'inherit');
     await h.tap(field('access-where'));
     await pick(h, 'Zamalek');
-    expect(
-      h.server.callsTo(accessRoute).last.query['branch_id'],
-      [SeedIds.zamalek],
-    );
+    expect(h.server.callsTo(accessRoute).last.query['branch_id'], [
+      SeedIds.zamalek,
+    ]);
     expect(_selected(tester, 'orders.void'), 'deny');
     await h.tap(_segment('refunds.create', 'Deny'));
     expect(
@@ -291,10 +293,9 @@ void main() {
     await _open(tester, who: 'omar');
     expect(
       find.descendant(
-        of: find.ancestor(
-          of: _inSheet('See branches'),
-          matching: find.byType(Row),
-        ).first,
+        of: find
+            .ancestor(of: _inSheet('See branches'), matching: find.byType(Row))
+            .first,
         matching: find.text('Always on'),
       ),
       findsOneWidget,
@@ -320,7 +321,10 @@ void main() {
     expect(h.server.callsTo(accessRoute).length, greaterThan(reads));
     expect(_selected(tester, 'orders.void'), 'deny');
     await h.tap(_segment('orders.void', 'Role: on'));
-    expect(lastBody(h.server, overridesRoute, method: 'PUT')['effect'], 'inherit');
+    expect(
+      lastBody(h.server, overridesRoute, method: 'PUT')['effect'],
+      'inherit',
+    );
     expect(_selected(tester, 'orders.void'), 'inherit');
   });
 
@@ -541,10 +545,9 @@ void main() {
       '12.5',
     );
     await h.tap(find.text('Save').hitTestable().last);
-    expect(
-      lastBody(h.server, overridesRoute, method: 'PUT')['limits'],
-      {'max_percent': 1250},
-    );
+    expect(lastBody(h.server, overridesRoute, method: 'PUT')['limits'], {
+      'max_percent': 1250,
+    });
   });
 
   testWidgets('ADM-USR-047 a failed refetch after a saved change toasts '

@@ -3,10 +3,10 @@
 // The section filter, the charts and the tables' pagers read nothing (they
 // work on rows already loaded).
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
+import 'package:dashboard_core/dashboard_core.dart'
+    show ensureTimeZones, excludedItemsPrefKey;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_reports/src/area_seed.dart';
-import 'package:dashboard_reports/src/operations/ops_data.dart';
 import 'package:dashboard_reports/src/operations/ops_tables.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';

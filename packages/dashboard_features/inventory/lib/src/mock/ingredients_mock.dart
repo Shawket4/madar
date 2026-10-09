@@ -99,7 +99,9 @@ void registerIngredientsMocks(MockServer server, MockDb db) {
       (r) => r['org_id'] == orgId && r['name'] == name && r['id'] != not,
     );
     if (taken != null) {
-      req.conflict('An ingredient with this name already exists in the catalog');
+      req.conflict(
+        'An ingredient with this name already exists in the catalog',
+      );
     }
   }
 
@@ -110,13 +112,14 @@ void registerIngredientsMocks(MockServer server, MockDb db) {
     );
     if (g != null) return g['id']! as String;
     return db[InvTables.categories].insert({
-      'id': db.newId(InvTables.categories),
-      'org_id': orgId,
-      'slug': 'general',
-      'name': 'General',
-      'sort_order': 0,
-      'is_packaging': false,
-    })['id']! as String;
+          'id': db.newId(InvTables.categories),
+          'org_id': orgId,
+          'slug': 'general',
+          'name': 'General',
+          'sort_order': 0,
+          'is_packaging': false,
+        })['id']!
+        as String;
   }
 
   server.on('POST', '/inventory/orgs/{org_id}/catalog', (req) {
@@ -129,8 +132,7 @@ void registerIngredientsMocks(MockServer server, MockDb db) {
     supplierInOrg(req, b['supplier_id'], orgId);
     if (b['category_id'] != null) categoryInOrg(req, b['category_id'], orgId);
     uniqueName(req, orgId, name);
-    final categoryId =
-        b['category_id'] as String? ?? generalCategory(orgId);
+    final categoryId = b['category_id'] as String? ?? generalCategory(orgId);
     final row = ingredients.insert({
       'id': db.newId(InvTables.ingredients),
       'org_id': orgId,
@@ -241,8 +243,7 @@ void registerIngredientsMocks(MockServer server, MockDb db) {
       req.notFound('Ingredient not found');
     }
     final stocked = db[InvTables.branchStock].firstWhere(
-      (s) =>
-          s['org_ingredient_id'] == id && ((s['on_hand'] as num?) ?? 0) != 0,
+      (s) => s['org_ingredient_id'] == id && ((s['on_hand'] as num?) ?? 0) != 0,
     );
     if (stocked != null) {
       req.conflict(
@@ -399,7 +400,9 @@ void registerIngredientsMocks(MockServer server, MockDb db) {
       final b = req.json;
       final ids = [for (final i in (b['org_ingredient_ids'] as List?) ?? []) i];
       if (b['category_id'] != null && ids.isNotEmpty) {
-        req.badRequest('Pass either category_id or org_ingredient_ids, not both');
+        req.badRequest(
+          'Pass either category_id or org_ingredient_ids, not both',
+        );
       }
       final stock = InvViews.branchStock(db, branchId);
       final rows = [

@@ -4,6 +4,7 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_sell/src/customers/customers_data.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dashboard_sell/src/shared/error_text.dart';
 
 const _tables = {
   'en': {
@@ -54,33 +55,33 @@ LedgerEntry _entry({
 void main() {
   test('SELL-ALL-017 error wording', () {
     expect(
-      peopleErrorMessage(_e(429, 'x', code: 'EXPORT_RATE_LIMITED'), _t),
+      sellErrorText(_e(429, 'x', code: 'EXPORT_RATE_LIMITED'), _t),
       'Too many exports just now. Try again in a minute.',
     );
     expect(
-      peopleErrorMessage(_e(429, 'slow down'), _t),
+      sellErrorText(_e(429, 'slow down'), _t),
       'Too many requests just now.',
     );
     expect(
-      peopleErrorMessage(_e(403, 'Forbidden: nope'), _t),
+      sellErrorText(_e(403, 'Forbidden: nope'), _t),
       "You don't have permission to perform this action.",
     );
     expect(
-      peopleErrorMessage(_e(409, 'Conflict: Till already open'), _t),
+      sellErrorText(_e(409, 'Conflict: Till already open'), _t),
       'Till already open',
     );
-    expect(peopleErrorMessage(_e(0, 'offline'), _t), 'Network error.');
-    expect(peopleErrorMessage(_e(500, ''), _t), 'Server error.');
+    expect(sellErrorText(_e(0, 'offline'), _t), 'Network error.');
+    expect(sellErrorText(_e(500, ''), _t), 'Server error.');
     // Real mode: the core worded it in Arabic; the envelope stays English.
     expect(
-      peopleErrorMessage(
+      sellErrorText(
         _e(404, 'العميل غير موجود', env: {'error': 'Not found: Customer'}),
         _t,
       ),
       'العميل غير موجود',
     );
     expect(
-      peopleErrorMessage(const ExportTooLargeError(60000), _t),
+      sellErrorText(const ExportTooLargeError(60000), _t),
       isNotEmpty,
     );
   });

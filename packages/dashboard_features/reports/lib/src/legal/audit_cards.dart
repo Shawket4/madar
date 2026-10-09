@@ -9,7 +9,6 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart' show Bidi;
 
 import 'legal_words.dart';
 
@@ -296,32 +295,6 @@ class DiscountEntriesCard extends ConsumerWidget {
   }
 }
 
-/// The web's `Badge variant="outline"`: a hairline pill in the text colour.
-class LegalOutlineBadge extends StatelessWidget {
-  const LegalOutlineBadge(this.label, {super.key});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: c.border),
-      ),
-      child: Text(
-        label,
-        style: DashType.smallMedium.copyWith(color: c.textPrimary),
-      ),
-    );
-  }
-}
-
 /// "EGP 50.00 → EGP 0.00" when the server sends both figures (the arrow
 /// follows the reading direction: divergence REP-LEG-025).
 String? amountChangeText(DashFormat f, DeductionOverrideEvent e) {
@@ -371,7 +344,7 @@ class HistoryCard extends ConsumerWidget {
                             color: c.textPrimary,
                           ),
                         ),
-                        LegalOutlineBadge(historyActionText(t, e.action)),
+                        DashBadge(historyActionText(t, e.action), outline: true),
                       ],
                     ),
                     Text(
@@ -394,9 +367,7 @@ class HistoryCard extends ConsumerWidget {
                           reason,
                           // `<bdi>`: the reason keeps its own direction and
                           // sits at the page's start edge.
-                          textDirection: Bidi.detectRtlDirectionality(reason)
-                              ? TextDirection.rtl
-                              : TextDirection.ltr,
+                          textDirection: dashTextDirectionOf(reason),
                           textAlign: rtl ? TextAlign.right : TextAlign.left,
                           style: DashType.small.copyWith(color: c.textPrimary),
                         ),

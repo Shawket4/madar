@@ -11,6 +11,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/report_shared.dart' show ReportAsync, exportLogoUrl;
 import 'lis_providers.dart';
 import 'lis_support.dart';
 
@@ -41,7 +42,7 @@ class _InventoryLowStockTabState extends ConsumerState<InventoryLowStockTab> {
     const text = ExcelColumnType.text, number = ExcelColumnType.number;
     return ExcelConfig(
       filename: 'Madar-$title',
-      logoUrl: lisExportLogo(ref),
+      logoUrl: exportLogoUrl(ref),
       sheets: [
         ExcelSheet<LowStockRow>(
           name: title,
@@ -93,7 +94,8 @@ class _InventoryLowStockTabState extends ConsumerState<InventoryLowStockTab> {
       rowKey: (r) => '${r.branchId}-${r.orgIngredientId}',
       rows: rows,
       loading: q.awaitingFirst,
-      errorMessage: q.hasError && !q.retrying ? errorMessage(q.error, t) : null,
+      retrying: q.isLoading,
+      errorMessage: q.failed ? errorMessage(q.error, t) : null,
       onRetry: k == null ? null : () => ref.invalidate(invLowStockProvider(k)),
       pageSize: 50,
       toolbar: DashExportButton(

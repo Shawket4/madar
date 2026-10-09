@@ -398,7 +398,7 @@ void main() {
     ]);
     // Badges.
     expect(
-      find.descendant(of: card, matching: find.byType(LegalOutlineBadge)),
+      find.descendant(of: card, matching: find.byWidgetPredicate((w) => w is DashBadge && w.outline)),
       findsNWidgets(7),
     );
     expect(inCard('History', find.text('Waiver undone')), findsOneWidget);

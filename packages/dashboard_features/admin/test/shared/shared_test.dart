@@ -2,6 +2,7 @@
 // tax-rate.test.ts), the limits conversions (limits-button.test.ts), the
 // capability catalog (catalog.test.ts), the URL helpers and the area seed.
 import 'package:dashboard_admin/src/area_seed.dart';
+import 'package:dashboard_admin/src/shared/export_logo.dart';
 import 'package:dashboard_admin/src/shared/capability_catalog.dart';
 import 'package:dashboard_admin/src/shared/limits_button.dart';
 import 'package:dashboard_admin/src/shared/tax_rate.dart';
@@ -24,6 +25,27 @@ void main() {
       expect(formatRate(0.1234), '12.34%');
       expect(formatRate(null), '0%');
     });
+  });
+
+  test('export logo: the own brand only, trimmed, blank is none', () {
+    PublicBrand brand({required bool own, String? logo}) => PublicBrand(
+      accentColor: '#000000',
+      backgroundColor: '#ffffff',
+      customBranding: own,
+      foregroundColor: '#000000',
+      logoIsMark: false,
+      logoUrl: logo,
+      name: 'Sabah',
+      orgId: 'org',
+    );
+    expect(exportLogoUrl(null), isNull);
+    expect(
+      exportLogoUrl(brand(own: true, logo: ' https://x/l.png ')),
+      'https://x/l.png',
+    );
+    expect(exportLogoUrl(brand(own: true, logo: '   ')), isNull);
+    expect(exportLogoUrl(brand(own: true)), isNull);
+    expect(exportLogoUrl(brand(own: false, logo: 'https://x/l.png')), isNull);
   });
 
   group('limits', () {

@@ -17,6 +17,7 @@ import 'customers_data.dart';
 import 'google_object_dialog.dart';
 import 'people_widgets.dart';
 import 'person_surface.dart';
+import '../shared/error_text.dart';
 
 class CustomersList extends ConsumerStatefulWidget {
   const CustomersList({
@@ -108,7 +109,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
         PersonRow(customer: r, mode: mode),
     ];
     final loading = shownData == null && !failed;
-    final error = failed ? peopleErrorMessage(list.error, t) : null;
+    final error = failed ? sellErrorText(list.error, t) : null;
 
     Widget dash() => const MutedDash();
     final columns = <DashColumn<PersonRow>>[
@@ -402,7 +403,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
         ),
       );
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, peopleErrorMessage(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }

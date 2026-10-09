@@ -93,6 +93,7 @@ class _DeliveryZonesPageState extends ConsumerState<DeliveryZonesPage> {
       rowKey: (z) => z.zone.id,
       loading: q.awaitingFirst,
       errorMessage: q.failedFirst ? errorMessage(q.error, t) : null,
+      retrying: q.isLoading,
       onRetry: () => ref.invalidate(deliveryZonesProvider(branchId)),
       hideViewOptions: true,
       onRowTap: (z) => _open(branchId, z.zone),
@@ -222,6 +223,7 @@ class ZoneCell extends ConsumerWidget {
               if (name.isNotEmpty && name != label)
                 MadarClippedText(
                   name,
+                  textDirection: dashTextDirectionOf(name),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: DashType.small.copyWith(color: c.textSecondary),

@@ -10,7 +10,6 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart' show DashOptionList;
 import 'package:dashboard_team/src/attendance/attendance_dialogs.dart';
 import 'package:dashboard_team/src/attendance/attendance_providers.dart';
-import 'package:dashboard_team/src/shared/staff_query.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart' show EditableText, Offset;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -121,7 +120,7 @@ void main() {
       // No frame showed the error state, the table's error line, or a
       // refresh toast (refresh_toast skips a retrying attempt).
       for (final v in seen) {
-        expect(v.failedFirst || failedEmpty(v), isFalse, reason: path);
+        expect(v.failedFirst, isFalse, reason: path);
         expect(v.hasError && !v.retrying, isFalse, reason: path);
       }
       expect(s.server.callsTo(path), hasLength(2), reason: path);

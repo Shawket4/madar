@@ -22,7 +22,8 @@
 ///   TEAM-ALL-008) matches on a path-SEGMENT boundary: `/staff-pool` is not
 ///   `/staff`. The invalidation helpers are plain prefixes and DO reach
 ///   `/staff-pool…` reads, exactly as the web's do.
-/// - [failedEmpty]: a read that failed with nothing to show (TEAM-ALL-010).
+/// - A read that failed with nothing to show is dashboard_core's
+///   `failedFirst` (TEAM-ALL-010).
 ///
 /// Reads outside the team area (the core's `branchesProvider`, another
 /// area's staff-drinks reads) do not watch these revisions: a page that shows
@@ -128,13 +129,6 @@ final staffRevisionsProvider =
 /// invalidated or refetched.
 int watchStaffPath(Ref ref, String path) =>
     ref.watch(staffRevisionsProvider.select((r) => r.revisionOf(path)));
-
-/// A read that failed with nothing to show: the page's error state. A
-/// refresh that fails while the last data is on screen keeps that data
-/// (and toasts, see `refresh_toast.dart`). While Riverpod retries it is
-/// still loading (the web stays pending), never the error.
-bool failedEmpty(AsyncValue<Object?> v) =>
-    v.hasError && !v.hasValue && !v.retrying;
 
 /// Whether any of [reads] is fetching (first load or a refresh): the Refresh
 /// button spins.

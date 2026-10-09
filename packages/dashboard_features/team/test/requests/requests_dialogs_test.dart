@@ -470,11 +470,7 @@ void main() {
 
   testWidgets('TEAM-REQ-045 span kinds show From and To; To follows From until '
       'set by hand and never sits before it', (tester) async {
-    // ponytail: the kit's calendar popover overflows when 220–360 px are
-    // left under its field (kit candidate); a taller window keeps it whole.
     final h = await _openNew(tester);
-    tester.view.physicalSize = const Size(1440, 1400) * DashSize.pixelRatio;
-    await h.settle();
     expect(surfaceText('Date'), findsOneWidget);
     await _pick(h, 'Late arrival', 'Leave');
     expect(surfaceText('From'), findsOneWidget);

@@ -21,7 +21,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/report_shared.dart';
 import 'staff_pool_providers.dart';
-import 'unit_support.dart';
 
 /// Opens [orderId]'s sheet: the orders area's when the app wires it, else
 /// the local port (resolves when it closes).

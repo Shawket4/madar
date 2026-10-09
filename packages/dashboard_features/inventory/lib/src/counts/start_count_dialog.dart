@@ -148,7 +148,11 @@ class _StartCountDialogState extends ConsumerState<StartCountDialog> {
               options: [
                 for (final i in catalog ?? const [])
                   if (!_items.contains(i.id))
-                    DashOption(value: i.id, label: i.name, hint: i.categoryName),
+                    DashOption(
+                      value: i.id,
+                      label: i.name,
+                      hint: i.categoryName,
+                    ),
               ],
             ),
           if (_scope == CountScope.items && _items.isNotEmpty)
@@ -177,9 +181,7 @@ class _StartCountDialogState extends ConsumerState<StartCountDialog> {
                             nameOf(id),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: DashType.body.copyWith(
-                              color: c.textPrimary,
-                            ),
+                            style: DashType.body.copyWith(color: c.textPrimary),
                           ),
                         ),
                         DashIconButton(

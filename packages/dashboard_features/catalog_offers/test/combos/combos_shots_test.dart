@@ -20,7 +20,10 @@ const _states = [
 /// One PNG per screen of the page's scroll (at most three).
 Future<void> shootPage(DashHarness h, String name) async {
   final scroll = find
-      .descendant(of: find.byType(CombosPage), matching: find.byType(Scrollable))
+      .descendant(
+        of: find.byType(CombosPage),
+        matching: find.byType(Scrollable),
+      )
       .first;
   final position = h.tester.state<ScrollableState>(scroll).position;
   var y = 0.0;
@@ -102,12 +105,7 @@ void main() {
     });
 
     testWidgets('nothing matches, $tag', (tester) async {
-      final h = await pumpCombos(
-        tester,
-        size: size,
-        locale: lang,
-        dark: dark,
-      );
+      final h = await pumpCombos(tester, size: size, locale: lang, dark: dark);
       await h.enterText(searchBox(), 'falafel');
       await tester.pump(const Duration(milliseconds: 300));
       await h.settle();
@@ -137,23 +135,13 @@ void main() {
     });
 
     testWidgets('delete confirm, $tag', (tester) async {
-      final h = await pumpCombos(
-        tester,
-        size: size,
-        locale: lang,
-        dark: dark,
-      );
+      final h = await pumpCombos(tester, size: size, locale: lang, dark: dark);
       await h.tap(rowButton('Iced Afternoon', delete));
       await h.shot('combos/delete-confirm');
     });
 
     testWidgets('category select open, $tag', (tester) async {
-      final h = await pumpCombos(
-        tester,
-        size: size,
-        locale: lang,
-        dark: dark,
-      );
+      final h = await pumpCombos(tester, size: size, locale: lang, dark: dark);
       await h.tap(filterSelect(lang == 'ar' ? 'الفئة' : 'Category'));
       await h.shot('combos/category-select');
     });
@@ -168,7 +156,9 @@ void main() {
         locale: lang,
         dark: dark,
       );
-      await h.tap(inPage(find.bySemanticsLabel(lang == 'ar' ? 'التالي' : 'Next')));
+      await h.tap(
+        inPage(find.bySemanticsLabel(lang == 'ar' ? 'التالي' : 'Next')),
+      );
       await shootPage(h, 'page-2');
     });
   }

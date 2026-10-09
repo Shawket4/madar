@@ -95,7 +95,7 @@ class OpsTableHistory extends ConsumerWidget {
       );
     }
     final data = q.value;
-    if ((q.hasError && !q.retrying) || data == null) {
+    if (q.failed || data == null) {
       return Text(t('floor.history.failed'), style: small);
     }
     if (data.sittings.isEmpty) {
@@ -342,7 +342,7 @@ class OpsCustomerSheet extends ConsumerWidget {
     Widget body;
     if (q.awaitingFirst) {
       body = const DashSkeleton(height: Space.xxl * 8);
-    } else if ((q.hasError && !q.retrying) || d == null || customer == null) {
+    } else if (q.failed || d == null || customer == null) {
       body = DashErrorState(
         title: t('customers.loadFailed'),
         message: q.hasError ? opsErrorText(q.error, t) : null,
@@ -605,7 +605,7 @@ class OpsOrderSheet extends ConsumerWidget {
     Widget body;
     if (q.awaitingFirst) {
       body = const DashSkeleton(height: Space.xxl * 6);
-    } else if ((q.hasError && !q.retrying) || o == null) {
+    } else if (q.failed || o == null) {
       body = DashErrorState(
         message: opsErrorText(q.error, t),
         retrying: q.isLoading,

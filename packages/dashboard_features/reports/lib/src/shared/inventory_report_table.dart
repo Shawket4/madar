@@ -38,6 +38,7 @@ class InventoryReportTable extends ConsumerWidget {
     this.loading = false,
     this.error,
     this.onRetry,
+    this.retrying = false,
     super.key,
   });
 
@@ -53,6 +54,9 @@ class InventoryReportTable extends ConsumerWidget {
   final Object? error;
   final VoidCallback? onRetry;
 
+  /// A manual Retry is running: the error stays, its Retry spins.
+  final bool retrying;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
@@ -63,6 +67,7 @@ class InventoryReportTable extends ConsumerWidget {
       loading: loading,
       errorMessage: error == null ? null : errorMessage(error, t),
       onRetry: onRetry,
+      retrying: retrying,
       pageSize: 25,
       hideViewOptions: true,
       empty: DashEmptyState(icon: 'bar-chart-3', title: emptyTitle),

@@ -1,23 +1,14 @@
 /// What the Staff drinks and Bundles pages share: the page's own
 /// `<Restricted>`, the spreadsheet a page exports
-/// (the web's `exportToExcel` with its three toasts and the shop's logo) and
+/// (the web's `exportToExcel` with its three toasts) and
 /// the wire's rate decimals (`rateOf` / `fmtRate`).
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
-
-/// The error with Retry: [DashAsyncState.failedFirst], and also a refetch
-/// that failed over rows already shown (the web drops them, REP-ALL-018).
-/// Never during Riverpod's automatic retries; it stays up while a manual
-/// Retry runs.
-extension ReportAsync<T> on AsyncValue<T> {
-  bool get failed => hasError && !retrying;
-}
 
 /// A read the web keeps disabled until the person's rights are known: nothing
 /// is asked, and the page shows its skeleton meanwhile (never a zero or an
@@ -42,13 +33,6 @@ Widget? reportRestricted(
     title: title,
     who: ref.watch(tProvider)('reports.noAccess'),
   );
-}
-
-/// The logo a generated spreadsheet wears (`useExportLogo`): the shop's own
-/// on the branding tier, else none (Madar's).
-String? exportLogoUrl(WidgetRef ref) {
-  final brand = ref.watch(publicBrandProvider).value;
-  return brand != null && brand.customBranding ? brand.logoUrl : null;
 }
 
 /// `exportToExcel` as the web runs it (REP-ALL-011/013): "Nothing to

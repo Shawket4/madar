@@ -24,10 +24,10 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../purchasing/purchasing_widgets.dart' show PoNumberInput;
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart' show jsNumberString;
+import '../shared/number_input.dart';
 import 'transfers_data.dart';
 
 /// `create`: a draft or a request. `edit`: a draft's or request's lines.

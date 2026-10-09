@@ -115,7 +115,8 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
             rows: items.value ?? const [],
             rowKey: (r) => r.itemId,
             loading: items.awaitingFirst,
-            errorMessage: items.hasError && !items.retrying
+            retrying: items.isLoading,
+            errorMessage: items.failed
                 ? opsErrorText(items.error, t)
                 : null,
             onRetry: () => ref.invalidate(opsItemsProvider(scope.opsRange)),
@@ -155,7 +156,8 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
             rows: addons.value ?? const [],
             rowKey: (r) => r.addonItemId,
             loading: addons.awaitingFirst,
-            errorMessage: addons.hasError && !addons.retrying
+            retrying: addons.isLoading,
+            errorMessage: addons.failed
                 ? opsErrorText(addons.error, t)
                 : null,
             onRetry: () => ref.invalidate(opsAddonsProvider(scope.opsRange)),
@@ -227,7 +229,7 @@ class _OpsTellersViewState extends ConsumerState<OpsTellersView> {
           title: t('analytics.revenueByTeller'),
           child: OpsChartBody(
             loading: q.awaitingFirst,
-            failed: q.hasError && !q.retrying,
+            failed: q.failed,
             empty: top.isEmpty,
             emptyTitle: t('analytics.noData'),
             onRetry: retry,
@@ -252,7 +254,8 @@ class _OpsTellersViewState extends ConsumerState<OpsTellersView> {
             rows: rows,
             rowKey: (r) => r.tellerId,
             loading: q.awaitingFirst,
-            errorMessage: q.hasError && !q.retrying
+            retrying: q.isLoading,
+            errorMessage: q.failed
                 ? opsErrorText(q.error, t)
                 : null,
             onRetry: retry,
@@ -342,7 +345,7 @@ class _OpsWaitersViewState extends ConsumerState<OpsWaitersView> {
     // `isLoading`), so a background refresh never blinks it.
     final coverage =
         !q.awaitingFirst &&
-            !(q.hasError && !q.retrying) &&
+            !q.failed &&
             report != null &&
             report.totalOrders > 0
         ? Text(
@@ -364,7 +367,7 @@ class _OpsWaitersViewState extends ConsumerState<OpsWaitersView> {
           title: t('analytics.revenueByWaiter'),
           child: OpsChartBody(
             loading: q.awaitingFirst,
-            failed: q.hasError && !q.retrying,
+            failed: q.failed,
             empty: top.isEmpty,
             emptyTitle: t('analytics.noData'),
             onRetry: retry,
@@ -390,7 +393,8 @@ class _OpsWaitersViewState extends ConsumerState<OpsWaitersView> {
             rows: rows,
             rowKey: (r) => r.waiterId,
             loading: q.awaitingFirst,
-            errorMessage: q.hasError && !q.retrying
+            retrying: q.isLoading,
+            errorMessage: q.failed
                 ? opsErrorText(q.error, t)
                 : null,
             onRetry: retry,
@@ -494,7 +498,7 @@ class _OpsBranchesViewState extends ConsumerState<OpsBranchesView> {
           title: t('analytics.revenueByBranch'),
           child: OpsChartBody(
             loading: q.awaitingFirst,
-            failed: q.hasError && !q.retrying,
+            failed: q.failed,
             empty: chart.isEmpty,
             emptyTitle: t('analytics.noData'),
             onRetry: retry,
@@ -519,7 +523,8 @@ class _OpsBranchesViewState extends ConsumerState<OpsBranchesView> {
             rows: rows,
             rowKey: (r) => r.branchId,
             loading: q.awaitingFirst,
-            errorMessage: q.hasError && !q.retrying
+            retrying: q.isLoading,
+            errorMessage: q.failed
                 ? opsErrorText(q.error, t)
                 : null,
             onRetry: retry,

@@ -81,7 +81,10 @@ void main() {
         expect(helio.status, 200);
         final h = BookingSettings.fromJson(helio.json! as Map<String, Object?>);
         expect(h.enabled, isTrue);
-        expect(h.blackoutDates, ['2026-10-25', '2026-12-31']);
+        expect(h.blackoutDates, ['2026-10-31']);
+        b.db[BookingSettingsMock.table].removeWhere(
+          (r) => r['branch_id'] == SeedIds.newCairo,
+        );
         final cairo = await _send(b, 'GET', branch: SeedIds.newCairo);
         expect(cairo.json, BookingSettingsMock.defaults(SeedIds.newCairo));
         expect((cairo.json! as Map)['enabled'], isFalse);

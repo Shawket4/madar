@@ -5,7 +5,6 @@ library;
 
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 /// Marks a field (or its red line) as failing, so a refused Save can bring
@@ -126,23 +125,6 @@ class LabelledField extends StatelessWidget {
           HintLine(hint!),
       ],
     );
-  }
-}
-
-/// What a number box takes (the web's `type="number"`): digits, a point and
-/// a minus; Arabic-Indic digits are read as Western ones.
-class NumberText extends TextInputFormatter {
-  const NumberText();
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final latin = DashTime.latinDigits(newValue.text);
-    if (!RegExp(r'^[0-9.\-]*$').hasMatch(latin)) return oldValue;
-    if (latin == newValue.text) return newValue;
-    return newValue.copyWith(text: latin);
   }
 }
 

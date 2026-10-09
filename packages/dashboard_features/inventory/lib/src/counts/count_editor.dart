@@ -363,7 +363,9 @@ class _CountEditorState extends ConsumerState<CountEditor> {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 SizedBox(
-                  width: full ? box.maxWidth : DashMetrics.searchWidth - Space.xxl,
+                  width: full
+                      ? box.maxWidth
+                      : DashMetrics.searchWidth - Space.xxl,
                   child: DashSearchInput(
                     key: const ValueKey('count-search'),
                     value: _search,
@@ -418,7 +420,9 @@ class _CountEditorState extends ConsumerState<CountEditor> {
                       searchable: true,
                       value: null,
                       onChanged: (id) {
-                        final ing = addable.where((i) => i.id == id).firstOrNull;
+                        final ing = addable
+                            .where((i) => i.id == id)
+                            .firstOrNull;
                         if (ing != null) {
                           setState(() => _extras.add(CountRow.found(ing)));
                         }
@@ -620,7 +624,10 @@ class _CountEditorState extends ConsumerState<CountEditor> {
           width: CountWidths.value,
           end: true,
         ),
-        CountColumn(t('inventory.stocktakes.reason'), width: CountWidths.reason),
+        CountColumn(
+          t('inventory.stocktakes.reason'),
+          width: CountWidths.reason,
+        ),
       ],
       footer: visible.isEmpty && any
           ? Padding(
@@ -633,9 +640,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
               ),
             )
           : null,
-      rows: [
-        for (final r in visible) _row(t, f, c, r, threshold, muted),
-      ],
+      rows: [for (final r in visible) _row(t, f, c, r, threshold, muted)],
     );
   }
 
@@ -650,7 +655,9 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     final id = r.orgIngredientId;
     final counted = parseCount(_counts[id]);
     final diff = counted == null ? null : counted - r.bookQty;
-    final value = diff != null && r.unitCost != null ? diff * r.unitCost! : null;
+    final value = diff != null && r.unitCost != null
+        ? diff * r.unitCost!
+        : null;
     final flagged =
         counted != null && isVarianceFlagged(r.bookQty, counted, threshold);
     final needsReason = flagged && (_reasons[id] ?? '').isEmpty;
@@ -682,7 +689,8 @@ class _CountEditorState extends ConsumerState<CountEditor> {
           key: ValueKey('count-input-$id'),
           value: _counts[id] ?? '',
           onChanged: (v) => _setCount(id, v),
-          semanticLabel: '${t('inventory.stocktakes.counted')} ${r.ingredientName}',
+          semanticLabel:
+              '${t('inventory.stocktakes.counted')} ${r.ingredientName}',
           keyboardType: const TextInputType.numberWithOptions(
             decimal: true,
             signed: true,
@@ -837,16 +845,16 @@ class _StickyFooterState extends State<_StickyFooter> {
     final bottom = top + self.size.height;
     final viewBottom = scroll.localToGlobal(Offset(0, scroll.size.height)).dy;
     final floor = bounds.localToGlobal(Offset.zero).dy;
-    final lift = (bottom - viewBottom).clamp(0.0, (top - floor).clamp(0.0, double.infinity));
+    final lift = (bottom - viewBottom).clamp(
+      0.0,
+      (top - floor).clamp(0.0, double.infinity),
+    );
     if ((lift - _lift).abs() > 0.5) setState(() => _lift = lift);
   }
 
   @override
   Widget build(BuildContext context) {
     _schedule();
-    return Transform.translate(
-      offset: Offset(0, -_lift),
-      child: widget.child,
-    );
+    return Transform.translate(offset: Offset(0, -_lift), child: widget.child);
   }
 }

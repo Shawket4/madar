@@ -35,40 +35,54 @@ Finder _step(String title) => find.descendant(
 );
 
 void main() {
-  testWidgets('ADM-ONB-009/021 a step warms its panel; Add a menu item warms the '
-      'item editor', (tester) async {
-    final s = onboardingServer();
-    freshCafe(s.db);
-    addCategory(s.db);
-    final h = await pumpOnboarding(tester, server: s.server, db: s.db);
-    // The session's branches and org, which the app's shell holds (core's
-    // offline layer reads them on the editor's first call), not this page's.
-    h.container
-      ..listen(branchesProvider, (_, _) {})
-      ..listen(currentOrgProvider, (_, _) {});
-    await h.settle();
-    final mouse = await _mouse(tester);
-    expect(_gets(h.server), isNot(contains('/categories')));
+  testWidgets(
+    'ADM-ONB-009/021 a step warms its panel; Add a menu item warms the '
+    'item editor',
+    (tester) async {
+      final s = onboardingServer();
+      freshCafe(s.db);
+      addCategory(s.db);
+      final h = await pumpOnboarding(tester, server: s.server, db: s.db);
+      // The session's branches and org, which the app's shell holds (core's
+      // offline layer reads them on the editor's first call), not this page's.
+      h.container
+        ..listen(branchesProvider, (_, _) {})
+        ..listen(currentOrgProvider, (_, _) {});
+      await h.settle();
+      final mouse = await _mouse(tester);
+      expect(_gets(h.server), isNot(contains('/categories')));
 
-    await _rest(h, mouse, _step('Build your menu'));
-    expect(_gets(h.server).where((t) => t == '/categories'), hasLength(1),
-        reason: 'the step\'s categories read is warmed');
-    await h.tap(_step('Build your menu'));
-    expect(_gets(h.server).where((t) => t == '/categories'), hasLength(1),
-        reason: 'the panel opened from the cache');
+      await _rest(h, mouse, _step('Build your menu'));
+      expect(
+        _gets(h.server).where((t) => t == '/categories'),
+        hasLength(1),
+        reason: 'the step\'s categories read is warmed',
+      );
+      await h.tap(_step('Build your menu'));
+      expect(
+        _gets(h.server).where((t) => t == '/categories'),
+        hasLength(1),
+        reason: 'the panel opened from the cache',
+      );
 
-    final add = buttonOf('Add a menu item');
-    final before = _gets(h.server).length;
-    await _rest(h, mouse, add);
-    final warmed = _gets(h.server);
-    expect(warmed.length, greaterThan(before), reason: 'the editor is warmed');
-    await h.tap(add);
-    expect(inSurface('New item'), findsOneWidget);
-    expect(_gets(h.server), warmed, reason: 'the editor opened from cache');
-  });
+      final add = buttonOf('Add a menu item');
+      final before = _gets(h.server).length;
+      await _rest(h, mouse, add);
+      final warmed = _gets(h.server);
+      expect(
+        warmed.length,
+        greaterThan(before),
+        reason: 'the editor is warmed',
+      );
+      await h.tap(add);
+      expect(inSurface('New item'), findsOneWidget);
+      expect(_gets(h.server), warmed, reason: 'the editor opened from cache');
+    },
+  );
 
-  testWidgets('ADM-ONB-017 Add an ingredient warms the ingredient editor',
-      (tester) async {
+  testWidgets('ADM-ONB-017 Add an ingredient warms the ingredient editor', (
+    tester,
+  ) async {
     final s = onboardingServer();
     freshCafe(s.db);
     final h = await pumpOnboarding(tester, server: s.server, db: s.db);

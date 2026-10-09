@@ -9,7 +9,7 @@
 import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_admin/src/mock/roles_mock.dart';
 import 'package:dashboard_admin/src/mock/users_mock.dart';
-import 'package:dashboard_admin/src/orgs/org_errors.dart';
+import 'package:dashboard_admin/src/shared/org_errors.dart';
 import 'package:dashboard_admin/src/roles/roles_data.dart';
 import 'package:dashboard_admin/src/roles/roles_page.dart';
 import 'package:dashboard_api/dashboard_api.dart' show ApiException, MyAuthz;

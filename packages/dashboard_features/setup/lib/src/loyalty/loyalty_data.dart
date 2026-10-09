@@ -12,7 +12,6 @@ library;
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/painting.dart' show TextDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The query-key paths (the web's Orval keys start with the path).
@@ -766,19 +765,3 @@ String formatPhoneDisplay(String? phone) {
   return m != null ? '+20 ${m[1]} ${m[2]} ${m[3]}' : '+$d';
 }
 
-/// `dir="auto"`: the direction of the first strong character.
-TextDirection? autoDirection(String s) {
-  for (final r in s.runes) {
-    if ((r >= 0x0590 && r <= 0x08FF) ||
-        (r >= 0xFB1D && r <= 0xFDFF) ||
-        (r >= 0xFE70 && r <= 0xFEFF)) {
-      return TextDirection.rtl;
-    }
-    if ((r >= 0x41 && r <= 0x5A) ||
-        (r >= 0x61 && r <= 0x7A) ||
-        (r >= 0xC0 && r <= 0x24F)) {
-      return TextDirection.ltr;
-    }
-  }
-  return null;
-}

@@ -121,7 +121,9 @@ void main() {
     bool hasIcon(Finder row, String name) => find
         .descendant(
           of: row,
-          matching: find.byWidgetPredicate((w) => w is DashIcon && w.name == name),
+          matching: find.byWidgetPredicate(
+            (w) => w is DashIcon && w.name == name,
+          ),
         )
         .evaluate()
         .isNotEmpty;
@@ -260,7 +262,15 @@ void main() {
     expect(_pageText('Retry'), findsOneWidget);
     expect(_pageText('Branches you add appear here'), findsNothing);
     final before = _lists(h).length;
+    final gate = s.server.hold('GET', listRoute);
     await h.tap(_pageText('Retry'));
+    // Retrying: the table's Retry spins.
+    expect(
+      tester.widget<DashErrorState>(find.byType(DashErrorState)).retrying,
+      isTrue,
+    );
+    gate.release();
+    await h.settle();
     expect(_lists(h), hasLength(before + 1), reason: 'only its own read');
     expect(_pageText('Zamalek'), findsOneWidget);
   });
@@ -309,9 +319,7 @@ void main() {
     expect(find.text('Edit Branch'), findsOneWidget);
     await h.tapText('Cancel');
     expect(h.location.queryParameters.containsKey('edit'), isFalse);
-    await h.tap(
-      labelled('Edit', within: rowOf('Maadi')).first,
-    );
+    await h.tap(labelled('Edit', within: rowOf('Maadi')).first);
     expect(h.location.queryParameters['edit'], SeedIds.maadi);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await h.settle();
@@ -363,9 +371,7 @@ void main() {
     final h = await pumpBranches(tester, server: s.server, db: s.db);
     await h.tap(labelled('Delete', within: rowOf('Zamalek')).first);
     await h.tap(inConfirm('Delete'));
-    await h.expectToast(
-      h.refusalWords(refusal).replaceFirst('Conflict: ', ''),
-    );
+    await h.expectToast(h.refusalWords(refusal).replaceFirst('Conflict: ', ''));
     expect(rowOf('Zamalek'), findsOneWidget);
   });
 

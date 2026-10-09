@@ -11,7 +11,6 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
-import 'package:dashboard_overview/src/home/delivery.dart';
 import 'package:dashboard_overview/src/home/home_charts.dart';
 import 'package:dashboard_overview/src/home/home_kpis.dart';
 import 'package:dashboard_overview/src/home/home_page.dart';
@@ -359,7 +358,7 @@ void main() {
         '640', (tester) async {
       final h = await pumpHome(tester, size: DashSize.phone);
       final bars = find.descendant(
-        of: find.byType(HomeDeliveryKpis),
+        of: find.byType(DeliveryChannels),
         matching: find.byWidgetPredicate(
           (w) => w is DashProgressBar && w.semanticLabel == 'Revenue share',
         ),
@@ -628,7 +627,7 @@ void main() {
         ),
       );
       final top = d.channels.reduce((a, b) => a.revenue >= b.revenue ? a : b);
-      final section = find.byType(HomeDeliveryKpis);
+      final section = find.byType(DeliveryChannels);
       expect(
         find.descendant(
           of: section,

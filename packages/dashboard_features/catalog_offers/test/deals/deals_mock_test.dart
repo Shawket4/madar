@@ -127,7 +127,7 @@ void main() {
       [for (final d in offList) (d as Map)['name']],
       ['Juice trio for 270'],
     );
- 
+
     // Same sort: names as the list orders them (alef forms folded).
     final deals = s.db.table(OffersTables.deals);
     deals.find(dealId('pastry-pair'))!['name'] = 'آيس لاتيه';
@@ -135,7 +135,10 @@ void main() {
       ..['name'] = 'اسبريسو'
       ..['sort'] = 0;
     final again = _list(await _send(s.server, 'GET', '/deals'));
-    expect([for (final d in again.take(2)) d['name']], ['اسبريسو', 'آيس لاتيه']);
+    expect(
+      [for (final d in again.take(2)) d['name']],
+      ['اسبريسو', 'آيس لاتيه'],
+    );
   });
 
   test('OFFR-DEA-016 gates: menu.items.read lists; every write needs '

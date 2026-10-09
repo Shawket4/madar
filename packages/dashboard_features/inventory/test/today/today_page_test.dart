@@ -1153,10 +1153,8 @@ void main() {
         final own = find.byType(
           section == 'arriving' ? TodayArrivingSection : TodayWasteSection,
         );
-        Finder err() => find.descendant(
-          of: own,
-          matching: find.byType(DashErrorState),
-        );
+        Finder err() =>
+            find.descendant(of: own, matching: find.byType(DashErrorState));
         expect(tester.widget<DashErrorState>(err()).retrying, isFalse);
         final gate = s.server.hold('GET', route);
         final retry = find.descendant(of: own, matching: find.text('Retry'));
@@ -1164,8 +1162,10 @@ void main() {
         await tester.pump();
         await tester.tap(retry);
         await tester.pump();
-        expect(find.descendant(of: own, matching: find.text(words)),
-            findsOneWidget);
+        expect(
+          find.descendant(of: own, matching: find.text(words)),
+          findsOneWidget,
+        );
         expect(tester.widget<DashErrorState>(err()).retrying, isTrue);
         gate.release();
         await h.settle();
@@ -1276,8 +1276,12 @@ void main() {
         of: find.byWidgetPredicate((w) => w is DashOptionList),
         matching: find.text(label),
       );
-      Finder trigger(String key) =>
-          inDialog(find.descendant(of: byKey(key), matching: find.byType(DashSelectTrigger)));
+      Finder trigger(String key) => inDialog(
+        find.descendant(
+          of: byKey(key),
+          matching: find.byType(DashSelectTrigger),
+        ),
+      );
       await h.tap(trigger('waste-ingredient'));
       await h.enterText(
         find.byWidgetPredicate((w) => w is DashOptionList).last,
@@ -1366,10 +1370,12 @@ void main() {
       // `lg:grid-cols-4`: 4 across at 1024.
       final cards = find.byType(DashStatCard);
       final tops = {
-        for (final e in cards.evaluate()) tester.getTopLeft(find.byWidget(e.widget)).dy,
+        for (final e in cards.evaluate())
+          tester.getTopLeft(find.byWidget(e.widget)).dy,
       };
       final lefts = {
-        for (final e in cards.evaluate()) tester.getTopLeft(find.byWidget(e.widget)).dx,
+        for (final e in cards.evaluate())
+          tester.getTopLeft(find.byWidget(e.widget)).dx,
       };
       expect(tops, hasLength(1));
       expect(lefts, hasLength(4));

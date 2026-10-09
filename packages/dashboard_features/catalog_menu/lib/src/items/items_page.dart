@@ -580,6 +580,12 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
         orgId: orgId,
         defaultCategoryId: _category,
       ),
+      // The new-item dialog's reads (the page already holds the categories).
+      onAddIntent: () => ref
+        ..warm(menuCategoriesProvider(orgId))
+        ..warm(ingredientCatalogProvider(orgId))
+        ..warm(addonItemsProvider(orgId))
+        ..warm(modifierGroupsProvider((orgId: orgId, includeInactive: false))),
       addLabel: t('menu.newItem'),
       empty:
           failed ??
@@ -789,6 +795,9 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
       onPageChanged: (n) => setState(() => _gridPage = n),
       loading: loading,
       onAdd: () => showAddonDialog(context, orgId: orgId),
+      onAddIntent: () => ref.warm(
+        modifierGroupsProvider((orgId: orgId, includeInactive: false)),
+      ),
       addLabel: t('menu.newAddon'),
       empty: failed ?? DashEmptyState(icon: 'tag', title: t('menu.noAddons')),
       toolbar: types.isEmpty

@@ -137,7 +137,9 @@ List<CountRow> countEditorRows(
   List<StocktakeItem>? items,
   List<CountRow> extras,
 ) {
-  final known = {for (final i in items ?? const <StocktakeItem>[]) i.orgIngredientId};
+  final known = {
+    for (final i in items ?? const <StocktakeItem>[]) i.orgIngredientId,
+  };
   return [
     for (final i in items ?? const <StocktakeItem>[]) CountRow.fromItem(i),
     for (final e in extras)

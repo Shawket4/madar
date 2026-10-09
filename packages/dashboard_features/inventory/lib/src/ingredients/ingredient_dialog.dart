@@ -361,14 +361,15 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
     final cats = ref.watch(ingredientCategoriesProvider(orgId)).value ?? [];
     final suppliers = ref.watch(inventorySuppliersProvider(orgId)).value ?? [];
     final category = _effectiveCategory(cats);
-    final unitOptions = _editing
-        ? unitsForFamily(_item!.unit)
-        : inventoryUnits;
+    final unitOptions = _editing ? unitsForFamily(_item!.unit) : inventoryUnits;
 
     Widget pair(Widget a, Widget b) => Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: Space.md,
-      children: [Expanded(child: a), Expanded(child: b)],
+      children: [
+        Expanded(child: a),
+        Expanded(child: b),
+      ],
     );
 
     final body = Column(
@@ -611,8 +612,7 @@ class _BranchPars extends ConsumerWidget {
   final List<Branch> branches;
   final String unit;
   final Map<String, ({String min, String max})> pars;
-  final void Function(String branchId, ({String min, String max}) v)
-  onChanged;
+  final void Function(String branchId, ({String min, String max}) v) onChanged;
 
   /// `w-24`.
   static const double inputWidth = Space.xxl * 3;

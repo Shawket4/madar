@@ -20,8 +20,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orgs/org_errors.dart' show orgErrorWords;
 import '../orgs/orgs_providers.dart' show orgsListProvider;
+import '../shared/org_errors.dart' show orgErrorWords;
 import 'users_data.dart';
 import 'users_page.dart' show roleLabel;
 
@@ -99,7 +99,9 @@ class _UserDialogState extends ConsumerState<UserDialog> {
 
   String? _emailError(String v) {
     final t = ref.read(tProvider);
-    if (v.isNotEmpty && !_emailPattern.hasMatch(v)) return t('common.invalidEmail');
+    if (v.isNotEmpty && !_emailPattern.hasMatch(v)) {
+      return t('common.invalidEmail');
+    }
     if (_till ? (_password.isNotEmpty && v.isEmpty) : v.isEmpty) {
       return t('users.emailRequired');
     }

@@ -324,8 +324,12 @@ void main() {
   testWidgets('SET-QR-014 a failure shows inline, in the server\'s words, '
       'no toast', (tester) async {
     final m = setupMockServer();
-    // Maadi has rules but bookings are switched off.
-    final h = await pumpQr(tester, backend: m, query: atBranch(SeedIds.maadi));
+    // Zamalek has rules but bookings are switched off.
+    final h = await pumpQr(
+      tester,
+      backend: m,
+      query: atBranch(SeedIds.zamalek),
+    );
     await h.tap(generateOf(QrKind.branchBooking));
     final words = h.refusalWords(
       MockResponse.conflict('Bookings are switched off for this branch'),
@@ -336,7 +340,7 @@ void main() {
 
     // Switched on: the next press asks again (a refusal is not kept).
     m.db['booking_settings'].firstWhere(
-      (r) => r['branch_id'] == SeedIds.maadi,
+      (r) => r['branch_id'] == SeedIds.zamalek,
     )!['enabled'] = true;
     final before = h.server.callsTo(QrRoutes.branchBooking).length;
     await h.tap(generateOf(QrKind.branchBooking));
@@ -545,11 +549,11 @@ void main() {
   ) async {
     final h = await pumpQr(tester);
     await h.tap(generateOf(QrKind.orgOrder));
-    await pickBranch(h, SeedIds.maadi);
+    await pickBranch(h, SeedIds.zamalek);
     // The org code stays (dimmed): it is still this organization's.
     expect(resultOf(QrKind.orgOrder), findsOneWidget);
     await h.tap(generateOf(QrKind.branchOrder));
-    await h.tap(generateOf(QrKind.branchBooking)); // Maadi: switched off
+    await h.tap(generateOf(QrKind.branchBooking)); // Zamalek: switched off
     expect(resultOf(QrKind.branchOrder), findsOneWidget);
     expect(
       find.byKey(const ValueKey('qr-error-branchBooking')),
@@ -563,7 +567,7 @@ void main() {
       'Ground Floor',
     );
 
-    await pickBranch(h, SeedIds.zamalek);
+    await pickBranch(h, SeedIds.maadi);
     expect(resultOf(QrKind.branchOrder), findsNothing);
     expect(find.byKey(const ValueKey('qr-error-branchBooking')), findsNothing);
     expect(resultOf(QrKind.orgOrder), findsOneWidget);
@@ -593,8 +597,14 @@ void main() {
   });
 
   testWidgets('refusal: a manager makes Zamalek\'s codes', (tester) async {
+    final m = setupMockServer(persona: Persona.manager);
+    // Zamalek's online bookings are off in the seed: switch them on.
+    m.db['booking_settings'].firstWhere(
+      (r) => r['branch_id'] == SeedIds.zamalek,
+    )!['enabled'] = true;
     final h = await pumpQr(
       tester,
+      backend: m,
       persona: Persona.manager,
       query: atBranch(SeedIds.zamalek),
     );

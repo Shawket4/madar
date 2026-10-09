@@ -135,7 +135,9 @@ void main() {
       );
       final h = await pumpCombos(tester, seeded: s);
       expect(
-        find.textContaining("Couldn't check what this business has switched on"),
+        find.textContaining(
+          "Couldn't check what this business has switched on",
+        ),
         findsOneWidget,
       );
       expect(callsTo(h, combosApi), isEmpty);
@@ -145,10 +147,11 @@ void main() {
     });
 
     testWidgets('OFFR-ALL-003 / -018 (divergence) while the rights load: '
-        'nothing shown and nothing asked; then the page', (tester) async {
+        'the skeleton and nothing asked; then the page', (tester) async {
       final s = combosServer();
       final gate = s.server.hold('GET', '/authz/me');
       final h = await pumpCombos(tester, seeded: s);
+      expect(inPage(find.byType(DashSkeleton)), findsWidgets);
       expect(pageText('No combos yet'), findsNothing);
       expect(pageButton('New combo'), findsNothing);
       expect(pageText('Not available on this account'), findsNothing);
@@ -297,7 +300,7 @@ void main() {
       expect(shownNames(tester), hasLength(11));
     });
 
-        testWidgets('OFFR-ALL-007 a combo delete invalidates every combos, '
+    testWidgets('OFFR-ALL-007 a combo delete invalidates every combos, '
         'deals, combo settings, Bundles, menu-items and costing read', (
       tester,
     ) async {
@@ -348,9 +351,7 @@ void main() {
       expect(h.location.path, combosPath);
     });
 
-    testWidgets('OFFR-ALL-009 Space on a focused row opens it', (
-      tester,
-    ) async {
+    testWidgets('OFFR-ALL-009 Space on a focused row opens it', (tester) async {
       final h = await pumpCombos(tester);
       h.allowUnmatched = true;
       final inner = find
@@ -429,9 +430,7 @@ void main() {
       final s = combosServer();
       clearCombos(s.db);
       addCombos(s.db, 1);
-      s.db
-              .table('menu_items')
-              .find(mockUuid('combo:extra:1'))!['image_url'] =
+      s.db.table('menu_items').find(mockUuid('combo:extra:1'))!['image_url'] =
           'https://cdn.madar.test/combos/extra.jpg';
       final h = await pumpCombos(tester, seeded: s);
       final image = tester.widget<Image>(
@@ -441,7 +440,10 @@ void main() {
         (image.image as NetworkImage).url,
         'https://cdn.madar.test/combos/extra.jpg',
       );
-      expect(h.server.calls.where((c) => c.path.startsWith('/assets')), isEmpty);
+      expect(
+        h.server.calls.where((c) => c.path.startsWith('/assets')),
+        isEmpty,
+      );
     });
   });
 
@@ -450,9 +452,10 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     final seen = <List<String>>[];
-    final sub = container.read(realtimeBusProvider).invalidations.listen(
-      seen.add,
-    );
+    final sub = container
+        .read(realtimeBusProvider)
+        .invalidations
+        .listen(seen.add);
     addTearDown(sub.cancel);
     late WidgetRef widgetRef;
     await tester.pumpWidget(

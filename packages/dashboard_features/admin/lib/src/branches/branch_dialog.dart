@@ -518,12 +518,18 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
           ),
         ),
         Text(
-          t(_warehouse ? 'branches.kindWarehouseHint' : 'branches.kindBranchHint'),
+          t(
+            _warehouse
+                ? 'branches.kindWarehouseHint'
+                : 'branches.kindBranchHint',
+          ),
           style: DashType.small.copyWith(color: c.textSecondary),
         ),
         if (stored != null && stored != _kind)
           Text(
-            t(_warehouse ? 'branches.toWarehouseHint' : 'branches.toBranchHint'),
+            t(
+              _warehouse ? 'branches.toWarehouseHint' : 'branches.toBranchHint',
+            ),
             style: DashType.small.copyWith(
               color: DashTone.warning.foreground(c),
             ),
@@ -563,6 +569,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       decimals: 0,
       onChanged: (v) => _set(() => _oldBillHours = v),
       validator: _hours,
+      onSubmitted: (_) => _submit(),
     );
     final float = DashNumberField(
       key: const ValueKey('branch-standard-float'),
@@ -573,6 +580,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       allowEmpty: true,
       onChanged: (v) => _set(() => _standardFloat = v),
       validator: _atLeastZero,
+      onSubmitted: (_) => _submit(),
     );
     final address = DashTextField(
       key: const ValueKey('branch-address'),
@@ -631,6 +639,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       allowEmpty: true,
       onChanged: (v) => _set(() => _latitude = v),
       validator: (v) => _coordinate(v, 90),
+      onSubmitted: (_) => _submit(),
     );
     final longitude = DashNumberField(
       key: const ValueKey('branch-longitude'),
@@ -642,6 +651,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       allowEmpty: true,
       onChanged: (v) => _set(() => _longitude = v),
       validator: (v) => _coordinate(v, 180),
+      onSubmitted: (_) => _submit(),
     );
     final radius = DashNumberField(
       key: const ValueKey('branch-radius'),
@@ -652,6 +662,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       // COALESCE keeps as the old value (ADM-BRA-037).
       onChanged: (v) => _set(() => _radius = v),
       validator: _atLeastZero,
+      onSubmitted: (_) => _submit(),
     );
     final location = box('map-pin', t('branches.location'), [
       Text(
@@ -709,6 +720,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
                         allowEmpty: true,
                         onChanged: (v) => _set(() => _taxRate = v),
                         validator: _rate,
+                        onSubmitted: (_) => _submit(),
                       ),
                       DashNumberField(
                         key: const ValueKey('branch-service-charge'),
@@ -720,6 +732,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
                         allowEmpty: true,
                         onChanged: (v) => _set(() => _serviceCharge = v),
                         validator: _rate,
+                        onSubmitted: (_) => _submit(),
                       ),
                     ),
                     DashSwitchField(
@@ -732,8 +745,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
                       key: const ValueKey('branch-service-taxable'),
                       label: t('orgs.serviceChargeTaxable'),
                       value: _serviceChargeTaxable,
-                      onChanged: (v) =>
-                          _set(() => _serviceChargeTaxable = v),
+                      onChanged: (v) => _set(() => _serviceChargeTaxable = v),
                     ),
                   ],
                 ),

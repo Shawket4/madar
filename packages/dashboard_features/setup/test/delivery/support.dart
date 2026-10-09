@@ -65,6 +65,15 @@ Finder inKey(String key, Finder matching) =>
 Future<void> typeIn(DashHarness h, String key, String text) async {
   await h.tester.ensureVisible(byKey(key));
   await h.enterText(byKey(key), text);
+  // Leaving the field settles it; Enter would submit the form ([enterIn]).
+  FocusManager.instance.primaryFocus?.unfocus();
+  await h.settle();
+}
+
+/// Types [text] into the field keyed [key], then presses Enter.
+Future<void> enterIn(DashHarness h, String key, String text) async {
+  await h.tester.ensureVisible(byKey(key));
+  await h.enterText(byKey(key), text);
   await h.tester.testTextInput.receiveAction(TextInputAction.done);
   await h.settle();
 }

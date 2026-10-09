@@ -12,7 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/report_shared.dart';
 import 'bundles_providers.dart';
-import 'unit_support.dart';
 
 /// The combo slot label of a single-size pick (`ONE_SIZE`).
 const String _oneSize = 'one_size';

@@ -206,7 +206,7 @@ class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage> {
       );
       return ExcelConfig(
         filename: 'Madar-${sheet.title}',
-        logoUrl: lisExportLogo(ref),
+        logoUrl: exportLogoUrl(ref),
         sheets: [sheet],
       );
     }
@@ -275,7 +275,8 @@ class _ConsumptionTable extends ConsumerWidget {
     return InventoryReportTable(
       emptyTitle: noData,
       loading: q.awaitingFirst,
-      error: q.hasError && !q.retrying ? q.error : null,
+      retrying: q.isLoading,
+      error: q.failed ? q.error : null,
       onRetry: onRetry,
       head: [
         ReportHead(t('inventory.reports.ingredient')),
@@ -316,7 +317,8 @@ class _ShrinkageTable extends ConsumerWidget {
     return InventoryReportTable(
       emptyTitle: noData,
       loading: q.awaitingFirst,
-      error: q.hasError && !q.retrying ? q.error : null,
+      retrying: q.isLoading,
+      error: q.failed ? q.error : null,
       onRetry: onRetry,
       head: [
         ReportHead(t('inventory.reports.ingredient')),
@@ -359,7 +361,8 @@ class _WasteTable extends ConsumerWidget {
     return InventoryReportTable(
       emptyTitle: noData,
       loading: q.awaitingFirst,
-      error: q.hasError && !q.retrying ? q.error : null,
+      retrying: q.isLoading,
+      error: q.failed ? q.error : null,
       onRetry: onRetry,
       head: [
         ReportHead(t('inventory.reports.ingredient')),
@@ -429,7 +432,8 @@ class _LeadTimeTab extends ConsumerWidget {
         InventoryReportTable(
           emptyTitle: noData,
           loading: q.awaitingFirst,
-          error: q.hasError && !q.retrying ? q.error : null,
+          retrying: q.isLoading,
+          error: q.failed ? q.error : null,
           onRetry: onRetry,
           head: [
             ReportHead(t('inventory.reports.supplier')),

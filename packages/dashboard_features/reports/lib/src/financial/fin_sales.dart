@@ -187,7 +187,7 @@ class FinRevenueTab extends ConsumerWidget {
           title: titleText,
           child: FinChartBody(
             loading: q.awaitingFirst,
-            error: q.failedFirst,
+            error: q.failed,
             retrying: q.isLoading,
             empty: labels.isEmpty,
             emptyTitle: t('analytics.noData'),
@@ -337,7 +337,7 @@ class FinChannelTab extends ConsumerWidget {
     final q = ref.watch(finChannelsProvider(key));
     final rows = q.value ?? const <ChannelBreakdownRow>[];
     void retry() => ref.invalidate(finChannelsProvider(key));
-    final error = q.failedFirst ? errorMessage(q.error, t) : null;
+    final error = q.failed ? errorMessage(q.error, t) : null;
     final empty = DashEmptyState(framed: false, title: t('analytics.noData'));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -348,7 +348,7 @@ class FinChannelTab extends ConsumerWidget {
           title: t('analytics.revenueByChannel'),
           child: FinChartBody(
             loading: q.awaitingFirst,
-            error: q.failedFirst,
+            error: q.failed,
             retrying: q.isLoading,
             empty: rows.isEmpty,
             emptyTitle: t('analytics.noData'),
@@ -378,6 +378,7 @@ class FinChannelTab extends ConsumerWidget {
             rows: rows,
             rowKey: (r) => r.channel,
             loading: q.awaitingFirst,
+            retrying: q.isLoading,
             errorMessage: error,
             onRetry: retry,
             empty: empty,

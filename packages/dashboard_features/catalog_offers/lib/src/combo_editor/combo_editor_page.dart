@@ -52,6 +52,7 @@ class ComboEditorPage extends ConsumerWidget {
     return OffersPageGate(
       title: isNew ? t('combos.new') : t('combos.title'),
       caps: const [Cap.menuItemsRead],
+      loading: const _EditorSkeleton(),
       // A new combo (after "Create combo" the URL names it) starts afresh.
       child: _ComboEditor(key: ValueKey(comboId), comboId: comboId),
     );
@@ -60,6 +61,37 @@ class ComboEditorPage extends ConsumerWidget {
 
 /// The list the editor's Back, Delete and link rows lead to.
 const String _listPath = '/menu/combos';
+
+/// The editor while the rights or the combo load.
+class _EditorSkeleton extends ConsumerWidget {
+  const _EditorSkeleton();
+
+  /// The title skeleton (`w-56`).
+  static const double _titleWidth = Space.xxl * 7;
+
+  /// The loading blocks (`h-44`, `h-72`).
+  static const double _top = Space.xxl * 5 + Space.lg;
+  static const double _bottom = Space.xxl * 9;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => DashPageScaffold(
+    title: '',
+    onBack: () => context.go(_listPath),
+    onBackIntent: () => warmCombosList(ref),
+    subtitleWidget: const DashSkeleton(
+      width: _titleWidth,
+      height: Space.xl + Space.xs,
+    ),
+    body: const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.xl,
+      children: [
+        DashSkeleton(height: _top, radius: Radii.sheet),
+        DashSkeleton(height: _bottom, radius: Radii.sheet),
+      ],
+    ),
+  );
+}
 
 class _ComboEditor extends ConsumerStatefulWidget {
   const _ComboEditor({required this.comboId, super.key});
@@ -266,23 +298,7 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
       // too; the error stays, its Retry spinning, until the answer lands.
       final failed = q.hasError && !q.retrying;
       if (q.awaitingFirst) {
-        return DashPageScaffold(
-          title: '',
-          onBack: _goBack,
-          onBackIntent: () => warmCombosList(ref),
-          subtitleWidget: const DashSkeleton(
-            width: _titleSkeletonWidth,
-            height: Space.xl + Space.xs,
-          ),
-          body: const Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: Space.xl,
-            children: [
-              DashSkeleton(height: _skeletonTop, radius: Radii.sheet),
-              DashSkeleton(height: _skeletonBottom, radius: Radii.sheet),
-            ],
-          ),
-        );
+        return const _EditorSkeleton();
       }
       if (failed || loaded == null) {
         return DashPageScaffold(
@@ -625,7 +641,7 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
           DashButton(
             label: t('common.delete'),
             icon: 'trash-2',
-            variant: DashButtonVariant.outline,
+            variant: DashButtonVariant.outlineDanger,
             size: DashButtonSize.compact,
             onPressed: () => unawaited(_remove()),
           ),
@@ -657,13 +673,6 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
       ],
     );
   }
-
-  /// The title skeleton (`w-56`).
-  static const double _titleSkeletonWidth = Space.xxl * 7;
-
-  /// The loading blocks (`h-44`, `h-72`).
-  static const double _skeletonTop = Space.xxl * 5 + Space.lg;
-  static const double _skeletonBottom = Space.xxl * 9;
 
   /// The price check's column (`20rem`).
   static const double _asideWidth = 320;

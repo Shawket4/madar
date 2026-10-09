@@ -26,24 +26,26 @@ final String org = SeedIds.sabahOrg;
 
 void main() {
   group('POST catalog (createCatalogItem)', () {
-    test('creates in the general category when none is given; listed next',
-        () async {
-      final b = backend();
-      final made = await b.api.inventory.createCatalogItem(
-        orgId: org,
-        body: const CreateCatalogItemRequest(
-          name: '  Pistachio Paste ',
-          unit: 'g',
-          costPerUnit: 45.5,
-        ),
-      );
-      expect(made.name, 'Pistachio Paste');
-      expect(made.categoryId, InvIds.category('general'));
-      expect(made.categoryName, 'General');
-      expect(made.costPerUnit, 45.5);
-      final list = await b.api.inventory.listCatalog(orgId: org);
-      expect(list.map((i) => i.id), contains(made.id));
-    });
+    test(
+      'creates in the general category when none is given; listed next',
+      () async {
+        final b = backend();
+        final made = await b.api.inventory.createCatalogItem(
+          orgId: org,
+          body: const CreateCatalogItemRequest(
+            name: '  Pistachio Paste ',
+            unit: 'g',
+            costPerUnit: 45.5,
+          ),
+        );
+        expect(made.name, 'Pistachio Paste');
+        expect(made.categoryId, InvIds.category('general'));
+        expect(made.categoryName, 'General');
+        expect(made.costPerUnit, 45.5);
+        final list = await b.api.inventory.listCatalog(orgId: org);
+        expect(list.map((i) => i.id), contains(made.id));
+      },
+    );
 
     test('refusals: capability, unit, blank name, duplicate, foreign '
         'supplier', () async {
@@ -107,8 +109,7 @@ void main() {
       expect(out.costPerUnit, 25);
     });
 
-    test('g → kg converts the cost, every branch row and the ledger',
-        () async {
+    test('g → kg converts the cost, every branch row and the ledger', () async {
       final b = backend();
       final id = InvIds.ingredient('house-blend');
       final stock = stockRow(b.db, SeedIds.zamalek, 'house-blend')!;
@@ -129,7 +130,9 @@ void main() {
       expect(after['on_hand'], closeTo(onHand / 1000, 0.0005));
       expect(after['par_min'], closeTo(parMin / 1000, 0.0005));
       expect(
-        b.db[InvTables.movements].find(moves.first['id']! as String)!['quantity'],
+        b.db[InvTables.movements].find(
+          moves.first['id']! as String,
+        )!['quantity'],
         closeTo(q0 / 1000, 0.0005),
       );
     });
@@ -195,71 +198,79 @@ void main() {
       expect(row.belowPar, isTrue);
     });
 
-    test('refusals: negative, max under min, another branch, the capability',
-        () async {
-      final b = backend();
-      Future<BranchStockRow> put(Persona? p, String branch, SetParRequest r) =>
-          (p == null ? b.api : backend(p).api).inventory.setParLevels(
-            branchId: branch,
-            orgIngredientId: InvIds.ingredient('sugar'),
-            body: r,
-          );
-      await expectLater(
-        put(null, SeedIds.zamalek, const SetParRequest(parMin: -1)),
-        refused(400, 'Par levels cannot be negative'),
-      );
-      await expectLater(
-        put(null, SeedIds.zamalek, const SetParRequest(parMin: 5, parMax: 2)),
-        refused(400, 'Max par must be at least the min par'),
-      );
-      await expectLater(
-        put(Persona.manager, SeedIds.maadi, const SetParRequest(parMin: 5)),
-        refused(403, ''),
-      );
-      await expectLater(
-        put(Persona.limited, SeedIds.zamalek, const SetParRequest(parMin: 5)),
-        refused(403, '(inventory.adjust)'),
-      );
-    });
+    test(
+      'refusals: negative, max under min, another branch, the capability',
+      () async {
+        final b = backend();
+        Future<BranchStockRow> put(
+          Persona? p,
+          String branch,
+          SetParRequest r,
+        ) => (p == null ? b.api : backend(p).api).inventory.setParLevels(
+          branchId: branch,
+          orgIngredientId: InvIds.ingredient('sugar'),
+          body: r,
+        );
+        await expectLater(
+          put(null, SeedIds.zamalek, const SetParRequest(parMin: -1)),
+          refused(400, 'Par levels cannot be negative'),
+        );
+        await expectLater(
+          put(null, SeedIds.zamalek, const SetParRequest(parMin: 5, parMax: 2)),
+          refused(400, 'Max par must be at least the min par'),
+        );
+        await expectLater(
+          put(Persona.manager, SeedIds.maadi, const SetParRequest(parMin: 5)),
+          refused(403, ''),
+        );
+        await expectLater(
+          put(Persona.limited, SeedIds.zamalek, const SetParRequest(parMin: 5)),
+          refused(403, '(inventory.adjust)'),
+        );
+      },
+    );
   });
 
   group('GET movements (listMovements)', () {
-    test('one ingredient at one branch, newest first, per_page clamped',
-        () async {
-      final b = backend();
-      final id = InvIds.ingredient('oat');
-      final all = b.db[InvTables.movements].where(
-        (m) => m['branch_id'] == SeedIds.zamalek && m['org_ingredient_id'] == id,
-      );
-      final rows = await b.api.inventory.listMovements(
-        branchId: SeedIds.zamalek,
-        orgIngredientId: id,
-        perPage: 5,
-      );
-      expect(rows.length, all.length < 5 ? all.length : 5);
-      for (var i = 1; i < rows.length; i++) {
-        expect(!rows[i].createdAt.isAfter(rows[i - 1].createdAt), isTrue);
-      }
-      expect(rows.every((m) => m.orgIngredientId == id), isTrue);
-      expect(rows.every((m) => m.ingredientName == 'Oat Milk'), isTrue);
-      final big = await b.api.inventory.listMovements(
-        branchId: SeedIds.zamalek,
-        perPage: 9999,
-      );
-      expect(big.length, lessThanOrEqualTo(500));
-    });
+    test(
+      'one ingredient at one branch, newest first, per_page clamped',
+      () async {
+        final b = backend();
+        final id = InvIds.ingredient('oat');
+        final all = b.db[InvTables.movements].where(
+          (m) =>
+              m['branch_id'] == SeedIds.zamalek && m['org_ingredient_id'] == id,
+        );
+        final rows = await b.api.inventory.listMovements(
+          branchId: SeedIds.zamalek,
+          orgIngredientId: id,
+          perPage: 5,
+        );
+        expect(rows.length, all.length < 5 ? all.length : 5);
+        for (var i = 1; i < rows.length; i++) {
+          expect(!rows[i].createdAt.isAfter(rows[i - 1].createdAt), isTrue);
+        }
+        expect(rows.every((m) => m.orgIngredientId == id), isTrue);
+        expect(rows.every((m) => m.ingredientName == 'Oat Milk'), isTrue);
+        final big = await b.api.inventory.listMovements(
+          branchId: SeedIds.zamalek,
+          perPage: 9999,
+        );
+        expect(big.length, lessThanOrEqualTo(500));
+      },
+    );
 
     test('inventory.read, and only the persona\'s branches', () async {
       await expectLater(
-        backend(Persona.limited).api.inventory.listMovements(
-          branchId: SeedIds.maadi,
-        ),
+        backend(
+          Persona.limited,
+        ).api.inventory.listMovements(branchId: SeedIds.maadi),
         refused(403, '(inventory.read)'),
       );
       await expectLater(
-        backend(Persona.manager).api.inventory.listMovements(
-          branchId: SeedIds.maadi,
-        ),
+        backend(
+          Persona.manager,
+        ).api.inventory.listMovements(branchId: SeedIds.maadi),
         refused(403, ''),
       );
     });

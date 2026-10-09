@@ -57,6 +57,20 @@ class CombosPage extends ConsumerWidget {
       title: t('combos.title'),
       caps: const [Cap.menuItemsRead],
       who: t('combos.noAccess'),
+      loading: DashPageScaffold(
+        title: t('combos.title'),
+        subtitle: t('combos.subtitle'),
+        body: DashDataTable<ComboSummary>(
+          columns: _CombosListState._columns(
+            t,
+            ref.watch(formatProvider),
+            (_) => '—',
+          ),
+          rows: const [],
+          rowKey: (c) => c.id,
+          loading: true,
+        ),
+      ),
       child: const _CombosList(),
     );
   }
@@ -266,7 +280,7 @@ class _CombosListState extends ConsumerState<_CombosList> {
     );
   }
 
-  List<DashColumn<ComboSummary>> _columns(
+  static List<DashColumn<ComboSummary>> _columns(
     Translator t,
     DashFormat f,
     String Function(String? id) categoryName,
@@ -289,9 +303,8 @@ class _CombosListState extends ConsumerState<_CombosList> {
         categoryName(c.categoryId),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: DashType.body.copyWith(
-          color: context.madarColors.textSecondary,
-        ),
+        textDirection: dashTextDirectionOf(categoryName(c.categoryId)),
+        style: DashType.body.copyWith(color: context.madarColors.textSecondary),
       ),
       flex: 2,
       minWidth: 140,
@@ -463,13 +476,13 @@ class ComboNameCell extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final ar = arabicOf(combo.nameTranslations);
-    // The English name stays left to right: its "…" follows the text in
-    // Arabic too.
+    // The name reads in its own direction (an English name stays left to
+    // right, its "…" following the text in Arabic too).
     final name = MadarClippedText(
       combo.name,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      textDirection: TextDirection.ltr,
+      textDirection: dashTextDirectionOf(combo.name) ?? TextDirection.ltr,
       style: DashType.bodyStrong.copyWith(color: c.textPrimary),
     );
     final badge = combo.isFixed ? DashBadge(t('combos.fixed')) : null;
@@ -493,7 +506,10 @@ class ComboNameCell extends ConsumerWidget {
           )
         : Row(
             spacing: Space.xs + DashMetrics.hair,
-            children: [Flexible(child: name), ?badge],
+            children: [
+              Flexible(child: name),
+              ?badge,
+            ],
           );
     return Row(
       spacing: Space.md,

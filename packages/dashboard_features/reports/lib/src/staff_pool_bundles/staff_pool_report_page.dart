@@ -258,6 +258,7 @@ class _PoolDay extends ConsumerWidget {
               StaffDrinksTable(
                 drinks: drinks.value ?? const <StaffDrink>[],
                 loading: drinks.awaitingFirst,
+                retrying: drinks.isLoading,
                 error: drinks.failed ? drinks.error : null,
                 onRetry: onRetryDrinks,
                 showDate: showDate,

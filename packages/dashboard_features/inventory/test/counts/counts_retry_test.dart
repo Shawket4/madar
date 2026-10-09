@@ -9,15 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support.dart';
 
 /// Fails [route] until the Retry in [scope] is pressed, holds that Retry's
-/// read, and checks [words] stay up (spinning when [spins]) until it lands.
+/// read, and checks [words] stay up (its Retry spinning) until it lands.
 Future<void> _retryHeld(
   DashHarness h,
   MockServer server,
   String route,
   Finder scope,
-  String words, {
-  bool spins = true,
-}) async {
+  String words,
+) async {
   Finder within(Finder f) => find.descendant(of: scope, matching: f);
   expect(within(find.text(words)), findsOneWidget);
   server.clearFailures();
@@ -28,13 +27,12 @@ Future<void> _retryHeld(
   await h.tester.tap(retry);
   await h.tester.pump();
   expect(within(find.text(words)), findsOneWidget);
-  if (spins) {
-    expect(
-      h.tester.widget<DashErrorState>(within(find.byType(DashErrorState)))
-          .retrying,
-      isTrue,
-    );
-  }
+  expect(
+    h.tester
+        .widget<DashErrorState>(within(find.byType(DashErrorState)))
+        .retrying,
+    isTrue,
+  );
   gate.release();
   await h.settle();
   expect(within(find.text(words)), findsNothing);
@@ -51,14 +49,7 @@ void main() {
       db: s.db,
       branch: SeedIds.zamalek,
     );
-    await _retryHeld(
-      h,
-      s.server,
-      listRoute,
-      table,
-      "Couldn't load this",
-      spins: false,
-    );
+    await _retryHeld(h, s.server, listRoute, table, "Couldn't load this");
     expect(inTable(find.text('Karim Adel')), findsWidgets);
   });
 

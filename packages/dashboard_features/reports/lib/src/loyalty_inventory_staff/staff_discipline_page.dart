@@ -271,7 +271,7 @@ class DisciplineRowTile extends ConsumerWidget {
             child: Row(
               spacing: Space.sm + DashMetrics.hair,
               children: [
-                _RankBadge('#${row.rankInDepartment}'),
+                DashBadge('#${row.rankInDepartment}', outline: true, mono: true),
                 Flexible(
                   child: MadarClippedText(
                     row.employeeName,
@@ -322,35 +322,6 @@ class DisciplineRowTile extends ConsumerWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// The outline mono badge (`Badge variant="outline"`).
-class _RankBadge extends StatelessWidget {
-  const _RankBadge(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: c.hairline),
-      ),
-      child: Text(
-        dashFigure(label),
-        style: DashType.monoMedium.copyWith(
-          fontSize: DashType.small.fontSize,
-          color: c.textPrimary,
-        ),
       ),
     );
   }

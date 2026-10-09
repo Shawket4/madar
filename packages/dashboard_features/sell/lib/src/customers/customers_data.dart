@@ -16,6 +16,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/invalidate.dart';
+import '../shared/error_text.dart';
 
 // ── Limits (`customers/util.ts`, `adjust-schema.ts`) ──────────────────────
 
@@ -308,11 +309,7 @@ String ledgerActor(LedgerEntry e, Translator t) {
   return t('loyalty.ledger.bySystem');
 }
 
-// ── Errors (`getErrorMessage`, SELL-ALL-017) ──────────────────────────────
-
-final RegExp _serverKind = RegExp(
-  r'^(?:Unauthorized|Forbidden|Not found|Bad request|Conflict|Service unavailable|Database error): ',
-);
+// ── Errors (the words: shared/error_text.dart) ────────────────────────────
 
 /// The server's sentence: the exception's own message first (in real mode
 /// the core has already worded it in the active language; the envelope's
@@ -329,42 +326,6 @@ String? serverText(Object? e) {
     if (msg is String) return msg;
   }
   return null;
-}
-
-/// The words for a failed request, exactly as the web's `getErrorMessage`:
-/// a known `code` reads its translation; an uncoded 429 / 403 reads
-/// "too many requests" / "no permission" (never the server's English);
-/// otherwise the server's sentence without its "Kind: " prefix; then by
-/// status.
-String peopleErrorMessage(Object? e, Translator t) {
-  if (e is ApiException) {
-    final code = e.code;
-    if (code != null && t.exists('errors.codes.$code')) {
-      final vars = e.details is Map ? (e.details! as Map)['vars'] : null;
-      return t(
-        'errors.codes.$code',
-        args: vars is Map ? vars.cast<String, Object?>() : null,
-      );
-    }
-    if (code == null && e.status == 429) return t('errors.tooManyRequests');
-    if (code == null && e.status == 403) return t('errors.unauthorized');
-    final text = serverText(e);
-    if (text != null && text.isNotEmpty && e.status != 0) {
-      return text.replaceFirst(_serverKind, '');
-    }
-    return switch (e.status) {
-      0 => t('errors.networkError'),
-      401 => t('errors.sessionExpired'),
-      403 => t('errors.unauthorized'),
-      404 => t('errors.notFound'),
-      409 => t('errors.conflict'),
-      422 => t('errors.validation'),
-      >= 500 => t('errors.server'),
-      _ => e.message,
-    };
-  }
-  if (e is ExportTooLargeError) return e.message(t);
-  return t('errors.unknown');
 }
 
 /// A 409 with the backend's [code] (`refusedWith`).
@@ -399,7 +360,7 @@ bool isMemberMustSurvive(Object? e) =>
       message: t('loyalty.errors.serverNoteRequired'),
     );
   }
-  return (noteRequired: false, message: peopleErrorMessage(e, t));
+  return (noteRequired: false, message: sellErrorText(e, t));
 }
 
 // ── Reads ─────────────────────────────────────────────────────────────────

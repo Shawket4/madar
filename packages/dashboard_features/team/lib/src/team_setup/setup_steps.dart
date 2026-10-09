@@ -15,6 +15,7 @@ import 'package:go_router/go_router.dart';
 
 import '../shared/staff_query.dart';
 import '../shared/team_format.dart';
+import '../shared/time_range_field.dart' show endsNextDay, spanMinutes;
 import '../shared/week.dart';
 import 'geo.dart' show jsNumber;
 import 'setup_rules.dart';
@@ -175,23 +176,6 @@ class SetupPeopleStep extends ConsumerWidget {
 }
 
 // ── Step 3: shifts ──────────────────────────────────────────────────────────
-
-/// Minutes from [start] to [end] on the wall clock, past midnight when the
-/// end comes first (`spanMinutes`); null when either is not a time.
-int? spanMinutes(String? start, String? end) {
-  final a = DashTime.minutesOf(start);
-  final b = DashTime.minutesOf(end);
-  if (a == null || b == null) return null;
-  if (a == b) return 0;
-  return b > a ? b - a : b + 1440 - a;
-}
-
-/// Whether [start]→[end] finishes on the next calendar day (`endsNextDay`).
-bool endsNextDay(String? start, String? end) {
-  final a = DashTime.minutesOf(start);
-  final b = DashTime.minutesOf(end);
-  return a != null && b != null && b < a;
-}
 
 class SetupShiftsStep extends ConsumerWidget {
   const SetupShiftsStep({
@@ -449,10 +433,8 @@ class _SetupRulesStepState extends ConsumerState<SetupRulesStep> {
     final c = context.madarColors;
     final values = _values;
     final saved = widget.settings.rulesSavedAt != null;
-    final ex = PayExample(
-      salary: PayExample.setupSalary,
+    final ex = PayExample.initial.copyWith(
       workingDays: values.exampleWorkingDays,
-      shiftMinutes: PayExample.setupShiftMinutes,
     );
     final phone = DashBreakpoints.isPhone(context);
 

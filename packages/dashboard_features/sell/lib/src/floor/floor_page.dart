@@ -20,7 +20,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../orders/error_text.dart';
 import '../shared/branch_required.dart';
 import '../shared/invalidate.dart';
 import '../shared/sheets.dart';
@@ -32,6 +31,7 @@ import 'floor_providers.dart';
 import 'floor_util.dart';
 import 'table_glyph.dart';
 import 'transfer_queue.dart';
+import '../shared/error_text.dart';
 
 /// The area chip of the tables without a section.
 const String _unassigned = '__unassigned__';
@@ -140,7 +140,7 @@ class _FloorBodyState extends ConsumerState<_FloorBody> {
 
   void _saveFailed(Object e, {required bool conflict}) {
     if (!mounted) return;
-    final msg = ordersErrorText(e, _t);
+    final msg = sellErrorText(e, _t);
     if (!conflict) {
       DashToast.error(context, msg);
       return;
@@ -268,7 +268,7 @@ class _FloorBodyState extends ConsumerState<_FloorBody> {
       bus.invalidate(SellInvalidate.floor);
       if (mounted) _setSelection(created.toSet());
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, ordersErrorText(e, _t));
+      if (mounted) DashToast.error(context, sellErrorText(e, _t));
     }
   }
 
@@ -294,7 +294,7 @@ class _FloorBodyState extends ConsumerState<_FloorBody> {
       }
       if (mounted) _setSelection({});
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, ordersErrorText(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     }
     // Tables removed before a failure are gone either way: show the truth.
     bus.invalidate(SellInvalidate.floor);
@@ -320,7 +320,7 @@ class _FloorBodyState extends ConsumerState<_FloorBody> {
       bus.invalidate(SellInvalidate.floor);
       if (mounted) setState(() => _sectionKey = null);
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, ordersErrorText(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     }
   }
 

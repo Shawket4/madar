@@ -16,7 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orgs/org_errors.dart';
+import '../shared/org_errors.dart';
 import 'devices_data.dart';
 
 /// Opens the dialog for [device]; [host] is the page, which shows the

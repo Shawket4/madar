@@ -283,8 +283,9 @@ double transitValue(StockTransfer tr) {
 /// A refusal that means the screen is stale (`isStaleRefusal`, the
 /// transfer codes of `STALE_CODES`).
 ///
-/// ponytail: local to this unit; a core `isStaleRefusal` with the web's
-/// whole code set is a candidate once a second unit needs it.
+/// ponytail: local to this unit; team has the same helper for its codes
+/// (team/shared/team_util.dart `isStaleRefusal`), so one core
+/// `isStaleRefusal` with the web's whole `STALE_CODES` is a core candidate.
 bool isStaleTransferRefusal(Object? e) =>
     e is ApiException &&
     (e.code == 'TRANSFER_CHANGED' || e.code == 'TRANSFER_STEP_NOT_OPEN');

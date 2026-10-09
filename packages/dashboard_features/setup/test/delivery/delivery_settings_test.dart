@@ -280,9 +280,9 @@ void main() {
       tester,
     ) async {
       final h = await pumpDelivery(tester, query: _helio);
-      await typeIn(h, 'dlv-outside-open', '930');
+      await enterIn(h, 'dlv-outside-open', '930');
       expect(fieldText(tester, 'dlv-outside-open'), '09:30 AM');
-      await typeIn(h, 'dlv-outside-close', '9:30 pm');
+      await enterIn(h, 'dlv-outside-close', '9:30 pm');
       expect(fieldText(tester, 'dlv-outside-close'), '09:30 PM');
       final clear = inKey(
         'dlv-pickup-open',
@@ -314,6 +314,40 @@ void main() {
       await typeIn(h, 'dlv-in-mall-fee', '');
       await _save(h);
       expect(lastBody(h, 'PUT', DeliveryRoutes.settings)['in_mall_fee'], 0);
+      await h.flushTimers();
+    });
+
+    testWidgets('SET-DLV-007 SET-DLV-012 SET-DLV-013 Enter in a fee, the '
+        'distance or prep time saves, validating what was typed', (
+      tester,
+    ) async {
+      final h = await pumpDelivery(tester, query: _newCairo);
+      await enterIn(h, 'dlv-in-mall-fee', '-5');
+      expect(
+        inKey('dlv-card-in-mall', find.text('Fee cannot be negative')),
+        findsOneWidget,
+      );
+      expect(countCalls(h, 'PUT', DeliveryRoutes.settings), 0);
+      await enterIn(h, 'dlv-in-mall-fee', '8');
+      expect(lastBody(h, 'PUT', DeliveryRoutes.settings)['in_mall_fee'], 800);
+      await h.flushTimers();
+      await enterIn(h, 'dlv-prep', '25');
+      expect(
+        lastBody(h, 'PUT', DeliveryRoutes.settings)['prep_time_minutes'],
+        25,
+      );
+      await h.flushTimers();
+    });
+
+    testWidgets('SET-DLV-013 Enter in the distance saves it', (tester) async {
+      final h = await pumpDelivery(tester, query: _helio);
+      await enterIn(h, 'dlv-distance', '0');
+      expect(countCalls(h, 'PUT', DeliveryRoutes.settings), 0);
+      await enterIn(h, 'dlv-distance', '4500');
+      expect(
+        lastBody(h, 'PUT', DeliveryRoutes.settings)['max_road_distance_meters'],
+        4500,
+      );
       await h.flushTimers();
     });
 

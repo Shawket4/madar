@@ -6,7 +6,6 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
@@ -112,12 +111,6 @@ ExcelSheet<Object?> _erase<T>(ExcelSheet<T> s) => ExcelSheet<Object?>(
       ),
   ],
 );
-
-/// The shop's own logo on the branding tier, else Madar's (`useExportLogo`).
-String? payrollExportLogo(WidgetRef ref) {
-  final brand = ref.read(publicBrandProvider).value;
-  return brand != null && brand.customBranding ? brand.logoUrl : null;
-}
 
 /// `exportToExcel`'s toasts: "Nothing to export" for no rows; otherwise a
 /// loading toast that becomes "Exported N rows" or "Export failed".

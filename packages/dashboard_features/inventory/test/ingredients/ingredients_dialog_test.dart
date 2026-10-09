@@ -33,8 +33,9 @@ String fieldText(WidgetTester tester, String key) => tester
 
 void main() {
   testWidgets('INV-ING-004 / INV-ING-014 New ingredient: empty, unit g, '
-      'General, Advanced closed; suppliers and categories read while open',
-      (tester) async {
+      'General, Advanced closed; suppliers and categories read while open', (
+    tester,
+  ) async {
     final h = await pumpIngredients(tester);
     expect(h.server.callsTo(suppliersRoute), isEmpty);
     expect(h.server.callsTo(categoriesRoute), isEmpty);
@@ -151,8 +152,9 @@ void main() {
   });
 
   testWidgets('INV-ING-019 / INV-ING-029 changing the unit warns, then saves '
-      'the unit and the cost in two requests; the server converts',
-      (tester) async {
+      'the unit and the cost in two requests; the server converts', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     final h = await pumpIngredients(
       tester,
@@ -216,8 +218,10 @@ void main() {
     await h.tap(inDialog(byKey('ingredient-save')));
     await h.expectToast('Changes saved');
     final patch = h.server.callsTo(catalogItemRoute, method: 'PATCH').single;
-    expect(patch.path,
-        '/inventory/orgs/${SeedIds.sabahOrg}/catalog/${InvIds.ingredient('cocoa')}');
+    expect(
+      patch.path,
+      '/inventory/orgs/${SeedIds.sabahOrg}/catalog/${InvIds.ingredient('cocoa')}',
+    );
     final body = patch.body! as Map<String, Object?>;
     expect(body['name'], 'Cocoa Powder 22%');
     expect(body['unit'], 'g');
@@ -269,13 +273,16 @@ void main() {
     );
     expect(sup.searchable, isTrue);
     expect(sup.placeholder, 'No supplier');
-    expect([for (final o in sup.options) o.label], [
-      'Delta Dairy',
-      'Golden Bakery Supply',
-      'Metro Wholesale',
-      'Nile Roasters',
-      'PackRight Egypt',
-    ]);
+    expect(
+      [for (final o in sup.options) o.label],
+      [
+        'Delta Dairy',
+        'Golden Bakery Supply',
+        'Metro Wholesale',
+        'Nile Roasters',
+        'PackRight Egypt',
+      ],
+    );
     await h.tap(inDialog(byKey('ingredient-supplier')));
     expect(find.text('Search'), findsWidgets);
     await h.tap(find.text('Nile Roasters').last);
@@ -283,8 +290,10 @@ void main() {
     await h.enterText(inDialog(byKey('ingredient-name')), 'Brazil Beans');
     await h.tap(inDialog(byKey('ingredient-save')));
     await h.expectToast('Changes saved');
-    expect(lastBody(h, catalogRoute, 'POST')['supplier_id'],
-        InvIds.supplier('nile-roasters'));
+    expect(
+      lastBody(h, catalogRoute, 'POST')['supplier_id'],
+      InvIds.supplier('nile-roasters'),
+    );
   });
 
   testWidgets('INV-ALL-023 an inactive supplier still set shows the '
@@ -294,8 +303,10 @@ void main() {
     expect(inDialog(find.text('No supplier')), findsOneWidget);
     await h.tap(inDialog(byKey('ingredient-save')));
     await h.expectToast('Changes saved');
-    expect(lastBody(h, catalogItemRoute, 'PATCH')['supplier_id'],
-        InvIds.supplier('cairo-fresh'));
+    expect(
+      lastBody(h, catalogItemRoute, 'PATCH')['supplier_id'],
+      InvIds.supplier('cairo-fresh'),
+    );
   });
 
   testWidgets('INV-ING-022 / INV-ING-030 Advanced opens and closes; Cancel '
@@ -343,8 +354,9 @@ void main() {
   });
 
   testWidgets('INV-ING-026 / INV-ING-027 / INV-ING-050 reorder levels per '
-      'ACTIVE branch; only filled rows are saved, after the ingredient',
-      (tester) async {
+      'ACTIVE branch; only filled rows are saved, after the ingredient', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     s.db['branches'].update(SeedIds.heliopolis, {'is_active': false});
     final h = await pumpIngredients(tester, server: s.server, db: s.db);
@@ -362,8 +374,10 @@ void main() {
     for (final b in [SeedIds.maadi, SeedIds.newCairo, SeedIds.zamalek]) {
       expect(inDialog(byKey('ingredient-par-min-$b')), findsOneWidget);
     }
-    expect(inDialog(byKey('ingredient-par-min-${SeedIds.heliopolis}')),
-        findsNothing);
+    expect(
+      inDialog(byKey('ingredient-par-min-${SeedIds.heliopolis}')),
+      findsNothing,
+    );
     await h.enterText(inDialog(byKey('ingredient-name')), 'Pistachio Paste');
     await h.enterText(
       inDialog(byKey('ingredient-par-min-${SeedIds.zamalek}')),
@@ -379,10 +393,13 @@ void main() {
       (r) => r['name'] == 'Pistachio Paste',
     )!;
     final puts = h.server.callsTo(parRoute, method: 'PUT');
-    expect([for (final p in puts) p.path], [
-      '/inventory/branches/${SeedIds.maadi}/stock/${created['id']}/par',
-      '/inventory/branches/${SeedIds.zamalek}/stock/${created['id']}/par',
-    ]);
+    expect(
+      [for (final p in puts) p.path],
+      [
+        '/inventory/branches/${SeedIds.maadi}/stock/${created['id']}/par',
+        '/inventory/branches/${SeedIds.zamalek}/stock/${created['id']}/par',
+      ],
+    );
     expect(puts.first.body, {'par_min': null, 'par_max': 1200});
     expect(puts.last.body, {'par_min': 500, 'par_max': null});
     final calls = h.server.calls.map((c) => c.template).toList();
@@ -404,8 +421,9 @@ void main() {
   });
 
   testWidgets('INV-ING-031 / INV-ALL-011 a failed save toasts the server\'s '
-      'words and keeps the dialog; a new category made first stays',
-      (tester) async {
+      'words and keeps the dialog; a new category made first stays', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     final h = await pumpIngredients(tester, server: s.server, db: s.db);
     await openCreate(h);
@@ -429,8 +447,9 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('INV-ING-031 the server refuses a unit change across measures',
-      (tester) async {
+  testWidgets('INV-ING-031 the server refuses a unit change across measures', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     final h = await pumpIngredients(tester, server: s.server, db: s.db);
     await openEdit(h, 'Sugar');
@@ -483,8 +502,10 @@ void main() {
     final created = s.db[InvTables.ingredients].firstWhere(
       (r) => r['name'] == 'Pistachio Cream',
     )!;
-    expect(patch.path,
-        '/inventory/orgs/${SeedIds.sabahOrg}/catalog/${created['id']}');
+    expect(
+      patch.path,
+      '/inventory/orgs/${SeedIds.sabahOrg}/catalog/${created['id']}',
+    );
     expect(created['cost_per_unit'], 150);
     expect(h.server.callsTo(parRoute, method: 'PUT'), hasLength(2));
     expect(
@@ -512,8 +533,10 @@ void main() {
     await h.tap(inDialog(byKey('ingredient-save')));
     await h.expectToast('Changes saved');
     final posts = h.server.callsTo(categoriesRoute, method: 'POST');
-    expect([for (final p in posts) (p.body! as Map)['name']],
-        ['Nut Paste', 'Nut Pastes']);
+    expect(
+      [for (final p in posts) (p.body! as Map)['name']],
+      ['Nut Paste', 'Nut Pastes'],
+    );
     final cat = s.db[InvTables.categories].firstWhere(
       (c) => c['name'] == 'Nut Pastes',
     )!;

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'tills_data.dart';
+import '../shared/error_text.dart';
 
 /// Shows the dialog (a full-screen sheet on a phone).
 Future<void> showOpenTillDialog(
@@ -73,7 +74,7 @@ class _OpenTillDialogState extends ConsumerState<OpenTillDialog> {
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;
-      DashToast.error(context, tillsErrorMessage(e, t));
+      DashToast.error(context, sellErrorText(e, t));
       setState(() => _pending = false);
     }
   }

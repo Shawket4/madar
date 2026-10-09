@@ -20,11 +20,11 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orgs/org_errors.dart' show orgErrorWords;
 import '../shared/access_tabs.dart';
 import '../shared/capability_catalog.dart' show isCoreFor, roleHolds;
 import '../shared/capability_groups.dart';
 import '../shared/limits_button.dart';
+import '../shared/org_errors.dart' show orgErrorWords;
 import '../shared/url_params.dart';
 import 'ask_manager_card.dart';
 import 'role_dialog.dart';
@@ -147,8 +147,9 @@ class _RolesPageState extends ConsumerState<RolesPage> {
   Widget _control(RoleView role, CapabilityMeta meta, bool canManage) {
     if (isCoreFor(meta, role.kind)) return const AlwaysOnBadge();
     final lang = ref.read(localeProvider);
-    final on = roleHolds([for (final g in role.grants) g.capability], role.kind)
-        .contains(meta.key);
+    final on = roleHolds([
+      for (final g in role.grants) g.capability,
+    ], role.kind).contains(meta.key);
     final grant = role.grants.firstWhereOrNull((g) => g.capability == meta.key);
     final disabled = !canManage || !role.editable || _busy == meta.key;
     return Row(

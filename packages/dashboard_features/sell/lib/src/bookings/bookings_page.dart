@@ -27,12 +27,12 @@ import '../shared/phone.dart';
 import '../shared/sheets.dart';
 import '../floor/floor_providers.dart' show floorTablesProvider;
 import 'booking_dialog.dart';
-import 'booking_errors.dart';
 import 'booking_settings_dialog.dart';
 import 'bookings_parts.dart';
 import 'bookings_providers.dart';
 import 'bookings_timeline.dart';
 import 'bookings_util.dart';
+import '../shared/error_text.dart';
 
 class BookingsPage extends ConsumerStatefulWidget {
   const BookingsPage({this.date, this.bookingId, super.key});
@@ -170,7 +170,7 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
       if (!mounted) return;
       DashToast.success(context, done);
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, bookingErrorText(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     }
   }
 
@@ -271,7 +271,7 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
         outcome.message(t),
       );
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, bookingErrorText(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -620,7 +620,7 @@ class _BookingsList extends ConsumerWidget {
           rows: rows,
           rowKey: (b) => b.id,
           loading: listQ.awaitingFirst,
-          errorMessage: error == null ? null : bookingErrorText(error, t),
+          errorMessage: error == null ? null : sellErrorText(error, t),
           onRetry: onRetry,
           onRowTap: (b) {
             if (isActiveBooking(b.status)) onEdit(b);

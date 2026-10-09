@@ -16,7 +16,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orgs/org_errors.dart';
+import '../shared/org_errors.dart';
 import 'devices_data.dart';
 import 'devices_table.dart';
 
@@ -99,6 +99,7 @@ class ActivationCodesSection extends ConsumerWidget {
             rowKey: (r) => r.id,
             loading: q.awaitingFirst,
             errorMessage: q.failedFirst ? orgErrorWords(q.error, t) : null,
+            retrying: q.isLoading,
             onRetry: () => ref.invalidate(activationCodesProvider(branchId)),
             hideViewOptions: true,
             pageSize: 10,
@@ -151,6 +152,7 @@ class ActivationCodesSection extends ConsumerWidget {
                     ? const DevicesDash()
                     : MadarClippedText(
                         r.label!,
+                        textDirection: dashTextDirectionOf(r.label!),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: DashType.body.copyWith(color: c.textPrimary),

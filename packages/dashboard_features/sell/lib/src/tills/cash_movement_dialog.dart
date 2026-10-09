@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'open_till_dialog.dart' show parseAmount;
 import 'tills_data.dart';
+import '../shared/error_text.dart';
 
 Future<void> showCashMovementDialog(
   BuildContext context, {
@@ -70,7 +71,7 @@ class _CashMovementDialogState extends ConsumerState<CashMovementDialog> {
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;
-      DashToast.error(context, tillsErrorMessage(e, t));
+      DashToast.error(context, sellErrorText(e, t));
       setState(() => _pending = false);
     }
   }

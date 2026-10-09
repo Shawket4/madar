@@ -18,7 +18,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart' show Bidi;
 
 import 'basira_charts.dart';
 import 'basira_controller.dart';
@@ -559,9 +558,7 @@ class _ConversationItemState extends ConsumerState<_ConversationItem> {
                     // the Arabic rail ends in its ellipsis (REP-BAS-007).
                     MadarClippedText(
                       conv.title,
-                      textDirection: Bidi.startsWithRtl(conv.title)
-                          ? TextDirection.rtl
-                          : TextDirection.ltr,
+                      textDirection: dashTextDirectionOf(conv.title),
                       textAlign: t.isRtl ? TextAlign.right : TextAlign.left,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

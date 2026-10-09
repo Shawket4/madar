@@ -476,7 +476,15 @@ void main() {
       expect(onPage(shown(h, boom)), findsOneWidget);
       expect(onPage('Nothing to review'), findsNothing);
       final others = h.server.calls.length - flagReads(h).length;
+      final gate = s.server.hold('GET', flagsRoute);
       await h.tap(onPage('Retry'));
+      // Retrying: the table's Retry spins.
+      expect(
+        tester.widget<DashErrorState>(find.byType(DashErrorState)).retrying,
+        isTrue,
+      );
+      gate.release();
+      await h.settle();
       expect(onPage('Hana Mostafa'), findsOneWidget);
       expect(h.server.calls.length - flagReads(h).length, others);
     });

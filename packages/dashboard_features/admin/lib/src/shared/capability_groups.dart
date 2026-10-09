@@ -204,7 +204,10 @@ class _CapabilityRow extends StatelessWidget {
               )
             : Row(
                 spacing: Space.lg,
-                children: [Expanded(child: words), control],
+                children: [
+                  Expanded(child: words),
+                  control,
+                ],
               ),
       ),
     );

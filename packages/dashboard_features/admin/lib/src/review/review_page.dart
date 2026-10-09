@@ -14,9 +14,9 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orgs/org_errors.dart' show orgErrorWords;
 import '../shared/access_tabs.dart';
 import '../shared/capability_catalog.dart';
+import '../shared/org_errors.dart' show orgErrorWords;
 import 'review_data.dart';
 
 class ReviewPage extends ConsumerStatefulWidget {
@@ -213,6 +213,7 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
         rowKey: (f) => f.id,
         loading: q.awaitingFirst,
         errorMessage: q.failedFirst ? orgErrorWords(q.error, t) : null,
+        retrying: q.isLoading,
         onRetry: () => ref.invalidate(reviewFlagsProvider(_showReviewed)),
         pageSize: 20,
         hideViewOptions: true,
@@ -270,6 +271,7 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
             text: (f) => f.authorName ?? '—',
             cell: (context, f) => MadarClippedText(
               f.authorName ?? '—',
+              textDirection: dashTextDirectionOf(f.authorName ?? '—'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: DashType.bodyMedium.copyWith(color: c.textPrimary),
@@ -285,7 +287,12 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
               final w = _what(f, t);
               return Align(
                 alignment: AlignmentDirectional.centerStart,
-                child: _ReasonPill(label: w.label, tone: w.tone),
+                child: DashStatusPill(
+                  label: w.label,
+                  tone: w.tone,
+                  small: true,
+                  wrap: true,
+                ),
               );
             },
           ),
@@ -361,51 +368,6 @@ String pendingWords(String reason, Translator t) {
   return t.isRtl && RegExp(r'^[\x00-\x7F]+$').hasMatch(reason)
       ? t('errors.unknown')
       : reason;
-}
-
-/// A status pill that wraps (the web's `h-auto whitespace-normal` pill for a
-/// detail's sentence); the kit's pill is one line.
-/// The web's `StatusPill size="sm"` glyph (`size-3`), as the kit's small
-/// pill draws it; [IconSize.xs] (14) is the smallest token.
-const double _pillGlyph = 12;
-
-class _ReasonPill extends StatelessWidget {
-  const _ReasonPill({required this.label, required this.tone});
-
-  final String label;
-  final DashTone tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    final fg = tone.foreground(c);
-    return Container(
-      constraints: const BoxConstraints(minHeight: DashMetrics.pillSmall),
-      padding: const EdgeInsetsDirectional.only(
-        start: Space.xs + DashMetrics.hair,
-        end: Space.sm,
-        top: DashMetrics.hair,
-        bottom: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        color: tone.wash(c),
-        borderRadius: BorderRadius.circular(Radii.pill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: Space.xs,
-        children: [
-          DashIcon(DashStatusPill.glyphFor(tone), size: _pillGlyph, color: fg),
-          Flexible(
-            child: Text(
-              label,
-              style: DashType.tableHeader.copyWith(color: fg, letterSpacing: 0),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// A bordered toolbar control with its words beside it; the words press it

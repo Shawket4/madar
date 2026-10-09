@@ -35,10 +35,7 @@ void main() {
     await mouse.moveTo(tester.getCenter(row));
     await h.settle();
     expect(lists(), hasLength(1), reason: 'warmed on hover');
-    expect(
-      h.server.callsTo(listRoute).single.query['org_id'],
-      isNotEmpty,
-    );
+    expect(h.server.callsTo(listRoute).single.query['org_id'], isNotEmpty);
 
     await h.tap(row);
     expect(h.location.path, usersPath);

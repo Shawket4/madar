@@ -8,6 +8,7 @@ import 'package:dashboard_core/shell.dart' show DashSidebar;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/approvals/approvals_dialogs.dart';
+import 'package:dashboard_team/src/payroll/money_dialogs.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:dashboard_team/src/requests/requests_page.dart';
 import 'package:dashboard_team/src/requests/requests_providers.dart';
@@ -593,7 +594,7 @@ void main() {
     expect(lastBody(h, decideT), {'status': 'rejected', 'note': null});
     expect(lastDecidePath(h), '/staff/requests/$youssef/decision');
     await h.expectToast(h.t('staff.decisionSaved'));
-    expect(find.byType(RejectReasonDialog), findsNothing);
+    expect(find.byType(ReasonDialog), findsNothing);
     expect(gets(h), lists + 1);
 
     await h.tap(rejectIn(_farida));
@@ -619,7 +620,7 @@ void main() {
     await h.tap(rejectIn(_youssef));
     await h.tap(inSurface(find.text('Reject')).last);
     expect(find.textContaining('already decided'), findsWidgets);
-    expect(find.byType(RejectReasonDialog), findsOneWidget);
+    expect(find.byType(ReasonDialog), findsOneWidget);
     expect(gets(h), lists + 1);
     await h.flushTimers();
   });

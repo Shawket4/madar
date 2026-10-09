@@ -27,10 +27,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../branches/branches_data.dart' show adminBranchesProvider;
-import '../orgs/org_errors.dart' show orgErrorWords;
 import '../shared/capability_catalog.dart' show bilingual;
 import '../shared/capability_groups.dart';
 import '../shared/limits_button.dart';
+import '../shared/org_errors.dart' show orgErrorWords;
 import 'users_data.dart';
 
 /// Opens [user]'s access; resolves when it closes.
@@ -238,7 +238,10 @@ class _PersonAccessState extends ConsumerState<PersonAccessSheet> {
           for (final b in branches) DashOption(value: b.id, label: b.name),
         ],
         onOptionIntent: (v) => ref.warm(
-          userAccessProvider((id: widget.user.id, branchId: v == _all ? null : v)),
+          userAccessProvider((
+            id: widget.user.id,
+            branchId: v == _all ? null : v,
+          )),
         ),
         onChanged: (v) => setState(() => _branch = v == _all ? null : v),
       );
@@ -462,9 +465,7 @@ class _AssignmentsState extends ConsumerState<_AssignmentsEditor> {
                           a.allBranches
                               ? t('access.allBranches')
                               : a.branchIds.map(_branchName).join('، '),
-                          style: DashType.body.copyWith(
-                            color: c.textSecondary,
-                          ),
+                          style: DashType.body.copyWith(color: c.textSecondary),
                         ),
                       ],
                     ),
@@ -664,7 +665,9 @@ class _WhyButtonState extends ConsumerState<WhyButton> {
 
   String _step(ExplainStep s, Translator t, String lang) {
     final name = s.roleName;
-    final role = name == null ? '' : bilingual(name, s.roleNameAr ?? name, lang);
+    final role = name == null
+        ? ''
+        : bilingual(name, s.roleNameAr ?? name, lang);
     return switch (s.kind) {
       'owner' => t('access.whyOwner'),
       'inactive' => t('access.whyInactive'),
@@ -714,9 +717,7 @@ class _WhyButtonState extends ConsumerState<WhyButton> {
                   children: [
                     Text(
                       bilingual(d.labelEn, d.labelAr, lang),
-                      style: DashType.bodyStrong.copyWith(
-                        color: c.textPrimary,
-                      ),
+                      style: DashType.bodyStrong.copyWith(color: c.textPrimary),
                     ),
                     Text(
                       t(

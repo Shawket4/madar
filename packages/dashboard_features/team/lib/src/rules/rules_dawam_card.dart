@@ -13,7 +13,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 
-import 'night_range_field.dart';
+import '../shared/time_range_field.dart';
 import 'rules_form.dart';
 import 'rules_parts.dart';
 
@@ -231,7 +231,7 @@ class DawamRulesCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               spacing: Space.xs + DashMetrics.hair,
               children: [
-                NightRangeField(
+                TeamTimeRangeField(
                   startKey: RulesDawamKeys.nightStart,
                   endKey: RulesDawamKeys.nightEnd,
                   start: value.nightStart,
@@ -242,14 +242,6 @@ class DawamRulesCard extends StatelessWidget {
                   groupLabel: t('dawam.nightWindow'),
                   startLabel: t('dawam.nightStart'),
                   endLabel: t('dawam.nightEnd'),
-                  lang: t.lang,
-                  sameTimeText: t('inputs.sameTime'),
-                  endsNextDayText: t('inputs.endsNextDay'),
-                  nextDayShortText: t('inputs.nextDayShort'),
-                  longOvernightText: (l) =>
-                      t('inputs.longOvernight', args: {'length': l}),
-                  didYouMeanText: (time) =>
-                      t('inputs.didYouMean', args: {'time': time}),
                 ),
                 RulesHintText(t('dawam.nightUnconfirmed')),
               ],

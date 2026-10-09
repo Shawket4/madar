@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'open_till_dialog.dart' show parseAmount;
 import 'tills_data.dart';
+import '../shared/error_text.dart';
 
 /// Shows the close dialog for [till]; then, when the close's answer carries
 /// one, the last-till warning.
@@ -143,7 +144,7 @@ class _CloseTillDialogState extends ConsumerState<CloseTillDialog> {
       Navigator.of(context).pop(res.lastTillWarning);
     } on Object catch (e) {
       if (!mounted) return;
-      DashToast.error(context, tillsErrorMessage(e, t));
+      DashToast.error(context, sellErrorText(e, t));
       setState(() => _pending = false);
     }
   }
@@ -159,7 +160,7 @@ class _CloseTillDialogState extends ConsumerState<CloseTillDialog> {
       body = _form(context, t, data);
     } else if (preview.failedFirst) {
       body = DashErrorState(
-        message: tillsErrorMessage(preview.error, t),
+        message: sellErrorText(preview.error, t),
         onRetry: () => ref.invalidate(closePreviewProvider(widget.till.id)),
         retrying: preview.isLoading,
         framed: false,

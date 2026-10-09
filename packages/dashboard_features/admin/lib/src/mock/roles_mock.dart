@@ -71,8 +71,11 @@ List<CapabilityMeta> _template(String kind) => [
       c,
 ];
 
-Map<String, Object?> _grant(CapabilityMeta c, Map<String, Object?>? limits) =>
-    {'capability': c.key, 'limits': limits ?? const {}, 'source': 'custom'};
+Map<String, Object?> _grant(CapabilityMeta c, Map<String, Object?>? limits) => {
+  'capability': c.key,
+  'limits': limits ?? const {},
+  'source': 'custom',
+};
 
 /// `Limits::restricted_to(meta.limits)`: only the limits it takes.
 Map<String, Object?> _restrict(LimitsView? l, CapabilityMeta meta) => {
@@ -291,7 +294,11 @@ void registerRolesMocks(MockServer server, MockDb db) {
   ];
 
   // Any member of the org may read it (the POS shows the ask step by it).
-  server.on('GET', '/authz/policy', (req) => MockResponse.ok(policyOf(orgOf(req))));
+  server.on(
+    'GET',
+    '/authz/policy',
+    (req) => MockResponse.ok(policyOf(orgOf(req))),
+  );
 
   server.on('PUT', '/authz/policy', (req) {
     final org = orgOf(req);

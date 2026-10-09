@@ -21,9 +21,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../branches/branches_data.dart' show adminBranchesProvider;
-import '../orgs/org_errors.dart' show orgErrorWords;
 import '../orgs/orgs_providers.dart' show orgsListProvider;
 import '../shared/access_tabs.dart';
+import '../shared/export_logo.dart';
+import '../shared/org_errors.dart' show orgErrorWords;
 import '../shared/pick_org_state.dart';
 import '../shared/row_action.dart';
 import '../shared/url_params.dart';
@@ -105,7 +106,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
         .exportToExcel(
           ExcelConfig(
             filename: 'Madar-Users',
-            logoUrl: brand?.customBranding == true ? brand?.logoUrl : null,
+            logoUrl: exportLogoUrl(brand),
             sheets: [
               ExcelSheet<UserPublic>(
                 name: t('users.title'),
@@ -257,6 +258,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
             users: users,
             loading: loading,
             errorText: error == null ? null : orgErrorWords(error, t),
+            retrying: list.isLoading,
             onRetry: () => ref.invalidate(usersListProvider(orgId)),
             canAccess: authz.can(Cap.staffPermissionsRead),
             canEdit: authz.can(Cap.staffUsersEdit),
@@ -333,6 +335,7 @@ class _UsersTable extends ConsumerWidget {
     required this.users,
     required this.loading,
     required this.errorText,
+    required this.retrying,
     required this.onRetry,
     required this.canAccess,
     required this.canEdit,
@@ -351,6 +354,7 @@ class _UsersTable extends ConsumerWidget {
   final List<UserPublic> users;
   final bool loading;
   final String? errorText;
+  final bool retrying;
   final VoidCallback onRetry;
   final bool canAccess;
   final bool canEdit;
@@ -424,6 +428,7 @@ class _UsersTable extends ConsumerWidget {
       rowKey: (u) => u.id,
       loading: loading,
       errorMessage: errorText,
+      retrying: retrying,
       onRetry: onRetry,
       onRowTap: onOpen,
       rowSemanticLabel: (u) => u.name,
@@ -524,6 +529,7 @@ class _NameCell extends StatelessWidget {
             children: [
               MadarClippedText(
                 user.name,
+                textDirection: dashTextDirectionOf(user.name),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: DashType.bodyStrong.copyWith(color: c.textPrimary),

@@ -1,7 +1,7 @@
 // The Organizations rules on their own (the web's provision.test.ts,
 // social-links.test.ts, tax-rate.test.ts and errors ladder): slugs, the
 // provision body, social links, rates and the words for a failure.
-import 'package:dashboard_admin/src/orgs/org_errors.dart';
+import 'package:dashboard_admin/src/shared/org_errors.dart';
 import 'package:dashboard_admin/src/orgs/provision.dart';
 import 'package:dashboard_admin/src/orgs/social_links.dart';
 import 'package:dashboard_admin/src/shared/tax_rate.dart';

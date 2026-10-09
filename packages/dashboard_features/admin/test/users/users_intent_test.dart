@@ -41,13 +41,21 @@ void main() {
     expect(_gets(h, accessRoute, 'mariam'), 0);
 
     await _rest(h, mouse, action);
-    expect(_gets(h, accessRoute, 'mariam'), 1, reason: 'the access read is warmed');
+    expect(
+      _gets(h, accessRoute, 'mariam'),
+      1,
+      reason: 'the access read is warmed',
+    );
     final roles = h.server.callsTo(rolesRoute, method: 'GET').length;
     expect(roles, 1, reason: 'the roles card read is warmed');
 
     await h.tap(action);
     expect(h.location.queryParameters['access'], uid('mariam'));
-    expect(_gets(h, accessRoute, 'mariam'), 1, reason: 'the sheet opened from cache');
+    expect(
+      _gets(h, accessRoute, 'mariam'),
+      1,
+      reason: 'the sheet opened from cache',
+    );
     expect(h.server.callsTo(rolesRoute, method: 'GET'), hasLength(roles));
 
     await h.tap(field('access-where'));
@@ -60,8 +68,9 @@ void main() {
     await h.settle();
   });
 
-  testWidgets('ADM-USR-033 Assign branches warms the person\'s branches',
-      (tester) async {
+  testWidgets('ADM-USR-033 Assign branches warms the person\'s branches', (
+    tester,
+  ) async {
     final h = await pumpUsers(tester);
     final mouse = await _mouse(tester);
     final action = rowAction('Adham Reda', 'Assign branches');
@@ -71,13 +80,16 @@ void main() {
 
     await h.tap(action);
     expect(h.location.queryParameters['branches'], uid('adham'));
-    expect(_gets(h, userBranchesRoute, 'adham'), 1, reason: 'opened from cache');
+    expect(
+      _gets(h, userBranchesRoute, 'adham'),
+      1,
+      reason: 'opened from cache',
+    );
     expect(h.server.callsTo(branchesRoute, method: 'GET'), hasLength(branches));
   });
 
   testWidgets('ADM-USR-022 a platform admin\'s New warms the org list; '
-      'the dialog opens on it with no request',
-      (tester) async {
+      'the dialog opens on it with no request', (tester) async {
     final h = await pumpUsers(tester, persona: Persona.platform);
     await h.container
         .read(selectedOrgProvider.notifier)
@@ -90,8 +102,11 @@ void main() {
     // so the rest may ask nothing; the press must ask nothing either way.
     final warmed = h.server.callsTo('/orgs', method: 'GET').length;
     expect(warmed, greaterThanOrEqualTo(before));
-    expect(h.container.exists(orgsListProvider), isTrue,
-        reason: 'the dialog\'s read is warmed');
+    expect(
+      h.container.exists(orgsListProvider),
+      isTrue,
+      reason: 'the dialog\'s read is warmed',
+    );
 
     await h.tap(field('users-new'));
     expect(h.location.queryParameters['edit'], 'new');

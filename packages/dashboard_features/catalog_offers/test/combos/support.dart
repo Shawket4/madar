@@ -135,9 +135,8 @@ Finder rowButton(String name, String label) => inRow(
 );
 
 /// The page's button labelled [label] (a header action, the empty state's).
-Finder pageButton(String label) => inPage(
-  find.byWidgetPredicate((w) => w is DashButton && w.label == label),
-);
+Finder pageButton(String label) =>
+    inPage(find.byWidgetPredicate((w) => w is DashButton && w.label == label));
 
 /// A filter select whose accessible name is [label].
 Finder filterSelect(String label) => inPage(
@@ -154,5 +153,8 @@ List<String> shownNames(WidgetTester tester) => [
 ];
 
 /// The calls made to [template] with [method].
-List<MockCall> callsTo(DashHarness h, String template, {String method = 'GET'}) =>
-    h.server.callsTo(template, method: method);
+List<MockCall> callsTo(
+  DashHarness h,
+  String template, {
+  String method = 'GET',
+}) => h.server.callsTo(template, method: method);

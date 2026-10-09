@@ -8,7 +8,7 @@ import 'package:dashboard_api/dashboard_api.dart' show Branch, PrinterBrand;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orgs/org_errors.dart' show orgErrorWords;
+import '../shared/org_errors.dart' show orgErrorWords;
 
 /// `GET /branches?org_id=<org>&include_warehouses=true` (listBranches) for
 /// [orgId]: every branch and warehouse, inactive included, unpaginated. The

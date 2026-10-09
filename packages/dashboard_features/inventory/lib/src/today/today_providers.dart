@@ -5,7 +5,7 @@
 /// it.
 ///
 /// The reads Today shares with other pages (catalog, suppliers, branch stock,
-/// stocktakes) are `shared/inventory_data.dart`'s.
+/// stocktakes, the waste log) are `shared/inventory_data.dart`'s.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -110,15 +110,6 @@ final todayOrdersProvider = FutureProvider.autoDispose
             orgId: k.orgId,
             expectedBefore: DateTime.parse(k.expectedBefore),
           );
-    });
-
-/// `GET /inventory/branches/{branch_id}/waste` (the server's default page:
-/// the 200 most recent).
-final todayWasteProvider = FutureProvider.autoDispose
-    .family<List<StockMovement>, String>((ref, branchId) {
-      ref.webCache();
-      ref.watch(realtimeEpochProvider('/inventory/branches/$branchId/waste'));
-      return ref.watch(apiProvider).inventory.listWaste(branchId: branchId);
     });
 
 /// The orders that are on their way: placed (`ordered`) or partly in

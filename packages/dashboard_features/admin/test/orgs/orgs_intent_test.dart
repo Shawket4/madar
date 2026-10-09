@@ -42,8 +42,11 @@ void main() {
     // The shell's org picker already holds the one shared /orgs entry, so a
     // fresh entry needs no request on hover; a cold one asks once.
     final warmed = lists().length;
-    expect(warmed, inInclusiveRange(before, before + 1),
-        reason: 'warmed on hover');
+    expect(
+      warmed,
+      inInclusiveRange(before, before + 1),
+      reason: 'warmed on hover',
+    );
 
     await h.tap(row);
     expect(h.location.path, '/orgs');

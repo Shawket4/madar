@@ -489,8 +489,25 @@ void main() {
     ) async {
       final h = await _pump(tester, query: _zamalek);
       await h.tap(inZones(byKey('dzn-new')));
-      await typeIn(h, 'dzn-name', 'Gezira');
+      await enterIn(h, 'dzn-name', 'Gezira');
       expect(lastBody(h, 'POST', DeliveryRoutes.zones)['name'], 'Gezira');
+      await h.expectToast('Zone created');
+      expect(_dialog(), findsNothing);
+    });
+
+    testWidgets('SET-DZN-016 SET-DZN-017 Enter in the km or fee field '
+        'submits the form, validating what was typed', (tester) async {
+      final h = await _pump(tester, query: _zamalek);
+      await h.tap(inZones(byKey('dzn-new')));
+      await enterIn(h, 'dzn-km', '0');
+      expect(inDialog(find.text('Distance must be greater than 0')),
+          findsOneWidget);
+      expect(countCalls(h, 'POST', DeliveryRoutes.zones), 0);
+      await typeIn(h, 'dzn-km', '3');
+      await enterIn(h, 'dzn-fee', '15');
+      final body = lastBody(h, 'POST', DeliveryRoutes.zones);
+      expect(body['max_road_distance_meters'], 3000);
+      expect(body['fee'], 1500);
       await h.expectToast('Zone created');
       expect(_dialog(), findsNothing);
     });

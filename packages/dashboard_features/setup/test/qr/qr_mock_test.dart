@@ -118,7 +118,13 @@ void main() {
       'branch takes them', () async {
     final m = setupMockServer();
     final qr = DashboardApi(m.server).qr;
-    expect((await _refusal(qr.branchBookingQr(id: SeedIds.maadi))).status, 409);
+    expect(
+      (await _refusal(qr.branchBookingQr(id: SeedIds.zamalek))).status,
+      409,
+    );
+    m.db['booking_settings'].removeWhere(
+      (r) => r['branch_id'] == SeedIds.newCairo,
+    );
     expect(
       (await _refusal(qr.branchBookingQr(id: SeedIds.newCairo))).status,
       409,

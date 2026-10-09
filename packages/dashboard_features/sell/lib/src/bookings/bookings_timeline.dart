@@ -12,10 +12,10 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'booking_errors.dart';
 import 'bookings_parts.dart';
 import 'bookings_providers.dart';
 import 'bookings_util.dart';
+import '../shared/error_text.dart';
 
 class BookingsTimeline extends ConsumerWidget {
   const BookingsTimeline({
@@ -63,7 +63,7 @@ class BookingsTimeline extends ConsumerWidget {
         : (listQ.failedFirst ? listQ : null);
     if (failed != null) {
       return DashErrorState(
-        message: bookingErrorText(failed.error, t),
+        message: sellErrorText(failed.error, t),
         retryLabel: t('common.retry'),
         retrying: failed.isLoading,
         onRetry: identical(failed, tablesQ) ? onRetryTables : onRetryList,

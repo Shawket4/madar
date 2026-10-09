@@ -32,6 +32,7 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 
 import '../area_seed.dart';
+import 'branch_setup_mock.dart' show BranchPlanRefusals, BranchPlanTables;
 
 /// The routes, for tests.
 abstract final class DevicesRoutes {
@@ -45,10 +46,6 @@ abstract final class DevicesRoutes {
 final RegExp _deviceCode = RegExp(r'^[A-Z0-9]{1,6}$');
 
 const Set<String> _kinds = {'pos', 'kds', 'waiter'};
-
-/// The branch builder's slots table (`branch_device_slots`, the branch_setup
-/// unit's `BranchPlanTables.slots`), read here as the server's SQL does.
-const String _slotsTable = 'branch_device_slots';
 
 void registerDevicesMocks(MockServer server, MockDb db) {
   MockTable devices() => db[AdminTables.devices];
@@ -212,10 +209,10 @@ void registerDevicesMocks(MockServer server, MockDb db) {
     final slotId = body.slotId;
     MockRow? slot;
     if (slotId != null) {
-      slot = db[_slotsTable].firstWhere(
+      slot = db[BranchPlanTables.slots].firstWhere(
         (s) => s['id'] == slotId && s['branch_id'] == body.branchId,
       );
-      if (slot == null) req.notFound("That slot is not in this branch's plan");
+      if (slot == null) req.notFound(BranchPlanRefusals.slotGone);
     }
     final kind = slot != null
         ? (slot['kind'] == 'kitchen' ? 'kds' : '${slot['kind']}')

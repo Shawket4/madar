@@ -18,9 +18,9 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart' show DateFormat;
 
 import '../shared/invalidate.dart';
-import 'booking_errors.dart';
 import 'bookings_parts.dart';
 import 'bookings_providers.dart';
+import '../shared/error_text.dart';
 
 Future<void> showBookingSettingsDialog(
   BuildContext context, {
@@ -136,7 +136,7 @@ class _BookingSettingsDialogState extends ConsumerState<BookingSettingsDialog> {
       DashToast.success(context, t('common.savedChanges'));
       Navigator.of(context).pop();
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, bookingErrorText(e, t));
+      if (mounted) DashToast.error(context, sellErrorText(e, t));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -213,7 +213,7 @@ class _BookingSettingsDialogState extends ConsumerState<BookingSettingsDialog> {
       // Divergence SELL-BKG-079: the web stays on "Loading…" forever.
       body = DashErrorState(
         framed: false,
-        message: bookingErrorText(q.error, t),
+        message: sellErrorText(q.error, t),
         retryLabel: t('common.retry'),
         retrying: q.isLoading,
         onRetry: () => ref.invalidate(bookingSettingsProvider(widget.branchId)),

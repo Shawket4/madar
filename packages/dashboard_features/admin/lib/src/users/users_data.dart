@@ -63,6 +63,9 @@ final accessRolesProvider = FutureProvider.autoDispose<List<RoleView>>((ref) {
 
 /// `GET /staff/employees/linkable` (linkableUsers): the accounts that are
 /// not employees yet, read only when Make employee can show (ADM-USR-014).
+/// The team dialog reads the same list through its own provider (warmed by
+/// `AddEmployeeOpener.warm`): admin cannot import team, so the web's one
+/// shared query is two here (logged in docs/fdash/divergences/admin-users.md).
 final linkableUsersProvider = FutureProvider.autoDispose<List<LinkableUser>>((
   ref,
 ) {
@@ -100,7 +103,11 @@ bool isTillRole(UserRole role) =>
 /// Super Admin.
 List<UserRole> roleOptionsFor(String? viewerRole) => switch (viewerRole) {
   'super_admin' => allUserRoles,
-  'branch_manager' => const [UserRole.teller, UserRole.waiter, UserRole.kitchen],
+  'branch_manager' => const [
+    UserRole.teller,
+    UserRole.waiter,
+    UserRole.kitchen,
+  ],
   _ => [
     for (final r in allUserRoles)
       if (r != UserRole.superAdmin) r,

@@ -15,6 +15,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/report_shared.dart' show ReportAsync, exportLogoUrl;
 import 'audit_cards.dart';
 import 'legal_export.dart';
 import 'legal_providers.dart';
@@ -53,7 +54,7 @@ class _LegalAuditTabState extends ConsumerState<LegalAuditTab> {
     final title = t(widget.tab.labelKey);
     return ExcelConfig(
       filename: 'Madar-$title',
-      logoUrl: legalExportLogo(ref),
+      logoUrl: exportLogoUrl(ref),
       sheets: auditSheets(
         t: t,
         report: d,
@@ -85,7 +86,7 @@ class _LegalAuditTabState extends ConsumerState<LegalAuditTab> {
     final AsyncValue<AuditReport?> q = widget.enabled && key != null
         ? ref.watch(legalAuditProvider(key))
         : const AsyncData<AuditReport?>(null);
-    if (q.hasError && !q.retrying) {
+    if (q.failed) {
       // The error stays (its Retry spinning) while a retry runs.
       return DashErrorState(
         retrying: q.isLoading,

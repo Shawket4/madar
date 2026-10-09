@@ -18,7 +18,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../rules/night_range_field.dart';
+import '../shared/time_range_field.dart';
 import '../shared/attendance_errors.dart';
 import '../shared/staff_query.dart';
 import '../shared/team_format.dart';
@@ -276,7 +276,7 @@ class _DayEditorState extends ConsumerState<DayEditor> {
                       ),
                       if (s.timesEdited) DashBadge(t('dawam.edited')),
                       if (s.changed)
-                        _OutlineBadge(t('dawam.changedAfterPublish')),
+                        DashBadge(t('dawam.changedAfterPublish'), outline: true),
                     ],
                   ),
                 ),
@@ -322,7 +322,7 @@ class _DayEditorState extends ConsumerState<DayEditor> {
               ],
             ),
             if (_editing == s.workShiftId) ...[
-              NightRangeField(
+              TeamTimeRangeField(
                 key: const Key('day-times'),
                 start: _from,
                 end: _to,
@@ -333,14 +333,6 @@ class _DayEditorState extends ConsumerState<DayEditor> {
                 startLabel: t('dawam.from'),
                 endLabel: t('dawam.to'),
                 groupLabel: t('dawam.editTimesOf', args: {'shift': s.shiftName}),
-                lang: t.lang,
-                sameTimeText: t('inputs.sameTime'),
-                endsNextDayText: t('inputs.endsNextDay'),
-                nextDayShortText: t('inputs.nextDayShort'),
-                longOvernightText: (l) =>
-                    t('inputs.longOvernight', args: {'length': l}),
-                didYouMeanText: (time) =>
-                    t('inputs.didYouMean', args: {'time': time}),
               ),
               if (editClash.isNotEmpty)
                 _ClashNote(
@@ -595,31 +587,6 @@ class _DayEditorState extends ConsumerState<DayEditor> {
           onPressed: _busy ? null : () => _dayOff(shifts, published),
         ),
       ],
-    );
-  }
-}
-
-class _OutlineBadge extends StatelessWidget {
-  const _OutlineBadge(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: c.hairline),
-      ),
-      child: Text(
-        label,
-        style: DashType.smallMedium.copyWith(color: c.textPrimary),
-      ),
     );
   }
 }

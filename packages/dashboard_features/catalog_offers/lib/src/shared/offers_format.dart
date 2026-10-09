@@ -7,6 +7,8 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show SaleWindow;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashTime;
+import 'package:flutter/services.dart';
 
 // ── Weekdays (bit 0 = Sunday … bit 6 = Saturday) ──────────────────────────
 
@@ -180,3 +182,20 @@ const String oneSize = 'one_size';
 /// A size's display label: `one_size` reads "Standard".
 String sizeLabelText(Translator t, String label) =>
     label == oneSize ? t('combos.oneSize') : label;
+
+/// What a number box takes (the web's `type="number"`): digits, a point and
+/// a minus; Arabic-Indic digits are read as Western ones.
+class NumberText extends TextInputFormatter {
+  const NumberText();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final latin = DashTime.latinDigits(newValue.text);
+    if (!RegExp(r'^[0-9.\-]*$').hasMatch(latin)) return oldValue;
+    if (latin == newValue.text) return newValue;
+    return newValue.copyWith(text: latin);
+  }
+}

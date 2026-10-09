@@ -329,7 +329,15 @@ void main() {
       expect(find.text('Layali Bistro'), findsNothing);
       s.server.clearFailures();
       final before = s.server.callsTo('/orgs', method: 'GET').length;
+      final gate = s.server.hold('GET', '/orgs');
       await h.tapText('Retry');
+      // Retrying: the table's Retry spins.
+      expect(
+        tester.widget<DashErrorState>(find.byType(DashErrorState)).retrying,
+        isTrue,
+      );
+      gate.release();
+      await h.settle();
       expect(
         s.server.callsTo('/orgs', method: 'GET').length,
         before + 1,

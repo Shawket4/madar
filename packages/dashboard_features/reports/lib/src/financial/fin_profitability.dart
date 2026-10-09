@@ -18,6 +18,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/report_shared.dart' show ReportAsync;
 import 'fin_data.dart';
 import 'fin_export.dart';
 import 'fin_insights_tabs.dart';
@@ -295,7 +296,7 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
       // REP-FIN-042: the WHOLE ledger, never the filtered rows.
       if (q.awaitingFirst) {
         body = const DashSkeleton(height: finQuadrantHeight);
-      } else if (q.failedFirst) {
+      } else if (q.failed) {
         body = DashErrorState(
           message: errorMessage(q.error, t),
           retrying: q.isLoading,
@@ -318,7 +319,8 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
         rows: rows,
         rowKey: (r) => '${r.menuItemId}-${r.sizeLabel}',
         loading: q.awaitingFirst,
-        errorMessage: q.failedFirst ? errorMessage(q.error, t) : null,
+        retrying: q.isLoading,
+        errorMessage: q.failed ? errorMessage(q.error, t) : null,
         onRetry: retry,
         hideViewOptions: true,
         pageSize: 50,
@@ -554,7 +556,7 @@ class FinItemCell extends ConsumerWidget {
             style: DashType.bodyMedium.copyWith(color: c.textPrimary),
           ),
         ),
-        if (row.sizeLabel != 'one_size') FinOutlineBadge(row.sizeLabel),
+        if (row.sizeLabel != 'one_size') DashBadge(row.sizeLabel, outline: true),
         if (row.class_ != null && finClasses.contains(row.class_))
           DashPressable(
             key: ValueKey('class-${row.menuItemId}-${row.sizeLabel}'),
@@ -589,32 +591,6 @@ class FinItemCell extends ConsumerWidget {
 }
 
 String _jsNum(num v) => v == v.roundToDouble() ? '${v.toInt()}' : '$v';
-
-/// The web's outline `Badge`: a hairline pill.
-class FinOutlineBadge extends StatelessWidget {
-  const FinOutlineBadge(this.label, {super.key});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: c.hairline),
-      ),
-      child: Text(
-        label,
-        style: DashType.smallMedium.copyWith(color: c.textPrimary),
-      ),
-    );
-  }
-}
 
 /// REP-FIN-019 sold + the change vs the previous period.
 class FinSoldCell extends ConsumerWidget {

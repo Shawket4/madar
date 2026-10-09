@@ -92,7 +92,7 @@ class LoyaltyOverviewTab extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
     final q = ref.watch(loyaltyBehaviorProvider(queryKey));
-    if (q.hasError && !q.retrying) {
+    if (q.failed) {
       return DashErrorState(
         retryLabel: t('common.retry'),
         retrying: q.isLoading,
@@ -203,7 +203,7 @@ class LoyaltyCampaignsTab extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final q = ref.watch(loyaltyCampaignsProvider(queryKey));
-    if (q.hasError && !q.retrying) {
+    if (q.failed) {
       return DashErrorState(
         retryLabel: t('common.retry'),
         retrying: q.isLoading,
@@ -305,7 +305,7 @@ class LoyaltyLiabilityTab extends ConsumerWidget {
     final Widget body;
     if (q.awaitingFirst) {
       body = const DashSkeleton(height: liabilityChartHeight);
-    } else if (q.hasError && !q.retrying) {
+    } else if (q.failed) {
       body = SizedBox(
         height: liabilityChartHeight,
         child: DashErrorState(

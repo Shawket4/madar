@@ -9,9 +9,9 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../orders/error_text.dart';
 import '../shared/invalidate.dart';
 import 'floor_util.dart';
+import '../shared/error_text.dart';
 
 class TransferQueue extends ConsumerWidget {
   const TransferQueue({
@@ -59,7 +59,7 @@ class TransferQueue extends ConsumerWidget {
         DashToast.success(context, t('floor.transferCancelled'));
       }
     } on Object catch (e) {
-      if (context.mounted) DashToast.error(context, ordersErrorText(e, t));
+      if (context.mounted) DashToast.error(context, sellErrorText(e, t));
     }
   }
 
@@ -316,7 +316,7 @@ class _FulfillDialogState extends ConsumerState<FulfillDialog> {
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;
-      DashToast.error(context, ordersErrorText(e, t));
+      DashToast.error(context, sellErrorText(e, t));
       setState(() => _busy = false);
     }
   }

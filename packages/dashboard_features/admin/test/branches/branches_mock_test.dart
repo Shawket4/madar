@@ -134,7 +134,9 @@ void main() {
     for (final r in db['tills'].where((r) => r['branch_id'] == id)) {
       r['status'] = 'closed';
     }
-    for (final r in db[AdminTables.devices].where((r) => r['branch_id'] == id)) {
+    for (final r in db[AdminTables.devices].where(
+      (r) => r['branch_id'] == id,
+    )) {
       r['retired_at'] = db.nowIso;
     }
     final done = await api.branches.patchBranch(
@@ -150,16 +152,19 @@ void main() {
     expect(back.kind, BranchKind.branch);
   });
 
-  test('ADM-BRA-039 a seed branch still sells (its tills and devices)', () async {
-    final e = await _refused(
-      api.branches.patchBranch(
-        id: SeedIds.zamalek,
-        body: const UpdateBranchRequest(kind: BranchKind.warehouse),
-      ),
-    );
-    expect(e.code, 'BRANCH_STILL_SELLING');
-    expect(e.message, contains('unpair its devices'));
-  });
+  test(
+    'ADM-BRA-039 a seed branch still sells (its tills and devices)',
+    () async {
+      final e = await _refused(
+        api.branches.patchBranch(
+          id: SeedIds.zamalek,
+          body: const UpdateBranchRequest(kind: BranchKind.warehouse),
+        ),
+      );
+      expect(e.code, 'BRANCH_STILL_SELLING');
+      expect(e.message, contains('unpair its devices'));
+    },
+  );
 
   test('ADM-BRA-033 a PATCH without kind leaves it; a same-kind PATCH runs '
       'no checks', () async {
@@ -177,28 +182,34 @@ void main() {
     expect(b.kind, BranchKind.warehouse);
   });
 
-  test('ADM-BRA-024 old_bill_hours out of 1..168 is the backend\'s 400', () async {
-    final e = await _refused(
-      api.branches.patchBranch(
-        id: SeedIds.zamalek,
-        body: const UpdateBranchRequest(oldBillHours: 200),
-      ),
-    );
-    expect(e.status, 400);
-  });
+  test(
+    'ADM-BRA-024 old_bill_hours out of 1..168 is the backend\'s 400',
+    () async {
+      final e = await _refused(
+        api.branches.patchBranch(
+          id: SeedIds.zamalek,
+          body: const UpdateBranchRequest(oldBillHours: 200),
+        ),
+      );
+      expect(e.status, 400);
+    },
+  );
 
-  test('ADM-BRA-017 a reader may not write: 403 on create, edit, delete', () async {
-    final s = branchesServer(persona: Persona.limited);
-    final reader = DashboardApi(s.server);
-    for (final call in <Future<Object?> Function()>[
-      () => reader.branches.createBranch(body: _new('Sheikh Zayed')),
-      () => reader.branches.patchBranch(
-        id: SeedIds.maadi,
-        body: const UpdateBranchRequest(name: 'Maadi Degla'),
-      ),
-      () => reader.branches.deleteBranch(id: SeedIds.maadi),
-    ]) {
-      expect((await _refused(call())).status, 403);
-    }
-  });
+  test(
+    'ADM-BRA-017 a reader may not write: 403 on create, edit, delete',
+    () async {
+      final s = branchesServer(persona: Persona.limited);
+      final reader = DashboardApi(s.server);
+      for (final call in <Future<Object?> Function()>[
+        () => reader.branches.createBranch(body: _new('Sheikh Zayed')),
+        () => reader.branches.patchBranch(
+          id: SeedIds.maadi,
+          body: const UpdateBranchRequest(name: 'Maadi Degla'),
+        ),
+        () => reader.branches.deleteBranch(id: SeedIds.maadi),
+      ]) {
+        expect((await _refused(call())).status, 403);
+      }
+    },
+  );
 }

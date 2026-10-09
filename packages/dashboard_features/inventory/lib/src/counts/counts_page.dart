@@ -178,6 +178,7 @@ class _CountsPageState extends ConsumerState<CountsPage> {
             // "No counts yet" in between); never during automatic retries.
             errorText: q.errorText(t),
             onRetry: () => ref.invalidate(stocktakesProvider(listKey)),
+            retrying: q.isLoading,
             onReport: _report,
           ),
         ],
@@ -253,6 +254,7 @@ class CountsHistoryTable extends ConsumerWidget {
     required this.loading,
     required this.errorText,
     required this.onRetry,
+    this.retrying = false,
     required this.onReport,
     super.key,
   });
@@ -262,6 +264,7 @@ class CountsHistoryTable extends ConsumerWidget {
   final bool loading;
   final String? errorText;
   final VoidCallback onRetry;
+  final bool retrying;
   final ValueChanged<String> onReport;
 
   @override
@@ -276,6 +279,7 @@ class CountsHistoryTable extends ConsumerWidget {
       loading: loading,
       errorMessage: errorText,
       onRetry: onRetry,
+      retrying: retrying,
       // Only a finalized count opens; the others are still focusable.
       onRowTap: (s) {
         if (s.status == 'finalized') onReport(s.id);
@@ -343,6 +347,7 @@ class CountsHistoryTable extends ConsumerWidget {
           label: t('inventory.transfers.by'),
           cell: (context, s) => MadarClippedText(
             s.startedByName ?? '—',
+            textDirection: dashTextDirectionOf(s.startedByName ?? ''),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
