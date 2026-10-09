@@ -10,17 +10,30 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The org's credentials, newest first (`GET /integrations/credentials`),
-/// keyed by the org in scope so a platform admin's org switch reloads.
-final integrationCredentialsProvider = FutureProvider.autoDispose
-    .family<List<CredentialSummary>, String>((ref, orgId) {
-      ref.webCache();
-      return ref.watch(apiProvider).integrations.listCredentials();
-    }, retry: (_, _) => null);
+/// The request paths (the web's query keys).
+abstract final class IntegrationsPaths {
+  static const String credentials = '/integrations/credentials';
+}
 
-/// After a create, rotate or revoke: every credentials read loads again.
-void invalidateCredentials(WidgetRef ref) =>
-    ref.invalidate(integrationCredentialsProvider);
+/// The org's credentials, newest first (`GET /integrations/credentials`).
+/// The org rides the `X-Org-Id` header; `webCache` keys the read by it.
+final integrationCredentialsProvider =
+    FutureProvider.autoDispose<List<CredentialSummary>>((ref) {
+      ref.webCache();
+      ref.watch(realtimeEpochProvider(IntegrationsPaths.credentials));
+      return ref.watch(apiProvider).integrations.listCredentials();
+    });
+
+/// After a create, rotate or revoke: every credentials read loads again
+/// (the web's predicate on keys starting `/integrations/credentials`).
+void invalidateCredentials(RealtimeBus bus) =>
+    bus.invalidate(const [IntegrationsPaths.credentials]);
 
 /// A revoked credential is a permanent audit record (`isRevoked`).
 bool isRevoked(CredentialSummary c) => c.revokedAt != null;
+
+/// Whether the table searches the Last used column: TanStack decides a
+/// column's search eligibility from the FIRST row's value, so a list whose
+/// first credential was never used never searches it (SET-INT-007).
+bool lastUsedSearchable(List<CredentialSummary> rows) =>
+    rows.isNotEmpty && rows.first.lastUsedAt != null;

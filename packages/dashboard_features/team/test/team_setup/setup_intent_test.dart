@@ -36,10 +36,7 @@ void main() {
     final branchesArea = DashArea(
       key: 'branches_stub',
       routes: [
-        DashRoute(
-          path: '/branches',
-          prefetch: (_, s) => warmed.add(s.orgId),
-        ),
+        DashRoute(path: '/branches', prefetch: (_, s) => warmed.add(s.orgId)),
       ],
     );
     final s = setupServer(
@@ -89,7 +86,11 @@ void main() {
         tester.widget<DashButton>(byKey(key)).onIntent;
 
     final h = await pumpSetup(tester);
-    for (final key in ['setup-open-rules', 'setup-go-schedule', 'setup-go-team']) {
+    for (final key in [
+      'setup-open-rules',
+      'setup-go-schedule',
+      'setup-go-team',
+    ]) {
       expect(intentOf(key), isNotNull, reason: key);
       intentOf(key)!(); // a team page without a prefetch: nothing to warm
     }

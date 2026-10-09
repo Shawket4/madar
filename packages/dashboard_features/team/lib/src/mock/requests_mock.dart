@@ -123,7 +123,7 @@ String? _nameOf(MockDb db, String user) =>
 MockRow requestForCaller(MockRequest req, MockDb db, MockRow r) {
   final id = r['employee_id'] as String?;
   final e = teamEmployeeRow(db, id);
-  final own = _isOwn(req, e);
+  final own = r['is_own'] as bool? ?? _isOwn(req, e);
   final decider = _decider(e);
   final pending = r['status'] == 'pending';
   final may =
@@ -134,7 +134,7 @@ MockRow requestForCaller(MockRequest req, MockDb db, MockRow r) {
   final on = r['on_date']! as String;
   return {
     ...r,
-    'is_own': r['is_own'] ?? own,
+    'is_own': own,
     'can_decide': r['can_decide'] ?? (may && pending),
     'month_closed':
         requestMonthClosed(db, r['org_id'], on, r['end_date'] as String? ?? on) !=

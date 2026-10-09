@@ -111,10 +111,6 @@ double contrast(String a, String b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/// `#rrggbb` as a colour.
-Color hexColor(String hex) =>
-    Color(0xFF000000 | int.parse(hex.substring(1), radix: 16));
-
 /// The card's resolved look (`ResolvedBrand`, the parts the preview draws).
 class CardBrand {
   const CardBrand({

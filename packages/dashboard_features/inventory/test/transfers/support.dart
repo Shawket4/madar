@@ -89,11 +89,8 @@ Finder menuOf(String transferKey) => find.descendant(
   matching: find.byType(DashIconButton),
 );
 
-/// The open menu's item [label].
-Finder menuItem(String label) => find.descendant(
-  of: find.byType(DashMenuItem),
-  matching: find.text(label),
-);
+/// The open menu's item [label] (the last one a pointer can reach).
+Finder menuItem(String label) => find.text(label).hitTestable().last;
 
 /// The option [label] in the open select's list (popover or sheet).
 Finder option(String label) => find.descendant(

@@ -104,8 +104,18 @@ const List<DashRoute> inventoryRoutes = [
     titleFallback: 'Settings',
     caps: [Cap.inventoryAdjust],
     module: OrgModule.pos,
+    prefetch: _prefetchSettings,
   ),
 ];
+
+/// The web's `prefetchRoute('/inventory/settings')` warms the org's
+/// settings; the categories (the page's other first read) are warmed too.
+void _prefetchSettings(DashPrefetcher warm, Scope s) {
+  final orgId = s.orgId;
+  if (orgId == null) return;
+  warm(inventorySettingsProvider(orgId));
+  warm(ingredientCategoriesProvider(orgId));
+}
 
 /// The web's `prefetchRoute('/inventory/today')` (`TodayData.watch`): the
 /// branch's valuation, low stock, stock and waste, or the org roll-up; the

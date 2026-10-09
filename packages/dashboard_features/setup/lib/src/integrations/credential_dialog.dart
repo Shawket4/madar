@@ -73,6 +73,8 @@ class _CredentialDialogState extends ConsumerState<CredentialDialog> {
     final name = _name.trim();
     final branchId = _branchId!;
     final api = ref.read(apiProvider);
+    // Captured before the await: the dialog may close mid-save.
+    final bus = ref.read(realtimeBusProvider);
     setState(() => _busy = true);
     try {
       var attempt = _username;
@@ -85,7 +87,7 @@ class _CredentialDialogState extends ConsumerState<CredentialDialog> {
               username: attempt,
             ),
           );
-          invalidateCredentials(ref);
+          invalidateCredentials(bus);
           if (mounted) Navigator.of(context).pop(created);
           return;
         } on ApiException catch (e) {

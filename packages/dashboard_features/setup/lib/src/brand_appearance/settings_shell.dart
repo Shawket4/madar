@@ -11,6 +11,7 @@
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -102,6 +103,7 @@ class SettingsShell extends ConsumerWidget {
                     sheetTitle: t('settings.pickPane'),
                     width: viewport >= DashBreakpoints.sm ? pickerWidth : null,
                     onChanged: (to) => context.go(to),
+                    onOptionIntent: ref.prefetchRoute,
                   ),
                 ),
                 const SizedBox(height: Space.xl),
@@ -154,6 +156,7 @@ class _SettingsRail extends ConsumerWidget {
                     label: t(i.labelKey, defaultValue: i.fallback),
                     active: SettingsShell.isActive(i, path),
                     onTap: () => context.go(i.to),
+                    onIntent: () => ref.prefetchRoute(i.to),
                   ),
               ],
             ),
@@ -169,6 +172,7 @@ class _RailEntry extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
+    required this.onIntent,
   });
 
   final String icon;
@@ -176,11 +180,15 @@ class _RailEntry extends StatelessWidget {
   final bool active;
   final VoidCallback onTap;
 
+  /// Warms the pane's reads before the press (its route's `prefetch`).
+  final VoidCallback onIntent;
+
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: onTap,
+      onIntent: onIntent,
       selected: active,
       pressScale: false,
       semanticLabel: label,

@@ -615,8 +615,7 @@ class _Filters extends ConsumerWidget {
                         DashOption(value: e.id, label: e.name),
                     ],
                     onChanged: (v) => onPerson(v == _all ? null : v),
-                    onOptionIntent: (v) =>
-                        onPersonIntent(v == _all ? null : v),
+                    onOptionIntent: (v) => onPersonIntent(v == _all ? null : v),
                   ),
                   DashFilterSelect<String>(
                     label: t('staff.attendanceStatus'),
