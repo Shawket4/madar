@@ -1,15 +1,12 @@
-// The phone rule against madar-shared's vectors (a verbatim copy of the
-// web's `src/lib/phone_vectors.json`) and the web's own display/input cases.
-import 'dart:convert';
-import 'dart:io';
-
+// The phone rule against madar-shared's vectors (the web's pinned
+// `src/lib/phone_vectors.json`, via `sharedVectors`) and the web's own
+// display/input cases.
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_sell/src/shared/phone.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final vectors =
-      json.decode(File('test/shared/phone_vectors.json').readAsStringSync())
-          as Map<String, Object?>;
+  final vectors = sharedVectors('phone')! as Map<String, Object?>;
 
   test('every valid vector canonicalises to its expected form', () {
     for (final v in (vectors['valid']! as List).cast<List<Object?>>()) {

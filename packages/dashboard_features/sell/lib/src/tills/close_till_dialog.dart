@@ -53,21 +53,33 @@ class CheckRow {
   String declared = '';
   String note = '';
 
-  /// A "Doesn't match" needs an amount (≥ 0) and a note.
+  /// Typed amounts must be ≥ 0; whether the row may be sent is the server's
+  /// rule ([reconcileRefusal]): a "Doesn't match" needs an amount and a note.
   bool get valid {
     if (!disagreed) return true;
     final n = parseAmount(declared);
-    return n != null && n.isFinite && n >= 0 && note.trim().isNotEmpty;
+    if (declared.trim().isNotEmpty && !(n != null && n.isFinite && n >= 0)) {
+      return false;
+    }
+    return reconcileRefusal(
+          [(method: method, isCash: false)],
+          [toInput()],
+        ) ==
+        null;
   }
 
-  ReconciliationInput toInput() => disagreed
-      ? ReconciliationInput(
-          method: method,
-          status: 'disagreed',
-          declaredAmount: egpToPiastres(parseAmount(declared)!),
-          note: note.trim(),
-        )
-      : ReconciliationInput(method: method, status: 'checked');
+  ReconciliationInput toInput() {
+    if (!disagreed) return ReconciliationInput(method: method, status: 'checked');
+    final n = parseAmount(declared);
+    return ReconciliationInput(
+      method: method,
+      status: 'disagreed',
+      // Blank is no amount, not 0 (the server takes 0 as an amount).
+      declaredAmount: n == null ? null : egpToPiastres(n),
+      note: note.trim(),
+      explicitNulls: n == null ? const {'declared_amount'} : const {},
+    );
+  }
 }
 
 class CloseTillDialog extends ConsumerStatefulWidget {

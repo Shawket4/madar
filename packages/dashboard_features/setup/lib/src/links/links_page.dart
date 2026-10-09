@@ -342,6 +342,7 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
     placeholder: placeholder,
     semanticLabel: label ?? placeholder,
     maxLength: maxLength,
+    inputFormatters: maxLength == null ? null : [codeUnitLimit(maxLength)],
     textDirection: direction,
     keyboardType: url ? TextInputType.url : null,
     invalid: invalid,
@@ -556,6 +557,7 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
                             color: c.textPrimary,
                           ),
                           maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         MadarClippedText(
                           linksRowSubtitle(it, status, t),
@@ -563,6 +565,7 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
                             color: c.textSecondary,
                           ),
                           maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),

@@ -101,11 +101,7 @@ typedef PricedSize = ({
 /// for the size, else its catalogue price while it is active, else the item's
 /// branch price, else the item's lowest active catalogue price. Null when no
 /// active size has a price.
-int? unitPrice(
-  List<PricedSize> sizes,
-  String? label, [
-  int? itemBranchPrice,
-]) {
+int? unitPrice(List<PricedSize> sizes, String? label, [int? itemBranchPrice]) {
   final active = [
     for (final s in sizes)
       if (s.isActive && s.price != null) s.price!,

@@ -706,11 +706,10 @@ enum DashQuickRange {
       return (from: DateTime(y, m - 1), to: DateTime(y, m, 0));
     case DashQuickRange.thisWeek:
     case DashQuickRange.lastWeek:
-      final start = dashDay(
-        today,
-      ).subtract(Duration(days: (today.weekday - DateTime.saturday) % 7));
+      // Calendar days, not 24-hour durations: a DST change in the device's
+      // zone would otherwise land on 23:00 of the day before.
       final off = kind == DashQuickRange.thisWeek ? 0 : -7;
-      final s = DateTime(start.year, start.month, start.day + off);
+      final s = DateTime(y, m, today.day - dashDaysIntoWeek(today) + off);
       return (from: s, to: DateTime(s.year, s.month, s.day + 6));
     case DashQuickRange.thisPeriod:
     case DashQuickRange.lastPeriod:

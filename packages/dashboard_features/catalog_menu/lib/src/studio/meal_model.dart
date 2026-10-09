@@ -10,7 +10,11 @@ import '../shared/menu_text.dart';
 /// A sellable item with its active sizes, cheapest first (a single-price
 /// item has one `one_size` row).
 class MealItem {
-  const MealItem({required this.id, required this.categoryId, this.sizes = const []});
+  const MealItem({
+    required this.id,
+    required this.categoryId,
+    this.sizes = const [],
+  });
 
   final String id;
   final String? categoryId;
@@ -35,14 +39,14 @@ Map<String, MealItem> mealItemsOf(List<MenuItemFull> full) => {
         id: m.id,
         categoryId: m.categoryId,
         sizes: () {
-          final rows = (m.allSizes?.isNotEmpty ?? false) ? m.allSizes! : m.sizes;
+          final rows = (m.allSizes?.isNotEmpty ?? false)
+              ? m.allSizes!
+              : m.sizes;
           final sizes = [
             for (final s in rows)
               if (s.isActive) (label: s.label, price: s.priceOverride),
           ]..sort((a, b) => a.price.compareTo(b.price));
-          return sizes.isEmpty
-              ? [(label: oneSize, price: m.basePrice)]
-              : sizes;
+          return sizes.isEmpty ? [(label: oneSize, price: m.basePrice)] : sizes;
         }(),
       ),
 };

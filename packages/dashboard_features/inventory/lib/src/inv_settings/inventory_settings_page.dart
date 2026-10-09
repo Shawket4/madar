@@ -40,9 +40,7 @@ final inventorySettingsProvider = FutureProvider.autoDispose
 List<IngredientCategory> sortedCategories(List<IngredientCategory> all) =>
     [...all]..sort((a, b) {
       final s = a.sortOrder.compareTo(b.sortOrder);
-      return s != 0
-          ? s
-          : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      return s != 0 ? s : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
 /// A category row's height (`min-h-14`).

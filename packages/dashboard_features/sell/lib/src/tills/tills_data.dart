@@ -14,6 +14,7 @@ import 'package:dashboard_api/dashboard_api.dart'
         DeductionLogRow,
         OpenBillsNotice,
         PaginatedTills,
+        ReconciliationInput,
         ShiftSummary,
         Till,
         TillPreFill,
@@ -246,6 +247,46 @@ String tillStatusLabel(Translator t, String status) =>
 /// disagreed.
 bool isFlaggedTill(Till t) =>
     t.openedWhileAnotherOpen || t.reconciliationStatus == 'disagreed';
+
+const reconcileAmountRequired = 'RECONCILIATION_AMOUNT_REQUIRED';
+const reconcileNoteRequired = 'RECONCILIATION_NOTE_REQUIRED';
+
+/// Why the server would refuse a live close's payment check, or null
+/// (`reconcileRefusal`; madar-till `reconcile::plan_lines`, pinned by the
+/// shared `reconcile_vectors.json`). The cash line is never refused. A
+/// disagreement needs an amount (checked first), then a note that is not
+/// blank. The first bad method is named, in line order: the till's non-cash
+/// methods, then methods not used on it; an input is matched by its trimmed
+/// method and only the first counts. [code] is null for a status that is
+/// neither `checked` nor `disagreed`.
+({String? code, String method})? reconcileRefusal(
+  List<({String method, bool isCash})> totals,
+  List<ReconciliationInput> inputs,
+) {
+  final cash = totals.where((t) => t.isCash).firstOrNull?.method ?? 'cash';
+  final order = [
+    for (final t in totals)
+      if (!t.isCash) t.method,
+  ];
+  for (final i in inputs) {
+    final m = i.method.trim();
+    if (m.isNotEmpty && m != cash && !order.contains(m)) order.add(m);
+  }
+  for (final method in order) {
+    final input = inputs.where((i) => i.method.trim() == method).firstOrNull;
+    if (input == null) continue;
+    final status = input.status.trim();
+    if (status == 'checked') continue;
+    if (status != 'disagreed') return (code: null, method: method);
+    if (input.declaredAmount == null) {
+      return (code: reconcileAmountRequired, method: method);
+    }
+    if ((input.note ?? '').trim().isEmpty) {
+      return (code: reconcileNoteRequired, method: method);
+    }
+  }
+  return null;
+}
 
 /// The list's discrepancy (SELL-TIL-021): "—" for none, plain zero, else
 /// signed money ("+EGP 20.00" / "−EGP 50.00").

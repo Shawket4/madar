@@ -20,11 +20,7 @@ void main() {
     await pumpDashApp(
       tester,
       Center(
-        child: DashButton(
-          label: 'Open',
-          onPressed: () {},
-          onIntent: () => n++,
-        ),
+        child: DashButton(label: 'Open', onPressed: () {}, onIntent: () => n++),
       ),
     );
     final mouse = await _mouse(tester);
@@ -74,11 +70,7 @@ void main() {
     await pumpDashApp(
       tester,
       Center(
-        child: DashButton(
-          label: 'Open',
-          onPressed: () {},
-          onIntent: () => n++,
-        ),
+        child: DashButton(label: 'Open', onPressed: () {}, onIntent: () => n++),
       ),
     );
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -304,16 +296,9 @@ void main() {
     await rest(find.text('Add item'));
     await rest(find.bySemanticsLabel(RegExp('^Day')));
     await rest(find.text('This month'));
-    await tester.tap(find.bySemanticsLabel(RegExp('^Branch')));
+    await tester.tap(find.text('Zamalek'));
     await tester.pumpAndSettle();
     await rest(find.text('Maadi'));
-    expect(warmed, [
-      'back',
-      'more',
-      'add',
-      'date',
-      'quick:10/1',
-      'option:m',
-    ]);
+    expect(warmed, ['back', 'more', 'add', 'date', 'quick:10/1', 'option:m']);
   });
 }

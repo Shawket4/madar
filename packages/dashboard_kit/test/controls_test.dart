@@ -1,6 +1,8 @@
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_kit/testing.dart';
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget _host(Widget child) => Scaffold(
@@ -617,6 +619,188 @@ void main() {
         expect(w.to, DateTime(2026, 10, 9));
       },
     );
+  });
+
+  group('batch 1', () {
+    testWidgets('Enter in a number field settles the number, then submits', (
+      tester,
+    ) async {
+      double? v = 5;
+      final submitted = <double?>[];
+      await pumpDashApp(
+        tester,
+        StatefulBuilder(
+          builder: (context, set) => _host(
+            DashNumberField(
+              label: 'Qty',
+              value: v,
+              onChanged: (n) => set(() => v = n),
+              onSubmitted: submitted.add,
+            ),
+          ),
+        ),
+      );
+      await tester.enterText(find.byType(TextField), '7');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(v, 7);
+      expect(submitted, [7]);
+    });
+
+    testWidgets('an outline-danger button: red words on the outline frame', (
+      tester,
+    ) async {
+      await pumpDashApp(
+        tester,
+        _host(
+          Row(
+            children: [
+              DashButton(
+                label: 'Disconnect',
+                variant: DashButtonVariant.outlineDanger,
+                onPressed: () {},
+              ),
+              const DashButton(
+                label: 'Off',
+                variant: DashButtonVariant.outlineDanger,
+                onPressed: null,
+              ),
+            ],
+          ),
+        ),
+      );
+      final c = tester.element(find.text('Disconnect')).madarColors;
+      Color? ink(String s) =>
+          tester.renderObject<RenderParagraph>(find.text(s)).text.style?.color;
+      expect(ink('Disconnect'), c.errorText);
+      expect(ink('Off'), c.disabledText);
+      final frame = tester.widget<Container>(
+        find
+            .ancestor(
+              of: find.text('Disconnect'),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+      final box = frame.decoration! as BoxDecoration;
+      expect(box.color, c.card);
+      expect((box.border! as Border).top.color, c.input);
+    });
+
+    testWidgets('an outline badge: a hairline ring, no wash, ink words', (
+      tester,
+    ) async {
+      await pumpDashApp(
+        tester,
+        _host(const DashBadge('Online', outline: true)),
+      );
+      final c = tester.element(find.text('Online')).madarColors;
+      final box =
+          tester
+                  .widget<Container>(
+                    find
+                        .ancestor(
+                          of: find.text('Online'),
+                          matching: find.byType(Container),
+                        )
+                        .first,
+                  )
+                  .decoration!
+              as BoxDecoration;
+      expect(box.color, isNull);
+      expect((box.border! as Border).top.color, c.hairline);
+      expect(
+        tester.widget<Text>(find.text('Online')).style?.color,
+        c.textPrimary,
+      );
+    });
+
+    testWidgets('a wrapping status pill grows instead of cutting its words', (
+      tester,
+    ) async {
+      const sentence =
+          'Pending: the flag is no longer open in this organisation, so '
+          'it cannot be reviewed';
+      await pumpDashApp(
+        tester,
+        _host(
+          const SizedBox(
+            width: 200,
+            child: DashStatusPill(
+              label: sentence,
+              tone: DashTone.warning,
+              wrap: true,
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final text = tester.renderObject<RenderParagraph>(find.text(sentence));
+      expect(text.didExceedMaxLines, isFalse);
+      expect(
+        tester.getSize(find.byType(DashStatusPill)).height,
+        greaterThan(DashMetrics.pill),
+      );
+    });
+
+    testWidgets(
+      'Arabic: a left-to-right field shows its sample on the left too',
+      (tester) async {
+        var v = '';
+        await pumpDashApp(
+          tester,
+          StatefulBuilder(
+            builder: (context, set) => _host(
+              DashTextInput(
+                value: v,
+                placeholder: 'name@example.com',
+                textDirection: TextDirection.ltr,
+                onChanged: (s) => set(() => v = s),
+              ),
+            ),
+          ),
+          lang: 'ar',
+        );
+        final hint = tester.getRect(find.text('name@example.com'));
+        final field = tester.getRect(find.byType(TextField));
+        expect(hint.left, moreOrLessEquals(field.left, epsilon: 1));
+        await tester.enterText(find.byType(TextField), 'sara@drops.eg');
+        await tester.pump();
+        final typed = tester
+            .state<EditableTextState>(find.byType(EditableText))
+            .renderEditable;
+        expect(typed.textDirection, TextDirection.ltr);
+        final first = typed.localToGlobal(
+          typed.getLocalRectForCaret(const TextPosition(offset: 0)).topLeft,
+        );
+        expect(first.dx, moreOrLessEquals(hint.left, epsilon: 2));
+      },
+    );
+
+    testWidgets('dark: the off switch knob is the ink, not the card', (
+      tester,
+    ) async {
+      await pumpDashApp(
+        tester,
+        _host(
+          DashSwitch(value: false, semanticLabel: 'Active', onChanged: (_) {}),
+        ),
+        dark: true,
+      );
+      final c = tester.element(find.byType(DashSwitch)).madarColors;
+      final knob = tester
+          .widgetList<Container>(
+            find.descendant(
+              of: find.byType(DashSwitch),
+              matching: find.byType(Container),
+            ),
+          )
+          .map((w) => w.decoration)
+          .whereType<BoxDecoration>()
+          .firstWhere((d) => d.shape == BoxShape.circle);
+      expect(knob.color, c.textPrimary);
+      expect(knob.color, isNot(c.card));
+    });
   });
 
   group('words and figures', () {

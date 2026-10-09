@@ -17,7 +17,10 @@ void main() {
       if ((c['expected']! as Map)['error']?['error'] != 'unknown_option') c,
   ];
 
-  test('covers the cases', () => expect(cases.length, greaterThanOrEqualTo(45)));
+  test(
+    'covers the cases',
+    () => expect(cases.length, greaterThanOrEqualTo(45)),
+  );
 
   for (final c in cases) {
     test('${c['name']}', () {

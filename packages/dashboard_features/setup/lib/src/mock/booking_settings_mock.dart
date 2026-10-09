@@ -8,55 +8,20 @@
 ///   update") at the body's branch, then `BookingSettings::validate` word for
 ///   word (400s); the whole row is replaced and returned.
 ///
+/// The rows are the area seed's (`SetupSeed.bookingSettings`, table
+/// `booking_settings`, one row per branch, no `id`; New Cairo never set up).
 /// The sell area answers the same two routes for its bookings page from the
-/// same table (`booking_settings`, one row per branch, no `id`) with the
-/// same seed, so the app registers whichever area comes first and both
-/// agree. In this package's own tests these handlers answer.
+/// same table, so the app registers whichever area comes first and both read
+/// one record. In this package's own tests these handlers answer.
 library;
 
 import 'package:dashboard_api/mock.dart';
 
+import '../area_seed.dart';
 import 'support.dart';
 
 abstract final class BookingSettingsMock {
-  /// sell's `SellTables.bookingSettings`.
-  static const String table = 'booking_settings';
-
-  /// sell's seed: Zamalek takes no online bookings, Heliopolis asks for the
-  /// WhatsApp code and caps covers, New Cairo works in 15-minute slots,
-  /// Friday opens after prayers and runs past midnight.
-  static List<MockRow> rows() => [
-    for (final (key, id) in [
-      ('heliopolis', SeedIds.heliopolis),
-      ('maadi', SeedIds.maadi),
-      ('new-cairo', SeedIds.newCairo),
-      ('zamalek', SeedIds.zamalek),
-    ])
-      {
-        'branch_id': id,
-        'enabled': key != 'zamalek',
-        'hours': [
-          for (var dow = 0; dow < 7; dow++)
-            dow == 5
-                ? {'dow': 5, 'open': '13:00', 'close': '01:00'}
-                : {'dow': dow, 'open': '09:00', 'close': '23:00'},
-        ],
-        'slot_minutes': key == 'new-cairo' ? 15 : 30,
-        'default_duration_minutes': 90,
-        'min_party': 1,
-        'max_party': 8,
-        'lead_time_minutes': 60,
-        'horizon_days': 30,
-        'hold_minutes': 30,
-        'auto_no_show_minutes': key == 'maadi' ? null : 20,
-        'reminder_lead_minutes': key == 'new-cairo' ? null : 120,
-        'require_otp': key == 'heliopolis',
-        'max_covers_per_slot': key == 'heliopolis' ? 16 : null,
-        'blackout_dates': key == 'heliopolis'
-            ? const ['2026-10-31']
-            : const <String>[],
-      },
-  ];
+  static const String table = SetupSeed.bookingSettingsTable;
 
   /// `BookingSettings::defaults`.
   static Map<String, Object?> defaults(String branchId) => {
@@ -96,8 +61,6 @@ bool _hhmmOk(Object? s) {
 }
 
 void registerBookingSettingsMocks(MockServer server, MockDb db) {
-  seedTableIfAbsent(db, BookingSettingsMock.table, BookingSettingsMock.rows);
-
   /// `BookingSettings::validate`, word for word.
   void validate(MockRequest req, Map<String, Object?> s) {
     int n(String k) => (s[k] as num?)?.toInt() ?? 0;

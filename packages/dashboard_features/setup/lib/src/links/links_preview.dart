@@ -82,7 +82,7 @@ class LinksPublicPreview extends ConsumerWidget {
     final q = ref.watch(publicLinksProvider(orgId));
     if (q.awaitingFirst) return const _PreviewSkeleton();
     final page = q.value;
-    if (page == null) {
+    if (q.failedFirst || page == null) {
       // `PageNotice`: the page's own words, with a retry.
       return Padding(
         padding: const EdgeInsets.all(Space.xl),

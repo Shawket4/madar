@@ -64,8 +64,8 @@ void main() {
 
     testWidgets('SET-BKG-002 phone: the select is full width', (tester) async {
       await pumpBookingRules(tester, size: DashSize.phone);
-      final card = tester.getSize(byKey('bkg-card')).width;
-      expect(tester.getSize(byKey('bkg-branch')).width, card - 2 * 20);
+      final line = tester.getSize(inPane(find.byType(Wrap))).width;
+      expect(tester.getSize(byKey('bkg-branch')).width, line);
     });
 
     testWidgets('SET-BKG-003 Edit rules waits for a branch; the per-branch '
@@ -239,7 +239,8 @@ void main() {
       final h = await pumpBookingRules(tester);
       await openRules(h, 'Heliopolis');
       final open = tester.widget<DashTextInput>(_hours(5, 'open'));
-      expect(open.value, '13:00');
+      expect(open.value, '12:00');
+      expect(tester.widget<DashTextInput>(_hours(5, 'close')).value, '00:30');
       expect(open.placeholder, '12:00');
       expect(open.mono, isTrue);
       expect(open.textDirection, TextDirection.ltr);
@@ -292,10 +293,10 @@ void main() {
       ]) {
         expect(inRules(find.text(h.t(k))), findsOneWidget, reason: k);
       }
-      // Two columns: duration and smallest party share a line.
+      // Two columns: the smallest and largest party share a line.
       expect(
-        tester.getTopLeft(rulesKey('bkg-default_duration_minutes')).dy,
         tester.getTopLeft(rulesKey('bkg-min_party')).dy,
+        tester.getTopLeft(rulesKey('bkg-max_party')).dy,
       );
       await h.enterText(rulesKey('bkg-lead_time_minutes'), '');
       await h.enterText(rulesKey('bkg-max_party'), '10');
@@ -317,7 +318,8 @@ void main() {
       final m = bkgServer();
       final h = await pumpBookingRules(tester, backend: m);
       await openRules(h, 'Heliopolis');
-      expect(inRules(find.text('2026-10-31')), findsOneWidget);
+      expect(inRules(find.text('2026-10-25')), findsOneWidget);
+      expect(inRules(find.text('2026-12-31')), findsOneWidget);
       expect(inRules(find.text(h.t('bookings.blackoutsHint'))), findsOneWidget);
       final add = rulesKey('bkg-blackout-add');
       expect(tester.widget<DashButton>(add).onPressed, isNull);
@@ -336,16 +338,17 @@ void main() {
       expect(tester.widget<DashButton>(add).onPressed, isNull);
       await h.tap(
         find.descendant(
-          of: rulesKey('bkg-blackout-2026-10-31'),
+          of: rulesKey('bkg-blackout-2026-10-25'),
           matching: find.bySemanticsLabel('Remove'),
         ),
       );
-      expect(inRules(find.text('2026-10-31')), findsNothing);
+      expect(inRules(find.text('2026-10-25')), findsNothing);
       final body = await saveRules(h);
-      expect(body['blackout_dates'], ['2026-10-20']);
+      expect(body['blackout_dates'], ['2026-10-20', '2026-12-31']);
       await h.expectToast('Changes saved');
       expect(storedRules(m.db, SeedIds.heliopolis)!['blackout_dates'], [
         '2026-10-20',
+        '2026-12-31',
       ]);
     });
 
@@ -377,9 +380,12 @@ void main() {
         'blackout_dates',
       });
       expect(body['branch_id'], SeedIds.newCairo);
-      expect(body['slot_minutes'], 15);
+      // Never set up: the backend's defaults, online off.
+      expect(body['enabled'], isFalse);
+      expect(body['max_party'], 12);
       await h.expectToast('Changes saved');
       expect(find.byType(BookingRulesDialog), findsNothing);
+      expect(storedRules(m.db, SeedIds.newCairo), isNotNull);
       expect(
         h.container.read(realtimeEpochProvider('/bookings/settings')),
         bookingsEpoch + 1,
@@ -407,7 +413,7 @@ void main() {
       final monday = (storedRules(m.db, SeedIds.heliopolis)!['hours']! as List)
           .cast<Map>()
           .firstWhere((e) => e['dow'] == 1);
-      expect(monday['open'], '09:00');
+      expect(monday['open'], '12:00');
     });
 
     testWidgets('SET-BKG-015 the server checks the numbers', (tester) async {
@@ -448,14 +454,14 @@ void main() {
       await openRules(h, 'Heliopolis');
       await h.tap(rulesKey('bkg-cancel'));
       final gate = m.server.hold('GET', bkgSettings);
-      await openRules(h, 'Zamalek');
+      await openRules(h, 'New Cairo');
       expect(inRules(find.text('Loading…')), findsOneWidget);
       expect(rulesSave(tester).onPressed, isNull);
       gate.release();
       await h.settle();
       expect(tester.widget<DashSwitch>(rulesKey('bkg-enabled')).value, isFalse);
       final body = await saveRules(h);
-      expect(body['branch_id'], SeedIds.zamalek);
+      expect(body['branch_id'], SeedIds.newCairo);
       await h.expectToast('Changes saved');
     });
 
@@ -470,8 +476,8 @@ void main() {
       final p = await pumpBookingRules(tester, size: DashSize.phone);
       await openRules(p, 'Heliopolis');
       expect(
-        tester.getTopLeft(rulesKey('bkg-default_duration_minutes')).dy,
-        lessThan(tester.getTopLeft(rulesKey('bkg-min_party')).dy),
+        tester.getTopLeft(rulesKey('bkg-min_party')).dy,
+        lessThan(tester.getTopLeft(rulesKey('bkg-max_party')).dy),
       );
       expect(
         tester.getSize(find.byType(BookingRulesDialog)).width,
@@ -479,13 +485,16 @@ void main() {
       );
     });
 
-    testWidgets('SET-BKG-019 (refusal) a manager outside the branch: the read '
-        'is refused and worded', (tester) async {
-      final h = await pumpBookingRules(tester, persona: Persona.manager);
+    testWidgets('SET-BKG-019 (refusal) a read the server refuses is '
+        'worded, Save stays off', (tester) async {
+      final m = bkgServer();
+      final denied = MockResponse.denied('bookings.read');
+      m.server.fail('GET', bkgSettings, denied, times: null);
+      final h = await pumpBookingRules(tester, backend: m);
       await openRules(h, 'Heliopolis');
       expect(rulesKey('bkg-failed'), findsOneWidget);
-      final call = h.server.callsTo(bkgSettings).single;
-      expect(call.status, 403);
+      expect(inRules(find.text(h.refusalWords(denied))), findsOneWidget);
+      expect(rulesSave(tester).onPressed, isNull);
     });
 
     testWidgets('SET-BKG-019 (refusal) a manager at their own branch edits '
@@ -494,7 +503,7 @@ void main() {
       await openRules(h, 'Zamalek');
       expect(rulesKey('bkg-form'), findsOneWidget);
       await h.tap(rulesKey('bkg-enabled'));
-      expect((await saveRules(h))['enabled'], isTrue);
+      expect((await saveRules(h))['enabled'], isFalse);
       await h.expectToast('Changes saved');
     });
 

@@ -3,8 +3,9 @@
 ///
 /// Canonical = E.164 digits without the `+` (`201001234567`) — the form the
 /// backend (`phone_canonical`), the POS core and the web all agree on. The
-/// rule and its vectors live in madar-shared's `phone_vectors.json`; a copy
-/// sits in `test/shared/` and `phone_test.dart` checks this port against it.
+/// rule and its vectors live in madar-shared's `phone_vectors.json`;
+/// `phone_test.dart` checks this port against the web's pinned copy
+/// (`sharedVectors('phone')`).
 /// Never change the rule here alone.
 library;
 

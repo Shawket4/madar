@@ -166,10 +166,9 @@ void main() {
       expect(patch.body, {'is_packaging': true});
       expect(tester.widget<DashSwitch>(_switch('milk')).value, isTrue);
       await h.tap(word('packaging'));
-      expect(
-        h.server.callsTo(categoryRoute, method: 'PATCH').last.body,
-        {'is_packaging': false},
-      );
+      expect(h.server.callsTo(categoryRoute, method: 'PATCH').last.body, {
+        'is_packaging': false,
+      });
     });
 
     testWidgets('a failure is a toast and the switch stays', (tester) async {

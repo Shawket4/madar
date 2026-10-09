@@ -693,7 +693,10 @@ void main() {
     expect(
       inConfirm(
         find.text(
-          h.t('staff.missionOverPunchesTitle', args: {'name': tarek.employeeName}),
+          h.t(
+            'staff.missionOverPunchesTitle',
+            args: {'name': tarek.employeeName},
+          ),
         ),
       ),
       findsOneWidget,

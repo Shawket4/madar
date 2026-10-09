@@ -8,11 +8,24 @@ import 'dart:math';
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart' show Translator;
+import 'package:flutter/services.dart' show TextInputFormatter;
 
 import '../shared/social_links.dart';
 
 const int linksMaxTagline = 160;
 const int linksMaxTitle = 60;
+
+/// The web's `maxLength` and the server count UTF-16 code units, not
+/// characters: an Arabic line with diacritics is held to what the server
+/// takes (LNK-010, 016). Shortening always goes through, so a longer saved
+/// value can still be cut down.
+// ponytail: an over-long paste is refused whole, not cut to fit like the browser.
+TextInputFormatter codeUnitLimit(int max) => TextInputFormatter.withFunction(
+  (old, next) =>
+      next.text.length <= max || next.text.length < old.text.length
+      ? next
+      : old,
+);
 
 /// A branch row as edited: the settings plus what the list shows.
 class LinksBranchDraft {
