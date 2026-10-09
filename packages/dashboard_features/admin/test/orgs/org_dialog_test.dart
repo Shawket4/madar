@@ -459,7 +459,7 @@ void main() {
     h.server.fail('PATCH', '/orgs/{id}', refusal);
     await h.tapText('Layali Bistro');
     await _save(h);
-    await h.expectToast(h.refusalWords(refusal));
+    await h.expectToast(shown(h, refusal));
     expect(find.text('Edit Organization'), findsOneWidget);
     expect(_button(tester, 'Cancel').onPressed, isNotNull);
   });

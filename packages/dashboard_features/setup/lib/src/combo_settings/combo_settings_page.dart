@@ -70,10 +70,9 @@ class ComboSettingsBody extends ConsumerStatefulWidget {
 }
 
 class _ComboSettingsBodyState extends ConsumerState<ComboSettingsBody> {
-  /// The answer [_base] was filled from; [_form] is what is on screen.
-  /// Until the person changes it, a refreshed answer refills both (also
-  /// after a branch exception's re-read: divergence SET-CMB-018).
-  ComboSettings? _from;
+  /// [_base] is the last answer seeded; [_form] is what is on screen.
+  /// While they match, the current answer refills both, so an edit undone
+  /// after a refresh shows the fresh value (divergence SET-CMB-018).
   ComboSettingsForm? _base;
   ComboSettingsForm? _form;
 
@@ -92,10 +91,7 @@ class _ComboSettingsBodyState extends ConsumerState<ComboSettingsBody> {
   bool get _dirty => _form != _base;
 
   void _follow(ComboSettings s) {
-    if (identical(s, _from)) return;
-    _from = s;
-    if (_form != null && _dirty) return;
-    _base = _form = ComboSettingsForm.from(s);
+    if (_form == null || !_dirty) _base = _form = ComboSettingsForm.from(s);
   }
 
   void _edit(ComboSettingsForm next) => setState(() => _form = next);

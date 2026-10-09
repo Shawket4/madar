@@ -8,6 +8,7 @@ import 'package:dashboard_kit/dashboard_kit.dart' show DashExportButton;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' show AsyncData;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -104,8 +105,8 @@ void main() {
     await mouse.moveTo(tester.getCenter(export));
     await h.settle();
     expect(
-      h.container.read(publicBrandProvider).hasValue,
-      isTrue,
+      h.container.read(publicBrandProvider),
+      isA<AsyncData<Object?>>(),
       reason: 'the export read is warmed',
     );
     final warmed = brand().length;

@@ -121,6 +121,7 @@ void main() {
       final m = cmbServer();
       final gate = m.server.hold('GET', '/authz/me');
       final h = await pumpCombos(tester, backend: m);
+      expect(byKey('cmb-loading'), findsOneWidget);
       expect(paneText("Couldn't load the combo settings"), findsNothing);
       gate.release();
       await h.settle();
@@ -499,6 +500,26 @@ void main() {
         isFalse,
       );
       expect(saveButton(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('SET-CMB-018 an edit undone after a refresh shows the fresh '
+        'value', (tester) async {
+      final m = cmbServer();
+      final h = await pumpCombos(tester, backend: m);
+      await h.tap(sellSwitch(ComboChannel.online));
+      // Another tab saves a new margin; the branch change re-reads it while
+      // the form is edited, so it stays.
+      m.db[ComboSettingsMock.margins].put({
+        'id': SeedIds.sabahOrg,
+        'combo_min_margin': '0.2000',
+      });
+      await pickCell(h, SeedIds.heliopolis, ComboChannel.qr, 'Off here');
+      await h.expectToast('Branch exception saved');
+      expect(tester.widget<EditableText>(marginInput()).controller.text, '55');
+      // Undone: the form is untouched again and shows the fresh answer.
+      await h.tap(sellSwitch(ComboChannel.online));
+      expect(tester.widget<EditableText>(marginInput()).controller.text, '20');
+      expect(saveButton(tester).onPressed, isNull);
     });
 
     testWidgets('SET-CMB-011 phone: one block per branch, a line per channel', (

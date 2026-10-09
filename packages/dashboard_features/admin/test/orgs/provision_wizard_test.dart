@@ -196,7 +196,7 @@ void main() {
     final refusal = MockResponse.error(500, 'Internal error');
     s.server.fail('GET', '/orgs/templates', refusal);
     final h = await _open(tester, server: s.server, db: s.db);
-    expect(find.text(h.refusalWords(refusal)), findsOneWidget);
+    expect(find.text(shown(h, refusal)), findsOneWidget);
     expect(find.text('Café'), findsNothing);
   });
 
@@ -510,7 +510,7 @@ void main() {
     await _toOwner(h);
     await _owner(h);
     await _create(h);
-    expect(find.text(h.refusalWords(refusal)), findsOneWidget);
+    expect(find.text(shown(h, refusal)), findsOneWidget);
     expect(find.text('Organization created'), findsOneWidget);
     expect(find.text('New Organization'), findsNothing);
     expect(find.text('Drops Coffee'), findsOneWidget);
@@ -528,7 +528,7 @@ void main() {
     await _create(h);
     expect(h.server.callsTo('/orgs/provision').single.status, 409);
     expect(find.text('Step 1 of 3 · Business'), findsOneWidget);
-    final taken = h.refusalWords(
+    final taken = shown(h, 
       MockResponse.conflict("Slug 'sabah-coffee' is already taken"),
     );
     expect(find.text(taken), findsOneWidget);
@@ -547,7 +547,7 @@ void main() {
     expect(find.text('Step 3 of 3 · Owner'), findsOneWidget);
     expect(
       find.text(
-        h.refusalWords(MockResponse.conflict('Email already in use')),
+        shown(h, MockResponse.conflict('Email already in use')),
       ),
       findsOneWidget,
     );
@@ -563,7 +563,7 @@ void main() {
     await _toOwner(h);
     await _owner(h);
     await _create(h);
-    await h.expectToast(h.refusalWords(refusal));
+    await h.expectToast(shown(h, refusal));
     expect(find.text('Step 3 of 3 · Owner'), findsOneWidget);
   });
 

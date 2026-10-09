@@ -299,10 +299,10 @@ void main() {
       expect(rowsOf(tester, cards), 3);
       await resize(h, 700);
       expect(rowsOf(tester, cards), 2);
-      // The kit sizes the strip by its own width, not the window's: at a
-      // 1024 window beside the sidebar it keeps 3 + 2 (divergence log).
+      // The kit counts columns by the window, as the web's media queries:
+      // a 1024 window is lg, so the five sit in one row.
       await resize(h, 1024, 768);
-      expect(rowsOf(tester, cards), 2);
+      expect(rowsOf(tester, cards), 1);
       await resize(h, 1440);
       expect(rowsOf(tester, cards), 1);
     });

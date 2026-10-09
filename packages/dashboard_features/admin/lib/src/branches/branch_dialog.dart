@@ -106,6 +106,9 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
   late double? _oldBillHours;
   late double? _standardFloat;
 
+  /// The edited branch left the list; the editor is closing.
+  bool _gone = false;
+
   bool get _editing => widget.branch != null;
   bool get _warehouse => _kind == BranchKind.warehouse;
 
@@ -409,13 +412,23 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     final zones = ref.watch(branchTimezonesProvider).value ?? const <String>[];
     // Seeded from the cached list: a refresh that lands re-seeds the fields
     // until they are changed, so Save never writes back stale values.
-    final orgId = ref.watch(orgIdProvider);
-    final fresh = _editing && orgId != null
+    final fresh = _editing
         ? ref
-              .watch(adminBranchesProvider(orgId))
+              .watch(branchesProvider)
               .value
               ?.firstWhereOrNull((b) => b.id == widget.branch!.id)
         : null;
+    // A refresh without the branch (deleted elsewhere) closes the editor, as
+    // the web's dialog unmounts once `branches.find` comes back empty.
+    if (_editing) {
+      ref.listen(branchesProvider, (_, next) {
+        final list = next.value;
+        if (_gone || list == null) return;
+        if (list.any((b) => b.id == widget.branch!.id)) return;
+        _gone = true;
+        Navigator.of(context).pop(false);
+      });
+    }
     if (fresh != null && !_edited && !identical(fresh, _branch)) {
       _branch = fresh;
       _seed(fresh);
@@ -635,7 +648,8 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       label: t('branches.geoRadius'),
       value: _radius,
       decimals: 0,
-      allowEmpty: true,
+      // Required: a blank radius would send null, which the server's
+      // COALESCE keeps as the old value (ADM-BRA-037).
       onChanged: (v) => _set(() => _radius = v),
       validator: _atLeastZero,
     );

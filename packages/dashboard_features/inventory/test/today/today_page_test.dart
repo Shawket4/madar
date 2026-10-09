@@ -1359,11 +1359,11 @@ void main() {
       );
     });
 
-    testWidgets('INV-TOD-032 tablet: KPIs two by two (kit divergence), lists '
+    testWidgets('INV-TOD-032 tablet: KPIs four across, as on the web; lists '
         'side by side', (tester) async {
       await pumpToday(tester, size: DashSize.tablet, branch: SeedIds.zamalek);
-      // The kit's strip counts columns by its own width, the web's
-      // `lg:grid-cols-4` by the viewport's: 2 x 2 here, 4 across on the web.
+      // The kit's strip counts columns by the window, as the web's
+      // `lg:grid-cols-4`: 4 across at 1024.
       final cards = find.byType(DashStatCard);
       final tops = {
         for (final e in cards.evaluate()) tester.getTopLeft(find.byWidget(e.widget)).dy,
@@ -1371,8 +1371,8 @@ void main() {
       final lefts = {
         for (final e in cards.evaluate()) tester.getTopLeft(find.byWidget(e.widget)).dx,
       };
-      expect(tops, hasLength(2));
-      expect(lefts, hasLength(2));
+      expect(tops, hasLength(1));
+      expect(lefts, hasLength(4));
       final a = tester.getTopLeft(find.byType(TodayArrivingSection));
       final w = tester.getTopLeft(find.byType(TodayWasteSection));
       expect(a.dy, w.dy);

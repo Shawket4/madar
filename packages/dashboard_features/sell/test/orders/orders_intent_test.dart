@@ -36,6 +36,10 @@ void main() {
     final catalogBefore = h.server.callsTo(catalogRoute).length;
     expect(h.server.callsTo(orderRoute), isEmpty);
 
+    // Scrolled first: the tap below scrolls the row to the top, and a resting
+    // pointer would then warm whichever row slid under it.
+    await tester.ensureVisible(rowFinder);
+    await h.settle();
     await mouse.moveTo(tester.getCenter(rowFinder));
     await h.settle();
     final warmed = h.server.callsTo(orderRoute, method: 'GET');

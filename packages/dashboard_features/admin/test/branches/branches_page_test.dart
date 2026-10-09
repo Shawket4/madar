@@ -71,10 +71,10 @@ void main() {
     addLocation(s.db);
     addLocation(s.db, name: 'Dokki Kiosk', kind: 'branch', active: false);
     final h = await pumpBranches(tester, server: s.server, db: s.db);
-    // The page's read, and the scope bar's branch picker (the core's), ask
-    // the same thing.
+    // The page reads the scope bar's own list (core's branchesProvider):
+    // one request between them.
     final calls = _lists(h);
-    expect(calls, isNotEmpty);
+    expect(calls, hasLength(1));
     for (final c in calls) {
       expect(c.query, {
         'org_id': [SeedIds.sabahOrg],
@@ -251,8 +251,8 @@ void main() {
   testWidgets('ADM-BRA-012 a failed read: the error and Retry, which asks '
       'again', (tester) async {
     final s = branchesServer();
-    // Both reads of the list fail (the page's and the scope bar's).
-    s.server.fail('GET', listRoute, MockResponse.error(500, 'boom'), times: 2);
+    // The one read the page and the scope bar share fails.
+    s.server.fail('GET', listRoute, MockResponse.error(500, 'boom'));
     final h = await pumpBranches(tester, server: s.server, db: s.db);
     expect(_pageText('Retry'), findsOneWidget);
     expect(_pageText('Branches you add appear here'), findsNothing);
@@ -260,6 +260,19 @@ void main() {
     await h.tap(_pageText('Retry'));
     expect(_lists(h), hasLength(before + 1), reason: 'only its own read');
     expect(_pageText('Zamalek'), findsOneWidget);
+  });
+
+  testWidgets('ADM-BRA-009/012 branch.settings_changed asks for the list '
+      'again and shows the new value', (tester) async {
+    final s = branchesServer();
+    final h = await pumpBranches(tester, server: s.server, db: s.db);
+    final before = _lists(h).length;
+    branchRow(s.db, SeedIds.zamalek)['name'] = 'Zamalek Nile';
+    h.realtime.current!.emit('branch.settings_changed', data: '{}');
+    await h.settle();
+    expect(_lists(h), hasLength(before + 1));
+    expect(_pageText('Zamalek Nile'), findsOneWidget);
+    expect(_pageText('Zamalek'), findsNothing);
   });
 
   testWidgets('ADM-BRA-013 empty: "Branches you add appear here"; Export '

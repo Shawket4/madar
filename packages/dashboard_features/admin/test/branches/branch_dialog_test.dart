@@ -466,17 +466,33 @@ void main() {
     );
   });
 
-  testWidgets('ADM-BRA-037 (divergence) a cleared number box is null, not 0', (
-    tester,
-  ) async {
+  testWidgets('ADM-BRA-037 (divergence) a cleared number box is null, not 0; '
+      'the radius is required', (tester) async {
     final h = await _edit(tester, SeedIds.zamalek);
     await _type(h, 'branch-radius', '');
     await _type(h, 'branch-printer-port', '');
     await _submit(h);
+    // A blank radius would send null, which the server keeps as the old one.
+    expect(_patches(h), isEmpty);
+    await _type(h, 'branch-radius', '150');
+    await _submit(h);
     final body = _patch(h);
     expect(body['printer_port'], isNull);
-    expect(body['geo_radius_meters'], isNull);
+    expect(body['geo_radius_meters'], 150);
     await h.flushTimers();
+  });
+
+  testWidgets('ADM-BRA-019/020 an edit whose branch leaves the list (deleted '
+      'elsewhere) closes', (tester) async {
+    final s = branchesServer();
+    final h = await _edit(tester, SeedIds.zamalek, s: s);
+    expect(find.byType(BranchDialog), findsOneWidget);
+    s.db['branches'].removeWhere((r) => r['id'] == SeedIds.zamalek);
+    h.container.read(realtimeBusProvider).invalidate(const ['/branches']);
+    await h.settle();
+    expect(find.byType(BranchDialog), findsNothing);
+    expect(h.location.path, branchesPath);
+    expect(h.location.queryParameters['edit'], isNull);
   });
 
   testWidgets('ADM-BRA-038 the Type: Branch / Warehouse, its hint, and the '

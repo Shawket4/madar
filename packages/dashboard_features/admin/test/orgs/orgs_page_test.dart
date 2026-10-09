@@ -322,7 +322,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('orgs-table')),
-          matching: find.text(h.refusalWords(refusal)),
+          matching: find.text(shown(h, refusal)),
         ),
         findsOneWidget,
       );

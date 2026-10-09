@@ -21,7 +21,8 @@ final adminBranchesProvider = FutureProvider.autoDispose
     .family<List<Branch>, String>((ref, orgId) async {
       ref.webCache();
       if (ref.watch(orgIdProvider) == orgId) {
-        return await ref.watch(branchesProvider.future) ?? const <Branch>[];
+        final List<Branch>? shared = await ref.watch(branchesProvider.future);
+        return shared ?? const <Branch>[];
       }
       ref.watch(realtimeEpochProvider('/branches?org_id=$orgId'));
       return ref

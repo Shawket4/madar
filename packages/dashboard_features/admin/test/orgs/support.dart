@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dashboard_admin/dashboard_admin.dart';
+import 'package:dashboard_admin/src/orgs/org_errors.dart' show orgErrorWords;
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
@@ -81,3 +82,19 @@ Map<String, Object?> lastBody(
 
 /// Text widgets whose text contains [s] (spans included).
 Finder textHas(String s) => find.textContaining(s, findRichText: true);
+
+/// The words the unit shows for a refusal: the transport's words
+/// (`h.refusalWords`) through the unit's `getErrorMessage` rule
+/// ([orgErrorWords]: the kind prefix off, Arabic words in Arabic).
+String shown(DashHarness h, MockResponse response) {
+  final e = MockServer.toApiException(response);
+  return orgErrorWords(
+    ApiException(
+      status: e.status,
+      code: e.code,
+      message: h.refusalWords(response),
+      details: e.details,
+    ),
+    h.container.read(tProvider),
+  );
+}

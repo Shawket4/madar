@@ -365,6 +365,10 @@ String pendingWords(String reason, Translator t) {
 
 /// A status pill that wraps (the web's `h-auto whitespace-normal` pill for a
 /// detail's sentence); the kit's pill is one line.
+/// The web's `StatusPill size="sm"` glyph (`size-3`), as the kit's small
+/// pill draws it; [IconSize.xs] (14) is the smallest token.
+const double _pillGlyph = 12;
+
 class _ReasonPill extends StatelessWidget {
   const _ReasonPill({required this.label, required this.tone});
 
@@ -391,7 +395,7 @@ class _ReasonPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: Space.xs,
         children: [
-          DashIcon(DashStatusPill.glyphFor(tone), size: IconSize.xs, color: fg),
+          DashIcon(DashStatusPill.glyphFor(tone), size: _pillGlyph, color: fg),
           Flexible(
             child: Text(
               label,
