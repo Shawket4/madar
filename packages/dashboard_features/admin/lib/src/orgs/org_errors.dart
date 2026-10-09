@@ -27,12 +27,12 @@ const List<String> serverKindPrefixes = [
   'Database error: ',
 ];
 
-/// A failure already in words (thrown to the image uploader, which shows the
-/// thrown object's text under the box).
-class OrgFailure implements Exception {
-  const OrgFailure(this.words);
+/// A failure already in words, thrown to the image uploader. An
+/// [ApiException], because the kit words anything else as "unexpected".
+class OrgFailure extends ApiException {
+  const OrgFailure(String words) : super(status: 0, message: words);
 
-  final String words;
+  String get words => message;
 
   @override
   String toString() => words;

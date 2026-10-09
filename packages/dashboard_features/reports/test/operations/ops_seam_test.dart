@@ -11,7 +11,6 @@ import 'package:dashboard_reports/dashboard_reports.dart';
 import 'package:dashboard_reports/src/operations/ops_table_sheet.dart';
 import 'package:dashboard_reports/src/operations/ops_tables.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';

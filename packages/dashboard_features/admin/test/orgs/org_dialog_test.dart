@@ -1,7 +1,10 @@
 // The organization editor (ADM-ORG-041..059 less the wizard rows): opened by
 // ?edit=<id>, prefilled from the row, the logo uploaded at once, one PATCH
 // on Save — driven through the real shell on the mock server.
+import 'dart:async';
+
 import 'package:dashboard_admin/src/area_seed.dart';
+import 'package:dashboard_admin/src/orgs/org_dialog.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
@@ -347,20 +350,21 @@ void main() {
   testWidgets('ADM-ORG-053 anyone else: no Modules box, modules never sent '
       '(and the server refuses the save)', (tester) async {
     final s = orgsServer(persona: Persona.owner);
-    // An owner who can read the list (not the backend's rule) to reach the
-    // editor at all.
-    s.server.on(
-      'GET',
-      '/orgs',
-      (req) => MockResponse.ok(s.db['orgs'].query(sort: 'name')),
-    );
-    final h = await _open(
+    // The route is the platform's (Restricted for an owner): open the editor
+    // itself, as a shared dialog would be.
+    final h = await pumpOrgs(
       tester,
-      SeedIds.sabahOrg,
       persona: Persona.owner,
       server: s.server,
       db: s.db,
     );
+    unawaited(
+      showOrgDialog(
+        tester.element(find.byType(Restricted)),
+        org: orgNamed(s.db, 'Sabah Coffee'),
+      ),
+    );
+    await h.settle();
     expect(find.text('Edit Organization'), findsOneWidget);
     expect(find.text('Modules'), findsNothing);
     await _save(h);
@@ -503,8 +507,8 @@ void main() {
     expect(h.location.queryParameters.containsKey('edit'), isFalse);
   });
 
-  testWidgets('ADM-ORG-058 (divergence) what was typed survives the refetch '
-      'a logo upload causes', (tester) async {
+  testWidgets('ADM-ORG-058 what was typed survives the refetch a logo upload '
+      'causes', (tester) async {
     final h = await _open(tester, AdminSeed.layaliOrg);
     await _type(h, 'name', 'Layali Garden');
     h.files.imageQueue.add(pngFile());
@@ -513,6 +517,62 @@ void main() {
     expect(_textOf(tester, 'name'), 'Layali Garden');
     await _save(h);
     expect(_patch(h)['name'], 'Layali Garden');
+    await h.flushTimers();
+  });
+
+  testWidgets('ADM-ORG-041 / 058 a refresh that lands re-seeds the untouched '
+      'editor, never a touched one', (tester) async {
+    final s = orgsServer();
+    final h = await _open(
+      tester,
+      AdminSeed.layaliOrg,
+      server: s.server,
+      db: s.db,
+    );
+    Future<void> refresh(String name) async {
+      s.db['orgs'].update(AdminSeed.layaliOrg, {'name': name});
+      h.container.read(realtimeBusProvider).invalidate(const ['/orgs']);
+      await h.settle();
+    }
+
+    await refresh('Layali Garden');
+    expect(_textOf(tester, 'name'), 'Layali Garden');
+    await _type(h, 'slug', 'layali-garden');
+    await refresh('Layali Roof');
+    expect(_textOf(tester, 'name'), 'Layali Garden');
+    expect(_textOf(tester, 'slug'), 'layali-garden');
+  });
+
+  testWidgets('ADM-ORG-055 the save refreshes /orgs even when the editor '
+      'closed while it ran', (tester) async {
+    final h = await _open(tester, AdminSeed.layaliOrg);
+    final gate = h.server.hold('PATCH', '/orgs/{id}');
+    await _save(h);
+    await h.go('/orgs');
+    expect(find.text('Edit Organization'), findsNothing);
+    final before = h.server.callsTo('/orgs', method: 'GET').length;
+    gate.release();
+    await h.settle();
+    expect(
+      h.server.callsTo('/orgs', method: 'GET').length,
+      greaterThan(before),
+    );
+    await h.flushTimers();
+  });
+
+  testWidgets('ADM-ORG-055 warehouses: the editor never shows or sends '
+      'max_warehouses, and a save keeps the stored limit', (tester) async {
+    final s = orgsServer();
+    s.db['orgs'].update(AdminSeed.layaliOrg, {'max_warehouses': 2});
+    final h = await _open(
+      tester,
+      AdminSeed.layaliOrg,
+      server: s.server,
+      db: s.db,
+    );
+    await _save(h);
+    expect(_patch(h).containsKey('max_warehouses'), isFalse);
+    expect(orgNamed(s.db, 'Layali Bistro').maxWarehouses, 2);
     await h.flushTimers();
   });
 

@@ -65,10 +65,14 @@ class AppearancePage extends ConsumerWidget {
               icon: theme.icon,
               title: t('settings.themeHint'),
               trailing: iconsOnly
-                  ? _GlyphSegments(
-                      options: themes,
-                      value: theme,
-                      onChanged: setTheme,
+                  ? Semantics(
+                      container: true,
+                      label: t('settings.themeHint'),
+                      child: _GlyphSegments(
+                        options: themes,
+                        value: theme,
+                        onChanged: setTheme,
+                      ),
                     )
                   : DashSegmentedControl<ThemePref>(
                       options: themes,
@@ -218,7 +222,7 @@ class _GlyphSegments extends StatelessWidget {
               builder: (context, s) {
                 final on = o.value == value;
                 return Container(
-                  height: DashMetrics.control - Space.xs - 2,
+                  height: DashMetrics.control - 2 * DashMetrics.ring,
                   padding: const EdgeInsets.symmetric(horizontal: Space.md),
                   alignment: Alignment.center,
                   foregroundDecoration: dashFocusRing(

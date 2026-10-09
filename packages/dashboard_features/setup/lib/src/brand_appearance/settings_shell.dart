@@ -95,6 +95,7 @@ class SettingsShell extends ConsumerWidget {
                             value: i.to,
                             label: t(i.labelKey, defaultValue: i.fallback),
                             icon: i.lucide,
+                            group: t(g.labelKey, defaultValue: g.fallback),
                           ),
                     ],
                     value: current?.to,

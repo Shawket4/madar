@@ -1,5 +1,7 @@
 // `/devices`, the Devices view and the Edit device dialog, driven through
-// the real app shell (inventory rows ADM-DEV-001..013, -020, -029).
+// the real app shell (inventory rows ADM-DEV-001..013, -020, -029; the codes
+// are in activation_codes_test.dart, the Client versions view in
+// client_versions_test.dart).
 import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_admin/src/devices/devices_data.dart';
 import 'package:dashboard_admin/src/devices/devices_table.dart';
@@ -540,6 +542,32 @@ void main() {
       gate.release();
       await h.settle();
       expect(find.text('T7'), findsOneWidget);
+      await h.expectToast('Saved');
+    });
+
+    testWidgets('ADM-DEV-029 a refresh that lands re-seeds the dialog until '
+        'it is edited', (tester) async {
+      final b = DevicesBackend();
+      final h = await pumpDevices(tester, query: _zamalek, backend: b);
+      final bus = h.container.read(realtimeBusProvider);
+      String label() =>
+          tester.widget<DashTextField>(field('device-label')).value;
+      await h.tap(editButton(1));
+      final id = AdminSeed.deviceId('zamalek', 'T1');
+      b.devices.update(id, {'label': 'Front till'});
+      bus.invalidate(const ['/devices']);
+      await h.settle();
+      expect(label(), 'Front till');
+      await h.enterText(field('device-label'), 'Mine');
+      b.devices.update(id, {'label': 'Theirs'});
+      bus.invalidate(const ['/devices']);
+      await h.settle();
+      expect(label(), 'Mine');
+      await h.tap(top('Save'));
+      expect(
+        h.server.callsTo(DevicesRoutes.device).single.body,
+        containsPair('label', 'Mine'),
+      );
       await h.expectToast('Saved');
     });
   });

@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../attendance/attendance_providers.dart';
+import '../requests/requests_dialogs.dart' show RequestsMetrics;
 import '../shared/attendance_errors.dart';
 import '../shared/staff_query.dart';
 import 'approvals_data.dart';
@@ -172,19 +173,23 @@ class _RejectReasonDialogState extends ConsumerState<RejectReasonDialog> {
 // ── approve with pay (requests-inbox.tsx `ApproveWithPayDialog`) ───────────
 
 /// Approving leave, a permission or an early departure asks paid or not
-/// (TEAM-REQ-020…023).
+/// (TEAM-REQ-020…023). [source] is the list the request came from (its
+/// fresher copy re-seeds the switch); Approvals' pending read by default.
 Future<void> showApproveWithPayDialog(
   BuildContext context,
-  StaffRequest request,
-) => showDashDialog<void>(
+  StaffRequest request, {
+  FutureProvider<List<StaffRequest>>? source,
+}) => showDashDialog<void>(
   context,
-  builder: (_) => ApproveWithPayDialog(request: request),
+  width: RequestsMetrics.dialog,
+  builder: (_) => ApproveWithPayDialog(request: request, source: source),
 );
 
 class ApproveWithPayDialog extends ConsumerStatefulWidget {
-  const ApproveWithPayDialog({required this.request, super.key});
+  const ApproveWithPayDialog({required this.request, this.source, super.key});
 
   final StaffRequest request;
+  final FutureProvider<List<StaffRequest>>? source;
 
   @override
   ConsumerState<ApproveWithPayDialog> createState() =>
@@ -245,7 +250,8 @@ class _ApproveWithPayDialogState extends ConsumerState<ApproveWithPayDialog> {
     // The latest copy of the request: a refresh re-seeds the switch until
     // the approver touches it.
     var r = widget.request;
-    for (final x in ref.watch(approvalsRequestsProvider).value ?? const []) {
+    final source = widget.source ?? approvalsRequestsProvider;
+    for (final x in ref.watch(source).value ?? const []) {
       if (x.id == r.id) r = x;
     }
     final leave = r.kind == 'leave';
@@ -532,7 +538,8 @@ Future<bool> confirmMissionOverPunches(
       return true;
     }
   }
-  if (worked.isEmpty || !context.mounted) return true;
+  if (!context.mounted) return false;
+  if (worked.isEmpty) return true;
   final t = ref.read(tProvider);
   final f = ref.read(formatProvider);
   final dates = worked.map(f.fmtDate).join(t('common.listSeparator'));

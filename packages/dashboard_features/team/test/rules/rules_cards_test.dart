@@ -161,6 +161,25 @@ void main() {
     expect(find.textContaining('10:00 PM – 05:00 AM'), findsOneWidget);
   });
 
+  testWidgets('TEAM-RUL-034 TEAM-ALL-025 the night window: equal times are '
+      'refused; a "9 to 5" overnight offers "End at ... instead"', (
+    tester,
+  ) async {
+    final h = await pumpRules(tester);
+    final same = h.t('inputs.sameTime');
+    expect(pageText(same), findsNothing);
+    await typeIn(h, RulesDawamKeys.nightEnd, '22:00');
+    expect(pageText(same), findsOneWidget);
+    await typeIn(h, RulesDawamKeys.nightStart, '09:00');
+    await typeIn(h, RulesDawamKeys.nightEnd, '05:00');
+    expect(pageText(same), findsNothing);
+    final fix = h.t('inputs.didYouMean', args: {'time': '5:00 PM'});
+    expect(pageText(fix), findsOneWidget);
+    await h.tap(pageText(fix));
+    expect(shown(tester, RulesDawamKeys.nightEnd), '17:00');
+    expect(pageText(fix), findsNothing);
+  });
+
   testWidgets('TEAM-RUL-035 cover pay: two choices for the business, three '
       'for a branch (following the business picked)', (tester) async {
     final h = await pumpRules(tester);

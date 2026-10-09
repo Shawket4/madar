@@ -96,6 +96,7 @@ class _ProvisionWizardState extends ConsumerState<ProvisionWizard> {
     if (errors.isNotEmpty) return;
     setState(() => _busy = true);
     final api = ref.read(apiProvider);
+    final invalidate = orgsInvalidator(ref);
     try {
       final created = await api.orgs.provisionOrg(body: _form.toRequest());
       final logo = _pendingLogo;
@@ -117,8 +118,8 @@ class _ProvisionWizardState extends ConsumerState<ProvisionWizard> {
           if (mounted) DashToast.error(context, orgErrorWords(e, t));
         }
       }
+      invalidate();
       if (!mounted) return;
-      invalidateOrgs(ref);
       DashToast.success(context, t('orgs.createdToast'));
       Navigator.of(context).pop();
     } on Object catch (e) {
@@ -281,7 +282,7 @@ class _ProvisionWizardState extends ConsumerState<ProvisionWizard> {
             arabic: t.isRtl,
             onPick: (key) => _changed('template', () => _form.template = key),
           ),
-          if (templates.hasError && !templates.isLoading)
+          if (templates.failedFirst)
             Text(
               orgErrorWords(templates.error, t),
               style: DashType.small.copyWith(color: c.errorText),

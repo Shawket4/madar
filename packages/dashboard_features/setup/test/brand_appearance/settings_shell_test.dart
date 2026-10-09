@@ -392,6 +392,23 @@ void main() {
       expect(lists(), 1, reason: 'opened from the cache');
     });
 
+    testWidgets('SET-SHL-013 resting on Brand warms the org read (intent '
+        'beyond the web); opening it asks nothing more', (tester) async {
+      final h = await pumpBrand(tester, path: appearancePath);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      int reads() => h.server.callsTo(orgRoute, method: 'GET').length;
+      expect(reads(), 0);
+      final entry = _inRail(find.text('Brand'));
+      await mouse.moveTo(tester.getCenter(entry));
+      await h.settle();
+      expect(reads(), 1, reason: 'warmed on intent');
+      await h.tap(entry);
+      expect(h.location.path, brandPath);
+      expect(reads(), 1, reason: 'opened from the cache');
+    });
+
     testWidgets('SET-SHL-013 the picker\'s options warm their pane too', (
       tester,
     ) async {

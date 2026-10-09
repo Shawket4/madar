@@ -177,6 +177,7 @@ class ActivationCodesSection extends ConsumerWidget {
                 id: 'when',
                 label: t('devices.activation.when'),
                 numeric: true,
+                minWidth: 180, // "20 Sept · 10:45 PM" uncut
                 text: (r) =>
                     fmt.fmtStamp(r.usedAt ?? r.revokedAt ?? r.expiresAt),
               ),

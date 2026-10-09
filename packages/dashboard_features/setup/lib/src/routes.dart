@@ -52,6 +52,7 @@ const List<DashRoute> setupRoutes = [
     titleKey: 'settings.brand',
     titleFallback: 'Brand',
     module: OrgModule.pos,
+    prefetch: prefetchBrand,
   ),
   DashRoute(
     path: '/settings/links',
@@ -143,6 +144,7 @@ const List<DashRoute> setupRoutes = [
     builder: _whatsapp,
     titleKey: 'nav.whatsapp',
     titleFallback: 'WhatsApp',
+    prefetch: prefetchWhatsapp,
   ),
 ];
 

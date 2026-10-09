@@ -6,6 +6,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show Org, OrgTemplate;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:flutter/widgets.dart' show VoidCallback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// `GET /orgs` (listOrgs): every organization, active and inactive,
@@ -38,11 +39,18 @@ final orgTimezonesProvider = FutureProvider.autoDispose<List<String>>((ref) {
 /// `invalidateOrgs()`: every read keyed under `/orgs` asks again — this
 /// page's list, the org picker's list, the current org, its modules, its
 /// onboarding status and anything else that watches an `/orgs…` epoch.
-void invalidateOrgs(WidgetRef ref) {
-  // The bus bumps every `/orgs…` epoch (this page's reads among them).
-  ref.read(realtimeBusProvider).invalidate(const ['/orgs']);
-  ref
-    ..invalidate(orgsProvider)
-    ..invalidate(currentOrgProvider)
-    ..invalidate(orgModulesQueryProvider);
+///
+/// Captured BEFORE the await and run after it, always: the dialog or page
+/// may close mid-save and the web's query client refetches regardless.
+VoidCallback orgsInvalidator(WidgetRef ref) {
+  final bus = ref.read(realtimeBusProvider);
+  final container = ProviderScope.containerOf(ref.context, listen: false);
+  return () {
+    // The bus bumps every `/orgs…` epoch (this page's reads among them).
+    bus.invalidate(const ['/orgs']);
+    container
+      ..invalidate(orgsProvider)
+      ..invalidate(currentOrgProvider)
+      ..invalidate(orgModulesQueryProvider);
+  };
 }

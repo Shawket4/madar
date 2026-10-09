@@ -346,52 +346,73 @@ void main() {
       expect(h.t('orgs.empty'), 'Organizations you add appear here');
     });
 
+    // (divergence, shell contract) The web shows the page frame and the
+    // refused list to anyone who types /orgs; the shell's platform-only
+    // route shows its Restricted page and asks nothing.
     for (final persona in [
       Persona.owner,
       Persona.manager,
       Persona.limited,
       Persona.dawamOnly,
     ]) {
-      testWidgets('ADM-ORG-004 refused (${persona.name}): the frame, the '
-          'refusal and Retry, zero stats, Export off, New still there', (
-        tester,
-      ) async {
+      testWidgets('ADM-ORG-004 (divergence) refused (${persona.name}): the '
+          'Restricted page, no list read, no New', (tester) async {
         final h = await pumpOrgs(tester, persona: persona);
-        expect(find.text('Organizations'), findsWidgets);
-        expect(
-          find.text("You don't have permission to perform this action."),
-          findsOneWidget,
-        );
-        expect(find.text('Retry'), findsOneWidget);
-        expect(_stat('total', '0'), findsOneWidget);
-        expect(_stat('active', '0'), findsOneWidget);
-        expect(_stat('inactive', '0'), findsOneWidget);
-        expect(_stat('avg-tax', '—'), findsOneWidget);
-        expect(_button(tester, 'Export Excel').onPressed, isNull);
-        expect(_button(tester, 'New').onPressed, isNotNull);
-        final call = h.server.callsTo('/orgs', method: 'GET').single;
-        expect(call.status, 403);
+        expect(find.text(h.t('common.restrictedTitle')), findsOneWidget);
+        expect(find.byKey(const ValueKey('orgs-new')), findsNothing);
+        expect(find.byKey(const ValueKey('orgs-table')), findsNothing);
+        expect(h.server.callsTo('/orgs', method: 'GET'), isEmpty);
       });
     }
 
-    testWidgets('ADM-ORG-004 refused in Arabic: the refusal in Arabic', (
-      tester,
-    ) async {
+    testWidgets('ADM-ORG-004 (divergence) refused in Arabic: Restricted in '
+        'Arabic', (tester) async {
       final h = await pumpOrgs(tester, persona: Persona.owner, locale: 'ar');
-      expect(find.text(h.t('errors.unauthorized')), findsOneWidget);
-      expect(find.text(h.t('common.retry')), findsOneWidget);
+      expect(find.text(h.t('common.restrictedTitle')), findsOneWidget);
     });
 
-    testWidgets('ADM-ORG-004 the wizard opens for anyone; its create is '
-        'refused in words', (tester) async {
-      final h = await pumpOrgs(tester, persona: Persona.owner);
-      await h.tapKey(const ValueKey('orgs-new'));
-      expect(find.text('New Organization'), findsOneWidget);
-      // The templates read is refused too: the words show under the cards.
-      expect(
-        find.text("You don't have permission to perform this action."),
-        findsNWidgets(2),
+    test('ADM-ORG-004 the server still refuses everyone else every /orgs '
+        'call', () async {
+      for (final persona in [Persona.owner, Persona.manager]) {
+        final s = orgsServer(persona: persona);
+        for (final r in [
+          const ApiRequest(method: 'GET', path: '/orgs'),
+          const ApiRequest(method: 'GET', path: '/orgs/templates'),
+          const ApiRequest(method: 'POST', path: '/orgs/provision', body: {}),
+          ApiRequest(method: 'DELETE', path: '/orgs/${AdminSeed.layaliOrg}'),
+          ApiRequest(
+            method: 'PATCH',
+            path: '/orgs/${AdminSeed.layaliOrg}',
+            body: const {'name': 'x'},
+          ),
+        ]) {
+          await expectLater(
+            s.server.send(r),
+            throwsA(isA<ApiException>().having((e) => e.status, 'status', 403)),
+            reason: '${persona.name} ${r.method} ${r.path}',
+          );
+        }
+      }
+    });
+
+    testWidgets('ADM-ORG-015 while Retry runs the error stays: never an '
+        'empty "no organizations" flash', (tester) async {
+      final s = orgsServer();
+      s.server.fail(
+        'GET',
+        '/orgs',
+        MockResponse.error(500, 'Internal error'),
+        times: null,
       );
+      final h = await pumpOrgs(tester, server: s.server, db: s.db);
+      s.server.clearFailures();
+      final gate = s.server.hold('GET', '/orgs');
+      await h.tapText('Retry');
+      expect(find.text('Internal error'), findsOneWidget);
+      expect(find.text('Organizations you add appear here'), findsNothing);
+      gate.release();
+      await h.settle();
+      expect(find.text('Layali Bistro'), findsOneWidget);
     });
   });
 

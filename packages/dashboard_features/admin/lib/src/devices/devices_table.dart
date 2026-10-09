@@ -180,6 +180,7 @@ class DevicesTable extends ConsumerWidget {
           id: 'last_seen_at',
           label: t('devices.lastSeen'),
           numeric: true,
+          minWidth: 180, // "20 Sept · 10:45 PM" uncut
           text: (d) => fmt.fmtStamp(d.lastSeenAt),
         ),
       ],

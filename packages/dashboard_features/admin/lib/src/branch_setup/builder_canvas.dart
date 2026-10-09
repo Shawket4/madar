@@ -83,7 +83,8 @@ class BuilderViewport extends ChangeNotifier {
     notifyListeners();
   }
 
-  Offset toWorld(Offset local) => Offset(x + local.dx / zoom, y + local.dy / zoom);
+  Offset toWorld(Offset local) =>
+      Offset(x + local.dx / zoom, y + local.dy / zoom);
   Offset toScreen(double wx, double wy) =>
       Offset((wx - x) * zoom, (wy - y) * zoom);
 
@@ -421,7 +422,10 @@ class _BuilderCanvasState extends State<BuilderCanvas> {
         final on = !HardwareKeyboard.instance.isAltPressed;
         widget.onMove({
           for (final o in it.origin.entries)
-            o.key: (x: snapTo(o.value.dx + d.dx, on), y: snapTo(o.value.dy + d.dy, on)),
+            o.key: (
+              x: snapTo(o.value.dx + d.dx, on),
+              y: snapTo(o.value.dy + d.dy, on),
+            ),
         });
     }
   }
@@ -512,83 +516,84 @@ class _BuilderCanvasState extends State<BuilderCanvas> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: _down,
-                onPointerMove: _move,
-                onPointerUp: _up,
-                onPointerCancel: _up,
-                onPointerSignal: _signal,
-                onPointerPanZoomStart: (_) => _panZoomScale = 1,
-                onPointerPanZoomUpdate: (e) {
-                  _v
-                    ..panBy(-e.panDelta.dx, -e.panDelta.dy)
-                    ..zoomBy(
-                      e.scale / _panZoomScale,
-                      _v.toWorld(e.localPosition),
-                    );
-                  _panZoomScale = e.scale;
-                },
-                child: RawGestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  gestures: {
-                    EagerGestureRecognizer:
-                        GestureRecognizerFactoryWithHandlers<
-                          EagerGestureRecognizer
-                        >(EagerGestureRecognizer.new, (_) {}),
-                  },
-                  child: ClipRect(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CustomPaint(
-                          painter: _LinesPainter(
-                            viewport: _v,
-                            links: [
-                              for (final l in linksOf(widget.plan))
-                                if (boxes[l.from.key] case final a?)
-                                  if (boxes[l.to.key] case final b?)
-                                    (link: l, curve: routeBetween(a, b)),
+                    Listener(
+                      behavior: HitTestBehavior.opaque,
+                      onPointerDown: _down,
+                      onPointerMove: _move,
+                      onPointerUp: _up,
+                      onPointerCancel: _up,
+                      onPointerSignal: _signal,
+                      onPointerPanZoomStart: (_) => _panZoomScale = 1,
+                      onPointerPanZoomUpdate: (e) {
+                        _v
+                          ..panBy(-e.panDelta.dx, -e.panDelta.dy)
+                          ..zoomBy(
+                            e.scale / _panZoomScale,
+                            _v.toWorld(e.localPosition),
+                          );
+                        _panZoomScale = e.scale;
+                      },
+                      child: RawGestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        gestures: {
+                          EagerGestureRecognizer:
+                              GestureRecognizerFactoryWithHandlers<
+                                EagerGestureRecognizer
+                              >(EagerGestureRecognizer.new, (_) {}),
+                        },
+                        child: ClipRect(
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CustomPaint(
+                                painter: _LinesPainter(
+                                  viewport: _v,
+                                  links: [
+                                    for (final l in linksOf(widget.plan))
+                                      if (boxes[l.from.key] case final a?)
+                                        if (boxes[l.to.key] case final b?)
+                                          (link: l, curve: routeBetween(a, b)),
+                                  ],
+                                  selected: selected,
+                                  faded: linking != null,
+                                  drawing: linking != null && to != null
+                                      ? (switch (boxes[linking.key]) {
+                                          final a? => routeBetween(a, to),
+                                          null => null,
+                                        })
+                                      : null,
+                                  primary: c.accent,
+                                  muted: c.textMuted,
+                                  grid: c.border,
+                                ),
+                              ),
+                              for (final p in widget.pieces) _card(p),
+                              if (widget.editable)
+                                for (final p in widget.pieces) _port(p),
+                              if (_hoverLink case final h?)
+                                Positioned(
+                                  left: h.at.dx + Space.md,
+                                  top: h.at.dy + Space.md,
+                                  child: IgnorePointer(
+                                    child: _Chip(
+                                      text: widget.words.link(h.link.kind),
+                                    ),
+                                  ),
+                                ),
                             ],
-                            selected: selected,
-                            faded: linking != null,
-                            drawing: linking != null && to != null
-                                ? (switch (boxes[linking.key]) {
-                                    final a? => routeBetween(a, to),
-                                    null => null,
-                                  })
-                                : null,
-                            primary: c.accent,
-                            muted: c.textMuted,
-                            grid: c.border,
                           ),
                         ),
-                        for (final p in widget.pieces) _card(p),
-                        if (widget.editable)
-                          for (final p in widget.pieces) _port(p),
-                        if (_hoverLink case final h?)
-                          Positioned(
-                            left: h.at.dx + Space.md,
-                            top: h.at.dy + Space.md,
-                            child: IgnorePointer(
-                              child: _Chip(
-                                text: widget.words.link(h.link.kind),
-                              ),
-                            ),
-                          ),
-                      ],
+                      ),
                     ),
-                  ),
+                    // Outside the gesture layer, so its button takes taps.
+                    if (selected != null) _pill(selected, boxes),
+                  ],
                 ),
               ),
             ),
           );
         },
       ),
-                if (selected != null) _pill(selected, boxes),
-                  ],
-                ),
-              ),
     );
   }
 
@@ -726,7 +731,10 @@ class _Chip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(text, style: DashType.smallMedium.copyWith(color: c.textPrimary)),
+          Text(
+            text,
+            style: DashType.smallMedium.copyWith(color: c.textPrimary),
+          ),
           ?trailing,
         ],
       ),
@@ -860,7 +868,8 @@ class BuilderCard extends StatelessWidget {
               child: Row(
                 spacing: Space.sm,
                 children: [
-                  if (p.presence case final pr?) PresenceDot(tone: pr.tone, label: pr.label),
+                  if (p.presence case final pr?)
+                    PresenceDot(tone: pr.tone, label: pr.label),
                   if (p.detail case final d?)
                     Flexible(
                       child: Text(
@@ -1103,7 +1112,9 @@ class LinkLegend extends StatelessWidget {
               SizedBox(
                 width: 22,
                 height: 8,
-                child: CustomPaint(painter: _LegendLine(k, c.accent, c.textMuted)),
+                child: CustomPaint(
+                  painter: _LegendLine(k, c.accent, c.textMuted),
+                ),
               ),
               Text(
                 label(k),
@@ -1141,4 +1152,3 @@ class _LegendLine extends CustomPainter {
   @override
   bool shouldRepaint(_LegendLine old) => false;
 }
-

@@ -21,6 +21,10 @@
 ///   enum: a bad value is the database's own 400;
 /// - names are unique per org (`uq_branches_org_name`): a clash is the
 ///   database's 409;
+/// - warehouses (MadarRust b14f323): every row carries `kind`; a create or a
+///   switch to `warehouse` over the org's `max_warehouses` (null = no limit)
+///   is 409 `WAREHOUSE_LIMIT`, and a switch while anything still sells there
+///   is 409 `BRANCH_STILL_SELLING` naming each thing to stop;
 /// - delete refuses (409) while the branch still has an open till, an
 ///   unsettled ticket, a table in use or an upcoming booking, naming all of
 ///   them in one sentence; otherwise the branch is gone from every list.
@@ -30,6 +34,8 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart'
     show TransportRealtimeGateway;
+
+import '../area_seed.dart' show AdminTables;
 
 /// The fields `UPDATE branches` merges with `COALESCE` (null keeps).
 const List<String> _coalesced = [
@@ -68,6 +74,8 @@ void registerBranchesMocks(MockServer server, MockDb db) {
     final ip = body.printerIp;
     if (ip != null) _checkInet(req, ip);
     _checkUniqueName(req, db, body.orgId, body.name);
+    final kind = body.kind?.toJson() ?? 'branch';
+    if (kind == 'warehouse') _checkWarehouseLimit(req, db, body.orgId);
     final id = db.newId('branches');
     final now = db.nowIso;
     final row = <String, Object?>{
@@ -88,6 +96,7 @@ void registerBranchesMocks(MockServer server, MockDb db) {
       'longitude': body.longitude,
       'geo_radius_meters': body.geoRadiusMeters,
       'old_bill_hours': 3,
+      'kind': kind,
       'created_at': now,
       'updated_at': now,
     };
@@ -127,6 +136,20 @@ void registerBranchesMocks(MockServer server, MockDb db) {
     if (name is String && name != row['name']) {
       _checkUniqueName(req, db, row['org_id']! as String, name, except: row);
     }
+
+    // A kind change is checked before anything is written.
+    final kind = body['kind'];
+    if (kind == 'warehouse' && row['kind'] != 'warehouse') {
+      _checkWarehouseLimit(req, db, row['org_id']! as String);
+      final busy = _stillSelling(db, row['id']! as String);
+      if (busy.isNotEmpty) {
+        req.conflict(
+          'To make this a warehouse, first ${busy.join(', ')}.',
+          code: 'BRANCH_STILL_SELLING',
+        );
+      }
+    }
+    if (kind is String) row['kind'] = kind;
 
     final before = (row['old_bill_hours'], row['standard_float']);
     for (final key in _coalesced) {
@@ -183,6 +206,54 @@ Map<String, Object?> _answer(MockDb db, Map<String, Object?> row) {
     'org_logo_url': org?['logo_url'],
     'org_receipt_footer': org?['receipt_footer'],
   };
+}
+
+/// `check_warehouse_limit`: 409 when org [orgId] already has its
+/// `max_warehouses` (null: no limit).
+void _checkWarehouseLimit(MockRequest req, MockDb db, String orgId) {
+  final max = db['orgs'].find(orgId)?['max_warehouses'] as int?;
+  if (max == null) return;
+  final have = db['branches']
+      .where((b) => b['org_id'] == orgId && b['kind'] == 'warehouse')
+      .length;
+  if (have >= max) {
+    req.conflict(
+      'This organization can have $max warehouse(s), and has $have.',
+      code: 'WAREHOUSE_LIMIT',
+    );
+  }
+}
+
+/// `check_not_selling`: what still sells at branch [id], as the steps to
+/// stop it. Tables another area has not loaded count as empty.
+List<String> _stillSelling(MockDb db, String id) {
+  bool any(String table, bool Function(Map<String, Object?> r) test) =>
+      db.hasTable(table) &&
+      db[table].where((r) => r['branch_id'] == id && test(r)).isNotEmpty;
+  const live = {'pending', 'preparing', 'ready'};
+  return [
+    if (any('tills', (r) => r['status'] == 'open')) 'close its open tills',
+    if (any('orders', (r) => live.contains(r['status'])))
+      'finish its open orders',
+    if (any('open_tickets', (r) => r['status'] == 'open'))
+      'settle its open bills',
+    if (any(AdminTables.devices, (r) => r['retired_at'] == null))
+      'unpair its devices',
+    if (any('integration_credentials', (r) => r['revoked_at'] == null))
+      'disconnect its delivery-app integrations',
+    if (any(
+      'delivery_settings',
+      (r) => [
+        'in_mall_enabled',
+        'outside_enabled',
+        'umbrella_enabled',
+        'pickup_enabled',
+      ].any((k) => r[k] == true),
+    ))
+      'turn off its delivery and pickup',
+    if (any('booking_settings', (r) => r['enabled'] == true))
+      'turn off its bookings',
+  ];
 }
 
 /// Everything still live at branch [id], phrased for a person

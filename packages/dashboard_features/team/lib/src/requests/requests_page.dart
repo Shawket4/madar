@@ -82,10 +82,15 @@ class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage> {
   Future<void> _approve(StaffRequest r) async {
     // Kinds that carry a pay decision get the dialog; the rest are one click.
     if (asksPay.contains(r.kind)) {
-      await showApproveWithPayDialog(context, r);
+      await showApproveWithPayDialog(
+        context,
+        r,
+        source: requestsReadFor(_key(_status, _kind)),
+      );
       return;
     }
     if (!await confirmMissionOverPunches(context, ref, r)) return;
+    if (!mounted) return;
     if (_busy != null) return;
     setState(() => _busy = r.id);
     final t = ref.read(tProvider);
@@ -142,12 +147,10 @@ class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage> {
     );
   }
 
-  /// Pointing at Approve warms what pressing it reads: the pay dialog's
-  /// list, or a mission's worked days when the server did not name them.
+  /// Pointing at Approve warms what pressing it reads: a mission's worked
+  /// days when the server did not name them. The pay dialog reads the
+  /// page's own list, already on screen.
   VoidCallback? _approveIntent(StaffRequest r) {
-    if (asksPay.contains(r.kind)) {
-      return () => ref.warm(approvalsRequestsProvider);
-    }
     if (r.kind == 'mission' && r.workedDates == null) {
       return () => ref.warm(attendanceListProvider(missionDaysKey(r)));
     }

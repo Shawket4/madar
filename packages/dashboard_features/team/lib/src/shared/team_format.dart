@@ -35,7 +35,8 @@ String fmtHours(String lang, num? minutes) {
       ? '$hours$sep$h'
       : '$hours$sep$h $rest$sep$m';
   final signed = minutes < 0 ? '$minusSign$out' : out;
-  return ar ? ltr(signed) : signed;
+  // An LTR isolate would show "9 س 4 د" as "9 د 4 س" to an Arabic reader.
+  return ar ? rtl(signed) : signed;
 }
 
 /// A shift's length (`formatSpan`): "8 h", "8 h 30 min", "45 min"; Arabic

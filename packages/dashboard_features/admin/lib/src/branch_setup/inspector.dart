@@ -240,14 +240,23 @@ class CommitField extends StatefulWidget {
 class _CommitFieldState extends State<CommitField> {
   late String _text = widget.value;
 
+  /// What Enter committed: the blur that follows must not commit it again
+  /// before the new value arrives.
+  String? _committed;
+
   @override
   void didUpdateWidget(CommitField old) {
     super.didUpdateWidget(old);
-    if (old.value != widget.value) _text = widget.value;
+    if (old.value != widget.value) {
+      _text = widget.value;
+      _committed = null;
+    }
   }
 
   void _commit() {
-    if (_text != widget.value) widget.onCommit(_text);
+    if (_text == widget.value || _text == _committed) return;
+    _committed = _text;
+    widget.onCommit(_text);
   }
 
   @override

@@ -159,8 +159,8 @@ void main() {
     await h.tap(_save);
     expect(h.server.callsTo(settingsRoute, method: 'PUT'), isEmpty);
     expect(
-      find.descendant(of: _tolerance, matching: textHas('0')),
-      findsWidgets,
+      find.descendant(of: _tolerance, matching: find.text('0 % or more')),
+      findsOneWidget,
     );
     expect(
       tester.widget<DashTextInput>(_pct).invalid,
@@ -176,6 +176,13 @@ void main() {
     await h.tap(_save);
     expect(h.server.callsTo(settingsRoute, method: 'PUT'), isEmpty);
     expect(tester.widget<DashTextInput>(_pct).invalid, isTrue);
+    expect(
+      find.descendant(
+        of: _tolerance,
+        matching: find.text('"abc" isn\'t a number'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('INV-SET-006 over 100: the server\'s 400 is a toast', (
@@ -272,6 +279,21 @@ void main() {
     expect(inRow('milk', find.text('Milk')), findsOneWidget);
     expect(inRow('milk', textHas('milk · $milk ingredients')), findsOneWidget);
     expect(inRow('almond', textHas('almond · 0 ingredients')), findsOneWidget);
+  });
+
+  testWidgets('INV-SET-009 the name tie-break ignores case (localeCompare)', (
+    tester,
+  ) async {
+    final s = settingsServer();
+    addEmptyCategory(s.db, name: 'beta', sort: 20);
+    addEmptyCategory(s.db, name: 'Alpha', sort: 20);
+    addEmptyCategory(s.db, name: 'Gamma', sort: 20);
+    await pumpSettings(tester, server: s.server, db: s.db);
+    expect(orderOf(tester, [cat('gamma'), cat('beta'), cat('alpha')]), [
+      cat('alpha'),
+      cat('beta'),
+      cat('gamma'),
+    ]);
     // (divergence) English singular: "1 ingredient", not "1 ingredients".
     expect(usersOf(s.db, 'general'), 1);
     expect(

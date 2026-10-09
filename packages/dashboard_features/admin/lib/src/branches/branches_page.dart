@@ -1,6 +1,7 @@
-/// `/branches` Branches (ADM-BRA-001..037): the org's branches with stats,
-/// search, Excel export and the branch dialog (`?edit=<id>|new`; the Dawam
-/// set-up links to `/branches?edit=new`). A platform admin with no shop
+/// `/branches` Branches (ADM-BRA-001..039): the org's branches and
+/// warehouses with stats, search, Excel export and the branch dialog
+/// (`?edit=<id>|new|new-warehouse`; the Dawam set-up links to
+/// `/branches?edit=new`). A platform admin with no shop
 /// picked sees "Select an organization" (ADM-BRA-002). Web:
 /// `features/branches/branches-page.tsx`.
 ///
@@ -10,7 +11,7 @@
 library;
 
 import 'package:collection/collection.dart';
-import 'package:dashboard_api/dashboard_api.dart' show Branch;
+import 'package:dashboard_api/dashboard_api.dart' show Branch, BranchKind;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -42,7 +43,10 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
   void _syncDialog(String? editId, List<Branch>? branches) {
     if (_dialogOpen || editId == null) return;
     final Branch? editing;
-    if (editId == 'new') {
+    final kind = editId == 'new-warehouse'
+        ? BranchKind.warehouse
+        : BranchKind.branch;
+    if (editId == 'new' || editId == 'new-warehouse') {
       editing = null;
     } else {
       // A deep link to a branch waits for the list (and a branch that is
@@ -53,7 +57,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
     _dialogOpen = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      await showBranchDialog(context, branch: editing);
+      await showBranchDialog(context, branch: editing, kind: kind);
       _dialogOpen = false;
       if (mounted && context.queryParam('edit') != null) {
         context.setQueryParams({'edit': null});
@@ -71,14 +75,20 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
       destructive: true,
     );
     if (!ok || !mounted) return;
+    final api = ref.read(apiProvider);
+    final bus = ref.read(realtimeBusProvider);
     try {
-      await ref.read(apiProvider).branches.deleteBranch(id: b.id);
-      invalidateBranches(ref);
-      if (mounted) DashToast.success(context, t('branches.deletedToast'));
+      await api.branches.deleteBranch(id: b.id);
     } on Object catch (e) {
       if (mounted) DashToast.error(context, branchErrorText(e, t));
+      return;
     }
+    invalidateBranches(bus);
+    if (mounted) DashToast.success(context, t('branches.deletedToast'));
   }
+
+  /// The dialog's own read (the timezone list), warmed on intent.
+  void _warmDialog() => ref.warm(branchTimezonesProvider);
 
   Future<void> _export(List<Branch> branches) async {
     final t = ref.read(tProvider);
@@ -164,8 +174,8 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
     ref.watch(publicBrandProvider);
     final list = ref.watch(adminBranchesProvider(orgId));
     final branches = list.value ?? const <Branch>[];
-    final loading = list.isLoading && !list.hasValue;
-    final error = !loading && list.hasError ? list.error : null;
+    final loading = list.awaitingFirst;
+    final error = list.failedFirst ? list.error : null;
     _syncDialog(context.queryParam('edit'), list.value);
 
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.lg;
@@ -181,8 +191,8 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
         loading: loading,
       ),
       DashStatCard(
-        label: t('branches.withPrinter'),
-        value: branches.where((b) => b.printerBrand != null).length,
+        label: t('branches.warehouses'),
+        value: branches.where((b) => b.kind == BranchKind.warehouse).length,
         loading: loading,
       ),
       DashStatCard(
@@ -202,9 +212,18 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
           enabled: branches.isNotEmpty,
         ),
         DashButton(
+          key: const ValueKey('branches-new-warehouse'),
+          label: t('branches.newWarehouse'),
+          icon: 'warehouse',
+          variant: DashButtonVariant.outline,
+          onIntent: _warmDialog,
+          onPressed: () => context.setQueryParams({'edit': 'new-warehouse'}),
+        ),
+        DashButton(
           key: const ValueKey('branches-new'),
           label: t('common.new'),
           icon: 'plus',
+          onIntent: _warmDialog,
           onPressed: () => context.setQueryParams({'edit': 'new'}),
         ),
       ],
@@ -219,6 +238,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
             errorText: error == null ? null : branchErrorText(error, t),
             onRetry: () => ref.invalidate(adminBranchesProvider(orgId)),
             onEdit: (b) => context.setQueryParams({'edit': b.id}),
+            onEditIntent: _warmDialog,
             onDelete: _remove,
           ),
         ],
@@ -264,6 +284,7 @@ class _BranchesTable extends ConsumerWidget {
     required this.errorText,
     required this.onRetry,
     required this.onEdit,
+    required this.onEditIntent,
     required this.onDelete,
   });
 
@@ -272,6 +293,7 @@ class _BranchesTable extends ConsumerWidget {
   final String? errorText;
   final VoidCallback onRetry;
   final ValueChanged<Branch> onEdit;
+  final VoidCallback onEditIntent;
   final ValueChanged<Branch> onDelete;
 
   @override
@@ -289,6 +311,7 @@ class _BranchesTable extends ConsumerWidget {
       errorMessage: errorText,
       onRetry: onRetry,
       onRowTap: onEdit,
+      onRowIntent: (_) => onEditIntent(),
       rowSemanticLabel: (b) => b.name,
       searchPlaceholder: t('common.search'),
       empty: DashEmptyState(icon: 'git-branch', title: t('branches.empty')),
@@ -296,10 +319,13 @@ class _BranchesTable extends ConsumerWidget {
       rowActions: (context, b) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AdminRowAction(
-            icon: 'pencil',
-            label: t('common.edit'),
-            onPressed: () => onEdit(b),
+          DashIntent(
+            onIntent: onEditIntent,
+            child: AdminRowAction(
+              icon: 'pencil',
+              label: t('common.edit'),
+              onPressed: () => onEdit(b),
+            ),
           ),
           AdminRowAction(
             icon: 'trash-2',
@@ -398,16 +424,18 @@ class _BranchesTable extends ConsumerWidget {
   }
 }
 
-/// The Name cell: a branch tile, the name, the address under it with a pin.
-class _NameCell extends StatelessWidget {
+/// The Name cell: a branch (or warehouse) tile, the name (a warehouse's with
+/// an info pill), the address under it with a pin.
+class _NameCell extends ConsumerWidget {
   const _NameCell({required this.branch});
 
   final Branch branch;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = context.madarColors;
     final address = branch.address;
+    final warehouse = branch.kind == BranchKind.warehouse;
     return Row(
       mainAxisSize: MainAxisSize.min,
       spacing: Space.md,
@@ -421,7 +449,7 @@ class _NameCell extends StatelessWidget {
             borderRadius: BorderRadius.circular(Radii.xs),
           ),
           child: DashIcon(
-            'git-branch',
+            warehouse ? 'warehouse' : 'git-branch',
             size: IconSize.sm,
             color: c.textSecondary,
           ),
@@ -431,11 +459,27 @@ class _NameCell extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              MadarClippedText(
-                branch.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: Space.sm,
+                children: [
+                  Flexible(
+                    child: MadarClippedText(
+                      branch.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: DashType.bodyStrong.copyWith(
+                        color: c.textPrimary,
+                      ),
+                    ),
+                  ),
+                  if (warehouse)
+                    DashStatusPill(
+                      label: ref.watch(tProvider)('branches.kindWarehouse'),
+                      tone: DashTone.info,
+                      small: true,
+                    ),
+                ],
               ),
               if (hasText(address))
                 Row(

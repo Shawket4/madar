@@ -89,6 +89,36 @@ Future<DashHarness> pumpBranches(
   return (server: server, db: db);
 }
 
+/// Adds a location to Sabah with nothing selling there (the shared seed has
+/// no warehouse, and its branches all have tills and devices).
+Map<String, Object?> addLocation(
+  MockDb db, {
+  String name = 'Obour Warehouse',
+  String kind = 'warehouse',
+  bool active = true,
+}) {
+  final row = <String, Object?>{
+    'id': db.newId('branches'),
+    'org_id': SeedIds.sabahOrg,
+    'code': name.replaceAll(' ', '').substring(0, 5).toUpperCase(),
+    'name': name,
+    'address': 'Industrial Zone A, Obour City',
+    'timezone': 'Africa/Cairo',
+    'is_active': active,
+    'geo_radius_meters': 200,
+    'old_bill_hours': 3,
+    'kind': kind,
+    'created_at': db.nowIso,
+    'updated_at': db.nowIso,
+  };
+  db['branches'].insert(row, timestamps: false);
+  return row;
+}
+
+/// Caps Sabah at [max] warehouses (`organizations.max_warehouses`).
+void maxWarehouses(MockDb db, int? max) =>
+    db['orgs'].get(SeedIds.sabahOrg)['max_warehouses'] = max;
+
 /// The branch row [id] in [db].
 Map<String, Object?> branchRow(MockDb db, String id) => db['branches'].get(id);
 

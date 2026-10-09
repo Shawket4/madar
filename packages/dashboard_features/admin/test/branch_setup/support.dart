@@ -6,6 +6,8 @@
 import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_admin/src/branch_setup/branch_setup_page.dart';
 import 'package:dashboard_admin/src/branch_setup/builder_canvas.dart';
+import 'package:dashboard_admin/src/branch_setup/inspector.dart'
+    show builderErrorText;
 import 'package:dashboard_admin/src/mock/branch_setup_mock.dart';
 import 'package:dashboard_admin/src/mock/devices_mock.dart';
 import 'package:dashboard_api/dashboard_api.dart';
@@ -17,7 +19,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 export 'package:dashboard_admin/src/mock/branch_setup_mock.dart'
-    show BranchPlanRoutes, BranchPlanSeed, BranchPlanTables, BranchPlanRefusals;
+    show
+        BranchPlanRoutes,
+        BranchPlanSeed,
+        BranchPlanTables,
+        BranchPlanRefusals,
+        activateSlotCode;
 
 Widget _page(BuildContext context, GoRouterState state) =>
     const BranchSetupPage();
@@ -123,3 +130,29 @@ Map<String, Object?> lastSave(MockServer s) =>
     (s.callsTo(BranchPlanRoutes.plan, method: 'PUT').last.body!
             as Map)
         .cast<String, Object?>();
+
+/// The words the page shows for a refusal: the transport's message
+/// (`h.refusalWords`) through the builder's `getErrorMessage` rule.
+String refusalText(DashHarness h, MockResponse response) {
+  final e = MockServer.toApiException(response);
+  return builderErrorText(
+    ApiException(
+      status: e.status,
+      code: e.code,
+      message: h.refusalWords(response),
+      details: e.details,
+    ),
+    h.container.read(tProvider),
+  );
+}
+
+/// The prefixes every invalidation on the realtime bus named, in order.
+List<List<String>> watchInvalidations(DashHarness h) {
+  final seen = <List<String>>[];
+  final sub = h.container
+      .read(realtimeBusProvider)
+      .invalidations
+      .listen(seen.add);
+  addTearDown(sub.cancel);
+  return seen;
+}

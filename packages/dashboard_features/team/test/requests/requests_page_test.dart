@@ -575,8 +575,12 @@ void main() {
   });
 
   testWidgets('TEAM-REQ-018 reject: its own warning, an optional reason sent '
-      'as the note (empty → null)', (tester) async {
+      'as the note (empty → null); the list reads again (divergence: the web '
+      'leaves it listed as pending)', (tester) async {
     final h = await pumpRequests(tester);
+    final youssef = requestOf(tester, _youssef).id;
+    final farida = requestOf(tester, _farida).id;
+    final lists = gets(h);
     await h.tap(rejectIn(_youssef));
     expect(
       surfaceText(
@@ -587,8 +591,10 @@ void main() {
     expect(surfaceText(h.t('staff.rejectRequestHint')), findsOneWidget);
     await h.tap(inSurface(find.text('Reject')).last);
     expect(lastBody(h, decideT), {'status': 'rejected', 'note': null});
+    expect(lastDecidePath(h), '/staff/requests/$youssef/decision');
     await h.expectToast(h.t('staff.decisionSaved'));
     expect(find.byType(RejectReasonDialog), findsNothing);
+    expect(gets(h), lists + 1);
 
     await h.tap(rejectIn(_farida));
     await h.enterText(
@@ -600,6 +606,7 @@ void main() {
       'status': 'rejected',
       'note': 'Too busy that day',
     });
+    expect(lastDecidePath(h), '/staff/requests/$farida/decision');
     await h.flushTimers();
   });
 

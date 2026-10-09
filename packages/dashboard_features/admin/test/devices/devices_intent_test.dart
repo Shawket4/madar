@@ -1,7 +1,6 @@
 // Intent warming on Devices: pointing at a view tab, a window option or the
 // legacy switch warms the read that press makes, so the press asks nothing
 // more.
-import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter/gestures.dart';

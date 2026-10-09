@@ -289,8 +289,6 @@ void main() {
     await tester.tapAt(lineMid(tester, receipt));
     await h.settle();
     expect(canvasOf(tester).selectedLink, receipt);
-    // ignore: avoid_print
-    print('FOCUS ${FocusManager.instance.primaryFocus}');
     await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
     await h.settle();
     expect(linksOf(planOf(tester)).where((l) => l.kind == LinkKind.receipt), isEmpty);

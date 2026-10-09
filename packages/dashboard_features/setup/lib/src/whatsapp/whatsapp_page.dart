@@ -33,6 +33,12 @@ abstract final class WhatsappMetrics {
   static const double narrow = Space.xxl * 10;
 }
 
+/// Warms the status read on intent (beyond the web: `route-prefetch.ts` has
+/// no case for this path); [whatsappWarmProvider] asks only for a platform
+/// admin, the one person the pane reads for.
+void prefetchWhatsapp(DashPrefetcher warm, Scope _) =>
+    warm(whatsappWarmProvider);
+
 class WhatsappPage extends ConsumerStatefulWidget {
   const WhatsappPage({super.key});
 

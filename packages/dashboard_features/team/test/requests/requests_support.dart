@@ -172,6 +172,10 @@ Map<String, Object?> lastBody(DashHarness h, String t, [String m = 'PATCH']) =>
 
 int patches(DashHarness h) => h.server.callsTo(decideT, method: 'PATCH').length;
 
+/// The path of the last decision PATCH.
+String lastDecidePath(DashHarness h) =>
+    h.server.callsTo(decideT, method: 'PATCH').last.path;
+
 // ── Finders ────────────────────────────────────────────────────────────────
 
 final Finder page = find.byType(RequestsInboxPage);

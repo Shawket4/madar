@@ -201,6 +201,7 @@ void main() {
   testWidgets('TEAM-REQ-031 cancel someone else\'s: "Why" is required; then '
       '"Request cancelled"', (tester) async {
     final h = await pumpRequests(tester);
+    final id = requestOf(tester, _youssef).id;
     await h.tap(cancelIn(_youssef));
     expect(surfaceText(h.t('staff.cancelRequestTitle')), findsOneWidget);
     expect(
@@ -223,6 +224,7 @@ void main() {
       'status': 'cancelled',
       'note': 'Shop closed that day',
     });
+    expect(lastDecidePath(h), '/staff/requests/$id/decision');
     await h.expectToast(h.t('staff.requestCancelled'));
     expect(find.byType(CancelRequestDialog), findsNothing);
   });
@@ -249,6 +251,7 @@ void main() {
     await h.tap(cancelIn('Bank first'));
     await h.tap(inSurface(find.widgetWithText(DashButton, 'Cancel request')));
     expect(lastBody(h, decideT), {'status': 'cancelled', 'note': null});
+    expect(lastDecidePath(h), '/staff/requests/rq-own/decision');
     await h.expectToast(h.t('staff.requestCancelled'));
   });
 

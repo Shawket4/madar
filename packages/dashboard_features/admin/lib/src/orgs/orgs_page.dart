@@ -91,14 +91,22 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
       destructive: true,
     );
     if (!ok || !mounted) return;
+    final invalidate = orgsInvalidator(ref);
     try {
       await ref.read(apiProvider).orgs.deleteOrg(id: org.id);
-      if (!mounted) return;
-      invalidateOrgs(ref);
-      DashToast.success(context, t('orgs.deletedToast'));
     } on Object catch (e) {
       if (mounted) DashToast.error(context, orgErrorWords(e, t));
+      return;
     }
+    invalidate();
+    if (mounted) DashToast.success(context, t('orgs.deletedToast'));
+  }
+
+  /// The editor's reads, warmed on the intent to open it: the timezones
+  /// (the row is the list's own); the wizard adds its templates.
+  void _warmEditor({bool wizard = false}) {
+    ref.warm(orgTimezonesProvider);
+    if (wizard) ref.warm(orgTemplatesProvider);
   }
 
   /// The Excel file (ADM-ORG-022): the engine words every toast
@@ -230,8 +238,8 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
     final t = ref.watch(tProvider);
     final list = ref.watch(orgsListProvider);
     final orgs = list.value ?? const <Org>[];
-    final firstLoad = list.isLoading && !list.hasValue && !list.hasError;
-    final failed = list.hasError && !list.hasValue;
+    final firstLoad = list.awaitingFirst;
+    final failed = list.failedFirst;
     _syncEditor(context.queryParam('edit'), list.value);
 
     final avgTaxRatio = orgs.isEmpty
@@ -242,16 +250,21 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
       title: t('orgs.title'),
       subtitle: t('orgs.subtitle'),
       actions: [
-        DashExportButton(
-          onExport: () => _export(orgs),
-          loading: _exporting,
-          enabled: orgs.isNotEmpty,
+        DashIntent(
+          // The export reads the brand for its header logo.
+          onIntent: () => ref.warm(publicBrandProvider),
+          child: DashExportButton(
+            onExport: () => _export(orgs),
+            loading: _exporting,
+            enabled: orgs.isNotEmpty,
+          ),
         ),
         DashButton(
           key: const ValueKey('orgs-new'),
           label: t('common.new'),
           icon: 'plus',
           onPressed: () => _openEditor('new'),
+          onIntent: () => _warmEditor(wizard: true),
         ),
       ],
       body: Column(
@@ -301,15 +314,19 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
             errorMessage: failed ? orgErrorWords(list.error, t) : null,
             onRetry: () => ref.invalidate(orgsListProvider),
             onRowTap: (o) => _openEditor(o.id),
+            onRowIntent: (_) => _warmEditor(),
             searchPlaceholder: t('common.search'),
             rowActionsWidth: DashMetrics.target * 2 + Space.sm,
             rowActions: (context, o) => Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                AdminRowAction(
-                  icon: 'pencil',
-                  label: t('common.edit'),
-                  onPressed: () => _openEditor(o.id),
+                DashIntent(
+                  onIntent: _warmEditor,
+                  child: AdminRowAction(
+                    icon: 'pencil',
+                    label: t('common.edit'),
+                    onPressed: () => _openEditor(o.id),
+                  ),
                 ),
                 AdminRowAction(
                   icon: 'trash-2',

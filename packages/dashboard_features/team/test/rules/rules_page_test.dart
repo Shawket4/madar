@@ -6,6 +6,7 @@ import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/rules/rules_cards.dart';
+import 'package:dashboard_team/src/rules/rules_page.dart';
 import 'package:dashboard_team/src/rules/rules_preview_card.dart';
 import 'dart:convert';
 
@@ -205,7 +206,7 @@ void main() {
     await pickIn(h, RulesKeys.tierKind(0), 'Fraction of a day');
     expect(shown(tester, RulesKeys.tierAmount(0)), '0.25');
     await pickIn(h, RulesKeys.tierKind(0), 'Fixed amount');
-    expect(shown(tester, RulesKeys.tierAmount(0)), '50');
+    expect(shown(tester, RulesKeys.tierAmount(0)), '50.00');
     expect(pageText('15–30 min late → EGP 50.00'), findsOneWidget);
     await pickIn(h, RulesKeys.tierKind(0), 'Minutes of pay');
     expect(shown(tester, RulesKeys.tierAmount(0)), '15');
@@ -378,7 +379,43 @@ void main() {
     expect(pageText(h.t('staff.lateLadder')), findsOneWidget);
   });
 
-  testWidgets('TEAM-ALL-013 in Arabic: Latin digits, the read-back arrow '
+  testWidgets('TEAM-ALL-010 a refresh Riverpod still retries keeps the form: '
+      'a 500 then a 200', (tester) async {
+    final s = rulesServer();
+    final c = ProviderContainer(
+      retry: webRetry,
+      overrides: [
+        transportProvider.overrideWithValue(s.server),
+        orgIdProvider.overrideWithValue(SeedIds.sabahOrg),
+      ],
+    );
+    addTearDown(c.dispose);
+    final seen = <AsyncValue<Object?>>[];
+    final sub = c.listen(
+      staffAttendanceSettingsProvider,
+      (_, next) => seen.add(next),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    expect(rulesFormHidden(sub.read()), isFalse);
+    s.server.fail(
+      'GET',
+      settingsT,
+      MockResponse.error(500, 'boom'),
+      times: 1,
+    );
+    seen.clear();
+    c.invalidate(staffAttendanceSettingsProvider);
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(seen.any((q) => q.hasError && q.retrying), isTrue);
+    expect(seen.where(rulesFormHidden), isEmpty);
+    expect(sub.read().hasError, isFalse);
+    expect(s.server.callsTo(settingsT).length, 3);
+    sub.close();
+  });
+
+  testWidgets('TEAM-ALL-013 (divergence) in Arabic: Latin digits, the read-back arrow '
       'points the way the line reads', (tester) async {
     final h = await pumpRules(tester, locale: 'ar');
     expect(shown(tester, RulesKeys.tierFrom(0)), '15');

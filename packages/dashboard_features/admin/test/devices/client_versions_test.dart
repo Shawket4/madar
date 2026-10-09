@@ -1,6 +1,5 @@
 // `/devices?view=clients`, the Client versions view, driven through the real
 // app shell (inventory rows ADM-DEV-021..028).
-import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_admin/src/orgs/org_errors.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
@@ -98,7 +97,9 @@ void main() {
       for (final d in [7, 14, 30, 90]) {
         expect(top('Last $d days'), findsWidgets, reason: '$d');
       }
-      await h.tap(top('Last 30 days').last); // the list, not the trigger's sizer
+      await h.tap(
+        top('Last 30 days').last,
+      ); // the list, not the trigger's sizer
       expect(h.location.queryParameters['days'], '30');
       expect(lastQuery(h)['days'], ['30']);
       await h.tap(window);
@@ -108,17 +109,34 @@ void main() {
       expect(h.server.callsTo(DevicesRoutes.clients), hasLength(2));
     });
 
+    testWidgets('ADM-DEV-023 (divergence) in Arabic the day count agrees '
+        'with its number', (tester) async {
+      final h = await pumpDevices(tester, query: _clients, locale: 'ar');
+      expect(h.t('devices.clients.lastDays', count: 7), contains('أيام'));
+      for (final d in [14, 30, 90]) {
+        expect(h.t('devices.clients.lastDays', count: d), contains('يومًا'));
+      }
+      expect(h.t('devices.clients.noLegacyHint', count: 7), contains('أيام'));
+      expect(h.t('devices.clients.noneHint', count: 30), contains('يومًا'));
+      await h.tap(find.byKey(const ValueKey('clients-window')));
+      expect(top(h.t('devices.clients.lastDays', count: 7)), findsWidgets);
+    });
+
     testWidgets('ADM-DEV-024 Legacy clients only: on by default; off writes '
         'all=true', (tester) async {
       final h = await pumpDevices(tester, query: _clients);
       final toggle = find.byKey(const ValueKey('clients-legacy-only'));
       expect(
-        tester.widget<DashSwitch>(
-          find.descendant(of: toggle, matching: find.byType(DashSwitch)),
-        ).value,
+        tester
+            .widget<DashSwitch>(
+              find.descendant(of: toggle, matching: find.byType(DashSwitch)),
+            )
+            .value,
         isTrue,
       );
-      await h.tap(find.descendant(of: toggle, matching: find.text('Legacy clients only')));
+      await h.tap(
+        find.descendant(of: toggle, matching: find.text('Legacy clients only')),
+      );
       expect(h.location.queryParameters['all'], 'true');
       expect(lastQuery(h)['legacy_only'], ['false']);
       expect(clientRows(), findsNWidgets(12));
@@ -172,16 +190,16 @@ void main() {
         backend.clients.insert({
           'client': 'curl/8.$i',
           'branch_id': SeedIds.maadi,
-          'first_seen_at': now.subtract(const Duration(days: 2)).toIso8601String(),
-          'last_seen_at': now.subtract(Duration(hours: i + 1)).toIso8601String(),
+          'first_seen_at': now
+              .subtract(const Duration(days: 2))
+              .toIso8601String(),
+          'last_seen_at': now
+              .subtract(Duration(hours: i + 1))
+              .toIso8601String(),
           'legacy_kinds': const <String>[],
         }, timestamps: false);
       }
-      await pumpDevices(
-        tester,
-        query: '$_clients&all=true',
-        backend: backend,
-      );
+      await pumpDevices(tester, query: '$_clients&all=true', backend: backend);
       expect(clientRows(), findsNWidgets(20));
       expect(inClients(find.text('Page 1 of 2')), findsOneWidget);
     });

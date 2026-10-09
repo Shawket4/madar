@@ -261,7 +261,15 @@ void main() {
     test('every vector matches the web', () {
       final failures = <String>[];
       for (final v in vectors) {
-        final want = v['out'];
+        var want = v['out'];
+        // Deliberate divergence: an Arabic duration is isolated right to
+        // left, so "3 س 05 د" reads hours first (the web's LTR isolate shows
+        // it reversed to an Arabic reader).
+        if ((v['fn'] == 'fmtElapsedMs' || v['fn'] == 'fmtDuration') &&
+            v['lang'] == 'ar' &&
+            want is String) {
+          want = want.replaceFirst('\u2066', '\u2067');
+        }
         Object? got;
         try {
           got = _run(v);

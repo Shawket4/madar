@@ -17,8 +17,8 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The read's realtime key: not a path, so only `resync` (every key)
-/// refreshes it besides its own invalidations.
+/// The read's realtime key: not a path, so no event refreshes it, not even
+/// `resync` (the web's invalidates `/` keys only); only its own invalidations.
 const String orgBrandKey = 'org-brand';
 
 /// `GET /orgs/{id}` (`getOrg`), the scoped org's brand. Watched only with

@@ -40,6 +40,12 @@ const String _business = '__business__';
 /// The cover-pay rule a branch can follow or set (D5).
 const String _cover = 'cover_pay_mode';
 
+/// The skeleton instead of the form (the web's `isLoading || error`): no
+/// answer yet, or a refresh that failed for good. A refresh Riverpod still
+/// retries keeps the form (the web's query is still fetching then).
+bool rulesFormHidden(AsyncValue<Object?> q) =>
+    !q.hasValue || (q.hasError && !q.retrying);
+
 class AttendanceRulesPage extends ConsumerWidget {
   const AttendanceRulesPage({super.key});
 
@@ -328,7 +334,9 @@ class _RulesBodyState extends ConsumerState<_RulesBody> {
       if (_seedKey != key || !_dirty || _reseed) {
         _seed(s, canEdit);
       } else {
+        // Keep the edits, but measure the confirmation against the new answer.
         _seededFrom = s;
+        _loaded = RulesValues.from(s);
       }
     }
 
@@ -367,9 +375,9 @@ class _RulesBodyState extends ConsumerState<_RulesBody> {
     );
 
     final title = t('staff.rules');
-    // The web's `isLoading || error`: a failed refresh with the form on
-    // screen shows the skeleton too (TEAM-ALL-010).
-    if (s == null || q.hasError) {
+    // A failed refresh with the form on screen shows the skeleton too
+    // (TEAM-ALL-010).
+    if (s == null || rulesFormHidden(q)) {
       return DashPageScaffold(
         title: title,
         width: DashPageWidth.reading,

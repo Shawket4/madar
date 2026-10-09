@@ -381,6 +381,7 @@ class _RungRow extends StatelessWidget {
               ),
               step: 50,
               decimals: 2,
+              minDecimals: 2,
               suffix: f.currencyLabel(),
               unitWord: f.currencyLabel(),
               enabled: !readOnly,

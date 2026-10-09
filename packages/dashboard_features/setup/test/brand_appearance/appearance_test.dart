@@ -78,6 +78,17 @@ void main() {
       expect(_inRow('app-theme', find.text(w)), findsNothing);
       expect(_inRow('app-theme', find.bySemanticsLabel(w)), findsOneWidget);
     }
+    final hint = h.t('settings.themeHint');
+    expect(
+      _inRow(
+        'app-theme',
+        find.byWidgetPredicate(
+          (w) => w is Semantics && w.container && w.properties.label == hint,
+        ),
+      ),
+      findsOneWidget,
+      reason: 'the glyph group is named as one control',
+    );
     await h.tap(_inRow('app-theme', find.bySemanticsLabel('Dark')));
     expect(h.container.read(themePrefProvider), ThemePref.dark);
   });

@@ -2,7 +2,6 @@
 // through the real app shell (inventory rows ADM-DEV-014..019).
 import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_admin/src/orgs/org_errors.dart';
-import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
@@ -15,8 +14,10 @@ import 'support.dart';
 final _zamalek = atBranch(SeedIds.zamalek);
 
 /// The codes section (the devices table repeats words like "Name").
-Finder inCodes(Finder f) =>
-    find.descendant(of: find.byKey(const ValueKey('activation-codes')), matching: f);
+Finder inCodes(Finder f) => find.descendant(
+  of: find.byKey(const ValueKey('activation-codes')),
+  matching: f,
+);
 
 /// The words the page shows for [response] (the web's `getErrorMessage`).
 String wordsFor(DashHarness h, MockResponse response) => orgErrorWords(
@@ -81,7 +82,13 @@ void main() {
         );
         expect(pill.tone, tone, reason: label);
       }
-      for (final header in ['CODE', 'NAME', 'TYPE', 'STATUS', 'EXPIRES / USED']) {
+      for (final header in [
+        'CODE',
+        'NAME',
+        'TYPE',
+        'STATUS',
+        'EXPIRES / USED',
+      ]) {
         expect(inCodes(find.text(header)), findsOneWidget, reason: header);
       }
       expect(inCodes(find.text('Terrace tablet 2')), findsOneWidget);
@@ -91,8 +98,7 @@ void main() {
       final codes = b(h);
       for (final id in ['18364052', '55102846', '77219034']) {
         final row = codes.find(mockUuid('activation-code:$id'))!;
-        final at =
-            row['used_at'] ?? row['revoked_at'] ?? row['expires_at'];
+        final at = row['used_at'] ?? row['revoked_at'] ?? row['expires_at'];
         expect(
           inCodes(textHas(fmt.fmtStamp(DateTime.parse('$at')))),
           findsOneWidget,
@@ -240,10 +246,7 @@ void main() {
       final h = await pumpDevices(tester, query: _zamalek);
       await h.tap(find.byKey(const ValueKey('issue-code')));
       expect(top('New activation code'), findsOneWidget);
-      expect(
-        find.textContaining('Activate with a code'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('Activate with a code'), findsOneWidget);
       expect(top('Tablet name (optional)'), findsOneWidget);
       expect(placeholder(), findsOneWidget);
       final kind = find.byKey(const ValueKey('code-kind'));

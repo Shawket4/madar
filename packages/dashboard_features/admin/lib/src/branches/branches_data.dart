@@ -4,10 +4,11 @@
 /// `getErrorMessage` wording for a failed call.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show ApiException, Branch, PrinterBrand;
+import 'package:dashboard_api/dashboard_api.dart' show Branch, PrinterBrand;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../orgs/org_errors.dart' show orgErrorWords;
 
 /// `GET /branches?org_id=<org>&include_warehouses=true` (listBranches): every
 /// branch and warehouse of the org, inactive included, unpaginated. A
@@ -30,40 +31,14 @@ final branchTimezonesProvider = FutureProvider.autoDispose<List<String>>((ref) {
 });
 
 /// The web's `invalidateBranches()`: every read whose key starts with
-/// `/branches` — this page's list, the scope bar's branch picker, the
-/// timezone the frame resolves from the branch.
-void invalidateBranches(WidgetRef ref) {
-  ref.read(realtimeBusProvider).invalidate(const ['/branches']);
-  ref.invalidate(branchesProvider);
-}
+/// `/branches` (this page's list, the scope bar's branch picker). Pass the
+/// bus read before the await, so a page or dialog closed mid-save still
+/// refreshes.
+void invalidateBranches(RealtimeBus bus) => bus.invalidate(const ['/branches']);
 
-/// The kinds the backend's AppError writes before its sentence.
-final RegExp _serverKindPrefix = RegExp(
-  r'^(?:Unauthorized|Forbidden|Not found|Bad request|Conflict|'
-  r'Service unavailable|Database error): ',
-);
-
-/// What a failed call says (the web's `getErrorMessage`, ADM-APP-117): a
-/// known `code` → its `errors.codes.*` sentence; an uncoded 403 → "You
-/// don't have permission to perform this action." in the active language;
-/// else the server's sentence without its kind prefix ("Conflict: …").
-String branchErrorText(Object? error, Translator t) {
-  if (error is ApiException) {
-    final code = error.code;
-    if (code != null && t.exists('errors.codes.$code')) {
-      final details = error.details;
-      final vars = details is Map && details['vars'] is Map
-          ? (details['vars'] as Map).cast<String, Object?>()
-          : const <String, Object?>{};
-      return t('errors.codes.$code', args: vars);
-    }
-    if (error.status == 429 && code == null) return t('errors.tooManyRequests');
-    if (error.status == 403 && code == null) return t('errors.unauthorized');
-    final text = error.message.replaceFirst(_serverKindPrefix, '');
-    if (text.isNotEmpty) return text;
-  }
-  return errorMessage(error, t);
-}
+/// What a failed call says: the web's `getErrorMessage` ladder (ADM-APP-117),
+/// shared with the orgs page.
+String branchErrorText(Object? error, Translator t) => orgErrorWords(error, t);
 
 /// A string that is null or blank reads as absent (the web's `||` and
 /// truthiness checks).

@@ -27,6 +27,10 @@ const String pdi = '\u2069';
 /// Wrap a figure so it reads left-to-right inside RTL text.
 String ltr(String s) => '$lri$s$pdi';
 
+/// An Arabic run ("3 س 05 د") kept right to left inside any line, so the
+/// hours read before the minutes.
+String rtl(String s) => '\u2067$s$pdi';
+
 const Map<String, String> _currencyAr = {
   'EGP': 'ج.م',
   'SAR': 'ر.س',
@@ -270,7 +274,7 @@ class DashFormat {
         : hours > 0
         ? '$hours$sep$h ${_two(rest)}$sep$m'
         : '$rest$sep$m';
-    return isArabic ? ltr(out) : out;
+    return isArabic ? rtl(out) : out;
   }
 
   /// From [start] to [end] (or now).

@@ -41,26 +41,53 @@ class OrgDialog extends ConsumerStatefulWidget {
 }
 
 class _OrgDialogState extends ConsumerState<OrgDialog> {
-  late final Org _org = widget.org;
-  late String _name = _org.name;
-  late String _slug = _org.slug ?? '';
-  late String _currency = _org.currencyCode;
-  late String _taxRate = jsNumber(fractionToPercent(_org.taxRate));
-  late bool _taxInclusive = _org.taxInclusive;
-  late String _serviceCharge = jsNumber(
-    fractionToPercent(_org.serviceChargeRate),
-  );
-  late bool _serviceChargeTaxable = _org.serviceChargeTaxable;
-  late String _timezone = _org.timezone;
-  late String _receiptFooter = _org.receiptFooter ?? '';
-  late bool _active = _org.isActive;
-  late bool _requireTable = _org.requireTableForOrders;
-  late bool _customBranding = _org.customBranding;
-  late List<String> _modules = [
-    for (final m in _org.modules)
-      if (orgModuleKeys.contains(m)) m,
-  ];
-  late final Map<String, String> _social = socialLinksToForm(_org.socialLinks);
+  /// The row the fields hold (and whose links a save clears against).
+  late Org _org;
+  late String _name;
+  late String _slug;
+  late String _currency;
+  late String _taxRate;
+  late bool _taxInclusive;
+  late String _serviceCharge;
+  late bool _serviceChargeTaxable;
+  late String _timezone;
+  late String _receiptFooter;
+  late bool _active;
+  late bool _requireTable;
+  late bool _customBranding;
+  late List<String> _modules;
+  late Map<String, String> _social;
+
+  /// Changed since it opened: a refresh that lands no longer re-seeds it
+  /// (a logo upload refetches the row; ADM-ORG-058, fixed on the web too).
+  bool _edited = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _seed(widget.org);
+  }
+
+  void _seed(Org o) {
+    _org = o;
+    _name = o.name;
+    _slug = o.slug ?? '';
+    _currency = o.currencyCode;
+    _taxRate = jsNumber(fractionToPercent(o.taxRate));
+    _taxInclusive = o.taxInclusive;
+    _serviceCharge = jsNumber(fractionToPercent(o.serviceChargeRate));
+    _serviceChargeTaxable = o.serviceChargeTaxable;
+    _timezone = o.timezone;
+    _receiptFooter = o.receiptFooter ?? '';
+    _active = o.isActive;
+    _requireTable = o.requireTableForOrders;
+    _customBranding = o.customBranding;
+    _modules = [
+      for (final m in o.modules)
+        if (orgModuleKeys.contains(m)) m,
+    ];
+    _social = socialLinksToForm(o.socialLinks);
+  }
 
   /// Save was pressed once: from then on every change re-checks
   /// (react-hook-form's `reValidateMode: onChange`).
@@ -90,6 +117,7 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
 
   void _changed(VoidCallback apply) {
     setState(() {
+      _edited = true;
       apply();
       if (_submitted) _errors = _validate();
     });
@@ -108,6 +136,7 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
     if (errors.isNotEmpty) return;
     setState(() => _busy = true);
     final footer = _receiptFooter;
+    final invalidate = orgsInvalidator(ref);
     try {
       await ref
           .read(apiProvider)
@@ -134,29 +163,37 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
               explicitNulls: {if (footer.isEmpty) 'receipt_footer'},
             ),
           );
-      if (!mounted) return;
-      invalidateOrgs(ref);
-      DashToast.success(context, t('orgs.updatedToast'));
-      Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
       DashToast.error(context, orgErrorWords(e, t));
+      return;
     }
+    invalidate();
+    if (!mounted) return;
+    DashToast.success(context, t('orgs.updatedToast'));
+    Navigator.of(context).pop();
   }
 
   // ── Logo (uploaded at once, ADM-ORG-042 / 043) ────────────────────────
 
-  Future<void> _syncPickedOrg(String? logoUrl) async {
-    final picked = ref.read(selectedOrgProvider);
+  /// The org picker keeps the picked shop's logo (read through [container]:
+  /// the editor may have closed while the call ran).
+  Future<void> _syncPickedOrg(
+    ProviderContainer container,
+    String? logoUrl,
+  ) async {
+    final picked = container.read(selectedOrgProvider);
     if (picked?.id != _org.id) return;
-    await ref
+    await container
         .read(selectedOrgProvider.notifier)
         .select(_org.id, logoUrl: logoUrl);
   }
 
   Future<String?> _upload(DashPickedFile file) async {
     final t = _t;
+    final invalidate = orgsInvalidator(ref);
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       final updated = await ref
           .read(apiProvider)
@@ -172,8 +209,8 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
               ),
             ),
           );
-      invalidateOrgs(ref);
-      await _syncPickedOrg(updated.logoUrl);
+      invalidate();
+      await _syncPickedOrg(container, updated.logoUrl);
       return updated.logoUrl;
     } on Object catch (e) {
       throw OrgFailure(orgErrorWords(e, t));
@@ -182,6 +219,8 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
 
   Future<void> _removeLogo() async {
     final t = _t;
+    final invalidate = orgsInvalidator(ref);
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       await ref
           .read(apiProvider)
@@ -190,8 +229,8 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
             id: _org.id,
             body: const UpdateOrgRequest(explicitNulls: {'logo_url'}),
           );
-      invalidateOrgs(ref);
-      await _syncPickedOrg(null);
+      invalidate();
+      await _syncPickedOrg(container, null);
       if (mounted) DashToast.success(context, t('orgs.logoRemoved'));
     } on Object catch (e) {
       throw OrgFailure(orgErrorWords(e, t));
@@ -202,14 +241,14 @@ class _OrgDialogState extends ConsumerState<OrgDialog> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
-    // The logo follows the server's row (it changes under the editor);
-    // what was typed does not (docs/fdash/divergences/admin-orgs.md).
-    final live =
-        ref
-            .watch(orgsListProvider)
-            .value
-            ?.firstWhereOrNull((o) => o.id == _org.id) ??
-        _org;
+    // Seeded from the cached list: a refresh that lands re-seeds the fields
+    // until they are changed; the logo always follows the server's row.
+    final fresh = ref
+        .watch(orgsListProvider)
+        .value
+        ?.firstWhereOrNull((o) => o.id == _org.id);
+    if (fresh != null && !_edited && fresh != _org) _seed(fresh);
+    final live = fresh ?? _org;
     final zones = ref.watch(orgTimezonesProvider).value ?? const <String>[];
     final platform =
         ref.watch(currentSessionProvider.select((s) => s?.isPlatform)) ?? false;

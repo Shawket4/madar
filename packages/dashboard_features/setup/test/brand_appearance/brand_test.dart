@@ -239,7 +239,7 @@ void main() {
       expect(h.server.callsTo(logoRoute), isEmpty);
     });
 
-    testWidgets('SET-BRD-009 (divergence) a failed upload toasts the server\'s '
+    testWidgets('SET-BRD-009 a failed upload toasts the server\'s '
         'words and shows the same words under the box', (tester) async {
       final logo = 'data:image/png;base64,${base64Of(samplePng)}';
       final m = _sabah({'logo_url': logo});

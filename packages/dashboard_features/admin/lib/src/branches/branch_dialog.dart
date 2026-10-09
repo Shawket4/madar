@@ -1,5 +1,7 @@
-/// The branch editor (ADM-BRA-020..037; web `features/branches/branch-dialog.tsx`):
-/// a dialog on a wide screen, a full-screen sheet on a phone.
+/// The branch editor (ADM-BRA-020..038; web `features/branches/branch-dialog.tsx`):
+/// a dialog on a wide screen, a full-screen sheet on a phone. Its Type
+/// (Branch / Warehouse) hides the till settings, the printer and the tax
+/// override for a warehouse.
 ///
 /// CROSS-UNIT CONTRACT: the onboarding wizard's branch step (ADM-ONB-015)
 /// opens this same dialog in create mode, so keep [showBranchDialog]'s
@@ -13,14 +15,22 @@
 /// - create: `POST /branches` (which takes no till settings), then
 ///   `PATCH /branches/{newId}` with `{old_bill_hours, standard_float}` — and,
 ///   for a platform admin who switched the override on, the four tax
-///   overrides (the create call drops them; see the divergence log).
+///   overrides (the create call drops them; see the divergence log). A
+///   warehouse is the POST alone, with `kind`; an edit sends `kind` only
+///   when the Type changed.
 /// A branch the POST made is remembered, so pressing Create again after a
 /// failed follow-up PATCH retries the PATCH instead of making a second
 /// branch (ADM-BRA-036).
 library;
 
+import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart'
-    show Branch, CreateBranchRequest, PrinterBrand, UpdateBranchRequest;
+    show
+        Branch,
+        BranchKind,
+        CreateBranchRequest,
+        PrinterBrand,
+        UpdateBranchRequest;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -30,13 +40,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/tax_rate.dart';
 import 'branches_data.dart';
 
-/// Opens the branch dialog: [branch] null = "New Branch" (create), else
-/// "Edit Branch". Resolves true when a branch was created or saved, false
-/// when the dialog closed without one.
-Future<bool> showBranchDialog(BuildContext context, {Branch? branch}) async {
+/// Opens the branch dialog: [branch] null = "New Branch" (create, Type
+/// [kind]), else "Edit Branch". Resolves true when a branch was created or
+/// saved, false when the dialog closed without one.
+Future<bool> showBranchDialog(
+  BuildContext context, {
+  Branch? branch,
+  BranchKind kind = BranchKind.branch,
+}) async {
   final saved = await showDashDialog<bool>(
     context,
-    builder: (_) => BranchDialog(branch: branch),
+    builder: (_) => BranchDialog(branch: branch, kind: kind),
   );
   return saved ?? false;
 }
@@ -45,10 +59,13 @@ Future<bool> showBranchDialog(BuildContext context, {Branch? branch}) async {
 const List<String> branchPrinterModels = ['none', 'star', 'epson'];
 
 class BranchDialog extends ConsumerStatefulWidget {
-  const BranchDialog({this.branch, super.key});
+  const BranchDialog({this.branch, this.kind = BranchKind.branch, super.key});
 
   /// The branch being edited; null creates one.
   final Branch? branch;
+
+  /// The Type a new location starts with (`?edit=new-warehouse`).
+  final BranchKind kind;
 
   @override
   ConsumerState<BranchDialog> createState() => _BranchDialogState();
@@ -61,6 +78,14 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
   /// The branch the create call made, when its follow-up PATCH failed.
   Branch? _created;
 
+  /// Changed since it opened: a background refresh no longer re-seeds it.
+  bool _edited = false;
+
+  /// The stored branch the fields were seeded from (the latest refresh until
+  /// the form is changed).
+  late Branch? _branch = widget.branch;
+
+  late BranchKind _kind;
   late String _name;
   late String _phone;
   late String _address;
@@ -80,14 +105,18 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
   late double? _oldBillHours;
   late double? _standardFloat;
 
-  Branch? get _branch => widget.branch;
-  bool get _editing => _branch != null;
+  bool get _editing => widget.branch != null;
+  bool get _warehouse => _kind == BranchKind.warehouse;
 
   @override
   void initState() {
     super.initState();
-    // The web's `form.reset(...)` on open: from the branch, or the defaults.
-    final b = _branch;
+    _seed(_branch);
+  }
+
+  /// The web's `form.reset(...)` on open: from the branch, or the defaults.
+  void _seed(Branch? b) {
+    _kind = b?.kind ?? widget.kind;
     _name = b?.name ?? '';
     _phone = b?.phone ?? '';
     _address = b?.address ?? '';
@@ -115,6 +144,12 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     final float = b?.standardFloat;
     _standardFloat = float == null ? null : float / 100;
   }
+
+  /// A change by the person: from here on a refresh leaves the form alone.
+  void _set(VoidCallback change) => setState(() {
+    _edited = true;
+    change();
+  });
 
   bool get _platform => ref.read(currentSessionProvider)?.isPlatform ?? false;
 
@@ -216,6 +251,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       oldBillHours: _int(_oldBillHours),
       standardFloat: _floatPiastres,
       isActive: _editing ? _active : null,
+      kind: _kind != (_branch ?? _created)?.kind ? _kind : null,
     );
     return _withNulls(body.toJson(), {
       'address',
@@ -260,6 +296,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       address: r.address,
       geoRadiusMeters: r.geoRadiusMeters,
       isActive: r.isActive,
+      kind: r.kind,
       latitude: r.latitude,
       longitude: r.longitude,
       name: r.name,
@@ -294,6 +331,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       latitude: _num(_latitude),
       longitude: _num(_longitude),
       geoRadiusMeters: _int(_radius),
+      kind: _kind,
       explicitNulls: const {
         'address',
         'phone',
@@ -313,7 +351,10 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     if (!(_form.currentState?.validate() ?? false)) return;
     final t = ref.read(tProvider);
     final api = ref.read(apiProvider).branches;
+    final bus = ref.read(realtimeBusProvider);
+    final orgId = ref.read(orgIdProvider);
     final b = _branch;
+    final warehouse = _warehouse;
     setState(() => _busy = true);
     try {
       if (b != null) {
@@ -321,19 +362,27 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       } else if (_created case final made?) {
         await api.patchBranch(id: made.id, body: _fullUpdate());
       } else {
-        final orgId = ref.read(orgIdProvider);
         if (orgId == null) return;
         final made = await api.createBranch(body: _create(orgId));
-        _created = made;
         // The branch exists from here on, whatever the next call does.
-        invalidateBranches(ref);
-        await api.patchBranch(id: made.id, body: _tillsUpdate());
+        invalidateBranches(bus);
+        // A warehouse has no till settings: its create is one call.
+        if (!warehouse) {
+          _created = made;
+          await api.patchBranch(id: made.id, body: _tillsUpdate());
+        }
       }
-      invalidateBranches(ref);
+      invalidateBranches(bus);
       if (!mounted) return;
       DashToast.success(
         context,
-        t(_editing ? 'branches.updatedToast' : 'branches.createdToast'),
+        t(
+          _editing
+              ? 'branches.updatedToast'
+              : warehouse
+              ? 'branches.warehouseCreatedToast'
+              : 'branches.createdToast',
+        ),
       );
       Navigator.of(context).pop(true);
     } on Object catch (e) {
@@ -352,6 +401,19 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     final platform =
         ref.watch(currentSessionProvider.select((s) => s?.isPlatform)) ?? false;
     final zones = ref.watch(branchTimezonesProvider).value ?? const <String>[];
+    // Seeded from the cached list: a refresh that lands re-seeds the fields
+    // until they are changed, so Save never writes back stale values.
+    final orgId = ref.watch(orgIdProvider);
+    final fresh = _editing && orgId != null
+        ? ref
+              .watch(adminBranchesProvider(orgId))
+              .value
+              ?.firstWhereOrNull((b) => b.id == widget.branch!.id)
+        : null;
+    if (fresh != null && !_edited && !identical(fresh, _branch)) {
+      _branch = fresh;
+      _seed(fresh);
+    }
     final wide =
         DashSurfaceScope.maybeOf(context) != DashSurfaceMode.fullScreen;
 
@@ -406,11 +468,54 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       child: child,
     );
 
+    final stored = _branch?.kind;
+    final type = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: Space.sm,
+      children: [
+        DashFormField<BranchKind>(
+          label: t('branches.kind'),
+          value: _kind,
+          builder: (context, _) => Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DashSegmentedControl<BranchKind>(
+              key: const ValueKey('branch-kind'),
+              semanticLabel: t('branches.kind'),
+              value: _kind,
+              options: [
+                DashOption(
+                  value: BranchKind.branch,
+                  label: t('branches.kindBranch'),
+                  icon: 'store',
+                ),
+                DashOption(
+                  value: BranchKind.warehouse,
+                  label: t('branches.kindWarehouse'),
+                  icon: 'warehouse',
+                ),
+              ],
+              onChanged: (v) => _set(() => _kind = v),
+            ),
+          ),
+        ),
+        Text(
+          t(_warehouse ? 'branches.kindWarehouseHint' : 'branches.kindBranchHint'),
+          style: DashType.small.copyWith(color: c.textSecondary),
+        ),
+        if (stored != null && stored != _kind)
+          Text(
+            t(_warehouse ? 'branches.toWarehouseHint' : 'branches.toBranchHint'),
+            style: DashType.small.copyWith(
+              color: DashTone.warning.foreground(c),
+            ),
+          ),
+      ],
+    );
     final name = DashTextField(
       key: const ValueKey('branch-name'),
-      label: t('branches.branchName'),
+      label: t(_warehouse ? 'branches.warehouseName' : 'branches.branchName'),
       value: _name,
-      onChanged: (v) => setState(() => _name = v),
+      onChanged: (v) => _set(() => _name = v),
       validator: _required,
       onSubmitted: (_) => _submit(),
     );
@@ -420,7 +525,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       value: _phone,
       keyboardType: TextInputType.phone,
       textDirection: TextDirection.ltr,
-      onChanged: (v) => setState(() => _phone = v),
+      onChanged: (v) => _set(() => _phone = v),
       onSubmitted: (_) => _submit(),
     );
     final timezone = DashTimezoneSelect(
@@ -428,7 +533,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       label: t('branches.timezone'),
       zones: zones,
       value: _timezone,
-      onChanged: (v) => setState(() => _timezone = v),
+      onChanged: (v) => _set(() => _timezone = v),
     );
     final hours = DashNumberField(
       key: const ValueKey('branch-old-bill-hours'),
@@ -437,7 +542,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       min: 1,
       max: 168,
       decimals: 0,
-      onChanged: (v) => setState(() => _oldBillHours = v),
+      onChanged: (v) => _set(() => _oldBillHours = v),
       validator: _hours,
     );
     final float = DashNumberField(
@@ -447,14 +552,14 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       step: 0.01,
       decimals: 2,
       allowEmpty: true,
-      onChanged: (v) => setState(() => _standardFloat = v),
+      onChanged: (v) => _set(() => _standardFloat = v),
       validator: _atLeastZero,
     );
     final address = DashTextField(
       key: const ValueKey('branch-address'),
       label: t('branches.address'),
       value: _address,
-      onChanged: (v) => setState(() => _address = v),
+      onChanged: (v) => _set(() => _address = v),
       onSubmitted: (_) => _submit(),
     );
 
@@ -467,7 +572,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
           for (final m in branchPrinterModels)
             DashOption(value: m, label: t('branches.brands.$m')),
         ],
-        onChanged: (v) => setState(() => _printer = v),
+        onChanged: (v) => _set(() => _printer = v),
       ),
       if (_hasPrinter)
         pair(
@@ -478,7 +583,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
             placeholder: '192.168.1.100',
             mono: true,
             textDirection: TextDirection.ltr,
-            onChanged: (v) => setState(() => _printerIp = v),
+            onChanged: (v) => _set(() => _printerIp = v),
             onSubmitted: (_) => _submit(),
           ),
           DashNumberField(
@@ -487,7 +592,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
             value: _printerPort,
             decimals: 0,
             allowEmpty: true,
-            onChanged: (v) => setState(() => _printerPort = v),
+            onChanged: (v) => _set(() => _printerPort = v),
             validator: _atLeastZero,
           ),
         ),
@@ -501,7 +606,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       max: 90,
       decimals: 7,
       allowEmpty: true,
-      onChanged: (v) => setState(() => _latitude = v),
+      onChanged: (v) => _set(() => _latitude = v),
       validator: (v) => _coordinate(v, 90),
     );
     final longitude = DashNumberField(
@@ -512,7 +617,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       max: 180,
       decimals: 7,
       allowEmpty: true,
-      onChanged: (v) => setState(() => _longitude = v),
+      onChanged: (v) => _set(() => _longitude = v),
       validator: (v) => _coordinate(v, 180),
     );
     final radius = DashNumberField(
@@ -521,7 +626,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       value: _radius,
       decimals: 0,
       allowEmpty: true,
-      onChanged: (v) => setState(() => _radius = v),
+      onChanged: (v) => _set(() => _radius = v),
       validator: _atLeastZero,
     );
     final location = box('map-pin', t('branches.location'), [
@@ -547,7 +652,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
         ),
     ]);
 
-    final tax = platform
+    final tax = platform && !_warehouse
         ? [
             muted(
               DashSwitchField(
@@ -555,7 +660,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
                 label: t('branches.taxOverride'),
                 description: t('branches.taxOverrideHint'),
                 value: _taxOverride,
-                onChanged: (v) => setState(() => _taxOverride = v),
+                onChanged: (v) => _set(() => _taxOverride = v),
               ),
             ),
             if (_taxOverride)
@@ -578,7 +683,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
                         step: 0.1,
                         decimals: 4,
                         allowEmpty: true,
-                        onChanged: (v) => setState(() => _taxRate = v),
+                        onChanged: (v) => _set(() => _taxRate = v),
                         validator: _rate,
                       ),
                       DashNumberField(
@@ -589,7 +694,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
                         step: 0.1,
                         decimals: 4,
                         allowEmpty: true,
-                        onChanged: (v) => setState(() => _serviceCharge = v),
+                        onChanged: (v) => _set(() => _serviceCharge = v),
                         validator: _rate,
                       ),
                     ),
@@ -597,14 +702,14 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
                       key: const ValueKey('branch-tax-inclusive'),
                       label: t('orgs.taxInclusive'),
                       value: _taxInclusive,
-                      onChanged: (v) => setState(() => _taxInclusive = v),
+                      onChanged: (v) => _set(() => _taxInclusive = v),
                     ),
                     DashSwitchField(
                       key: const ValueKey('branch-service-taxable'),
                       label: t('orgs.serviceChargeTaxable'),
                       value: _serviceChargeTaxable,
                       onChanged: (v) =>
-                          setState(() => _serviceChargeTaxable = v),
+                          _set(() => _serviceChargeTaxable = v),
                     ),
                   ],
                 ),
@@ -619,13 +724,18 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
               label: t('common.active'),
               description: t('branches.activeHint'),
               value: _active,
-              onChanged: (v) => setState(() => _active = v),
+              onChanged: (v) => _set(() => _active = v),
             ),
           )
         : null;
 
     return DashSurface(
-      title: t(_editing ? 'branches.editTitle' : 'branches.newTitle'),
+      title: t(switch ((_editing, _warehouse)) {
+        (true, true) => 'branches.editWarehouseTitle',
+        (true, false) => 'branches.editTitle',
+        (false, true) => 'branches.newWarehouseTitle',
+        (false, false) => 'branches.newTitle',
+      }),
       description: t('branches.subtitle'),
       body: Form(
         key: _form,
@@ -633,11 +743,12 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.lg,
           children: [
+            type,
             name,
             pair(phone, timezone),
-            pair(hours, float),
+            if (!_warehouse) pair(hours, float),
             address,
-            printer,
+            if (!_warehouse) printer,
             location,
             ...tax,
             ?active,

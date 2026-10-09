@@ -339,7 +339,8 @@ class ClientVersionsTable extends ConsumerWidget {
                         ),
                         if (r.legacyKinds.length > 1)
                           TextSpan(
-                            text: '  +${r.legacyKinds.length - 1}',
+                            text:
+                                '  ${dashFigure('+${r.legacyKinds.length - 1}')}',
                             style: mutedSmall,
                           ),
                       ],

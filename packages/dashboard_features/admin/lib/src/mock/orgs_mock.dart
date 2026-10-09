@@ -8,6 +8,8 @@
 /// logo (a member may change their own org's), the same refusals in the
 /// same order with the same sentences, soft deletes, and state over the
 /// shared [MockDb] (a create shows in the next list).
+/// `max_warehouses` (the warehouses feature) is kept and patched like the
+/// backend's; no screen here shows or sends it, as on the web.
 library;
 
 import 'dart:convert';
@@ -193,6 +195,9 @@ void registerOrgsMocks(MockServer server, MockDb db) {
       if (tz is String && tz.isNotEmpty) 'timezone': tz,
       'social_links': ?social,
       if (body.containsKey('logo_url')) 'logo_url': body['logo_url'],
+      // Warehouses: null = unlimited, absent = unchanged (the web never sends it).
+      if (body.containsKey('max_warehouses'))
+        'max_warehouses': body['max_warehouses'],
     };
     final updated = orgs.update(id, patch);
     return MockResponse.ok(_public(updated));

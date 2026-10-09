@@ -1,1 +1,12 @@
-{}
+{
+  "inventory.settings.ingredientCount_one": "مكوّن واحد",
+  "inventory.settings.ingredientCount_two": "مكوّنان",
+  "inventory.settings.ingredientCount_few": "{{count}} مكوّنات",
+  "inventory.settings.ingredientCount_many": "{{count}} مكوّنًا",
+  "inventory.settings.ingredientCount_other": "{{count}} مكوّن",
+  "inventory.settings.deleteCategoryReassign_one": "مكوّن واحد يستخدم هذه الفئة. اختر الفئة التي سينتقل إليها.",
+  "inventory.settings.deleteCategoryReassign_two": "مكوّنان يستخدمان هذه الفئة. اختر الفئة التي سينتقلان إليها.",
+  "inventory.settings.deleteCategoryReassign_few": "{{count}} مكوّنات تستخدم هذه الفئة. اختر الفئة التي ستنتقل إليها.",
+  "inventory.settings.deleteCategoryReassign_many": "{{count}} مكوّنًا تستخدم هذه الفئة. اختر الفئة التي ستنتقل إليها.",
+  "inventory.settings.deleteCategoryReassign_other": "{{count}} مكوّن يستخدم هذه الفئة. اختر الفئة التي ستنتقل إليها."
+}

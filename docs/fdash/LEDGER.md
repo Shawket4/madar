@@ -326,3 +326,6 @@ BUILT setup/links (26/26, 59 tests) → VERIFY QUEUED. OWNER Q: the links previe
 VERIFIED inventory/inv_settings AT PARITY (minors) + team/requests NOT (major = kit DashPopover date overflow) → pending/inventory-inv_settings-team-requests.md; KIT BATCH 1 launched
 DONE setup/loyalty (findings 1/3/4; 2 via integration seam) + admin/roles (minors); sell member_section warehouse filter too. DONE setup/qr + integrations (blockers fixed; 162 tests). OWNER Q: QR GETs are get-or-create (create Shlink links) → should they be side-effect free?
 VERIFIED setup/brand_appearance + whatsapp AT PARITY (minors → pending/setup-brand-whatsapp.md; kit items sent to kit batch 1: DashTextInput hintTextDirection, DashSwitch dark off knob)
+VERIFIED team/rules NOT (major: skeleton during retry) → pending/team-rules.md
+CORE FIX (me): Arabic durations now RTL-isolated (core fmtElapsedMs/fmtDuration + team fmtHours); web-vector test carries the deliberate exception; core 167 pass. VERIFIED team/team_reports NOT (2 major) + team_board AT PARITY + admin/review + setup/staff_pool AT PARITY (minors) → pending files
+PENDING (launch when a slot frees): pending/admin-review-setup-staff_pool.md

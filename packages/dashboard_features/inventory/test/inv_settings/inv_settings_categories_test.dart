@@ -2,6 +2,7 @@
 // add, rename, packaging, delete with its reassign dialog, and the server's
 // refusals (INV-SET-010, 012-016, 020, 021, 023, 026).
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -148,6 +149,21 @@ void main() {
       await h.settle();
       expect(tester.widget<DashSwitch>(_switch('milk')).value, isTrue);
       expect(tester.widget<DashSwitch>(_switch('bakery')).value, isTrue);
+    });
+
+    testWidgets('INV-SET-010 the word "Packaging" (the web\'s <label>) '
+        'toggles the switch too', (tester) async {
+      final h = await pumpSettings(tester);
+      await h.tap(inRow('milk', find.text('Packaging')));
+      final patch = h.server.callsTo(categoryRoute, method: 'PATCH').single;
+      expect(patch.path, '/inventory/orgs/$org/categories/${cat('milk')}');
+      expect(patch.body, {'is_packaging': true});
+      expect(tester.widget<DashSwitch>(_switch('milk')).value, isTrue);
+      await h.tap(inRow('packaging', find.text('Packaging')));
+      expect(
+        h.server.callsTo(categoryRoute, method: 'PATCH').last.body,
+        {'is_packaging': false},
+      );
     });
 
     testWidgets('a failure is a toast and the switch stays', (tester) async {
@@ -308,8 +324,16 @@ void main() {
         for (final c in invCategories)
           if (c.slug != 'milk') cat(c.slug),
       ]);
-      select.onChanged(cat('dairy'));
-      await h.settle();
+      await h.tap(inDialog(byKey('inv-delete-category-target')));
+      await h.tap(
+        find
+            .descendant(
+              of: find.byWidgetPredicate((w) => w is DashOptionList),
+              matching: find.text('Dairy & Eggs'),
+            )
+            .hitTestable()
+            .last,
+      );
       expect(_enabled(tester, _confirm), isTrue);
       await h.tap(_confirm);
       final del = s.server.callsTo(categoryRoute, method: 'DELETE').single;
@@ -349,6 +373,29 @@ void main() {
       expect(del.query, isEmpty);
       await h.expectToast('Done');
       expect(inList(find.text('Seasonal')), findsNothing);
+    });
+
+    testWidgets('INV-SET-012/014 the dialog follows the live row: a refresh '
+        'that gives the category ingredients shows the picker', (tester) async {
+      final s = settingsServer();
+      final id = addEmptyCategory(s.db);
+      final h = await pumpSettings(tester, server: s.server, db: s.db);
+      await h.tap(_trash('seasonal'));
+      expect(inDialog(find.byType(DashSelectField<String>)), findsNothing);
+      final ing = s.db[InvTables.ingredients]
+          .where((i) => i['category_id'] == cat('milk'))
+          .first;
+      s.db[InvTables.ingredients].update(ing['id']! as String, {
+        'category_id': id,
+      });
+      h.container.read(realtimeBusProvider).invalidate(const ['/inventory']);
+      await h.settle();
+      expect(
+        inDialog(textHas('1 ingredient uses this category')),
+        findsOneWidget,
+      );
+      expect(inDialog(find.byType(DashSelectField<String>)), findsOneWidget);
+      expect(_enabled(tester, _confirm), isFalse);
     });
 
     testWidgets('INV-SET-016 Cancel closes without a request', (tester) async {

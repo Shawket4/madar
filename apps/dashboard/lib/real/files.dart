@@ -100,8 +100,8 @@ class PlatformFileGateway implements FileGateway {
       final x = await fs.openFile(
         acceptedTypeGroups: const [
           fs.XTypeGroup(
-            extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'],
-            mimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+            extensions: ['png', 'jpg', 'jpeg', 'webp'],
+            mimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
           ),
         ],
       );

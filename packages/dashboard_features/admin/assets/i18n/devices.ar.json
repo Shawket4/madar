@@ -1,1 +1,8 @@
-{}
+{
+  "devices.clients.lastDays_few": "آخر {{count}} أيام",
+  "devices.clients.lastDays_many": "آخر {{count}} يومًا",
+  "devices.clients.noLegacyHint_few": "لم يستخدم أي تطبيق مسارًا قديمًا خلال آخر {{count}} أيام.",
+  "devices.clients.noLegacyHint_many": "لم يستخدم أي تطبيق مسارًا قديمًا خلال آخر {{count}} يومًا.",
+  "devices.clients.noneHint_few": "لم يتصل أي تطبيق بالخادم خلال آخر {{count}} أيام.",
+  "devices.clients.noneHint_many": "لم يتصل أي تطبيق بالخادم خلال آخر {{count}} يومًا."
+}

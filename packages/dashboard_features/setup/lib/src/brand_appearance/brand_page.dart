@@ -31,6 +31,12 @@ import 'brand_image.dart';
 import 'card_face.dart';
 import 'shop_address_card.dart';
 
+/// Warms the pane's read when its rail row or palette entry is pointed at
+/// (intent beyond the web: `route-prefetch.ts` has no case for this path).
+void prefetchBrand(DashPrefetcher warm, Scope s) {
+  if (s.orgId != null) warm(orgBrandProvider(s.orgId!));
+}
+
 /// The loading bars (`h-8 w-48`, two `h-40` cards).
 abstract final class BrandMetrics {
   static const double titleBar = Space.xxl;
