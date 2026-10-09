@@ -15,6 +15,7 @@ class Org {
     required this.id,
     required this.isActive,
     this.logoUrl,
+    this.maxWarehouses,
     required this.modules,
     required this.name,
     this.receiptFooter,
@@ -52,6 +53,7 @@ class Org {
     id: decString(json['id'], 'Org.id'),
     isActive: decBool(json['is_active'], 'Org.is_active'),
     logoUrl: decStringN(json['logo_url'], 'Org.logo_url'),
+    maxWarehouses: decIntN(json['max_warehouses'], 'Org.max_warehouses'),
     modules: decList<String>(
       json['modules'],
       'Org.modules',
@@ -105,6 +107,10 @@ class Org {
   final bool isActive;
 
   final String? logoUrl;
+
+  /// How many warehouses this org may have; `null` = unlimited. Set by a
+  /// super admin (WAREHOUSE_DESIGN.md).
+  final int? maxWarehouses;
 
   /// Switched-on modules: `pos`, `dawam` (PS-2). Switching one off hides it
   /// and keeps every record.
@@ -165,6 +171,8 @@ class Org {
     'is_active': isActive,
     if (logoUrl != null || explicitNulls.contains('logo_url'))
       'logo_url': logoUrl,
+    if (maxWarehouses != null || explicitNulls.contains('max_warehouses'))
+      'max_warehouses': maxWarehouses,
     'modules': modules,
     'name': name,
     if (receiptFooter != null || explicitNulls.contains('receipt_footer'))

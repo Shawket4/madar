@@ -143,7 +143,9 @@ void registerTransfersMocks(MockServer server, MockDb db) {
     final Set<String> ids;
     if (id == _allBranches) {
       final org = req.orgId;
-      if (org == null) req.fail(MockResponse.forbidden('No organization in scope'));
+      if (org == null) {
+        req.fail(MockResponse.forbidden('No organization in scope'));
+      }
       ids = {
         for (final b in db['branches'].where((b) => b['org_id'] == org))
           b['id']! as String,
@@ -256,7 +258,9 @@ void registerTransfersMocks(MockServer server, MockDb db) {
     final qty = (t['quantity']! as num).toDouble();
     final src = t['source_branch_id']! as String;
     final dst = t['destination_branch_id']! as String;
-    final ing = db[InvTables.ingredients].find(t['org_ingredient_id']! as String)!;
+    final ing = db[InvTables.ingredients].find(
+      t['org_ingredient_id']! as String,
+    )!;
     final left =
         (InvViews.stockRecord(db, dst, ing['id']! as String)?['on_hand']
                 as num?)

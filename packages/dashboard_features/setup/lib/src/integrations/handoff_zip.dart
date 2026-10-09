@@ -31,12 +31,20 @@ abstract final class HandoffZipBuilder {
     String passphrase,
   ) => Future(() => encryptedHandoffZip(files, passphrase));
 
-  @visibleForTesting
   static Future<List<int>> Function(List<HandoffFile> files, String passphrase)
-  build = _default;
+  _build = _default;
+
+  /// The archive's bytes for [files], encrypted with [passphrase].
+  static Future<List<int>> run(List<HandoffFile> files, String passphrase) =>
+      _build(files, passphrase);
 
   @visibleForTesting
-  static void reset() => build = _default;
+  static set build(
+    Future<List<int>> Function(List<HandoffFile> files, String passphrase) f,
+  ) => _build = f;
+
+  @visibleForTesting
+  static void reset() => _build = _default;
 }
 
 /// The archive's MIME type.

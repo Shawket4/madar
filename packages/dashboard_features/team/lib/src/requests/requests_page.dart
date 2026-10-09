@@ -45,6 +45,34 @@ class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage> {
   /// The request being decided in one click: its buttons wait (H2-D8).
   String? _busy;
 
+  late final AppLifecycleListener _lifecycle;
+  DateTime? _loadedAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _onResume);
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  /// Refetch on focus (`dawamQuery`, TEAM-ALL-009): back after the reads
+  /// went stale (30 s) asks again; sooner does nothing.
+  void _onResume() {
+    final at = _loadedAt;
+    if (at == null || !mounted) return;
+    final now = ref.read(clockProvider)();
+    if (now.difference(at) < kQueryStaleTime) return;
+    _loadedAt = now;
+    ref
+      ..invalidate(requestsReadFor(_key(_status, _kind)))
+      ..invalidate(employeesListProvider(everyone));
+  }
+
   RequestsQuery _key(String status, String? kind) =>
       (status: status == _all ? null : status, kind: kind);
 
@@ -133,6 +161,12 @@ class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage> {
     final read = requestsReadFor(_key(_status, _kind));
     final q = ref.watch(read);
     listenStaffRefreshFailure(ref, context, read);
+    if (q.hasValue) _loadedAt ??= ref.read(clockProvider)();
+    ref.listen(read, (_, next) {
+      if (next.hasValue && !next.isLoading) {
+        _loadedAt = ref.read(clockProvider)();
+      }
+    });
     final people = employeesListProvider(everyone);
     final peopleQ = ref.watch(people);
     listenStaffRefreshFailure(ref, context, people);

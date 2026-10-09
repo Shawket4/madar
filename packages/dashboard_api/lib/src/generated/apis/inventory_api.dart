@@ -90,6 +90,7 @@ class InventoryApi {
   Future<List<StockTransfer>> listTransfers({
     required String branchId,
     String? direction,
+    String? status,
     int? limit,
     int? offset,
   }) async {
@@ -99,6 +100,7 @@ class InventoryApi {
         path: '/inventory/branches/${pathSegment(branchId)}/transfers',
         query: {
           if (direction != null) 'direction': [queryValue(direction)],
+          if (status != null) 'status': [queryValue(status)],
           if (limit != null) 'limit': [queryValue(limit)],
           if (offset != null) 'offset': [queryValue(offset)],
         },
@@ -369,6 +371,62 @@ class InventoryApi {
     );
   }
 
+  /// `GET /inventory/orgs/{org_id}/transfer-differences` (transfer_differences)
+  Future<List<TransferDifferenceRow>> transferDifferences({
+    required String orgId,
+    DateTime? from,
+    DateTime? to,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/inventory/orgs/${pathSegment(orgId)}/transfer-differences',
+        query: {
+          if (from != null) 'from': [queryValue(from)],
+          if (to != null) 'to': [queryValue(to)],
+        },
+      ),
+    );
+    return decodeResponse(
+      response,
+      'transfer_differences',
+      (json) => decList<TransferDifferenceRow>(
+        json,
+        'transfer_differences',
+        (e) => decObject(
+          e,
+          'transfer_differences[]',
+          TransferDifferenceRow.fromJson,
+        ),
+      ),
+    );
+  }
+
+  /// Every live location of the org, for the other side of a transfer. Someone
+  /// who works at one shop still sends to, and requests from, the rest; `GET
+  /// /branches` lists only where the caller works.
+  ///
+  /// `GET /inventory/orgs/{org_id}/transfer-locations` (transfer_locations)
+  Future<List<TransferLocation>> transferLocations({
+    required String orgId,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/inventory/orgs/${pathSegment(orgId)}/transfer-locations',
+      ),
+    );
+    return decodeResponse(
+      response,
+      'transfer_locations',
+      (json) => decList<TransferLocation>(
+        json,
+        'transfer_locations',
+        (e) => decObject(e, 'transfer_locations[]', TransferLocation.fromJson),
+      ),
+    );
+  }
+
   /// `POST /inventory/transfers` (create_transfer)
   Future<StockTransfer> createTransfer({
     required CreateTransferRequest body,
@@ -387,13 +445,18 @@ class InventoryApi {
     );
   }
 
-  /// `DELETE /inventory/transfers/{id}` (delete_transfer)
-  Future<void> deleteTransfer({required String id}) async {
-    await _transport.send(
+  /// `GET /inventory/transfers/{id}` (get_transfer)
+  Future<StockTransfer> getTransfer({required String id}) async {
+    final response = await _transport.send(
       ApiRequest(
-        method: 'DELETE',
+        method: 'GET',
         path: '/inventory/transfers/${pathSegment(id)}',
       ),
+    );
+    return decodeResponse(
+      response,
+      'get_transfer',
+      (json) => decObject(json, 'get_transfer', StockTransfer.fromJson),
     );
   }
 
@@ -413,6 +476,123 @@ class InventoryApi {
       response,
       'update_transfer',
       (json) => decObject(json, 'update_transfer', StockTransfer.fromJson),
+    );
+  }
+
+  /// `POST /inventory/transfers/{id}/accept` (accept_transfer)
+  Future<StockTransfer> acceptTransfer({
+    required String id,
+    required AcceptTransferRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/inventory/transfers/${pathSegment(id)}/accept',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'accept_transfer',
+      (json) => decObject(json, 'accept_transfer', StockTransfer.fromJson),
+    );
+  }
+
+  /// `POST /inventory/transfers/{id}/cancel` (cancel_stock_transfer)
+  Future<StockTransfer> cancelStockTransfer({
+    required String id,
+    required CloseTransferRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/inventory/transfers/${pathSegment(id)}/cancel',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'cancel_stock_transfer',
+      (json) =>
+          decObject(json, 'cancel_stock_transfer', StockTransfer.fromJson),
+    );
+  }
+
+  /// `POST /inventory/transfers/{id}/decline` (decline_transfer)
+  Future<StockTransfer> declineTransfer({
+    required String id,
+    required CloseTransferRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/inventory/transfers/${pathSegment(id)}/decline',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'decline_transfer',
+      (json) => decObject(json, 'decline_transfer', StockTransfer.fromJson),
+    );
+  }
+
+  /// `POST /inventory/transfers/{id}/dispatch` (dispatch_transfer)
+  Future<StockTransfer> dispatchTransfer({required String id}) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/inventory/transfers/${pathSegment(id)}/dispatch',
+      ),
+    );
+    return decodeResponse(
+      response,
+      'dispatch_transfer',
+      (json) => decObject(json, 'dispatch_transfer', StockTransfer.fromJson),
+    );
+  }
+
+  /// `POST /inventory/transfers/{id}/receive` (receive_transfer)
+  Future<StockTransfer> receiveTransfer({
+    required String id,
+    required ReceiveTransferRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/inventory/transfers/${pathSegment(id)}/receive',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'receive_transfer',
+      (json) => decObject(json, 'receive_transfer', StockTransfer.fromJson),
+    );
+  }
+
+  /// `GET /inventory/warehouses/{warehouse_id}/replenishment` (replenishment)
+  Future<List<ReplenishmentRow>> replenishment({
+    required String warehouseId,
+    required String branchId,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/inventory/warehouses/${pathSegment(warehouseId)}/replenishment',
+        query: {
+          'branch_id': [queryValue(branchId)],
+        },
+      ),
+    );
+    return decodeResponse(
+      response,
+      'replenishment',
+      (json) => decList<ReplenishmentRow>(
+        json,
+        'replenishment',
+        (e) => decObject(e, 'replenishment[]', ReplenishmentRow.fromJson),
+      ),
     );
   }
 

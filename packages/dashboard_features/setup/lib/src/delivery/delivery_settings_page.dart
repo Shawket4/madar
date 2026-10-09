@@ -174,6 +174,10 @@ class _DeliverySettingsFormState extends ConsumerState<DeliverySettingsForm> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final q = ref.watch(deliverySettingsProvider(widget.branchId));
+    // The discounts load alongside the settings, as on the web, not only
+    // once a channel is switched on.
+    final orgId = ref.watch(orgIdProvider);
+    if (orgId != null) ref.watch(deliveryDiscountsProvider(orgId));
     if (q.failedFirst) {
       return DashErrorState(
         title: t('delivery.settingsLoadFailed'),

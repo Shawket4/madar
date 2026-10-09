@@ -20,9 +20,9 @@ const _zamalek = ['Oat Milk', 'Paper Cup 12oz', 'Vanilla Syrup'];
 
 /// The ingredient cells, top to bottom.
 List<String> _ingredients(WidgetTester tester) {
-  final texts = inTable(find.byType(Text)).evaluate().map(
-    (e) => (e.widget as Text).data,
-  );
+  final texts = inTable(
+    find.byType(Text),
+  ).evaluate().map((e) => (e.widget as Text).data);
   const names = [
     'Oat Milk',
     'House Blend Beans',
@@ -39,7 +39,7 @@ List<String> _ingredients(WidgetTester tester) {
 void main() {
   testWidgets('INV-TRF-001 header: Transfers, Export + New transfer, the '
       'direction filter below', (tester) async {
-    final h = await pumpTransfers(tester, branch: SeedIds.zamalek);
+    await pumpTransfers(tester, branch: SeedIds.zamalek);
     expect(inPage(find.text('Transfers')), findsWidgets);
     expect(inPage(byKey('transfers-export')), findsOneWidget);
     expect(inPage(find.text('Export Excel')), findsOneWidget);
@@ -48,11 +48,10 @@ void main() {
       inPage(byKey('transfers-direction')),
     );
     expect(seg.value, isNull);
-    expect([for (final o in seg.options) o.label], [
-      'All transfers',
-      'Incoming',
-      'Outgoing',
-    ]);
+    expect(
+      [for (final o in seg.options) o.label],
+      ['All transfers', 'Incoming', 'Outgoing'],
+    );
   });
 
   testWidgets('INV-TRF-002 reads the org\'s branches and the branch\'s '
@@ -69,13 +68,10 @@ void main() {
       '"source → destination", By; no Branch column', (tester) async {
     await pumpTransfers(tester, branch: SeedIds.zamalek);
     final t = tester.widget<DashDataTable<StockTransfer>>(table);
-    expect([for (final c in t.columns) c.label], [
-      'Date',
-      'Ingredient',
-      'Quantity',
-      'Direction',
-      'By',
-    ]);
+    expect(
+      [for (final c in t.columns) c.label],
+      ['Date', 'Ingredient', 'Quantity', 'Direction', 'By'],
+    );
     // 08:30 UTC is 11:30 in Cairo (summer time).
     expect(inTable(find.text('06 Oct, 11:30 AM')), findsOneWidget);
     expect(inTable(find.text('2,000 ml')), findsOneWidget);
@@ -85,7 +81,9 @@ void main() {
     expect(inTable(find.text('100 pcs')), findsOneWidget);
     // The arrow points toward the end of the line.
     final arrows = tester.widgetList<DashIcon>(
-      inTable(find.byWidgetPredicate((w) => w is DashIcon && w.name == 'arrow-right')),
+      inTable(
+        find.byWidgetPredicate((w) => w is DashIcon && w.name == 'arrow-right'),
+      ),
     );
     expect(arrows, hasLength(3));
   });
@@ -196,7 +194,10 @@ void main() {
     await h.tap(menuItem('Edit note'));
     expect(noteDialog, findsOneWidget);
     expect(inNote(find.text('Edit note')), findsOneWidget);
-    expect(inNote(find.text('Zamalek ran short over the weekend')), findsOneWidget);
+    expect(
+      inNote(find.text('Zamalek ran short over the weekend')),
+      findsOneWidget,
+    );
     await h.enterText(
       inNote(byKey('transfer-note-draft')),
       '  Weekend rush, sent Monday  ',
@@ -209,6 +210,32 @@ void main() {
     await h.expectToast('Changes saved');
     expect(noteDialog, findsNothing);
     expect(h.server.callsTo(listRoute).length, lists + 1, reason: 'refetched');
+  });
+
+  testWidgets('INV-TRF-027 the draft follows a background refresh until '
+      'the person types', (tester) async {
+    final s = transfersServer();
+    final h = await pumpTransfers(
+      tester,
+      server: s.server,
+      db: s.db,
+      branch: SeedIds.zamalek,
+    );
+    await h.tap(menuOf('t1'));
+    await h.tap(menuItem('Edit note'));
+    final row = s.db[InvTables.transfers].find(InvIds.transfer('t1'))!;
+    void refresh(String note) {
+      row['note'] = note;
+      h.container.read(realtimeBusProvider).invalidate(const ['/inventory']);
+    }
+
+    refresh('Sent by the area manager');
+    await h.settle();
+    expect(inNote(find.text('Sent by the area manager')), findsOneWidget);
+    await h.enterText(inNote(byKey('transfer-note-draft')), 'Mine');
+    refresh('Someone else again');
+    await h.settle();
+    expect(inNote(find.text('Mine')), findsOneWidget);
   });
 
   testWidgets('INV-TRF-008 a blank note is sent as null', (tester) async {
@@ -245,7 +272,10 @@ void main() {
     expect(noteDialog, findsNothing);
     await h.tap(menuOf('t1'));
     await h.tap(menuItem('Edit note'));
-    expect(inNote(find.text('Zamalek ran short over the weekend')), findsOneWidget);
+    expect(
+      inNote(find.text('Zamalek ran short over the weekend')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('INV-TRF-009 / INV-TRF-029 Reverse: confirm, DELETE, the row '
@@ -278,10 +308,10 @@ void main() {
     final reversal = s.db[InvTables.movements].where(
       (m) => m['note'] == 'Transfer reversal',
     );
-    expect({for (final m in reversal) m['movement_type']}, {
-      'transfer_out',
-      'transfer_in',
-    });
+    expect(
+      {for (final m in reversal) m['movement_type']},
+      {'transfer_out', 'transfer_in'},
+    );
     expect((zamalekCups['on_hand']! as num).toDouble(), before + 100);
   });
 
@@ -343,7 +373,9 @@ void main() {
     expect(inTable(find.byType(DashSkeleton)), findsWidgets);
     expect(inPage(find.text('No transfers found')), findsNothing);
     expect(
-      tester.widget<DashExportButton>(inPage(byKey('transfers-export'))).enabled,
+      tester
+          .widget<DashExportButton>(inPage(byKey('transfers-export')))
+          .enabled,
       isFalse,
     );
     gate.release();
@@ -378,10 +410,15 @@ void main() {
     final h = await pumpTransfers(tester, branch: SeedIds.heliopolis);
     expect(inTable(find.text('No transfers found')), findsOneWidget);
     expect(
-      tester.widget<DashExportButton>(inPage(byKey('transfers-export'))).enabled,
+      tester
+          .widget<DashExportButton>(inPage(byKey('transfers-export')))
+          .enabled,
       isFalse,
     );
-    expect(h.server.callsTo(listRoute).single.path, contains(SeedIds.heliopolis));
+    expect(
+      h.server.callsTo(listRoute).single.path,
+      contains(SeedIds.heliopolis),
+    );
   });
 
   testWidgets('INV-TRF-010 refusal: a persona without inventory.transfers.read '
@@ -461,16 +498,10 @@ void main() {
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Transfers');
     expect(sheet.title, 'Transfers');
-    expect([for (final c in sheet.columns) c.header], [
-      'Date',
-      'Ingredient',
-      'Quantity',
-      'Unit',
-      'From',
-      'To',
-      'By',
-      'Note',
-    ]);
+    expect(
+      [for (final c in sheet.columns) c.header],
+      ['Date', 'Ingredient', 'Quantity', 'Unit', 'From', 'To', 'By', 'Note'],
+    );
     final oat = sheet.rows.first;
     expect(oat.sublist(1), [
       'Oat Milk',
@@ -502,7 +533,9 @@ void main() {
     await h.expectToast(h.refusalWords(boom));
     expect(h.exports.built, isEmpty);
     expect(
-      tester.widget<DashExportButton>(inPage(byKey('transfers-export'))).loading,
+      tester
+          .widget<DashExportButton>(inPage(byKey('transfers-export')))
+          .loading,
       isFalse,
     );
     hold.complete();
@@ -523,5 +556,16 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('INV-TRF-001 (divergence) limited persona: the shell\'s route '
+      'gate shows Restricted and reads nothing', (tester) async {
+    final h = await pumpTransfers(
+      tester,
+      persona: Persona.limited,
+      branch: SeedIds.zamalek,
+    );
+    expect(page, findsNothing);
+    expect(h.server.callsTo(listRoute), isEmpty);
   });
 }

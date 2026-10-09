@@ -253,16 +253,19 @@ class WasteTable extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       spacing: DashMetrics.hair,
       children: [
+        // The web's cells never wrap (`whitespace-nowrap`): one line each.
         MadarClippedText(
           main,
           maxLines: 1,
+          softWrap: false,
           overflow: TextOverflow.ellipsis,
           style: style,
         ),
         for (final u in under)
           MadarClippedText(
             u,
-            maxLines: 2,
+            maxLines: 1,
+            softWrap: false,
             overflow: TextOverflow.ellipsis,
             style: muted,
           ),
@@ -297,7 +300,8 @@ class WasteTable extends ConsumerWidget {
           },
           numeric: true,
           align: DashAlign.start,
-          width: Space.xxl * 5 + Space.lg,
+          // "Received 07 Oct, 10:05 AM" uncut.
+          width: Space.xxl * 6 + Space.lg,
         ),
         if (allBranches)
           DashColumn(
@@ -324,14 +328,19 @@ class WasteTable extends ConsumerWidget {
               ),
           ], style: DashType.bodyMedium.copyWith(color: c.textPrimary)),
           phone: DashPhoneRole.title,
-          minWidth: Space.xxl * 4 + Space.lg,
+          // "From Latte (Medium) × 2" uncut.
+          minWidth: Space.xxl * 6,
         ),
         DashColumn(
           id: 'quantity',
           label: t('inventory.waste.quantity'),
           // Searched by its raw (signed) figure, as the web's accessor.
           text: (m) => jsNumberString(m.quantity),
-          cell: (context, m) => Text(qtyWithUnit(f, m.quantity.abs(), m.unit)),
+          cell: (context, m) => Text(
+            qtyWithUnit(f, m.quantity.abs(), m.unit),
+            maxLines: 1,
+            softWrap: false,
+          ),
           numeric: true,
           width: Space.xxl * 3 + Space.sm,
         ),
@@ -354,7 +363,8 @@ class WasteTable extends ConsumerWidget {
             if (m.approvedByName != null)
               t('inventory.waste.approvedBy', args: {'name': m.approvedByName}),
           ]),
-          minWidth: Space.xxl * 3 + Space.xl,
+          // "Approved by {name}" uncut.
+          minWidth: Space.xxl * 6,
         ),
         DashColumn(
           id: 'source',
@@ -372,8 +382,11 @@ class WasteTable extends ConsumerWidget {
                   filled: source == 'pos',
                 ),
                 if (m.deviceName != null)
-                  Text(
+                  MadarClippedText(
                     t('inventory.waste.device', args: {'name': m.deviceName}),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
                     style: muted,
                   ),
                 if (source == 'refund' && m.orderDisplayNumber != null)
@@ -382,7 +395,8 @@ class WasteTable extends ConsumerWidget {
                       'inventory.waste.refundOf',
                       args: {'number': m.orderDisplayNumber},
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
+                    softWrap: false,
                     overflow: TextOverflow.ellipsis,
                     style: muted,
                   ),

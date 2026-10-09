@@ -75,7 +75,11 @@ class SettingsShell extends ConsumerWidget {
               children: [
                 SizedBox(
                   width: railWidth,
-                  child: _SettingsRail(groups: groups, path: path),
+                  child: _SettingsRail(
+                    key: const ValueKey('settings-rail'),
+                    groups: groups,
+                    path: path,
+                  ),
                 ),
                 const SizedBox(width: Space.xxl),
                 Expanded(child: pane),
@@ -88,13 +92,14 @@ class SettingsShell extends ConsumerWidget {
                 Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: DashSelect<String>(
+                    key: const ValueKey('settings-picker'),
                     options: [
                       for (final g in groups)
                         for (final i in g.items)
                           DashOption(
                             value: i.to,
                             label: t(i.labelKey, defaultValue: i.fallback),
-                            icon: i.icon,
+                            icon: i.lucide,
                           ),
                     ],
                     value: current?.to,
@@ -116,7 +121,11 @@ class SettingsShell extends ConsumerWidget {
 
 /// The wide layout's list of panes, grouped.
 class _SettingsRail extends ConsumerWidget {
-  const _SettingsRail({required this.groups, required this.path});
+  const _SettingsRail({
+    required this.groups,
+    required this.path,
+    super.key,
+  });
 
   final List<SettingsNavGroup> groups;
   final String path;
@@ -152,7 +161,7 @@ class _SettingsRail extends ConsumerWidget {
                 ),
                 for (final i in g.items)
                   _RailEntry(
-                    icon: i.icon,
+                    icon: i.lucide,
                     label: t(i.labelKey, defaultValue: i.fallback),
                     active: SettingsShell.isActive(i, path),
                     onTap: () => context.go(i.to),

@@ -1,1 +1,4 @@
-{}
+{
+  "inventory.settings.ingredientCount_one": "{{count}} ingredient",
+  "inventory.settings.deleteCategoryReassign_one": "{{count}} ingredient uses this category. Choose where it should move."
+}

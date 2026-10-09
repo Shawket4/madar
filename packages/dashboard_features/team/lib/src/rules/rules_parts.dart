@@ -324,6 +324,7 @@ class _RulesConfirmCard extends StatelessWidget {
     return Semantics(
       scopesRoute: true,
       namesRoute: true,
+      explicitChildNodes: true,
       label: title,
       child: Container(
         padding: const EdgeInsets.all(Space.xl),

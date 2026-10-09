@@ -113,7 +113,8 @@ void registerInvSettingsMocks(MockServer server, MockDb db) {
     final c = category(req, orgId);
     final row = cats.update(c['id']! as String, {
       if (b['name'] != null) 'name': checkedName(req, b['name']),
-      if (b['sort_order'] is num) 'sort_order': (b['sort_order']! as num).toInt(),
+      if (b['sort_order'] is num)
+        'sort_order': (b['sort_order']! as num).toInt(),
       if (b['is_packaging'] is bool) 'is_packaging': b['is_packaging'],
     });
     return MockResponse.ok(view(row));

@@ -2,13 +2,15 @@
 // ignore_for_file: type=lint
 part of '../models.dart';
 
+/// `POST /inventory/transfers`. With `request: true` the DESTINATION asks
+/// (status `requested`); otherwise the SOURCE starts a `draft`.
 @immutable
 class CreateTransferRequest {
   const CreateTransferRequest({
     required this.destinationBranchId,
+    required this.lines,
     this.note,
-    required this.orgIngredientId,
-    required this.quantity,
+    this.request,
     required this.sourceBranchId,
     this.explicitNulls = const {},
   });
@@ -19,12 +21,17 @@ class CreateTransferRequest {
           json['destination_branch_id'],
           'CreateTransferRequest.destination_branch_id',
         ),
-        note: decStringN(json['note'], 'CreateTransferRequest.note'),
-        orgIngredientId: decString(
-          json['org_ingredient_id'],
-          'CreateTransferRequest.org_ingredient_id',
+        lines: decList<TransferLineInput>(
+          json['lines'],
+          'CreateTransferRequest.lines',
+          (e) => decObject(
+            e,
+            'CreateTransferRequest.lines[]',
+            TransferLineInput.fromJson,
+          ),
         ),
-        quantity: decDouble(json['quantity'], 'CreateTransferRequest.quantity'),
+        note: decStringN(json['note'], 'CreateTransferRequest.note'),
+        request: decBoolN(json['request'], 'CreateTransferRequest.request'),
         sourceBranchId: decString(
           json['source_branch_id'],
           'CreateTransferRequest.source_branch_id',
@@ -33,11 +40,12 @@ class CreateTransferRequest {
 
   final String destinationBranchId;
 
+  /// At least one; each ingredient once.
+  final List<TransferLineInput> lines;
+
   final String? note;
 
-  final String orgIngredientId;
-
-  final double quantity;
+  final bool? request;
 
   final String sourceBranchId;
 
@@ -47,9 +55,10 @@ class CreateTransferRequest {
 
   Map<String, Object?> toJson() => <String, Object?>{
     'destination_branch_id': destinationBranchId,
+    'lines': lines.map((e) => e.toJson()).toList(),
     if (note != null || explicitNulls.contains('note')) 'note': note,
-    'org_ingredient_id': orgIngredientId,
-    'quantity': quantity,
+    if (request != null || explicitNulls.contains('request'))
+      'request': request,
     'source_branch_id': sourceBranchId,
   };
 

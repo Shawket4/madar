@@ -9,13 +9,17 @@ class BranchesApi {
   final ApiTransport _transport;
 
   /// `GET /branches` (list_branches)
-  Future<List<Branch>> listBranches({required String orgId}) async {
+  Future<List<Branch>> listBranches({
+    required String orgId,
+    BranchKind? kind,
+  }) async {
     final response = await _transport.send(
       ApiRequest(
         method: 'GET',
         path: '/branches',
         query: {
           'org_id': [queryValue(orgId)],
+          if (kind != null) 'kind': [queryValue(kind)],
         },
       ),
     );

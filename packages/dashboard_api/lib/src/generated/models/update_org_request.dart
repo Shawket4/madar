@@ -9,6 +9,7 @@ class UpdateOrgRequest {
     this.customBranding,
     this.isActive,
     this.logoUrl,
+    this.maxWarehouses,
     this.modules,
     this.name,
     this.receiptFooter,
@@ -35,6 +36,10 @@ class UpdateOrgRequest {
         ),
         isActive: decBoolN(json['is_active'], 'UpdateOrgRequest.is_active'),
         logoUrl: decStringN(json['logo_url'], 'UpdateOrgRequest.logo_url'),
+        maxWarehouses: decIntN(
+          json['max_warehouses'],
+          'UpdateOrgRequest.max_warehouses',
+        ),
         modules: decListN<String>(
           json['modules'],
           'UpdateOrgRequest.modules',
@@ -85,6 +90,9 @@ class UpdateOrgRequest {
   /// only accept the clear-to-null case here.
   final String? logoUrl;
 
+  /// Warehouses this org may have. `null` = unlimited; absent = unchanged.
+  final int? maxWarehouses;
+
   /// `pos`, `dawam`: at least one (PS-2, SA-5). Super admin only, like the
   /// rest of this endpoint.
   final List<String>? modules;
@@ -129,6 +137,8 @@ class UpdateOrgRequest {
       'is_active': isActive,
     if (logoUrl != null || explicitNulls.contains('logo_url'))
       'logo_url': logoUrl,
+    if (maxWarehouses != null || explicitNulls.contains('max_warehouses'))
+      'max_warehouses': maxWarehouses,
     if (modules != null || explicitNulls.contains('modules'))
       'modules': modules,
     if (name != null || explicitNulls.contains('name')) 'name': name,

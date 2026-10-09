@@ -7,7 +7,13 @@
 /// rename, delete and add are the server's to refuse (INV-SET-023).
 library;
 
-import 'package:dashboard_api/dashboard_api.dart';
+import 'package:dashboard_api/dashboard_api.dart'
+    show
+        CreateIngredientCategoryRequest,
+        IngredientCategory,
+        OrgInventorySettings,
+        UpdateIngredientCategoryRequest,
+        UpdateInventorySettingsRequest;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -325,7 +331,11 @@ class _InventorySettingsPageState extends ConsumerState<InventorySettingsPage> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
-      children: [header, const SizedBox(height: Space.xs), ...children],
+      children: [
+        header,
+        const SizedBox(height: Space.xs),
+        ...children,
+      ],
     ),
   );
 
@@ -630,8 +640,7 @@ class _DeleteCategoryDialogState extends ConsumerState<DeleteCategoryDialog> {
     // The page's own list (cached): the dialog asks nothing more.
     final others = [
       for (final c in sortedCategories(
-        ref.watch(ingredientCategoriesProvider(widget.orgId)).value ??
-            const [],
+        ref.watch(ingredientCategoriesProvider(widget.orgId)).value ?? const [],
       ))
         if (c.id != cat.id) c,
     ];

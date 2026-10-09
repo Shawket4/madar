@@ -391,6 +391,35 @@ void main() {
     expect(stockRow(h.db!, SeedIds.zamalek, 'matcha')!['on_hand'], 5.0);
   });
 
+  testWidgets('INV-WST-022 no real amount at the server: its words; the '
+      'dialog stays open with the input', (tester) async {
+    final h = await openFromLog(tester);
+    await pickSearch(h, ingredientPicker, 'Matcha Powder');
+    await h.enterText(qtyField, '2');
+    // The branch's cost went bad meanwhile.
+    stockRow(h.db!, SeedIds.zamalek, 'matcha')!['cost_per_unit'] = -1.0;
+    await h.tap(inDialog(byKey('waste-submit')));
+    await h.expectToast(
+      h.refusalWords(
+        MockResponse.badRequest(
+          "This waste does not come to a real amount. Check the quantity and "
+          "the ingredient's cost.",
+        ),
+      ),
+    );
+    expect(dialog, findsOneWidget);
+    expect(submitButton(tester).loading, isFalse);
+    expect(
+      tester
+          .widget<DashTextInput>(
+            find.descendant(of: qtyField, matching: find.byType(DashTextInput)),
+          )
+          .value,
+      '2',
+    );
+    expect(stockRow(h.db!, SeedIds.zamalek, 'matcha')!['on_hand'], 80);
+  });
+
   testWidgets('INV-WST-022 over the person\'s limit, or no capability: the '
       'server\'s words each time', (tester) async {
     final s = wasteServer();

@@ -7,6 +7,7 @@ class CreateBranchRequest {
   const CreateBranchRequest({
     this.address,
     this.geoRadiusMeters,
+    this.kind,
     this.latitude,
     this.longitude,
     required this.name,
@@ -26,6 +27,11 @@ class CreateBranchRequest {
     geoRadiusMeters: decIntN(
       json['geo_radius_meters'],
       'CreateBranchRequest.geo_radius_meters',
+    ),
+    kind: decEnumN(
+      json['kind'],
+      'CreateBranchRequest.kind',
+      BranchKind.fromJson,
     ),
     latitude: decDoubleN(json['latitude'], 'CreateBranchRequest.latitude'),
     longitude: decDoubleN(json['longitude'], 'CreateBranchRequest.longitude'),
@@ -49,6 +55,9 @@ class CreateBranchRequest {
 
   /// Geofence radius in meters. Defaults to 200.
   final int? geoRadiusMeters;
+
+  /// `warehouse` for a stock-only location; defaults to `branch`.
+  final BranchKind? kind;
 
   final double? latitude;
 
@@ -79,6 +88,7 @@ class CreateBranchRequest {
       'address': address,
     if (geoRadiusMeters != null || explicitNulls.contains('geo_radius_meters'))
       'geo_radius_meters': geoRadiusMeters,
+    if (kind != null || explicitNulls.contains('kind')) 'kind': kind?.toJson(),
     if (latitude != null || explicitNulls.contains('latitude'))
       'latitude': latitude,
     if (longitude != null || explicitNulls.contains('longitude'))

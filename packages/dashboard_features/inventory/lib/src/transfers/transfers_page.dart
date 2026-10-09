@@ -96,7 +96,12 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
               ExcelColumnType.number,
               12,
             ),
-            col(t('inventory.catalog.unit'), (tr) => fmtUnit(tr.unit), text, 10),
+            col(
+              t('inventory.catalog.unit'),
+              (tr) => fmtUnit(tr.unit),
+              text,
+              10,
+            ),
             col(
               t('inventory.transfers.from'),
               (tr) => tr.sourceBranchName,
@@ -191,10 +196,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         semanticLabel: t('inventory.transfers.direction'),
         options: [
           for (final d in transferDirections)
-            DashOption(
-              value: d,
-              label: t('inventory.transfers.${d ?? 'all'}'),
-            ),
+            DashOption(value: d, label: t('inventory.transfers.${d ?? 'all'}')),
         ],
         onIntent: (d) => ref.warm(transfersProvider(scope.transfersKey(d))),
         onChanged: (d) => setState(() => _dir = d),
@@ -208,7 +210,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         onEditNote: (tr) => _afterMenu(
           () => showDashDialog<void>(
             context,
-            builder: (_) => TransferNoteDialog(transfer: tr),
+            builder: (_) => TransferNoteDialog(transfer: tr, listKey: key),
           ),
         ),
         onReverse: (tr) => _afterMenu(() => _reverse(tr)),
@@ -267,7 +269,8 @@ class TransfersTable extends ConsumerWidget {
           cell: (context, tr) => one(f.fmtDateTime(tr.initiatedAt)),
           numeric: true,
           align: DashAlign.start,
-          width: Space.xxl * 5,
+          // "30 Sept, 12:15 PM" uncut, as the web's nowrap cell.
+          width: Space.xxl * 6,
         ),
         DashColumn(
           id: 'ingredient_name',
@@ -277,7 +280,8 @@ class TransfersTable extends ConsumerWidget {
             style: DashType.bodyMedium.copyWith(color: c.textPrimary),
           ),
           phone: DashPhoneRole.title,
-          minWidth: Space.xxl * 4,
+          // The web's cells never wrap; a narrow table scrolls instead.
+          minWidth: Space.xxl * 6,
         ),
         DashColumn(
           id: 'quantity',
@@ -289,26 +293,27 @@ class TransfersTable extends ConsumerWidget {
         DashColumn(
           id: 'route',
           label: t('inventory.transfers.direction'),
-          cell: (context, tr) => Row(
-            mainAxisSize: MainAxisSize.min,
+          // Names wrap rather than cut, as the web's flex cell.
+          cell: (context, tr) => Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
             spacing: Space.xs,
             children: [
-              Flexible(child: one(tr.sourceBranchName)),
+              Text(tr.sourceBranchName),
               DashIcon(
                 DashIcon.arrowForward(context),
                 size: IconSize.xs,
                 color: c.textMuted,
               ),
-              Flexible(child: one(tr.destinationBranchName)),
+              Text(tr.destinationBranchName),
             ],
           ),
-          minWidth: Space.xxl * 5,
+          minWidth: Space.xxl * 6,
         ),
         DashColumn(
           id: 'initiated_by_name',
           label: t('inventory.transfers.by'),
           cell: (context, tr) => one(_by(tr)),
-          minWidth: Space.xxl * 3,
+          minWidth: Space.xxl * 4 + Space.lg,
         ),
       ],
       rowActions: (context, tr) => DashMenu(
@@ -335,12 +340,20 @@ class TransfersTable extends ConsumerWidget {
   }
 }
 
-/// Edit note (INV-TRF-008/027): the row's note as the draft; Save sends it
-/// trimmed (blank → null), invalidates inventory, toasts and closes.
+/// Edit note (INV-TRF-008/027): the row's note as the draft (re-taken from a
+/// background refresh until the person types); Save sends it trimmed (blank
+/// → null), invalidates inventory, toasts and closes.
 class TransferNoteDialog extends ConsumerStatefulWidget {
-  const TransferNoteDialog({required this.transfer, super.key});
+  const TransferNoteDialog({
+    required this.transfer,
+    required this.listKey,
+    super.key,
+  });
 
   final StockTransfer transfer;
+
+  /// The list the row came from.
+  final TransfersKey listKey;
 
   @override
   ConsumerState<TransferNoteDialog> createState() => _TransferNoteDialogState();
@@ -348,6 +361,7 @@ class TransferNoteDialog extends ConsumerStatefulWidget {
 
 class _TransferNoteDialogState extends ConsumerState<TransferNoteDialog> {
   late String _draft = widget.transfer.note ?? '';
+  bool _edited = false;
   bool _busy = false;
 
   Future<void> _save() async {
@@ -379,6 +393,11 @@ class _TransferNoteDialogState extends ConsumerState<TransferNoteDialog> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
+    ref.listen(transfersProvider(widget.listKey), (_, next) {
+      final id = widget.transfer.id;
+      final row = next.value?.where((r) => r.id == id).firstOrNull;
+      if (!_edited && row != null) setState(() => _draft = row.note ?? '');
+    });
     return DashSurface(
       title: t('inventory.transfers.editNote'),
       body: DashFormField<String>(
@@ -389,7 +408,10 @@ class _TransferNoteDialogState extends ConsumerState<TransferNoteDialog> {
           semanticLabel: t('inventory.transfers.note'),
           minLines: 3,
           maxLines: 6,
-          onChanged: (v) => setState(() => _draft = v),
+          onChanged: (v) => setState(() {
+            _draft = v;
+            _edited = true;
+          }),
         ),
       ),
       actions: [

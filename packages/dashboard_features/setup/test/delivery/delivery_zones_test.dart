@@ -552,6 +552,26 @@ void main() {
       expect(_dialog(), findsOneWidget);
     });
 
+    for (final (km, words) in [
+      ('7', 'Zone created'),
+      ('4', 'A zone with this distance already exists'),
+    ]) {
+      testWidgets('SET-DZN-017 SET-DZN-019 closed mid-save ($km km): the page '
+          'still toasts "$words"', (tester) async {
+        final m = setupMockServer();
+        final gate = m.server.hold('POST', DeliveryRoutes.zones);
+        final h = await _pump(tester, query: _helio, backend: m);
+        await h.tap(inZones(byKey('dzn-new')));
+        await typeIn(h, 'dzn-km', km);
+        await h.tap(inDialog(byKey('dzn-save')));
+        await h.tap(inDialog(byKey('dzn-cancel')));
+        expect(_dialog(), findsNothing);
+        gate.release();
+        await h.settle();
+        await h.expectToast(words);
+      });
+    }
+
     testWidgets('SET-DZN-021 clearing a ring\'s name saves "Zone <count + '
         '1>", not its ring number', (tester) async {
       final h = await _pump(tester, query: _helio);

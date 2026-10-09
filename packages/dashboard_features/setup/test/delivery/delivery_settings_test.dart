@@ -445,6 +445,19 @@ void main() {
       await h.flushTimers();
     });
 
+    testWidgets('SET-DLV-015 SET-DLV-021 every channel off: the discounts '
+        'still load once on mount, beside the settings', (tester) async {
+      final m = setupMockServer();
+      final row = _row(m.db, SeedIds.heliopolis);
+      for (final c in ['in_mall', 'outside', 'umbrella', 'pickup']) {
+        row['${c}_enabled'] = false;
+      }
+      final h = await pumpDelivery(tester, query: _helio, backend: m);
+      expect(byKey('dlv-outside-discount'), findsNothing);
+      expect(h.server.callsTo(DeliveryRoutes.discounts), hasLength(1));
+      await h.flushTimers();
+    });
+
     testWidgets('SET-DLV-015 Arabic: the discount\'s Arabic name, the money '
         'in Arabic', (tester) async {
       final h = await pumpDelivery(tester, query: _helio, locale: 'ar');

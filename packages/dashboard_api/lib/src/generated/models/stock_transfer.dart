@@ -5,24 +5,37 @@ part of '../models.dart';
 @immutable
 class StockTransfer {
   const StockTransfer({
+    this.cancelled,
+    required this.created,
     required this.destinationBranchId,
     required this.destinationBranchName,
+    required this.destinationKind,
+    this.dispatched,
     required this.id,
-    required this.ingredientName,
-    required this.initiatedAt,
-    required this.initiatedBy,
-    required this.initiatedByName,
+    required this.lines,
     this.note,
     required this.orgId,
-    required this.orgIngredientId,
-    required this.quantity,
+    this.received,
+    required this.reference,
+    this.requested,
     required this.sourceBranchId,
     required this.sourceBranchName,
-    required this.unit,
+    required this.sourceKind,
+    required this.status,
     this.explicitNulls = const {},
   });
 
   factory StockTransfer.fromJson(Map<String, Object?> json) => StockTransfer(
+    cancelled: decObjectN(
+      json['cancelled'],
+      'StockTransfer.cancelled',
+      TransferStamp.fromJson,
+    ),
+    created: decObject(
+      json['created'],
+      'StockTransfer.created',
+      TransferStamp.fromJson,
+    ),
     destinationBranchId: decString(
       json['destination_branch_id'],
       'StockTransfer.destination_branch_id',
@@ -31,27 +44,35 @@ class StockTransfer {
       json['destination_branch_name'],
       'StockTransfer.destination_branch_name',
     ),
+    destinationKind: decEnum(
+      json['destination_kind'],
+      'StockTransfer.destination_kind',
+      BranchKind.fromJson,
+    ),
+    dispatched: decObjectN(
+      json['dispatched'],
+      'StockTransfer.dispatched',
+      TransferStamp.fromJson,
+    ),
     id: decString(json['id'], 'StockTransfer.id'),
-    ingredientName: decString(
-      json['ingredient_name'],
-      'StockTransfer.ingredient_name',
-    ),
-    initiatedAt: decDateTime(
-      json['initiated_at'],
-      'StockTransfer.initiated_at',
-    ),
-    initiatedBy: decString(json['initiated_by'], 'StockTransfer.initiated_by'),
-    initiatedByName: decString(
-      json['initiated_by_name'],
-      'StockTransfer.initiated_by_name',
+    lines: decList<StockTransferLine>(
+      json['lines'],
+      'StockTransfer.lines',
+      (e) => decObject(e, 'StockTransfer.lines[]', StockTransferLine.fromJson),
     ),
     note: decStringN(json['note'], 'StockTransfer.note'),
     orgId: decString(json['org_id'], 'StockTransfer.org_id'),
-    orgIngredientId: decString(
-      json['org_ingredient_id'],
-      'StockTransfer.org_ingredient_id',
+    received: decObjectN(
+      json['received'],
+      'StockTransfer.received',
+      TransferStamp.fromJson,
     ),
-    quantity: decDouble(json['quantity'], 'StockTransfer.quantity'),
+    reference: decString(json['reference'], 'StockTransfer.reference'),
+    requested: decObjectN(
+      json['requested'],
+      'StockTransfer.requested',
+      TransferStamp.fromJson,
+    ),
     sourceBranchId: decString(
       json['source_branch_id'],
       'StockTransfer.source_branch_id',
@@ -60,56 +81,79 @@ class StockTransfer {
       json['source_branch_name'],
       'StockTransfer.source_branch_name',
     ),
-    unit: decString(json['unit'], 'StockTransfer.unit'),
+    sourceKind: decEnum(
+      json['source_kind'],
+      'StockTransfer.source_kind',
+      BranchKind.fromJson,
+    ),
+    status: decEnum(
+      json['status'],
+      'StockTransfer.status',
+      TransferStatus.fromJson,
+    ),
   );
+
+  final TransferStamp? cancelled;
+
+  final TransferStamp created;
 
   final String destinationBranchId;
 
   final String destinationBranchName;
 
+  final BranchKind destinationKind;
+
+  final TransferStamp? dispatched;
+
   final String id;
 
-  final String ingredientName;
-
-  final DateTime initiatedAt;
-
-  final String initiatedBy;
-
-  final String initiatedByName;
+  final List<StockTransferLine> lines;
 
   final String? note;
 
   final String orgId;
 
-  final String orgIngredientId;
+  final TransferStamp? received;
 
-  final double quantity;
+  /// `TR-1043`, per org.
+  final String reference;
+
+  final TransferStamp? requested;
 
   final String sourceBranchId;
 
   final String sourceBranchName;
 
-  final String unit;
+  final BranchKind sourceKind;
+
+  final TransferStatus status;
 
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    if (cancelled != null || explicitNulls.contains('cancelled'))
+      'cancelled': cancelled?.toJson(),
+    'created': created.toJson(),
     'destination_branch_id': destinationBranchId,
     'destination_branch_name': destinationBranchName,
+    'destination_kind': destinationKind.toJson(),
+    if (dispatched != null || explicitNulls.contains('dispatched'))
+      'dispatched': dispatched?.toJson(),
     'id': id,
-    'ingredient_name': ingredientName,
-    'initiated_at': encDateTime(initiatedAt),
-    'initiated_by': initiatedBy,
-    'initiated_by_name': initiatedByName,
+    'lines': lines.map((e) => e.toJson()).toList(),
     if (note != null || explicitNulls.contains('note')) 'note': note,
     'org_id': orgId,
-    'org_ingredient_id': orgIngredientId,
-    'quantity': quantity,
+    if (received != null || explicitNulls.contains('received'))
+      'received': received?.toJson(),
+    'reference': reference,
+    if (requested != null || explicitNulls.contains('requested'))
+      'requested': requested?.toJson(),
     'source_branch_id': sourceBranchId,
     'source_branch_name': sourceBranchName,
-    'unit': unit,
+    'source_kind': sourceKind.toJson(),
+    'status': status.toJson(),
   };
 
   @override

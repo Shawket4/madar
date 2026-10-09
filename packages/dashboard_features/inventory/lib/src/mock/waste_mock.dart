@@ -66,6 +66,17 @@ void registerWasteMocks(MockServer server, MockDb db) {
     final id = ingId as String;
 
     final rec = InvViews.stockRecord(db, branchId, id);
+    final cost =
+        (rec?['cost_per_unit'] as num?)?.toDouble() ??
+        (ing['cost_per_unit'] as num?)?.toDouble();
+    // madar-money `waste::value_of`: a negative cost, or a value past i64.
+    if (cost != null &&
+        (cost < 0 || (qty * cost).roundToDouble() > 9223372036854775807.0)) {
+      req.badRequest(
+        "This waste does not come to a real amount. Check the quantity and "
+        "the ingredient's cost.",
+      );
+    }
     final onHand = (rec?['on_hand'] as num?)?.toDouble() ?? 0;
     if (rec == null || onHand < qty) {
       req.badRequest(
@@ -74,9 +85,6 @@ void registerWasteMocks(MockServer server, MockDb db) {
     }
 
     final now = db.nowIso;
-    final cost =
-        (rec['cost_per_unit'] as num?)?.toDouble() ??
-        (ing['cost_per_unit'] as num?)?.toDouble();
     final balance = onHand - qty;
     rec
       ..['on_hand'] = balance

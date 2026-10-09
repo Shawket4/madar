@@ -17,15 +17,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'delivery_data.dart';
 
 /// Opens the editor for [zone] (null = a new one) over the branch's
-/// [zones] (the list on screen; the dialog follows its refreshes).
+/// [zones] (the list on screen; the dialog follows its refreshes); [host]
+/// is the page, which shows the result's toast should the dialog be gone.
 Future<void> showZoneDialog(
-  BuildContext context, {
+  BuildContext host, {
   required String branchId,
   required DeliveryZone? zone,
   required List<DeliveryZone> zones,
 }) => showDashDialog<void>(
-  context,
-  builder: (_) => ZoneDialog(branchId: branchId, zone: zone, zones: zones),
+  host,
+  builder: (_) =>
+      ZoneDialog(branchId: branchId, zone: zone, zones: zones, host: host),
 );
 
 class ZoneDialog extends ConsumerStatefulWidget {
@@ -33,12 +35,14 @@ class ZoneDialog extends ConsumerStatefulWidget {
     required this.branchId,
     required this.zone,
     required this.zones,
+    this.host,
     super.key,
   });
 
   final String branchId;
   final DeliveryZone? zone;
   final List<DeliveryZone> zones;
+  final BuildContext? host;
 
   @override
   ConsumerState<ZoneDialog> createState() => _ZoneDialogState();
@@ -85,6 +89,7 @@ class _ZoneDialogState extends ConsumerState<ZoneDialog> {
     final t = ref.read(tProvider);
     final api = ref.read(apiProvider).delivery;
     final bus = ref.read(realtimeBusProvider);
+    final host = widget.host;
     final zone = widget.zone;
     final name = _name.trim();
     final body = ZoneInput(
@@ -104,23 +109,27 @@ class _ZoneDialogState extends ConsumerState<ZoneDialog> {
         await api.createZone(body: body);
       }
     } on Object catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      DashToast.error(
-        context,
-        e is ApiException && e.status == 409
-            ? t('delivery.errZoneDistanceExists')
-            : errorMessage(e, t),
-      );
+      final at = mounted ? context : host;
+      if (at != null && at.mounted) {
+        DashToast.error(
+          at,
+          e is ApiException && e.status == 409
+              ? t('delivery.errZoneDistanceExists')
+              : errorMessage(e, t),
+        );
+      }
+      if (mounted) setState(() => _busy = false);
       return;
     }
     invalidateZones(bus);
-    if (!mounted) return;
-    DashToast.success(
-      context,
-      t(zone != null ? 'delivery.zoneUpdated' : 'delivery.zoneCreated'),
-    );
-    Navigator.of(context).pop();
+    final at = mounted ? context : host;
+    if (at != null && at.mounted) {
+      DashToast.success(
+        at,
+        t(zone != null ? 'delivery.zoneUpdated' : 'delivery.zoneCreated'),
+      );
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override

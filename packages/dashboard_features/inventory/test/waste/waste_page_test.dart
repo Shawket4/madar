@@ -449,6 +449,19 @@ void main() {
       expect(inReasons(find.text('Total this period')), findsOneWidget);
     });
 
+    testWidgets('INV-ALL-015 a till event refetches the report, not the log', (
+      tester,
+    ) async {
+      final h = await pumpWaste(tester, branch: SeedIds.zamalek);
+      int n(String r) => h.server.callsTo(r, method: 'GET').length;
+      final reports = n(reportRoute);
+      final logs = n(logRoute);
+      h.realtime.current!.emit('till.closed', data: '{}');
+      await h.settle();
+      expect(n(reportRoute), reports + 1);
+      expect(n(logRoute), logs);
+    });
+
     testWidgets('INV-WST-028 empty in this period', (tester) async {
       await pumpWaste(tester, branch: SeedIds.heliopolis);
       expect(

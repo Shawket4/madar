@@ -105,6 +105,7 @@ Finder textHas(String s) => find.textContaining(s, findRichText: true);
 
 /// The rows of category ids [ids], ordered top to bottom.
 List<String> orderOf(WidgetTester tester, Iterable<String> ids) {
-  double y(String id) => tester.getTopLeft(inPage(byKey('inv-category-$id'))).dy;
+  double y(String id) =>
+      tester.getTopLeft(inPage(byKey('inv-category-$id'))).dy;
   return [...ids]..sort((a, b) => y(a).compareTo(y(b)));
 }

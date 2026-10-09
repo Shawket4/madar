@@ -17,6 +17,56 @@
   "accept_staff_privacy": {
    "accepted_at": "2026-10-08T07:00:00.000Z"
   },
+  "accept_transfer": {
+   "cancelled": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "created": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "destination_branch_name": "text",
+   "destination_kind": "branch",
+   "dispatched": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "lines": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "qty_received": 1.5,
+     "qty_sent": 1.5,
+     "unit": "text",
+     "unit_cost": 1.5
+    }
+   ],
+   "note": "text",
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "received": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "reference": "text",
+   "requested": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "source_branch_name": "text",
+   "source_kind": "branch",
+   "status": "requested"
+  },
   "activate": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "branch_name": "text",
@@ -899,6 +949,56 @@
    "supplier_name": "text",
    "updated_at": "2026-10-08T07:00:00.000Z"
   },
+  "cancel_stock_transfer": {
+   "cancelled": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "created": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "destination_branch_name": "text",
+   "destination_kind": "branch",
+   "dispatched": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "lines": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "qty_received": 1.5,
+     "qty_sent": 1.5,
+     "unit": "text",
+     "unit_cost": 1.5
+    }
+   ],
+   "note": "text",
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "received": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "reference": "text",
+   "requested": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "source_branch_name": "text",
+   "source_kind": "branch",
+   "status": "requested"
+  },
   "cancel_stocktake": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "branch_name": "text",
@@ -1558,6 +1658,7 @@
    "geo_radius_meters": 7,
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
+   "kind": "branch",
    "latitude": 1.5,
    "longitude": 1.5,
    "name": "text",
@@ -2530,6 +2631,7 @@
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
    "logo_url": "text",
+   "max_warehouses": 7,
    "modules": [
     "text"
    ],
@@ -2864,20 +2966,54 @@
    "updated_at": "2026-10-08T07:00:00.000Z"
   },
   "create_transfer": {
+   "cancelled": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "created": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
    "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "destination_branch_name": "text",
+   "destination_kind": "branch",
+   "dispatched": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredient_name": "text",
-   "initiated_at": "2026-10-08T07:00:00.000Z",
-   "initiated_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "initiated_by_name": "text",
+   "lines": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "qty_received": 1.5,
+     "qty_sent": 1.5,
+     "unit": "text",
+     "unit_cost": 1.5
+    }
+   ],
    "note": "text",
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "quantity": 1.5,
+   "received": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "reference": "text",
+   "requested": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
    "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "source_branch_name": "text",
-   "unit": "text"
+   "source_kind": "branch",
+   "status": "requested"
   },
   "create_user": {
    "user": {
@@ -3271,6 +3407,56 @@
     "2026-10-08"
    ]
   },
+  "decline_transfer": {
+   "cancelled": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "created": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "destination_branch_name": "text",
+   "destination_kind": "branch",
+   "dispatched": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "lines": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "qty_received": 1.5,
+     "qty_sent": 1.5,
+     "unit": "text",
+     "unit_cost": 1.5
+    }
+   ],
+   "note": "text",
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "received": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "reference": "text",
+   "requested": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "source_branch_name": "text",
+   "source_kind": "branch",
+   "status": "requested"
+  },
   "deduction_overrides_audit": {
    "by_issuer": [
     {
@@ -3448,6 +3634,56 @@
    "to": "2026-10-08T07:00:00.000Z",
    "total_amount_minor": 7,
    "total_count": 7
+  },
+  "dispatch_transfer": {
+   "cancelled": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "created": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "destination_branch_name": "text",
+   "destination_kind": "branch",
+   "dispatched": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "lines": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "qty_received": 1.5,
+     "qty_sent": 1.5,
+     "unit": "text",
+     "unit_cost": 1.5
+    }
+   ],
+   "note": "text",
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "received": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "reference": "text",
+   "requested": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "source_branch_name": "text",
+   "source_kind": "branch",
+   "status": "requested"
   },
   "duplicate_item": {
    "availability": {
@@ -4113,6 +4349,7 @@
    "geo_radius_meters": 7,
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
+   "kind": "branch",
    "latitude": 1.5,
    "longitude": 1.5,
    "name": "text",
@@ -5305,6 +5542,7 @@
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
    "logo_url": "text",
+   "max_warehouses": 7,
    "modules": [
     "text"
    ],
@@ -6000,6 +6238,56 @@
    "total_tips": 7,
    "voided_amount": 7
   },
+  "get_transfer": {
+   "cancelled": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "created": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "destination_branch_name": "text",
+   "destination_kind": "branch",
+   "dispatched": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "lines": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "qty_received": 1.5,
+     "qty_sent": 1.5,
+     "unit": "text",
+     "unit_cost": 1.5
+    }
+   ],
+   "note": "text",
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "received": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "reference": "text",
+   "requested": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "source_branch_name": "text",
+   "source_kind": "branch",
+   "status": "requested"
+  },
   "get_user": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "email": "text",
@@ -6496,6 +6784,7 @@
     "geo_radius_meters": 7,
     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "is_active": true,
+    "kind": "branch",
     "latitude": 1.5,
     "longitude": 1.5,
     "name": "text",
@@ -7555,6 +7844,7 @@
     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "is_active": true,
     "logo_url": "text",
+    "max_warehouses": 7,
     "modules": [
      "text"
     ],
@@ -8087,20 +8377,51 @@
   ],
   "list_transfers": [
    {
+    "cancelled": {
+     "at": "2026-10-08T07:00:00.000Z",
+     "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "by_name": "text"
+    },
+    "created": {
+     "at": "2026-10-08T07:00:00.000Z",
+     "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "by_name": "text"
+    },
     "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "destination_branch_name": "text",
+    "destination_kind": "branch",
+    "dispatched": {
+     "at": "2026-10-08T07:00:00.000Z",
+     "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "by_name": "text"
+    },
     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "ingredient_name": "text",
-    "initiated_at": "2026-10-08T07:00:00.000Z",
-    "initiated_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "initiated_by_name": "text",
+    "lines": [
+     {
+      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "ingredient_name": "text",
+      "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+      "qty_sent": 1.5,
+      "unit": "text"
+     }
+    ],
     "note": "text",
     "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "quantity": 1.5,
+    "received": {
+     "at": "2026-10-08T07:00:00.000Z",
+     "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "by_name": "text"
+    },
+    "reference": "text",
+    "requested": {
+     "at": "2026-10-08T07:00:00.000Z",
+     "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "by_name": "text"
+    },
     "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "source_branch_name": "text",
-    "unit": "text"
+    "source_kind": "branch",
+    "status": "requested"
    }
   ],
   "list_user_branches": [
@@ -9924,6 +10245,7 @@
    "geo_radius_meters": 7,
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
+   "kind": "branch",
    "latitude": 1.5,
    "longitude": 1.5,
    "name": "text",
@@ -10218,6 +10540,7 @@
     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "is_active": true,
     "logo_url": "text",
+    "max_warehouses": 7,
     "modules": [
      "text"
     ],
@@ -11419,6 +11742,56 @@
    "supplier_name": "text",
    "updated_at": "2026-10-08T07:00:00.000Z"
   },
+  "receive_transfer": {
+   "cancelled": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "created": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "destination_branch_name": "text",
+   "destination_kind": "branch",
+   "dispatched": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "lines": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "qty_received": 1.5,
+     "qty_sent": 1.5,
+     "unit": "text",
+     "unit_cost": 1.5
+    }
+   ],
+   "note": "text",
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "received": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "reference": "text",
+   "requested": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "source_branch_name": "text",
+   "source_kind": "branch",
+   "status": "requested"
+  },
   "record_advance": {
    "amount_piastres": 7,
    "cap_piastres": 7,
@@ -11637,6 +12010,23 @@
     ],
     "supplier_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "supplier_name": "text"
+   }
+  ],
+  "replenishment": [
+   {
+    "available": 1.5,
+    "category_name": "text",
+    "in_transit": 1.5,
+    "ingredient_name": "text",
+    "need": 1.5,
+    "on_hand": 1.5,
+    "open_inbound": 1.5,
+    "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "par_max": 1.5,
+    "par_min": 1.5,
+    "suggested": 1.5,
+    "unit": "text",
+    "warehouse_on_hand": 1.5
    }
   ],
   "repricing": {
@@ -12766,6 +13156,31 @@
    "total": 7,
    "unit_number": "text"
   },
+  "transfer_differences": [
+   {
+    "destination_branch_name": "text",
+    "difference": 1.5,
+    "ingredient_name": "text",
+    "note": "text",
+    "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "qty_received": 1.5,
+    "qty_sent": 1.5,
+    "received_at": "2026-10-08T07:00:00.000Z",
+    "reference": "text",
+    "source_branch_name": "text",
+    "transfer_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "unit": "text",
+    "unit_cost": 1.5,
+    "value_difference": 7
+   }
+  ],
+  "transfer_locations": [
+   {
+    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "kind": "text",
+    "name": "text"
+   }
+  ],
   "unwaive_deduction": {
    "amount_piastres": 7,
    "created_at": "2026-10-08T07:00:00.000Z",
@@ -12868,6 +13283,7 @@
    "geo_radius_meters": 7,
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
+   "kind": "branch",
    "latitude": 1.5,
    "longitude": 1.5,
    "name": "text",
@@ -13217,6 +13633,7 @@
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
    "logo_url": "text",
+   "max_warehouses": 7,
    "modules": [
     "text"
    ],
@@ -13298,20 +13715,54 @@
    "updated_at": "2026-10-08T07:00:00.000Z"
   },
   "update_transfer": {
+   "cancelled": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "created": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
    "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "destination_branch_name": "text",
+   "destination_kind": "branch",
+   "dispatched": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredient_name": "text",
-   "initiated_at": "2026-10-08T07:00:00.000Z",
-   "initiated_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "initiated_by_name": "text",
+   "lines": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "qty_received": 1.5,
+     "qty_sent": 1.5,
+     "unit": "text",
+     "unit_cost": 1.5
+    }
+   ],
    "note": "text",
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "quantity": 1.5,
+   "received": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "reference": "text",
+   "requested": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
    "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "source_branch_name": "text",
-   "unit": "text"
+   "source_kind": "branch",
+   "status": "requested"
   },
   "update_user": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -13387,6 +13838,7 @@
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
    "logo_url": "text",
+   "max_warehouses": 7,
    "modules": [
     "text"
    ],
@@ -13414,6 +13866,7 @@
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
    "logo_url": "text",
+   "max_warehouses": 7,
    "modules": [
     "text"
    ],
@@ -13993,6 +14446,15 @@
   }
  },
  "schemas": {
+  "AcceptTransferRequest": {
+   "lines": [
+    {
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 1.5
+    }
+   ]
+  },
   "AcceptingInput": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "channel": "text",
@@ -14863,6 +15325,7 @@
    "geo_radius_meters": 7,
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
+   "kind": "branch",
    "latitude": 1.5,
    "longitude": 1.5,
    "name": "text",
@@ -14993,6 +15456,7 @@
     }
    ]
   },
+  "BranchKind": "branch",
   "BranchMenuOverride": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_available": true,
@@ -15933,6 +16397,9 @@
     "verification": "server"
    }
   },
+  "CloseTransferRequest": {
+   "note": "text"
+  },
   "Column": {
    "key": "text",
    "kind": "money",
@@ -16542,6 +17009,7 @@
   "CreateBranchRequest": {
    "address": "text",
    "geo_radius_meters": 7,
+   "kind": "branch",
    "latitude": 1.5,
    "longitude": 1.5,
    "name": "text",
@@ -16999,9 +17467,15 @@
   },
   "CreateTransferRequest": {
    "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "lines": [
+    {
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 1.5
+    }
+   ],
    "note": "text",
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "quantity": 1.5,
+   "request": true,
    "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
   "CreateUserRequest": {
@@ -21198,6 +21672,7 @@
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "is_active": true,
    "logo_url": "text",
+   "max_warehouses": 7,
    "modules": [
     "text"
    ],
@@ -22444,6 +22919,7 @@
     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "is_active": true,
     "logo_url": "text",
+    "max_warehouses": 7,
     "modules": [
      "text"
     ],
@@ -23323,6 +23799,21 @@
     }
    ]
   },
+  "ReceiveTransferLine": {
+   "line_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "note": "text",
+   "qty_received": 1.5
+  },
+  "ReceiveTransferRequest": {
+   "lines": [
+    {
+     "line_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "note": "text",
+     "qty_received": 1.5
+    }
+   ],
+   "note": "text"
+  },
   "RecipeBaseLineInput": {
    "ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "quantity": 1.5,
@@ -23753,6 +24244,21 @@
    "reason": "text",
    "reviewed_at": "2026-10-08T07:00:00.000Z",
    "reviewed_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+  },
+  "ReplenishmentRow": {
+   "available": 1.5,
+   "category_name": "text",
+   "in_transit": 1.5,
+   "ingredient_name": "text",
+   "need": 1.5,
+   "on_hand": 1.5,
+   "open_inbound": 1.5,
+   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "par_max": 1.5,
+   "par_min": 1.5,
+   "suggested": 1.5,
+   "unit": "text",
+   "warehouse_on_hand": 1.5
   },
   "RepricingReport": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -25055,20 +25561,64 @@
    "unit": "text"
   },
   "StockTransfer": {
+   "cancelled": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "created": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
    "destination_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "destination_branch_name": "text",
+   "destination_kind": "branch",
+   "dispatched": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredient_name": "text",
-   "initiated_at": "2026-10-08T07:00:00.000Z",
-   "initiated_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "initiated_by_name": "text",
+   "lines": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "qty_received": 1.5,
+     "qty_sent": 1.5,
+     "unit": "text",
+     "unit_cost": 1.5
+    }
+   ],
    "note": "text",
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "quantity": 1.5,
+   "received": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
+   "reference": "text",
+   "requested": {
+    "at": "2026-10-08T07:00:00.000Z",
+    "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "by_name": "text"
+   },
    "source_branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "source_branch_name": "text",
-   "unit": "text"
+   "source_kind": "branch",
+   "status": "requested"
+  },
+  "StockTransferLine": {
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "ingredient_name": "text",
+   "note": "text",
+   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "qty_received": 1.5,
+   "qty_sent": 1.5,
+   "unit": "text",
+   "unit_cost": 1.5
   },
   "Stocktake": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -26067,6 +26617,38 @@
     "text"
    ]
   },
+  "TransferDifferenceRow": {
+   "destination_branch_name": "text",
+   "difference": 1.5,
+   "ingredient_name": "text",
+   "note": "text",
+   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "qty_received": 1.5,
+   "qty_sent": 1.5,
+   "received_at": "2026-10-08T07:00:00.000Z",
+   "reference": "text",
+   "source_branch_name": "text",
+   "transfer_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "unit": "text",
+   "unit_cost": 1.5,
+   "value_difference": 7
+  },
+  "TransferLineInput": {
+   "note": "text",
+   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "quantity": 1.5
+  },
+  "TransferLocation": {
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "kind": "text",
+   "name": "text"
+  },
+  "TransferStamp": {
+   "at": "2026-10-08T07:00:00.000Z",
+   "by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "by_name": "text"
+  },
+  "TransferStatus": "requested",
   "TransferView": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "created_at": "2026-10-08T07:00:00.000Z",
@@ -26166,6 +26748,7 @@
    "address": "text",
    "geo_radius_meters": 7,
    "is_active": true,
+   "kind": "branch",
    "latitude": 1.5,
    "longitude": 1.5,
    "name": "text",
@@ -26279,6 +26862,7 @@
    "custom_branding": true,
    "is_active": true,
    "logo_url": "text",
+   "max_warehouses": 7,
    "modules": [
     "text"
    ],
@@ -26329,6 +26913,13 @@
    "phone": "text"
   },
   "UpdateTransferRequest": {
+   "lines": [
+    {
+     "note": "text",
+     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 1.5
+    }
+   ],
    "note": "text"
   },
   "UpdateUserRequest": {

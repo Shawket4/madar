@@ -4,7 +4,6 @@
 // source's stock and a From option warms that branch's stock, so each press
 // asks the server nothing more.
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter/gestures.dart';
@@ -122,7 +121,9 @@ void main() {
     final mouse = await _mouse(tester);
     await _hover(h, mouse, option('Maadi').last);
     final maadi = '/inventory/branches/${SeedIds.maadi}/stock';
-    expect([for (final c in h.server.callsTo(stockRoute)) c.path], contains(maadi));
+    expect([
+      for (final c in h.server.callsTo(stockRoute)) c.path,
+    ], contains(maadi));
     final n = gets(h, stockRoute);
     await h.tap(option('Maadi').last);
     expect(gets(h, stockRoute), n);

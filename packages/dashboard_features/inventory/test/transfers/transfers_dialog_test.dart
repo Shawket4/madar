@@ -5,12 +5,10 @@
 // Milk is below zero and its Croissant Dough at 0 (neither can travel).
 // Heliopolis has never counted anything.
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -118,7 +116,9 @@ void main() {
     final h = await _open(tester);
     expect(
       tester
-          .widget<DashSelectField<String>>(inDialog(byKey('transfer-ingredient')))
+          .widget<DashSelectField<String>>(
+            inDialog(byKey('transfer-ingredient')),
+          )
           .enabled,
       isTrue,
     );
@@ -232,21 +232,29 @@ void main() {
     expect(submitButton(tester).loading, isFalse);
   });
 
-  testWidgets('INV-TRF-021 manager refused at another source branch', (
+  testWidgets('INV-TRF-021 a capability refusal toasts the server\'s words', (
     tester,
   ) async {
+    final s = transfersServer();
+    final denied = MockResponse.denied('inventory.transfers.create');
+    s.server.fail('POST', createRoute, denied);
+    final h = await _open(tester, s: s);
+    await _fill(h);
+    await h.tap(inDialog(byKey('transfer-submit')));
+    await h.expectToast(h.refusalWords(denied));
+    expect(dialog, findsOneWidget);
+  });
+
+  testWidgets('INV-TRF-003 / INV-TRF-025 a one-branch manager sees New '
+      'transfer, off (the branch list holds only Zamalek)', (tester) async {
     final h = await pumpTransfers(
       tester,
       persona: Persona.manager,
       branch: SeedIds.zamalek,
     );
-    await h.tap(inPage(byKey('transfers-new')));
-    final denied = MockResponse.denied('inventory.transfers.create');
-    h.server.fail('POST', createRoute, denied);
-    await _fill(h);
-    await h.tap(inDialog(byKey('transfer-submit')));
-    await h.expectToast(h.refusalWords(denied));
-    expect(dialog, findsOneWidget);
+    final b = tester.widget<DashButton>(inPage(byKey('transfers-new')));
+    expect(b.onPressed, isNull);
+    expect(h.server.callsTo(createRoute, method: 'POST'), isEmpty);
   });
 
   testWidgets('INV-TRF-022 Cancel and Esc close without a request', (

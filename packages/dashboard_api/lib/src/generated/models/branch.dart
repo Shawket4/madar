@@ -11,6 +11,7 @@ class Branch {
     this.geoRadiusMeters,
     required this.id,
     required this.isActive,
+    required this.kind,
     this.latitude,
     this.longitude,
     required this.name,
@@ -43,6 +44,7 @@ class Branch {
     ),
     id: decString(json['id'], 'Branch.id'),
     isActive: decBool(json['is_active'], 'Branch.is_active'),
+    kind: decEnum(json['kind'], 'Branch.kind', BranchKind.fromJson),
     latitude: decDoubleN(json['latitude'], 'Branch.latitude'),
     longitude: decDoubleN(json['longitude'], 'Branch.longitude'),
     name: decString(json['name'], 'Branch.name'),
@@ -95,6 +97,9 @@ class Branch {
   final String id;
 
   final bool isActive;
+
+  /// `branch` sells; `warehouse` only holds stock (WAREHOUSE_DESIGN.md).
+  final BranchKind kind;
 
   /// WGS-84 latitude for geofenced branch resolution.
   final double? latitude;
@@ -169,6 +174,7 @@ class Branch {
       'geo_radius_meters': geoRadiusMeters,
     'id': id,
     'is_active': isActive,
+    'kind': kind.toJson(),
     if (latitude != null || explicitNulls.contains('latitude'))
       'latitude': latitude,
     if (longitude != null || explicitNulls.contains('longitude'))

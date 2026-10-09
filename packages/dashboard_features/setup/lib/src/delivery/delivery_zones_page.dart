@@ -162,7 +162,6 @@ class _DeliveryZonesPageState extends ConsumerState<DeliveryZonesPage> {
             child: DashStatusPill(
               label: t(z.zone.isActive ? 'common.active' : 'common.inactive'),
               tone: z.zone.isActive ? DashTone.success : DashTone.neutral,
-              small: true,
             ),
           ),
         ),

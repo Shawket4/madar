@@ -17,6 +17,7 @@ class UpdateBranchRequest {
     this.address,
     this.geoRadiusMeters,
     this.isActive,
+    this.kind,
     this.latitude,
     this.longitude,
     this.name,
@@ -44,6 +45,11 @@ class UpdateBranchRequest {
       'UpdateBranchRequest.geo_radius_meters',
     ),
     isActive: decBoolN(json['is_active'], 'UpdateBranchRequest.is_active'),
+    kind: decEnumN(
+      json['kind'],
+      'UpdateBranchRequest.kind',
+      BranchKind.fromJson,
+    ),
     latitude: decDoubleN(json['latitude'], 'UpdateBranchRequest.latitude'),
     longitude: decDoubleN(json['longitude'], 'UpdateBranchRequest.longitude'),
     name: decStringN(json['name'], 'UpdateBranchRequest.name'),
@@ -92,6 +98,8 @@ class UpdateBranchRequest {
 
   final bool? isActive;
 
+  final BranchKind? kind;
+
   final double? latitude;
 
   final double? longitude;
@@ -135,6 +143,7 @@ class UpdateBranchRequest {
       'geo_radius_meters': geoRadiusMeters,
     if (isActive != null || explicitNulls.contains('is_active'))
       'is_active': isActive,
+    if (kind != null || explicitNulls.contains('kind')) 'kind': kind?.toJson(),
     if (latitude != null || explicitNulls.contains('latitude'))
       'latitude': latitude,
     if (longitude != null || explicitNulls.contains('longitude'))

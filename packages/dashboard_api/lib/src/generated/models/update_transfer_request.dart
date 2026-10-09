@@ -2,14 +2,31 @@
 // ignore_for_file: type=lint
 part of '../models.dart';
 
+/// `PATCH /inventory/transfers/{id}`. `lines`, when given, replaces every
+/// line (only while `requested` or `draft`).
 @immutable
 class UpdateTransferRequest {
-  const UpdateTransferRequest({this.note, this.explicitNulls = const {}});
+  const UpdateTransferRequest({
+    this.lines,
+    this.note,
+    this.explicitNulls = const {},
+  });
 
   factory UpdateTransferRequest.fromJson(Map<String, Object?> json) =>
       UpdateTransferRequest(
+        lines: decListN<TransferLineInput>(
+          json['lines'],
+          'UpdateTransferRequest.lines',
+          (e) => decObject(
+            e,
+            'UpdateTransferRequest.lines[]',
+            TransferLineInput.fromJson,
+          ),
+        ),
         note: decStringN(json['note'], 'UpdateTransferRequest.note'),
       );
+
+  final List<TransferLineInput>? lines;
 
   final String? note;
 
@@ -18,6 +35,8 @@ class UpdateTransferRequest {
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    if (lines != null || explicitNulls.contains('lines'))
+      'lines': lines?.map((e) => e.toJson()).toList(),
     if (note != null || explicitNulls.contains('note')) 'note': note,
   };
 
