@@ -1,0 +1,22 @@
+# uniffi wrapper over madar-core for MADAR KITCHEN (apps/kitchen, React Native).
+# Binding code only, like the madar-frb* crates: a narrow kitchen surface
+# (device setup, staff PIN, the board, bump, realtime) so the kitchen binary
+# carries nothing of the POS or admin surfaces. The React Native turbo module
+# is generated from this crate by uniffi-bindgen-react-native (ubrn), whose
+# release pins the uniffi version below — bump both together.
+[package]
+name = "madar_kitchen_ffi"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["lib", "cdylib", "staticlib"]
+name = "madar_kitchen_ffi"
+
+[dependencies]
+madar-core = { path = "../madar-core" }
+uniffi = { version = "=0.31", features = ["tokio"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
+serde_json = "1"

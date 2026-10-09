@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Madar Kitchen",
+    "slug": "madar-kitchen",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "requireFullScreen": true,
+      "bundleIdentifier": "cloud.madar.kitchen",
+      "appleTeamId": "W4D7HW9L4Y",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Madar Kitchen talks to the Madar server and the POS tablets on your shop network."
+      }
+    },
+    "android": {
+      "package": "cloud.madar.kitchen",
+      "adaptiveIcon": {
+        "backgroundColor": "#0D1A1E",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
