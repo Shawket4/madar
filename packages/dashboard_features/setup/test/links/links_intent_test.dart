@@ -22,7 +22,8 @@ Future<void> _rest(DashHarness h, TestGesture m, Finder f) async {
 }
 
 void main() {
-  testWidgets('QR code warms the links code; the press asks nothing more', (
+  testWidgets('SET-LNK-007 QR code warms the links code; the press asks '
+      'nothing more', (
     tester,
   ) async {
     final h = await pumpLinks(tester);

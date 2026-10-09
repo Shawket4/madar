@@ -298,7 +298,7 @@ class _DashTextInputState extends State<DashTextInput> {
               hintText: widget.placeholder,
               // The sample sits where the typed words will (a forced-LTR
               // number reads from the left in Arabic too).
-              //TMP hintTextDirection: widget.textDirection,
+              hintTextDirection: widget.textDirection,
               hintStyle: style.copyWith(color: c.textMuted),
               contentPadding: EdgeInsets.symmetric(
                 vertical: multiline ? Space.xs : Space.sm,

@@ -87,7 +87,7 @@ void main() {
       'created), Direction, Items, Status pill', (tester) async {
     final h = await pumpTransfers(tester, branch: SeedIds.zamalek);
     final f = h.container.read(formatProvider);
-    for (final c in ['Ref', 'Date', 'Direction', 'Items', 'Status']) {
+    for (final c in ['REF', 'DATE', 'DIRECTION', 'ITEMS', 'STATUS']) {
       expect(inTable(find.text(c)), findsWidgets, reason: c);
     }
     // TR-5: received 06 Oct; one line.
@@ -376,13 +376,13 @@ void main() {
     expect(DateTime.parse(call.query['to']!.single), DateTime.parse(scope.to));
     final f = h.container.read(formatProvider);
     for (final c in [
-      'Ref',
-      'Received',
-      'Direction',
-      'Ingredient',
-      'Difference',
-      'Value',
-      'Note',
+      'REF',
+      'RECEIVED',
+      'DIRECTION',
+      'INGREDIENT',
+      'DIFFERENCE',
+      'VALUE',
+      'NOTE',
     ]) {
       expect(inDiffs(find.text(c)), findsWidgets, reason: c);
     }
@@ -425,12 +425,9 @@ void main() {
       ),
       findsOneWidget,
     );
-    final boom = MockResponse.error(500, 'Report timed out');
-    s.server.fail('GET', diffsRoute, boom);
-    // A new period reads again and fails.
-    await h.tap(inPage(find.text('All transfers')));
     final s2 = transfersServer();
-    s2.server.fail('GET', diffsRoute, boom);
+    final boom = MockResponse.error(500, 'Report timed out');
+    s2.server.fail('GET', diffsRoute, boom, times: null);
     final h2 = await pumpTransfers(
       tester,
       server: s2.server,
@@ -439,8 +436,13 @@ void main() {
     );
     await h2.tap(inPage(find.text('Differences')));
     expect(inDiffs(find.text(h2.refusalWords(boom))), findsOneWidget);
+    expect(inPage(find.text('Everything arrived as sent')), findsNothing);
+    final calls = h2.server.callsTo(diffsRoute).length;
+    final lists = h2.server.callsTo(listRoute).length;
+    s2.server.clearFailures();
     await h2.tap(inDiffs(find.text('Retry')));
-    expect(h2.server.callsTo(diffsRoute), hasLength(2));
+    expect(h2.server.callsTo(diffsRoute), hasLength(calls + 1));
+    expect(h2.server.callsTo(listRoute), hasLength(lists));
     expect(inDiffs(find.text('Everything arrived as sent')), findsOneWidget);
   });
 

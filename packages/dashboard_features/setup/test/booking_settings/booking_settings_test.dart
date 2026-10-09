@@ -142,17 +142,17 @@ void main() {
         'Retry instead of "Loading…" for ever', (tester) async {
       final m = bkgServer();
       final boom = MockResponse.error(500, 'Database is resting');
-      m.server.fail('GET', bkgSettings, boom);
+      m.server.fail('GET', bkgSettings, boom, times: null);
       final h = await pumpBookingRules(tester, backend: m);
       await openRules(h, 'Maadi');
       expect(rulesKey('bkg-failed'), findsOneWidget);
-      debugPrint('WORDS ${h.refusalWords(boom)}');
-      debugPrint('TEXTS ${[for (final e in inRules(find.byType(Text)).evaluate()) (e.widget as Text).data]}');
       expect(inRules(find.text(h.refusalWords(boom))), findsOneWidget);
       expect(rulesSave(tester).onPressed, isNull);
+      final asked = h.server.callsTo(bkgSettings).length;
+      m.server.clearFailures();
       await h.tap(inRules(find.text('Retry')));
       expect(rulesKey('bkg-form'), findsOneWidget);
-      expect(h.server.callsTo(bkgSettings), hasLength(2));
+      expect(h.server.callsTo(bkgSettings), hasLength(asked + 1));
     });
 
     testWidgets('SET-BKG-005 SET-BKG-006 the two switches, with hints, as '

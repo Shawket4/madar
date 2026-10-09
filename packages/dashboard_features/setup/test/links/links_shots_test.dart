@@ -60,7 +60,25 @@ void main() {
       await h.settle();
 
       await h.tap(byKey('links-add'));
-      await _scrollTo(h, byKey('links-add'));
+      // The new row itself, not the button under it.
+      await _scrollTo(
+        h,
+        find
+            .ancestor(
+              of: inKey(
+                'links-buttons',
+                find.text(h.t('links.editor.newLink')),
+              ),
+              matching: find.byWidgetPredicate(
+                (w) =>
+                    w.key is ValueKey<String> &&
+                    (w.key! as ValueKey<String>).value.startsWith(
+                      'links-item-',
+                    ),
+              ),
+            )
+            .first,
+      );
       await h.shot('new-link');
       await h.tap(byKey('links-save'));
       await h.shot('fix-links-toast');

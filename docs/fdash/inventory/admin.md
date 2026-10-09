@@ -852,7 +852,7 @@ App-wide (`lib/format.ts`, `data/scope/*`, `lib/week.ts`):
 - Period picker month title: `Intl.DateTimeFormat(locale, {month: long, year: numeric, timeZone})` WITHOUT
   the Latin-digit option (in Arabic the year comes out in Arabic-Indic digits — web quirk); day cells are plain
   Latin numbers; weekday headers short names from Saturday.
-- Preset ranges (active zone, calendar arithmetic so DST days stay 23/25 h): today = [00:00, 23:59:59.999];
+- (changed b50febfe) Preset ranges (active zone, calendar arithmetic so DST days stay 23/25 h): today = [00:00, next local midnight − 1 ms] (madar-time `day_bounds`; not wall-clock 23:59:59.999, which comes an hour early on a Cairo/Beirut fall-back night);
   yesterday; 7d = today−6 … today; 30d = today−29 … today; mtd = 1st … today; each boundary converted to a UTC
   ISO "Z" instant. Custom range: start-of-day of the first pick to end-of-day of the last.
 - Week starts Saturday (`WEEK_START = 6`).

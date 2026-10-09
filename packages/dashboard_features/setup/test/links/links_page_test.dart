@@ -6,6 +6,8 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart' show Space;
 import 'package:dashboard_setup/src/area_seed.dart';
+import 'package:dashboard_setup/src/brand_appearance/brand_data.dart'
+    show orgBrandKey;
 import 'package:dashboard_setup/src/links/links_page.dart';
 import 'package:dashboard_setup/src/mock/links_mock.dart';
 import 'package:flutter/material.dart';
@@ -467,6 +469,12 @@ void main() {
       final h = await pumpLinks(tester, backend: m);
       final pages = gets(h, LinksRoutes.page),
           publics = gets(h, LinksRoutes.public);
+      final sent = <String>[];
+      final sub = h.container
+          .read(realtimeBusProvider)
+          .invalidations
+          .listen(sent.addAll);
+      addTearDown(sub.cancel);
       await _type(h, 'links-tagline-en', '  Roasted in Zamalek  ');
       await _type(h, '$_catering$_cat-title-ar', '   ');
       await _type(h, 'links-maps-${SeedIds.zamalek}', '');
@@ -509,6 +517,107 @@ void main() {
       expect(gets(h, LinksRoutes.public), publics + 1);
       expect(sabahPage(m.db)['tagline_en'], 'Roasted in Zamalek');
       expect(inPreview(find.text('Roasted in Zamalek')), findsOneWidget);
+      // (divergence) the save writes the org's social links too: the Brand
+      // page's org read is refreshed with it.
+      expect(sent, contains(orgBrandKey));
+    },
+  );
+
+  testWidgets(
+    'SET-LNK-019 SET-LNK-021 a hidden branch and a filled Maps link go out',
+    (tester) async {
+      final h = await pumpLinks(tester);
+      await _show(h, byKey('links-branch-${SeedIds.maadi}'));
+      await h.tap(
+        inKey('links-branch-${SeedIds.maadi}', find.byType(DashSwitch)),
+      );
+      const maps = 'https://maps.app.goo.gl/heliopolis';
+      await _type(h, 'links-maps-${SeedIds.heliopolis}', maps);
+      await _save(h);
+      final body = lastBody(h, 'PUT', LinksRoutes.page);
+      final branches = {
+        for (final b in (body['branches']! as List).cast<Map>())
+          b['branch_id']: b,
+      };
+      expect(branches[SeedIds.maadi], {
+        'branch_id': SeedIds.maadi,
+        'maps_url': null,
+        'visible': false,
+      });
+      expect(branches[SeedIds.heliopolis], {
+        'branch_id': SeedIds.heliopolis,
+        'maps_url': maps,
+        'visible': true,
+      });
+      await h.expectToast('Links page saved');
+    },
+  );
+
+  testWidgets(
+    'SET-LNK-017 SET-LNK-021 a new link goes out visible, with its client id',
+    (tester) async {
+      final h = await pumpLinks(tester);
+      await _show(h, byKey('links-add'));
+      await h.tap(byKey('links-add'));
+      final row = tester.widget(
+        find
+            .ancestor(
+              of: inKey('links-buttons', find.text('New link')),
+              matching: find.byWidgetPredicate(
+                (w) =>
+                    w.key is ValueKey<String> &&
+                    (w.key! as ValueKey<String>).value.startsWith(
+                      'links-item-',
+                    ),
+              ),
+            )
+            .first,
+      );
+      final id = (row.key! as ValueKey<String>).value.substring(
+        'links-item-'.length,
+      );
+      expect(
+        id,
+        matches(
+          RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-'
+              r'[0-9a-f]{12}$'),
+        ),
+      );
+      await _type(h, 'links-item-$id-title-en', 'Gift cards');
+      await _type(h, 'links-item-$id-url', 'https://sabahcoffee.eg/gifts');
+      await _save(h);
+      expect(_items(lastBody(h, 'PUT', LinksRoutes.page)).last, {
+        'id': id,
+        'kind': 'custom',
+        'title_ar': null,
+        'title_en': 'Gift cards',
+        'url': 'https://sabahcoffee.eg/gifts',
+        'visible': true,
+      });
+      await h.expectToast('Links page saved');
+    },
+  );
+
+  testWidgets(
+    'SET-LNK-021 leaving mid-save still re-reads the page and the preview',
+    (tester) async {
+      final m = setupMockServer();
+      final gate = m.server.hold('PUT', LinksRoutes.page);
+      final h = await pumpLinks(tester, backend: m);
+      await _type(h, 'links-tagline-en', 'Roasted in Zamalek');
+      await _save(h);
+      final pages = gets(h, LinksRoutes.page);
+      await h.go('/settings/staff-pool');
+      gate.release();
+      await h.settle();
+      await h.flushTimers();
+      await h.go(linksPath);
+      expect(gets(h, LinksRoutes.page), pages + 1, reason: 're-read once');
+      expect(
+        tester.widget<EditableText>(fieldOf('links-tagline-en')).controller.text,
+        'Roasted in Zamalek',
+      );
+      expect(inPreview(find.text('Roasted in Zamalek')), findsOneWidget);
     },
   );
 
@@ -526,15 +635,12 @@ void main() {
         isNotNull,
       );
 
-      m.server.fail(
-        'PUT',
-        LinksRoutes.page,
-        MockResponse.badRequest('That branch is not one of this shop\'s'),
+      final bad = MockResponse.badRequest(
+        'That branch is not one of this shop\'s',
       );
+      m.server.fail('PUT', LinksRoutes.page, bad);
       await _save(h);
-      await h.expectToast(
-        'Bad request: That branch is not one of this shop\'s',
-      );
+      await h.expectToast(h.refusalWords(bad));
     },
   );
 
@@ -675,6 +781,48 @@ void main() {
       expect(find.text('سطر جديد'), findsOneWidget);
     },
   );
+
+  testWidgets('SET-LNK-026 an edit typed while the save is out stays', (
+    tester,
+  ) async {
+    final m = setupMockServer();
+    final gate = m.server.hold('PUT', LinksRoutes.page);
+    final h = await pumpLinks(tester, backend: m);
+    await _type(h, 'links-tagline-en', 'Roasted in Zamalek');
+    await _save(h);
+    await _type(h, 'links-tagline-ar', 'سطر جديد');
+    gate.release();
+    await h.settle();
+    await h.flushTimers();
+    expect(
+      tester.widget<EditableText>(fieldOf('links-tagline-ar')).controller.text,
+      'سطر جديد',
+    );
+    expect(
+      tester.widget<EditableText>(fieldOf('links-tagline-en')).controller.text,
+      'Roasted in Zamalek',
+    );
+  });
+
+  testWidgets('SET-LNK-010 SET-LNK-016 the limits count code units, as the '
+      'server does', (tester) async {
+    final h = await pumpLinks(tester);
+    // A letter with its diacritic: one character, two code units.
+    final full = 'بَ' * 80;
+    await _type(h, 'links-tagline-ar', full);
+    await _type(h, 'links-tagline-ar', '$fullبَ');
+    String text(String key) =>
+        tester.widget<EditableText>(fieldOf(key)).controller.text;
+    expect(text('links-tagline-ar'), full);
+    final title = 'بَ' * 30;
+    await _type(h, '$_catering$_cat-title-ar', title);
+    await _type(h, '$_catering$_cat-title-ar', '$titleبَ');
+    expect(text('$_catering$_cat-title-ar'), title);
+    await _save(h);
+    final body = lastBody(h, 'PUT', LinksRoutes.page);
+    expect(body['tagline_ar'], full);
+    await h.expectToast('Links page saved');
+  });
 
   testWidgets('refusal: a manager without org settings reads the refusal', (
     tester,

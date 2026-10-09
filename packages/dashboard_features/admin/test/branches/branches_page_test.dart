@@ -5,7 +5,6 @@ import 'package:dashboard_admin/src/branches/branch_dialog.dart';
 import 'package:dashboard_admin/src/branches/branches_page.dart';
 import 'package:dashboard_api/dashboard_api.dart' show BranchKind;
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show DashSidebar;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/services.dart';

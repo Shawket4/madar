@@ -2,8 +2,8 @@
 /// search, Excel export, the provision wizard (`?edit=new`) and the edit
 /// dialog (`?edit=<id>`). Web: `features/orgs/orgs-page.tsx`.
 ///
-/// No route guard and no `<Restricted>`: whoever reaches the address sees
-/// the page frame and the server refuses the list (ADM-ORG-004).
+/// Platform admins only: the route is `platformOnly` (the web only hides
+/// the nav entry and lets the server refuse a deep link; ADM-ORG-004).
 library;
 
 import 'package:collection/collection.dart';
@@ -191,12 +191,15 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
       cell: (context, o) => _NameCell(org: o),
       phone: DashPhoneRole.title,
       flex: 3,
-      minWidth: 220,
+      // The floors sit near the web's content widths, so the row actions
+      // stay on screen at 1024 wide (ADM-ORG-019, 020).
+      minWidth: 180,
     ),
     DashColumn<Org>(
       id: 'currency',
       label: t('orgs.currency'),
       text: (o) => o.currencyCode,
+      minWidth: 96,
       cell: (context, o) => DashBadge(o.currencyCode, mono: true),
     ),
     DashColumn<Org>(
@@ -204,6 +207,7 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
       label: t('orgs.taxRate'),
       text: (o) => jsNumber(o.taxRate),
       numeric: true,
+      minWidth: 104,
       cell: (context, o) => Text(
         dashFigure(formatRate(o.taxRate)),
         textDirection: TextDirection.ltr,
@@ -213,7 +217,7 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
       id: 'branding',
       label: t('orgs.customBranding'),
       searchable: false,
-      minWidth: 140,
+      minWidth: 130,
       cell: (context, o) => o.customBranding
           ? DashStatusPill(label: t('common.on'), tone: DashTone.info)
           : Text(
@@ -227,6 +231,7 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
       id: 'status',
       label: t('common.status'),
       searchable: false,
+      minWidth: 104,
       cell: (context, o) => o.isActive
           ? DashStatusPill(label: t('common.active'), tone: DashTone.success)
           : DashStatusPill(label: t('common.inactive')),
@@ -312,7 +317,7 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
             rowKey: (o) => o.id,
             loading: firstLoad,
             errorMessage: failed ? orgErrorWords(list.error, t) : null,
-            onRetry: () => ref.invalidate(orgsListProvider),
+            onRetry: () => ref.invalidate(orgsProvider),
             onRowTap: (o) => _openEditor(o.id),
             onRowIntent: (_) => _warmEditor(),
             searchPlaceholder: t('common.search'),

@@ -761,9 +761,16 @@ void main() {
           ),
           lang: 'ar',
         );
-        final hint = tester.getRect(find.text('name@example.com'));
+        // Where the glyphs sit, not the paragraph's box (it spans the field).
+        final para = tester.renderObject<RenderParagraph>(
+          find.text('name@example.com'),
+        );
+        final glyphs = para.getBoxesForSelection(
+          const TextSelection(baseOffset: 0, extentOffset: 16),
+        );
+        final hintLeft = para.localToGlobal(Offset(glyphs.first.left, 0)).dx;
         final field = tester.getRect(find.byType(TextField));
-        expect(hint.left, moreOrLessEquals(field.left, epsilon: 1));
+        expect(hintLeft, moreOrLessEquals(field.left, epsilon: 1));
         await tester.enterText(find.byType(TextField), 'sara@drops.eg');
         await tester.pump();
         final typed = tester
@@ -773,7 +780,7 @@ void main() {
         final first = typed.localToGlobal(
           typed.getLocalRectForCaret(const TextPosition(offset: 0)).topLeft,
         );
-        expect(first.dx, moreOrLessEquals(hint.left, epsilon: 2));
+        expect(first.dx, moreOrLessEquals(hintLeft, epsilon: 2));
       },
     );
 

@@ -127,7 +127,7 @@ are integer piastres.
 |---|---|---|---|---|---|
 | OVW-HOME-032 | Branch selected: Revenue = `total_revenue` (net of refunds), Orders = `total_orders`, Voided = `voided_orders`, Tips = `total_tips` (0 when absent), all from branch sales. | GET `/reports/branches/{branchId}/sales` branchSales | server `orders.read` | see 036 | `dp:79,94-103` |
 | OVW-HOME-033 | All branches: the four figures are the SUMS over every comparison row (`total_revenue`, `total_orders`, `voided_orders`, `total_tips`). | GET `/reports/orgs/{orgId}/comparison` orgBranchComparison | server `orders.read` | see 036 | `dp:87,104-112` |
-| OVW-HOME-034 | Avg ticket = round(revenue / orders) in piastres; 0 when there are no orders (computed in the browser, NOT the server's `avg_order_value`). | E1 or E3 | none | `dashboard.avgTicket` | `dp:115` |
+| OVW-HOME-034 | (changed b50febfe) Avg ticket = `averageTicket(revenue, orders)` (madar-money `average_ticket`): revenue / orders in piastres rounded half up in integers (`floor((2·revenue + orders) / (2·orders))`); 0 when there are no orders (computed in the browser, NOT the server's `avg_order_value`). | E1 or E3 | none | `dashboard.avgTicket` | `dp:115` |
 | OVW-HOME-035 | Tips card appears only when tips are non-zero (5 cards); otherwise 4 cards. Tips are never part of Revenue or of a payment-method bucket. | E1 or E3 | none | `dashboard.tips` "Tips" | `dp:160-172` |
 | OVW-HOME-036 | Card order, glyph and label: Revenue (coins, money), Orders (receipt, count), Avg ticket (trending-up, money), Voided (ban, count), Tips (hand-coins, money). Glyphs are muted. | none | none | `dashboard.revenue` "Revenue", `nav.orders` "Orders", `dashboard.avgTicket` "Avg ticket", `dashboard.voided` "Voided", `dashboard.tips` "Tips" | `dp:164-172`; `components/app/stat-card.tsx:124-128` |
 | OVW-HOME-037 | Voided card glyph turns warning-tinted when voided > 0, muted when 0. | none | none | none | `dp:168`; `stat-card.tsx:17-25` |
@@ -272,7 +272,7 @@ orchestrator in the notes.
 | Value | Rule | Source |
 |---|---|---|
 | KPI source | branch selected AND branch sales loaded → branch sales; otherwise sums over comparison rows (also the error fallback, row 042) | `dp:94-113` |
-| Avg ticket | `orders ? Math.round(revenue / orders) : 0` (piastres) | `dp:115` |
+| Avg ticket | (changed b50febfe) `averageTicket(revenue, orders)` = `orders > 0 ? floor((2·revenue + orders) / (2·orders)) : 0` (piastres; `lib/average-ticket.ts`) | `dp:116` |
 | Tips card | present iff tips is truthy (non-zero) | `dp:169-171` |
 | Voided accent | warning iff voided > 0 | `dp:168` |
 | KPI loading | branch ? `branchSales.isLoading` : `comparison.isLoading` | `dp:116` |
@@ -299,8 +299,8 @@ orchestrator in the notes.
 - Active zone: selected branch's `timezone` → org `timezone` (only fetched for someone with
   `org.settings.read` and no branch picked) → first non-empty zone among the person's branches → `Africa/Cairo`
   (`data/scope/use-timezone.ts:23-71`).
-- Presets (`data/scope/presets.ts:21-45`), day boundaries in the active zone, sent as UTC `Z` instants:
-  today = [start of today, 23:59:59.999 today]; yesterday = that for yesterday; 7d = start of day −6 → end of
+- (changed b50febfe) Presets (`data/scope/presets.ts`; `dayBoundaryISO` now in `lib/format.ts`), day boundaries in the active zone, sent as UTC `Z` instants:
+  today = [start of today, next local midnight − 1 ms] (madar-time `day_bounds`, not wall-clock 23:59:59.999); yesterday = that for yesterday; 7d = start of day −6 → end of
   today; 30d = start of day −29 → end of today; mtd = start of the 1st → end of today. DST days stay 23/25 h.
 - Default preset `30d`; `custom` needs both `from` and `to` or it becomes `30d`.
 
