@@ -120,8 +120,11 @@ void main() {
       await h.settle();
       final bottom = tester.getBottomLeft(_rail()).dy;
       final paneBottom = tester.getBottomLeft(find.byType(BrandPage)).dy;
-      expect(bottom, lessThanOrEqualTo(paneBottom + 1),
-          reason: 'never past the end of the pane');
+      expect(
+        bottom,
+        lessThanOrEqualTo(paneBottom + 1),
+        reason: 'never past the end of the pane',
+      );
       await h.tap(_inRail(find.text('Appearance')));
       expect(h.location.path, appearancePath);
     });
@@ -157,8 +160,10 @@ void main() {
         findsOneWidget,
       );
       // The descriptions are not drawn.
-      expect(_inRail(find.text('Theme and language for this device.')),
-          findsNothing);
+      expect(
+        _inRail(find.text('Theme and language for this device.')),
+        findsNothing,
+      );
     });
 
     testWidgets('SET-SHL-004 a platform admin also sees WhatsApp', (
@@ -170,10 +175,10 @@ void main() {
         persona: Persona.platform,
         prefs: pickedSabah,
       );
-      expect([for (final (l, _) in _entries(tester)) l], [
-        ..._ownerPanes,
-        'WhatsApp',
-      ]);
+      expect(
+        [for (final (l, _) in _entries(tester)) l],
+        [..._ownerPanes, 'WhatsApp'],
+      );
     });
 
     testWidgets('SET-SHL-004 SET-SHL-005 a Dawam-only org sees Appearance '
@@ -224,8 +229,7 @@ void main() {
       final expected = [
         for (final g in settingsNav)
           for (final i in g.items)
-            if (!i.superAdminOnly &&
-                (i.caps == null || i.caps!.any(authz.can)))
+            if (!i.superAdminOnly && (i.caps == null || i.caps!.any(authz.can)))
               h.t(i.labelKey),
       ];
       expect([for (final (l, _) in _entries(tester)) l], expected);
@@ -297,7 +301,10 @@ void main() {
         times: null,
       );
       final h = await pumpBrand(tester, backend: m);
-      expect(find.textContaining(h.t('dawam.modulesLoadError')), findsOneWidget);
+      expect(
+        find.textContaining(h.t('dawam.modulesLoadError')),
+        findsOneWidget,
+      );
       expect(find.text('Retry'), findsWidgets);
       expect(find.byType(BrandPage), findsNothing);
     });
@@ -308,7 +315,10 @@ void main() {
       expect(find.byType(BrandPage), findsOneWidget);
       await h.go('/settings/delivery?branchId=${SeedIds.zamalek}');
       expect(find.byType(DeliverySettingsPage), findsOneWidget);
-      expect(h.container.read(authzProvider).can(Cap.integrationsRead), isFalse);
+      expect(
+        h.container.read(authzProvider).can(Cap.integrationsRead),
+        isFalse,
+      );
       await h.go('/settings/integrations');
       expect(inShell(find.byType(SetupRefusalPane)), findsOneWidget);
     });
@@ -412,7 +422,10 @@ void main() {
       );
       expect(h.realtime.current, isNotNull);
       final pm = h.server.callsTo(PmRoutes.list, method: 'GET').length;
-      h.realtime.current!.emit('payment_methods.availability_changed', data: '{}');
+      h.realtime.current!.emit(
+        'payment_methods.availability_changed',
+        data: '{}',
+      );
       await h.settle();
       expect(h.server.callsTo(PmRoutes.list, method: 'GET').length, pm + 1);
       await h.go('/settings/kitchen-stations$_helio');
@@ -536,7 +549,9 @@ void main() {
       );
       final table = inShell(byKey('kitchen-stations-table'));
       await h.enterText(
-        find.descendant(of: table, matching: find.byType(DashSearchInput)).first,
+        find
+            .descendant(of: table, matching: find.byType(DashSearchInput))
+            .first,
         'epson',
       );
       await h.flushTimers();
@@ -545,10 +560,14 @@ void main() {
           .rows
           .length;
       expect(rows, greaterThan(0));
-      expect(find.descendant(of: table, matching: find.text('Kitchen')),
-          findsOneWidget);
-      expect(find.descendant(of: table, matching: find.text('Bar')),
-          findsNothing);
+      expect(
+        find.descendant(of: table, matching: find.text('Kitchen')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: table, matching: find.text('Bar')),
+        findsNothing,
+      );
     });
   });
 }

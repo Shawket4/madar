@@ -5,7 +5,6 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_team/dashboard_team.dart';
 import 'package:dashboard_team/src/rules/rules_page.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const String rulesPath = '/staff/rules';
@@ -39,6 +38,7 @@ Future<DashHarness> pumpRules(
   Srv? s,
   void Function(MockDb db)? edit,
   String path = rulesPath,
+  Map<String, String>? prefs,
 }) {
   final srv = s ?? rulesServer(persona: persona, edit: edit);
   return DashHarness.pump(
@@ -52,6 +52,7 @@ Future<DashHarness> pumpRules(
     server: srv.server,
     db: srv.db,
     shotArea: 'team',
+    prefs: prefs,
   );
 }
 

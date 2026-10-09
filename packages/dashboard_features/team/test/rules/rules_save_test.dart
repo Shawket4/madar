@@ -2,13 +2,12 @@
 // each save sends, the confirmation that lists the changes, the refusals,
 // and what is asked again afterwards.
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/rules/rules_cards.dart';
 import 'package:dashboard_team/src/rules/rules_dawam_card.dart';
 import 'package:dashboard_team/src/shared/staff_query.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'rules_support.dart';
@@ -300,5 +299,17 @@ void main() {
     expect(tester.widget<DashButton>(find.byKey(RulesKeys.save)).loading,
         isFalse);
     await h.flushTimers();
+  });
+
+  testWidgets('TEAM-ALL-021 Escape closes the confirmation, sending nothing',
+      (tester) async {
+    final h = await pumpRules(tester);
+    await typeIn(h, RulesKeys.workingDays, '22');
+    await save(h);
+    expect(find.text('Save the changes'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+    expect(find.text('Save the changes'), findsNothing);
+    expect(puts(h), isEmpty);
   });
 }

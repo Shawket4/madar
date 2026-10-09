@@ -392,7 +392,16 @@ class DashBranchPicker extends ConsumerWidget {
           value: _allBranches,
           label: t('scope.allBranches', defaultValue: 'All branches'),
         ),
-        for (final b in active) DashOption(value: b.id, label: b.name),
+        for (final b in active)
+          if (isSelling(b)) DashOption(value: b.id, label: b.name),
+        for (final b in active)
+          if (!isSelling(b))
+            DashOption(
+              value: b.id,
+              label: b.name,
+              icon: 'warehouse',
+              group: t('scope.warehouses', defaultValue: 'Warehouses'),
+            ),
       ],
       value: branchId ?? _allBranches,
       leadingIcon: 'store',

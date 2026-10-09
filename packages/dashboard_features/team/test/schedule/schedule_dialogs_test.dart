@@ -7,6 +7,7 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/schedule/coverage_card.dart';
 import 'package:dashboard_team/src/schedule/fairness_card.dart';
+import 'package:dashboard_team/src/shared/refresh_button.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -590,6 +591,31 @@ void main() {
     expect(cellAt(tester, 0, 9).value, '2');
   });
 
+  testWidgets('TEAM-SCH-058 a refresh re-seeds an untouched grid; after a '
+      'keystroke it does not', (tester) async {
+    final h = await openCoverage(tester);
+    void need(int dow, String from, String to, int staff) =>
+        h.db!['coverage_needs'].insert({
+          'org_id': SeedIds.sabahOrg,
+          'branch_id': SeedIds.zamalek,
+          'day_of_week': dow,
+          'band_start': from,
+          'band_end': to,
+          'staff': staff,
+          'department_id': null,
+        }, timestamps: false);
+    final refresh = inPage(find.byType(DawamRefreshButton));
+    expect(cellAt(tester, 6, 9).value, '');
+    need(6, '09:00:00', '10:00:00', 2);
+    await h.tap(refresh);
+    expect(cellAt(tester, 6, 9).value, '2');
+    await h.enterText(find.byKey(const ValueKey('coverage-0-9')), '3');
+    need(1, '09:00:00', '10:00:00', 4);
+    await h.tap(refresh);
+    expect(cellAt(tester, 1, 9).value, '');
+    expect(cellAt(tester, 0, 9).value, '3');
+  });
+
   // ── preferences ──────────────────────────────────────────────────────
 
   Future<DashHarness> openPrefs(
@@ -644,6 +670,37 @@ void main() {
     expect(surfaceButton('Save'), findsNothing);
     await h.tap(surfaceButton('Close'));
     expect(find.byType(DashSurface), findsNothing);
+  });
+
+  testWidgets('TEAM-SCH-060 a refresh that lands before any edit re-seeds '
+      'the dialog; after an edit it does not', (tester) async {
+    final h = await openPrefs(tester, 'Hassan Ibrahim');
+    String? time() => tester
+        .widget<DashSelect<String>>(find.byKey(const Key('prefs-time')))
+        .value;
+    Future<void> refresh(String prefTime) async {
+      h.db!['employees'].update(emp('hassan'), {'pref_time': prefTime});
+      // Back in the app after 30 s: the week is asked again.
+      h.server.clock.advance(const Duration(seconds: 31));
+      for (final s in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+      await h.settle();
+    }
+
+    expect(time(), 'evening');
+    await refresh('morning');
+    expect(time(), 'morning');
+    await h.tap(find.byKey(const ValueKey('prefs-day-0')));
+    await refresh('evening');
+    expect(time(), 'morning');
   });
 
   testWidgets('TEAM-SCH-061 save: PUT, toast, closed, the grid line follows', (

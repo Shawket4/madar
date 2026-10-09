@@ -1,6 +1,5 @@
 // Shared helpers for the Brand / Appearance / settings-shell tests.
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';

@@ -61,10 +61,9 @@ void main() {
       expect(inBrand(find.text('Brand')), findsOneWidget);
       expect(inBrand(find.text(h.t('settings.brandDesc'))), findsOneWidget);
       expect(h.server.callsTo(orgRoute, method: 'GET'), isNotEmpty);
-      expect(
-        h.server.callsTo(orgRoute).map((c) => c.path).toSet(),
-        {'/orgs/${SeedIds.sabahOrg}'},
-      );
+      expect(h.server.callsTo(orgRoute).map((c) => c.path).toSet(), {
+        '/orgs/${SeedIds.sabahOrg}',
+      });
     });
 
     testWidgets('SET-BRD-002 loading: a short bar and two card skeletons, no '
@@ -96,9 +95,7 @@ void main() {
       expect(_links(), findsNothing);
       // Nowhere to upload to.
       expect(
-        tester
-            .widget<DashImageUploader>(inBrand(byKey('brand-logo')))
-            .enabled,
+        tester.widget<DashImageUploader>(inBrand(byKey('brand-logo'))).enabled,
         isFalse,
       );
     });
@@ -229,8 +226,10 @@ void main() {
         inKey('brand-logo', find.text('Selected file must be an image')),
         findsOneWidget,
       );
-      expect(inKey('brand-logo', find.text(h.t('settings.logoHint'))),
-          findsNothing);
+      expect(
+        inKey('brand-logo', find.text(h.t('settings.logoHint'))),
+        findsNothing,
+      );
       queueImage(h, bytes: Uint8List(5 * 1024 * 1024 + 1));
       await h.tap(_choose('brand-logo'));
       expect(
@@ -251,8 +250,10 @@ void main() {
       await h.tap(_replace('brand-logo'));
       await h.expectToast(words);
       expect(inKey('brand-logo', find.text(words)), findsOneWidget);
-      expect(inKey('brand-logo', find.text(h.t('settings.logoHint'))),
-          findsNothing);
+      expect(
+        inKey('brand-logo', find.text(h.t('settings.logoHint'))),
+        findsNothing,
+      );
       expect(
         tester.widget<DashImageUploader>(inBrand(byKey('brand-logo'))).value,
         logo,
@@ -321,8 +322,10 @@ void main() {
     ) async {
       final h = await pumpBrand(tester);
       expect(byKey('brand-address'), findsOneWidget);
-      expect(inKey('brand-address', find.text('Your web address')),
-          findsOneWidget);
+      expect(
+        inKey('brand-address', find.text('Your web address')),
+        findsOneWidget,
+      );
       expect(
         inKey('brand-address', find.text(h.t('settings.address.hint'))),
         findsOneWidget,
@@ -352,7 +355,8 @@ void main() {
         'book': '$_sabahUrl/book/',
       };
       final rows = [
-        for (final k in expected.keys) tester.getTopLeft(byKey('brand-address-$k')).dy,
+        for (final k in expected.keys)
+          tester.getTopLeft(byKey('brand-address-$k')).dy,
       ];
       expect(rows, orderedEquals([...rows]..sort()));
       for (final e in expected.entries) {
@@ -416,7 +420,9 @@ void main() {
       ];
       final tops = [
         for (final l in labels)
-          tester.getTopLeft(find.descendant(of: _links(), matching: find.text(l))),
+          tester.getTopLeft(
+            find.descendant(of: _links(), matching: find.text(l)),
+          ),
       ];
       // Two a row: the second of each pair sits beside the first.
       for (var i = 0; i < tops.length; i += 2) {
@@ -432,19 +438,26 @@ void main() {
             find.descendant(of: _links(), matching: find.byType(DashTextInput)),
           )
           .toList();
-      expect([for (final i in inputs) i.placeholder], [
-        for (final p in socialPlatforms) p.sample,
-      ]);
+      expect(
+        [for (final i in inputs) i.placeholder],
+        [for (final p in socialPlatforms) p.sample],
+      );
       expect(inputs.every((i) => i.textDirection == TextDirection.ltr), isTrue);
     });
 
     testWidgets('SET-BRD-015 one column on a phone', (tester) async {
       final h = await pumpBrand(tester, size: DashSize.phone);
       final a = tester.getTopLeft(
-        find.descendant(of: _links(), matching: find.text(h.t('orgs.social.instagram'))),
+        find.descendant(
+          of: _links(),
+          matching: find.text(h.t('orgs.social.instagram')),
+        ),
       );
       final b = tester.getTopLeft(
-        find.descendant(of: _links(), matching: find.text(h.t('orgs.social.facebook'))),
+        find.descendant(
+          of: _links(),
+          matching: find.text(h.t('orgs.social.facebook')),
+        ),
       );
       expect(b.dy, greaterThan(a.dy));
     });
@@ -465,8 +478,11 @@ void main() {
       m.db['orgs'].update(SeedIds.sabahOrg, {'social_links': const {}});
       h.container.invalidate(orgBrandProvider(SeedIds.sabahOrg));
       await h.settle();
-      expect(_text(tester, 2), 'https://tiktok.com/@sabah',
-          reason: 'an edited form is not overwritten');
+      expect(
+        _text(tester, 2),
+        'https://tiktok.com/@sabah',
+        reason: 'an edited form is not overwritten',
+      );
       expect(_text(tester, 7), 'https://sabah.coffee');
     });
 
@@ -556,14 +572,18 @@ void main() {
     testWidgets('SET-BRD-018 the card face: 3 of 5 stamps, the line, the '
         'member, the program and the org', (tester) async {
       final h = await pumpBrand(tester);
-      expect(inBrand(find.text('How the loyalty card will look')),
-          findsOneWidget);
+      expect(
+        inBrand(find.text('How the loyalty card will look')),
+        findsOneWidget,
+      );
       expect(_inCard(find.text('Sabah Coffee')), findsOneWidget);
       expect(_inCard(find.text('LOYALTY')), findsOneWidget);
       expect(_inCard(find.text('3')), findsOneWidget);
       expect(_inCard(find.text('of 5 orders')), findsOneWidget);
-      expect(_inCard(find.text('2 more orders to your next reward.')),
-          findsOneWidget);
+      expect(
+        _inCard(find.text('2 more orders to your next reward.')),
+        findsOneWidget,
+      );
       expect(_inCard(find.text('MEMBER')), findsOneWidget);
       expect(_inCard(find.text('MEMBER NAME')), findsOneWidget);
       final stamps = tester.widget<StampRow>(_inCard(find.byType(StampRow)));
@@ -572,7 +592,9 @@ void main() {
       expect(_inCard(find.text('4')), findsOneWidget);
       expect(_inCard(find.text('5')), findsOneWidget);
       expect(
-        _inCard(find.byWidgetPredicate((w) => w is DashIcon && w.name == 'check')),
+        _inCard(
+          find.byWidgetPredicate((w) => w is DashIcon && w.name == 'check'),
+        ),
         findsNWidgets(3),
       );
       expect(h.t('nav.loyalty'), 'Loyalty');

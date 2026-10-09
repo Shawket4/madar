@@ -943,6 +943,22 @@ void main() {
     expect(calls(h, suggestionsT), hasLength(sg + 1));
   });
 
+  testWidgets('TEAM-ALL-008 Refresh spins while the coverage, fairness or '
+      'audits read is fetching', (tester) async {
+    final h = await pumpSchedule(tester);
+    await h.tap(button('Coverage needs'));
+    final refresh = inPage(find.byType(DawamRefreshButton));
+    bool spinning() => tester.widget<DawamRefreshButton>(refresh).busy;
+    for (final path in [coverageT, fairnessT, auditsT]) {
+      final gate = h.server.hold('GET', path);
+      await h.tap(refresh);
+      expect(spinning(), isTrue, reason: path);
+      gate.release();
+      await h.settle();
+      expect(spinning(), isFalse, reason: path);
+    }
+  });
+
   testWidgets('TEAM-ALL-022 a failed background refresh keeps the grid and '
       'toasts once', (tester) async {
     final h = await pumpSchedule(tester);

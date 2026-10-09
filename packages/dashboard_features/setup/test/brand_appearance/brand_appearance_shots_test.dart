@@ -13,9 +13,10 @@ import 'support.dart';
 /// Scrolls the page's own scroller a screen at a time, one PNG a screen.
 Future<void> _shootPage(DashHarness h, Type page, String name) async {
   ScrollableState? state;
-  for (final e in find
-      .ancestor(of: find.byType(page), matching: find.byType(Scrollable))
-      .evaluate()) {
+  for (final e
+      in find
+          .ancestor(of: find.byType(page), matching: find.byType(Scrollable))
+          .evaluate()) {
     final s = (e as StatefulElement).state as ScrollableState;
     if (s.position.axis == Axis.vertical) {
       state = s;
@@ -41,7 +42,10 @@ Future<void> _shootPage(DashHarness h, Type page, String name) async {
 
 String _logo() => 'data:image/png;base64,${base64Of(samplePng)}';
 
-const _states = [('en', false, DashSize.desktop), ('ar', false, DashSize.phone)];
+const _states = [
+  ('en', false, DashSize.desktop),
+  ('ar', false, DashSize.phone),
+];
 
 void main() {
   for (final size in DashSize.values) {

@@ -39,7 +39,10 @@ Future<MockResponse> _send(
 void main() {
   group('SET-BRD-011 publicRootDomain (shop-address.test.ts)', () {
     test('the API host minus its first label', () {
-      expect(publicRootDomain('https://api.madar-pos.cloud'), 'madar-pos.cloud');
+      expect(
+        publicRootDomain('https://api.madar-pos.cloud'),
+        'madar-pos.cloud',
+      );
       expect(
         publicRootDomain('https://api.staging.madar-pos.cloud/v1'),
         'staging.madar-pos.cloud',
@@ -98,11 +101,10 @@ void main() {
         _org(bg: '#FFF7ED', fg: '#431407', accent: '#C2410C'),
         programName: 'Loyalty',
       );
-      expect((b.background, b.foreground, b.accent), (
-        '#FFF7ED',
-        '#431407',
-        '#C2410C',
-      ));
+      expect(
+        (b.background, b.foreground, b.accent),
+        ('#FFF7ED', '#431407', '#C2410C'),
+      );
       expect(b.isDark, isFalse);
       expect(b.muted.a, closeTo(0.60, 0.01));
     });
@@ -153,33 +155,59 @@ void main() {
     test('PATCH: an owner is refused (super admin only); a manager lacks '
         'org.settings.edit', () async {
       final owner = setupMockServer();
-      final r = await _send(owner.server, 'PATCH', sabah, body: {
-        'social_links': {'x': 'https://x.com/a'},
-      });
+      final r = await _send(
+        owner.server,
+        'PATCH',
+        sabah,
+        body: {
+          'social_links': {'x': 'https://x.com/a'},
+        },
+      );
       expect(r.status, 403);
       final manager = setupMockServer(persona: Persona.manager);
-      final m = await _send(manager.server, 'PATCH', sabah, body: {
-        'social_links': const {},
-      });
+      final m = await _send(
+        manager.server,
+        'PATCH',
+        sabah,
+        body: {'social_links': const {}},
+      );
       expect(m.status, 403);
     });
 
     test('PATCH social_links: the closed list, https only, stored cleaned '
         'and replacing the map', () async {
       final p = setupMockServer(persona: Persona.platform);
-      final bad = await _send(p.server, 'PATCH', sabah, body: {
-        'social_links': {'myspace': 'https://myspace.com/a'},
-      });
+      final bad = await _send(
+        p.server,
+        'PATCH',
+        sabah,
+        body: {
+          'social_links': {'myspace': 'https://myspace.com/a'},
+        },
+      );
       expect(bad.status, 400);
-      final http = await _send(p.server, 'PATCH', sabah, body: {
-        'social_links': {'website': 'http://sabah.coffee'},
-      });
+      final http = await _send(
+        p.server,
+        'PATCH',
+        sabah,
+        body: {
+          'social_links': {'website': 'http://sabah.coffee'},
+        },
+      );
       expect(http.status, 400);
       expect(brandSafeLink('https://'), isFalse);
       expect(brandSafeLink('https://a b'), isFalse);
-      final ok = await _send(p.server, 'PATCH', sabah, body: {
-        'social_links': {'instagram': ' https://instagram.com/s ', 'facebook': ''},
-      });
+      final ok = await _send(
+        p.server,
+        'PATCH',
+        sabah,
+        body: {
+          'social_links': {
+            'instagram': ' https://instagram.com/s ',
+            'facebook': '',
+          },
+        },
+      );
       expect(ok.status, 200);
       expect(p.db['orgs'].get(SeedIds.sabahOrg)['social_links'], {
         'instagram': 'https://instagram.com/s',
@@ -201,8 +229,12 @@ void main() {
         o.db['orgs'].get(SeedIds.sabahOrg)['logo_url'],
         'data:image/png;base64,AQID',
       );
-      final wrong = await _send(o.server, 'PUT', '$sabah/card-image',
-          files: [part]);
+      final wrong = await _send(
+        o.server,
+        'PUT',
+        '$sabah/card-image',
+        files: [part],
+      );
       expect(wrong.status, 400, reason: "the card image's field is 'image'");
       final other = await _send(
         o.server,
@@ -212,7 +244,12 @@ void main() {
       );
       expect(other.status, 403);
       final manager = setupMockServer(persona: Persona.manager);
-      final m = await _send(manager.server, 'PUT', '$sabah/logo', files: [part]);
+      final m = await _send(
+        manager.server,
+        'PUT',
+        '$sabah/logo',
+        files: [part],
+      );
       expect(m.status, 403);
     });
   });

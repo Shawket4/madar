@@ -158,9 +158,11 @@ void registerCoreMocks(MockServer server, MockDb db) {
       req.badRequest('Query deserialize error: missing field `org_id`');
     }
     req.requireSameOrg(orgId);
+    // `kind`: only branches or only warehouses; omitted = both.
+    final kind = req.q('kind');
     return MockResponse.ok(
       db['branches'].query(
-        filters: {'org_id': orgId},
+        filters: {'org_id': orgId, 'kind': ?kind},
         where: (b) => req.persona.seesBranch(b['id']! as String),
         sort: 'name',
       ),

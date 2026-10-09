@@ -6,6 +6,9 @@ import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/rules/rules_cards.dart';
+import 'package:dashboard_team/src/rules/rules_preview_card.dart';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -410,5 +413,36 @@ void main() {
     expect(await asks(MockResponse.denied('hr.rules.view')), 1);
     expect(await asks(MockResponse.error(500, 'boom')), 2);
     expect(await asks(MockResponse.error(429, 'Slow down')), 4);
+  });
+
+  testWidgets('TEAM-ALL-018 the scope bar\'s branch is ignored: the page '
+      'opens on the business, its read names no branch', (tester) async {
+    final h = await pumpRules(
+      tester,
+      prefs: {
+        ScopePrefKeys.branch: jsonEncode({
+          'org': SeedIds.sabahOrg,
+          'branch': SeedIds.zamalek,
+        }),
+      },
+    );
+    expect(pageText('The business (every branch)'), findsOneWidget);
+    expect(h.server.callsTo(settingsT).single.query, isEmpty);
+    expect(h.server.callsTo(branchesT).single.query, isEmpty);
+  });
+
+  testWidgets('TEAM-ALL-025 a number the field can\'t read says so and the '
+      'form refuses to save', (tester) async {
+    final h = await pumpRules(tester);
+    // A field with no form check of its own shows the kit's words …
+    await typeIn(h, RulesPreviewKeys.late, 'abc');
+    expect(find.textContaining("isn't a number"), findsOneWidget);
+    // … one the form checks shows the form's.
+    await typeIn(h, RulesKeys.workingDays, 'abc');
+    expect(pageText(h.t('staff.workingDaysPositive')), findsOneWidget);
+    expect(find.text(h.t('staff.rulesFixFirst')), findsOneWidget);
+    await tapKey(h, RulesKeys.save);
+    await h.expectToast(h.t('staff.workingDaysPositive'));
+    expect(puts(h), isEmpty);
   });
 }

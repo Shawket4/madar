@@ -8,7 +8,6 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/rules/rules_cards.dart';
 import 'package:dashboard_team/src/rules/rules_dawam_card.dart';
 import 'package:dashboard_team/src/rules/rules_preview_card.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'rules_support.dart';

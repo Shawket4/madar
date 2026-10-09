@@ -13,7 +13,11 @@ import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart'
-    show ApiFilePart, Org, UpdateOrgRequest, UploadCardImageMultipart,
+    show
+        ApiFilePart,
+        Org,
+        UpdateOrgRequest,
+        UploadCardImageMultipart,
         UploadLogoMultipart;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -48,15 +52,14 @@ class BrandPage extends ConsumerWidget {
     final c = context.madarColors;
     final brand = resolveCardBrand(org, programName: t('nav.loyalty'));
 
-    Widget section(String title, Widget child, {String? description}) =>
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            DashSectionHeader(title: title, description: description),
-            child,
-          ],
-        );
+    Widget section(String title, Widget child, {String? description}) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        DashSectionHeader(title: title, description: description),
+        child,
+      ],
+    );
 
     Widget uploader({
       required String key,
@@ -264,12 +267,15 @@ class _BrandSkeleton extends ConsumerWidget {
     key: const ValueKey('brand-loading'),
     label: ref.watch(tProvider)('common.loading'),
     child: const Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
-        DashSkeleton(
-          width: BrandMetrics.titleBarWidth,
-          height: BrandMetrics.titleBar,
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: DashSkeleton(
+            width: BrandMetrics.titleBarWidth,
+            height: BrandMetrics.titleBar,
+          ),
         ),
         DashSkeleton(height: BrandMetrics.cardBar, radius: Radii.card),
         DashSkeleton(height: BrandMetrics.cardBar, radius: Radii.card),

@@ -604,7 +604,7 @@ class _RulesBodyState extends ConsumerState<_RulesBody> {
                   constraints: BoxConstraints(
                     maxWidth: DashPageWidth.reading.max,
                   ),
-                  child: bar,
+                  child: SizedBox(width: double.infinity, child: bar),
                 ),
               ),
             ),

@@ -188,11 +188,7 @@ class _RailBesideState extends State<_RailBeside> {
 
 /// The wide layout's list of panes, grouped.
 class _SettingsRail extends ConsumerWidget {
-  const _SettingsRail({
-    required this.groups,
-    required this.path,
-    super.key,
-  });
+  const _SettingsRail({required this.groups, required this.path, super.key});
 
   final List<SettingsNavGroup> groups;
   final String path;

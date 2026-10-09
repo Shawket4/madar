@@ -83,6 +83,23 @@ class AuthzNotifier extends Notifier<Authz> {
 
 final authzProvider = NotifierProvider<AuthzNotifier, Authz>(AuthzNotifier.new);
 
+/// What the person holds AT one location (`useAuthzAt`,
+/// `/authz/me?branch_id=`), for an act the server checks at a given branch (a
+/// transfer's step at its side). Read it as `.value ?? Authz.none`: it holds
+/// nothing until the answer is in, so nothing shows that would end in a 403.
+final authzAtProvider = FutureProvider.autoDispose.family<Authz, String>((
+  ref,
+  branchId,
+) async {
+  ref.webCache(staleTime: const Duration(minutes: 1));
+  final session = ref.watch(currentSessionProvider);
+  if (session == null) return Authz.none;
+  if (session.isPlatform) return Authz.platformAdmin();
+  return Authz.from(
+    await ref.watch(apiProvider).authz.getMyAuthz(branchId: branchId),
+  );
+}, retry: (_, _) => null);
+
 // ── Modules ───────────────────────────────────────────────────────────────
 
 /// The org's switched-on modules as the server says (PS-2).

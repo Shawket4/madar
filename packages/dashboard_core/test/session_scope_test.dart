@@ -470,6 +470,7 @@ void main() {
             'id': id,
             'org_id': 'o',
             'name': id,
+            'kind': 'branch',
             'timezone': 'Africa/Cairo',
             'is_active': true, //
             'old_bill_hours': 3,
@@ -698,6 +699,84 @@ void main() {
         'Asia/Riyadh',
       );
       expect(resolveTimezone(), appTimezone);
+    });
+  });
+
+  group('warehouse scope (af50aa63 scope-bar.tsx)', () {
+    const wh = 'warehouse-central';
+
+    Rig withWarehouse({Map<String, String>? prefs}) {
+      final r = Rig(as: Persona.owner, prefs: prefs);
+      r.db['branches'].insert({
+        ...r.db['branches'].get(SeedIds.maadi),
+        'id': wh,
+        'name': 'Central Store',
+        'code': 'CS',
+        'kind': 'warehouse',
+      });
+      return r;
+    }
+
+    List<String> listed(Rig r) => [
+      for (final b in r.c.read(activeBranchesProvider)!) b.id,
+    ];
+
+    Future<void> go(Rig r, String path) async {
+      r.c.read(shellPathProvider.notifier).show(path);
+      await settle();
+    }
+
+    test('a warehouse is a scope on Inventory pages alone', () async {
+      final r = withWarehouse();
+      addTearDown(r.dispose);
+      await r.ready();
+      expect(listed(r), isNot(contains(wh)));
+      await go(r, '/inventory/today');
+      expect(listed(r), contains(wh));
+      expect(isSelling(r.c.read(branchesProvider).value!.last), isTrue);
+    });
+
+    test('a warehouse scope survives leaving Inventory', () async {
+      final r = withWarehouse();
+      addTearDown(r.dispose);
+      await r.ready();
+      await go(r, '/inventory/today');
+      await r.c.read(scopeProvider.notifier).setBranch(wh);
+      await go(r, '/orders');
+      expect(r.c.read(scopeProvider).branchId, isNull);
+      expect(r.gw.branchId, isNull);
+      await go(r, '/inventory/counts');
+      expect(r.c.read(scopeProvider).branchId, wh);
+      expect(r.gw.branchId, wh);
+    });
+
+    test('a branch picked meanwhile wins over the parked warehouse', () async {
+      final r = withWarehouse();
+      addTearDown(r.dispose);
+      await r.ready();
+      await go(r, '/inventory/today');
+      await r.c.read(scopeProvider.notifier).setBranch(wh);
+      await go(r, '/orders');
+      await r.c.read(scopeProvider.notifier).setBranch(SeedIds.zamalek);
+      await r.c.read(scopeProvider.notifier).setBranch(null);
+      await go(r, '/inventory/today');
+      expect(r.c.read(scopeProvider).branchId, isNull);
+    });
+
+    test('a stored warehouse comes back on Inventory', () async {
+      final r = withWarehouse(
+        prefs: {
+          ScopePrefKeys.branch: json.encode({
+            'org': SeedIds.sabahOrg,
+            'branch': wh,
+          }),
+        },
+      );
+      addTearDown(r.dispose);
+      await r.ready();
+      expect(r.c.read(scopeProvider).branchId, isNull);
+      await go(r, '/inventory/transfers');
+      expect(r.c.read(scopeProvider).branchId, wh);
     });
   });
 }

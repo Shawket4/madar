@@ -5,7 +5,6 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/rules/rules_cards.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'rules_support.dart';

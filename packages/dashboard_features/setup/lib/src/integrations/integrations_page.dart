@@ -362,7 +362,7 @@ class _CredentialsTable extends ConsumerWidget {
         DashColumn<CredentialSummary>(
           id: 'last_used_at',
           label: t('integrations.lastUsed'),
-          minWidth: 150,
+          minWidth: 190,
           // The raw timestamp, as TanStack searches it (SET-INT-007).
           searchable: lastUsedSearchable(rows),
           text: (r) => r.lastUsedAt == null ? '' : isoString(r.lastUsedAt!),
@@ -375,7 +375,6 @@ class _CredentialsTable extends ConsumerWidget {
                   )
                 : Text(
                     fmt.fmtDateTime(r.lastUsedAt),
-                    textDirection: TextDirection.ltr,
                     style: DashType.mono.copyWith(color: c.textPrimary),
                   ),
           ),

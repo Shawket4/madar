@@ -1,0 +1,13 @@
+# Setup / Integrations (`/settings/integrations`): differences from the web
+
+One line per difference: what the web does, what Flutter does, why. Rows marked "question" port
+the web's behaviour as it is and ask the owner whether it is intended.
+
+| Row | Web | Flutter | Why |
+|---|---|---|---|
+| SET-INT-031 grants loading | The pane reads `integrationsRead` before the grants are loaded, so the lock ("Not available on this account") can flash before the real pane. | Nothing is drawn until the grants are known (the access error with Retry if they fail to load). | A refusal that flashes for a person who is allowed is a web bug (SPEC 6.3). Pinned by `integrations_page_test` "SET-INT-031 (divergence)…". |
+| SET-INT-016 label too long | zod's `.max(120)` has no message, so the error is zod's English default (also on the Arabic screen). | "At most 120 characters" (`common.atMostChars`), in the active language. | English inside the Arabic UI is a web bug. Pinned by `credential_dialog_test` "SET-INT-016…". |
+| SET-INT-020/026 the download | The browser downloads the file silently; it always counts as downloaded, so Done never warns after an automatic download. | The file goes through the app's save (a save panel on desktop, the share sheet on a phone). A cancelled save does not count: the passphrase shows, "Download again" stays available, and Done warns "Close without the file?". A save that throws shows the "could not be built" panel with Try again. | A native save can be cancelled; counting it would let the person close and lose the only copy of the password, which the web's warning exists to prevent. Pinned by `handoff_test` "SET-INT-026…". |
+| SET-INT-024 the failure's words | `getErrorMessage(error)`: a missing secure random source shows the thrown English sentence. | A missing secure source shows `integrations.handoff.noSecureRandom` in the active language; any other failure the shared error words (`errors.unknown` for a non-server error). | Raw English error text inside the Arabic UI is a web bug. |
+| SET-INT-018 slug | `normalize("NFKD")`. | Dart has no Unicode normalisation: a generated table (`nfkd_slug_table.dart`, Unicode 15.1) folds every code point whose NFKD keeps a letter or digit. | Same usernames for every label; a character added to Unicode after 15.1 is slugged as "-" until the table is regenerated. |
+| SET-INT-021 footer | `sm:justify-between`: "Download again" at the start, "Done" at the end. | Both at the end (the kit's dialog footer); stacked full width on a phone. | Kit layout; same buttons, same order. |

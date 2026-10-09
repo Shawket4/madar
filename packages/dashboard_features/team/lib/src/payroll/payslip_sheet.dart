@@ -39,7 +39,7 @@ class _PayslipSheetState extends ConsumerState<PayslipSheet> {
     final t = ref.read(tProvider);
     final ok = await showDashConfirm(
       context,
-      title: t('dawam.deleteLineTitle', args: {'line': l.label}),
+      title: t('dawam.deleteLineTitle', args: {'line': lineLabel(l, t)}),
       description: t('dawam.deleteLineHint'),
       confirmLabel: t('common.delete'),
       destructive: true,
@@ -178,7 +178,7 @@ class _PayslipSheetState extends ConsumerState<PayslipSheet> {
                 onPressed: () => showWaiveDialog(
                   context,
                   deductionId: l.deductionId!,
-                  label: l.label,
+                  label: lineLabel(l, t),
                 ),
               ),
               DashIconButton(
@@ -187,7 +187,7 @@ class _PayslipSheetState extends ConsumerState<PayslipSheet> {
                 onPressed: () => showOverrideDialog(
                   context,
                   deductionId: l.deductionId!,
-                  label: l.label,
+                  label: lineLabel(l, t),
                   current: -l.amount,
                 ),
               ),
@@ -199,7 +199,7 @@ class _PayslipSheetState extends ConsumerState<PayslipSheet> {
                 onPressed: () => showUnwaiveDialog(
                   context,
                   deductionId: l.waivedId!,
-                  label: l.label,
+                  label: lineLabel(l, t),
                 ),
               ),
             if (mayTouch(l) && l.manual)

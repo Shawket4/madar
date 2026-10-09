@@ -131,6 +131,10 @@ class _DashShellState extends ConsumerState<DashShell> {
     final uri = widget.state.uri;
     if (uri != _scopeFrom) {
       _scopeFrom = uri;
+      // After the frame: a provider cannot change while the tree builds.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(shellPathProvider.notifier).show(uri.path);
+      });
       const keys = {'branchId', 'preset'};
       if (uri.queryParameters.keys.any(keys.contains)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {

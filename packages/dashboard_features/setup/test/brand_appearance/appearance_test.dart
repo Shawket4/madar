@@ -11,11 +11,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support.dart';
 
 Finder _row(String key) => inAppearance(byKey(key));
-Finder _inRow(String key, Finder f) => find.descendant(of: _row(key), matching: f);
-Finder _glyph(String key, String name) => _inRow(
-  key,
-  find.byWidgetPredicate((w) => w is DashIcon && w.name == name),
-);
+Finder _inRow(String key, Finder f) =>
+    find.descendant(of: _row(key), matching: f);
+Finder _glyph(String key, String name) =>
+    _inRow(key, find.byWidgetPredicate((w) => w is DashIcon && w.name == name));
 
 Brightness _brightness(WidgetTester tester) =>
     Theme.of(tester.element(find.byType(AppearancePage))).brightness;
@@ -122,11 +121,7 @@ void main() {
   testWidgets('SET-APP-005 a platform admin\'s role reads Super Admin', (
     tester,
   ) async {
-    await pumpBrand(
-      tester,
-      path: appearancePath,
-      persona: Persona.platform,
-    );
+    await pumpBrand(tester, path: appearancePath, persona: Persona.platform);
     expect(_inRow('app-account', find.text('Madar Support')), findsOneWidget);
     expect(_inRow('app-account', find.text('Super Admin')), findsOneWidget);
   });
@@ -154,7 +149,10 @@ void main() {
     expect(_inRow('app-version', find.text('M')), findsOneWidget);
     expect(_inRow('app-version', find.text('Madar')), findsOneWidget);
     expect(_inRow('app-version', find.text('© 2026 Madar')), findsOneWidget);
-    expect(_inRow('app-version', find.textContaining('v1.0.0')), findsOneWidget);
+    expect(
+      _inRow('app-version', find.textContaining('v1.0.0')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('SET-APP-008 no "Delete your account"', (tester) async {
@@ -181,8 +179,10 @@ void main() {
   testWidgets('SET-APP-001 Arabic: the pane in Arabic, the language names as '
       'written', (tester) async {
     final h = await pumpBrand(tester, path: appearancePath, locale: 'ar');
-    expect(inAppearance(find.text(h.t('settings.appearanceDesc'))),
-        findsOneWidget);
+    expect(
+      inAppearance(find.text(h.t('settings.appearanceDesc'))),
+      findsOneWidget,
+    );
     expect(_inRow('app-language', find.text('English')), findsOneWidget);
     expect(inAppearance(find.text('الاحتفاظ بالبيانات')), findsOneWidget);
   });

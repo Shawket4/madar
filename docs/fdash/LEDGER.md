@@ -303,3 +303,8 @@ PEER madar-92: next web merge = one batch (MadarDashboard only): TS copies of ma
 DONE setup/kitchen + delivery (minors fixed; 230 tests). KIT: DashNumberField.onSubmitted.
 BUILT team/requests (34/34; requests+approvals 141 pass) → VERIFY QUEUED. KIT: DashDateField popover overflows with 220–360 px below (flip or cap height).
 DONE inventory/waste (fixed; 88 tests)
+BUILT setup/qr (28/28, 60 tests) → VERIFY QUEUED. Uses the printing package (already in setup pubspec). KIT: print gateway in core; QrImage dup with shared/qr_preview_dialog.dart. Setup package analyze: integrations_mock_test non-const default (integrations builder in progress).
+BUILT setup/integrations (32/32, 100 tests) → VERIFY QUEUED (check against af50aa63 credential-dialog change). KIT: DashStatCard skeleton fixed widths overflow phone 3-up; dialog footer both-ends slot.
+BUILT team/rules (34/34 RUL + ALL rows; rules+shared 111 pass) → VERIFY QUEUED. Shared attendance_errors.dart gained fieldLabel + SETTING_OUT_OF_RANGE. Ladder pricing NOT merged (different rung types) → team area check.
+VERIFIED team/payroll NOT (3 major: retry toast, raw line labels in Arabic dialogs, money dialogs seed once) + approvals AT PARITY (minors) → pending/team-payroll-approvals.md
+DONE team/shifts + schedule (fixed; 406 tests; schedule's refresh_listener.dart deleted). KIT: DashPopover centre alignment; DashDateField onIntent.
