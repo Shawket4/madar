@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_overview/src/home/home_page.dart';
@@ -74,7 +75,7 @@ void main() {
     ) async {
       final h = await pumpHome(tester);
       expect(h.location.path, '/');
-      expect(find.text('Welcome back, Nour El-Sayed'), findsOneWidget);
+      expect(homeText('Welcome back, Nour El-Sayed'), findsOneWidget);
       expect(find.text('Dashboard'), findsWidgets);
     });
 
@@ -125,17 +126,17 @@ void main() {
       expect(kpi(tester, 'Revenue').loading, isFalse);
       expect(kpi(tester, 'Orders').value, 0);
       expect(
-        find.text('Sales for this period will appear here.'),
+        homeText('Sales for this period will appear here.'),
         findsNWidgets(3),
       );
       expect(
-        find.text('Margins appear here once items sell in this period'),
+        homeText('Margins appear here once items sell in this period'),
         findsOneWidget,
       );
       expect(kpi(tester, 'Delivery revenue').value, 0);
-      expect(find.text('In-mall delivery'), findsNothing);
-      expect(find.text('Open tills'), findsNothing);
-      expect(find.text('Keep building'), findsNothing);
+      expect(homeText('In-mall delivery'), findsNothing);
+      expect(homeText('Open tills'), findsNothing);
+      expect(homeText('Keep building'), findsNothing);
       expect(scopePart('All branches'), findsOneWidget);
       for (final t in [_sales, _series, _cmp, _delivery, _watch, _onboarding]) {
         expect(h.server.callsTo(t), isEmpty, reason: t);
@@ -159,9 +160,30 @@ void main() {
     testWidgets('OVW-HOME-008 the sidebar\'s Overview › Dashboard is active', (
       tester,
     ) async {
-      await pumpHome(tester);
-      expect(find.text('Overview'), findsWidgets);
-      expect(find.text('Dashboard'), findsWidgets);
+      final h = await pumpHome(tester);
+      h.allowUnmatched = true; // the tills page is another area's
+      final sidebar = find.byType(DashSidebar);
+      Finder row(String text) =>
+          find.descendant(of: sidebar, matching: find.text(text));
+      expect(row('Overview'), findsOneWidget);
+      expect(row('Dashboard'), findsOneWidget);
+      expect(
+        tester.getSemantics(row('Dashboard')),
+        isSemantics(isSelected: true),
+      );
+      await h.go('/tills');
+      expect(
+        tester.getSemantics(row('Dashboard')),
+        isSemantics(isSelected: false),
+      );
+      // The logo leads home too.
+      await h.tap(
+        find.descendant(of: sidebar, matching: find.byType(ShellWordmark)),
+      );
+      expect(h.location.path, '/');
+      await h.tap(row('Orders'));
+      await h.tap(row('Dashboard'));
+      expect(h.location.path, '/');
     });
 
     testWidgets('OVW-HOME-010 a deep link picks the branch', (tester) async {
@@ -170,7 +192,7 @@ void main() {
       expect(calls, isNotEmpty);
       expect(calls.last.path, '/reports/branches/${SeedIds.zamalek}/sales');
       expect(calls.last.query.keys.toSet(), {'from', 'to'});
-      expect(find.text('Open tills'), findsOneWidget);
+      expect(homeText('Open tills'), findsOneWidget);
       expect(h.realtime.current?.branchId, SeedIds.zamalek);
       expect(scopePart('Zamalek'), findsOneWidget);
     });
@@ -208,7 +230,7 @@ void main() {
       tester,
     ) async {
       final h = await pumpHome(tester);
-      expect(find.text('Open tills'), findsNothing);
+      expect(homeText('Open tills'), findsNothing);
       expect(h.server.callsTo(_sales), isEmpty);
       await h.tapText('All branches');
       await pick(h, 'Maadi');
@@ -217,11 +239,11 @@ void main() {
       expect(h.server.callsTo(_delivery).last.path, contains(SeedIds.maadi));
       expect(h.server.callsTo(_watch).last.path, contains(SeedIds.maadi));
       expect(h.server.callsTo(_tills).last.path, contains(SeedIds.maadi));
-      expect(find.text('Open tills'), findsOneWidget);
+      expect(homeText('Open tills'), findsOneWidget);
       expect(kpi(tester, 'Revenue').value, totals(h, [SeedIds.maadi]).revenue);
       await h.tapText('Maadi');
       await pick(h, 'All branches');
-      expect(find.text('Open tills'), findsNothing);
+      expect(homeText('Open tills'), findsNothing);
       // All branches again: its trend is still fresh (< 30 s), shown from the
       // cache without a second request, as the web's staleTime does.
       expect(
@@ -268,10 +290,10 @@ void main() {
       final h = await pumpHome(tester, persona: Persona.manager);
       expect(find.text('All branches'), findsNothing); // no picker
       expect(scopePart('All branches'), findsOneWidget);
-      expect(find.text('Open tills'), findsNothing);
+      expect(homeText('Open tills'), findsNothing);
       expect(kpi(tester, 'Revenue').value, totals(h, _sabah).revenue);
       expect(h.server.callsTo(_series).last.path, contains(nilBranchId));
-      expect(find.text('Keep building'), findsNothing);
+      expect(homeText('Keep building'), findsNothing);
       expect(h.server.callsTo(_onboarding), isEmpty);
     });
   });
@@ -283,7 +305,7 @@ void main() {
       final s = homeServer();
       s.db['users'].update(SeedIds.owner, {'name': ''});
       await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text('Welcome back'), findsOneWidget);
+      expect(homeText('Welcome back'), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-019/020/021 branch, period and zone', (tester) async {
@@ -348,9 +370,9 @@ void main() {
       tester,
     ) async {
       final h = await pumpHome(tester);
-      expect(find.text('Your café is open · 8/10 set up'), findsOneWidget);
+      expect(homeText('Your café is open · 8/10 set up'), findsOneWidget);
       expect(
-        find.text(
+        homeText(
           'Keep building — add recipes, your team and more to unlock cost insights.',
         ),
         findsOneWidget,
@@ -372,12 +394,12 @@ void main() {
     ) async {
       final h = await pumpHome(tester);
       await h.tapLabel('Dismiss');
-      expect(find.text('Keep building'), findsNothing);
+      expect(homeText('Keep building'), findsNothing);
       final before = h.server.callsTo(_onboarding).length;
       h.allowUnmatched = true;
       await h.go('/tills');
       await h.go('/');
-      expect(find.text('Keep building'), findsNothing);
+      expect(homeText('Keep building'), findsNothing);
       expect(h.server.callsTo(_onboarding).length, before);
     });
 
@@ -388,7 +410,7 @@ void main() {
       });
       s.db['ingredients'].insert({'id': 'i1', 'org_id': SeedIds.sabahOrg});
       await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text('Keep building'), findsNothing);
+      expect(homeText('Keep building'), findsNothing);
     });
 
     testWidgets('OVW-HOME-028 hidden while loading and on failure', (
@@ -397,11 +419,11 @@ void main() {
       final s = homeServer();
       final gate = s.server.hold('GET', _onboarding);
       final h = await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text('Keep building'), findsNothing);
+      expect(homeText('Keep building'), findsNothing);
       expect(find.byType(DashSkeleton), findsNothing);
       gate.release();
       await h.settle();
-      expect(find.text('Keep building'), findsOneWidget);
+      expect(homeText('Keep building'), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-028 a refused read hides it', (tester) async {
@@ -413,14 +435,14 @@ void main() {
         times: null,
       );
       await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text('Keep building'), findsNothing);
+      expect(homeText('Keep building'), findsNothing);
     });
 
     testWidgets('OVW-HOME-029 a teller never sees it, nothing is asked', (
       tester,
     ) async {
       final h = await pumpHome(tester, persona: Persona.limited);
-      expect(find.text('Keep building'), findsNothing);
+      expect(homeText('Keep building'), findsNothing);
       expect(h.server.callsTo(_onboarding), isEmpty);
     });
 
@@ -434,10 +456,10 @@ void main() {
           ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg}),
         },
       );
-      expect(find.text('Keep building'), findsOneWidget);
+      expect(homeText('Keep building'), findsOneWidget);
       expect(h.location.path, '/');
       await h.tapLabel('Dismiss');
-      expect(find.text('Keep building'), findsNothing);
+      expect(homeText('Keep building'), findsNothing);
     });
   });
 
@@ -475,8 +497,8 @@ void main() {
         o['tip_amount'] = null;
       }
       await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text('Tips'), findsNothing);
-      expect(find.text('Avg ticket'), findsNWidgets(2));
+      expect(homeText('Tips'), findsNothing);
+      expect(homeText('Avg ticket'), findsNWidgets(2));
     });
 
     testWidgets('OVW-HOME-037 Voided tints only when there are voids', (
@@ -528,7 +550,7 @@ void main() {
       );
       final revenue = kpi(tester, 'Revenue').value!;
       final exact = h.container.read(formatProvider).fmtMoney(revenue);
-      expect(find.text(exact), findsNothing);
+      expect(homeText(exact), findsNothing);
       await h.tapLabel(
         'Revenue: ${DashKitFormats(languageCode: 'en').money(revenue.toInt())}',
       );
@@ -568,7 +590,7 @@ void main() {
       await pumpHome(tester, server: s.server, db: s.db);
       expect(kpi(tester, 'Revenue').value, 0);
       expect(kpi(tester, 'Orders').value, 0);
-      expect(find.textContaining("You don't have permission"), findsNothing);
+      expect(homeHas("You don't have permission"), findsNothing);
     });
   });
 
@@ -580,17 +602,17 @@ void main() {
       final open = h.db!['tills'].rows.firstWhere(
         (t) => t['branch_id'] == SeedIds.maadi && t['status'] == 'open',
       );
-      expect(find.text('Open tills'), findsOneWidget);
+      expect(homeText('Open tills'), findsOneWidget);
       expect(
-        find.textContaining(open['teller_name']! as String, findRichText: true),
+        homeHas(open['teller_name']! as String, findRichText: true),
         findsOneWidget,
       );
-      expect(find.textContaining('T1', findRichText: true), findsWidgets);
+      expect(homeHas('T1', findRichText: true), findsWidgets);
       final age = h.container
           .read(formatProvider)
           .fmtDuration(open['opened_at']);
       expect(age, matches(RegExp(r'^\d+h \d\dm$')));
-      expect(find.text(age), findsOneWidget);
+      expect(homeText(age), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-046 loading: one skeleton block', (tester) async {
@@ -602,18 +624,23 @@ void main() {
         db: s.db,
         path: '/?branchId=${SeedIds.maadi}',
       );
-      expect(find.text('Open tills'), findsNothing);
+      expect(homeText('Open tills'), findsNothing);
       gate.release();
       await h.settle();
-      expect(find.text('Open tills'), findsOneWidget);
+      expect(homeText('Open tills'), findsOneWidget);
     });
 
-    testWidgets('OVW-HOME-048 View all opens the tills page', (tester) async {
-      final h = await pumpHome(tester, path: '/?branchId=${SeedIds.maadi}');
-      h.allowUnmatched = true;
-      await h.tapText('View all');
-      expect(h.location.path, '/tills');
-    });
+    testWidgets(
+      'OVW-HOME-048 (divergence) View all opens the tills page, scope kept',
+      (tester) async {
+        final h = await pumpHome(tester, path: '/?branchId=${SeedIds.maadi}');
+        h.allowUnmatched = true;
+        await h.tapText('View all');
+        expect(h.location.path, '/tills');
+        // The scope is app state: the branch stays picked (divergence log).
+        expect(h.container.read(currentScopeProvider).branchId, SeedIds.maadi);
+      },
+    );
 
     testWidgets(
       'OVW-HOME-049/054 none open, or the read failed: "No open till"',
@@ -631,8 +658,8 @@ void main() {
           db: s.db,
           path: '/?branchId=${SeedIds.maadi}',
         );
-        expect(find.text('No open till'), findsOneWidget);
-        expect(find.text('Retry'), findsNothing);
+        expect(homeText('No open till'), findsOneWidget);
+        expect(homeText('Retry'), findsNothing);
       },
     );
 
@@ -657,16 +684,16 @@ void main() {
         db: s.db,
         path: '/?branchId=${SeedIds.maadi}',
       );
-      expect(find.text('Not verified'), findsOneWidget);
-      expect(find.text('Verified on LAN'), findsOneWidget);
-      expect(find.text('Opened while another till was open'), findsOneWidget);
-      expect(find.text('See the other till'), findsNothing);
+      expect(homeText('Not verified'), findsOneWidget);
+      expect(homeText('Verified on LAN'), findsOneWidget);
+      expect(homeText('Opened while another till was open'), findsOneWidget);
+      expect(homeText('See the other till'), findsNothing);
       // Newest first: Salma opened later.
       final salma = tester.getTopLeft(
-        find.textContaining('Salma Fathy', findRichText: true),
+        homeHas('Salma Fathy', findRichText: true),
       );
       final first = tester.getTopLeft(
-        find.textContaining(open['teller_name']! as String, findRichText: true),
+        homeHas(open['teller_name']! as String, findRichText: true),
       );
       expect(salma.dy, lessThan(first.dy));
     });

@@ -47,12 +47,8 @@ extension HomeKeys on Scope {
   HomeRange get orgRange => (id: orgId!, from: from, to: to);
 
   /// E2: hourly for today / yesterday, else daily.
-  HomeSeries get series => (
-    id: scopeBranchId,
-    from: from,
-    to: to,
-    granularity: granularity,
-  );
+  HomeSeries get series =>
+      (id: scopeBranchId, from: from, to: to, granularity: granularity);
 }
 
 /// E1 `GET /reports/branches/{branchId}/sales` — only with a branch picked.

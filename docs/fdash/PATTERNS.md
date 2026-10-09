@@ -19,6 +19,7 @@ test/support.dart                pump helper + a seeded server you can edit befo
 test/<page>_test.dart            driven tests, one per inventory row, row id in the name
 test/<page>_mock_test.dart       the handlers' figures against hand-computed ones
 test/<page>_shots_test.dart      the screenshot matrix
+test/home_frame_test.dart        (overview) layout, motion, keyboard, theme, prefetch, retry recipes
 ```
 
 ## 2. Route
@@ -86,6 +87,8 @@ final q = watchIf(ref, scope.orgId != null, () => homeTimeseriesProvider(scope.s
   figure inside running text with `ltr(...)`. Cut text is `MadarClippedText`.
 - Colours and spacing: `context.madarColors`, `DashTone`, `Space`, `Radii`, `DashType`, `DashMetrics`.
   Fixed web heights become named constants (`HomeMetrics.chart = Space.xxl * 8` for `h-64`).
+- Entrance motion: the web's `fadeInUp` / `listItem` inside `staggerContainer(x)` is
+  `HomeReveal(order: i, step: x ms)` (160 ms, 6 px rise, nothing under reduced motion).
 
 ## 4. Reads: providers and the cache key
 
@@ -96,7 +99,7 @@ final homeBranchSalesProvider = FutureProvider.autoDispose
       ref.webCache();                                                   // FIRST, always
       ref.watch(realtimeEpochProvider('/reports/branches/${k.id}/sales')); // live + mutations
       return ref.watch(apiProvider).reports.branchSales(
-          branchId: k.id, from: DateTime.parse(k.from), to: DateTime.parse(k.to));
+          branchId: k.id, from: _instant(k.from), to: _instant(k.to));   // DateTime.parse
     });
 ```
 
@@ -159,23 +162,26 @@ server.on('GET', '/reports/branches/{branchId}/sales', (req) {
 ## 7. Driven tests
 
 ```dart
-testWidgets('OVW-HOME-059 error and Retry', (tester) async {
-  final s = homeServer();                                   // seeded server, edit before pumping
-  s.server.fail('GET', _series, MockResponse.error(500, 'boom'), times: null);
+testWidgets('OVW-HOME-105 a card\'s Retry asks only its own read', (tester) async {
+  final s = homeServer();                          // seeded server: edit db/answers before pumping
+  s.server.fail('GET', _series, MockResponse.error(500, 'boom'));
   final h = await pumpHome(tester, server: s.server, db: s.db);
-  final card = find.ancestor(of: find.text('Revenue trend'), matching: find.byType(DashChartCard));
-  expect(find.descendant(of: card, matching: find.text("Couldn't load the revenue trend")), findsOneWidget);
-  s.server.clearFailures();
-  await h.tap(find.descendant(of: card, matching: find.text('Retry')));
-  expect(h.server.callsTo(_series).last.path, '/reports/branches/$nilBranchId/sales/timeseries');
+  int count(String t) => h.server.callsTo(t).length;
+  final others = {for (final t in [_cmp, _delivery, _watch]) t: count(t)};
+  await h.tap(find.descendant(of: find.byType(HomeRevenueTrendCard), matching: find.text('Retry')));
+  expect(inHome(find.byType(DashLineChart)), findsOneWidget);
+  for (final e in others.entries) expect(count(e.key), e.value, reason: e.key);
 });
 ```
 
 - One test per inventory row, the row id(s) first in the name (`'OVW-HOME-033/034 …'`), so a grep of
   test names gives coverage. Refusal, empty, loading and error each get a test.
-- SCOPE every finder to the widget under test. The shell builds every sidebar row, and pages share
-  words ("Orders" is a sidebar row and a KPI label): `find.descendant(of: find.byType(HomePage), …)`,
-  `of: find.byType(DashSidebar)`, of a card/table/dialog. Prefer `findsOneWidget` over `findsWidgets`.
+- SCOPE every finder. The shell builds every sidebar row and the header repeats words ("All
+  branches", "Dashboard", "Orders"); and a consistent seed repeats figures (the delivery total =
+  the Talabat payment line). Scope to the page (`inHome(f)` / `homeText('…')` in `support.dart`),
+  the card (`find.descendant(of: find.byType(HomeRevenueTrendCard), …)`), `DashSidebar`, a dialog.
+  Where a figure legitimately repeats, count before and after (`findsNWidgets(before + 1)`). Tap the
+  thing a person taps (the compact text), not a semantics label another widget may also carry.
 - Personas: `owner`, `manager`, `limited`, `platform`, `dawamOnly`, `null` (signed out).
 - Loading: `final gate = s.server.hold('GET', template)` … assert skeleton … `gate.release();
   await h.settle()`. Export in flight: `h.exports.hold = completer.future`.
@@ -191,6 +197,27 @@ testWidgets('OVW-HOME-059 error and Retry', (tester) async {
   English in Arabic, and a layout overflow. Never silence those to pass.
 - Words in assertions: the English literal, or `h.t('key')` when the literal is long.
 - Pure rules (`<page>_data.dart`, `signalReason`) also get plain unit tests.
+
+Recipes from `home_frame_test.dart` (copy the helpers):
+- Hover / prefetch: `final m = await tester.createGesture(kind: PointerDeviceKind.mouse);
+  await m.addPointer(location: Offset.zero); addTearDown(m.removePointer); await m.moveTo(…)`.
+  The prefetch test starts on another path, hovers the sidebar row, asserts one request, taps,
+  asserts still one.
+- A width between the harness sizes: `tester.view.physicalSize = Size(700, 900) *
+  DashSize.pixelRatio; await h.settle();` (`resize`). Columns: count distinct `dy` (`rowsOf`).
+- Motion: `pumpHome(…, reducedMotion: false)`, then `tester.pump(Duration(milliseconds: …))` and read
+  `FadeTransition.opacity.value` / the shown figure; end with `await h.settle()`.
+- Keyboard: `tabTo(tester, finder)` presses Tab until `primaryFocus` is on it; then Enter/Escape
+  with `tester.sendKeyEvent`.
+- The app's retry policy: a bare `ProviderContainer(retry: webRetry, overrides:
+  [transportProvider.overrideWithValue(s.server), orgIdProvider.overrideWithValue(org)])`, listen to
+  the read, `tester.pump(const Duration(seconds: 1))` × 20, count calls (403 → 1, 500 → 2, 429 → 4).
+  The harness itself runs with retries off.
+- Charts: fl_chart paints tooltips (no widgets to find): assert the data the chart was given
+  (`tester.widget<DashLineChart>(…).labels/series/formatValue`), hover, and look at the shot. Axis
+  ticks are `SideTitleWidget`s (`meta.axisSide`).
+- Kit behaviour that differs from the web (breakpoints, chart mirroring): pin what the kit does,
+  log it as a "kit" divergence, report it; do not fork the widget.
 
 ## 8. Screenshot matrix (`home_shots_test.dart`)
 

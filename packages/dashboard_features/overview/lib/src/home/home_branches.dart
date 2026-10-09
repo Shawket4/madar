@@ -30,9 +30,8 @@ class HomeBranchPerformanceCard extends ConsumerWidget {
         framed: false,
         title: t('dashboard.branchesFailed'),
         retryLabel: t('common.retry'),
-        onRetry: () => ref.invalidate(
-          homeComparisonProvider(data.scope.orgRange),
-        ),
+        onRetry: () =>
+            ref.invalidate(homeComparisonProvider(data.scope.orgRange)),
       );
     } else if (ranked.isEmpty) {
       body = DashEmptyState(framed: false, title: t('dashboard.noSalesPeriod'));

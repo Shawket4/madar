@@ -95,15 +95,15 @@ void main() {
       final s = homeServer();
       s.server.fail('GET', _series, boom());
       final h = await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text("Couldn't load the revenue trend"), findsOneWidget);
+      expect(homeText("Couldn't load the revenue trend"), findsOneWidget);
       final before = h.server.callsTo(_series).length;
       await h.tap(
         find.descendant(
           of: find.ancestor(
-            of: find.text("Couldn't load the revenue trend"),
+            of: homeText("Couldn't load the revenue trend"),
             matching: find.byType(DashErrorState),
           ),
-          matching: find.text('Retry'),
+          matching: homeText('Retry'),
         ),
       );
       expect(h.server.callsTo(_series).length, before + 1);
@@ -115,7 +115,7 @@ void main() {
       s.server.on('GET', _series, (req) => MockResponse.ok(const []));
       await pumpHome(tester, server: s.server, db: s.db);
       expect(
-        find.text('Sales for this period will appear here.'),
+        homeText('Sales for this period will appear here.'),
         findsOneWidget,
       );
     });
@@ -162,7 +162,7 @@ void main() {
       final h = await pumpHome(tester, path: '/?branchId=${SeedIds.zamalek}');
       final map = revenueByMethod(orders(h, [SeedIds.zamalek]));
       final fmt = h.container.read(formatProvider);
-      expect(find.text(fmt.fmtMoney(map['cash'])), findsOneWidget);
+      expect(homeText(fmt.fmtMoney(map['cash'])), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-067 loading: a skeleton', (tester) async {
@@ -181,16 +181,16 @@ void main() {
       final s = homeServer();
       s.server.fail('GET', _cmp, boom());
       final h = await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text("Couldn't load the payment mix"), findsOneWidget);
-      expect(find.text("Couldn't load branch performance"), findsOneWidget);
+      expect(homeText("Couldn't load the payment mix"), findsOneWidget);
+      expect(homeText("Couldn't load branch performance"), findsOneWidget);
       final before = h.server.callsTo(_cmp).length;
       await h.tap(
         find.descendant(
           of: find.ancestor(
-            of: find.text("Couldn't load the payment mix"),
+            of: homeText("Couldn't load the payment mix"),
             matching: find.byType(DashErrorState),
           ),
-          matching: find.text('Retry'),
+          matching: homeText('Retry'),
         ),
       );
       expect(h.server.callsTo(_cmp).length, before + 1);
@@ -211,7 +211,7 @@ void main() {
       final before = h.server.callsTo(_sales).length;
       await h.tapText('Retry');
       expect(h.server.callsTo(_sales).length, before + 1);
-      expect(find.text("Couldn't load the payment mix"), findsNothing);
+      expect(homeText("Couldn't load the payment mix"), findsNothing);
     });
 
     testWidgets('OVW-HOME-069 nothing taken: the sentence', (tester) async {
@@ -222,10 +222,10 @@ void main() {
       // Trend and payment mix say it; branch performance still lists the
       // branches at zero.
       expect(
-        find.text('Sales for this period will appear here.'),
+        homeText('Sales for this period will appear here.'),
         findsNWidgets(2),
       );
-      expect(find.text('Heliopolis'), findsOneWidget);
+      expect(homeText('Heliopolis'), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-070/071 an org-defined method shows its code', (
@@ -239,7 +239,7 @@ void main() {
         {'method': 'instapay', 'amount': o['total_amount'], 'is_cash': false},
       ];
       await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text('instapay'), findsOneWidget);
+      expect(homeText('instapay'), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-070 method colours come from the theme', (
@@ -263,12 +263,12 @@ void main() {
       final fmt = h.container.read(formatProvider);
       var y = -1.0;
       for (final r in ranked) {
-        final name = find.text(r.row.branchName).last;
+        final name = homeText(r.row.branchName).last;
         expect(tester.getTopLeft(name).dy, greaterThan(y));
         y = tester.getTopLeft(name).dy;
-        expect(find.text(fmt.fmtMoney(r.row.totalRevenue)), findsOneWidget);
+        expect(homeText(fmt.fmtMoney(r.row.totalRevenue)), findsOneWidget);
         expect(
-          find.textContaining(
+          homeHas(
             '${fmt.fmtNumber(r.row.totalOrders)}\u2069 orders',
             findRichText: true,
           ),
@@ -301,15 +301,15 @@ void main() {
       final s = homeServer();
       s.server.fail('GET', _cmp, boom());
       final h = await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text("Couldn't load branch performance"), findsOneWidget);
+      expect(homeText("Couldn't load branch performance"), findsOneWidget);
       final before = h.server.callsTo(_cmp).length;
       await h.tap(
         find.descendant(
           of: find.ancestor(
-            of: find.text("Couldn't load branch performance"),
+            of: homeText("Couldn't load branch performance"),
             matching: find.byType(DashErrorState),
           ),
-          matching: find.text('Retry'),
+          matching: homeText('Retry'),
         ),
       );
       expect(h.server.callsTo(_cmp).length, before + 1);
@@ -329,7 +329,7 @@ void main() {
       );
       await pumpHome(tester, server: s.server, db: s.db);
       expect(
-        find.text('Sales for this period will appear here.'),
+        homeText('Sales for this period will appear here.'),
         findsNWidgets(2),
       );
     });
@@ -352,7 +352,7 @@ void main() {
       final h = await pumpHome(tester, size: DashSize.phone);
       final r = _row(h, SeedIds.newCairo);
       final fmt = h.container.read(formatProvider);
-      expect(find.text(fmt.fmtMoneyCompact(r.totalRevenue)), findsOneWidget);
+      expect(homeText(fmt.fmtMoneyCompact(r.totalRevenue)), findsOneWidget);
       await h.tap(find.bySemanticsLabel(fmt.fmtMoney(r.totalRevenue)));
       expect(find.text(fmt.fmtMoney(r.totalRevenue)), findsOneWidget);
       await h.shot('home/branch-revenue-popover');
@@ -373,28 +373,28 @@ void main() {
       );
       final fmt = h.container.read(formatProvider);
       final t = h.container.read(tProvider);
-      expect(find.text('Margin watch'), findsOneWidget);
-      expect(find.text(fmt.fmtMoney(w.totals.marginKnown)), findsOneWidget);
+      expect(homeText('Margin watch'), findsOneWidget);
+      expect(homeText(fmt.fmtMoney(w.totals.marginKnown)), findsOneWidget);
       expect(
-        find.text(fmt.fmtPercent(w.totals.marginPct! / 100)),
+        homeText(fmt.fmtPercent(w.totals.marginPct! / 100)),
         findsOneWidget,
       );
-      expect(find.text('${w.openSignals} open signals'), findsOneWidget);
+      expect(homeText('${w.openSignals} open signals'), findsOneWidget);
       expect(
-        find.text('${w.rowsCostUnknown} items missing cost'),
+        homeText('${w.rowsCostUnknown} items missing cost'),
         findsOneWidget,
       );
-      expect(find.text('Top earners'), findsOneWidget);
-      expect(find.text('Needs attention'), findsOneWidget);
+      expect(homeText('Top earners'), findsOneWidget);
+      expect(homeText('Needs attention'), findsOneWidget);
       for (final r in [...w.top, ...w.bottom]) {
-        expect(find.text(fmt.fmtMoney(r.margin)), findsWidgets);
+        expect(homeText(fmt.fmtMoney(r.margin)), findsWidgets);
         final second = r.flags.isNotEmpty
             ? signalReason(t, fmt, r.flags.first)
             : '${r.quantitySold} sold · ${fmt.fmtPercent(r.marginPct! / 100)}';
-        expect(find.text(second), findsWidgets, reason: r.itemName);
+        expect(homeText(second), findsWidgets, reason: r.itemName);
         final size = r.sizeLabel == 'one_size' ? '' : ' · ${r.sizeLabel}';
         expect(
-          find.text('${r.itemName}$size', findRichText: true),
+          homeText('${r.itemName}$size', findRichText: true),
           findsWidgets,
         );
       }
@@ -435,28 +435,28 @@ void main() {
       final s = homeServer();
       s.server.fail('GET', _watch, boom());
       final h = await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text("Couldn't load margin watch"), findsOneWidget);
+      expect(homeText("Couldn't load margin watch"), findsOneWidget);
       final gate = s.server.hold('GET', _watch);
       await h.tap(
         find.descendant(
           of: find.ancestor(
-            of: find.text("Couldn't load margin watch"),
+            of: homeText("Couldn't load margin watch"),
             matching: find.byType(DashErrorState),
           ),
-          matching: find.text('Retry'),
+          matching: homeText('Retry'),
         ),
       );
       final state = tester.widget<DashErrorState>(
         find.ancestor(
-          of: find.text("Couldn't load margin watch"),
+          of: homeText("Couldn't load margin watch"),
           matching: find.byType(DashErrorState),
         ),
       );
       expect(state.retrying, isTrue);
       gate.release();
       await h.settle();
-      expect(find.text("Couldn't load margin watch"), findsNothing);
-      expect(find.text('Top earners'), findsOneWidget);
+      expect(homeText("Couldn't load margin watch"), findsNothing);
+      expect(homeText('Top earners'), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-083 empty: the sentence', (tester) async {
@@ -464,7 +464,7 @@ void main() {
       s.db['orders'].clear();
       await pumpHome(tester, server: s.server, db: s.db);
       expect(
-        find.text('Margins appear here once items sell in this period'),
+        homeText('Margins appear here once items sell in this period'),
         findsOneWidget,
       );
     });
@@ -511,9 +511,9 @@ void main() {
         ),
       );
       await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text('No results found'), findsOneWidget);
-      expect(find.text('Cortado', findRichText: true), findsOneWidget);
-      expect(find.textContaining('open signal'), findsNothing);
+      expect(homeText('No results found'), findsOneWidget);
+      expect(homeText('Cortado', findRichText: true), findsOneWidget);
+      expect(homeHas('open signal'), findsNothing);
     });
 
     testWidgets('OVW-HOME-092 Menu profitability opens the ledger', (
@@ -604,8 +604,8 @@ void main() {
           to: DateTime.parse(_to),
         ),
       );
-      expect(find.text('Delivery'), findsOneWidget);
-      expect(find.text('By channel'), findsOneWidget);
+      expect(homeText('Delivery'), findsOneWidget);
+      expect(homeText('By channel'), findsOneWidget);
       expect(kpi(tester, 'Delivery revenue').value, d.totalRevenue);
       expect(kpi(tester, 'Delivered orders').value, d.totalOrders);
       expect(
@@ -620,17 +620,17 @@ void main() {
         d.avgOrderValue,
       );
       expect(kpi(tester, 'Delivery fees').value, 0);
-      expect(find.text('In-mall delivery'), findsOneWidget);
-      expect(find.text('Outside delivery'), findsOneWidget);
+      expect(homeText('In-mall delivery'), findsOneWidget);
+      expect(homeText('Outside delivery'), findsOneWidget);
       // The other channels show their raw codes (the web's quirk).
-      expect(find.text('umbrella'), findsOneWidget);
-      expect(find.text('pickup'), findsOneWidget);
-      expect(find.text('100%'), findsOneWidget);
-      expect(find.text('0%'), findsNWidgets(3));
+      expect(homeText('umbrella'), findsOneWidget);
+      expect(homeText('pickup'), findsOneWidget);
+      expect(homeText('100%'), findsOneWidget);
+      expect(homeText('0%'), findsNWidgets(3));
       expect(find.bySemanticsLabel('Revenue share'), findsNWidgets(4));
       final cancelled = d.channels[1].cancelledOrders;
       if (cancelled > 0) {
-        expect(find.text('\u2066$cancelled\u2069 cancelled'), findsOneWidget);
+        expect(homeText('\u2066$cancelled\u2069 cancelled'), findsOneWidget);
       }
     });
 
@@ -656,28 +656,28 @@ void main() {
       final gate = s.server.hold('GET', _delivery);
       final h = await pumpHome(tester, server: s.server, db: s.db);
       expect(kpi(tester, 'Delivery revenue').loading, isTrue);
-      expect(find.text('Outside delivery'), findsNothing);
+      expect(homeText('Outside delivery'), findsNothing);
       gate.release();
       await h.settle();
-      expect(find.text('Outside delivery'), findsOneWidget);
+      expect(homeText('Outside delivery'), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-097 error replaces the section body', (tester) async {
       final s = homeServer();
       s.server.fail('GET', _delivery, boom());
       final h = await pumpHome(tester, server: s.server, db: s.db);
-      expect(find.text("Couldn't load delivery sales"), findsOneWidget);
-      expect(find.text('Delivery revenue'), findsNothing);
+      expect(homeText("Couldn't load delivery sales"), findsOneWidget);
+      expect(homeText('Delivery revenue'), findsNothing);
       await h.tap(
         find.descendant(
           of: find.ancestor(
-            of: find.text("Couldn't load delivery sales"),
+            of: homeText("Couldn't load delivery sales"),
             matching: find.byType(DashErrorState),
           ),
-          matching: find.text('Retry'),
+          matching: homeText('Retry'),
         ),
       );
-      expect(find.text('Delivery revenue'), findsOneWidget);
+      expect(homeText('Delivery revenue'), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-102 no channels: the totals only', (tester) async {
@@ -742,7 +742,7 @@ void main() {
         "Couldn't load margin watch",
         "Couldn't load delivery sales",
       ]) {
-        expect(find.text(words), findsOneWidget, reason: words);
+        expect(homeText(words), findsOneWidget, reason: words);
       }
     });
 
@@ -771,7 +771,7 @@ void main() {
       final fmt = h.container.read(formatProvider);
       final t = SalesTotals(orders(h, _sabah));
       expect(fmt.fmtMoney(t.revenue), contains('ج.م'));
-      expect(find.text('اتجاه الإيرادات'), findsOneWidget);
+      expect(homeText('اتجاه الإيرادات'), findsOneWidget);
     });
 
     testWidgets('OVW-HOME-112 switching language asks nothing again', (
@@ -781,8 +781,8 @@ void main() {
       final before = h.server.calls.where((c) => !c.stream).length;
       await h.container.read(localeProvider.notifier).set('ar');
       await h.settle();
-      expect(find.text('اتجاه الإيرادات'), findsOneWidget);
-      expect(find.text('Revenue trend'), findsNothing);
+      expect(homeText('اتجاه الإيرادات'), findsOneWidget);
+      expect(homeText('Revenue trend'), findsNothing);
       final reports = h.server.calls
           .skip(before)
           .where(

@@ -39,9 +39,7 @@ class HomeRevenueTrendCard extends ConsumerWidget {
           framed: false,
           title: t('dashboard.trendFailed'),
           retryLabel: t('common.retry'),
-          onRetry: () => ref.invalidate(
-            homeTimeseriesProvider(scope.series),
-          ),
+          onRetry: () => ref.invalidate(homeTimeseriesProvider(scope.series)),
         ),
       );
     } else if (points.isEmpty) {
@@ -102,12 +100,8 @@ class HomePaymentMixCard extends ConsumerWidget {
           title: t('dashboard.paymentsFailed'),
           retryLabel: t('common.retry'),
           onRetry: () => data.branchPicked
-              ? ref.invalidate(
-                  homeBranchSalesProvider(data.scope.branchRange),
-                )
-              : ref.invalidate(
-                  homeComparisonProvider(data.scope.orgRange),
-                ),
+              ? ref.invalidate(homeBranchSalesProvider(data.scope.branchRange))
+              : ref.invalidate(homeComparisonProvider(data.scope.orgRange)),
         ),
       );
     } else if (payments.isEmpty) {

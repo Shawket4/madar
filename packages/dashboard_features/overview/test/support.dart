@@ -3,6 +3,7 @@
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_overview/dashboard_overview.dart';
+import 'package:dashboard_overview/src/home/home_page.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Opens [path] (the home by default) as [persona].
@@ -43,3 +44,17 @@ Future<DashHarness> pumpHome(
 
 /// Text widgets whose text contains [s] (spans included).
 Finder textHas(String s) => find.textContaining(s, findRichText: true);
+
+/// [f] inside the home page only: the shell builds every sidebar row and
+/// the header repeats words ("All branches", "Dashboard"), so a finder that
+/// is about the page is scoped to it.
+Finder inHome(Finder f) =>
+    find.descendant(of: find.byType(HomePage), matching: f);
+
+/// [text] on the home page (not in the sidebar or the header).
+Finder homeText(String text, {bool findRichText = false}) =>
+    inHome(find.text(text, findRichText: findRichText));
+
+/// Text on the home page containing [s] (spans included).
+Finder homeHas(Pattern s, {bool findRichText = true}) =>
+    inHome(find.textContaining(s, findRichText: findRichText));

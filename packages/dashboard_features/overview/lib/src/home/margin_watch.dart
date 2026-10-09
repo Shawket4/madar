@@ -119,9 +119,8 @@ class HomeMarginWatchCard extends ConsumerWidget {
         title: t('insights.watch.loadFailed'),
         retryLabel: t('common.retry'),
         retrying: q.isLoading,
-        onRetry: () => ref.invalidate(
-          homeMarginWatchProvider(scope.scopeRange),
-        ),
+        onRetry: () =>
+            ref.invalidate(homeMarginWatchProvider(scope.scopeRange)),
       );
     } else if (empty) {
       body = DashEmptyState(framed: false, title: t('insights.watch.empty'));

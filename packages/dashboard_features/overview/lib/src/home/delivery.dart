@@ -45,9 +45,8 @@ class HomeDeliverySection extends ConsumerWidget {
           DashErrorState(
             title: t('dashboard.deliveryFailed'),
             retryLabel: t('common.retry'),
-            onRetry: () => ref.invalidate(
-              homeDeliveryProvider(scope.scopeRange),
-            ),
+            onRetry: () =>
+                ref.invalidate(homeDeliveryProvider(scope.scopeRange)),
           )
         else
           HomeDeliveryKpis(data: q.value, loading: q.firstLoad),
