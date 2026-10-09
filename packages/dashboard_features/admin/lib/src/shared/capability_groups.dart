@@ -46,13 +46,22 @@ class AlwaysOnBadge extends ConsumerWidget {
 }
 
 class CapabilityGroupsList extends ConsumerStatefulWidget {
-  const CapabilityGroupsList({required this.control, this.filter, super.key});
+  const CapabilityGroupsList({
+    required this.control,
+    this.filter,
+    this.stacked = false,
+    super.key,
+  });
 
   /// The end side of [meta]'s row.
   final Widget Function(BuildContext context, CapabilityMeta meta) control;
 
   /// Which capabilities to show (all non-legacy when null).
   final bool Function(CapabilityMeta meta)? filter;
+
+  /// The control under the words instead of beside them (a wide control on
+  /// a phone, where the web's row would squeeze the words to a sliver).
+  final bool stacked;
 
   @override
   ConsumerState<CapabilityGroupsList> createState() =>
@@ -80,6 +89,7 @@ class _CapabilityGroupsListState extends ConsumerState<CapabilityGroupsList> {
             label: meta.label(lang),
             hint: meta.hint(lang),
             control: widget.control(context, meta),
+            stacked: widget.stacked,
           ),
       ],
     );
@@ -153,15 +163,26 @@ class _CapabilityRow extends StatelessWidget {
     required this.label,
     required this.hint,
     required this.control,
+    this.stacked = false,
   });
 
   final String label;
   final String? hint;
   final Widget control;
+  final bool stacked;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
+    final words = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: DashType.bodyMedium.copyWith(color: c.textPrimary)),
+        if (hint != null && hint!.isNotEmpty)
+          Text(hint!, style: DashType.small.copyWith(color: c.textSecondary)),
+      ],
+    );
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: DashMetrics.listRow),
       child: Padding(
@@ -169,29 +190,22 @@ class _CapabilityRow extends StatelessWidget {
           horizontal: Space.lg,
           vertical: Space.sm,
         ),
-        child: Row(
-          spacing: Space.lg,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+        child: stacked
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.sm,
                 children: [
-                  Text(
-                    label,
-                    style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+                  words,
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: control,
                   ),
-                  if (hint != null && hint!.isNotEmpty)
-                    Text(
-                      hint!,
-                      style: DashType.small.copyWith(color: c.textSecondary),
-                    ),
                 ],
+              )
+            : Row(
+                spacing: Space.lg,
+                children: [Expanded(child: words), control],
               ),
-            ),
-            control,
-          ],
-        ),
       ),
     );
   }

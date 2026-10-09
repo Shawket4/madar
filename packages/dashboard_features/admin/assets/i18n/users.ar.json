@@ -1,1 +1,7 @@
-{}
+{
+  "access.lockedReasons.self": "لا يمكنك تغيير صلاحياتك بنفسك.",
+  "access.lockedReasons.owner": "لا يغيّر صلاحيات المالك إلا مالك.",
+  "access.lockedReasons.not_dominant": "يستطيع هذا الشخص القيام بأشياء لا تستطيعها، لذا لا يمكنك تغيير صلاحياته.",
+  "access.lockedReasons.not_above": "يمكنك تغيير صلاحيات من هم أدنى منك في الدور فقط.",
+  "access.lockedReasons.missing_authority": "ليست لديك صلاحية تغيير الصلاحيات."
+}
