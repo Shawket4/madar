@@ -33,12 +33,12 @@ class LiabilityChart extends StatelessWidget {
   /// The tooltip line for bar [i] ("12 orders").
   final String Function(int i) tooltip;
 
-  /// Recharts' `[auto, auto]` with zero in view: nice bounds over the data.
+  /// Recharts' `[auto, auto]` with zero in view: whole, nice steps over
+  /// the data (the figures are counts).
   static (double, double, double) bounds(List<double> values) {
     final hi = values.fold<double>(0, math.max);
     final lo = values.fold<double>(0, math.min);
-    final span = dashNiceCeil(math.max(hi, -lo));
-    final step = span / 4;
+    final step = math.max(1.0, dashNiceCeil(math.max(hi, -lo) / 4));
     final top = hi <= 0 ? 0.0 : (hi / step).ceil() * step;
     final bottom = lo >= 0 ? 0.0 : (lo / step).floor() * step;
     return (bottom, top == bottom ? step : top, step);
@@ -68,6 +68,19 @@ class LiabilityChart extends StatelessWidget {
               final n = math.max(1, labels.length);
               final slot = (box.maxWidth - yAxis) / n;
               final bar = math.min(40.0, slot * 0.8);
+              // Recharts' default `preserveEnd`: labels that would collide
+              // are skipped, keeping the last.
+              final widest = labels.fold<double>(0, (w, l) {
+                final tp = TextPainter(
+                  text: TextSpan(text: l, style: style),
+                  textDirection: textDir,
+                  maxLines: 1,
+                )..layout();
+                final width = tp.width;
+                tp.dispose();
+                return math.max(w, width);
+              });
+              final every = math.max(1, ((widest + Space.sm) / slot).ceil());
               return BarChart(
                 duration: DashMotion.of(context, DashMotion.slow),
                 BarChartData(
@@ -112,13 +125,18 @@ class LiabilityChart extends StatelessWidget {
                           final i = v.round();
                           if ((v - i).abs() > 0.01 ||
                               i < 0 ||
-                              i >= labels.length) {
+                              i >= labels.length ||
+                              (labels.length - 1 - i) % every != 0) {
                             return const SizedBox.shrink();
                           }
                           return SideTitleWidget(
                             meta: meta,
+                            fitInside: SideTitleFitInsideData.fromTitleMeta(
+                              meta,
+                              distanceFromEdge: 0,
+                            ),
                             child: SizedBox(
-                              width: slot,
+                              width: math.min(widest + Space.sm, slot * every),
                               child: Directionality(
                                 textDirection: textDir,
                                 child: MadarClippedText(

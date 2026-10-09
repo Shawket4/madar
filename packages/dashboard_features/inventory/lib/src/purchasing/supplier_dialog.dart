@@ -80,6 +80,8 @@ class _SupplierDialogState extends ConsumerState<SupplierDialog> {
     if (_name.trim().isEmpty) return;
     final t = ref.read(tProvider);
     final api = ref.read(apiProvider).purchasing;
+    // Captured now: the lists refresh even if the dialog closes mid-save.
+    final bus = ref.read(realtimeBusProvider);
     setState(() => _busy = true);
     final nulls = {
       if (_orNull(_contact) == null) 'contact_name',
@@ -111,7 +113,7 @@ class _SupplierDialogState extends ConsumerState<SupplierDialog> {
           ),
         );
       }
-      invalidateInventory(ref);
+      bus.invalidate(inventoryPathFamilies);
       if (!mounted) return;
       DashToast.success(context, t('common.savedChanges'));
       Navigator.of(context).pop(true);

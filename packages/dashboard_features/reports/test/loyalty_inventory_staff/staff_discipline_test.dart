@@ -54,7 +54,9 @@ Finder get refresh => find.byType(StaffRefreshButton);
 
 /// The department cards' titles, in order.
 List<String> cardTitles(WidgetTester tester) => [
-  for (final c in tester.widgetList<DepartmentCard>(find.byType(DepartmentCard)))
+  for (final c in tester.widgetList<DepartmentCard>(
+    find.byType(DepartmentCard),
+  ))
     c.group.id == null ? 'Unassigned' : c.group.name,
 ];
 
@@ -118,7 +120,11 @@ void main() {
 
     testWidgets('REP-STF-002 without hr.attendance.read: Restricted "Staff '
         'discipline", never asked', (tester) async {
-      final h = await pumpUnit(tester, path: staffPath, persona: Persona.limited);
+      final h = await pumpUnit(
+        tester,
+        path: staffPath,
+        persona: Persona.limited,
+      );
       expect(find.text('Staff discipline'), findsWidgets);
       expect(find.text(h.t('reports.noAccess')), findsOneWidget);
       expect(h.server.callsTo(disciplineTpl), isEmpty);
@@ -129,7 +135,11 @@ void main() {
     testWidgets('REP-STF-002 the Dawam-only owner sees her own org', (
       tester,
     ) async {
-      final h = await pumpUnit(tester, path: staffPath, persona: Persona.dawamOnly);
+      final h = await pumpUnit(
+        tester,
+        path: staffPath,
+        persona: Persona.dawamOnly,
+      );
       expect(find.text(h.t('reports.noAccess')), findsNothing);
       expect(h.server.callsTo(disciplineTpl).single.status, 200);
       expect(cardTitles(tester), contains('Bakery'));
@@ -139,6 +149,7 @@ void main() {
   group('header and read', () {
     testWidgets('REP-STF-003 title, period, Refresh', (tester) async {
       final h = await pumpUnit(tester, path: staffPath);
+      expect(find.text(h.t('reports.noAccess')), findsNothing);
       expect(inPage(find.text('Staff discipline')), findsOneWidget);
       expect(inPage(find.text('Last 30 days')), findsOneWidget);
       expect(refresh, findsOneWidget);
@@ -238,7 +249,10 @@ void main() {
       addTearDown(sub.cancel);
       await h.tap(refresh);
       expect(seen.single, ['/staff/']);
-      expect(pathInvalidatedBy('/staff-pool/drinks', seen.single.single), isFalse);
+      expect(
+        pathInvalidatedBy('/staff-pool/drinks', seen.single.single),
+        isFalse,
+      );
       expect(pathInvalidatedBy(disciplineTpl, seen.single.single), isTrue);
     });
   });
@@ -342,10 +356,10 @@ void main() {
       final kitchen = tester
           .widgetList<DepartmentCard>(find.byType(DepartmentCard))
           .first;
-      expect([for (final r in kitchen.group.rows) r.employeeName], [
-        'Salma Hany',
-        'Ali Hassan',
-      ]);
+      expect(
+        [for (final r in kitchen.group.rows) r.employeeName],
+        ['Salma Hany', 'Ali Hassan'],
+      );
     });
 
     testWidgets('REP-STF-008 #rank, the name, "late · absent · minutes"', (
@@ -375,10 +389,19 @@ void main() {
       ]);
       await pumpUnit(tester, path: staffPath, server: s.server, db: s.db);
       expect(inPage(find.text('Covered 1 shift')), findsOneWidget);
-      expect(inPage(find.text('1 shift covered by a colleague')), findsOneWidget);
+      expect(
+        inPage(find.text('1 shift covered by a colleague')),
+        findsOneWidget,
+      );
       expect(inPage(find.text('Covered 3 shifts')), findsOneWidget);
-      expect(inPage(find.text('2 shifts covered by a colleague')), findsOneWidget);
-      expect(inPage(find.textContaining('0 late · 0 absent')), findsNWidgets(3));
+      expect(
+        inPage(find.text('2 shifts covered by a colleague')),
+        findsOneWidget,
+      );
+      expect(
+        inPage(find.textContaining('0 late · 0 absent')),
+        findsNWidgets(3),
+      );
       expect(
         inPage(find.textContaining(RegExp('Covered|covered by'))),
         findsNWidgets(4),

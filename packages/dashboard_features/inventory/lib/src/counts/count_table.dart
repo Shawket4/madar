@@ -26,6 +26,12 @@ abstract final class CountWidths {
 
   /// `w-44` select plus padding.
   static const double reason = Space.xxl * 6 + Space.sm;
+
+  /// The variance report's read-only columns (they fit its 896 wide
+  /// dialog).
+  static const double reportBook = Space.xxl * 4 + Space.sm;
+  static const double reportFigure = Space.xxl * 3 + Space.sm;
+  static const double reportReason = Space.xxl * 4 + Space.lg;
 }
 
 class CountColumn {

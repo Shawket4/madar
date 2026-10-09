@@ -131,25 +131,28 @@ class _VarianceTable extends ConsumerWidget {
         CountColumn(t('inventory.stocktakes.ingredient')),
         CountColumn(
           t('inventory.stocktakes.bookStock'),
-          width: CountWidths.book,
+          width: CountWidths.reportBook,
           end: true,
         ),
         CountColumn(
           t('inventory.stocktakes.counted'),
-          width: CountWidths.figure,
+          width: CountWidths.reportFigure,
           end: true,
         ),
         CountColumn(
           t('inventory.stocktakes.difference'),
-          width: CountWidths.figure,
+          width: CountWidths.reportFigure,
           end: true,
         ),
         CountColumn(
           t('inventory.stocktakes.value'),
-          width: CountWidths.value,
+          width: CountWidths.figure,
           end: true,
         ),
-        CountColumn(t('inventory.stocktakes.reason'), width: CountWidths.figure),
+        CountColumn(
+          t('inventory.stocktakes.reason'),
+          width: CountWidths.reportReason,
+        ),
       ],
       rows: [
         for (final r in rows)
@@ -188,10 +191,12 @@ class _VarianceTable extends ConsumerWidget {
                 color: countDifferenceColor(c, r.variance),
               ),
               CountFigure(f.fmtMoney(r.varianceValue)),
-              Text(
+              MadarClippedText(
                 r.varianceReason == null
                     ? '—'
                     : varianceReasonLabel(t, r.varianceReason!),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: DashType.body.copyWith(color: c.textPrimary),
               ),
             ],

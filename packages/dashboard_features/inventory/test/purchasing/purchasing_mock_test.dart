@@ -103,40 +103,44 @@ void main() {
         refused(404, 'Supplier not found'),
       );
       await expectLater(
-        backend(Persona.manager).api.purchasing.deleteSupplier(
-          id: PurIds.supplier('metro'),
-        ),
+        backend(
+          Persona.manager,
+        ).api.purchasing.deleteSupplier(id: PurIds.supplier('metro')),
         refused(403, '(purchasing.suppliers.delete)'),
       );
     });
   });
 
   group('orders: list, create, submit, cancel', () {
-    test('the all-branches id lists the org\'s orders, newest first, with '
-        'branch names; status filters; a manager sees their branch only', () async {
-      final b = backend();
-      final all = await b.api.purchasing.listPurchaseOrders(
-        branchId: allBranchesId,
-      );
-      expect(all, hasLength(9));
-      final created = [for (final o in all) o.createdAt];
-      expect(created, [...created]..sort((a, z) => z.compareTo(a)));
-      expect(all.every((o) => o.branchName != null), isTrue);
-      final open = await b.api.purchasing.listPurchaseOrders(
-        branchId: allBranchesId,
-        status: 'draft',
-      );
-      expect(open.single.reference, 'PO-1040');
-      final mgr = await backend(Persona.manager).api.purchasing
-          .listPurchaseOrders(branchId: allBranchesId);
-      expect(mgr.map((o) => o.branchId).toSet(), {SeedIds.zamalek});
-      await expectLater(
-        backend(Persona.manager).api.purchasing.getPurchaseOrder(
-          id: PurIds.po('po-1043'),
-        ),
-        refused(403, ''),
-      );
-    });
+    test(
+      'the all-branches id lists the org\'s orders, newest first, with '
+      'branch names; status filters; a manager sees their branch only',
+      () async {
+        final b = backend();
+        final all = await b.api.purchasing.listPurchaseOrders(
+          branchId: allBranchesId,
+        );
+        expect(all, hasLength(9));
+        final created = [for (final o in all) o.createdAt];
+        expect(created, [...created]..sort((a, z) => z.compareTo(a)));
+        expect(all.every((o) => o.branchName != null), isTrue);
+        final open = await b.api.purchasing.listPurchaseOrders(
+          branchId: allBranchesId,
+          status: 'draft',
+        );
+        expect(open.single.reference, 'PO-1040');
+        final mgr = await backend(
+          Persona.manager,
+        ).api.purchasing.listPurchaseOrders(branchId: allBranchesId);
+        expect(mgr.map((o) => o.branchId).toSet(), {SeedIds.zamalek});
+        await expectLater(
+          backend(
+            Persona.manager,
+          ).api.purchasing.getPurchaseOrder(id: PurIds.po('po-1043')),
+          refused(403, ''),
+        );
+      },
+    );
 
     test('create: a draft with the server\'s unit factor and exact unit '
         'cost; listed next', () async {
@@ -252,9 +256,9 @@ void main() {
         refused(409, 'Cannot cancel a purchase order that has already'),
       );
       await expectLater(
-        backend(Persona.limited).api.purchasing.submitPurchaseOrder(
-          id: PurIds.po('po-1041'),
-        ),
+        backend(
+          Persona.limited,
+        ).api.purchasing.submitPurchaseOrder(id: PurIds.po('po-1041')),
         refused(403, '(purchasing.orders.edit)'),
       );
     });
@@ -398,55 +402,58 @@ void main() {
   });
 
   group('reorder suggestions', () {
-    test('rows at or below par, up to par max (else par), grouped by '
-        'supplier in supplier id order, no supplier last, by name inside', () async {
-      final b = backend();
-      final croissant = stock(b.db, SeedIds.zamalek, 'croissant');
-      b.db[InvTables.branchStock].update(croissant['id']! as String, {
-        'on_hand': 4.0,
-        'par_min': 12.0,
-        'par_max': 30.0,
-      });
-      b.db[InvTables.ingredients].update(PurIds.ingredient('croissant'), {
-        'supplier_id': null,
-      });
-      final groups = await b.api.purchasing.reorderSuggestions(
-        branchId: SeedIds.zamalek,
-      );
-      final expected = <String>[];
-      for (final r in b.db[InvTables.branchStock].where(
-        (r) => r['branch_id'] == SeedIds.zamalek,
-      )) {
-        final par = (r['par_min'] as num?)?.toDouble() ?? 0;
-        if (par > 0 && (r['on_hand']! as num) <= par) {
-          expected.add(r['org_ingredient_id']! as String);
+    test(
+      'rows at or below par, up to par max (else par), grouped by '
+      'supplier in supplier id order, no supplier last, by name inside',
+      () async {
+        final b = backend();
+        final croissant = stock(b.db, SeedIds.zamalek, 'croissant');
+        b.db[InvTables.branchStock].update(croissant['id']! as String, {
+          'on_hand': 4.0,
+          'par_min': 12.0,
+          'par_max': 30.0,
+        });
+        b.db[InvTables.ingredients].update(PurIds.ingredient('croissant'), {
+          'supplier_id': null,
+        });
+        final groups = await b.api.purchasing.reorderSuggestions(
+          branchId: SeedIds.zamalek,
+        );
+        final expected = <String>[];
+        for (final r in b.db[InvTables.branchStock].where(
+          (r) => r['branch_id'] == SeedIds.zamalek,
+        )) {
+          final par = (r['par_min'] as num?)?.toDouble() ?? 0;
+          if (par > 0 && (r['on_hand']! as num) <= par) {
+            expected.add(r['org_ingredient_id']! as String);
+          }
         }
-      }
-      final got = [
-        for (final g in groups)
-          for (final l in g.lines) l.orgIngredientId,
-      ];
-      expect(got.toSet(), expected.toSet());
-      expect(groups.last.supplierId, isNull);
-      expect(groups.last.supplierName, isNull);
-      final c = groups.last.lines.firstWhere(
-        (l) => l.orgIngredientId == PurIds.ingredient('croissant'),
-      );
-      expect(c.onHand, 4);
-      expect(c.suggestedQty, 26);
-      final ids = [for (final g in groups) g.supplierId];
-      expect(ids.toSet(), hasLength(ids.length), reason: 'one group each');
-      for (final g in groups) {
-        final names = [for (final l in g.lines) l.ingredientName];
-        expect(names, [...names]..sort());
-      }
-      await expectLater(
-        backend(Persona.manager).api.purchasing.reorderSuggestions(
-          branchId: SeedIds.maadi,
-        ),
-        refused(403, ''),
-      );
-    });
+        final got = [
+          for (final g in groups)
+            for (final l in g.lines) l.orgIngredientId,
+        ];
+        expect(got.toSet(), expected.toSet());
+        expect(groups.last.supplierId, isNull);
+        expect(groups.last.supplierName, isNull);
+        final c = groups.last.lines.firstWhere(
+          (l) => l.orgIngredientId == PurIds.ingredient('croissant'),
+        );
+        expect(c.onHand, 4);
+        expect(c.suggestedQty, 26);
+        final ids = [for (final g in groups) g.supplierId];
+        expect(ids.toSet(), hasLength(ids.length), reason: 'one group each');
+        for (final g in groups) {
+          final names = [for (final l in g.lines) l.ingredientName];
+          expect(names, [...names]..sort());
+        }
+        await expectLater(
+          backend(
+            Persona.manager,
+          ).api.purchasing.reorderSuggestions(branchId: SeedIds.maadi),
+          refused(403, ''),
+        );
+      },
+    );
   });
 
   group('purchasing_data.dart', () {

@@ -112,8 +112,7 @@ class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage> {
     ];
     final tab = tabs.any((x) => x.id == _tab) ? _tab : tabs.first.id;
     final k = scope.invKey(_scope);
-    final branchGate =
-        _scope == InventoryScope.branch && scope.isAllBranches;
+    final branchGate = _scope == InventoryScope.branch && scope.isAllBranches;
 
     final consumption = _read(
       tab == 'consumption',
@@ -122,7 +121,11 @@ class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage> {
     );
     final shrinkage = _read(tab == 'shrinkage', k, invShrinkageProvider.call);
     final waste = _read(tab == 'waste', k, invWasteProvider.call);
-    final lead = _read(tab == 'poLeadTime' && canLead, k, invLeadTimeProvider.call);
+    final lead = _read(
+      tab == 'poLeadTime' && canLead,
+      k,
+      invLeadTimeProvider.call,
+    );
     final count = switch (tab) {
       'consumption' => consumption.value?.length ?? 0,
       'shrinkage' => shrinkage.value?.length ?? 0,
@@ -205,7 +208,9 @@ class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage> {
       tabs: DashPageTabs<String>(
         value: tab,
         onChanged: (v) => setState(() => _tab = v),
-        tabs: [for (final x in tabs) DashTab(value: x.id, label: t(x.labelKey))],
+        tabs: [
+          for (final x in tabs) DashTab(value: x.id, label: t(x.labelKey)),
+        ],
       ),
       filters: _scopedTabs.contains(tab)
           ? Align(
@@ -377,9 +382,7 @@ class _LeadTimeTab extends ConsumerWidget {
           alignment: AlignmentDirectional.centerStart,
           child: ConstrainedBox(
             // `lg:max-w-md`.
-            constraints: BoxConstraints(
-              maxWidth: wide ? 448 : double.infinity,
-            ),
+            constraints: BoxConstraints(maxWidth: wide ? 448 : double.infinity),
             child: DashLedgerStrip(
               items: [
                 DashLedgerItem(

@@ -115,6 +115,8 @@ class _ReceiveDialogState extends ConsumerState<ReceiveDialog> {
     final lines = _payload(po);
     if (lines.isEmpty) return;
     final t = ref.read(tProvider);
+    // Captured now: the lists refresh even if the dialog closes mid-save.
+    final bus = ref.read(realtimeBusProvider);
     setState(() => _busy = true);
     try {
       await ref
@@ -124,7 +126,7 @@ class _ReceiveDialogState extends ConsumerState<ReceiveDialog> {
             id: widget.purchaseOrderId,
             body: ReceivePurchaseOrderRequest(lines: lines),
           );
-      invalidateInventory(ref);
+      bus.invalidate(inventoryPathFamilies);
       if (!mounted) return;
       DashToast.success(context, t('inventory.purchasing.receive'));
       Navigator.of(context).pop(true);
@@ -404,7 +406,10 @@ class _ReceiveLines extends ConsumerWidget {
             headCell(t('inventory.purchasing.alreadyReceived'), width: fig),
             headCell(t('inventory.purchasing.remaining'), width: fig),
             headCell(t('inventory.purchasing.receiving'), width: inputQty),
-            headCell(t('inventory.purchasing.invoiceTotal'), width: totalColumn),
+            headCell(
+              t('inventory.purchasing.invoiceTotal'),
+              width: totalColumn,
+            ),
           ],
         ),
       ),

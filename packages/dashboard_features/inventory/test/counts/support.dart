@@ -137,6 +137,17 @@ Future<void> pick(DashHarness h, Finder select, String label) async {
   await h.tap(find.text(label).last);
 }
 
+/// Picks [label] in the searchable picker [select]: types it into the
+/// list's search box first (a long list builds only what shows).
+Future<void> pickSearch(DashHarness h, Finder select, String label) async {
+  await h.tap(select);
+  await h.enterText(
+    find.byWidgetPredicate((w) => w is DashOptionList).last,
+    label,
+  );
+  await h.tap(find.text(label).last);
+}
+
 /// The open count's item row of ingredient [key] in [db].
 MockRow itemRow(MockDb db, String stocktakeId, String key) =>
     db[InvTables.stocktakeItems].firstWhere(

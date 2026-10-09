@@ -56,7 +56,10 @@ void main() {
       expect(b.totalMembers, members.length);
       expect(b.totalMembers, greaterThan(50));
       expect(b.activeMembers, greaterThan(0));
-      expect(b.activeMemberRate, closeTo(b.activeMembers / b.totalMembers, 1e-9));
+      expect(
+        b.activeMemberRate,
+        closeTo(b.activeMembers / b.totalMembers, 1e-9),
+      );
       expect(
         b.repeatVisitRate,
         closeTo(b.repeatMembers / (b.repeatMembers + b.oneTimeMembers), 1e-9),
@@ -65,8 +68,6 @@ void main() {
       expect(b.newMembersActive, greaterThan(0));
       expect(b.redemptionRatio, greaterThan(0));
       expect(b.redemptionRatio, lessThan(1));
-      // ignore: avoid_print
-      print('behavior ${jsonEncode(body)}');
 
       // One branch: activity narrows, the membership totals do not.
       final (_, one) = await _get(s.server, '/loyalty/behavior', {
@@ -79,24 +80,27 @@ void main() {
       expect(m.activeMembers, lessThan(b.activeMembers));
     });
 
-    test('a manager counts only her branch; another branch is refused', () async {
-      final owner = _server();
-      final mgr = _server(Persona.manager);
-      final (_, zm) = await _get(owner.server, '/loyalty/behavior', {
-        ..._range,
-        'branch_id': SeedIds.zamalek,
-      });
-      final (_, mine) = await _get(mgr.server, '/loyalty/behavior', _range);
-      expect(
-        (mine! as Map)['active_members'],
-        (zm! as Map)['active_members'],
-      );
-      final (status, _) = await _get(mgr.server, '/loyalty/behavior', {
-        ..._range,
-        'branch_id': SeedIds.maadi,
-      });
-      expect(status, 403);
-    });
+    test(
+      'a manager counts only her branch; another branch is refused',
+      () async {
+        final owner = _server();
+        final mgr = _server(Persona.manager);
+        final (_, zm) = await _get(owner.server, '/loyalty/behavior', {
+          ..._range,
+          'branch_id': SeedIds.zamalek,
+        });
+        final (_, mine) = await _get(mgr.server, '/loyalty/behavior', _range);
+        expect(
+          (mine! as Map)['active_members'],
+          (zm! as Map)['active_members'],
+        );
+        final (status, _) = await _get(mgr.server, '/loyalty/behavior', {
+          ..._range,
+          'branch_id': SeedIds.maadi,
+        });
+        expect(status, 403);
+      },
+    );
 
     test('refusals and validation', () async {
       final s = _server(Persona.limited);
@@ -130,35 +134,34 @@ void main() {
         expect(r.returnedWithin30d, lessThanOrEqualTo(r.sent));
         expect(r.returnRate, closeTo(r.returnedWithin30d / r.sent, 1e-9));
       }
-      // ignore: avoid_print
-      print('campaigns ${jsonEncode(body)}');
     });
 
-    test('liability: weeks from Saturday 00:00 Cairo, summing the ledger', () async {
-      final s = _server();
-      final (status, body) = await _get(
-        s.server,
-        '/loyalty/liability-trend',
-        _range,
-      );
-      expect(status, 200);
-      final l = LiabilityTrend.fromJson(body! as Map<String, Object?>);
-      expect(l.currency, 'visits');
-      expect(l.points, isNotEmpty);
-      for (final p in l.points) {
-        final w = MockClock.wall(p.week);
-        expect(w.weekday, DateTime.saturday);
-        expect((w.hour, w.minute), (0, 0));
-      }
-      final from = DateTime.parse(_from), to = DateTime.parse(_to);
-      final members = loyaltyMembers(s.db, SeedIds.sabahOrg);
-      final net = loyaltyLedger(s.db, members)
-          .where((t) => !t.at.isBefore(from) && t.at.isBefore(to))
-          .fold<int>(0, (a, t) => a + t.points);
-      expect(l.points.fold<int>(0, (a, p) => a + p.outstanding), net);
-      // ignore: avoid_print
-      print('liability ${jsonEncode(body)}');
-    });
+    test(
+      'liability: weeks from Saturday 00:00 Cairo, summing the ledger',
+      () async {
+        final s = _server();
+        final (status, body) = await _get(
+          s.server,
+          '/loyalty/liability-trend',
+          _range,
+        );
+        expect(status, 200);
+        final l = LiabilityTrend.fromJson(body! as Map<String, Object?>);
+        expect(l.currency, 'visits');
+        expect(l.points, isNotEmpty);
+        for (final p in l.points) {
+          final w = MockClock.wall(p.week);
+          expect(w.weekday, DateTime.saturday);
+          expect((w.hour, w.minute), (0, 0));
+        }
+        final from = DateTime.parse(_from), to = DateTime.parse(_to);
+        final members = loyaltyMembers(s.db, SeedIds.sabahOrg);
+        final net = loyaltyLedger(s.db, members)
+            .where((t) => !t.at.isBefore(from) && t.at.isBefore(to))
+            .fold<int>(0, (a, t) => a + t.points);
+        expect(l.points.fold<int>(0, (a, p) => a + p.outstanding), net);
+      },
+    );
   });
 
   group('inventory', () {
@@ -196,30 +199,36 @@ void main() {
       expect(chai.consumedValue, isNull);
       // Largest quantity first.
       for (var i = 1; i < rows.length; i++) {
-        expect(rows[i - 1].consumedQty, greaterThanOrEqualTo(rows[i].consumedQty));
+        expect(
+          rows[i - 1].consumedQty,
+          greaterThanOrEqualTo(rows[i].consumedQty),
+        );
       }
     });
 
-    test('the org route rolls up every branch; another org is refused', () async {
-      final s = _server();
-      final (_, org) = await _get(
-        s.server,
-        '/reports/orgs/${SeedIds.sabahOrg}/waste-report',
-        _range,
-      );
-      final (_, all) = await _get(
-        s.server,
-        '/reports/branches/00000000-0000-0000-0000-000000000000/waste-report',
-        _range,
-      );
-      expect(jsonEncode(org), jsonEncode(all));
-      final (status, _) = await _get(
-        s.server,
-        '/reports/orgs/${SeedIds.nakhlaOrg}/waste-report',
-        _range,
-      );
-      expect(status, 403);
-    });
+    test(
+      'the org route rolls up every branch; another org is refused',
+      () async {
+        final s = _server();
+        final (_, org) = await _get(
+          s.server,
+          '/reports/orgs/${SeedIds.sabahOrg}/waste-report',
+          _range,
+        );
+        final (_, all) = await _get(
+          s.server,
+          '/reports/branches/00000000-0000-0000-0000-000000000000/waste-report',
+          _range,
+        );
+        expect(jsonEncode(org), jsonEncode(all));
+        final (status, _) = await _get(
+          s.server,
+          '/reports/orgs/${SeedIds.nakhlaOrg}/waste-report',
+          _range,
+        );
+        expect(status, 403);
+      },
+    );
 
     test('shrinkage: a missing reason is "unexplained"; values', () async {
       final s = _server();
@@ -237,8 +246,6 @@ void main() {
         (r) => r.orgIngredientId == reportIngredient('chai').id,
       );
       expect(chai.every((r) => r.shrinkageValue == null), isTrue);
-      // ignore: avoid_print
-      print('shrinkage ${jsonEncode(body)}');
     });
 
     test('low stock: the three exceptions, by branch then name', () async {
@@ -298,8 +305,6 @@ void main() {
         )).$1,
         403,
       );
-      // ignore: avoid_print
-      print('lead ${jsonEncode(body)}');
     });
 
     test('a manager reading another branch is refused', () async {
@@ -335,11 +340,12 @@ void main() {
       for (final g in byDept.values) {
         expect(g.first.rankInDepartment, 1);
         for (var i = 1; i < g.length; i++) {
-          expect(g[i].rankInDepartment, greaterThanOrEqualTo(g[i - 1].rankInDepartment));
+          expect(
+            g[i].rankInDepartment,
+            greaterThanOrEqualTo(g[i - 1].rankInDepartment),
+          );
         }
       }
-      // ignore: avoid_print
-      print('discipline ${jsonEncode(body)}');
     });
 
     test('validation and refusals', () async {
@@ -371,7 +377,8 @@ void main() {
         'to': '2026-10-08',
       });
       final ids = {
-        for (final x in (mine! as Map)['rows'] as List) (x as Map)['employee_id'],
+        for (final x in (mine! as Map)['rows'] as List)
+          (x as Map)['employee_id'],
       };
       final zamalek = {
         for (final e in s.db['employees'].rows)

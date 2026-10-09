@@ -476,7 +476,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
                   style: DashType.bodyMedium.copyWith(color: c.textPrimary),
                 ),
                 TextSpan(
-                  text: ltr(f.fmtMoney(stats.net, signed: true)),
+                  text: f.fmtMoney(stats.net, signed: true),
                   style: DashType.monoStrong.copyWith(
                     fontSize: DashType.body.fontSize,
                     color: countDifferenceColor(c, stats.net) ?? c.textPrimary,
@@ -734,17 +734,25 @@ class _EditorSkeleton extends StatelessWidget {
                     ? null
                     : Border(bottom: BorderSide(color: c.hairline)),
               ),
-              child: const Row(
-                spacing: Space.lg,
-                children: [
-                  Expanded(child: DashSkeleton()),
-                  DashSkeleton(width: Space.xxl * 2 + Space.lg),
-                  DashSkeleton(
-                    width: Space.xxl * 3 + Space.lg,
-                    height: Space.xxl + Space.sm,
-                  ),
-                  DashSkeleton(width: Space.xxl * 2),
-                ],
+              // Fixed bars that give way on a narrow screen (flex-shrink).
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  const fixed = Space.xxl * 7 + Space.lg * 2;
+                  final room = box.maxWidth - Space.lg * 3 - Space.xxl;
+                  final k = room >= fixed ? 1.0 : (room / fixed).clamp(0, 1);
+                  return Row(
+                    spacing: Space.lg,
+                    children: [
+                      const Expanded(child: DashSkeleton()),
+                      DashSkeleton(width: (Space.xxl * 2 + Space.lg) * k),
+                      DashSkeleton(
+                        width: (Space.xxl * 3 + Space.lg) * k,
+                        height: Space.xxl + Space.sm,
+                      ),
+                      DashSkeleton(width: Space.xxl * 2 * k),
+                    ],
+                  );
+                },
               ),
             ),
         ],

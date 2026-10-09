@@ -47,10 +47,11 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
 
   Future<void> _place(PurchaseOrder po) async {
     final t = ref.read(tProvider);
+    final bus = ref.read(realtimeBusProvider);
     setState(() => _submitting = po.id);
     try {
       await ref.read(apiProvider).purchasing.submitPurchaseOrder(id: po.id);
-      invalidateInventory(ref);
+      bus.invalidate(inventoryPathFamilies);
       if (mounted) {
         DashToast.success(context, t('inventory.purchasing.orderPlaced'));
       }
@@ -74,9 +75,10 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
       destructive: true,
     );
     if (!ok || !mounted) return;
+    final bus = ref.read(realtimeBusProvider);
     try {
       await ref.read(apiProvider).purchasing.cancelPurchaseOrder(id: po.id);
-      invalidateInventory(ref);
+      bus.invalidate(inventoryPathFamilies);
       if (mounted) DashToast.success(context, t('common.done'));
     } on Object catch (e) {
       if (mounted) DashToast.error(context, errorMessage(e, t));

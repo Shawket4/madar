@@ -322,7 +322,8 @@ class CountsHistoryTable extends ConsumerWidget {
             overflow: TextOverflow.ellipsis,
             style: DashType.body.copyWith(color: c.textPrimary),
           ),
-          minWidth: Space.xxl * 5,
+          minWidth: Space.xxl * 6,
+          flex: 2,
         ),
         DashColumn(
           id: 'started_by_name',
@@ -346,7 +347,7 @@ class CountsHistoryTable extends ConsumerWidget {
               tone: stocktakeStatusTone(s.status),
             ),
           ),
-          width: Space.xxl * 5,
+          width: Space.xxl * 4 + Space.lg,
         ),
         DashColumn(
           id: 'finalized_at',

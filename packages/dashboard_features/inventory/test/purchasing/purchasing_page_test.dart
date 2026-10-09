@@ -289,7 +289,10 @@ void main() {
       expect(inOrders(find.text('Zamalek')), findsNWidgets(3));
       final f = h.container.read(formatProvider);
       // Expected and created as dates; PO-1040 has no expected date.
-      expect(inOrders(textHas(f.fmtDate('2026-10-07T15:10:00Z'))), findsWidgets);
+      expect(
+        inOrders(textHas(f.fmtDate('2026-10-07T15:10:00Z'))),
+        findsWidgets,
+      );
       expect(inOrders(textHas('—')), findsWidgets);
     });
 
@@ -384,7 +387,7 @@ void main() {
       expect(inPage(byKey('po-menu-$_po1042')), findsOneWidget);
     });
 
-    testWidgets('INV-PUR-025 (ALL-025) the orders table has no search box', (
+    testWidgets('INV-ALL-025 the orders table has no search box', (
       tester,
     ) async {
       await pumpPurchasing(tester);
@@ -406,7 +409,10 @@ void main() {
       expect(post.method, 'POST');
       expect(post.path, '/purchasing/orders/$_po1040/submit');
       await h.expectToast('Order placed');
-      expect(s.db[InvTables.purchaseOrders].find(_po1040)!['status'], 'ordered');
+      expect(
+        s.db[InvTables.purchaseOrders].find(_po1040)!['status'],
+        'ordered',
+      );
       expect(h.server.callsTo(PurT.orders).length, greaterThan(reads));
       expect(inPage(byKey('po-place-$_po1040')), findsNothing);
       expect(receiveDialog, findsNothing, reason: 'the row did not open');
@@ -484,8 +490,10 @@ void main() {
       );
       await orderMenu(h, _po1039, 'View order');
       expect(receiveDialog, findsOneWidget);
-      expect(inReceive(find.text('Receive order · PackRight Egypt')),
-          findsOneWidget);
+      expect(
+        inReceive(find.text('Receive order · PackRight Egypt')),
+        findsOneWidget,
+      );
       expect(byKey('receive-submit'), findsNothing);
     });
 
@@ -907,16 +915,16 @@ void main() {
       expect(groups.length, greaterThan(1));
       expect(groups.last.supplierId, isNull, reason: 'NULLS LAST');
       final sections = tester
-          .widgetList<DashSectionHeader>(
-            inPage(find.byType(DashSectionHeader)),
-          )
+          .widgetList<DashSectionHeader>(inPage(find.byType(DashSectionHeader)))
           .toList();
-      expect([for (final x in sections) x.title], [
-        for (final g in groups) g.supplierName ?? 'No supplier',
-      ]);
-      expect([for (final x in sections) x.count], [
-        for (final g in groups) g.lines.length,
-      ]);
+      expect(
+        [for (final x in sections) x.title],
+        [for (final g in groups) g.supplierName ?? 'No supplier'],
+      );
+      expect(
+        [for (final x in sections) x.count],
+        [for (final g in groups) g.lines.length],
+      );
       for (final head in ['NAME', 'ON HAND', 'SUGGESTED QTY']) {
         expect(
           inPage(find.text(head)),
@@ -1004,19 +1012,15 @@ void main() {
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'Purchase orders');
       expect(sheet.title, 'Purchase orders');
-      expect([for (final c in sheet.columns) c.header], [
-        'Reference',
-        'Supplier',
-        'Status',
-        'Expected',
-        'Created',
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        ['Reference', 'Supplier', 'Status', 'Expected', 'Created'],
+      );
       expect(sheet.columns.first.width, 20);
-      expect([for (final r in sheet.rows) r.first], [
-        'PO-1043',
-        shortRef(_po1044),
-        'PO-1042',
-      ]);
+      expect(
+        [for (final r in sheet.rows) r.first],
+        ['PO-1043', shortRef(_po1044), 'PO-1042'],
+      );
       expect([for (final r in sheet.rows) r[2]], everyElement('Ordered'));
       expect(sheet.rows.first[1], 'Nile Roasters');
       expect(
@@ -1058,28 +1062,22 @@ void main() {
       await h.expectToast('Exported $n rows');
       var sheet = h.exports.built.last.sheets.single;
       expect(sheet.name, 'Suppliers');
-      expect([for (final c in sheet.columns) c.header], [
-        'Supplier',
-        'Contact name',
-        'Email',
-        'Phone',
-        'Status',
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        ['Supplier', 'Contact name', 'Email', 'Phone', 'Status'],
+      );
       expect(sheet.columns.first.width, 26);
       final cairo = sheet.rows.firstWhere(
         (r) => r.first == 'Cairo Fresh Produce',
       );
       expect(cairo.last, 'Inactive');
-      expect(
-        sheet.rows.firstWhere((r) => r.first == 'Delta Dairy'),
-        [
-          'Delta Dairy',
-          'Mona Adel',
-          'sales@deltadairy.example',
-          '+20 100 222 3344',
-          'Active',
-        ],
-      );
+      expect(sheet.rows.firstWhere((r) => r.first == 'Delta Dairy'), [
+        'Delta Dairy',
+        'Mona Adel',
+        'sales@deltadairy.example',
+        '+20 100 222 3344',
+        'Active',
+      ]);
       expect(h.files.saved.last.filename, 'Madar-Suppliers-2026-10-08.xlsx');
 
       await openTab(h, 'Reorder');

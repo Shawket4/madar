@@ -138,7 +138,7 @@ void main() {
       await h.shot('counts/history-error');
     });
 
-    testWidgets('editor loading, error, empty, $tag', (tester) async {
+    testWidgets('editor loading, $tag', (tester) async {
       final s = countsServer();
       final gate = s.server.hold('GET', getRoute);
       final h = await pumpCounts(
@@ -151,14 +151,28 @@ void main() {
         branch: SeedIds.newCairo,
       );
       await h.shot('counts/editor-loading');
+      gate.release();
+      await h.settle();
+      await h.flushTimers();
+    });
+
+    testWidgets('editor error, then empty, $tag', (tester) async {
+      final s = countsServer();
       s.server.fail(
         'GET',
         getRoute,
         MockResponse.error(500, 'down'),
         times: null,
       );
-      gate.release();
-      await h.settle();
+      final h = await pumpCounts(
+        tester,
+        server: s.server,
+        db: s.db,
+        size: size,
+        locale: lang,
+        dark: dark,
+        branch: SeedIds.newCairo,
+      );
       await h.shot('counts/editor-error');
       s.server.clearFailures();
       s.db[InvTables.stocktakeItems].removeWhere(
@@ -184,8 +198,8 @@ void main() {
         inScope(byKey('count-scope')),
         h.t('inventory.stocktakes.scopeItems'),
       );
-      await pick(h, inScope(byKey('count-scope-add')), 'Oat Milk');
-      await pick(h, inScope(byKey('count-scope-add')), 'Sugar');
+      await pickSearch(h, inScope(byKey('count-scope-add')), 'Oat Milk');
+      await pickSearch(h, inScope(byKey('count-scope-add')), 'Sugar');
       await h.shot('counts/scope-items');
       await pick(
         h,

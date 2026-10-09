@@ -165,8 +165,7 @@ final invLowStockProvider = FutureProvider.autoDispose
 /// (Consumption) from the branch endpoint when a branch is picked, else
 /// the org's — the key the page opens on (REP-ALL-029).
 void prefetchInventoryReports(DashPrefetcher warm, Scope s) {
-  final k =
-      s.invKey(InventoryScope.branch) ?? s.invKey(InventoryScope.org);
+  final k = s.invKey(InventoryScope.branch) ?? s.invKey(InventoryScope.org);
   if (k != null) warm(invConsumptionProvider(k));
 }
 

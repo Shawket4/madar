@@ -87,7 +87,8 @@ class _StaffDisciplinePageState extends ConsumerState<StaffDisciplinePage> {
 
   /// The Refresh button: every mounted read under `/staff` (segment
   /// bounded: `/staff-pool` is not `/staff`).
-  void _refresh() => ref.read(realtimeBusProvider).invalidate(const ['/staff/']);
+  void _refresh() =>
+      ref.read(realtimeBusProvider).invalidate(const ['/staff/']);
 
   /// A refresh that fails while the report is on screen: the query
   /// cache's toast, once per kind (`data/api/query.ts`), the cards kept.
@@ -123,7 +124,9 @@ class _StaffDisciplinePageState extends ConsumerState<StaffDisciplinePage> {
         _loadedAt = ref.read(clockProvider)();
       }
       if (next.hasError && next.hasValue && !next.isLoading) {
-        if (prev != null && prev.hasError && identical(prev.error, next.error)) {
+        if (prev != null &&
+            prev.hasError &&
+            identical(prev.error, next.error)) {
           return;
         }
         _refreshFailed(next.error);
@@ -134,10 +137,7 @@ class _StaffDisciplinePageState extends ConsumerState<StaffDisciplinePage> {
     if (q.firstLoad) {
       body = const Column(
         spacing: Space.md,
-        children: [
-          DashSkeleton(height: 160),
-          DashSkeleton(height: 160),
-        ],
+        children: [DashSkeleton(height: 160), DashSkeleton(height: 160)],
       );
     } else if (q.hasError && !q.hasValue) {
       body = DashErrorState(
@@ -153,9 +153,7 @@ class _StaffDisciplinePageState extends ConsumerState<StaffDisciplinePage> {
     return DashPageScaffold(
       title: title,
       subtitleWidget: const ReportPeriodSubtitle(),
-      actions: [
-        StaffRefreshButton(busy: q.isLoading, onRefresh: _refresh),
-      ],
+      actions: [StaffRefreshButton(busy: q.isLoading, onRefresh: _refresh)],
       body: body,
     );
   }
@@ -258,7 +256,9 @@ class DisciplineRowTile extends ConsumerWidget {
     final given = row.coversGiven ?? 0;
     final coveredBy = row.coveredByOthers ?? 0;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Space.sm + DashMetrics.hair),
+      padding: const EdgeInsets.symmetric(
+        vertical: Space.sm + DashMetrics.hair,
+      ),
       child: Row(
         spacing: Space.md,
         children: [
@@ -423,7 +423,9 @@ class _StaffRefreshButtonState extends ConsumerState<StaffRefreshButton>
           decoration: BoxDecoration(
             color: colors.fill,
             borderRadius: radius,
-            border: colors.edge == null ? null : Border.all(color: colors.edge!),
+            border: colors.edge == null
+                ? null
+                : Border.all(color: colors.edge!),
           ),
           child: glyph,
         );

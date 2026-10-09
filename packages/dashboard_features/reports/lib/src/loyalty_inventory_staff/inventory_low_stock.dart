@@ -58,7 +58,12 @@ class _InventoryLowStockTabState extends ConsumerState<InventoryLowStockTab> {
               ),
             col(t('inventory.today.onHand'), (r) => r.onHand, number, 14),
             col(t('inventory.today.reorderPoint'), (r) => r.parMin, number, 16),
-            col(t('inventory.today.suggested'), (r) => r.suggestedQty, number, 14),
+            col(
+              t('inventory.today.suggested'),
+              (r) => r.suggestedQty,
+              number,
+              14,
+            ),
             col(t('inventory.catalog.unit'), (r) => fmtUnit(r.unit), text, 10),
             col(
               t('inventory.catalog.supplier'),

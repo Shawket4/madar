@@ -28,10 +28,21 @@ LoyaltyBehavior behaviorOf(MockDb db, {List<String>? branches}) =>
     );
 
 void main() {
+  test('REP-LOY-015 the axis: whole, nice steps with zero in view', () {
+    expect(LiabilityChart.bounds([131, 97, 74, 79, 32]), (0.0, 150.0, 50.0));
+    expect(LiabilityChart.bounds([1, -240]), (-300.0, 100.0, 100.0));
+    expect(LiabilityChart.bounds([0, 0]), (0.0, 1.0, 1.0));
+    expect(LiabilityChart.bounds([1]), (0.0, 1.0, 1.0));
+  });
+
   group('the gate', () {
     testWidgets('REP-LOY-001 without loyalty.members.list: Restricted '
         '"Loyalty", the behaviour never asked', (tester) async {
-      final h = await pumpUnit(tester, path: loyaltyPath, persona: Persona.limited);
+      final h = await pumpUnit(
+        tester,
+        path: loyaltyPath,
+        persona: Persona.limited,
+      );
       expect(find.text('Loyalty'), findsWidgets);
       expect(find.text('Not available on this account'), findsOneWidget);
       expect(find.text(h.t('reports.noAccess')), findsOneWidget);
@@ -41,7 +52,10 @@ void main() {
 
     for (final (name, caps) in [
       ('loyalty.read only', {Cap.loyaltyRead}),
-      ('customers.view + customers.merge', {Cap.customersView, Cap.customersMerge}),
+      (
+        'customers.view + customers.merge',
+        {Cap.customersView, Cap.customersMerge},
+      ),
     ]) {
       testWidgets('REP-LOY-001 $name is not enough', (tester) async {
         final s = unitServer();
@@ -71,7 +85,11 @@ void main() {
     });
 
     testWidgets('REP-LOY-001 a manager sees the report', (tester) async {
-      final h = await pumpUnit(tester, path: loyaltyPath, persona: Persona.manager);
+      final h = await pumpUnit(
+        tester,
+        path: loyaltyPath,
+        persona: Persona.manager,
+      );
       expect(find.text(h.t('reports.noAccess')), findsNothing);
       final call = h.server.callsTo(behaviorTpl).single;
       expect(call.status, 200);
@@ -92,6 +110,7 @@ void main() {
     testWidgets('REP-LOY-002 title, period, Overview / Campaigns / Liability; '
         'no export', (tester) async {
       final h = await pumpUnit(tester, path: loyaltyPath);
+      await h.shot('loyalty/header');
       expect(inPage(find.text('Loyalty')), findsOneWidget);
       expect(inPage(find.text('Last 30 days')), findsOneWidget);
       for (final l in ['Overview', 'Campaigns', 'Liability']) {
@@ -142,9 +161,10 @@ void main() {
       final all = behaviorOf(s.db);
       final maadi = behaviorOf(s.db, branches: [SeedIds.maadi]);
       expect(maadi.totalMembers, all.totalMembers);
-      expect(kpi(tester, 'active_member_rate').hint, contains(
-        'of ${all.totalMembers} members',
-      ));
+      expect(
+        kpi(tester, 'active_member_rate').hint,
+        contains('of ${all.totalMembers} members'),
+      );
       expect(kpi(tester, 'active_member_rate').value, maadi.activeMemberRate);
     });
 
@@ -304,7 +324,10 @@ void main() {
       for (final r in c.campaigns) {
         final row = find.byKey(ValueKey('campaign-${r.campaign}'));
         expect(
-          find.descendant(of: row, matching: figure(f.fmtPercent(r.returnRate))),
+          find.descendant(
+            of: row,
+            matching: figure(f.fmtPercent(r.returnRate)),
+          ),
           findsOneWidget,
         );
         final bar = tester.widget<DashProgressBar>(
@@ -374,7 +397,10 @@ void main() {
         ),
         findsNWidgets(2),
       );
-      expect(inPage(find.text(h.t('reports.loyalty.noCampaigns'))), findsNothing);
+      expect(
+        inPage(find.text(h.t('reports.loyalty.noCampaigns'))),
+        findsNothing,
+      );
       gate.release();
       await h.settle();
       expect(inPage(find.text('Win-back')), findsOneWidget);
@@ -455,7 +481,10 @@ void main() {
       final bars = tester.widgetList<DashProgressBar>(
         find.byType(DashProgressBar),
       );
-      expect(bars.map((b) => b.semanticLabel), ['استعادة العملاء', 'عيد الميلاد']);
+      expect(bars.map((b) => b.semanticLabel), [
+        'استعادة العملاء',
+        'عيد الميلاد',
+      ]);
       expect(find.bySemanticsLabel('winback'), findsNothing);
       semantics.dispose();
     });
@@ -463,7 +492,11 @@ void main() {
 
   group('liability', () {
     testWidgets('REP-LOY-013 asked only when the tab opens', (tester) async {
-      final h = await pumpUnit(tester, path: loyaltyPath, branchId: SeedIds.zamalek);
+      final h = await pumpUnit(
+        tester,
+        path: loyaltyPath,
+        branchId: SeedIds.zamalek,
+      );
       expect(h.server.callsTo(liabilityTpl), isEmpty);
       await openTab(h, 'Liability');
       final q = h.server.callsTo(liabilityTpl).single.query;
@@ -500,10 +533,7 @@ void main() {
       expect(chart.values, [
         for (final p in trend.points) p.outstanding.toDouble(),
       ]);
-      expect(
-        chart.tooltip(0),
-        '${trend.points.first.outstanding} orders',
-      );
+      expect(chart.tooltip(0), '${trend.points.first.outstanding} orders');
       expect(chart.formatAxis(1200), '1,200');
       for (final l in chart.labels) {
         expect(inPage(find.text(l)), findsOneWidget, reason: l);
@@ -729,7 +759,9 @@ void main() {
       size: DashSize.phone,
       locale: 'ar',
     );
-    final a = tester.getTopLeft(find.byKey(const ValueKey('active_member_rate')));
+    final a = tester.getTopLeft(
+      find.byKey(const ValueKey('active_member_rate')),
+    );
     final b = tester.getTopLeft(find.byKey(const ValueKey('redemption_rate')));
     final c = tester.getTopLeft(find.byKey(const ValueKey('redemption_ratio')));
     expect(a.dy, b.dy);

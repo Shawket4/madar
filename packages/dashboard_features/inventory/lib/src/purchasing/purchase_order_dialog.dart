@@ -176,6 +176,8 @@ class _PurchaseOrderDialogState extends ConsumerState<PurchaseOrderDialog> {
     if (valid.isEmpty) return;
     final t = ref.read(tProvider);
     final f = ref.read(formatProvider);
+    // Captured now: the lists refresh even if the dialog closes mid-save.
+    final bus = ref.read(realtimeBusProvider);
     setState(() => _busy = true);
     try {
       final d = _expected;
@@ -215,7 +217,7 @@ class _PurchaseOrderDialogState extends ConsumerState<PurchaseOrderDialog> {
               ],
             ),
           );
-      invalidateInventory(ref);
+      bus.invalidate(inventoryPathFamilies);
       if (!mounted) return;
       DashToast.success(context, t('inventory.purchasing.newOrder'));
       Navigator.of(context).pop(true);

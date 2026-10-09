@@ -30,9 +30,11 @@ class SuppliersTab extends ConsumerWidget {
       destructive: true,
     );
     if (!ok || !context.mounted) return;
+    final bus = ref.read(realtimeBusProvider);
+    final api = ref.read(apiProvider).purchasing;
     try {
-      await ref.read(apiProvider).purchasing.deleteSupplier(id: s.id);
-      invalidateInventory(ref);
+      await api.deleteSupplier(id: s.id);
+      bus.invalidate(inventoryPathFamilies);
       if (context.mounted) DashToast.success(context, t('common.done'));
     } on Object catch (e) {
       if (context.mounted) DashToast.error(context, errorMessage(e, t));
@@ -55,14 +57,14 @@ class SuppliersTab extends ConsumerWidget {
     // Email and phone read left to right in Arabic too (cut at their end).
     Widget orDash(String? v, {bool mono = false, bool ltr = false}) =>
         MadarClippedText(
-      v ?? '—',
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textDirection: (mono || ltr) && v != null ? TextDirection.ltr : null,
-      style: (mono && v != null ? DashType.mono : DashType.body).copyWith(
-        color: c.textPrimary,
-      ),
-    );
+          v ?? '—',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textDirection: (mono || ltr) && v != null ? TextDirection.ltr : null,
+          style: (mono && v != null ? DashType.mono : DashType.body).copyWith(
+            color: c.textPrimary,
+          ),
+        );
 
     return DashDataTable<Supplier>(
       key: const ValueKey('supplier-table'),
@@ -144,7 +146,8 @@ class SuppliersTab extends ConsumerWidget {
           DashMenuItem(
             label: t('common.delete'),
             destructive: true,
-            onSelected: () => _afterMenu(context, () => _delete(context, ref, s)),
+            onSelected: () =>
+                _afterMenu(context, () => _delete(context, ref, s)),
           ),
         ],
         builder: (context, ctl) => DashIconButton(

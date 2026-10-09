@@ -124,10 +124,7 @@ class LoyaltyOverviewTab extends ConsumerWidget {
           d?.activeMemberRate,
           t(
             'reports.loyalty.activeRateHint',
-            args: {
-              'active': n(d?.activeMembers),
-              'total': n(d?.totalMembers),
-            },
+            args: {'active': n(d?.activeMembers), 'total': n(d?.totalMembers)},
           ),
         ),
         item(

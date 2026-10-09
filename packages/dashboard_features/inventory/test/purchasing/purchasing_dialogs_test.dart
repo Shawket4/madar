@@ -147,13 +147,16 @@ void main() {
       final h = await openNewPo(tester);
       await h.tap(byKey('po-supplier'));
       final offered = tester.widget<DashOptionList<String>>(_options).options;
-      expect([for (final o in offered) o.label], [
-        'Delta Dairy',
-        'Golden Bakery Supply',
-        'Metro Wholesale',
-        'Nile Roasters',
-        'PackRight Egypt',
-      ]);
+      expect(
+        [for (final o in offered) o.label],
+        [
+          'Delta Dairy',
+          'Golden Bakery Supply',
+          'Metro Wholesale',
+          'Nile Roasters',
+          'PackRight Egypt',
+        ],
+      );
       await h.tap(
         find.descendant(of: _options, matching: find.text('Delta Dairy')),
       );
@@ -501,6 +504,27 @@ void main() {
       expect(poDialog, findsNothing);
     });
 
+    testWidgets('INV-PUR-040 / INV-ALL-010 closed while the order is sent: '
+        'the lists still refresh when it lands', (tester) async {
+      final s = purchasingServer();
+      final gate = s.server.hold('POST', PurT.orders);
+      final h = await openNewPo(tester, server: s.server, db: s.db);
+      await pickIngredient(h, 0, 'Sugar');
+      await h.enterText(byKey('po-line-qty-0'), '5000');
+      await h.tap(byKey('po-submit'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await h.settle();
+      expect(poDialog, findsNothing);
+      final reads = h.server.callsTo(PurT.orders, method: 'GET').length;
+      gate.release();
+      await h.settle();
+      expect(
+        h.server.callsTo(PurT.orders, method: 'GET').length,
+        greaterThan(reads),
+      );
+      expect(inOrders(find.text('PO-1042')), findsOneWidget);
+    });
+
     testWidgets('INV-PUR-040 / INV-ALL-010 a created order refreshes every '
         'inventory read on the page', (tester) async {
       final s = purchasingServer();
@@ -624,15 +648,23 @@ void main() {
         h.server.callsTo(PurT.order).single.path,
         '/purchasing/orders/$_po1041',
       );
-      expect(inReceive(find.text('Receive order · Delta Dairy')), findsOneWidget);
+      expect(
+        inReceive(find.text('Receive order · Delta Dairy')),
+        findsOneWidget,
+      );
       expect(
         inReceive(
-          find.text('Receive what arrived — the order stays open for the rest.'),
+          find.text(
+            'Receive what arrived — the order stays open for the rest.',
+          ),
         ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: byKey('receive-tabs'), matching: find.text('Receive')),
+        find.descendant(
+          of: byKey('receive-tabs'),
+          matching: find.text('Receive'),
+        ),
         findsOneWidget,
       );
       expect(
@@ -684,18 +716,15 @@ void main() {
       final cream = PurIds.line('po-1041', 1);
       final full = PurIds.line('po-1041', 0);
       expect(
-        tester.widget<PoNumberInput>(byKey('receive-qty-$cream'))
-            .enabled,
+        tester.widget<PoNumberInput>(byKey('receive-qty-$cream')).enabled,
         isFalse,
       );
       expect(
-        tester.widget<PoNumberInput>(byKey('receive-total-$cream'))
-            .enabled,
+        tester.widget<PoNumberInput>(byKey('receive-total-$cream')).enabled,
         isFalse,
       );
       expect(
-        tester.widget<PoNumberInput>(byKey('receive-qty-$full'))
-            .enabled,
+        tester.widget<PoNumberInput>(byKey('receive-qty-$full')).enabled,
         isTrue,
       );
       await h.tap(inReceive(find.text('Cancel')));
@@ -704,8 +733,7 @@ void main() {
       for (var n = 0; n < 2; n++) {
         final id = PurIds.line('po-1039', n);
         expect(
-          tester.widget<PoNumberInput>(byKey('receive-qty-$id'))
-              .enabled,
+          tester.widget<PoNumberInput>(byKey('receive-qty-$id')).enabled,
           isFalse,
         );
       }
@@ -744,9 +772,7 @@ void main() {
         'partially_received',
       );
       expect(
-        tester
-            .widget<DashButton>(inPage(byKey('po-receive-$_po1042')))
-            .label,
+        tester.widget<DashButton>(inPage(byKey('po-receive-$_po1042'))).label,
         'Receive remaining',
       );
     });
@@ -780,10 +806,32 @@ void main() {
     ) async {
       final h = await openReceive(tester, _po1042);
       for (var n = 0; n < 2; n++) {
-        await h.enterText(byKey('receive-qty-${PurIds.line('po-1042', n)}'), '');
+        await h.enterText(
+          byKey('receive-qty-${PurIds.line('po-1042', n)}'),
+          '',
+        );
       }
       expect(button(tester, 'receive-submit').onPressed, isNull);
       expect(h.server.callsTo(PurT.receive), isEmpty);
+    });
+
+    testWidgets('INV-PUR-046 / INV-ALL-010 closed while the delivery is '
+        'sent: the orders still refresh when it lands', (tester) async {
+      final s = purchasingServer();
+      final gate = s.server.hold('POST', PurT.receive);
+      final h = await openReceive(tester, _po1042, server: s.server, db: s.db);
+      await h.tap(byKey('receive-submit'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await h.settle();
+      expect(receiveDialog, findsNothing);
+      final reads = h.server.callsTo(PurT.orders, method: 'GET').length;
+      gate.release();
+      await h.settle();
+      expect(
+        h.server.callsTo(PurT.orders, method: 'GET').length,
+        greaterThan(reads),
+      );
+      expect(inPage(byKey('po-receive-$_po1042')), findsNothing);
     });
 
     testWidgets('INV-PUR-065 a DRAFT can be received', (tester) async {
@@ -911,10 +959,7 @@ void main() {
       await h.settle();
       expect(inputText(tester, 'receive-qty-$beans'), '4');
       expect(inputText(tester, 'receive-total-$beans'), '');
-      expect(
-        find.descendant(of: byKey('receive-tabs'), matching: find.byType(Text)),
-        findsWidgets,
-      );
+      // Back on the Receive tab.
       expect(inReceive(find.text('RECEIVING')), findsOneWidget);
     });
   });
@@ -1009,7 +1054,10 @@ void main() {
       expect(inReceive(find.byType(DashSkeleton)), findsWidgets);
       gate.release();
       await h.settle();
-      expect(inReceive(find.text('No deliveries recorded yet.')), findsOneWidget);
+      expect(
+        inReceive(find.text('No deliveries recorded yet.')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('INV-PUR-048 (divergence) a failed read shows its words and '
@@ -1023,14 +1071,12 @@ void main() {
       expect(inReceive(find.text('No deliveries recorded yet.')), findsNothing);
       s.server.clearFailures();
       await h.tap(inReceive(find.text('Retry')));
-      expect(
-        byKey('receipt-${InvIds.receipt('r-1039-a')}'),
-        findsOneWidget,
-      );
+      expect(byKey('receipt-${InvIds.receipt('r-1039-a')}'), findsOneWidget);
     });
 
-    testWidgets('INV-PUR-049 phone: the receive lines and receipts as cards',
-        (tester) async {
+    testWidgets('INV-PUR-049 phone: the receive lines and receipts as cards', (
+      tester,
+    ) async {
       final h = await openReceive(tester, _po1041, size: DashSize.phone);
       final full = PurIds.line('po-1041', 0);
       expect(byKey('receive-line-$full'), findsOneWidget);
@@ -1167,6 +1213,21 @@ void main() {
       );
       // The server keeps a contact it is sent null for (COALESCE).
       expect(inSuppliers(find.text('Laila Farouk')), findsOneWidget);
+    });
+
+    testWidgets('INV-PUR-056 / INV-ALL-010 closed while saving: the list '
+        'still refreshes when the save lands', (tester) async {
+      final s = purchasingServer();
+      final gate = s.server.hold('POST', PurT.suppliers);
+      final h = await openSupplier(tester, server: s.server, db: s.db);
+      await h.enterText(byKey('supplier-name'), 'Ras Sudr Fish');
+      await h.tap(byKey('supplier-save'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await h.settle();
+      expect(supplierDialog, findsNothing);
+      gate.release();
+      await h.settle();
+      expect(inSuppliers(find.text('Ras Sudr Fish')), findsOneWidget);
     });
 
     testWidgets('INV-PUR-056 a refused save: the server\'s words, the '

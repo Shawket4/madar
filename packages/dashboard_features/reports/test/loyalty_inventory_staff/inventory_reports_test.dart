@@ -38,7 +38,9 @@ Finder get headerExport => find.byKey(const ValueKey('inv-export'));
 
 bool exportEnabled(WidgetTester tester, Finder f) =>
     tester
-        .widget<DashButton>(find.descendant(of: f, matching: find.byType(DashButton)))
+        .widget<DashButton>(
+          find.descendant(of: f, matching: find.byType(DashButton)),
+        )
         .onPressed !=
     null;
 
@@ -95,13 +97,10 @@ void main() {
       final strip = tester.widget<DashTabStrip<String>>(
         find.byType(DashTabStrip<String>),
       );
-      expect([for (final t in strip.tabs) t.label], [
-        'Consumption',
-        'Shrinkage',
-        'Waste',
-        'PO lead time',
-        'Low stock',
-      ]);
+      expect(
+        [for (final t in strip.tabs) t.label],
+        ['Consumption', 'Shrinkage', 'Waste', 'PO lead time', 'Low stock'],
+      );
       expect(strip.value, 'consumption');
       expect(h.server.callsTo(orgTpl('consumption')), hasLength(1));
     });
@@ -251,15 +250,16 @@ void main() {
         from: _from,
         to: _to,
       );
-      expect([for (final c in columnsOf(tester)) c.label], [
-        'Ingredient',
-        'Quantity',
-        'Consumed value',
-      ]);
+      expect(
+        [for (final c in columnsOf(tester)) c.label],
+        ['Ingredient', 'Quantity', 'Consumed value'],
+      );
       final first = rows.first;
       expect(inPage(find.text(first.ingredientName)), findsOneWidget);
       expect(
-        inPage(figure('${f.fmtNumber(first.consumedQty)} ${fmtUnit(first.unit)}')),
+        inPage(
+          figure('${f.fmtNumber(first.consumedQty)} ${fmtUnit(first.unit)}'),
+        ),
         findsOneWidget,
       );
       expect(inPage(figure(f.fmtMoney(first.consumedValue))), findsOneWidget);
@@ -267,9 +267,11 @@ void main() {
       final chai = rows.firstWhere((r) => r.consumedValue == null);
       expect(rowsOf(tester), hasLength(rows.length));
       expect(
-        (rowsOf(tester).firstWhere(
-          (r) => (r as dynamic).key == chai.orgIngredientId,
-        ) as dynamic).cells[2],
+        (rowsOf(
+                  tester,
+                ).firstWhere((r) => (r as dynamic).key == chai.orgIngredientId)
+                as dynamic)
+            .cells[2],
         '—',
       );
       await h.shot('inventory/consumption');
@@ -305,12 +307,10 @@ void main() {
         db: s.db,
       );
       await openTab(h, 'Shrinkage');
-      expect([for (final c in columnsOf(tester)) c.label], [
-        'Ingredient',
-        'Reason',
-        'Quantity',
-        'Value',
-      ]);
+      expect(
+        [for (final c in columnsOf(tester)) c.label],
+        ['Ingredient', 'Reason', 'Quantity', 'Value'],
+      );
       for (final w in ['Other', 'Theft', 'Supplier short', 'lost_in_flood']) {
         expect(inPage(find.text(w)), findsOneWidget, reason: w);
       }
@@ -331,12 +331,10 @@ void main() {
         'value', (tester) async {
       final h = await pumpUnit(tester, path: inventoryPath);
       await openTab(h, 'Waste');
-      expect([for (final c in columnsOf(tester)) c.label], [
-        'Ingredient',
-        'Reason',
-        'Quantity',
-        'Waste value',
-      ]);
+      expect(
+        [for (final c in columnsOf(tester)) c.label],
+        ['Ingredient', 'Reason', 'Quantity', 'Waste value'],
+      );
       final rows = inventoryWasteReport(
         SeedIds.sabahBranches,
         from: _from,
@@ -375,14 +373,12 @@ void main() {
       );
       expect(kpi.label, 'Avg lead time (days)');
       expect(kpi.valueText, days(r.overallAvgDays));
-      expect([for (final c in columnsOf(tester)) c.label], [
-        'Supplier',
-        'Orders received',
-        'Avg lead time (days)',
-      ]);
+      expect(
+        [for (final c in columnsOf(tester)) c.label],
+        ['Supplier', 'Orders received', 'Avg lead time (days)'],
+      );
       final top = r.bySupplier.first;
-      final row =
-          rowsOf(tester).first as dynamic;
+      final row = rowsOf(tester).first as dynamic;
       expect(row.cells, [
         top.supplierName,
         f.fmtNumber(top.ordersReceived),
@@ -403,13 +399,17 @@ void main() {
       );
       await openTab(h, 'PO lead time');
       expect(
-        tester.widget<DashStatCard>(find.byKey(const ValueKey('overall'))).loading,
+        tester
+            .widget<DashStatCard>(find.byKey(const ValueKey('overall')))
+            .loading,
         isTrue,
       );
       gate.release();
       await h.settle();
       expect(
-        tester.widget<DashStatCard>(find.byKey(const ValueKey('overall'))).loading,
+        tester
+            .widget<DashStatCard>(find.byKey(const ValueKey('overall')))
+            .loading,
         isFalse,
       );
     });
@@ -431,12 +431,7 @@ void main() {
             ),
         ]),
       );
-      final h = await pumpUnit(
-        tester,
-        path: inventoryPath,
-        server: s.server,
-        db: s.db,
-      );
+      await pumpUnit(tester, path: inventoryPath, server: s.server, db: s.db);
       final t = tester.widget(table) as dynamic;
       expect(t.pageSize, 25);
       expect(t.hideViewOptions, isTrue);
@@ -541,12 +536,10 @@ void main() {
       expect(sheet.title, 'Consumption');
       expect(sheet.name, 'Consumption');
       expect(sheet.subtitle, startsWith('Whole organization'));
-      expect([for (final c in sheet.columns) c.header], [
-        'Ingredient',
-        'Quantity',
-        'Unit',
-        'Consumed value',
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        ['Ingredient', 'Quantity', 'Unit', 'Consumed value'],
+      );
       expect(sheet.rows, hasLength(rows.length));
       expect(sheet.rows.first.take(3), [
         rows.first.ingredientName,
@@ -576,22 +569,16 @@ void main() {
       final shr = h.exports.built[0].sheets.single;
       expect(shr.title, 'Shrinkage');
       expect(shr.subtitle, startsWith('This branch'));
-      expect([for (final c in shr.columns) c.header], [
-        'Ingredient',
-        'Reason',
-        'Quantity',
-        'Unit',
-        'Value',
-      ]);
+      expect(
+        [for (final c in shr.columns) c.header],
+        ['Ingredient', 'Reason', 'Quantity', 'Unit', 'Value'],
+      );
       final waste = h.exports.built[1].sheets.single;
       expect(waste.title, 'Waste');
-      expect([for (final c in waste.columns) c.header], [
-        'Ingredient',
-        'Reason',
-        'Quantity',
-        'Unit',
-        'Waste value',
-      ]);
+      expect(
+        [for (final c in waste.columns) c.header],
+        ['Ingredient', 'Reason', 'Quantity', 'Unit', 'Waste value'],
+      );
       final rows = inventoryWasteReport(
         [SeedIds.zamalek],
         from: _from,
@@ -679,14 +666,10 @@ void main() {
         h.server.callsTo(orgTpl('low-stock')).single.path,
         '/reports/orgs/${SeedIds.sabahOrg}/low-stock',
       );
-      expect([for (final c in columnsOf(tester)) c.label], [
-        'Name',
-        'Branch',
-        'On hand',
-        'Reorder point',
-        'Order',
-        'Supplier',
-      ]);
+      expect(
+        [for (final c in columnsOf(tester)) c.label],
+        ['Name', 'Branch', 'On hand', 'Reorder point', 'Order', 'Supplier'],
+      );
       final t = tester.widget(table) as dynamic;
       expect(t.pageSize, 50);
       expect(t.hideViewOptions, isFalse);
@@ -725,10 +708,9 @@ void main() {
         '/reports/branches/${SeedIds.maadi}/low-stock',
       );
       expect(h.server.callsTo(orgTpl('low-stock')), isEmpty);
-      expect(
-        [for (final c in columnsOf(tester)) c.label],
-        isNot(contains('Branch')),
-      );
+      expect([
+        for (final c in columnsOf(tester)) c.label,
+      ], isNot(contains('Branch')));
       expect(rowsOf(tester), hasLength(1));
     });
 
@@ -777,15 +759,18 @@ void main() {
       await h.settle();
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.title, 'Low stock');
-      expect([for (final c in sheet.columns) c.header], [
-        'Name',
-        'Branch',
-        'On hand',
-        'Reorder point',
-        'Order',
-        'Unit',
-        'Supplier',
-      ]);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        [
+          'Name',
+          'Branch',
+          'On hand',
+          'Reorder point',
+          'Order',
+          'Unit',
+          'Supplier',
+        ],
+      );
       final rows = inventoryLowStock(s.db, SeedIds.sabahBranches);
       expect(sheet.rows.first, [
         rows.first.ingredientName,
@@ -803,7 +788,10 @@ void main() {
       await h.expectToast('Exported ${rows.length} rows');
       await exportMenu(h, export, 'Export CSV');
       await h.settle();
-      expect(h.files.saved.last.filename, 'Madar-Low stock-${exportStamp(h)}.csv');
+      expect(
+        h.files.saved.last.filename,
+        'Madar-Low stock-${exportStamp(h)}.csv',
+      );
       await h.flushTimers();
     });
 
@@ -841,7 +829,10 @@ void main() {
       );
       await openTab(h, 'Low stock');
       expect((tester.widget(table) as dynamic).loading, isTrue);
-      expect(inPage(find.text('Nothing below its reorder point')), findsNothing);
+      expect(
+        inPage(find.text('Nothing below its reorder point')),
+        findsNothing,
+      );
       gate.release();
       await h.settle();
       expect(inPage(find.text('Oat milk')), findsOneWidget);
@@ -943,7 +934,10 @@ void main() {
       await hoverInventory(h, tester);
       final warmed = h.server.callsTo(branchTpl('consumption'));
       expect(warmed, hasLength(1), reason: 'warmed on hover');
-      expect(warmed.single.path, '/reports/branches/${SeedIds.zamalek}/consumption');
+      expect(
+        warmed.single.path,
+        '/reports/branches/${SeedIds.zamalek}/consumption',
+      );
       expect(warmed.single.query['from'], [defaultFrom]);
       await h.go(inventoryPath);
       expect(h.location.path, inventoryPath);

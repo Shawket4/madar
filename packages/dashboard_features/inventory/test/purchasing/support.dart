@@ -103,8 +103,7 @@ Finder inSuppliers(Finder f) =>
     find.descendant(of: suppliersTable, matching: f);
 Finder inPo(Finder f) => find.descendant(of: poDialog, matching: f);
 Finder inReceive(Finder f) => find.descendant(of: receiveDialog, matching: f);
-Finder inSupplier(Finder f) =>
-    find.descendant(of: supplierDialog, matching: f);
+Finder inSupplier(Finder f) => find.descendant(of: supplierDialog, matching: f);
 
 /// A cell (or any plain text) reading exactly [s] inside [scope].
 Finder exactText(Finder scope, String s) => find.descendant(

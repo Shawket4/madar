@@ -107,7 +107,13 @@ class LoyaltyMember {
 /// One signed ledger row (`loyalty_transactions`): `earn` +1 a visit,
 /// `redeem` −7 for the reward.
 class LoyaltyTxn {
-  const LoyaltyTxn(this.memberId, this.branchId, this.at, this.kind, this.points);
+  const LoyaltyTxn(
+    this.memberId,
+    this.branchId,
+    this.at,
+    this.kind,
+    this.points,
+  );
 
   final String memberId;
   final String branchId;
@@ -356,7 +362,8 @@ LiabilityTrend loyaltyLiability(
     to: to,
     currency: loyaltyCurrency,
     points: [
-      for (final k in keys) LiabilityTrendPoint(week: k, outstanding: weeks[k]!),
+      for (final k in keys)
+        LiabilityTrendPoint(week: k, outstanding: weeks[k]!),
     ],
   );
 }
@@ -481,7 +488,9 @@ final List<StockLoss> inventoryWaste = () {
       for (var e = 0; e < events; e++) {
         final at = today
             .subtract(Duration(days: 1 + rng.nextInt(27)))
-            .add(Duration(hours: 8 + rng.nextInt(12), minutes: rng.nextInt(60)));
+            .add(
+              Duration(hours: 8 + rng.nextInt(12), minutes: rng.nextInt(60)),
+            );
         final qty = _round(base * scale * (0.6 + rng.nextDouble() * 0.8), 2);
         out.add(StockLoss(b, ing, reason, at, qty));
       }
@@ -918,7 +927,9 @@ List<AttendanceDay> disciplineAttendance(MockDb db, String orgId) {
           status: 'present',
           lateMinutes: 0,
           covers: id,
-          coverStatus: s < 0.7 ? 'confirmed' : (s < 0.9 ? 'pending' : 'rejected'),
+          coverStatus: s < 0.7
+              ? 'confirmed'
+              : (s < 0.9 ? 'pending' : 'rejected'),
         ));
         break;
       }
@@ -1039,7 +1050,10 @@ void _registerDiscipline(MockServer server, MockDb db) {
     req.requireCap('hr.attendance.read', branchId: asked);
     final branches = _orgReadBranches(req, db, orgId);
     final from = req.q('from'), to = req.q('to');
-    if (from == null || to == null || !_date.hasMatch(from) || !_date.hasMatch(to)) {
+    if (from == null ||
+        to == null ||
+        !_date.hasMatch(from) ||
+        !_date.hasMatch(to)) {
       req.badRequest('Query deserialize error: `from` and `to` are dates');
     }
     final f = DateTime.parse(from), t = DateTime.parse(to);

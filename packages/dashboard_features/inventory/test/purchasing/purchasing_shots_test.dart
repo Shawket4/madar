@@ -73,7 +73,12 @@ void main() {
   for (final (size, lang) in _stateModes) {
     final tag = '${size.name} $lang';
     testWidgets('new purchase order, filled, $tag', (tester) async {
-      final h = await _at(tester, size, lang, path: purchasingAt(SeedIds.zamalek));
+      final h = await _at(
+        tester,
+        size,
+        lang,
+        path: purchasingAt(SeedIds.zamalek),
+      );
       await h.tap(byKey('purchasing-new-order'));
       await h.shot('purchasing/po-dialog-empty');
       await h.tap(byKey('po-line-ingredient-0'));
@@ -105,7 +110,12 @@ void main() {
     });
 
     testWidgets('create draft PO from reorder, $tag', (tester) async {
-      final h = await _at(tester, size, lang, path: purchasingAt(SeedIds.zamalek));
+      final h = await _at(
+        tester,
+        size,
+        lang,
+        path: purchasingAt(SeedIds.zamalek),
+      );
       await h.tap(
         find.descendant(
           of: byKey('purchasing-tabs'),
@@ -130,7 +140,11 @@ void main() {
       await h.shot('purchasing/receive-history');
       await h.tap(find.text(h.t('common.cancel')).hitTestable().last);
       final returned = PurIds.po('po-1039');
-      await _menu(h, 'po-menu-$returned', h.t('inventory.purchasing.viewOrder'));
+      await _menu(
+        h,
+        'po-menu-$returned',
+        h.t('inventory.purchasing.viewOrder'),
+      );
       await h.tap(
         find.descendant(
           of: byKey('receive-tabs'),
