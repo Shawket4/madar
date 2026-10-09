@@ -455,14 +455,11 @@ void main() {
     gate.release();
     await h.settle();
     await h.flushTimers();
-    h.server.fail(
-      'PATCH',
-      '/orgs/{id}',
-      MockResponse.error(500, 'Internal error'),
-    );
+    final refusal = MockResponse.error(500, 'Internal error');
+    h.server.fail('PATCH', '/orgs/{id}', refusal);
     await h.tapText('Layali Bistro');
     await _save(h);
-    await h.expectToast('Internal error');
+    await h.expectToast(h.refusalWords(refusal));
     expect(find.text('Edit Organization'), findsOneWidget);
     expect(_button(tester, 'Cancel').onPressed, isNotNull);
   });
@@ -555,7 +552,8 @@ void main() {
     await h.settle();
     expect(
       h.server.callsTo('/orgs', method: 'GET').length,
-      greaterThan(before),
+      before + 1,
+      reason: 'the one /orgs entry (page and picker) asks once',
     );
     await h.flushTimers();
   });

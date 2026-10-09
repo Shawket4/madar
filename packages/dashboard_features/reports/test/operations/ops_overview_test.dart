@@ -578,7 +578,9 @@ void main() {
 
   for (final (size, rows) in [
     (DashSize.desktop, 1),
-    (DashSize.tablet, 2),
+    // The web's lg:grid-cols-6 holds at a 1024 window (the kit strip counts
+    // columns by the window, as the web's media queries do).
+    (DashSize.tablet, 1),
     (DashSize.phone, 3),
   ]) {
     testWidgets('REP-ALL-023 KPI cards: six in $rows row(s) on '

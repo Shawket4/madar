@@ -193,13 +193,10 @@ void main() {
   testWidgets('ADM-ORG-029 a failed templates read shows its words under '
       'the cards', (tester) async {
     final s = orgsServer();
-    s.server.fail(
-      'GET',
-      '/orgs/templates',
-      MockResponse.error(500, 'Internal error'),
-    );
-    await _open(tester, server: s.server, db: s.db);
-    expect(find.text('Internal error'), findsOneWidget);
+    final refusal = MockResponse.error(500, 'Internal error');
+    s.server.fail('GET', '/orgs/templates', refusal);
+    final h = await _open(tester, server: s.server, db: s.db);
+    expect(find.text(h.refusalWords(refusal)), findsOneWidget);
     expect(find.text('Café'), findsNothing);
   });
 
@@ -480,23 +477,40 @@ void main() {
     await h.expectToast('Organization created');
   });
 
+  testWidgets('ADM-ORG-039 Create refreshes /orgs once even when the wizard '
+      'closed while it ran', (tester) async {
+    final h = await _open(tester);
+    await _toOwner(h);
+    await _owner(h);
+    final gate = h.server.hold('POST', '/orgs/provision');
+    await _create(h);
+    await h.go('/orgs');
+    expect(find.text('New Organization'), findsNothing);
+    final before = h.server.callsTo('/orgs', method: 'GET').length;
+    gate.release();
+    await h.settle();
+    expect(
+      h.server.callsTo('/orgs', method: 'GET').length,
+      before + 1,
+      reason: 'the one /orgs entry (page and picker) asks once',
+    );
+    expect(find.text('Drops Coffee'), findsOneWidget);
+    await h.flushTimers();
+  });
+
   testWidgets('ADM-ORG-039 a failed logo upload says so; the org stays '
       'created', (tester) async {
     final h = await _open(tester);
-    h.server.fail(
-      'PUT',
-      '/orgs/{id}/logo',
-      MockResponse.badRequest('Image uploads are disabled in the demo.'),
+    final refusal = MockResponse.badRequest(
+      'Image uploads are disabled in the demo.',
     );
+    h.server.fail('PUT', '/orgs/{id}/logo', refusal);
     h.files.imageQueue.add(pngFile());
     await h.tapText('Choose Image');
     await _toOwner(h);
     await _owner(h);
     await _create(h);
-    expect(
-      find.text('Image uploads are disabled in the demo.'),
-      findsOneWidget,
-    );
+    expect(find.text(h.refusalWords(refusal)), findsOneWidget);
     expect(find.text('Organization created'), findsOneWidget);
     expect(find.text('New Organization'), findsNothing);
     expect(find.text('Drops Coffee'), findsOneWidget);
@@ -514,10 +528,13 @@ void main() {
     await _create(h);
     expect(h.server.callsTo('/orgs/provision').single.status, 409);
     expect(find.text('Step 1 of 3 · Business'), findsOneWidget);
-    expect(find.text("Slug 'sabah-coffee' is already taken"), findsOneWidget);
+    final taken = h.refusalWords(
+      MockResponse.conflict("Slug 'sabah-coffee' is already taken"),
+    );
+    expect(find.text(taken), findsOneWidget);
     // A changed slug re-checks: the server's words go.
     await _type(h, 'slug', 'sabah-coffee-2');
-    expect(find.text("Slug 'sabah-coffee' is already taken"), findsNothing);
+    expect(find.text(taken), findsNothing);
   });
 
   testWidgets('ADM-ORG-040 a taken email sends it to step 3, under Email', (
@@ -528,7 +545,12 @@ void main() {
     await _owner(h, email: 'nour@sabah.test');
     await _create(h);
     expect(find.text('Step 3 of 3 · Owner'), findsOneWidget);
-    expect(find.text('Email already in use'), findsOneWidget);
+    expect(
+      find.text(
+        h.refusalWords(MockResponse.conflict('Email already in use')),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('New Organization'), findsOneWidget);
   });
 
@@ -536,15 +558,12 @@ void main() {
     tester,
   ) async {
     final h = await _open(tester);
-    h.server.fail(
-      'POST',
-      '/orgs/provision',
-      MockResponse.error(500, 'Internal error'),
-    );
+    final refusal = MockResponse.error(500, 'Internal error');
+    h.server.fail('POST', '/orgs/provision', refusal);
     await _toOwner(h);
     await _owner(h);
     await _create(h);
-    await h.expectToast('Internal error');
+    await h.expectToast(h.refusalWords(refusal));
     expect(find.text('Step 3 of 3 · Owner'), findsOneWidget);
   });
 

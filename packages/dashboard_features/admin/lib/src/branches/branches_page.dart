@@ -172,7 +172,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
     }
     // The export's logo (the shop's own on the branding tier).
     ref.watch(publicBrandProvider);
-    final list = ref.watch(adminBranchesProvider(orgId));
+    final list = ref.watch(branchesProvider);
     final branches = list.value ?? const <Branch>[];
     final loading = list.awaitingFirst;
     final error = list.failedFirst ? list.error : null;
@@ -236,7 +236,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
             branches: branches,
             loading: loading,
             errorText: error == null ? null : branchErrorText(error, t),
-            onRetry: () => ref.invalidate(adminBranchesProvider(orgId)),
+            onRetry: () => ref.invalidate(branchesProvider),
             onEdit: (b) => context.setQueryParams({'edit': b.id}),
             onEditIntent: _warmDialog,
             onDelete: _remove,
@@ -341,7 +341,7 @@ class _BranchesTable extends ConsumerWidget {
           label: t('common.name'),
           phone: DashPhoneRole.title,
           flex: 3,
-          minWidth: 200,
+          minWidth: 180,
           text: (b) => b.name,
           cell: (context, b) => _NameCell(branch: b),
         ),
@@ -351,21 +351,26 @@ class _BranchesTable extends ConsumerWidget {
           numeric: true,
           align: DashAlign.start,
           flex: 2,
+          minWidth: 150,
           searchable: hasText(first?.phone),
           text: (b) => b.phone ?? '',
           cell: (context, b) => hasText(b.phone)
-              ? Text(
+              ? MadarClippedText(
                   b.phone!,
                   textDirection: TextDirection.ltr,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 )
-              : Text('—', style: TextStyle(color: c.textSecondary)),
+              : Text(
+                  '—',
+                  style: DashType.body.copyWith(color: c.textSecondary),
+                ),
         ),
         DashColumn<Branch>(
           id: 'printer',
           label: t('branches.printer'),
           flex: 2,
+          minWidth: 170,
           searchable: first?.printerBrand != null,
           text: (b) => b.printerBrand?.toJson() ?? '',
           cell: (context, b) {
@@ -411,7 +416,7 @@ class _BranchesTable extends ConsumerWidget {
         DashColumn<Branch>(
           id: 'status',
           label: t('common.status'),
-          flex: 1,
+          width: 104,
           searchable: false,
           text: (b) => t(b.isActive ? 'common.active' : 'common.inactive'),
           cell: (context, b) => DashStatusPill(

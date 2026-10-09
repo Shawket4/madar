@@ -4,6 +4,7 @@
 import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/shell.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashExportButton;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -75,5 +76,41 @@ void main() {
     expect(find.text('New Organization'), findsOneWidget);
     expect(templates(), hasLength(1), reason: 'the wizard opened from cache');
     expect(zones(), hasLength(1));
+  });
+
+  testWidgets('ADM-ORG-019 / 022 the Edit pencil warms the editor\'s '
+      'timezones, Export the brand it reads; the presses ask nothing more', (
+    tester,
+  ) async {
+    final h = await pumpOrgs(tester);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    List<MockCall> zones() => h.server.callsTo('/timezones', method: 'GET');
+    List<MockCall> brand() =>
+        h.server.callsTo('/public/orgs/brand', method: 'GET');
+
+    final pencil = find.bySemanticsLabel('Edit').first;
+    await mouse.moveTo(tester.getCenter(pencil));
+    await h.settle();
+    expect(zones(), hasLength(1), reason: 'the editor read is warmed');
+    await h.tap(pencil);
+    expect(find.text('Edit Organization'), findsOneWidget);
+    expect(zones(), hasLength(1), reason: 'the editor opened from the cache');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+
+    final export = find.byType(DashExportButton);
+    await mouse.moveTo(tester.getCenter(export));
+    await h.settle();
+    expect(
+      h.container.read(publicBrandProvider).hasValue,
+      isTrue,
+      reason: 'the export read is warmed',
+    );
+    final warmed = brand().length;
+    await h.tap(export);
+    await h.expectToast(h.t('excel.done', count: 4));
+    expect(brand(), hasLength(warmed), reason: 'the export read the cache');
   });
 }

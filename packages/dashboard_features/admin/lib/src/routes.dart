@@ -17,7 +17,6 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'branch_setup/branch_setup_page.dart';
-import 'branches/branches_data.dart';
 import 'branches/branches_page.dart';
 import 'devices/devices_page.dart';
 import 'onboarding/onboarding_page.dart';
@@ -122,7 +121,8 @@ void _prefetchReview(DashPrefetcher warm, Scope s) =>
 /// The web's `prefetchRoute('/orgs')`.
 void _prefetchOrgs(DashPrefetcher warm, Scope s) => warm(orgsListProvider);
 
-/// The web's `prefetchRoute('/branches')`: the org's branches.
+/// The web's `prefetchRoute('/branches')`: the org's branches (core's
+/// `branchesProvider`, the page's read).
 void _prefetchBranches(DashPrefetcher warm, Scope s) {
-  if (s.orgId case final orgId?) warm(adminBranchesProvider(orgId));
+  if (s.orgId != null) warm(branchesProvider);
 }

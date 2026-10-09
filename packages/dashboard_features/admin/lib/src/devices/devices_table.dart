@@ -150,6 +150,7 @@ class DevicesTable extends ConsumerWidget {
                   label: t('devices.codeConflict'),
                   tone: DashTone.warning,
                   small: true,
+                  wrap: true, // a narrow Code column wraps it, never cuts it
                 ),
             ],
           ),

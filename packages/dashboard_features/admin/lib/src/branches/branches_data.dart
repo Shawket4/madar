@@ -10,13 +10,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../orgs/org_errors.dart' show orgErrorWords;
 
-/// `GET /branches?org_id=<org>&include_warehouses=true` (listBranches): every
-/// branch and warehouse of the org, inactive included, unpaginated. A
+/// `GET /branches?org_id=<org>&include_warehouses=true` (listBranches) for
+/// [orgId]: every branch and warehouse, inactive included, unpaginated. The
+/// page reads core's `branchesProvider` (the scope bar's same request); this
+/// forwards to it for the scope's own org, so the Users dialogs share that
+/// one request, and asks on its own for another org. A
 /// `branch.settings_changed` nudge (or [invalidateBranches]) asks again, as
 /// the web's `/branches` prefix invalidation does.
 final adminBranchesProvider = FutureProvider.autoDispose
-    .family<List<Branch>, String>((ref, orgId) {
+    .family<List<Branch>, String>((ref, orgId) async {
       ref.webCache();
+      if (ref.watch(orgIdProvider) == orgId) {
+        return await ref.watch(branchesProvider.future) ?? const <Branch>[];
+      }
       ref.watch(realtimeEpochProvider('/branches?org_id=$orgId'));
       return ref
           .watch(apiProvider)
