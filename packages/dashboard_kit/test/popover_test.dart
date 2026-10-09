@@ -117,6 +117,47 @@ void main() {
       expect(card.top, greaterThanOrEqualTo(0));
     });
 
+    // A shell page lives in a nested navigator's overlay under the header:
+    // the card is clipped to that area, so it must fit (and be hit) there.
+    for (final (header, fieldTop) in [(300.0, 320.0), (500.0, 820.0)]) {
+      testWidgets('in a page area under a ${header.round()} px header, field '
+          'at ${fieldTop.round()}', (tester) async {
+        await pumpDashApp(
+          tester,
+          Column(
+            children: [
+              SizedBox(height: header),
+              Expanded(
+                child: Overlay(
+                  initialEntries: [
+                    OverlayEntry(
+                      builder: (context) =>
+                          _at(fieldTop - header, _dateField()),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.tap(find.bySemanticsLabel(RegExp('^Start')));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        final card = _card(tester);
+        expect(card.top, greaterThanOrEqualTo(header), reason: 'not clipped');
+        expect(card.bottom, lessThanOrEqualTo(900));
+        // Every part of the card takes taps: the month bar, then the foot.
+        await tester.tap(find.bySemanticsLabel('Next'));
+        await tester.pumpAndSettle();
+        expect(find.text('November 2026'), findsOneWidget);
+        await tester.dragFrom(card.center, const Offset(0, -300));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Today'));
+        await tester.pumpAndSettle();
+        expect(find.byType(DashCalendar), findsNothing);
+      });
+    }
+
     testWidgets('centre alignment puts the card under the trigger centre', (
       tester,
     ) async {

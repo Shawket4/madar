@@ -10,13 +10,25 @@ import 'package:flutter/widgets.dart' show VoidCallback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// `GET /orgs` (listOrgs): every organization, active and inactive,
-/// unpaginated (ADM-ORG-003). The web keeps no realtime subscription here;
-/// a `resync` (which invalidates everything) refetches it.
+/// unpaginated (ADM-ORG-003). One cache entry with the shell's org picker,
+/// as the web's: this read forwards to core's [orgsProvider] (so a mutation
+/// refetches it once), and refreshes it on a `resync` (the web keeps no other
+/// realtime subscription here).
 final orgsListProvider = FutureProvider.autoDispose<List<Org>>((ref) {
   ref.webCache();
-  ref.watch(realtimeEpochProvider('/orgs'));
-  return ref.watch(apiProvider).orgs.listOrgs();
-});
+  ref.listen(
+    realtimeEpochProvider('/orgs'),
+    (_, _) => ref.invalidate(orgsProvider),
+  );
+  // A first open (or webCache's stale reopen) refreshes the picker's entry
+  // unless it is loading already. ponytail: core keeps no fetch time, so a
+  // first open within 30 s of the picker's own read asks once more than
+  // the web would; give orgsProvider webCache in core to drop it.
+  if (!ref.isReload && !ref.read(orgsProvider).isLoading) {
+    ref.invalidate(orgsProvider);
+  }
+  return ref.watch(orgsProvider.future);
+}, retry: (_, _) => null);
 
 /// `GET /orgs/templates` (listTemplates), read only while the provision
 /// wizard is open (ADM-ORG-025, ADM-ORG-029).

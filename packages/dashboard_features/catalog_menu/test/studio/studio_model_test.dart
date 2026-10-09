@@ -641,10 +641,11 @@ void main() {
       expect(mealDelta(k, 'drink', latte, lookup), 8500);
     });
 
-    test('unknown slot or price: null', () {
+    test('unknown slot: null; an unsold included size costs the lowest', () {
       final k = combo([slot('drink', [choice(null, 'hot', included: 'Kids')])]);
       expect(mealDelta(k, 'nope', latte, lookup), isNull);
-      expect(mealDelta(k, 'drink', latte, lookup), isNull);
+      // unit_price: Kids is not sold, so the latte alone is Regular 11500.
+      expect(mealDelta(k, 'drink', latte, lookup), 15000 - 11500);
     });
   });
 }

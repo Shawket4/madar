@@ -87,8 +87,7 @@ abstract final class ComboSettingsMock {
         db[branchChannels]
             .where(
               (o) =>
-                  o['org_id'] == orgId &&
-                  branches.find('${o['id']}') != null,
+                  o['org_id'] == orgId && branches.find('${o['id']}') != null,
             )
             .toList()
           ..sort((a, b) {
@@ -111,12 +110,16 @@ abstract final class ComboSettingsMock {
 }
 
 void registerComboSettingsMocks(MockServer server, MockDb db) {
-  seedTableIfAbsent(db, ComboSettingsMock.margins, () => [
-    {
-      'id': SeedIds.sabahOrg,
-      'combo_min_margin': ComboSettingsMock.sabahMinMargin,
-    },
-  ]);
+  seedTableIfAbsent(
+    db,
+    ComboSettingsMock.margins,
+    () => [
+      {
+        'id': SeedIds.sabahOrg,
+        'combo_min_margin': ComboSettingsMock.sabahMinMargin,
+      },
+    ],
+  );
   seedTableIfAbsent(
     db,
     ComboSettingsMock.orgChannels,
@@ -131,7 +134,9 @@ void registerComboSettingsMocks(MockServer server, MockDb db) {
   /// `claims_org`.
   String org(MockRequest req) =>
       req.orgId ??
-      req.fail(MockResponse.forbidden('A super admin must scope this to an org'));
+      req.fail(
+        MockResponse.forbidden('A super admin must scope this to an org'),
+      );
 
   /// `branch_of_org`: a live branch of the caller's org.
   void branchOfOrg(MockRequest req, String orgId, String branchId) {
@@ -159,7 +164,9 @@ void registerComboSettingsMocks(MockServer server, MockDb db) {
       if (text.isNotEmpty) {
         final d = double.tryParse(text);
         if (d == null) req.badRequest('min_margin must be a decimal fraction');
-        if (d < 0 || d > 1) req.badRequest('min_margin must be between 0 and 1');
+        if (d < 0 || d > 1) {
+          req.badRequest('min_margin must be between 0 and 1');
+        }
         min = ((d * 10000).round() / 10000).toStringAsFixed(4);
       }
       db[ComboSettingsMock.margins].put({'id': orgId, 'combo_min_margin': min});

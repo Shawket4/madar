@@ -150,11 +150,20 @@ class _DashPopoverState extends State<DashPopover> {
     if (widget.matchAnchorWidth) width = math.max(width, anchor.width);
     width = math.min(width, screen.width - Space.lg * 2);
 
+    // The overlay the card is drawn (and clipped) in: the window, or a
+    // shell page's area under its header.
+    final host = Overlay.maybeOf(context)?.context.findRenderObject();
+    final area = host is RenderBox && host.hasSize
+        ? host.localToGlobal(Offset.zero) & host.size
+        : Offset.zero & screen;
+    final top = math.max(area.top, pad.top);
+    final bottom = math.min(area.bottom, screen.height - pad.bottom);
+
     // The room under and over the trigger. The card opens below when it
     // fits there, above when it fits there instead, and otherwise on the
     // roomier side, capped to it (its content scrolls).
-    final below = screen.height - pad.bottom - anchor.bottom - margin * 2;
-    final above = anchor.top - pad.top - margin * 2;
+    final below = bottom - anchor.bottom - margin * 2;
+    final above = anchor.top - top - margin * 2;
     final maxH = math.max(
       120.0,
       math.min(widget.maxHeight, math.max(above, below)),
@@ -218,19 +227,19 @@ class _DashPopoverState extends State<DashPopover> {
             excludeFromSemantics: true,
           ),
         ),
-        // A window-tall column over the trigger, so the side is chosen once
-        // the card's own height is known.
+        // A column as tall as the overlay, over the trigger, so the side is
+        // chosen once the card's own height is known.
         CompositedTransformFollower(
           link: _link,
           showWhenUnlinked: false,
-          offset: Offset(dx, -anchor.top),
+          offset: Offset(dx, area.top - anchor.top),
           child: SizedBox(
             width: width,
-            height: screen.height,
+            height: area.height,
             child: CustomSingleChildLayout(
               delegate: _Placement(
-                top: anchor.top,
-                bottom: anchor.bottom,
+                top: anchor.top - area.top,
+                bottom: anchor.bottom - area.top,
                 above: above,
                 below: below,
                 margin: margin,
@@ -255,7 +264,7 @@ class _Placement extends SingleChildLayoutDelegate {
     required this.margin,
   });
 
-  /// The trigger's edges in this column's frame (the window's).
+  /// The trigger's edges in this column's frame (the overlay's).
   final double top;
   final double bottom;
   final double above;

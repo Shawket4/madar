@@ -5,7 +5,7 @@
 import 'dart:async';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show CreateTransferRequest, DashboardApi, TransferLineInput;
+    show CreateTransferRequest, DashboardApi, StockTransfer, TransferLineInput;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
@@ -114,7 +114,10 @@ void main() {
     expect(pill('Received').tone, DashTone.success);
     expect(pill('Cancelled').tone, DashTone.danger);
     // No row menu (Edit note / Reverse are gone).
-    expect(inTable(find.byType(DashMenu)), findsNothing);
+    expect(
+      tester.widget<DashDataTable<StockTransfer>>(table).rowActions,
+      isNull,
+    );
   });
 
   testWidgets('INV-TRF-008 / INV-ALL-028 a warehouse side wears the '

@@ -301,8 +301,13 @@ String discrepancyText(DashFormat fmt, int? d) => d == null
 void prefetchTillReport(WidgetRef ref, String tillId) {
   final p = tillReportProvider(tillId);
   unawaited(
-    ref.read(p.future).then<void>((_) {}, onError: (Object _) {
-      ref.invalidate(p);
-    }),
+    ref
+        .read(p.future)
+        .then<void>(
+          (_) {},
+          onError: (Object _) {
+            ref.invalidate(p);
+          },
+        ),
   );
 }

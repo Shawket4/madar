@@ -111,7 +111,10 @@ int? estimateLineTotal(
   String stockUnit,
 ) {
   final per = stockUnitsPer(purchaseUnit, stockUnit);
-  return catalogCostPerStockUnit != null && per != null && qty.isFinite && qty > 0
+  return catalogCostPerStockUnit != null &&
+          per != null &&
+          qty.isFinite &&
+          qty > 0
       ? jsRound(catalogCostPerStockUnit * qty * per)
       : null;
 }

@@ -39,11 +39,7 @@ enum ComboChannel {
   pos('combos.channels.pos', 'combos.channels.posHint', 'store'),
   qr('combos.channels.qr', 'combos.channels.qrHint', 'qr-code'),
   online('combos.channels.online', 'combos.channels.onlineHint', 'globe'),
-  delivery(
-    'combos.channels.delivery',
-    'combos.channels.deliveryHint',
-    'truck',
-  );
+  delivery('combos.channels.delivery', 'combos.channels.deliveryHint', 'truck');
 
   const ComboChannel(this.labelKey, this.hintKey, this.icon);
 

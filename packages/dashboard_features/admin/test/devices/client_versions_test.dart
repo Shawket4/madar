@@ -183,6 +183,23 @@ void main() {
       expect(h.server.unmatched, isEmpty);
     });
 
+    testWidgets('ADM-DEV-025 at tablet width every column fits, Branch '
+        'included: Last seen and Last legacy hit show without scrolling '
+        'sideways', (tester) async {
+      await pumpDevices(
+        tester,
+        query: '$_clients&all=true',
+        size: DashSize.tablet,
+      );
+      for (final header in ['BRANCH', 'LAST SEEN', 'LAST LEGACY HIT']) {
+        expect(
+          inClients(find.text(header)).hitTestable(),
+          findsOneWidget,
+          reason: header,
+        );
+      }
+    });
+
     testWidgets('ADM-DEV-025 twenty a page', (tester) async {
       final backend = DevicesBackend();
       final now = backend.db.clock.now;

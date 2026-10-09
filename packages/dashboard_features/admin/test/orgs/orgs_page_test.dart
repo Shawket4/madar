@@ -314,22 +314,26 @@ void main() {
       tester,
     ) async {
       final s = orgsServer();
-      // Every read of /orgs fails (the page's and the org picker's).
-      s.server.fail(
-        'GET',
-        '/orgs',
-        MockResponse.error(500, 'Internal error'),
-        times: null,
-      );
+      final refusal = MockResponse.error(500, 'Internal error');
+      // Every read of /orgs fails (the page's and the org picker's: one
+      // entry).
+      s.server.fail('GET', '/orgs', refusal, times: null);
       final h = await pumpOrgs(tester, server: s.server, db: s.db);
-      expect(find.text('Internal error'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('orgs-table')),
+          matching: find.text(h.refusalWords(refusal)),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Layali Bistro'), findsNothing);
       s.server.clearFailures();
       final before = s.server.callsTo('/orgs', method: 'GET').length;
       await h.tapText('Retry');
       expect(
         s.server.callsTo('/orgs', method: 'GET').length,
-        greaterThan(before),
+        before + 1,
+        reason: 'Retry asks exactly once more',
       );
       expect(find.text('Layali Bistro'), findsOneWidget);
     });
@@ -470,6 +474,25 @@ void main() {
       expect(find.text('Qahwa Corner'), findsOneWidget);
     });
 
+    testWidgets('ADM-ORG-019 / 020 tablet (1024x768): every Edit and Delete '
+        'stays on screen and opens', (tester) async {
+      final h = await pumpOrgs(tester, size: DashSize.tablet);
+      final screen = Offset.zero & DashSize.tablet.size;
+      for (final label in ['Edit', 'Delete']) {
+        final icons = find.bySemanticsLabel(label);
+        expect(icons.hitTestable(), findsNWidgets(4), reason: label);
+        for (final e in icons.evaluate()) {
+          final box = e.renderObject! as RenderBox;
+          final rect = box.localToGlobal(Offset.zero) & box.size;
+          expect(screen.contains(rect.bottomRight - const Offset(1, 1)), isTrue);
+          expect(screen.contains(rect.topLeft), isTrue);
+        }
+      }
+      await h.tap(find.bySemanticsLabel('Delete').at(2));
+      expect(find.text('Delete Qahwa Corner?'), findsOneWidget);
+      await h.tap(_inConfirm('Cancel'));
+    });
+
     testWidgets('ADM-ORG-021 Delete confirmed: the call, the list again, the '
         'toast', (tester) async {
       final h = await pumpOrgs(tester);
@@ -481,7 +504,8 @@ void main() {
       expect(call.status, 204);
       expect(
         h.server.callsTo('/orgs', method: 'GET').length,
-        greaterThan(before),
+        before + 1,
+        reason: 'the one /orgs entry (page and picker) asks once',
       );
       expect(find.text('Qahwa Corner'), findsNothing);
       expect(_stat('total', '3'), findsOneWidget);

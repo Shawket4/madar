@@ -61,15 +61,14 @@ class CheckRow {
     if (declared.trim().isNotEmpty && !(n != null && n.isFinite && n >= 0)) {
       return false;
     }
-    return reconcileRefusal(
-          [(method: method, isCash: false)],
-          [toInput()],
-        ) ==
+    return reconcileRefusal([(method: method, isCash: false)], [toInput()]) ==
         null;
   }
 
   ReconciliationInput toInput() {
-    if (!disagreed) return ReconciliationInput(method: method, status: 'checked');
+    if (!disagreed) {
+      return ReconciliationInput(method: method, status: 'checked');
+    }
     final n = parseAmount(declared);
     return ReconciliationInput(
       method: method,

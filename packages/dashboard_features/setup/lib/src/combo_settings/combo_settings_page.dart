@@ -290,7 +290,10 @@ class _ComboSettingsBodyState extends ConsumerState<ComboSettingsBody> {
                       },
                     ),
                   ),
-                  Text('%', style: DashType.body.copyWith(color: c.textSecondary)),
+                  Text(
+                    '%',
+                    style: DashType.body.copyWith(color: c.textSecondary),
+                  ),
                 ],
               ),
               if (marginError != null)

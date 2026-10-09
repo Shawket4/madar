@@ -28,6 +28,9 @@ Rect _card(WidgetTester tester, String key) =>
     tester.getRect(find.byKey(ValueKey(key)));
 
 void main() {
+  // Real faces: whether a label is cut depends on its real width.
+  setUpAll(loadDashFonts);
+
   testWidgets('the web lg: four across at a 1024 window, even in 800 px', (
     tester,
   ) async {
@@ -75,7 +78,6 @@ void main() {
     final funnel = DashIconButton(
       icon: 'list-filter',
       semanticLabel: 'Exclude items',
-      iconSize: IconSize.xs,
       onPressed: () => taps++,
     );
     await pumpDashApp(
@@ -133,14 +135,14 @@ void main() {
   ) async {
     await pumpDashApp(
       tester,
-      const Scaffold(
+      Scaffold(
         body: Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Row(
             spacing: 12,
             children: [
               for (var i = 0; i < 3; i++)
-                Expanded(
+                const Expanded(
                   child: DashStatCard(
                     label: 'Orders',
                     icon: 'receipt',

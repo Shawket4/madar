@@ -83,10 +83,8 @@ class _BookingSettingsPageState extends ConsumerState<BookingSettingsPage> {
                   label: t('settings.editRules'),
                   onPressed: branchId == null
                       ? null
-                      : () => showBookingRulesDialog(
-                          context,
-                          branchId: branchId,
-                        ),
+                      : () =>
+                            showBookingRulesDialog(context, branchId: branchId),
                   // The dialog reads the branch's rules on open: warm them.
                   onIntent: branchId == null
                       ? null

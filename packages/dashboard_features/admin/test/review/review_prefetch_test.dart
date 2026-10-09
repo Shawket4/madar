@@ -5,7 +5,6 @@ import 'package:dashboard_admin/dashboard_admin.dart';
 import 'package:dashboard_admin/src/shared/access_tabs.dart';
 import 'package:dashboard_api/mock.dart' show Persona;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';

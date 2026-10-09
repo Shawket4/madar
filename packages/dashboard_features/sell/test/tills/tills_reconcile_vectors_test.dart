@@ -55,7 +55,9 @@ void main() {
       final rows = [
         for (final t in totals(v).where((t) => !t.isCash))
           () {
-            final i = inputs(v).where((x) => x['method'] == t.method).firstOrNull;
+            final i = inputs(
+              v,
+            ).where((x) => x['method'] == t.method).firstOrNull;
             final amount = i?['declared_amount'] as int?;
             return CheckRow(t.method)
               ..disagreed = i?['status'] == 'disagreed'

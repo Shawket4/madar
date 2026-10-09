@@ -70,7 +70,7 @@ def main(argv):
     try:
         env = {**os.environ, "FLUTTER_ALREADY_LOCKED": "true"}
         if analyze:
-            cmd = ["flutter", "analyze", *(rest or ["lib", "test"])]
+            cmd = ["flutter", "analyze", "--no-pub", *(rest or ["lib", "test"])]
         else:
             cmd = ["flutter", "test", "--no-pub", *rest]
         return subprocess.call(cmd, cwd=pkg, env=env)

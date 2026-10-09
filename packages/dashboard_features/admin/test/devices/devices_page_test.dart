@@ -9,6 +9,7 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -137,6 +138,57 @@ void main() {
       expect(find.text('Page 1 of 1'), findsNothing);
     });
 
+    for (final lang in ['en', 'ar']) {
+      testWidgets('ADM-DEV-004/009/015/017 at tablet width ($lang) every '
+          'column fits: Last seen, each pencil and Withdraw show without '
+          'scrolling sideways', (tester) async {
+        final h = await pumpDevices(
+          tester,
+          query: _zamalek,
+          size: DashSize.tablet,
+          locale: lang,
+        );
+        final lastSeen = h.t('devices.lastSeen').toUpperCase();
+        expect(
+          find
+              .descendant(
+                of: find.byType(DevicesTable),
+                matching: find.text(lastSeen),
+              )
+              .hitTestable(),
+          findsOneWidget,
+        );
+        expect(
+          find
+              .byWidgetPredicate(
+                (w) =>
+                    w is DashIconButton &&
+                    w.semanticLabel == h.t('common.edit'),
+              )
+              .hitTestable(),
+          findsNWidgets(5),
+        );
+        final withdraw = find.descendant(
+          of: find.byKey(const ValueKey('codes-table')),
+          matching: find.text(h.t('devices.activation.revoke')),
+        );
+        // Scrolls down only: a column pushed off the side never shows.
+        await h.scrollUntilVisible(withdraw);
+        expect(withdraw.hitTestable(), findsOneWidget);
+        expect(
+          find
+              .descendant(
+                of: find.byKey(const ValueKey('codes-table')),
+                matching: find.text(
+                  h.t('devices.activation.when').toUpperCase(),
+                ),
+              )
+              .hitTestable(),
+          findsOneWidget,
+        );
+      });
+    }
+
     testWidgets('ADM-DEV-004 more than 20 devices page', (tester) async {
       final b = DevicesBackend();
       b.devices.insertAll([
@@ -224,7 +276,7 @@ void main() {
       expect(find.text('LAST SEEN'), findsOneWidget);
       // T1 8 minutes ago (today: the time only); T9 on 19 Aug 18:40 UTC.
       expect(textHas('09:52 AM'), findsOneWidget);
-      expect(textHas('19 Aug · 09:40 PM'), findsOneWidget);
+      expect(stampShown('19 Aug · 09:40 PM'), findsOneWidget);
     });
 
     testWidgets('ADM-DEV-008 loading draws skeleton rows', (tester) async {
@@ -233,6 +285,13 @@ void main() {
       final h = await pumpDevices(tester, query: _zamalek, backend: b);
       expect(deviceRows(), findsNothing);
       expect(find.text('No devices yet'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(DevicesTable),
+          matching: find.byType(DashSkeleton),
+        ),
+        findsWidgets,
+      );
       expect(find.byType(DashErrorState), findsNothing);
       gate.release();
       await h.settle();
@@ -411,15 +470,11 @@ void main() {
       expect(h.server.callsTo(DevicesRoutes.device).single.status, 409);
       // The supplement's words when the tables have them, else the
       // server's sentence (never with its "Conflict: " kind).
-      const key = 'errors.codes.DEVICE_CODE_TAKEN';
-      expect(
-        find.text(
-          h.strings.exists('en', key)
-              ? h.t(key)
-              : 'Another device at this branch uses that code',
-        ),
-        findsOneWidget,
+      final refusal = MockResponse.conflict(
+        'Another device at this branch uses that code',
+        code: 'DEVICE_CODE_TAKEN',
       );
+      expect(find.text(wordsFor(h, refusal)), findsOneWidget);
       expect(find.text('Edit device'), findsOneWidget);
       expect(
         tester

@@ -1,7 +1,6 @@
 // `/devices`, the Activation codes section and the New code dialog, driven
 // through the real app shell (inventory rows ADM-DEV-014..019).
 import 'package:dashboard_admin/src/area_seed.dart';
-import 'package:dashboard_admin/src/orgs/org_errors.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
@@ -17,12 +16,6 @@ final _zamalek = atBranch(SeedIds.zamalek);
 Finder inCodes(Finder f) => find.descendant(
   of: find.byKey(const ValueKey('activation-codes')),
   matching: f,
-);
-
-/// The words the page shows for [response] (the web's `getErrorMessage`).
-String wordsFor(DashHarness h, MockResponse response) => orgErrorWords(
-  MockServer.toApiException(response),
-  h.container.read(tProvider),
 );
 
 /// The name field's placeholder (a code in the table is named the same).
@@ -100,7 +93,7 @@ void main() {
         final row = codes.find(mockUuid('activation-code:$id'))!;
         final at = row['used_at'] ?? row['revoked_at'] ?? row['expires_at'];
         expect(
-          inCodes(textHas(fmt.fmtStamp(DateTime.parse('$at')))),
+          inCodes(stampShown(fmt.fmtStamp(DateTime.parse('$at')))),
           findsOneWidget,
           reason: id,
         );
@@ -139,6 +132,7 @@ void main() {
       final h = await pumpDevices(tester, query: _zamalek, backend: backend);
       expect(codeCells(), findsNothing);
       expect(find.text('No codes yet'), findsNothing);
+      expect(inCodes(find.byType(DashSkeleton)), findsWidgets);
       expect(inCodes(find.byType(DashErrorState)), findsNothing);
       gate.release();
       await h.settle();

@@ -31,6 +31,28 @@ class DevicesDash extends StatelessWidget {
   );
 }
 
+/// A stamp ("9 Oct · 09:25 AM") that drops its time under the date in a
+/// narrow column instead of cutting it (the web's cells wrap).
+class DevicesStamp extends StatelessWidget {
+  const DevicesStamp(this.stamp, {super.key});
+
+  final String stamp;
+
+  @override
+  Widget build(BuildContext context) {
+    final i = stamp.lastIndexOf(' · ');
+    if (i < 0) return Text(dashFigure(stamp));
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: Space.sm,
+      children: [
+        Text(dashFigure(stamp.substring(0, i + 2))),
+        Text(dashFigure(stamp.substring(i + 3))),
+      ],
+    );
+  }
+}
+
 class DevicesSection extends ConsumerWidget {
   const DevicesSection({
     required this.branchId,
@@ -109,8 +131,9 @@ class DevicesTable extends ConsumerWidget {
           label: t('devices.code'),
           text: (d) => d.code,
           phone: DashPhoneRole.title,
+          // Flex 2 hands Code the slack, so the conflict pill under it reads.
           flex: 2,
-          minWidth: 200,
+          minWidth: 72,
           cell: (context, d) => Wrap(
             key: ValueKey('device-row-${d.id}'),
             spacing: Space.sm,
@@ -135,11 +158,12 @@ class DevicesTable extends ConsumerWidget {
           id: 'label',
           label: t('devices.label'),
           text: (d) => d.label ?? '',
+          minWidth: 96,
           cell: (context, d) => d.label == null
               ? const DevicesDash()
               : MadarClippedText(
                   d.label!,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: DashType.body.copyWith(color: c.textPrimary),
                 ),
@@ -148,14 +172,21 @@ class DevicesTable extends ConsumerWidget {
           id: 'kind',
           label: t('devices.kind'),
           text: (d) => deviceKindLabel(t, d.kind),
+          minWidth: 88,
+          cell: (context, d) => MadarClippedText(
+            deviceKindLabel(t, d.kind),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
         DashColumn<Device>(
           id: 'app',
           label: t('devices.app'),
           text: app,
+          minWidth: 110,
           cell: (context, d) => MadarClippedText(
             app(d).isEmpty ? '—' : app(d),
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: muted,
           ),
@@ -165,6 +196,7 @@ class DevicesTable extends ConsumerWidget {
           label: t('common.status'),
           text: (d) =>
               d.retiredAt != null ? t('devices.retired') : t('devices.active'),
+          minWidth: 96,
           cell: (context, d) => Align(
             alignment: AlignmentDirectional.centerStart,
             child: d.retiredAt != null
@@ -180,8 +212,8 @@ class DevicesTable extends ConsumerWidget {
           id: 'last_seen_at',
           label: t('devices.lastSeen'),
           numeric: true,
-          minWidth: 180, // "20 Sept · 10:45 PM" uncut
           text: (d) => fmt.fmtStamp(d.lastSeenAt),
+          cell: (context, d) => DevicesStamp(fmt.fmtStamp(d.lastSeenAt)),
         ),
       ],
     );

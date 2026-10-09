@@ -6,7 +6,6 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -47,12 +46,10 @@ void main() {
       final select = tester.widget<DashSelect<String>>(byKey('bkg-branch'));
       expect(select.placeholder, 'Pick a branch');
       expect(select.value, isNull);
-      expect([for (final o in select.options) o.label], [
-        'Heliopolis',
-        'Maadi',
-        'New Cairo',
-        'Zamalek',
-      ]);
+      expect(
+        [for (final o in select.options) o.label],
+        ['Heliopolis', 'Maadi', 'New Cairo', 'Zamalek'],
+      );
       // 256 wide from 640 px.
       expect(tester.getSize(byKey('bkg-branch')).width, 256);
       await pickBranch(h, 'Maadi');
@@ -71,16 +68,13 @@ void main() {
     testWidgets('SET-BKG-003 Edit rules waits for a branch; the per-branch '
         'note', (tester) async {
       final h = await pumpBookingRules(tester);
+      expect(tester.widget<DashButton>(byKey('bkg-edit')).onPressed, isNull);
       expect(
-        tester.widget<DashButton>(byKey('bkg-edit')).onPressed,
-        isNull,
+        inPane(find.text(h.t('settings.bookingsPerBranch'))),
+        findsOneWidget,
       );
-      expect(inPane(find.text(h.t('settings.bookingsPerBranch'))), findsOneWidget);
       await pickBranch(h, 'Heliopolis');
-      expect(
-        tester.widget<DashButton>(byKey('bkg-edit')).onPressed,
-        isNotNull,
-      );
+      expect(tester.widget<DashButton>(byKey('bkg-edit')).onPressed, isNotNull);
       expect(h.server.callsTo(bkgSettings), isEmpty, reason: 'read on open');
     });
 
@@ -132,10 +126,9 @@ void main() {
       await h.settle();
       expect(rulesKey('bkg-form'), findsOneWidget);
       expect(rulesSave(tester).onPressed, isNotNull);
-      expect(
-        h.server.callsTo(bkgSettings).single.query['branch_id'],
-        [SeedIds.heliopolis],
-      );
+      expect(h.server.callsTo(bkgSettings).single.query['branch_id'], [
+        SeedIds.heliopolis,
+      ]);
     });
 
     testWidgets('SET-BKG-004 (divergence) a failed read shows its words and '
@@ -168,7 +161,10 @@ void main() {
         expect(inRules(find.text(h.t(k))), findsOneWidget, reason: k);
       }
       expect(tester.widget<DashSwitch>(rulesKey('bkg-enabled')).value, isTrue);
-      expect(tester.widget<DashSwitch>(rulesKey('bkg-require_otp')).value, isTrue);
+      expect(
+        tester.widget<DashSwitch>(rulesKey('bkg-require_otp')).value,
+        isTrue,
+      );
       await h.tap(rulesKey('bkg-enabled'));
       await h.tap(rulesKey('bkg-require_otp'));
       final body = await saveRules(h);
@@ -204,7 +200,10 @@ void main() {
       );
       await h.tap(monday);
       expect(
-        find.descendant(of: rulesKey('bkg-hours-1'), matching: find.text('Closed')),
+        find.descendant(
+          of: rulesKey('bkg-hours-1'),
+          matching: find.text('Closed'),
+        ),
         findsOneWidget,
       );
       await h.tap(monday);
@@ -227,11 +226,17 @@ void main() {
       final h = await pumpBookingRules(tester, locale: 'ar');
       await openRules(h, 'Heliopolis');
       expect(
-        find.descendant(of: rulesKey('bkg-hours-0'), matching: find.text('الأحد')),
+        find.descendant(
+          of: rulesKey('bkg-hours-0'),
+          matching: find.text('الأحد'),
+        ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: rulesKey('bkg-hours-5'), matching: find.text('الجمعة')),
+        find.descendant(
+          of: rulesKey('bkg-hours-5'),
+          matching: find.text('الجمعة'),
+        ),
         findsOneWidget,
       );
     });
@@ -246,7 +251,10 @@ void main() {
       expect(open.placeholder, '12:00');
       expect(open.mono, isTrue);
       expect(open.textDirection, TextDirection.ltr);
-      expect(tester.widget<DashTextInput>(_hours(5, 'close')).placeholder, '23:00');
+      expect(
+        tester.widget<DashTextInput>(_hours(5, 'close')).placeholder,
+        '23:00',
+      );
       expect(inRules(find.text(h.t('bookings.hoursHint'))), findsOneWidget);
       await h.enterText(_hours(2, 'close'), '02:30');
       final body = await saveRules(h);
@@ -266,7 +274,10 @@ void main() {
       expect([for (final o in seg.options) o.label], ['15', '30', '60']);
       expect(seg.value, 30);
       await h.tap(
-        find.descendant(of: rulesKey('bkg-slot_minutes'), matching: find.text('60')),
+        find.descendant(
+          of: rulesKey('bkg-slot_minutes'),
+          matching: find.text('60'),
+        ),
       );
       expect((await saveRules(h))['slot_minutes'], 60);
       await h.expectToast('Changes saved');
@@ -333,7 +344,11 @@ void main() {
       await h.tap(find.text('20').last);
       await h.tap(add);
       expect(inRules(find.text('2026-10-20')), findsOneWidget);
-      expect(tester.widget<DashButton>(add).onPressed, isNull, reason: 'cleared');
+      expect(
+        tester.widget<DashButton>(add).onPressed,
+        isNull,
+        reason: 'cleared',
+      );
       // The same day again cannot be added twice.
       await h.tap(rulesKey('bkg-blackout-date'));
       await h.tap(find.text('20').last);
@@ -362,7 +377,9 @@ void main() {
       final bookingsEpoch = h.container.read(
         realtimeEpochProvider('/bookings/settings'),
       );
-      final floorEpoch = h.container.read(realtimeEpochProvider('/floor/tables'));
+      final floorEpoch = h.container.read(
+        realtimeEpochProvider('/floor/tables'),
+      );
       final body = await saveRules(h);
       expect(body.keys.toSet(), {
         'branch_id',
@@ -515,7 +532,9 @@ void main() {
       expect(inPane(find.text('Bookings')), findsOneWidget);
       await openRules(h, 'Maadi');
       expect(
-        inRules(find.text(h.refusalWords(MockResponse.denied('bookings.read')))),
+        inRules(
+          find.text(h.refusalWords(MockResponse.denied('bookings.read'))),
+        ),
         findsOneWidget,
       );
     });
@@ -543,14 +562,23 @@ void main() {
       h.realtime.current!.emit('booking.created', data: '{}');
       await h.settle();
       expect(h.server.callsTo(bkgSettings).length, reads + 1);
-      expect(tester.widget<DashTextInput>(rulesKey('bkg-max_party')).value, '12');
+      expect(
+        tester.widget<DashTextInput>(rulesKey('bkg-max_party')).value,
+        '12',
+      );
 
       await h.enterText(rulesKey('bkg-min_party'), '2');
       storedRules(m.db, SeedIds.heliopolis)!['max_party'] = 14;
       h.realtime.current!.emit('booking.updated', data: '{}');
       await h.settle();
-      expect(tester.widget<DashTextInput>(rulesKey('bkg-max_party')).value, '12');
-      expect(tester.widget<DashTextInput>(rulesKey('bkg-min_party')).value, '2');
+      expect(
+        tester.widget<DashTextInput>(rulesKey('bkg-max_party')).value,
+        '12',
+      );
+      expect(
+        tester.widget<DashTextInput>(rulesKey('bkg-min_party')).value,
+        '2',
+      );
     });
   });
 

@@ -8,7 +8,8 @@ import 'dart:math';
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart' show Translator;
-import 'package:flutter/services.dart' show TextInputFormatter;
+import 'package:flutter/services.dart'
+    show TextEditingValue, TextInputFormatter, TextSelection;
 
 import '../shared/social_links.dart';
 
@@ -17,15 +18,21 @@ const int linksMaxTitle = 60;
 
 /// The web's `maxLength` and the server count UTF-16 code units, not
 /// characters: an Arabic line with diacritics is held to what the server
-/// takes (LNK-010, 016). Shortening always goes through, so a longer saved
-/// value can still be cut down.
-// ponytail: an over-long paste is refused whole, not cut to fit like the browser.
-TextInputFormatter codeUnitLimit(int max) => TextInputFormatter.withFunction(
-  (old, next) =>
-      next.text.length <= max || next.text.length < old.text.length
-      ? next
-      : old,
-);
+/// takes (LNK-010, 016). Like the browser, a long paste is cut to fit; a
+/// shortening always goes through, so a longer saved value can be cut down.
+TextInputFormatter codeUnitLimit(int max) =>
+    TextInputFormatter.withFunction((old, next) {
+      final text = next.text;
+      if (text.length <= max || text.length < old.text.length) return next;
+      if (old.text.length >= max) return old;
+      var end = max;
+      // Never split a surrogate pair (an emoji).
+      if ((text.codeUnitAt(end - 1) & 0xFC00) == 0xD800) end--;
+      return TextEditingValue(
+        text: text.substring(0, end),
+        selection: TextSelection.collapsed(offset: end),
+      );
+    });
 
 /// A branch row as edited: the settings plus what the list shows.
 class LinksBranchDraft {

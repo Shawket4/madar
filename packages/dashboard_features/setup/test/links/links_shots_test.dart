@@ -3,6 +3,7 @@
 // and phone-ar-light.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
+import 'package:flutter/widgets.dart' show ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support.dart';

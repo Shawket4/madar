@@ -18,9 +18,17 @@ void main() {
       final from = v['from'] as String, to = v['to'] as String;
       final per = stockUnitsPer(from, to);
       final why = '${v['qty']} $from -> $to';
-      expect(per == null ? null : round3((v['qty'] as num) * per), v['result'], reason: why);
+      expect(
+        per == null ? null : round3((v['qty'] as num) * per),
+        v['result'],
+        reason: why,
+      );
       if (v['result'] != null) {
-        expect(unitsForFamily(from), contains(to.trim().toLowerCase()), reason: why);
+        expect(
+          unitsForFamily(from),
+          contains(to.trim().toLowerCase()),
+          reason: why,
+        );
       }
     }
     expect(n, greaterThan(0));
@@ -47,15 +55,11 @@ void main() {
         v['note'] as String?,
       );
       final ok = v['ok'] as Map?;
-      expect(
-        out,
-        (
-          arrival: ok?['arrival'] as String?,
-          difference: (ok?['difference'] as num?)?.toDouble(),
-          refused: v['refused'] as String?,
-        ),
-        reason: '${v['qty_sent']} -> ${v['qty_received']}, note ${v['note']}',
-      );
+      expect(out, (
+        arrival: ok?['arrival'] as String?,
+        difference: (ok?['difference'] as num?)?.toDouble(),
+        refused: v['refused'] as String?,
+      ), reason: '${v['qty_sent']} -> ${v['qty_received']}, note ${v['note']}');
     }
   });
 
@@ -72,11 +76,11 @@ void main() {
         warehouseOnHand: d(i['warehouse_on_hand']),
         warehouseDraftedOut: d(i['warehouse_drafted_out']),
       );
-      expect(
-        out,
-        (need: d(o['need']), available: d(o['available']), suggested: d(o['suggested'])),
-        reason: '$i',
-      );
+      expect(out, (
+        need: d(o['need']),
+        available: d(o['available']),
+        suggested: d(o['suggested']),
+      ), reason: '$i');
     }
   });
 }

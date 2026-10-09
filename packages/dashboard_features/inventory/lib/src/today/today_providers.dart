@@ -13,8 +13,8 @@ import 'package:dashboard_api/dashboard_api.dart'
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The start (00:00:00.000) and end (23:59:59.999) of today in the ACTIVE
-/// zone, as UTC ISO instants (INV-TOD-004).
+/// The start (00:00:00.000) and end (next local midnight − 1 ms) of today in
+/// the ACTIVE zone, as UTC ISO instants (INV-TOD-004).
 class TodayBounds {
   const TodayBounds(this.startIso, this.endIso);
 

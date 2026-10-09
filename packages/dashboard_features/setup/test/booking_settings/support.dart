@@ -25,9 +25,8 @@ const String bkgPath = '/settings/bookings';
 const String bkgSettings = '/bookings/settings';
 
 /// A fresh seeded backend (core + this area) to edit before pumping.
-({MockServer server, MockDb db}) bkgServer({
-  Persona persona = Persona.owner,
-}) => setupMockServer(persona: persona);
+({MockServer server, MockDb db}) bkgServer({Persona persona = Persona.owner}) =>
+    setupMockServer(persona: persona);
 
 /// The pane as [persona]. A platform admin works inside Sabah Coffee
 /// unless [pickOrg] is false.
@@ -52,7 +51,9 @@ Future<DashHarness> pumpBookingRules(
     server: b.server,
     db: b.db,
     prefs: persona == Persona.platform && pickOrg
-        ? {ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg})}
+        ? {
+            ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg}),
+          }
         : null,
   );
 }

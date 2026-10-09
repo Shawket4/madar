@@ -27,8 +27,10 @@ Future<void> showBookingRulesDialog(
 }) => showDashDialog<void>(
   context,
   width: DashMetrics.dialogWide,
-  builder: (context) =>
-      BookingRulesDialog(key: ValueKey('bkg-dialog-$branchId'), branchId: branchId),
+  builder: (context) => BookingRulesDialog(
+    key: ValueKey('bkg-dialog-$branchId'),
+    branchId: branchId,
+  ),
 );
 
 /// The hours boxes (`w-20`) and the blackout picker.
@@ -90,7 +92,10 @@ class _BookingRulesDialogState extends ConsumerState<BookingRulesDialog> {
     setState(() => _busy = true);
     try {
       await api.putBookingSettings(
-        body: bookingSettingsBody({...s, 'blackout_dates': [..._blackouts]}),
+        body: bookingSettingsBody({
+          ...s,
+          'blackout_dates': [..._blackouts],
+        }),
       );
     } on Object catch (e) {
       if (mounted) {

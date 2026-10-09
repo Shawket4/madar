@@ -242,7 +242,7 @@ class ClientVersionsTable extends ConsumerWidget {
           label: t('devices.clients.device'),
           phone: DashPhoneRole.title,
           flex: 2,
-          minWidth: 200,
+          minWidth: 140,
           text: (r) => r.deviceCode ?? t('devices.clients.unregistered'),
           cell: (context, r) => Column(
             key: ValueKey('client-row-${r.deviceId ?? r.client}'),
@@ -288,12 +288,13 @@ class ClientVersionsTable extends ConsumerWidget {
           label: t('devices.lastSeen'),
           numeric: true,
           text: (r) => fmt.fmtStamp(r.lastSeenAt),
+          cell: (context, r) => DevicesStamp(fmt.fmtStamp(r.lastSeenAt)),
         ),
         DashColumn<ClientSeen>(
           id: 'legacy',
           label: t('devices.clients.lastLegacy'),
           flex: 2,
-          minWidth: 200,
+          minWidth: 140,
           text: (r) => r.lastLegacyAt == null
               ? t('devices.clients.upToDate')
               : t('devices.clients.legacy'),

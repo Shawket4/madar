@@ -28,10 +28,7 @@ void main() {
       final gate = m.server.hold('GET', cmbSettings);
       final h = await pumpCombos(tester, backend: m);
       expect(byKey('cmb-loading'), findsOneWidget);
-      expect(
-        inPane(find.byType(DashSkeleton)),
-        findsNWidgets(2),
-      );
+      expect(inPane(find.byType(DashSkeleton)), findsNWidgets(2));
       expect(paneText(h.t('combos.settings.noBranches')), findsNothing);
       gate.release();
       await h.settle();
@@ -79,7 +76,10 @@ void main() {
       for (final c in ComboChannel.values) {
         expect(tester.widget<DashSwitch>(sellSwitch(c)).enabled, isFalse);
       }
-      expect(tester.widget<DashTextInput>(byKey('cmb-margin')).enabled, isFalse);
+      expect(
+        tester.widget<DashTextInput>(byKey('cmb-margin')).enabled,
+        isFalse,
+      );
       expect(byKey('cmb-save'), findsNothing);
       for (final c in ComboChannel.values) {
         expect(cellWidget(tester, SeedIds.heliopolis, c).enabled, isFalse);
@@ -150,7 +150,10 @@ void main() {
       }
       expect(paneText('Sold on'), findsOneWidget);
       expect(paneText(h.t('combos.settings.channelsHint')), findsOneWidget);
-      expect(tester.widget<DashSwitch>(sellSwitch(ComboChannel.pos)).value, isTrue);
+      expect(
+        tester.widget<DashSwitch>(sellSwitch(ComboChannel.pos)).value,
+        isTrue,
+      );
       expect(
         tester.widget<DashSwitch>(sellSwitch(ComboChannel.delivery)).value,
         isFalse,
@@ -165,8 +168,15 @@ void main() {
       body['channels'] = {'pos': false};
       m.server.fail('GET', cmbSettings, MockResponse.ok(body), times: null);
       await pumpCombos(tester, backend: m);
-      expect(tester.widget<DashSwitch>(sellSwitch(ComboChannel.pos)).value, isFalse);
-      for (final c in [ComboChannel.qr, ComboChannel.online, ComboChannel.delivery]) {
+      expect(
+        tester.widget<DashSwitch>(sellSwitch(ComboChannel.pos)).value,
+        isFalse,
+      );
+      for (final c in [
+        ComboChannel.qr,
+        ComboChannel.online,
+        ComboChannel.delivery,
+      ]) {
         expect(tester.widget<DashSwitch>(sellSwitch(c)).value, isTrue);
       }
     });
@@ -205,7 +215,11 @@ void main() {
         'error on Save and sends nothing; fixing it clears it', (tester) async {
       final h = await pumpCombos(tester);
       await h.enterText(byKey('cmb-margin'), '100');
-      expect(byKey('cmb-margin-error'), findsNothing, reason: 'not before Save');
+      expect(
+        byKey('cmb-margin-error'),
+        findsNothing,
+        reason: 'not before Save',
+      );
       await h.tap(byKey('cmb-save'));
       expect(paneText('Enter a percentage from 0 to 99.'), findsOneWidget);
       expect(paneText(h.t('combos.settings.minMarginHint')), findsNothing);
@@ -229,7 +243,12 @@ void main() {
       final put = h.server.callsTo(cmbSettings, method: 'PUT').single;
       expect(put.body, {
         'min_margin': '0.4250',
-        'channels': {'pos': true, 'qr': true, 'online': true, 'delivery': false},
+        'channels': {
+          'pos': true,
+          'qr': true,
+          'online': true,
+          'delivery': false,
+        },
       });
       await h.expectToast('Combo settings saved');
       expect(storedMargin(m.db), '0.4250');
@@ -237,7 +256,10 @@ void main() {
         h.server.callsTo(cmbSettings, method: 'GET').length,
         greaterThan(reads),
       );
-      expect(tester.widget<EditableText>(marginInput()).controller.text, '42.5');
+      expect(
+        tester.widget<EditableText>(marginInput()).controller.text,
+        '42.5',
+      );
       expect(saveButton(tester).onPressed, isNull);
     });
 
@@ -274,7 +296,10 @@ void main() {
       final m = cmbServer();
       final h = await pumpCombos(tester, backend: m);
       await h.tap(sellSwitch(ComboChannel.qr));
-      expect(tester.widget<DashSwitch>(sellSwitch(ComboChannel.qr)).value, isFalse);
+      expect(
+        tester.widget<DashSwitch>(sellSwitch(ComboChannel.qr)).value,
+        isFalse,
+      );
       expect(saveButton(tester).onPressed, isNotNull);
       expect(h.server.callsTo(cmbSettings, method: 'PUT'), isEmpty);
       // Flipping it back is no change.
@@ -343,11 +368,23 @@ void main() {
       }, timestamps: false);
       final h = await pumpCombos(tester, backend: m);
       final table = byKey('cmb-branch-table');
-      for (final head in ['BRANCH', 'POS', 'QR TABLE MENU', 'ONLINE ORDERING', 'DELIVERY APPS']) {
-        expect(find.descendant(of: table, matching: find.text(head)), findsOneWidget);
+      for (final head in [
+        'BRANCH',
+        'POS',
+        'QR TABLE MENU',
+        'ONLINE ORDERING',
+        'DELIVERY APPS',
+      ]) {
+        expect(
+          find.descendant(of: table, matching: find.text(head)),
+          findsOneWidget,
+        );
       }
       for (final name in ['Heliopolis', 'Maadi', 'New Cairo', 'Zamalek']) {
-        expect(find.descendant(of: table, matching: find.text(name)), findsOneWidget);
+        expect(
+          find.descendant(of: table, matching: find.text(name)),
+          findsOneWidget,
+        );
       }
       expect(paneText('Main Warehouse'), findsNothing);
       expect(byKey('cmb-row-wh-main'), findsNothing);
@@ -380,12 +417,20 @@ void main() {
       for (final c in ComboChannel.values) {
         expect(cellWidget(tester, SeedIds.zamalek, c).enabled, isFalse);
       }
-      expect(cellWidget(tester, SeedIds.maadi, ComboChannel.pos).enabled, isTrue);
+      expect(
+        cellWidget(tester, SeedIds.maadi, ComboChannel.pos).enabled,
+        isTrue,
+      );
       gate.release();
       await h.settle();
       final put = h.server.callsTo(cmbBranch, method: 'PUT').single;
       expect(put.path, '/settings/combos/branches/${SeedIds.zamalek}');
-      expect(put.body, {'pos': false, 'qr': false, 'online': null, 'delivery': null});
+      expect(put.body, {
+        'pos': false,
+        'qr': false,
+        'online': null,
+        'delivery': null,
+      });
       await h.expectToast('Branch exception saved');
       expect(h.server.callsTo(cmbSettings).length, greaterThan(reads));
       expect(storedOverride(m.db, SeedIds.zamalek)!['pos'], isFalse);
@@ -431,7 +476,12 @@ void main() {
       final denied = MockResponse.denied('menu.combos.edit');
       m.server.fail('DELETE', cmbBranch, denied);
       final h = await pumpCombos(tester, backend: m);
-      await pickCell(h, SeedIds.newCairo, ComboChannel.delivery, 'Follow (off)');
+      await pickCell(
+        h,
+        SeedIds.newCairo,
+        ComboChannel.delivery,
+        'Follow (off)',
+      );
       await h.expectToast(h.refusalWords(denied));
       expect(storedOverride(m.db, SeedIds.newCairo), isNotNull);
     });

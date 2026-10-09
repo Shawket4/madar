@@ -9,7 +9,9 @@
 // the page through the real `adminArea`.
 import 'package:dashboard_admin/src/area_seed.dart';
 import 'package:dashboard_admin/src/devices/devices_page.dart';
+import 'package:dashboard_admin/src/devices/devices_table.dart';
 import 'package:dashboard_admin/src/mock/devices_mock.dart';
+import 'package:dashboard_admin/src/orgs/org_errors.dart';
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
@@ -118,6 +120,16 @@ DashStatCard kpi(WidgetTester tester, String label) => tester.widget(
 /// [text] where a tap would land (the open dialog, sheet or menu; the page
 /// under a dialog does not take taps).
 Finder top(String text) => find.text(text).hitTestable();
+
+/// A stamp cell showing [stamp] (its date and time may sit on two lines).
+Finder stampShown(String stamp) =>
+    find.byWidgetPredicate((w) => w is DevicesStamp && w.stamp == stamp);
+
+/// The words the page shows for [response] (the web's `getErrorMessage`).
+String wordsFor(DashHarness h, MockResponse response) => orgErrorWords(
+  MockServer.toApiException(response),
+  h.container.read(tProvider),
+);
 
 /// Texts containing [s].
 Finder textHas(String s) => find.textContaining(s, findRichText: true);

@@ -102,7 +102,7 @@ class ActivationCodesSection extends ConsumerWidget {
             onRetry: () => ref.invalidate(activationCodesProvider(branchId)),
             hideViewOptions: true,
             pageSize: 10,
-            rowActionsWidth: DashMetrics.target * 2 + Space.xl,
+            rowActionsWidth: DashMetrics.target * 2, // "Withdraw" uncut
             rowActions: (context, r) => r.state == ActivationCodeState.free
                 ? DashButton(
                     key: ValueKey('revoke-${r.id}'),
@@ -146,11 +146,12 @@ class ActivationCodesSection extends ConsumerWidget {
                 id: 'label',
                 label: t('devices.label'),
                 text: (r) => r.label ?? '',
+                minWidth: 96,
                 cell: (context, r) => r.label == null
                     ? const DevicesDash()
                     : MadarClippedText(
                         r.label!,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: DashType.body.copyWith(color: c.textPrimary),
                       ),
@@ -159,11 +160,18 @@ class ActivationCodesSection extends ConsumerWidget {
                 id: 'kind',
                 label: t('devices.kind'),
                 text: (r) => deviceKindLabel(t, r.kind),
+                minWidth: 88,
+                cell: (context, r) => MadarClippedText(
+                  deviceKindLabel(t, r.kind),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               DashColumn<ActivationCode>(
                 id: 'state',
                 label: t('common.status'),
                 text: (r) => activationStateLabel(t, r.state),
+                minWidth: 110, // the "Withdrawn" pill uncut
                 cell: (context, r) => Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: DashStatusPill(
@@ -177,9 +185,11 @@ class ActivationCodesSection extends ConsumerWidget {
                 id: 'when',
                 label: t('devices.activation.when'),
                 numeric: true,
-                minWidth: 180, // "20 Sept · 10:45 PM" uncut
                 text: (r) =>
                     fmt.fmtStamp(r.usedAt ?? r.revokedAt ?? r.expiresAt),
+                cell: (context, r) => DevicesStamp(
+                  fmt.fmtStamp(r.usedAt ?? r.revokedAt ?? r.expiresAt),
+                ),
               ),
             ],
           ),
