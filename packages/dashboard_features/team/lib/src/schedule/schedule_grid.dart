@@ -5,7 +5,14 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ElsewhereShift, LabourWarning, OpenShift, RosterPerson, RosterShift, RosterView, WorkShiftBrief;
+    show
+        ElsewhereShift,
+        LabourWarning,
+        OpenShift,
+        RosterPerson,
+        RosterShift,
+        RosterView,
+        WorkShiftBrief;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -328,25 +335,22 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
 
         final people = [
           for (final p in w.view.staff)
-            row(
-              nameBox(_NameCell(person: p, onPrefs: () => w.onPrefs(p))),
-              [
-                for (final d in w.days)
-                  _DayCell(
-                    person: p,
-                    date: d,
-                    minHeight: _NameCell.heightOf(p),
-                    branchId: w.branchId,
-                    branchNames: w.branchNames,
-                    shifts: w.index.shiftsOf(p.employeeId, d),
-                    elsewhere: w.index.elsewhereOf(p.employeeId, d),
-                    warnings: w.index.warningsOf(p.employeeId, d),
-                    dayOff: w.index.dateSets[cellKey(p.employeeId, d)] == true,
-                    editable: w.canEdit,
-                    onOpen: () => w.onOpenDay(p, d),
-                  ),
-              ],
-            ),
+            row(nameBox(_NameCell(person: p, onPrefs: () => w.onPrefs(p))), [
+              for (final d in w.days)
+                _DayCell(
+                  person: p,
+                  date: d,
+                  minHeight: _NameCell.heightOf(p),
+                  branchId: w.branchId,
+                  branchNames: w.branchNames,
+                  shifts: w.index.shiftsOf(p.employeeId, d),
+                  elsewhere: w.index.elsewhereOf(p.employeeId, d),
+                  warnings: w.index.warningsOf(p.employeeId, d),
+                  dayOff: w.index.dateSets[cellKey(p.employeeId, d)] == true,
+                  editable: w.canEdit,
+                  onOpen: () => w.onOpenDay(p, d),
+                ),
+            ]),
         ];
 
         final open = row(
@@ -608,7 +612,8 @@ class _DayCell extends ConsumerWidget {
         ),
       ],
     );
-    String branchOf(String id, [String? name]) => name != null && name.isNotEmpty
+    String branchOf(String id, [String? name]) =>
+        name != null && name.isNotEmpty
         ? name
         : branchNames[id] ?? t('dawamOps.otherBranch');
 
@@ -620,7 +625,10 @@ class _DayCell extends ConsumerWidget {
             style: DashType.smallMedium.copyWith(color: c.textPrimary),
           )
         else if (elsewhere.isEmpty)
-          Text(t('dawam.off'), style: DashType.small.copyWith(color: c.textSecondary)),
+          Text(
+            t('dawam.off'),
+            style: DashType.small.copyWith(color: c.textSecondary),
+          ),
       for (final s in shifts)
         Column(
           mainAxisSize: MainAxisSize.min,
@@ -775,7 +783,9 @@ class _OpenShiftsCell extends ConsumerWidget {
                 color: o.status == 'claimed' ? c.muted : null,
                 borderRadius: BorderRadius.circular(Radii.sm),
                 border: Border.all(
-                  color: o.status == 'claimed' ? Colors.transparent : c.hairline,
+                  color: o.status == 'claimed'
+                      ? Colors.transparent
+                      : c.hairline,
                 ),
               ),
               child: Row(
@@ -796,7 +806,10 @@ class _OpenShiftsCell extends ConsumerWidget {
                       iconSize: IconSize.xs,
                       semanticLabel: t(
                         'dawam.cancelOpenOf',
-                        args: {'shift': o.shiftName, 'date': f.fmtDate(o.onDate)},
+                        args: {
+                          'shift': o.shiftName,
+                          'date': f.fmtDate(o.onDate),
+                        },
                       ),
                       onPressed: busy == 'open|${o.id}'
                           ? null
@@ -811,7 +824,10 @@ class _OpenShiftsCell extends ConsumerWidget {
               items: [
                 DashMenuItem(label: t('dawam.postOpen'), enabled: false),
                 if (blocks.isEmpty)
-                  DashMenuItem(label: t('dawam.noShiftThatDay'), enabled: false),
+                  DashMenuItem(
+                    label: t('dawam.noShiftThatDay'),
+                    enabled: false,
+                  ),
                 for (final b in blocks)
                   () {
                     final at = blockTimesOn(b, weekday);
@@ -850,7 +866,10 @@ class ScheduleLegend extends ConsumerWidget {
     Widget item(Widget mark, String text) => Row(
       mainAxisSize: MainAxisSize.min,
       spacing: Space.xs + 2,
-      children: [mark, Text(text, style: small)],
+      children: [
+        mark,
+        Text(text, style: small),
+      ],
     );
     return Container(
       padding: const EdgeInsets.symmetric(

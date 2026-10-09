@@ -82,7 +82,12 @@ void registerLoyaltyMocks(MockServer server, MockDb db) {
   onIfAbsent(server, 'GET', '/loyalty/members/{id}', h.member);
   onIfAbsent(server, 'DELETE', '/loyalty/members/{id}', h.leave);
   onIfAbsent(server, 'POST', '/loyalty/adjust', h.adjust);
-  onIfAbsent(server, 'GET', '/loyalty/members/{id}/google-object', h.googleObject);
+  onIfAbsent(
+    server,
+    'GET',
+    '/loyalty/members/{id}/google-object',
+    h.googleObject,
+  );
   onIfAbsent(
     server,
     'POST',
@@ -140,9 +145,7 @@ List<MockRow> _ledgerSeed(MockDb db) {
   final branchNames = {
     for (final b in db['branches'].rows) b['id']! as String: b['name'],
   };
-  final menu = {
-    for (final m in db['menu_items'].rows) m['id']! as String: m,
-  };
+  final menu = {for (final m in db['menu_items'].rows) m['id']! as String: m};
   final byCustomer = <String, List<MockRow>>{};
   for (final o in db['orders'].rows) {
     final id = o['customer_id'];
@@ -316,16 +319,15 @@ class _Handlers {
   /// (a platform admin's picked one); none is a 400.
   String _scopeOrg(MockRequest req, String? branchId) {
     if (branchId != null) {
-      final b = db['branches'].find(branchId) ?? req.notFound('Branch not found');
+      final b =
+          db['branches'].find(branchId) ?? req.notFound('Branch not found');
       return b['org_id']! as String;
     }
     return req.orgId ?? req.badRequest('Pick an organisation first');
   }
 
-  MockRow? _row(String org, String? branchId) =>
-      db[LoyaltyTables.settings].firstWhere(
-        (r) => r['org_id'] == org && r['branch_id'] == branchId,
-      );
+  MockRow? _row(String org, String? branchId) => db[LoyaltyTables.settings]
+      .firstWhere((r) => r['org_id'] == org && r['branch_id'] == branchId);
 
   /// `LoyaltySettings::defaults`.
   Map<String, Object?> _defaults(String org, String? branchId) =>
@@ -375,7 +377,9 @@ class _Handlers {
           (r) => r['org_id'] == org && r['branch_id'] == branchId,
         )..sort((a, b) {
           final s = _i(a['sort_order']).compareTo(_i(b['sort_order']));
-          return s != 0 ? s : _i(a['cost_amount']).compareTo(_i(b['cost_amount']));
+          return s != 0
+              ? s
+              : _i(a['cost_amount']).compareTo(_i(b['cost_amount']));
         });
     return [
       for (final r in rows)
@@ -420,10 +424,7 @@ class _Handlers {
     final s = _effective(org, branchId);
     s['geofenced_branches'] = _geofenced(org);
     final b = (s['branch_id'] as String?) ?? branchId;
-    s['effective_balance_cap'] = _effectiveCap(
-      s,
-      _effectiveRewards(org, b).$1,
-    );
+    s['effective_balance_cap'] = _effectiveCap(s, _effectiveRewards(org, b).$1);
     return s;
   }
 
@@ -588,7 +589,9 @@ class _Handlers {
           : 'كل سنة وأنت طيب يا $name! 🎉 نتمنى لك يوماً سعيداً من $program.';
     }
 
-    return MockResponse.ok(BirthdayPreview(en: message(false), ar: message(true)));
+    return MockResponse.ok(
+      BirthdayPreview(en: message(false), ar: message(true)),
+    );
   }
 
   /// Apple signs and Google answers; Apple's push keys were never set.
@@ -677,7 +680,8 @@ class _Handlers {
         'branch_id': branchId,
         'menu_item_id': id,
         'cost_currency': i['cost_currency'] ?? _mode(scope),
-        'cost_amount': (i['cost_amount'] as num?)?.toInt() ??
+        'cost_amount':
+            (i['cost_amount'] as num?)?.toInt() ??
             _i(scope['default_reward_cost']),
         'sort_order': n,
       }, timestamps: false);
@@ -817,7 +821,8 @@ class _Handlers {
       }
       return true;
     });
-    String seen(MockRow c) => (c['last_order_at'] ?? c['created_at'])! as String;
+    String seen(MockRow c) =>
+        (c['last_order_at'] ?? c['created_at'])! as String;
     rows.sort((a, b) {
       final d = seen(b).compareTo(seen(a));
       return d != 0 ? d : (a['id']! as String).compareTo(b['id']! as String);
@@ -833,7 +838,11 @@ class _Handlers {
       c['source'] == 'order_now' ? 'online' : c['source'];
 
   /// A live member [id], else 404.
-  MockRow _memberRow(MockRequest req, String id, {String what = 'Member not found'}) {
+  MockRow _memberRow(
+    MockRequest req,
+    String id, {
+    String what = 'Member not found',
+  }) {
     final c = db['customers'].find(id);
     if (c == null || c['is_member'] != true) req.notFound(what);
     return c;
@@ -918,7 +927,8 @@ class _Handlers {
     return MockResponse.ok(
       MembersPage(
         members: [
-          for (final c in rows.skip(offset).take(limit)) _view(c, org, branchId),
+          for (final c in rows.skip(offset).take(limit))
+            _view(c, org, branchId),
         ],
         total: rows.length,
       ),
@@ -932,12 +942,11 @@ class _Handlers {
     if (branchId != null) req.requireBranch(branchId);
     final c = _memberRow(req, req.param('id'));
     final id = c['id']! as String;
-    final ledger =
-        db[LoyaltyTables.ledger].where((e) => e['customer_id'] == id)..sort(
-          (a, b) => (b['created_at']! as String).compareTo(
-            a['created_at']! as String,
-          ),
-        );
+    final ledger = db[LoyaltyTables.ledger].where((e) => e['customer_id'] == id)
+      ..sort(
+        (a, b) =>
+            (b['created_at']! as String).compareTo(a['created_at']! as String),
+      );
     return MockResponse.ok(
       MemberDetail(
         member: _view(c, org, branchId),
@@ -986,7 +995,9 @@ class _Handlers {
     final field = mode == 'visits' ? 'visits_balance' : 'points_balance';
     final have = _i(c[field]);
     if (have + points < 0) {
-      req.badRequest('${c['name']} has $have; that adjustment would go negative');
+      req.badRequest(
+        '${c['name']} has $have; that adjustment would go negative',
+      );
     }
     final ledger = db[LoyaltyTables.ledger]..rows;
     ledger.insert({
@@ -1020,9 +1031,10 @@ class _Handlers {
       'balance': {'int': c['visits_balance'] ?? 0},
     },
     'locations': [
-      for (final b in db['branches']
-          .where((b) => b['org_id'] == org && b['is_active'] == true)
-          .take(locations))
+      for (final b
+          in db['branches']
+              .where((b) => b['org_id'] == org && b['is_active'] == true)
+              .take(locations))
         {'latitude': b['latitude'], 'longitude': b['longitude']},
     ],
   };
@@ -1062,7 +1074,11 @@ class _Handlers {
         classLocations: sent,
         objectLocations: sent,
         steps: [
-          WalletStep(step: 'loyaltyClass.patch', status: 200, body: pretty.convert(cls)),
+          WalletStep(
+            step: 'loyaltyClass.patch',
+            status: 200,
+            body: pretty.convert(cls),
+          ),
           WalletStep(
             step: 'loyaltyObject.get',
             status: 404,
@@ -1092,8 +1108,13 @@ class _Handlers {
     final from = req.qDateTime('from') ?? to.subtract(const Duration(days: 30));
     if (!from.isBefore(to)) req.badRequest('`from` must be before `to`');
     return MockResponse.ok(
-      loyaltyAnalyticsOf(db, org: org, branchId: branchId, from: from, to: to)
-          .toJson(),
+      loyaltyAnalyticsOf(
+        db,
+        org: org,
+        branchId: branchId,
+        from: from,
+        to: to,
+      ).toJson(),
     );
   }
 

@@ -13,6 +13,7 @@ import 'package:dashboard_core/src/session/session.dart';
 import 'package:dashboard_core/src/shell/frame.dart';
 import 'package:dashboard_core/src/shell/pages.dart';
 import 'package:dashboard_core/src/shell/sign_in.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashMotion;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -169,17 +170,16 @@ GoRouter buildDashRouter(
       toOnboarding: ref.read(sendsToOnboardingProvider),
       modules: ref.read(orgModulesProvider),
     ),
-    errorPageBuilder: (context, state) => NoTransitionPage<void>(
-      key: state.pageKey,
-      child: DashShell(state: state, child: const DashNotFoundPage()),
+    errorPageBuilder: (context, state) => _fadePage(
+      context,
+      state,
+      DashShell(state: state, child: const DashNotFoundPage()),
     ),
     routes: [
       GoRoute(
         path: signInPath,
-        pageBuilder: (context, state) => NoTransitionPage<void>(
-          key: state.pageKey,
-          child: const DashSignInPage(),
-        ),
+        pageBuilder: (context, state) =>
+            _fadePage(context, state, const DashSignInPage()),
       ),
       ...fullScreen,
       if (framed.isNotEmpty)
@@ -197,10 +197,25 @@ GoRoute _goRoute(DashRoute r, {required bool framed}) {
   return GoRoute(
     path: r.path,
     redirect: redirect == null ? null : (c, s) => redirect(c, s),
-    pageBuilder: (context, state) => NoTransitionPage<void>(
-      key: state.pageKey,
-      child: DashRouteHost(route: r, state: state, framed: framed),
+    pageBuilder: (context, state) => _fadePage(
+      context,
+      state,
+      DashRouteHost(route: r, state: state, framed: framed),
     ),
     routes: [for (final c in r.children) _goRoute(c, framed: framed)],
+  );
+}
+
+/// A page that cross-fades with the one it replaces (the web's view
+/// transition); instant under reduced motion.
+Page<void> _fadePage(BuildContext context, GoRouterState state, Widget child) {
+  final d = DashMotion.of(context, DashMotion.base);
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    transitionDuration: d,
+    reverseTransitionDuration: d,
+    transitionsBuilder: (context, animation, _, child) =>
+        FadeTransition(opacity: animation, child: child),
+    child: child,
   );
 }

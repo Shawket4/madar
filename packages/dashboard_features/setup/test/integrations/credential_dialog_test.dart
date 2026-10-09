@@ -70,10 +70,7 @@ void main() {
     final first = _username(tester);
     await h.tap(top('Cancel'));
     await h.tap(inPage(find.byKey(const ValueKey('integrations-issue'))));
-    expect(
-      tester.widget<DashTextField>(_label).value,
-      isEmpty,
-    );
+    expect(tester.widget<DashTextField>(_label).value, isEmpty);
     expect(_username(tester), startsWith('partner-'));
     expect(_username(tester), isNot(first.replaceFirst('somebody', 'partner')));
   });
@@ -93,8 +90,12 @@ void main() {
     await h.enterText(_label, 'x' * 121);
     await h.tap(top('Issue credential'));
     expect(_in(find.text('At most 120 characters')), findsOneWidget);
-    expect(h.server.callsTo(IntegrationsRoutes.create)
-        .where((c) => c.method == 'POST'), isEmpty);
+    expect(
+      h.server
+          .callsTo(IntegrationsRoutes.create)
+          .where((c) => c.method == 'POST'),
+      isEmpty,
+    );
   });
 
   testWidgets('SET-INT-017 Branch: the org\'s active branches, required, '
@@ -105,11 +106,10 @@ void main() {
     final select = tester.widget<DashSelectField<String>>(_branch);
     expect(select.placeholder, 'Select a branch');
     expect(select.description, h.t('integrations.branchHint'));
-    expect([for (final o in select.options) o.label], [
-      'Heliopolis',
-      'Maadi',
-      'Zamalek',
-    ]);
+    expect(
+      [for (final o in select.options) o.label],
+      ['Heliopolis', 'Maadi', 'Zamalek'],
+    );
     await h.enterText(_label, 'Rue');
     await h.tap(top('Issue credential'));
     expect(_in(find.text('Choose a branch')), findsOneWidget);
@@ -129,10 +129,9 @@ void main() {
     }, timestamps: false);
     final h = await _open(tester, backend: m);
     final select = tester.widget<DashSelectField<String>>(_branch);
-    expect(
-      [for (final o in select.options) o.label],
-      isNot(contains('Main Warehouse')),
-    );
+    expect([
+      for (final o in select.options) o.label,
+    ], isNot(contains('Main Warehouse')));
     expect(select.options, hasLength(4));
     await h.tap(_branch);
     expect(top('Main Warehouse'), findsNothing);
@@ -152,7 +151,10 @@ void main() {
     expect(_username(tester), 'cafe-rouge-zamalek-${first.substring(11)}');
     await h.tap(_in(find.bySemanticsLabel('Regenerate')));
     expect(_username(tester), startsWith('cafe-rouge-zamalek-'));
-    expect(_username(tester), isNot('cafe-rouge-zamalek-${first.substring(11)}'));
+    expect(
+      _username(tester),
+      isNot('cafe-rouge-zamalek-${first.substring(11)}'),
+    );
   });
 
   testWidgets('SET-INT-019 Issue: {name, branch_id, username} → the list '
@@ -227,9 +229,8 @@ void main() {
     await _fill(h);
     final gate = m.server.hold('POST', IntegrationsRoutes.create);
     await h.tap(top('Issue credential'));
-    DashButton button(String label) => tester.widget<DashButton>(
-      _in(find.widgetWithText(DashButton, label)),
-    );
+    DashButton button(String label) =>
+        tester.widget<DashButton>(_in(find.widgetWithText(DashButton, label)));
     expect(button('Cancel').onPressed, isNull);
     expect(button('Issue credential').onPressed, isNull);
     gate.release();
@@ -265,9 +266,9 @@ void main() {
     addTearDown(IntegrationsRandom.reset);
     await h.tap(top('Issue credential'));
     expect(
-      h.server.callsTo(IntegrationsRoutes.create).where(
-        (c) => c.method == 'POST',
-      ),
+      h.server
+          .callsTo(IntegrationsRoutes.create)
+          .where((c) => c.method == 'POST'),
       isEmpty,
     );
     expect(_dialog, findsOneWidget);

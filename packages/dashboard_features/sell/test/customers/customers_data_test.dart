@@ -72,6 +72,8 @@ void main() {
     );
     expect(sellErrorText(_e(0, 'offline'), _t), 'Network error.');
     expect(sellErrorText(_e(500, ''), _t), 'Server error.');
+    // The mock's bare answer (no envelope) is no sentence: by status.
+    expect(sellErrorText(_e(404, 'HTTP 404'), _t), 'Not found.');
     // Real mode: the core worded it in Arabic; the envelope stays English.
     expect(
       sellErrorText(
@@ -80,10 +82,7 @@ void main() {
       ),
       'العميل غير موجود',
     );
-    expect(
-      sellErrorText(const ExportTooLargeError(60000), _t),
-      isNotEmpty,
-    );
+    expect(sellErrorText(const ExportTooLargeError(60000), _t), isNotEmpty);
   });
 
   test(

@@ -11,7 +11,18 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show Branch, DayBlock, DayView, LabourWarning, MoveShiftRequest, MoveView, PutDayRequest, PutTimesRequest, RosterPerson, RosterShift, WorkShiftBrief;
+    show
+        Branch,
+        DayBlock,
+        DayView,
+        LabourWarning,
+        MoveShiftRequest,
+        MoveView,
+        PutDayRequest,
+        PutTimesRequest,
+        RosterPerson,
+        RosterShift,
+        WorkShiftBrief;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -152,9 +163,7 @@ class _DayEditorState extends ConsumerState<DayEditor> {
             'date': f.fmtDate(widget.date),
           },
         ),
-        description: published
-            ? '$hint ${t('dawamOps.toldPublished')}'
-            : hint,
+        description: published ? '$hint ${t('dawamOps.toldPublished')}' : hint,
         confirmLabel: t('dawam.dayOff'),
       );
       if (!ok || !mounted) return;
@@ -174,8 +183,7 @@ class _DayEditorState extends ConsumerState<DayEditor> {
     final shifts = index.shiftsOf(_employee, date);
     final away = index.elsewhereOf(_employee, date);
     final ownSet = index.dateSets.containsKey(cellKey(_employee, date));
-    final published =
-        view?.publishedWeeks.contains(weekStartOf(date)) ?? false;
+    final published = view?.publishedWeeks.contains(weekStartOf(date)) ?? false;
     final staff = view?.staff ?? const <RosterPerson>[];
     final sep = t('common.listSeparator');
 
@@ -193,9 +201,10 @@ class _DayEditorState extends ConsumerState<DayEditor> {
     }
 
     final adding = offered.where((w) => w.id == _adding).firstOrNull;
-    final addClash = adding == null ? const <TimedBlock>[] : clashOfBlock(adding);
-    final editClash =
-        _editing != null && _from.isNotEmpty && _to.isNotEmpty
+    final addClash = adding == null
+        ? const <TimedBlock>[]
+        : clashOfBlock(adding);
+    final editClash = _editing != null && _from.isNotEmpty && _to.isNotEmpty
         ? clashesWith([
             for (final s in shifts)
               if (s.workShiftId != _editing) timed(s),
@@ -225,9 +234,8 @@ class _DayEditorState extends ConsumerState<DayEditor> {
       for (final s in away)
         '${s.shiftName} (${branchOf(s.branchId, s.branchName)})',
     ];
-    String clashText(List<TimedBlock> list) => list
-        .map((b) => '${b.name} ${ltr('${b.start}–${b.end}')}')
-        .join(sep);
+    String clashText(List<TimedBlock> list) =>
+        list.map((b) => '${b.name} ${ltr('${b.start}–${b.end}')}').join(sep);
 
     final api = ref.read(apiProvider);
     final muted = DashType.small.copyWith(color: c.textSecondary);
@@ -276,7 +284,10 @@ class _DayEditorState extends ConsumerState<DayEditor> {
                       ),
                       if (s.timesEdited) DashBadge(t('dawam.edited')),
                       if (s.changed)
-                        DashBadge(t('dawam.changedAfterPublish'), outline: true),
+                        DashBadge(
+                          t('dawam.changedAfterPublish'),
+                          outline: true,
+                        ),
                     ],
                   ),
                 ),
@@ -332,11 +343,17 @@ class _DayEditorState extends ConsumerState<DayEditor> {
                 }),
                 startLabel: t('dawam.from'),
                 endLabel: t('dawam.to'),
-                groupLabel: t('dawam.editTimesOf', args: {'shift': s.shiftName}),
+                groupLabel: t(
+                  'dawam.editTimesOf',
+                  args: {'shift': s.shiftName},
+                ),
               ),
               if (editClash.isNotEmpty)
                 _ClashNote(
-                  t('dawamOps.clashTimes', args: {'with': clashText(editClash)}),
+                  t(
+                    'dawamOps.clashTimes',
+                    args: {'with': clashText(editClash)},
+                  ),
                 ),
               Wrap(
                 alignment: WrapAlignment.end,
@@ -464,7 +481,10 @@ class _DayEditorState extends ConsumerState<DayEditor> {
                 border: Border.all(color: c.hairline),
               ),
               child: Text(
-                t('dawamOps.alsoElsewhere', args: {'shifts': elsewhere.join(sep)}),
+                t(
+                  'dawamOps.alsoElsewhere',
+                  args: {'shifts': elsewhere.join(sep)},
+                ),
                 style: DashType.body.copyWith(color: c.textPrimary),
               ),
             ),
@@ -478,7 +498,10 @@ class _DayEditorState extends ConsumerState<DayEditor> {
             spacing: Space.sm,
             children: [
               if (shifts.isEmpty)
-                Text(t('dawam.off'), style: DashType.body.copyWith(color: c.textSecondary)),
+                Text(
+                  t('dawam.off'),
+                  style: DashType.body.copyWith(color: c.textSecondary),
+                ),
               for (final s in shifts) shiftItem(s),
             ],
           ),
@@ -504,9 +527,7 @@ class _DayEditorState extends ConsumerState<DayEditor> {
                         ? null
                         : t(
                             'dawamOps.overlaps',
-                            args: {
-                              'with': clash.map((b) => b.name).join(', '),
-                            },
+                            args: {'with': clash.map((b) => b.name).join(', ')},
                           ),
                   );
                 }(),
@@ -515,7 +536,9 @@ class _DayEditorState extends ConsumerState<DayEditor> {
           ),
         ),
         if (addClash.isNotEmpty)
-          _ClashNote(t('dawamOps.clashAdd', args: {'with': clashText(addClash)})),
+          _ClashNote(
+            t('dawamOps.clashAdd', args: {'with': clashText(addClash)}),
+          ),
         Align(
           alignment: AlignmentDirectional.centerEnd,
           child: DashButton(
@@ -538,7 +561,11 @@ class _DayEditorState extends ConsumerState<DayEditor> {
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: Space.sm,
           children: [
-            DashIcon('triangle-alert', size: IconSize.xs, color: c.textSecondary),
+            DashIcon(
+              'triangle-alert',
+              size: IconSize.xs,
+              color: c.textSecondary,
+            ),
             Expanded(child: Text(t('dawam.dayEditorWarn'), style: muted)),
           ],
         ),

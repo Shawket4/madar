@@ -5,8 +5,7 @@
 /// `recipes.edit` everything shows and nothing edits.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show RecipeStepPreset;
+import 'package:dashboard_api/dashboard_api.dart' show RecipeStepPreset;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -48,7 +47,10 @@ class StudioStepsSection extends ConsumerWidget {
         ? Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: Space.sm,
-            children: [Expanded(child: a), Expanded(child: b)],
+            children: [
+              Expanded(child: a),
+              Expanded(child: b),
+            ],
           )
         : Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -322,8 +324,7 @@ class _StepPicker extends ConsumerWidget {
             final note = ar && (p.noteAr ?? '').isNotEmpty ? p.noteAr : p.note;
             return DashPressable(
               key: ValueKey('step-preset-${p.slug}'),
-              onTap: () =>
-                  Navigator.of(context).pop(StepDraft.preset(p.slug)),
+              onTap: () => Navigator.of(context).pop(StepDraft.preset(p.slug)),
               semanticLabel: name,
               excludeChildSemantics: true,
               pressScale: false,
@@ -346,9 +347,7 @@ class _StepPicker extends ConsumerWidget {
                     Text(
                       name,
                       textAlign: TextAlign.center,
-                      style: DashType.bodyMedium.copyWith(
-                        color: c.textPrimary,
-                      ),
+                      style: DashType.bodyMedium.copyWith(color: c.textPrimary),
                     ),
                     if (note != null && note.isNotEmpty)
                       MadarClippedText(
@@ -356,9 +355,7 @@ class _StepPicker extends ConsumerWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
-                        style: DashType.small.copyWith(
-                          color: c.textSecondary,
-                        ),
+                        style: DashType.small.copyWith(color: c.textSecondary),
                       ),
                   ],
                 ),

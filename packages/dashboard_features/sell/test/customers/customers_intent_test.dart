@@ -107,13 +107,13 @@ void main() {
     await h.settle();
 
     // Nada's newest order, by its ref (the link's label).
-    final newest = (h.db!['orders'].where((o) => o['customer_id'] == nadaId)
-          ..sort(
-            (a, b) => (b['created_at']! as String).compareTo(
-              a['created_at']! as String,
-            ),
-          ))
-        .first;
+    final newest =
+        (h.db!['orders'].where((o) => o['customer_id'] == nadaId)..sort(
+              (a, b) => (b['created_at']! as String).compareTo(
+                a['created_at']! as String,
+              ),
+            ))
+            .first;
     final label =
         newest['order_ref'] as String? ??
         (newest['id']! as String).substring(0, 8);

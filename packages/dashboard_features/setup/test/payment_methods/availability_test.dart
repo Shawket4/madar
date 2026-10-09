@@ -128,14 +128,15 @@ void main() {
       final before = h.server.calls.length;
       await h.tap(find.descendant(of: error, matching: find.text('Retry')));
       expect(editor(_branch), findsOneWidget);
-      expect({for (final c in h.server.calls.skip(before)) c.path}, {
-        '/payment-methods/availability',
-        '/payment-methods',
-      });
+      expect(
+        {for (final c in h.server.calls.skip(before)) c.path},
+        {'/payment-methods/availability', '/payment-methods'},
+      );
     });
 
-    testWidgets('SET-PAY-024 the methods read failing shows the same error',
-        (tester) async {
+    testWidgets('SET-PAY-024 the methods read failing shows the same error', (
+      tester,
+    ) async {
       final m = setupMockServer();
       final h = await pumpPm(tester, query: zamalek, backend: m);
       final boom = MockResponse.error(500, 'Service unavailable: boom');
@@ -162,12 +163,16 @@ void main() {
     testWidgets('SET-PAY-025 Branch: every ACTIVE method, the branch\'s '
         'own ticks', (tester) async {
       final h = await _open(tester);
-      expect(inPage(find.text('The methods any charge at this branch can '
-          'offer.')), findsOneWidget);
       expect(
-        inEditor(_branch, find.text('Branch')),
+        inPage(
+          find.text(
+            'The methods any charge at this branch can '
+            'offer.',
+          ),
+        ),
         findsOneWidget,
       );
+      expect(inEditor(_branch, find.text('Branch')), findsOneWidget);
       expect(_offered(tester, _branch), [
         'Cash',
         'Card',
@@ -280,18 +285,25 @@ void main() {
 
   group('editors', () {
     testWidgets('SET-PAY-028 the header: "{{count}} selected" or "No '
-        'restriction", "Only selected" / "All methods", "Restrict methods"',
-        (tester) async {
+        'restriction", "Only selected" / "All methods", "Restrict methods"', (
+      tester,
+    ) async {
       final h = await _open(tester);
       expect(inEditor(_branch, find.text('4 selected')), findsOneWidget);
       expect(inEditor(_branch, find.text('Only selected')), findsOneWidget);
-      expect(inEditor(_user('youssef'), find.text('1 selected')),
-          findsOneWidget);
+      expect(
+        inEditor(_user('youssef'), find.text('1 selected')),
+        findsOneWidget,
+      );
       expect(inEditor(_device('T2'), find.text('3 selected')), findsOneWidget);
-      expect(inEditor(_user('karim'), find.text('No restriction')),
-          findsOneWidget);
-      expect(inEditor(_user('karim'), find.text('All methods')),
-          findsOneWidget);
+      expect(
+        inEditor(_user('karim'), find.text('No restriction')),
+        findsOneWidget,
+      );
+      expect(
+        inEditor(_user('karim'), find.text('All methods')),
+        findsOneWidget,
+      );
       expect(
         tester.widget<DashSwitch>(_switch(_branch)).semanticLabel,
         h.t('paymentMethods.availability.restrict'),
@@ -301,8 +313,9 @@ void main() {
       expect(inEditor(_user('karim'), find.byType(DashCheckbox)), findsNothing);
     });
 
-    testWidgets('SET-PAY-028 the words beside the switch toggle it too',
-        (tester) async {
+    testWidgets('SET-PAY-028 the words beside the switch toggle it too', (
+      tester,
+    ) async {
       final h = await _open(tester);
       final k = _user('karim');
       await h.tap(inEditor(k, find.text('All methods')));
@@ -355,8 +368,10 @@ void main() {
       final reads = h.server.callsTo(PmRoutes.availability).length;
       await h.tap(_save(_branch));
       final put = h.server.callsTo(PmRoutes.branch).single;
-      expect(put.path,
-          '/payment-methods/availability/branches/${SeedIds.zamalek}');
+      expect(
+        put.path,
+        '/payment-methods/availability/branches/${SeedIds.zamalek}',
+      );
       expect(put.body, {
         'restricted': true,
         'payment_method_ids': [
@@ -413,8 +428,9 @@ void main() {
       expect(_saveButton(tester, _branch).loading, isFalse);
     });
 
-    testWidgets('SET-PAY-031 leaving the tab mid-save still refreshes',
-        (tester) async {
+    testWidgets('SET-PAY-031 leaving the tab mid-save still refreshes', (
+      tester,
+    ) async {
       final m = setupMockServer();
       final gate = m.server.hold('PUT', PmRoutes.branch);
       final h = await _open(tester, backend: m);
@@ -453,8 +469,10 @@ void main() {
       await h.tap(_choice(k, 'card'));
       await h.tap(_save(k));
       final put = h.server.callsTo(PmRoutes.user).single;
-      expect(put.path,
-          '/payment-methods/availability/users/${SeedIds.user('mariam')}');
+      expect(
+        put.path,
+        '/payment-methods/availability/users/${SeedIds.user('mariam')}',
+      );
       expect(put.body, {
         'restricted': true,
         'payment_method_ids': [pmId('card')],
@@ -469,12 +487,11 @@ void main() {
       await h.tap(_switch(k));
       await h.tap(_save(k));
       final put = h.server.callsTo(PmRoutes.device).single;
-      expect(put.path,
-          '/payment-methods/availability/devices/${PmSeed.deviceId('zamalek', 'T2')}');
-      expect(put.body, {
-        'restricted': false,
-        'payment_method_ids': <String>[],
-      });
+      expect(
+        put.path,
+        '/payment-methods/availability/devices/${PmSeed.deviceId('zamalek', 'T2')}',
+      );
+      expect(put.body, {'restricted': false, 'payment_method_ids': <String>[]});
       await h.expectToast('Saved');
       expect(inEditor(k, find.text('No restriction')), findsOneWidget);
     });
@@ -495,14 +512,18 @@ void main() {
       }, timestamps: false);
       final lists = h.server.callsTo(PmRoutes.list).length;
       final reads = h.server.callsTo(PmRoutes.availability).length;
-      h.realtime.current!.emit('payment_methods.availability_changed',
-          data: '{"branch_id":"${SeedIds.zamalek}"}');
+      h.realtime.current!.emit(
+        'payment_methods.availability_changed',
+        data: '{"branch_id":"${SeedIds.zamalek}"}',
+      );
       await h.settle();
       expect(h.server.callsTo(PmRoutes.list).length, lists + 1);
       expect(h.server.callsTo(PmRoutes.availability).length, reads + 1);
       expect(inEditor(k, find.text('No restriction')), findsOneWidget);
-      expect(inEditor(_user('youssef'), find.text('2 selected')),
-          findsOneWidget);
+      expect(
+        inEditor(_user('youssef'), find.text('2 selected')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('SET-PAY-035 switching the header branch reloads the tab for '
@@ -510,8 +531,10 @@ void main() {
       final h = await _open(tester);
       await h.go('$pmPath${atBranch(SeedIds.heliopolis)}');
       // The tab stays open across the scope change.
-      expect(inPage(find.byKey(const ValueKey('pm-availability'))),
-          findsOneWidget);
+      expect(
+        inPage(find.byKey(const ValueKey('pm-availability'))),
+        findsOneWidget,
+      );
       expect(h.server.callsTo(PmRoutes.availability).last.query, {
         'branch_id': [SeedIds.heliopolis],
       });
@@ -523,10 +546,18 @@ void main() {
     testWidgets('SET-PAY-039 the people and devices reads have no state of '
         'their own: a failure reads as nobody', (tester) async {
       final m = setupMockServer();
-      m.server.fail('GET', PmRoutes.users, MockResponse.error(500, 'down'),
-          times: null);
-      m.server.fail('GET', PmRoutes.devices, MockResponse.error(500, 'down'),
-          times: null);
+      m.server.fail(
+        'GET',
+        PmRoutes.users,
+        MockResponse.error(500, 'down'),
+        times: null,
+      );
+      m.server.fail(
+        'GET',
+        PmRoutes.devices,
+        MockResponse.error(500, 'down'),
+        times: null,
+      );
       await _open(tester, backend: m);
       expect(inPage(find.text('No tellers at this branch')), findsOneWidget);
       expect(
@@ -537,8 +568,9 @@ void main() {
     });
 
     testWidgets('SET-PAY-040 narrower editors offer the branch\'s methods, '
-        'in the active language; the count includes ids no longer offered',
-        (tester) async {
+        'in the active language; the count includes ids no longer offered', (
+      tester,
+    ) async {
       final m = setupMockServer();
       // Mariam was once allowed Talabat Online, which Zamalek no longer takes.
       m.db[PmSeed.availabilityTable].insert({

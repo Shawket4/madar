@@ -157,7 +157,8 @@ String exportMeta({
   return parts.join(' · ');
 }
 
-String _or(Translator t, String key, String raw) => t.exists(key) ? t(key) : raw;
+String _or(Translator t, String key, String raw) =>
+    t.exists(key) ? t(key) : raw;
 
 /// `paymentText`: a split sale lists each leg with its amount.
 String paymentText(
@@ -167,7 +168,10 @@ String paymentText(
   List<PaymentLeg> legs,
 ) => legs.length > 1
     ? legs
-          .map((l) => '${_or(t, 'payments.${l.method}', l.method)} ${fmt.fmtMoney(l.amount)}')
+          .map(
+            (l) =>
+                '${_or(t, 'payments.${l.method}', l.method)} ${fmt.fmtMoney(l.amount)}',
+          )
           .join(' + ')
     : _or(t, 'payments.$method', method);
 
@@ -256,20 +260,100 @@ List<ExcelSheet<Object?>> buildExportSheets({
   if (grains.contains(ExportGrain.order)) {
     sheets.add(
       sheet<OrderExport>('orders', [
-        ExcelColumn(header: t('orders.orderRef'), accessor: _ref, type: ExcelColumnType.text, width: 16),
-        ExcelColumn(header: t('orders.date'), accessor: (o) => o.createdAt, type: ExcelColumnType.dateTime, width: 20),
-        ExcelColumn(header: t('tills.teller'), accessor: (o) => o.tellerName, type: ExcelColumnType.text, width: 18),
-        ExcelColumn(header: t('tills.waiter'), accessor: (o) => (o.waiterName ?? '').isEmpty ? dash : o.waiterName, type: ExcelColumnType.text, width: 18),
-        ExcelColumn(header: t('orders.customer'), accessor: (o) => (o.customerName ?? '').isEmpty ? dash : o.customerName, type: ExcelColumnType.text, width: 18),
-        ExcelColumn(header: t('orders.paymentMethod'), accessor: (o) => paymentText(t, fmt, o.paymentMethod, o.paymentLegs), type: ExcelColumnType.text, width: 18),
-        ExcelColumn(header: t('orders.exportStaffComp'), accessor: (o) => orderStaffComp(o.items), type: ExcelColumnType.money, width: 20, total: true),
-        ExcelColumn(header: t('common.subtotal'), accessor: (o) => o.subtotal, type: ExcelColumnType.money, width: 15, total: true),
-        ExcelColumn(header: t('orders.discount'), accessor: (o) => o.discountAmount, type: ExcelColumnType.money, width: 15, total: true),
-        ExcelColumn(header: t('orders.tax'), accessor: (o) => o.taxAmount, type: ExcelColumnType.money, width: 15, total: true),
-        ExcelColumn(header: t('orders.tip'), accessor: (o) => o.tipAmount ?? 0, type: ExcelColumnType.money, width: 15, total: true),
-        ExcelColumn(header: t('orders.deliveryFee'), accessor: (o) => o.deliveryFee, type: ExcelColumnType.money, width: 15, total: true),
-        ExcelColumn(header: t('common.total'), accessor: (o) => o.totalAmount, type: ExcelColumnType.money, width: 15, total: true),
-        ExcelColumn(header: t('orders.type'), accessor: (o) => o.orderType == 'delivery' ? t('orders.delivery') : t('orders.dineIn'), type: ExcelColumnType.text, width: 14),
+        ExcelColumn(
+          header: t('orders.orderRef'),
+          accessor: _ref,
+          type: ExcelColumnType.text,
+          width: 16,
+        ),
+        ExcelColumn(
+          header: t('orders.date'),
+          accessor: (o) => o.createdAt,
+          type: ExcelColumnType.dateTime,
+          width: 20,
+        ),
+        ExcelColumn(
+          header: t('tills.teller'),
+          accessor: (o) => o.tellerName,
+          type: ExcelColumnType.text,
+          width: 18,
+        ),
+        ExcelColumn(
+          header: t('tills.waiter'),
+          accessor: (o) => (o.waiterName ?? '').isEmpty ? dash : o.waiterName,
+          type: ExcelColumnType.text,
+          width: 18,
+        ),
+        ExcelColumn(
+          header: t('orders.customer'),
+          accessor: (o) =>
+              (o.customerName ?? '').isEmpty ? dash : o.customerName,
+          type: ExcelColumnType.text,
+          width: 18,
+        ),
+        ExcelColumn(
+          header: t('orders.paymentMethod'),
+          accessor: (o) => paymentText(t, fmt, o.paymentMethod, o.paymentLegs),
+          type: ExcelColumnType.text,
+          width: 18,
+        ),
+        ExcelColumn(
+          header: t('orders.exportStaffComp'),
+          accessor: (o) => orderStaffComp(o.items),
+          type: ExcelColumnType.money,
+          width: 20,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('common.subtotal'),
+          accessor: (o) => o.subtotal,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('orders.discount'),
+          accessor: (o) => o.discountAmount,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('orders.tax'),
+          accessor: (o) => o.taxAmount,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('orders.tip'),
+          accessor: (o) => o.tipAmount ?? 0,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('orders.deliveryFee'),
+          accessor: (o) => o.deliveryFee,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('common.total'),
+          accessor: (o) => o.totalAmount,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('orders.type'),
+          accessor: (o) => o.orderType == 'delivery'
+              ? t('orders.delivery')
+              : t('orders.dineIn'),
+          type: ExcelColumnType.text,
+          width: 14,
+        ),
         ExcelColumn(
           header: t('orders.location'),
           accessor: (o) => o.deliveryLat != null && o.deliveryLng != null
@@ -278,10 +362,17 @@ List<ExcelSheet<Object?>> buildExportSheets({
           type: ExcelColumnType.text,
           width: 34,
         ),
-        ExcelColumn(header: t('common.status'), accessor: (o) => _or(t, 'orderStatus.${o.status}', o.status), type: ExcelColumnType.text, width: 15),
+        ExcelColumn(
+          header: t('common.status'),
+          accessor: (o) => _or(t, 'orderStatus.${o.status}', o.status),
+          type: ExcelColumnType.text,
+          width: 15,
+        ),
         ExcelColumn(
           header: t('orders.voidReason'),
-          accessor: (o) => o.voidReason == null ? dash : _or(t, 'orders.voidReasons.${o.voidReason}', o.voidReason!),
+          accessor: (o) => o.voidReason == null
+              ? dash
+              : _or(t, 'orders.voidReasons.${o.voidReason}', o.voidReason!),
           type: ExcelColumnType.text,
           width: 20,
         ),
@@ -298,36 +389,120 @@ List<ExcelSheet<Object?>> buildExportSheets({
             line: it,
             itemName: name(it),
             addons: it.addons
-                .map((a) => '+ ${translatedName(a.addonName, a.nameTranslations, lang)}${a.quantity > 1 ? ' ×${a.quantity}' : ''}')
+                .map(
+                  (a) =>
+                      '+ ${translatedName(a.addonName, a.nameTranslations, lang)}${a.quantity > 1 ? ' ×${a.quantity}' : ''}',
+                )
                 .join(', '),
             optionals: it.optionals
-                .map((x) => translatedName(x.fieldName, x.nameTranslations, lang))
+                .map(
+                  (x) => translatedName(x.fieldName, x.nameTranslations, lang),
+                )
                 .join(', '),
           ),
     ];
     sheets.add(
       sheet<LineItemRow>('lineItems', [
-        ExcelColumn(header: t('orders.orderRef'), accessor: (r) => _ref(r.order), type: ExcelColumnType.text, width: 16),
-        ExcelColumn(header: t('orders.date'), accessor: (r) => r.order.createdAt, type: ExcelColumnType.dateTime, width: 20),
-        ExcelColumn(header: t('orders.paymentMethod'), accessor: (r) => paymentText(t, fmt, r.order.paymentMethod, r.order.paymentLegs), type: ExcelColumnType.text, width: 18),
-        ExcelColumn(header: t('tills.waiter'), accessor: (r) => (r.order.waiterName ?? '').isEmpty ? dash : r.order.waiterName, type: ExcelColumnType.text, width: 18),
-        ExcelColumn(header: t('menu.item'), accessor: (r) => r.itemName, type: ExcelColumnType.text, width: 22),
-        ExcelColumn(header: t('menu.size'), accessor: (r) => (r.line.sizeLabel ?? '').isEmpty ? dash : r.line.sizeLabel, type: ExcelColumnType.text, width: 12),
-        ExcelColumn(header: t('common.qty'), accessor: (r) => r.line.quantity, type: ExcelColumnType.number, width: 10, total: true),
-        ExcelColumn(header: t('common.price'), accessor: (r) => r.line.unitPrice, type: ExcelColumnType.money, width: 15),
-        ExcelColumn(header: t('common.total'), accessor: (r) => r.line.lineTotal, type: ExcelColumnType.money, width: 15, total: true),
+        ExcelColumn(
+          header: t('orders.orderRef'),
+          accessor: (r) => _ref(r.order),
+          type: ExcelColumnType.text,
+          width: 16,
+        ),
+        ExcelColumn(
+          header: t('orders.date'),
+          accessor: (r) => r.order.createdAt,
+          type: ExcelColumnType.dateTime,
+          width: 20,
+        ),
+        ExcelColumn(
+          header: t('orders.paymentMethod'),
+          accessor: (r) =>
+              paymentText(t, fmt, r.order.paymentMethod, r.order.paymentLegs),
+          type: ExcelColumnType.text,
+          width: 18,
+        ),
+        ExcelColumn(
+          header: t('tills.waiter'),
+          accessor: (r) =>
+              (r.order.waiterName ?? '').isEmpty ? dash : r.order.waiterName,
+          type: ExcelColumnType.text,
+          width: 18,
+        ),
+        ExcelColumn(
+          header: t('menu.item'),
+          accessor: (r) => r.itemName,
+          type: ExcelColumnType.text,
+          width: 22,
+        ),
+        ExcelColumn(
+          header: t('menu.size'),
+          accessor: (r) =>
+              (r.line.sizeLabel ?? '').isEmpty ? dash : r.line.sizeLabel,
+          type: ExcelColumnType.text,
+          width: 12,
+        ),
+        ExcelColumn(
+          header: t('common.qty'),
+          accessor: (r) => r.line.quantity,
+          type: ExcelColumnType.number,
+          width: 10,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('common.price'),
+          accessor: (r) => r.line.unitPrice,
+          type: ExcelColumnType.money,
+          width: 15,
+        ),
+        ExcelColumn(
+          header: t('common.total'),
+          accessor: (r) => r.line.lineTotal,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
         ExcelColumn(
           header: t('orders.exportStaffComp'),
-          accessor: (r) => (r.line.staffCompMinor ?? 0) < 0 ? 0 : (r.line.staffCompMinor ?? 0),
+          accessor: (r) => (r.line.staffCompMinor ?? 0) < 0
+              ? 0
+              : (r.line.staffCompMinor ?? 0),
           type: ExcelColumnType.money,
           width: 20,
           total: true,
         ),
-        ExcelColumn(header: t('orders.exportStaffCharged'), accessor: (r) => staffDrinkLine(r.line)?.charged, type: ExcelColumnType.money, width: 24, total: true),
-        ExcelColumn(header: t('orders.cogs'), accessor: (r) => r.line.lineCost, type: ExcelColumnType.money, width: 15, total: true),
-        ExcelColumn(header: t('menu.addons'), accessor: (r) => r.addons.isEmpty ? dash : r.addons, type: ExcelColumnType.text, width: 25),
-        ExcelColumn(header: t('menu.optionals'), accessor: (r) => r.optionals.isEmpty ? dash : r.optionals, type: ExcelColumnType.text, width: 25),
-        ExcelColumn(header: t('common.notes'), accessor: (r) => (r.line.notes ?? '').isEmpty ? dash : r.line.notes, type: ExcelColumnType.text, width: 20),
+        ExcelColumn(
+          header: t('orders.exportStaffCharged'),
+          accessor: (r) => staffDrinkLine(r.line)?.charged,
+          type: ExcelColumnType.money,
+          width: 24,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('orders.cogs'),
+          accessor: (r) => r.line.lineCost,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('menu.addons'),
+          accessor: (r) => r.addons.isEmpty ? dash : r.addons,
+          type: ExcelColumnType.text,
+          width: 25,
+        ),
+        ExcelColumn(
+          header: t('menu.optionals'),
+          accessor: (r) => r.optionals.isEmpty ? dash : r.optionals,
+          type: ExcelColumnType.text,
+          width: 25,
+        ),
+        ExcelColumn(
+          header: t('common.notes'),
+          accessor: (r) => (r.line.notes ?? '').isEmpty ? dash : r.line.notes,
+          type: ExcelColumnType.text,
+          width: 20,
+        ),
       ], rows),
     );
   }
@@ -347,12 +522,44 @@ List<ExcelSheet<Object?>> buildExportSheets({
     ];
     sheets.add(
       sheet<PaymentRow>('payments', [
-        ExcelColumn(header: t('orders.orderRef'), accessor: (r) => r.ref, type: ExcelColumnType.text, width: 16),
-        ExcelColumn(header: t('orders.date'), accessor: (r) => r.createdAt, type: ExcelColumnType.dateTime, width: 20),
-        ExcelColumn(header: t('common.total'), accessor: (r) => r.orderTotal, type: ExcelColumnType.money, width: 15, total: true),
-        ExcelColumn(header: t('orders.paymentMethod'), accessor: (r) => _or(t, 'payments.${r.method}', r.method), type: ExcelColumnType.text, width: 18),
-        ExcelColumn(header: t('common.amount'), accessor: (r) => r.amount, type: ExcelColumnType.money, width: 15, total: true),
-        ExcelColumn(header: t('orders.reference'), accessor: (r) => (r.reference ?? '').isEmpty ? dash : r.reference, type: ExcelColumnType.text, width: 18),
+        ExcelColumn(
+          header: t('orders.orderRef'),
+          accessor: (r) => r.ref,
+          type: ExcelColumnType.text,
+          width: 16,
+        ),
+        ExcelColumn(
+          header: t('orders.date'),
+          accessor: (r) => r.createdAt,
+          type: ExcelColumnType.dateTime,
+          width: 20,
+        ),
+        ExcelColumn(
+          header: t('common.total'),
+          accessor: (r) => r.orderTotal,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('orders.paymentMethod'),
+          accessor: (r) => _or(t, 'payments.${r.method}', r.method),
+          type: ExcelColumnType.text,
+          width: 18,
+        ),
+        ExcelColumn(
+          header: t('common.amount'),
+          accessor: (r) => r.amount,
+          type: ExcelColumnType.money,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('orders.reference'),
+          accessor: (r) => (r.reference ?? '').isEmpty ? dash : r.reference,
+          type: ExcelColumnType.text,
+          width: 18,
+        ),
       ], rows),
     );
   }
@@ -362,19 +569,65 @@ List<ExcelSheet<Object?>> buildExportSheets({
       for (final o in orders)
         for (final it in o.items)
           for (final d in deductionsOf(it))
-            DeductionRow(ref: _ref(o), createdAt: o.createdAt, itemName: name(it), d: d),
+            DeductionRow(
+              ref: _ref(o),
+              createdAt: o.createdAt,
+              itemName: name(it),
+              d: d,
+            ),
     ];
     String unit(String u) => _or(t, 'inventoryUnits.$u', u);
     sheets.add(
       sheet<DeductionRow>('deductionsRaw', [
-        ExcelColumn(header: t('orders.orderRef'), accessor: (r) => r.ref, type: ExcelColumnType.text, width: 16),
-        ExcelColumn(header: t('orders.date'), accessor: (r) => r.createdAt, type: ExcelColumnType.dateTime, width: 20),
-        ExcelColumn(header: t('menu.item'), accessor: (r) => r.itemName, type: ExcelColumnType.text, width: 22),
-        ExcelColumn(header: t('inventory.ingredient'), accessor: (r) => r.d.ingredientName, type: ExcelColumnType.text, width: 22),
-        ExcelColumn(header: t('common.qty'), accessor: (r) => r.d.quantity, type: ExcelColumnType.number, width: 12, total: true),
-        ExcelColumn(header: t('inventory.unit'), accessor: (r) => unit(r.d.unit), type: ExcelColumnType.text, width: 10),
-        ExcelColumn(header: t('common.source'), accessor: (r) => r.d.source, type: ExcelColumnType.text, width: 15),
-        ExcelColumn(header: t('common.category'), accessor: (r) => r.d.category, type: ExcelColumnType.text, width: 15),
+        ExcelColumn(
+          header: t('orders.orderRef'),
+          accessor: (r) => r.ref,
+          type: ExcelColumnType.text,
+          width: 16,
+        ),
+        ExcelColumn(
+          header: t('orders.date'),
+          accessor: (r) => r.createdAt,
+          type: ExcelColumnType.dateTime,
+          width: 20,
+        ),
+        ExcelColumn(
+          header: t('menu.item'),
+          accessor: (r) => r.itemName,
+          type: ExcelColumnType.text,
+          width: 22,
+        ),
+        ExcelColumn(
+          header: t('inventory.ingredient'),
+          accessor: (r) => r.d.ingredientName,
+          type: ExcelColumnType.text,
+          width: 22,
+        ),
+        ExcelColumn(
+          header: t('common.qty'),
+          accessor: (r) => r.d.quantity,
+          type: ExcelColumnType.number,
+          width: 12,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('inventory.unit'),
+          accessor: (r) => unit(r.d.unit),
+          type: ExcelColumnType.text,
+          width: 10,
+        ),
+        ExcelColumn(
+          header: t('common.source'),
+          accessor: (r) => r.d.source,
+          type: ExcelColumnType.text,
+          width: 15,
+        ),
+        ExcelColumn(
+          header: t('common.category'),
+          accessor: (r) => r.d.category,
+          type: ExcelColumnType.text,
+          width: 15,
+        ),
       ], raw),
     );
     final agg = <String, DeductionTotal>{};
@@ -393,10 +646,32 @@ List<ExcelSheet<Object?>> buildExportSheets({
       ..sort((a, b) => b.totalQuantity.compareTo(a.totalQuantity));
     sheets.add(
       sheet<DeductionTotal>('deductionsAgg', [
-        ExcelColumn(header: t('inventory.ingredient'), accessor: (r) => r.ingredientName, type: ExcelColumnType.text, width: 25),
-        ExcelColumn(header: t('orders.totalUsage'), accessor: (r) => r.totalQuantity, type: ExcelColumnType.number, width: 15, total: true),
-        ExcelColumn(header: t('inventory.unit'), accessor: (r) => unit(r.unit), type: ExcelColumnType.text, width: 12),
-        ExcelColumn(header: t('orders.occurrences'), accessor: (r) => r.occurrences, type: ExcelColumnType.integer, width: 12, total: true),
+        ExcelColumn(
+          header: t('inventory.ingredient'),
+          accessor: (r) => r.ingredientName,
+          type: ExcelColumnType.text,
+          width: 25,
+        ),
+        ExcelColumn(
+          header: t('orders.totalUsage'),
+          accessor: (r) => r.totalQuantity,
+          type: ExcelColumnType.number,
+          width: 15,
+          total: true,
+        ),
+        ExcelColumn(
+          header: t('inventory.unit'),
+          accessor: (r) => unit(r.unit),
+          type: ExcelColumnType.text,
+          width: 12,
+        ),
+        ExcelColumn(
+          header: t('orders.occurrences'),
+          accessor: (r) => r.occurrences,
+          type: ExcelColumnType.integer,
+          width: 12,
+          total: true,
+        ),
       ], totals),
     );
   }

@@ -140,8 +140,7 @@ Finder inPage(Finder f) => find.descendant(of: page, matching: f);
 Finder pageText(String s) => inPage(find.text(s));
 
 /// Text containing [s] (rich text too), on the page.
-Finder pageHas(String s) =>
-    inPage(find.textContaining(s, findRichText: true));
+Finder pageHas(String s) => inPage(find.textContaining(s, findRichText: true));
 
 final Finder grid = find.byKey(const Key('schedule-grid'));
 

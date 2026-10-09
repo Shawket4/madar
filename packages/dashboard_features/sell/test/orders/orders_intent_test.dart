@@ -30,7 +30,11 @@ Finder _option(String text) => find.descendant(
 );
 
 /// A mouse resting on [target] long enough to count as intent.
-Future<TestGesture> _rest(WidgetTester tester, DashHarness h, Finder target) async {
+Future<TestGesture> _rest(
+  WidgetTester tester,
+  DashHarness h,
+  Finder target,
+) async {
   final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
   await mouse.addPointer(location: Offset.zero);
   addTearDown(mouse.removePointer);
@@ -77,8 +81,11 @@ void main() {
 
     await h.tap(rowFinder);
     expect(h.location.queryParameters['order'], id);
-    expect(h.server.callsTo(orderRoute, method: 'GET'), hasLength(1),
-        reason: 'the sheet opened from the cache');
+    expect(
+      h.server.callsTo(orderRoute, method: 'GET'),
+      hasLength(1),
+      reason: 'the sheet opened from the cache',
+    );
     expect(h.server.callsTo(catalogRoute).length, catalogWarm);
     expect(catalogWarm, greaterThanOrEqualTo(catalogBefore));
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -111,7 +118,8 @@ void main() {
   testWidgets("the row menu's Details warms the sheet", (tester) async {
     final h = await pumpOrders(tester);
     final actions = find.byWidgetPredicate(
-      (w) => w.key is ValueKey<String> &&
+      (w) =>
+          w.key is ValueKey<String> &&
           (w.key! as ValueKey<String>).value.startsWith('order-actions-'),
     );
     await h.tap(actions.first);
@@ -149,8 +157,9 @@ void main() {
     expect(h.server.callsTo(menuItemsRoute), hasLength(1));
   });
 
-  testWidgets("the sheet's member name warms the member's sheet",
-      (tester) async {
+  testWidgets("the sheet's member name warms the member's sheet", (
+    tester,
+  ) async {
     final id = OrderSeedIds.showcase('reward');
     final h = await pumpOrders(tester, query: '?order=$id');
     final member = find.byKey(const ValueKey('order-sheet-member'));

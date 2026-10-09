@@ -51,7 +51,10 @@ class OrdersPage extends ConsumerStatefulWidget {
     String? nonEmpty(String? v) => v == null || v.isEmpty ? null : v;
     return OrdersPage(
       orderId: nonEmpty(q['order']),
-      tillId: nonEmpty(q['till']) ?? nonEmpty(q['till_id']) ?? nonEmpty(q['shift_id']),
+      tillId:
+          nonEmpty(q['till']) ??
+          nonEmpty(q['till_id']) ??
+          nonEmpty(q['shift_id']),
     );
   }
 
@@ -128,7 +131,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     _sheet = id;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      if (previous != null) await Navigator.of(context, rootNavigator: true).maybePop();
+      if (previous != null)
+        await Navigator.of(context, rootNavigator: true).maybePop();
       if (id == null || !mounted || _sheet != id) return;
       await showOrderSheet(
         context,
@@ -158,7 +162,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
 
   void _openVoid(String id, String ref) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) showVoidDialog(context, orderId: id, ref: ref, draft: _voidDraft);
+      if (mounted)
+        showVoidDialog(context, orderId: id, ref: ref, draft: _voidDraft);
     });
   }
 
@@ -299,6 +304,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       loading: loading,
       errorMessage: failed ? errorMessage(q.error, t) : null,
       onRetry: () => ref.invalidate(ordersListProvider(key)),
+      retrying: q.isLoading,
       empty: DashEmptyState(
         icon: 'receipt',
         title: t('orders.emptyTitle'),
@@ -335,7 +341,12 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     // An option about to be picked warms the first page it will show.
     void warmPick(void Function() pick) {
       if (!enabled) return;
-      final (status, payment, type, channel) = (_status, _payment, _type, _channel);
+      final (status, payment, type, channel) = (
+        _status,
+        _payment,
+        _type,
+        _channel,
+      );
       pick();
       final k = keyAt(1);
       _status = status;
@@ -376,9 +387,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           allLabel: t('orders.allStatuses'),
           value: _status,
           minWidth: Space.xxl * 3.5,
-          options: [
-            for (final s in orderStatuses) opt(s, t('orderStatus.$s')),
-          ],
+          options: [for (final s in orderStatuses) opt(s, t('orderStatus.$s'))],
           onChanged: (v) => setState(() => _status = v),
           onOptionIntent: (v) => warmPick(() => _status = v),
         ),
@@ -481,7 +490,10 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     String payments(Order o) => o.paymentLegs.length <= 1
         ? orTranslated(t, 'payments.${o.paymentMethod}', o.paymentMethod)
         : o.paymentLegs
-              .map((l) => '${orTranslated(t, 'payments.${l.method}', l.method)} ${fmt.fmtMoney(l.amount)}')
+              .map(
+                (l) =>
+                    '${orTranslated(t, 'payments.${l.method}', l.method)} ${fmt.fmtMoney(l.amount)}',
+              )
               .join(' ');
     return [
       DashColumn<Order>(
@@ -519,7 +531,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
               ),
           ],
         ),
-        minWidth: Space.xxl * 5 + Space.sm + Space.xs,
+        minWidth: Space.xxl * 5 + Space.xs,
       ),
       DashColumn<Order>(
         id: 'date',
@@ -533,7 +545,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           softWrap: false,
           style: DashType.mono.copyWith(color: c.textSecondary),
         ),
-        minWidth: Space.xxl * 5,
+        minWidth: Space.xxl * 5 - Space.xs,
       ),
       DashColumn<Order>(
         id: 'customer',
@@ -546,25 +558,24 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                 customerId: o.customerId,
                 control: control,
               ),
-        // Names read whole: the table scrolls sideways before it cuts them.
-        minWidth: Space.xxl * 4,
+        // The floors fit every column at 1440 (the web's content-sized
+        // table); a longer name is cut and reads whole on a hold.
+        minWidth: Space.xxl * 3,
         flex: 2,
       ),
       DashColumn<Order>(
         id: 'teller',
         label: t('tills.teller'),
         text: (o) => o.tellerName,
-        // Names read whole: the table scrolls sideways before it cuts them.
-        minWidth: Space.xxl * 4,
+        minWidth: Space.xxl * 3,
         flex: 2,
       ),
       DashColumn<Order>(
         id: 'waiter',
         label: t('tills.waiter'),
         text: (o) => (o.waiterName ?? '').isEmpty ? '—' : o.waiterName!,
-        // Names read whole: the table scrolls sideways before it cuts them.
-        minWidth: Space.xxl * 4,
-        flex: 2,
+        // Mostly "—": the narrowest name column.
+        minWidth: Space.xxl * 2 + Space.sm,
       ),
       DashColumn<Order>(
         id: 'status',
@@ -579,14 +590,17 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
             if (o.priceFlagged ?? false) _PriceFlagBadge(order: o),
           ],
         ),
-        minWidth: Space.xxl * 4 + Space.xs,
+        minWidth: Space.xxl * 4 - Space.xs,
       ),
       DashColumn<Order>(
         id: 'payment',
         label: t('orders.payment'),
         text: payments,
         cell: (context, o) => o.paymentLegs.length <= 1
-            ? Text(payments(o), style: DashType.body.copyWith(color: c.textPrimary))
+            ? Text(
+                payments(o),
+                style: DashType.body.copyWith(color: c.textPrimary),
+              )
             : Wrap(
                 spacing: Space.xs,
                 runSpacing: DashMetrics.hair,
@@ -596,7 +610,13 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                       TextSpan(
                         style: DashType.small.copyWith(color: c.textPrimary),
                         children: [
-                          TextSpan(text: orTranslated(t, 'payments.${l.method}', l.method)),
+                          TextSpan(
+                            text: orTranslated(
+                              t,
+                              'payments.${l.method}',
+                              l.method,
+                            ),
+                          ),
                           TextSpan(
                             text: ' ${fmt.fmtMoney(l.amount)}',
                             style: DashType.mono.copyWith(
@@ -622,7 +642,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           softWrap: false,
           style: DashType.mono.copyWith(color: c.textSecondary),
         ),
-        minWidth: Space.xxl * 3 + Space.xs,
+        minWidth: Space.xxl * 3,
       ),
       DashColumn<Order>(
         id: 'total',
@@ -635,7 +655,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           softWrap: false,
           style: DashType.monoStrong.copyWith(color: c.textPrimary),
         ),
-        minWidth: Space.xxl * 3.5 + Space.sm,
+        minWidth: Space.xxl * 3.5 + Space.xs,
       ),
     ];
   }
@@ -699,7 +719,10 @@ class _PriceFlagBadge extends ConsumerWidget {
     final hint = [
       t('orders.offlinePriceHint'),
       if (expected != null && expected != order.totalAmount)
-        t('orders.offlinePriceExpected', args: {'amount': fmt.fmtMoney(expected)}),
+        t(
+          'orders.offlinePriceExpected',
+          args: {'amount': fmt.fmtMoney(expected)},
+        ),
     ].join(' ');
     return DashPressable(
       key: ValueKey('price-flag-${order.id}'),

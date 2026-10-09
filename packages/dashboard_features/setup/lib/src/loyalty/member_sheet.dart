@@ -265,11 +265,15 @@ class MemberSection extends ConsumerWidget {
     final cols = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm ? 4 : 2;
     final branches = access.canAdjust
         ? [
-            for (final b in ref.watch(branchesProvider).value ?? const <Branch>[])
+            for (final b
+                in ref.watch(branchesProvider).value ?? const <Branch>[])
               if (b.isActive && isSelling(b)) b,
           ]
         : const <Branch>[];
-    final joined = t('loyalty.joinedOn', args: {'date': fmt.fmtDate(m.enrolledAt)});
+    final joined = t(
+      'loyalty.joinedOn',
+      args: {'date': fmt.fmtDate(m.enrolledAt)},
+    );
     final also = otherBalance != 0
         ? ' · ${t('loyalty.otherBalance', args: {'amount': loyaltyCost(t, other, otherBalance)})}'
         : '';
@@ -288,7 +292,8 @@ class MemberSection extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   spacing: Space.sm,
                   children: [
-                    for (var j = i; j < i + cols; j++) Expanded(child: stats[j]),
+                    for (var j = i; j < i + cols; j++)
+                      Expanded(child: stats[j]),
                   ],
                 ),
               ),
@@ -410,7 +415,8 @@ class LedgerList extends ConsumerWidget {
               tone: _toneOf(ledgerTone(e)),
               small: true,
             ),
-            if (undone.contains(e.id)) Text(t('loyalty.ledgerUndone'), style: muted),
+            if (undone.contains(e.id))
+              Text(t('loyalty.ledgerUndone'), style: muted),
           ],
         ),
         Text(ledgerActor(e, t), style: muted),
@@ -489,7 +495,10 @@ class LedgerList extends ConsumerWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: Space.sm,
-                  children: [Expanded(child: what(e)), amount(e)],
+                  children: [
+                    Expanded(child: what(e)),
+                    amount(e),
+                  ],
                 ),
                 Text(fmt.fmtDateTime(e.createdAt), style: muted),
                 where(e),
@@ -523,7 +532,10 @@ class LedgerList extends ConsumerWidget {
           Expanded(child: cells[1]),
           SizedBox(
             width: amountW,
-            child: Align(alignment: AlignmentDirectional.topEnd, child: cells[2]),
+            child: Align(
+              alignment: AlignmentDirectional.topEnd,
+              child: cells[2],
+            ),
           ),
           SizedBox(width: whereW, child: cells[3]),
         ],
@@ -569,9 +581,8 @@ class _ViewOrder extends ConsumerWidget {
         Navigator.of(context).maybePop();
         router.go(LedgerList.orderLink(orderId));
       },
-      onIntent: () => seam != null
-          ? seam.warm(ref, orderId)
-          : ref.prefetchRoute('/orders'),
+      onIntent: () =>
+          seam != null ? seam.warm(ref, orderId) : ref.prefetchRoute('/orders'),
       semanticLabel: label,
       excludeChildSemantics: true,
       pressScale: false,
@@ -719,7 +730,10 @@ class _AdjustDialogState extends ConsumerState<AdjustDialog> {
     final t = ref.watch(tProvider);
     return DashSurface(
       title: t('loyalty.adjustTitle'),
-      description: t('loyalty.adjustBody', args: {'name': _m.name, ..._vars(t)}),
+      description: t(
+        'loyalty.adjustBody',
+        args: {'name': _m.name, ..._vars(t)},
+      ),
       actions: [
         DashButton(
           label: t('common.cancel'),
@@ -752,7 +766,8 @@ class _AdjustDialogState extends ConsumerState<AdjustDialog> {
             ),
             DashFormField<String>(
               key: const ValueKey('adjust-amount'),
-              label: '${t('loyalty.adjustAmount')} (${loyaltyUnit(t, _m.mode)})',
+              label:
+                  '${t('loyalty.adjustAmount')} (${loyaltyUnit(t, _m.mode)})',
               value: _amount,
               validator: (v) => _amountError(v, t),
               builder: (context, invalid) => DashTextInput(

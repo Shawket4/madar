@@ -52,7 +52,8 @@ void registerPricingMocks(MockServer server, MockDb db) {
             (search == null ||
                 search.isEmpty ||
                 '${a['name']}'.toLowerCase().contains(search)) &&
-            (overridden == null || hasBranchRow(a['id']! as String) == overridden))
+            (overridden == null ||
+                hasBranchRow(a['id']! as String) == overridden))
           a,
     ];
     int byName(Map<String, Object?> a, Map<String, Object?> b) =>
@@ -102,17 +103,14 @@ void registerPricingMocks(MockServer server, MockDb db) {
       );
     }
     final addonIds = {for (final a in data.addonItems()) a['id']};
-    final rows =
-        overrides().where(
-          (o) =>
-              o['scope'] == 'branch_channel' &&
-              o['branch_id'] == branchId &&
-              o['channel'] == channel &&
-              o['target_type'] == 'modifier_option' &&
-              addonIds.contains(o['target_id']),
-        )..sort(
-          (a, b) => '${a['target_id']}'.compareTo('${b['target_id']}'),
-        );
+    final rows = overrides().where(
+      (o) =>
+          o['scope'] == 'branch_channel' &&
+          o['branch_id'] == branchId &&
+          o['channel'] == channel &&
+          o['target_type'] == 'modifier_option' &&
+          addonIds.contains(o['target_id']),
+    )..sort((a, b) => '${a['target_id']}'.compareTo('${b['target_id']}'));
     return MockResponse.ok([
       for (final o in rows)
         {

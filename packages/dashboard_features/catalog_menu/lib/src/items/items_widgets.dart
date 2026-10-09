@@ -68,58 +68,56 @@ class MenuTabsBar extends StatelessWidget {
             children: [
               for (final s in tabs)
                 DashPressable(
-                    key: ValueKey('menu-tab-${s.tab.name}'),
-                    onTap: () => onChanged(s.tab),
-                    onIntent: onIntent == null ? null : () => onIntent!(s.tab),
-                    selected: s.tab == value,
-                    checked: s.tab == value,
-                    isButton: false,
-                    semanticLabel: '${s.label} ${fmt.number(s.count)}',
-                    excludeChildSemantics: true,
-                    pressScale: false,
-                    builder: (context, st) {
-                      final on = s.tab == value;
-                      final fg = on
-                          ? c.textOnAccent
-                          : st.hovered
-                          ? c.textPrimary
-                          : c.textSecondary;
-                      return Container(
-                        height: DashMetrics.target,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Space.md,
-                        ),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: on
-                              ? c.accent
-                              : st.hovered
-                              ? c.hover
-                              : null,
-                          borderRadius: BorderRadius.circular(Radii.xs),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: Space.xs + DashMetrics.hair,
-                          children: [
-                            Text(
-                              s.label,
-                              maxLines: 1,
-                              style: DashType.bodyMedium.copyWith(color: fg),
+                  key: ValueKey('menu-tab-${s.tab.name}'),
+                  onTap: () => onChanged(s.tab),
+                  onIntent: onIntent == null ? null : () => onIntent!(s.tab),
+                  selected: s.tab == value,
+                  checked: s.tab == value,
+                  isButton: false,
+                  semanticLabel: '${s.label} ${fmt.number(s.count)}',
+                  excludeChildSemantics: true,
+                  pressScale: false,
+                  builder: (context, st) {
+                    final on = s.tab == value;
+                    final fg = on
+                        ? c.textOnAccent
+                        : st.hovered
+                        ? c.textPrimary
+                        : c.textSecondary;
+                    return Container(
+                      height: DashMetrics.target,
+                      padding: const EdgeInsets.symmetric(horizontal: Space.md),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: on
+                            ? c.accent
+                            : st.hovered
+                            ? c.hover
+                            : null,
+                        borderRadius: BorderRadius.circular(Radii.xs),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: Space.xs + DashMetrics.hair,
+                        children: [
+                          Text(
+                            s.label,
+                            maxLines: 1,
+                            style: DashType.bodyMedium.copyWith(color: fg),
+                          ),
+                          Text(
+                            dashFigure(fmt.number(s.count)),
+                            // `text-xs` in mono: the small token's size.
+                            style: DashType.mono.copyWith(
+                              fontSize: DashType.small.fontSize,
+                              color: fg.withValues(alpha: 0.7),
                             ),
-                            Text(
-                              dashFigure(fmt.number(s.count)),
-                              // `text-xs` in mono: the small token's size.
-                              style: DashType.mono.copyWith(
-                                fontSize: DashType.small.fontSize,
-                                color: fg.withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
         ),

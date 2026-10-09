@@ -4,8 +4,7 @@
 /// kept monthly audits. The server computes every figure.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show FairnessAudit;
+import 'package:dashboard_api/dashboard_api.dart' show FairnessAudit;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -76,10 +75,8 @@ class FairnessCard extends ConsumerWidget {
       ],
     );
     Widget n(Object v) => Text(ltr('$v'), style: cell);
-    Widget sectionTitle(String s) => Semantics(
-      header: true,
-      child: Text(s, style: head),
-    );
+    Widget sectionTitle(String s) =>
+        Semantics(header: true, child: Text(s, style: head));
 
     final List<Widget> figures;
     if (q.failedFirst) {
@@ -212,9 +209,7 @@ class FairnessCard extends ConsumerWidget {
                   children: [
                     Text(
                       a.report.branchName,
-                      style: DashType.bodyMedium.copyWith(
-                        color: c.textPrimary,
-                      ),
+                      style: DashType.bodyMedium.copyWith(color: c.textPrimary),
                     ),
                     Text(f.fmtDate(a.month), style: muted),
                     Text(

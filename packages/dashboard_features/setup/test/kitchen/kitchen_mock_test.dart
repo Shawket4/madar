@@ -116,7 +116,10 @@ void main() {
     expect(cleared.printerIp, isNull);
     await api.deleteStation(id: bar);
     final gone = await _refusal(
-      api.updateStation(id: bar, body: const UpdateStationRequest(name: 'x')),
+      api.updateStation(
+        id: bar,
+        body: const UpdateStationRequest(name: 'x'),
+      ),
     );
     expect(gone.status, 404);
   });
@@ -158,26 +161,29 @@ void main() {
     expect(after.categories, hasLength(5));
   });
 
-  test('catalog: by name, 50 a page by default, searched, 500 at most', () async {
-    final m = setupMockServer();
-    final menu = DashboardApi(m.server).menu;
-    final all = await menu.listMenuCatalog(
-      orgId: SeedIds.sabahOrg,
-      perPage: 1000,
-    );
-    expect(all.perPage, 500);
-    expect(all.total, 40);
-    final names = [for (final i in all.data) i.name];
-    expect(names, [...names]..sort());
-    final first = await menu.listMenuCatalog(orgId: SeedIds.sabahOrg);
-    expect(first.perPage, 50);
-    final s = await menu.listMenuCatalog(
-      orgId: SeedIds.sabahOrg,
-      search: ' COOKIE ',
-    );
-    expect([for (final i in s.data) i.name], ['Chocolate Chip Cookie']);
-    expect(s.totalPages, 1);
-  });
+  test(
+    'catalog: by name, 50 a page by default, searched, 500 at most',
+    () async {
+      final m = setupMockServer();
+      final menu = DashboardApi(m.server).menu;
+      final all = await menu.listMenuCatalog(
+        orgId: SeedIds.sabahOrg,
+        perPage: 1000,
+      );
+      expect(all.perPage, 500);
+      expect(all.total, 40);
+      final names = [for (final i in all.data) i.name];
+      expect(names, [...names]..sort());
+      final first = await menu.listMenuCatalog(orgId: SeedIds.sabahOrg);
+      expect(first.perPage, 50);
+      final s = await menu.listMenuCatalog(
+        orgId: SeedIds.sabahOrg,
+        search: ' COOKIE ',
+      );
+      expect([for (final i in s.data) i.name], ['Chocolate Chip Cookie']);
+      expect(s.totalPages, 1);
+    },
+  );
 
   test('KitchenRouting: only active stations are named or offered', () {
     final stations = [

@@ -76,7 +76,11 @@ abstract final class RosterMetrics {
 }
 
 class ScheduleGrid extends ConsumerStatefulWidget {
-  const ScheduleGrid({required this.shifts, required this.shiftsLoading, super.key});
+  const ScheduleGrid({
+    required this.shifts,
+    required this.shiftsLoading,
+    super.key,
+  });
 
   /// The page's shift list (every block, active or not).
   final List<WorkShift> shifts;
@@ -282,7 +286,11 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
                     mainAxisSize: MainAxisSize.min,
                     spacing: Space.xs,
                     children: [
-                      DashIcon('sun', size: IconSize.xs, color: c.textSecondary),
+                      DashIcon(
+                        'sun',
+                        size: IconSize.xs,
+                        color: c.textSecondary,
+                      ),
                       Flexible(
                         child: MadarClippedText(
                           t('staff.everyDay'),
@@ -354,12 +362,7 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
       );
     }
 
-    return Row(
-      children: [
-        cell(null),
-        for (final d in weekOrder) cell(d),
-      ],
-    );
+    return Row(children: [cell(null), for (final d in weekOrder) cell(d)]);
   }
 }
 

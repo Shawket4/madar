@@ -500,7 +500,9 @@ void main() {
       final h = await pumpItems(tester, locale: 'ar');
       await h.tap(inPage(find.text(h.t('menu.newItem'))));
       final oat = find.byKey(ValueKey('addon-pick-${option('milk', 'oat')}'));
-      final shot = find.byKey(ValueKey('addon-pick-${option('extras', 'shot')}'));
+      final shot = find.byKey(
+        ValueKey('addon-pick-${option('extras', 'shot')}'),
+      );
       final search = fieldIn(surface, h.t('menu.searchAddons'));
       await h.enterText(search, 'الشوفان');
       expect(oat, findsOneWidget);

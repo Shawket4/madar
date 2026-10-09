@@ -137,8 +137,7 @@ class _GoogleObjectDialogState extends ConsumerState<GoogleObjectDialog> {
           ),
         ],
       ),
-      if (_refreshError != null)
-        errorLine(errorMessage(_refreshError, t)),
+      if (_refreshError != null) errorLine(errorMessage(_refreshError, t)),
       if (report != null) ...[
         figures([
           (t('loyalty.branchesSent'), report.sentLocations, false),

@@ -28,10 +28,7 @@ void main() {
       'each asked once', (tester) async {
     final h = await _overview(tester);
     expect(q1(h.server.callsTo(LoyaltyRoutes.analytics).single), isEmpty);
-    expect(
-      q1(h.server.callsTo(LoyaltyRoutes.members).single),
-      {'limit': '1'},
-    );
+    expect(q1(h.server.callsTo(LoyaltyRoutes.members).single), {'limit': '1'});
   });
 
   testWidgets('SET-LOY-077 a failure: "Couldn\'t work out the totals" and '
@@ -72,8 +69,9 @@ void main() {
     expect(find.byKey(const ValueKey('loyalty-top-rewards')), findsOneWidget);
   });
 
-  testWidgets('SET-LOY-078 the five figures, worded as the web words them',
-      (tester) async {
+  testWidgets('SET-LOY-078 the five figures, worded as the web words them', (
+    tester,
+  ) async {
     final m = loyaltyServer();
     final h = await _overview(tester, backend: m);
     final fmt = h.container.read(formatProvider);
@@ -152,7 +150,10 @@ void main() {
     expect(pageText('Top rewards (last 30 days)'), findsOneWidget);
     final top = a.topRewards.first;
     final row = find.byKey(ValueKey('top-reward-${top.menuItemId}'));
-    expect(find.descendant(of: row, matching: find.text(top.name)), findsOneWidget);
+    expect(
+      find.descendant(of: row, matching: find.text(top.name)),
+      findsOneWidget,
+    );
     expect(
       find.descendant(
         of: row,
@@ -171,28 +172,31 @@ void main() {
     );
   });
 
-  testWidgets('SET-LOY-085 a branch in the header: both reads narrow to it',
-      (tester) async {
+  testWidgets('SET-LOY-085 a branch in the header: both reads narrow to it', (
+    tester,
+  ) async {
     final h = await _overview(tester, query: atBranch(SeedIds.zamalek));
-    expect(
-      q1(h.server.callsTo(LoyaltyRoutes.analytics).single),
-      {'branch_id': SeedIds.zamalek},
-    );
-    expect(
-      q1(h.server.callsTo(LoyaltyRoutes.members).single),
-      {'branch_id': SeedIds.zamalek, 'limit': '1'},
-    );
+    expect(q1(h.server.callsTo(LoyaltyRoutes.analytics).single), {
+      'branch_id': SeedIds.zamalek,
+    });
+    expect(q1(h.server.callsTo(LoyaltyRoutes.members).single), {
+      'branch_id': SeedIds.zamalek,
+      'limit': '1',
+    });
   });
 
   testWidgets('phone: two cards a row', (tester) async {
-    await pumpLoyalty(tester, size: DashSize.phone).then(
-      (h) => openTab(h, 'Overview'),
-    );
+    await pumpLoyalty(
+      tester,
+      size: DashSize.phone,
+    ).then((h) => openTab(h, 'Overview'));
     final a = tester.getTopLeft(find.byKey(const ValueKey('stat-members'))).dy;
     final b = tester
         .getTopLeft(find.byKey(const ValueKey('stat-outstanding')))
         .dy;
-    final c = tester.getTopLeft(find.byKey(const ValueKey('stat-liability'))).dy;
+    final c = tester
+        .getTopLeft(find.byKey(const ValueKey('stat-liability')))
+        .dy;
     expect(a, b);
     expect(c, greaterThan(a));
   });

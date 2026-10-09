@@ -49,12 +49,17 @@ class LoyaltyItemPicker extends ConsumerWidget {
     final options = [
       for (final m in menu)
         if (menuItemOfferable(m) && !taken.contains(m.id))
-          DashOption(value: m.id, label: '${m.name} · ${fmt.fmtMoney(m.basePrice)}'),
+          DashOption(
+            value: m.id,
+            label: '${m.name} · ${fmt.fmtMoney(m.basePrice)}',
+          ),
     ];
     final small = DashType.small.copyWith(color: c.textSecondary);
     return DecoratedBox(
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: c.hairline.withValues(alpha: 0.6))),
+        border: Border(
+          top: BorderSide(color: c.hairline.withValues(alpha: 0.6)),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.only(top: Space.md),
@@ -139,7 +144,8 @@ class _RewardsPaneState extends ConsumerState<RewardsPane> {
 
   void _setCost(int i, String cost) => setState(() {
     final r = _rows[i];
-    _rows = [..._rows]..[i] = (menuItemId: r.menuItemId, name: r.name, cost: cost);
+    _rows = [..._rows]
+      ..[i] = (menuItemId: r.menuItemId, name: r.name, cost: cost);
   });
 
   void _remove(int i) => setState(() {
@@ -155,7 +161,11 @@ class _RewardsPaneState extends ConsumerState<RewardsPane> {
       _rows = [
         ..._rows,
         // The scope's default, which the admin can then price on its own.
-        (menuItemId: item.id, name: item.name, cost: '${settings.defaultRewardCost}'),
+        (
+          menuItemId: item.id,
+          name: item.name,
+          cost: '${settings.defaultRewardCost}',
+        ),
       ];
       _keys.add(_nextKey++);
       _picked = null;

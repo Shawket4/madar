@@ -172,8 +172,9 @@ List<SizeBlock> toSizeBlocks(StudioAggregate s) {
 }
 
 /// `sizesSig`.
-String sizesSig(List<SizeBlock> blocks) =>
-    jsonEncode([for (final b in blocks) [b.label, b.price]]);
+String sizesSig(List<SizeBlock> blocks) => jsonEncode([
+  for (final b in blocks) [b.label, b.price],
+]);
 
 /// Adds an empty column (`addBlock`): price "0", a blank label and a blank
 /// cell for every own row; an item that only had `one_size` gets that label
@@ -392,8 +393,7 @@ class AttachDraft {
   /// Toggles one option in or out of the allowlist; back to "all" (null)
   /// when every option is offered again.
   AttachDraft toggle(String optionId) {
-    final current =
-        includedOptionIds ?? [for (final o in allOptions) o.id];
+    final current = includedOptionIds ?? [for (final o in allOptions) o.id];
     final next = current.contains(optionId)
         ? [
             for (final id in current)
@@ -472,9 +472,7 @@ String modifiersSig(List<AttachDraft> attached) => jsonEncode([
       a.min,
       a.max,
       a.isRequired,
-      a.includedOptionIds == null
-          ? null
-          : ([...a.includedOptionIds!]..sort()),
+      a.includedOptionIds == null ? null : ([...a.includedOptionIds!]..sort()),
     ],
 ]);
 
@@ -533,9 +531,7 @@ List<OptionRow> toOptionRows(StudioAggregate s) => [
         price: egpText(o.price),
         isActive: o.isActive,
         ingredientId: line?.ingredientId ?? '',
-        quantity: line == null
-            ? ''
-            : jsNumberText(jsParseFloat(line.quantity)),
+        quantity: line == null ? '' : jsNumberText(jsParseFloat(line.quantity)),
         unit: line?.unit ?? 'g',
       );
     }(),

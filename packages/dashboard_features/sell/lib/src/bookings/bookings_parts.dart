@@ -1,6 +1,6 @@
 /// Small pieces the bookings page draws that the kit has no widget for yet
-/// (kit candidates): the web's `Alert`, an outline `Badge`, an equal-cell
-/// grid, and the page's fixed web sizes.
+/// (kit candidates): the web's `Alert`, an equal-cell grid, and the page's
+/// fixed web sizes.
 library;
 
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -89,32 +89,6 @@ class BookingNotice extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// The web's `<Badge variant="outline">`.
-class BookingOutlineBadge extends StatelessWidget {
-  const BookingOutlineBadge(this.label, {super.key});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Space.sm,
-        vertical: DashMetrics.hair,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.pill),
-        border: Border.all(color: c.hairline),
-      ),
-      child: Text(
-        label,
-        style: DashType.smallMedium.copyWith(color: c.textPrimary),
       ),
     );
   }

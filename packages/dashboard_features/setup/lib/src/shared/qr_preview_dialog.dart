@@ -173,7 +173,7 @@ class _QrPreviewDialogState extends ConsumerState<QrPreviewDialog> {
               ],
             ),
           ),
-          DashBadge(qr.shortCode, mono: true),
+          DashBadge(qr.shortCode, mono: true, outline: true),
         ],
       ),
     );

@@ -122,7 +122,7 @@ class DashFooter extends ConsumerWidget {
             ),
           ),
           if (brand?.customBranding ?? false)
-            Flexible(child: _PoweredByMadar(style: style)),
+            Flexible(child: PoweredByMadar(style: style)),
           const DashLegalLinks(center: false),
         ],
       ),
@@ -132,10 +132,13 @@ class DashFooter extends ConsumerWidget {
 
 /// "Powered by Madar" on a shop's own branding: a link to Madar POS's site,
 /// opened outside the app (`app-footer.tsx`).
-class _PoweredByMadar extends ConsumerWidget {
-  const _PoweredByMadar({required this.style});
+class PoweredByMadar extends ConsumerWidget {
+  const PoweredByMadar({required this.style, this.hoverColor, super.key});
 
   final TextStyle style;
+
+  /// The words under the pointer (the paper's text colour by default).
+  final Color? hoverColor;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -165,7 +168,9 @@ class _PoweredByMadar extends ConsumerWidget {
               child: Text(
                 label,
                 style: style.copyWith(
-                  color: s.highlighted ? context.madarColors.textPrimary : null,
+                  color: s.highlighted
+                      ? hoverColor ?? context.madarColors.textPrimary
+                      : null,
                   decoration: TextDecoration.underline,
                   decorationColor: style.color,
                 ),

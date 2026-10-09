@@ -105,7 +105,10 @@ MockRow _asRead(MockRequest req, MockRow e) {
     ...e,
     'kind': _kindOf(e),
     'salary_set': e['base_salary_piastres'] != null,
-    if (!mayPay) ...{'base_salary_piastres': null, 'advance_cap_piastres': null},
+    if (!mayPay) ...{
+      'base_salary_piastres': null,
+      'advance_cap_piastres': null,
+    },
   };
 }
 
@@ -234,9 +237,8 @@ List<String> _dedup(Iterable<String> ids) {
   ];
 }
 
-int _byName(MockRow a, MockRow b) => '${a['name']}'.toLowerCase().compareTo(
-  '${b['name']}'.toLowerCase(),
-);
+int _byName(MockRow a, MockRow b) =>
+    '${a['name']}'.toLowerCase().compareTo('${b['name']}'.toLowerCase());
 
 // ── handlers ──────────────────────────────────────────────────────────────
 
@@ -278,16 +280,15 @@ void registerEmployeesMocks(MockServer server, MockDb db) {
         if (e['user_id'] != null) e['user_id'],
     };
     final scoped = req.persona.branchIds;
-    final rows =
-        db['users'].where(
-          (u) =>
-              u['org_id'] == req.orgId &&
-              u['is_active'] == true &&
-              u['deleted_at'] == null &&
-              u['role'] != 'super_admin' &&
-              !employed.contains(u['id']) &&
-              (scoped == null || scoped.contains(u['branch_id'])),
-        )..sort(_byName);
+    final rows = db['users'].where(
+      (u) =>
+          u['org_id'] == req.orgId &&
+          u['is_active'] == true &&
+          u['deleted_at'] == null &&
+          u['role'] != 'super_admin' &&
+          !employed.contains(u['id']) &&
+          (scoped == null || scoped.contains(u['branch_id'])),
+    )..sort(_byName);
     return MockResponse.ok([
       for (final u in rows)
         {
@@ -351,7 +352,9 @@ void registerEmployeesMocks(MockServer server, MockDb db) {
     if (appAccess && phone == null) {
       req.badRequest('The staff app needs their WhatsApp number.');
     }
-    if (appAccess && phone != null && _phoneTaken(db, req.orgId!, phone, null)) {
+    if (appAccess &&
+        phone != null &&
+        _phoneTaken(db, req.orgId!, phone, null)) {
       _phoneTakenRefusal(req, phone);
     }
     final salary = b['base_salary_piastres'] as num?;

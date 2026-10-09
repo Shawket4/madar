@@ -50,10 +50,7 @@ void main() {
             (o, st),
       ];
       expect(h.settledCount, shared.length, reason: '${r['label']}');
-      expect(
-        h.totalMinor,
-        shared.fold<int>(0, (a, x) => a + x.$1.totalAmount),
-      );
+      expect(h.totalMinor, shared.fold<int>(0, (a, x) => a + x.$1.totalAmount));
       expect(h.covers, shared.fold<int>(0, (a, x) => a + x.$2.covers));
     }
   });

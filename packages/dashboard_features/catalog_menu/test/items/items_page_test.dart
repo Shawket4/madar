@@ -525,7 +525,10 @@ void main() {
       final h = await pumpItems(tester, seeded: s, branchId: SeedIds.zamalek);
       DashSwitch sw() => tester.widget<DashSwitch>(
         find
-            .descendant(of: cardOf('Cortado'), matching: find.byType(DashSwitch))
+            .descendant(
+              of: cardOf('Cortado'),
+              matching: find.byType(DashSwitch),
+            )
             .last,
       );
       expect(sw().enabled, isTrue);
@@ -852,7 +855,10 @@ void main() {
       Focus.of(
         tester.element(
           find
-              .descendant(of: more, matching: find.byWidgetPredicate((_) => true))
+              .descendant(
+                of: more,
+                matching: find.byWidgetPredicate((_) => true),
+              )
               .last,
         ),
       ).requestFocus();

@@ -88,20 +88,69 @@ abstract final class DeliverySeed {
   /// `(key, name, Arabic, dtype, value_rate, active, created)`.
   static const List<(String, String, String, String, num, bool, String)>
   discounts = [
-    ('staff-meal', 'Staff Meal', 'وجبة الموظفين', 'percentage', 0.5, true,
-        '2025-12-02T09:00:00.000Z'),
-    ('student', 'Student Discount', 'خصم الطلاب', 'percentage', 0.15, true,
-        '2026-01-12T09:00:00.000Z'),
-    ('loyalty-welcome', 'Loyalty Welcome', 'ترحيب برنامج الولاء', 'fixed',
-        2500, true, '2026-02-03T09:00:00.000Z'),
-    ('manager-comp', 'Manager Comp', 'ضيافة المدير', 'percentage', 1, true,
-        '2025-12-02T09:00:00.000Z'),
-    ('opening-week', 'Opening Week', 'أسبوع الافتتاح', 'percentage', 0.2,
-        false, '2025-12-01T09:00:00.000Z'),
-    ('late-order', 'Late Order Apology', 'اعتذار عن تأخر الطلب', 'fixed',
-        5000, true, '2026-04-08T09:00:00.000Z'),
-    ('corporate-vodafone', 'Corporate: Vodafone', 'الشركات: فودافون',
-        'percentage', 0.125, true, '2026-06-15T09:00:00.000Z'),
+    (
+      'staff-meal',
+      'Staff Meal',
+      'وجبة الموظفين',
+      'percentage',
+      0.5,
+      true,
+      '2025-12-02T09:00:00.000Z',
+    ),
+    (
+      'student',
+      'Student Discount',
+      'خصم الطلاب',
+      'percentage',
+      0.15,
+      true,
+      '2026-01-12T09:00:00.000Z',
+    ),
+    (
+      'loyalty-welcome',
+      'Loyalty Welcome',
+      'ترحيب برنامج الولاء',
+      'fixed',
+      2500,
+      true,
+      '2026-02-03T09:00:00.000Z',
+    ),
+    (
+      'manager-comp',
+      'Manager Comp',
+      'ضيافة المدير',
+      'percentage',
+      1,
+      true,
+      '2025-12-02T09:00:00.000Z',
+    ),
+    (
+      'opening-week',
+      'Opening Week',
+      'أسبوع الافتتاح',
+      'percentage',
+      0.2,
+      false,
+      '2025-12-01T09:00:00.000Z',
+    ),
+    (
+      'late-order',
+      'Late Order Apology',
+      'اعتذار عن تأخر الطلب',
+      'fixed',
+      5000,
+      true,
+      '2026-04-08T09:00:00.000Z',
+    ),
+    (
+      'corporate-vodafone',
+      'Corporate: Vodafone',
+      'الشركات: فودافون',
+      'percentage',
+      0.125,
+      true,
+      '2026-06-15T09:00:00.000Z',
+    ),
   ];
 
   /// The legacy integer `value`: a fraction as a whole percent (half away
@@ -201,7 +250,9 @@ void registerDeliveryMocks(MockServer server, MockDb db) {
       b.pickupCloseTime,
     ]) {
       if (t != null && !_naiveTime.hasMatch(t)) {
-        req.badRequest('Json deserialize error: input contains invalid characters');
+        req.badRequest(
+          'Json deserialize error: input contains invalid characters',
+        );
       }
     }
     if (b.inMallFee < 0 || (b.umbrellaFee ?? 0) < 0 || (b.pickupFee ?? 0) < 0) {
@@ -355,7 +406,9 @@ void registerDeliveryMocks(MockServer server, MockDb db) {
     final b = zoneBody(req);
     final z = zoneOf(req, b.branchId);
     unique(req, b, except: z['id'] as String?);
-    return MockResponse.ok(wire(zones().update(z['id']! as String, fields(req, b))));
+    return MockResponse.ok(
+      wire(zones().update(z['id']! as String, fields(req, b))),
+    );
   });
 
   server.on('DELETE', DeliveryRoutes.zone, (req) {

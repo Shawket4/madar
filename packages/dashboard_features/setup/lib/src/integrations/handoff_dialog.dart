@@ -36,14 +36,12 @@ typedef IssuedCredential = ({
 enum HandoffStatus { building, ready, failed }
 
 /// Opens the handoff for [issued]; resolves when it closes.
-Future<void> showHandoffDialog(
-  BuildContext context,
-  IssuedCredential issued,
-) => showDashDialog<void>(
-  context,
-  width: handoffDialogWidth,
-  builder: (_) => HandoffDialog(issued: issued),
-);
+Future<void> showHandoffDialog(BuildContext context, IssuedCredential issued) =>
+    showDashDialog<void>(
+      context,
+      width: handoffDialogWidth,
+      builder: (_) => HandoffDialog(issued: issued),
+    );
 
 class HandoffDialog extends ConsumerStatefulWidget {
   const HandoffDialog({required this.issued, super.key});
@@ -239,10 +237,7 @@ class _HandoffDialogState extends ConsumerState<HandoffDialog> {
           ),
         ],
         body: _status == HandoffStatus.failed
-            ? _Failed(
-                text: _failureText(t),
-                onRetry: () => unawaited(_build()),
-              )
+            ? _Failed(text: _failureText(t), onRetry: () => unawaited(_build()))
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: Space.lg,
@@ -263,9 +258,7 @@ class _HandoffDialogState extends ConsumerState<HandoffDialog> {
                   ),
                   HandoffPanel(
                     tone: DashTone.warning,
-                    children: [
-                      Text(t('integrations.handoff.warning')),
-                    ],
+                    children: [Text(t('integrations.handoff.warning'))],
                   ),
                 ],
               ),
@@ -403,10 +396,7 @@ class _Failed extends ConsumerWidget {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             Text(t('integrations.handoff.failedHint')),
-            Text(
-              text,
-              style: DashType.small.copyWith(color: c.textSecondary),
-            ),
+            Text(text, style: DashType.small.copyWith(color: c.textSecondary)),
           ],
         ),
         DashButton(
@@ -448,10 +438,7 @@ class HandoffPanel extends StatelessWidget {
           ),
           Expanded(
             child: DefaultTextStyle.merge(
-              style: DashType.small.copyWith(
-                color: c.textPrimary,
-                height: 1.6,
-              ),
+              style: DashType.small.copyWith(color: c.textPrimary, height: 1.6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: Space.xs,

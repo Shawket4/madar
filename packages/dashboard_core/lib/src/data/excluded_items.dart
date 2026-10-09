@@ -21,7 +21,9 @@ class ExcludedItems extends Notifier<List<String>> {
   List<String> build() {
     final org = orgId;
     if (org == null) return const [];
-    final raw = ref.read(preferencesProvider).getJson(excludedItemsPrefKey(org));
+    final raw = ref
+        .read(preferencesProvider)
+        .getJson(excludedItemsPrefKey(org));
     return raw is List ? [for (final v in raw) '$v'] : const [];
   }
 

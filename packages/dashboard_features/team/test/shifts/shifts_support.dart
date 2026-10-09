@@ -211,11 +211,21 @@ Finder timeNamed(String label) => find.descendant(
   matching: find.byType(EditableText),
 );
 
-/// Types [text] into [box] and leaves it (Enter settles the reading).
+/// Types [text] into [box] and commits it.
 Future<void> typeIn(DashHarness h, Finder box, String text) async {
   await h.tester.ensureVisible(box);
   await h.enterText(box, text);
-  await h.tester.testTextInput.receiveAction(TextInputAction.done);
+  // A time commits on Enter; a number settles on leaving it (Enter in a
+  // number submits the form, as on the web).
+  final time = find
+      .ancestor(of: box, matching: find.byType(DashTimeField))
+      .evaluate()
+      .isNotEmpty;
+  if (time) {
+    await h.tester.testTextInput.receiveAction(TextInputAction.done);
+  } else {
+    FocusManager.instance.primaryFocus?.unfocus();
+  }
   await h.settle();
 }
 

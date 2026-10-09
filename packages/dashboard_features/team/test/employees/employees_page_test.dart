@@ -20,7 +20,8 @@ import 'employees_support.dart';
 
 /// The page's own list calls (the sidebar's set-up check asks for the
 /// active people too).
-List<MockCall> listCalls(DashHarness h) => h.server.callsTo(listT, method: 'GET');
+List<MockCall> listCalls(DashHarness h) =>
+    h.server.callsTo(listT, method: 'GET');
 
 Finder row(String name) => inPage(find.text(name));
 
@@ -63,14 +64,18 @@ void main() {
       expect(find.text(w), findsWidgets);
     }
     await h.tapText('Suspended');
-    expect(listCalls(h).last.query, {'employment_status': ['suspended']});
+    expect(listCalls(h).last.query, {
+      'employment_status': ['suspended'],
+    });
     expect(row('Omar Khaled'), findsOneWidget);
     expect(row('Ziad Amr'), findsNothing);
     expect(row('Adham Reda'), findsNothing);
 
     await h.tap(inPage(find.text('Suspended')));
     await h.tapText('Terminated');
-    expect(listCalls(h).last.query, {'employment_status': ['terminated']});
+    expect(listCalls(h).last.query, {
+      'employment_status': ['terminated'],
+    });
     expect(row('Ziad Amr'), findsOneWidget);
     expect(row('Omar Khaled'), findsNothing);
   });
@@ -100,9 +105,12 @@ void main() {
       expect(find.text(d), findsWidgets);
     }
     await h.tap(find.text('Kitchen').hitTestable());
-    final kitchen = h.db![TeamTables.departments]
-        .firstWhere((d) => d['name'] == 'Kitchen')!['id'];
-    expect(listCalls(h).last.query, {'department_id': [kitchen]});
+    final kitchen = h.db![TeamTables.departments].firstWhere(
+      (d) => d['name'] == 'Kitchen',
+    )!['id'];
+    expect(listCalls(h).last.query, {
+      'department_id': [kitchen],
+    });
     expect(row('Hassan Ibrahim'), findsOneWidget);
     expect(row('Adham Reda'), findsNothing);
   });
@@ -153,7 +161,11 @@ void main() {
       'Status',
       'Base salary (monthly)',
     ]) {
-      expect(inPage(find.text(head.toUpperCase())), findsOneWidget, reason: head);
+      expect(
+        inPage(find.text(head.toUpperCase())),
+        findsOneWidget,
+        reason: head,
+      );
     }
     expect(pageText('Barista'), findsWidgets);
     expect(pageText('Madar user'), findsWidgets);
@@ -164,10 +176,7 @@ void main() {
     expect(pageText('Front of house'), findsWidgets);
     expect(pageText('Active'), findsWidgets);
     // The owner (10th by name) works every branch: names joined.
-    expect(
-      pageText('Heliopolis, Maadi, New Cairo, Zamalek'),
-      findsOneWidget,
-    );
+    expect(pageText('Heliopolis, Maadi, New Cairo, Zamalek'), findsOneWidget);
   });
 
   testWidgets('TEAM-EMP-005 kinds and statuses: Staff app, Records only, '
@@ -293,7 +302,10 @@ void main() {
       'confirm, DELETE, toast, the list refetched', (tester) async {
     final h = await pumpEmployees(tester);
     // Mariam and Ali have a phone signed in on the first page.
-    expect(inPage(find.bySemanticsLabel('Sign the phone out')), findsNWidgets(2));
+    expect(
+      inPage(find.bySemanticsLabel('Sign the phone out')),
+      findsNWidgets(2),
+    );
     final before = listCalls(h).length;
     await h.tap(inPage(find.bySemanticsLabel('Sign the phone out')).at(1));
     expect(confirmText("Sign Mariam Fathy's phone out?"), findsOneWidget);
@@ -367,9 +379,7 @@ void main() {
     expect(h.location.path, employeesPath);
   });
 
-  testWidgets('TEAM-EMP-014 Add employee opens the add dialog', (
-    tester,
-  ) async {
+  testWidgets('TEAM-EMP-014 Add employee opens the add dialog', (tester) async {
     final h = await pumpEmployees(tester);
     await h.tap(pageText('Add employee'));
     expect(find.byType(AddEmployeeDialog), findsOneWidget);
@@ -402,12 +412,18 @@ void main() {
       'hidden without', (tester) async {
     var h = await pumpEmployees(tester);
     expect(
-      find.descendant(of: find.byType(DashSidebar), matching: find.text('Employees')),
+      find.descendant(
+        of: find.byType(DashSidebar),
+        matching: find.text('Employees'),
+      ),
       findsOneWidget,
     );
     h = await pumpEmployees(tester, persona: Persona.limited);
     expect(
-      find.descendant(of: find.byType(DashSidebar), matching: find.text('Employees')),
+      find.descendant(
+        of: find.byType(DashSidebar),
+        matching: find.text('Employees'),
+      ),
       findsNothing,
     );
     expect(h.location.path, employeesPath);
@@ -417,7 +433,9 @@ void main() {
     tester,
   ) async {
     final s = employeesServer(
-      edit: (db) => db['orgs'].update(SeedIds.sabahOrg, {'modules': ['pos']}),
+      edit: (db) => db['orgs'].update(SeedIds.sabahOrg, {
+        'modules': ['pos'],
+      }),
     );
     final h = await pumpEmployees(tester, s: s);
     expect(find.text(h.t('dawam.moduleOffTitle')), findsOneWidget);
@@ -489,12 +507,14 @@ void main() {
     final phone = tester.widget<Text>(pageText('+201110001111'));
     expect(phone.textDirection, TextDirection.ltr);
     expect(
-      tester.widget<MadarClippedText>(
-        find.ancestor(
-          of: pageText('+201110001111'),
-          matching: find.byType(MadarClippedText),
-        ),
-      ).textDirection,
+      tester
+          .widget<MadarClippedText>(
+            find.ancestor(
+              of: pageText('+201110001111'),
+              matching: find.byType(MadarClippedText),
+            ),
+          )
+          .textDirection,
       TextDirection.ltr,
     );
   });
@@ -502,10 +522,7 @@ void main() {
   testWidgets('TEAM-ALL-018 the scope bar\'s branch is not sent', (
     tester,
   ) async {
-    final h = await pumpEmployees(
-      tester,
-      s: employeesServer(),
-    );
+    final h = await pumpEmployees(tester, s: employeesServer());
     await h.tap(find.text('All branches'));
     await h.tap(find.text('Zamalek').hitTestable());
     await h.tap(inPage(find.bySemanticsLabel('Refresh')));

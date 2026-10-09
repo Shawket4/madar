@@ -74,7 +74,12 @@ void main() {
       expect(_statValue(tester, 'To next reward'), '2 orders');
       // Four across on a wide screen.
       final tops = {
-        for (final l in ['Balance', 'Lifetime', 'Rewards earned', 'To next reward'])
+        for (final l in [
+          'Balance',
+          'Lifetime',
+          'Rewards earned',
+          'To next reward',
+        ])
           tester.getTopLeft(_stat(l)).dy,
       };
       expect(tops, hasLength(1));
@@ -82,11 +87,17 @@ void main() {
       expect(inSheet(find.text('+20 100 123 4567')), findsOneWidget);
     });
 
-    testWidgets('SET-LOY-064 phone: two stats a row, the card full screen',
-        (tester) async {
+    testWidgets('SET-LOY-064 phone: two stats a row, the card full screen', (
+      tester,
+    ) async {
       await _openNada(tester, size: DashSize.phone);
       final tops = {
-        for (final l in ['Balance', 'Lifetime', 'Rewards earned', 'To next reward'])
+        for (final l in [
+          'Balance',
+          'Lifetime',
+          'Rewards earned',
+          'To next reward',
+        ])
           tester.getTopLeft(_stat(l)).dy,
       };
       expect(tops, hasLength(2));
@@ -97,10 +108,7 @@ void main() {
       final m = loyaltyServer();
       m.db['customers'].find(nadaId)!['points_balance'] = 40;
       final h = await _openNada(tester, backend: m);
-      expect(
-        inSheet(find.textContaining('Joined ')),
-        findsOneWidget,
-      );
+      expect(inSheet(find.textContaining('Joined ')), findsOneWidget);
       expect(
         inSheet(
           find.textContaining(
@@ -112,8 +120,9 @@ void main() {
       expect(h.server.unmatched, isEmpty);
     });
 
-    testWidgets('SET-LOY-066 the owner: Adjust and Remove, no Google',
-        (tester) async {
+    testWidgets('SET-LOY-066 the owner: Adjust and Remove, no Google', (
+      tester,
+    ) async {
       await _openNada(tester);
       expect(find.byKey(const ValueKey('member-adjust')), findsOneWidget);
       expect(find.byKey(const ValueKey('member-leave')), findsOneWidget);
@@ -127,15 +136,17 @@ void main() {
       }
     });
 
-    testWidgets('SET-LOY-066 a manager (no adjust, no delete): no actions',
-        (tester) async {
+    testWidgets('SET-LOY-066 a manager (no adjust, no delete): no actions', (
+      tester,
+    ) async {
       await _openNada(tester, persona: Persona.manager);
       expect(find.byKey(const ValueKey('member-adjust')), findsNothing);
       expect(find.byKey(const ValueKey('member-leave')), findsNothing);
     });
 
-    testWidgets('SET-LOY-062 a failed card read: the words and Retry',
-        (tester) async {
+    testWidgets('SET-LOY-062 a failed card read: the words and Retry', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       final boom = MockResponse.error(500, 'Database error: timeout');
       m.server.fail('GET', LoyaltyRoutes.member, boom, times: null);
@@ -156,15 +167,22 @@ void main() {
       for (final head in ['WHEN', 'WHAT', 'AMOUNT', 'BRANCH / ORDER']) {
         expect(inSheet(find.text(head)), findsOneWidget, reason: head);
       }
-      final manual = _ledger(m.db, nadaId).firstWhere(
-        (e) => e['note'] == 'Stamp missed on 12 Sep order',
-      );
+      final manual = _ledger(
+        m.db,
+        nadaId,
+      ).firstWhere((e) => e['note'] == 'Stamp missed on 12 Sep order');
       final row = find.byKey(ValueKey('ledger-row-${manual['id']}'));
       Finder inRow(Finder f) => find.descendant(of: row, matching: f);
       expect(inRow(find.text('Manual adjustment')), findsOneWidget);
       expect(inRow(find.text('by Nour El-Sayed')), findsOneWidget);
-      expect(inRow(find.text('“Stamp missed on 12 Sep order”')), findsOneWidget);
-      expect(inRow(find.textContaining('+1', findRichText: true)), findsOneWidget);
+      expect(
+        inRow(find.text('“Stamp missed on 12 Sep order”')),
+        findsOneWidget,
+      );
+      expect(
+        inRow(find.textContaining('+1', findRichText: true)),
+        findsOneWidget,
+      );
       expect(inRow(find.text('Heliopolis')), findsOneWidget);
       final sale = _ledger(m.db, nadaId).firstWhere((e) => e['kind'] == 'earn');
       final saleRow = find.byKey(ValueKey('ledger-row-${sale['id']}'));
@@ -199,7 +217,10 @@ void main() {
       }, timestamps: false);
       await _openNada(tester, backend: m);
       final row = find.byKey(ValueKey('ledger-row-${earn['id']}'));
-      expect(find.descendant(of: row, matching: find.text('reversed')), findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text('reversed')),
+        findsOneWidget,
+      );
       final amount = tester.widget<RichText>(
         find.descendant(
           of: row,
@@ -222,19 +243,27 @@ void main() {
         find.descendant(of: rev, matching: find.text('Earn reversed (void)')),
         findsOneWidget,
       );
-      expect(find.descendant(of: rev, matching: find.text('automatic')), findsOneWidget);
+      expect(
+        find.descendant(of: rev, matching: find.text('automatic')),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('SET-LOY-084 an author whose account is gone reads "by —"',
-        (tester) async {
+    testWidgets('SET-LOY-084 an author whose account is gone reads "by —"', (
+      tester,
+    ) async {
       final m = loyaltyServer();
-      final manual = _ledger(m.db, nadaId).firstWhere(
-        (e) => e['note'] == 'Stamp missed on 12 Sep order',
-      );
+      final manual = _ledger(
+        m.db,
+        nadaId,
+      ).firstWhere((e) => e['note'] == 'Stamp missed on 12 Sep order');
       manual['created_by_name'] = null;
       await _openNada(tester, backend: m);
       final row = find.byKey(ValueKey('ledger-row-${manual['id']}'));
-      expect(find.descendant(of: row, matching: find.text('by —')), findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text('by —')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('SET-LOY-068 no movements yet', (tester) async {
@@ -245,8 +274,9 @@ void main() {
       expect(inSheet(find.text(h.t('loyalty.noLedgerHint'))), findsOneWidget);
     });
 
-    testWidgets('SET-LOY-068 200 movements or more: "Showing the latest 200"',
-        (tester) async {
+    testWidgets('SET-LOY-068 200 movements or more: "Showing the latest 200"', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       final ledger = m.db[LoyaltyTables.ledger];
       final base = _ledger(m.db, nadaId).first;
@@ -274,9 +304,11 @@ void main() {
       await h.tap(find.byKey(const ValueKey('member-adjust')));
       expect(inDialog(find.text('Adjust balance')), findsOneWidget);
       expect(
-        inDialog(find.text(
-          'Nada Kamal has 6 orders. The reason is kept on their history.',
-        )),
+        inDialog(
+          find.text(
+            'Nada Kamal has 6 orders. The reason is kept on their history.',
+          ),
+        ),
         findsOneWidget,
       );
       expect(inDialog(find.text('Add')), findsOneWidget);
@@ -327,12 +359,16 @@ void main() {
       await h.expectToast('Balance adjusted');
     });
 
-    testWidgets('SET-LOY-070 validation: amount, overdraw, branch, reason',
-        (tester) async {
+    testWidgets('SET-LOY-070 validation: amount, overdraw, branch, reason', (
+      tester,
+    ) async {
       final h = await _openNada(tester);
       await h.tap(find.byKey(const ValueKey('member-adjust')));
       await h.tap(find.byKey(const ValueKey('adjust-confirm')));
-      expect(inDialog(find.text('Enter a whole number above zero.')), findsOneWidget);
+      expect(
+        inDialog(find.text('Enter a whole number above zero.')),
+        findsOneWidget,
+      );
       expect(
         inDialog(find.text('Pick the branch this adjustment belongs to.')),
         findsOneWidget,
@@ -345,9 +381,11 @@ void main() {
       await h.enterText(find.byKey(const ValueKey('adjust-amount')), '10');
       await h.tap(find.byKey(const ValueKey('adjust-confirm')));
       expect(
-        inDialog(find.text(
-          "They only have 6 orders — a deduction can't take the balance below zero.",
-        )),
+        inDialog(
+          find.text(
+            "They only have 6 orders — a deduction can't take the balance below zero.",
+          ),
+        ),
         findsOneWidget,
       );
       expect(h.server.callsTo(LoyaltyRoutes.adjust), isEmpty);
@@ -356,7 +394,11 @@ void main() {
     testWidgets('SET-LOY-071 submit: the body, the toast, every person read '
         'refreshed, the dialog closes', (tester) async {
       final m = loyaltyServer();
-      final h = await _openNada(tester, query: atBranch(SeedIds.zamalek), backend: m);
+      final h = await _openNada(
+        tester,
+        query: atBranch(SeedIds.zamalek),
+        backend: m,
+      );
       final seen = watchInvalidations(h);
       await h.tap(find.byKey(const ValueKey('member-adjust')));
       await h.enterText(find.byKey(const ValueKey('adjust-amount')), '2');
@@ -379,13 +421,23 @@ void main() {
 
     testWidgets('SET-LOY-071 deduct sends a negative amount', (tester) async {
       final m = loyaltyServer();
-      final h = await _openNada(tester, query: atBranch(SeedIds.zamalek), backend: m);
+      final h = await _openNada(
+        tester,
+        query: atBranch(SeedIds.zamalek),
+        backend: m,
+      );
       await h.tap(find.byKey(const ValueKey('member-adjust')));
       await h.tap(inDialog(find.text('Deduct')));
       await h.enterText(find.byKey(const ValueKey('adjust-amount')), '3');
-      await h.enterText(find.byKey(const ValueKey('adjust-reason')), 'Duplicate stamps');
+      await h.enterText(
+        find.byKey(const ValueKey('adjust-reason')),
+        'Duplicate stamps',
+      );
       await h.tap(find.byKey(const ValueKey('adjust-confirm')));
-      expect(bodyOf(h.server.callsTo(LoyaltyRoutes.adjust).single)['points'], -3);
+      expect(
+        bodyOf(h.server.callsTo(LoyaltyRoutes.adjust).single)['points'],
+        -3,
+      );
       await h.flushTimers();
     });
 
@@ -397,7 +449,11 @@ void main() {
         LoyaltyRoutes.adjust,
         MockResponse.badRequest('Say why the points are being adjusted (note)'),
       );
-      final h = await _openNada(tester, query: atBranch(SeedIds.zamalek), backend: m);
+      final h = await _openNada(
+        tester,
+        query: atBranch(SeedIds.zamalek),
+        backend: m,
+      );
       await h.tap(find.byKey(const ValueKey('member-adjust')));
       await h.enterText(find.byKey(const ValueKey('adjust-amount')), '1');
       await h.enterText(find.byKey(const ValueKey('adjust-reason')), 'Fix');
@@ -413,15 +469,23 @@ void main() {
       await h.expectToast(words);
     });
 
-    testWidgets('SET-LOY-072 any other refusal: the server\'s words',
-        (tester) async {
+    testWidgets('SET-LOY-072 any other refusal: the server\'s words', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       final no = MockResponse.denied('loyalty.points.adjust');
       m.server.fail('POST', LoyaltyRoutes.adjust, no);
-      final h = await _openNada(tester, query: atBranch(SeedIds.zamalek), backend: m);
+      final h = await _openNada(
+        tester,
+        query: atBranch(SeedIds.zamalek),
+        backend: m,
+      );
       await h.tap(find.byKey(const ValueKey('member-adjust')));
       await h.enterText(find.byKey(const ValueKey('adjust-amount')), '1');
-      await h.enterText(find.byKey(const ValueKey('adjust-reason')), 'Manual fix');
+      await h.enterText(
+        find.byKey(const ValueKey('adjust-reason')),
+        'Manual fix',
+      );
       await h.tap(find.byKey(const ValueKey('adjust-confirm')));
       await h.expectToast(h.refusalWords(no));
       expect(inDialog(find.text('Adjust balance')), findsOneWidget);
@@ -430,8 +494,9 @@ void main() {
 
   group('leave', () {
     testWidgets('SET-LOY-073 remove from the programme: the alert, the '
-        'request, the toast; the card closes and the list drops them',
-        (tester) async {
+        'request, the toast; the card closes and the list drops them', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       final h = await _openNada(tester, backend: m);
       final seen = watchInvalidations(h);
@@ -449,9 +514,11 @@ void main() {
       expect(
         tester
             .widget<DashButton>(
-              find.byWidgetPredicate(
-                (w) => w is DashButton && w.label == 'Cancel',
-              ).last,
+              find
+                  .byWidgetPredicate(
+                    (w) => w is DashButton && w.label == 'Cancel',
+                  )
+                  .last,
             )
             .onPressed,
         isNull,
@@ -466,9 +533,11 @@ void main() {
       expect(seen, contains(const ['/customers', '/loyalty/']));
       expect(find.byType(MemberSheet), findsNothing);
       expect(
-        inPage(find.byWidgetPredicate(
-          (w) => w is DashPressable && w.semanticLabel == 'Nada Kamal',
-        )),
+        inPage(
+          find.byWidgetPredicate(
+            (w) => w is DashPressable && w.semanticLabel == 'Nada Kamal',
+          ),
+        ),
         findsNothing,
       );
     });
@@ -483,8 +552,9 @@ void main() {
       expect(find.text(h.t('loyalty.leave.confirm')), findsOneWidget);
     });
 
-    testWidgets('SET-LOY-073 a refusal toasts; the alert stays',
-        (tester) async {
+    testWidgets('SET-LOY-073 a refusal toasts; the alert stays', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       final no = MockResponse.denied('loyalty.members.delete');
       m.server.fail('DELETE', LoyaltyRoutes.member, no);
@@ -539,7 +609,9 @@ void main() {
       );
       await h.tap(find.byKey(const ValueKey('member-google')));
       expect(
-        inDialog(find.textContaining('Branches Google has: 0', findRichText: true)),
+        inDialog(
+          find.textContaining('Branches Google has: 0', findRichText: true),
+        ),
         findsOneWidget,
       );
     });
@@ -553,16 +625,23 @@ void main() {
         h.server.callsTo(LoyaltyRoutes.googleRefresh).single.path,
         '/loyalty/members/$nadaId/google-refresh',
       );
-      expect(inDialog(find.textContaining('Sent: ', findRichText: true)), findsOneWidget);
+      expect(
+        inDialog(find.textContaining('Sent: ', findRichText: true)),
+        findsOneWidget,
+      );
       expect(inDialog(find.text('loyaltyObject.get')), findsOneWidget);
       expect(inDialog(find.text('404')), findsOneWidget);
-      expect(inDialog(find.text('The class, as Google holds it')), findsOneWidget);
+      expect(
+        inDialog(find.text('The class, as Google holds it')),
+        findsOneWidget,
+      );
       await h.tap(inDialog(find.text('The class, as Google holds it')));
       expect(inDialog(find.textContaining('"reviewStatus"')), findsWidgets);
     });
 
-    testWidgets('SET-LOY-075 a failed send: the server\'s words in red',
-        (tester) async {
+    testWidgets('SET-LOY-075 a failed send: the server\'s words in red', (
+      tester,
+    ) async {
       final m = loyaltyServer(persona: Persona.platform);
       final boom = MockResponse.error(502, 'Google refused the class');
       m.server.fail('POST', LoyaltyRoutes.googleRefresh, boom);

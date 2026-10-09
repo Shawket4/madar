@@ -70,8 +70,8 @@ class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage> {
       if (!mounted) return;
       await showPaymentMethodDialog(context, editing);
       _dialogOpen = false;
-      if (mounted && GoRouterState.of(context).uri.queryParameters['edit'] !=
-          null) {
+      if (mounted &&
+          GoRouterState.of(context).uri.queryParameters['edit'] != null) {
         _setEdit(null);
       }
     });

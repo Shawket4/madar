@@ -110,10 +110,13 @@ class _DashSidebarState extends ConsumerState<DashSidebar> {
         : rail
         ? SidebarMetrics.rail
         : SidebarMetrics.width;
+    // The phone's drawer is the web's mobile sidebar sheet, named and
+    // described for screen readers (its sr-only SheetHeader).
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: t('shell.navigation'),
+      label: widget.drawer ? t('ui.sidebar.title') : t('shell.navigation'),
+      hint: widget.drawer ? t('ui.sidebar.description') : null,
       child: Container(
         width: width,
         decoration: BoxDecoration(
@@ -203,6 +206,9 @@ class _DashSidebarState extends ConsumerState<DashSidebar> {
                 ),
           rail: rail,
           muted: true,
+          tooltip: expanded
+              ? t('nav.showLess', defaultValue: 'Show less')
+              : t('nav.showMore', defaultValue: 'Show more'),
           onTap: () => setState(() {
             if (!_expanded.remove(g.group.labelKey)) {
               _expanded.add(g.group.labelKey);
@@ -335,6 +341,7 @@ class _NavRow extends StatelessWidget {
     this.expanded,
     this.trailing,
     this.iconTurned = false,
+    this.tooltip,
   });
 
   final String icon;
@@ -346,6 +353,9 @@ class _NavRow extends StatelessWidget {
   final Widget? trailing;
   final bool iconTurned;
   final VoidCallback onTap;
+
+  /// The rail's tooltip, when not the label.
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +369,7 @@ class _NavRow extends StatelessWidget {
         expanded: expanded,
         pressScale: false,
         semanticLabel: label,
-        tooltip: rail ? label : null,
+        tooltip: rail ? tooltip ?? label : null,
         excludeChildSemantics: true,
         builder: (context, s) {
           final bg = active
@@ -464,6 +474,7 @@ class _DrawerFoot extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.madarColors;
+    final style = DashType.small.copyWith(color: c.onChromeMuted);
     return Container(
       padding: const EdgeInsets.fromLTRB(
         Space.lg,
@@ -477,11 +488,9 @@ class _DrawerFoot extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            copyrightLine(ref),
-            textAlign: TextAlign.center,
-            style: DashType.small.copyWith(color: c.onChromeMuted),
-          ),
+          Text(copyrightLine(ref), textAlign: TextAlign.center, style: style),
+          if (ref.watch(publicBrandProvider).value?.customBranding ?? false)
+            PoweredByMadar(style: style, hoverColor: c.onChrome),
           DashLegalLinks(color: c.onChromeMuted),
         ],
       ),

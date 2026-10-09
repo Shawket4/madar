@@ -231,7 +231,9 @@ void registerStudioMocks(MockServer server, MockDb db) {
     final org = req.param('org_id');
     req.requireSameOrg(org);
     final row = db[MenuTables.ingredients].find(req.param('id'));
-    if (row == null || row['org_id'] != org) req.notFound('Ingredient not found');
+    if (row == null || row['org_id'] != org) {
+      req.notFound('Ingredient not found');
+    }
     final cost = req.json['cost_per_unit'];
     if (cost is num && cost < 0) {
       req.badRequest('cost_per_unit must be zero or more');
@@ -250,9 +252,7 @@ void registerStudioMocks(MockServer server, MockDb db) {
     final all = b.combos(req.orgId);
     final from = (page - 1) * perPage;
     return MockResponse.ok({
-      'data': [
-        for (final c in all.skip(from).take(perPage)) b.comboSummary(c),
-      ],
+      'data': [for (final c in all.skip(from).take(perPage)) b.comboSummary(c)],
       'page': page,
       'per_page': perPage,
       'total': all.length,
@@ -568,7 +568,8 @@ class StudioBackend {
     final ids = {for (final s in sizes) s['id']};
     final byBranch = <String, List<MockRow>>{};
     for (final o in db[MenuTables.priceOverrides].rows) {
-      if (o['target_type'] == 'menu_item_size' && ids.contains(o['target_id'])) {
+      if (o['target_type'] == 'menu_item_size' &&
+          ids.contains(o['target_id'])) {
         byBranch.putIfAbsent(o['branch_id'] as String, () => []).add(o);
       }
     }
@@ -664,7 +665,9 @@ class StudioBackend {
     final seen = <String>{};
     for (final s in incoming) {
       final label = s['label'];
-      if (label is! String) _bad('Json deserialize error: missing field `label`');
+      if (label is! String) {
+        _bad('Json deserialize error: missing field `label`');
+      }
       if (!seen.add(label)) _bad("Duplicate size label '$label' in request");
       final price = s['price'];
       if (price is! int) _bad('Json deserialize error: invalid type: price');
@@ -714,7 +717,9 @@ class StudioBackend {
 
   ({MockRow size, MockRow item}) _size(MockRequest req, String sizeId) {
     final size = _sizes.find(sizeId);
-    final it = size == null ? null : _items.find(size['menu_item_id'] as String);
+    final it = size == null
+        ? null
+        : _items.find(size['menu_item_id'] as String);
     if (size == null || it == null || it['deleted_at'] != null) {
       req.notFound('Size not found');
     }
@@ -855,7 +860,9 @@ class StudioBackend {
         'included_option_ids': included,
       });
     }
-    _links.removeWhere((l) => l['menu_item_id'] == itemId && l['group_id'] != own);
+    _links.removeWhere(
+      (l) => l['menu_item_id'] == itemId && l['group_id'] != own,
+    );
     for (final l in next) {
       _links.insert(l, timestamps: false);
     }
@@ -870,8 +877,12 @@ class StudioBackend {
     final incoming = ((req.json['options'] as List?) ?? const [])
         .cast<Map<String, Object?>>();
     for (final o in incoming) {
-      if (o['name'] is! String) _bad('Json deserialize error: missing field `name`');
-      if (o['price'] is! int) _bad('Json deserialize error: invalid type: price');
+      if (o['name'] is! String) {
+        _bad('Json deserialize error: missing field `name`');
+      }
+      if (o['price'] is! int) {
+        _bad('Json deserialize error: invalid type: price');
+      }
       final recipe = (o['recipe'] as List?)?.cast<Map<String, Object?>>();
       final seen = <Object?>{};
       for (final l in recipe ?? const <Map<String, Object?>>[]) {
@@ -1065,9 +1076,10 @@ class StudioBackend {
     }
     Map<String, Object?> merged(Object? current, Object? next) => {
       ...((current as Map?)?.cast<String, Object?>() ?? const {}),
-      for (final e in ((next as Map?)?.cast<String, Object?>() ?? const {})
-          .entries)
-        if (e.value is String && (e.value! as String).isNotEmpty) e.key: e.value,
+      for (final e
+          in ((next as Map?)?.cast<String, Object?>() ?? const {}).entries)
+        if (e.value is String && (e.value! as String).isNotEmpty)
+          e.key: e.value,
     };
     if (b['name_translations'] != null) {
       item['name_translations'] = merged(
@@ -1154,7 +1166,9 @@ class StudioBackend {
       }, timestamps: false);
     }
     final overrides = db[MenuTables.priceOverrides];
-    for (final o in overrides.where((o) => sizeMap.containsKey(o['target_id']))) {
+    for (final o in overrides.where(
+      (o) => sizeMap.containsKey(o['target_id']),
+    )) {
       overrides.insert({
         ...o,
         'id': null,
@@ -1228,8 +1242,8 @@ class StudioBackend {
 
   String _slugOf(String? ingredientId) =>
       (ingredientId == null
-              ? null
-              : _data.ingredient(ingredientId)?['category_slug'] as String?) ??
+          ? null
+          : _data.ingredient(ingredientId)?['category_slug'] as String?) ??
       '';
 
   bool _isPackaging(String? ingredientId) {
@@ -1312,7 +1326,8 @@ class StudioBackend {
     final options = <Map<String, Object?>>[];
     final swaps = <String, Map<String, Object?>>{};
     final extra = <Map<String, Object?>>[];
-    for (final id in ((body['option_ids'] as List?) ?? const []).cast<String>()) {
+    for (final id
+        in ((body['option_ids'] as List?) ?? const []).cast<String>()) {
       final hit = optionIndex[id];
       if (hit == null) _bad('Option $id is not offered on this item');
       final (g, o) = hit;
@@ -1328,7 +1343,9 @@ class StudioBackend {
           'price_delta': (o['price']! as int) - (d['price']! as int),
           'reason': 'swap over ${d['name']}',
         });
-        if (id != def && recipe.isNotEmpty) swaps[slug] = {...recipe.first, 'from': o};
+        if (id != def && recipe.isNotEmpty) {
+          swaps[slug] = {...recipe.first, 'from': o};
+        }
       } else {
         options.add({
           'option_id': id,
@@ -1339,7 +1356,8 @@ class StudioBackend {
         extra.addAll(recipe);
       }
     }
-    final unit = base + options.fold<int>(0, (s, o) => s + (o['price_delta']! as int));
+    final unit =
+        base + options.fold<int>(0, (s, o) => s + (o['price_delta']! as int));
 
     // Deductions.
     final deductions = <Map<String, Object?>>[];
@@ -1372,7 +1390,8 @@ class StudioBackend {
           l,
           'swap',
           ingredientId: swap['ingredient_id'] as String?,
-          note: 'swapped from ${_data.ingredientName(l['ingredient_id']! as String)}',
+          note:
+              'swapped from ${_data.ingredientName(l['ingredient_id']! as String)}',
         );
       } else {
         add(l, 'recipe');
@@ -1387,7 +1406,9 @@ class StudioBackend {
     var missing = false;
     for (final d in deductions) {
       if (d['skipped'] == true) continue;
-      final cpu = _data.ingredient((d['ingredient_id'] as String?) ?? '')?['cost_per_unit'];
+      final cpu = _data.ingredient(
+        (d['ingredient_id'] as String?) ?? '',
+      )?['cost_per_unit'];
       if (cpu is! num) {
         missing = true;
         continue;
@@ -1404,7 +1425,9 @@ class StudioBackend {
       'cost': {
         'total': costTotal,
         'cost_missing': missing,
-        'margin_pct': missing || total <= 0 ? null : (total - costTotal) / total,
+        'margin_pct': missing || total <= 0
+            ? null
+            : (total - costTotal) / total,
       },
       'warnings': warnings,
       'defaults': defaults,
@@ -1431,9 +1454,9 @@ class StudioBackend {
     'image_url': c['image_url'],
     'price': c['base_price'],
     'is_active': c['is_active'],
-    'is_fixed': _slots(c['id'] as String).every(
-      (s) => ((s['choices'] as List?) ?? const []).length <= 1,
-    ),
+    'is_fixed': _slots(
+      c['id'] as String,
+    ).every((s) => ((s['choices'] as List?) ?? const []).length <= 1),
     'available_now': c['is_active'] == true,
     'slot_count': _slots(c['id'] as String).length,
     'window_count': 0,

@@ -97,6 +97,7 @@ class _AdjustDialogState extends ConsumerState<AdjustDialog> {
   }
 
   Future<void> _submit() async {
+    if (_pending) return;
     final t = ref.read(tProvider);
     setState(() => _reasonServerError = null);
     if (!(_form.currentState?.validate() ?? false)) return;
@@ -188,6 +189,8 @@ class _AdjustDialogState extends ConsumerState<AdjustDialog> {
                 mono: true,
                 invalid: invalid,
                 onChanged: (v) => setState(() => _amount = v),
+                // The web's form submits on Enter.
+                onSubmitted: (_) => _submit(),
               ),
             ),
             if (_showBranch)

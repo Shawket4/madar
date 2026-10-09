@@ -90,6 +90,21 @@ void main() {
     expect(_gets(h, summaryT, 'status', 'late'), 1, reason: 'cached');
   });
 
+  testWidgets('TEAM-ATT-004 (intent) a quick-range pill warms the rows and '
+      'the cards for its range; pressing it asks nothing more', (tester) async {
+    final h = await pumpAttendance(tester);
+    final mouse = await _mouse(tester);
+    final rows = _gets(h, listT);
+    final cards = _gets(h, summaryT);
+    final pill = pageText('Last week');
+    await _hover(h, mouse, pill);
+    expect(_gets(h, listT), rows + 1, reason: 'warmed');
+    expect(_gets(h, summaryT), cards + 1, reason: 'warmed');
+    await h.tap(pill);
+    expect(_gets(h, listT), rows + 1, reason: 'cached');
+    expect(_gets(h, summaryT), cards + 1, reason: 'cached');
+  });
+
   testWidgets('TEAM-ALL-023 TEAM-ATT-020/007 one 500 on the rows and the '
       'cards: the skeleton, then the data; never an error frame', (
     tester,

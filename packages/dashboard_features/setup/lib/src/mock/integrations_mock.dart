@@ -102,8 +102,8 @@ String _scopeOrg(MockRequest req) =>
     req.orgId ?? req.badRequest(IntegrationsRefusals.noOrg);
 
 /// The live branch [id] of [orgId], or null.
-MockRow? _branch(MockDb db, String orgId, Object? id) => db['branches']
-    .firstWhere(
+MockRow? _branch(MockDb db, String orgId, Object? id) =>
+    db['branches'].firstWhere(
       (b) => b['id'] == id && b['org_id'] == orgId && b['deleted_at'] == null,
     );
 
@@ -138,9 +138,8 @@ void registerIntegrationsMocks(MockServer server, MockDb db) {
     final org = _scopeOrg(req);
     final rows = table.where((r) => r['org_id'] == org)
       ..sort(
-        (a, b) => (b['created_at']! as String).compareTo(
-          a['created_at']! as String,
-        ),
+        (a, b) =>
+            (b['created_at']! as String).compareTo(a['created_at']! as String),
       );
     return MockResponse.ok([for (final r in rows) _summary(db, r)]);
   });

@@ -1630,9 +1630,7 @@ void main() {
       (tester) async {
         final h = await pumpFloor(tester);
         h.allowUnmatched = true;
-        final mouse = await tester.createGesture(
-          kind: PointerDeviceKind.mouse,
-        );
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
         await mouse.addPointer(location: Offset.zero);
         addTearDown(mouse.removePointer);
         // Locked, a press selects nothing: nothing is warmed.

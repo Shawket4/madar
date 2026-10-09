@@ -189,8 +189,7 @@ class _StationDialogState extends ConsumerState<StationDialog> {
               placeholder: t('kitchen.stationNamePlaceholder'),
               onChanged: (v) => _edit(() => _name = v),
               onSubmitted: (_) => _save(),
-              validator: (v) =>
-                  v.isEmpty ? t('common.requiredField') : null,
+              validator: (v) => v.isEmpty ? t('common.requiredField') : null,
             ),
             Container(
               key: const ValueKey('station-printer'),
@@ -366,7 +365,11 @@ class _SwitchCard extends StatelessWidget {
                 ],
               ),
             ),
-            DashSwitch(value: value, semanticLabel: label, onChanged: onChanged),
+            DashSwitch(
+              value: value,
+              semanticLabel: label,
+              onChanged: onChanged,
+            ),
           ],
         ),
       ),

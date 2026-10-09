@@ -18,7 +18,6 @@ import 'customers_data.dart';
 import 'google_object_dialog.dart';
 import 'leave_dialog.dart';
 import 'people_widgets.dart';
-import 'person_surface.dart';
 
 class MemberSection extends ConsumerWidget {
   const MemberSection({
@@ -237,7 +236,7 @@ class LedgerList extends ConsumerWidget {
         if (e.rewardName case final r? when r.isNotEmpty)
           Text(r, style: DashType.small.copyWith(color: c.textPrimary)),
         if (e.note case final n? when n.isNotEmpty)
-          Text('“$n”', textDirection: autoDirection(n), style: muted),
+          Text('“$n”', textDirection: dashTextDirectionOf(n), style: muted),
       ],
     );
 

@@ -79,7 +79,10 @@ class _ImportPeopleDialogState extends ConsumerState<ImportPeopleDialog> {
     } on Object catch (e) {
       if (!mounted) return;
       final t = ref.read(tProvider);
-      DashToast.error(context, attendanceErrorText(e, t, ref.read(formatProvider)));
+      DashToast.error(
+        context,
+        attendanceErrorText(e, t, ref.read(formatProvider)),
+      );
     }
   }
 

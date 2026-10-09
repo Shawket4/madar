@@ -54,10 +54,7 @@ void main() {
     ) async {
       final h = await _pump(tester, query: _helio);
       expect(inZones(find.text('Delivery zones')), findsOneWidget);
-      expect(
-        inZones(find.text(h.t('delivery.zonesSubtitle'))),
-        findsOneWidget,
-      );
+      expect(inZones(find.text(h.t('delivery.zonesSubtitle'))), findsOneWidget);
       expect(inZones(byKey('dzn-new')), findsOneWidget);
       expect(
         tester.widget<DashButton>(inZones(byKey('dzn-new'))).label,
@@ -80,8 +77,9 @@ void main() {
       expect(h.server.callsTo(DeliveryRoutes.zones), isEmpty);
     });
 
-    testWidgets('SET-DZN-003 loading: the table\'s skeleton, then the rings',
-        (tester) async {
+    testWidgets('SET-DZN-003 loading: the table\'s skeleton, then the rings', (
+      tester,
+    ) async {
       final m = setupMockServer();
       final gate = m.server.hold('GET', DeliveryRoutes.zones);
       final h = await _pump(tester, query: _helio, backend: m);
@@ -90,10 +88,9 @@ void main() {
       gate.release();
       await h.settle();
       expect(_table(tester).loading, isFalse);
-      expect(
-        h.server.callsTo(DeliveryRoutes.zones).single.query['branch_id'],
-        [SeedIds.heliopolis],
-      );
+      expect(h.server.callsTo(DeliveryRoutes.zones).single.query['branch_id'], [
+        SeedIds.heliopolis,
+      ]);
       expect(_rings(tester), hasLength(3));
     });
 
@@ -113,11 +110,7 @@ void main() {
 
     testWidgets('SET-DZN-004 refused (no delivery.settings.read): the error '
         'state says the server\'s refusal', (tester) async {
-      final h = await _pump(
-        tester,
-        query: _maadi,
-        persona: Persona.limited,
-      );
+      final h = await _pump(tester, query: _maadi, persona: Persona.limited);
       expect(
         inZones(
           find.text(
@@ -164,8 +157,10 @@ void main() {
         find.descendant(of: third, matching: find.text('Korba & Merghany')),
         findsOneWidget,
       );
-      expect(find.descendant(of: third, matching: find.text('3')),
-          findsOneWidget);
+      expect(
+        find.descendant(of: third, matching: find.text('3')),
+        findsOneWidget,
+      );
       final first = find.byWidgetPredicate(
         (w) => w is ZoneCell && w.zone.number == 1,
       );
@@ -180,8 +175,9 @@ void main() {
       );
     });
 
-    testWidgets('SET-DZN-007 Max distance: metres in km, one decimal at most',
-        (tester) async {
+    testWidgets('SET-DZN-007 Max distance: metres in km, one decimal at most', (
+      tester,
+    ) async {
       await _pump(tester, query: _newCairo);
       expect(inZones(find.text('MAX DISTANCE')), findsOneWidget);
       for (final w in ['3 km', '5.5 km', '8 km']) {
@@ -202,12 +198,14 @@ void main() {
       final pills = tester
           .widgetList<DashStatusPill>(inZones(find.byType(DashStatusPill)))
           .toList();
-      expect([for (final p in pills) p.label], ['Active', 'Active', 'Inactive']);
-      expect([for (final p in pills) p.tone], [
-        DashTone.success,
-        DashTone.success,
-        DashTone.neutral,
-      ]);
+      expect(
+        [for (final p in pills) p.label],
+        ['Active', 'Active', 'Inactive'],
+      );
+      expect(
+        [for (final p in pills) p.tone],
+        [DashTone.success, DashTone.success, DashTone.neutral],
+      );
     });
 
     testWidgets('SET-DZN-009 no search, no Columns menu; ten a page with the '
@@ -240,7 +238,9 @@ void main() {
       expect(inZones(find.text('No delivery zones yet')), findsOneWidget);
       expect(
         inZones(
-          find.text('Add rings from closest to farthest to quote delivery fees.'),
+          find.text(
+            'Add rings from closest to farthest to quote delivery fees.',
+          ),
         ),
         findsOneWidget,
       );
@@ -249,8 +249,9 @@ void main() {
       expect(inDialog(find.text('New zone')), findsOneWidget);
     });
 
-    testWidgets('SET-DZN-011 a row tap opens its editor; so does its pencil',
-        (tester) async {
+    testWidgets('SET-DZN-011 a row tap opens its editor; so does its pencil', (
+      tester,
+    ) async {
       final h = await _pump(tester, query: _helio);
       await h.tap(inZones(find.text('Korba & Merghany')));
       expect(inDialog(find.text('Edit zone')), findsOneWidget);
@@ -259,10 +260,7 @@ void main() {
       expect(_dialog(), findsNothing);
       final id = DeliverySeed.zoneId('heliopolis', 1);
       final pencil = inZones(byKey('dzn-edit-$id'));
-      expect(
-        tester.widget<DashIconButton>(pencil).semanticLabel,
-        'Edit',
-      );
+      expect(tester.widget<DashIconButton>(pencil).semanticLabel, 'Edit');
       await h.tap(pencil);
       expect(fieldText(tester, 'dzn-name'), 'Zone 1');
       await h.tap(inDialog(byKey('dzn-cancel')));
@@ -287,9 +285,7 @@ void main() {
         h.t('delivery.deleteZoneHint'),
       );
       expect(tester.widget<DashConfirmDialog>(confirm).destructive, isTrue);
-      await h.tap(
-        find.descendant(of: confirm, matching: find.text('Cancel')),
-      );
+      await h.tap(find.descendant(of: confirm, matching: find.text('Cancel')));
       expect(countCalls(h, 'DELETE', DeliveryRoutes.zone), 0);
     });
 
@@ -305,7 +301,9 @@ void main() {
           matching: find.text('Delete'),
         ),
       );
-      final call = h.server.callsTo(DeliveryRoutes.zone, method: 'DELETE').single;
+      final call = h.server
+          .callsTo(DeliveryRoutes.zone, method: 'DELETE')
+          .single;
       expect(call.path, '/delivery/zones/$id');
       expect(call.query['branch_id'], [SeedIds.heliopolis]);
       await h.expectToast('Zone deleted');
@@ -363,8 +361,9 @@ void main() {
 
   group('the dialog', () {
     testWidgets('SET-DZN-014 New zone: title, subtitle, the defaults (km = '
-        'farthest + 1, "Zone 4" placeholder, fee 0, active), Cancel closes',
-        (tester) async {
+        'farthest + 1, "Zone 4" placeholder, fee 0, active), Cancel closes', (
+      tester,
+    ) async {
       final h = await _pump(tester, query: _helio);
       await h.tap(inZones(byKey('dzn-new')));
       for (final w in [
@@ -385,9 +384,7 @@ void main() {
       }
       expect(fieldText(tester, 'dzn-name'), '');
       expect(
-        tester
-            .widget<DashTextField>(inDialog(byKey('dzn-name')))
-            .placeholder,
+        tester.widget<DashTextField>(inDialog(byKey('dzn-name'))).placeholder,
         'Zone 4',
       );
       expect(fieldText(tester, 'dzn-km'), '7');
@@ -433,13 +430,17 @@ void main() {
       await typeIn(h, 'dzn-km', '0');
       await typeIn(h, 'dzn-fee', '-2');
       await h.tap(inDialog(byKey('dzn-save')));
-      expect(inDialog(find.text('Distance must be greater than 0')),
-          findsOneWidget);
+      expect(
+        inDialog(find.text('Distance must be greater than 0')),
+        findsOneWidget,
+      );
       expect(inDialog(find.text('Fee cannot be negative')), findsOneWidget);
       await typeIn(h, 'dzn-km', '');
       await h.tap(inDialog(byKey('dzn-save')));
-      expect(inDialog(find.text('Distance must be greater than 0')),
-          findsOneWidget);
+      expect(
+        inDialog(find.text('Distance must be greater than 0')),
+        findsOneWidget,
+      );
       expect(countCalls(h, 'POST', DeliveryRoutes.zones), 0);
     });
 
@@ -500,8 +501,10 @@ void main() {
       final h = await _pump(tester, query: _zamalek);
       await h.tap(inZones(byKey('dzn-new')));
       await enterIn(h, 'dzn-km', '0');
-      expect(inDialog(find.text('Distance must be greater than 0')),
-          findsOneWidget);
+      expect(
+        inDialog(find.text('Distance must be greater than 0')),
+        findsOneWidget,
+      );
       expect(countCalls(h, 'POST', DeliveryRoutes.zones), 0);
       await typeIn(h, 'dzn-km', '3');
       await enterIn(h, 'dzn-fee', '15');
@@ -521,7 +524,9 @@ void main() {
       await h.tap(inDialog(find.byType(DashSwitch)));
       await h.tap(inDialog(byKey('dzn-save')));
       final id = DeliverySeed.zoneId('maadi', 3);
-      final call = h.server.callsTo(DeliveryRoutes.zone, method: 'PATCH').single;
+      final call = h.server
+          .callsTo(DeliveryRoutes.zone, method: 'PATCH')
+          .single;
       expect(call.path, '/delivery/zones/$id');
       expect(lastBody(h, 'PATCH', DeliveryRoutes.zone), {
         'branch_id': SeedIds.maadi,
@@ -681,7 +686,9 @@ void main() {
     expect(_dialog(), findsOneWidget);
     expect(h.server.callsTo(DeliveryRoutes.zones).length, reads);
     await h.tap(inDialog(byKey('dzn-cancel')));
-    final pencil = inZones(byKey('dzn-edit-${DeliverySeed.zoneId('heliopolis', 1)}'));
+    final pencil = inZones(
+      byKey('dzn-edit-${DeliverySeed.zoneId('heliopolis', 1)}'),
+    );
     await mouse.moveTo(tester.getCenter(pencil));
     await h.settle();
     await h.tap(pencil);
@@ -695,8 +702,9 @@ void main() {
     expect(h.server.callsTo(DeliveryRoutes.zones).length, reads);
   });
 
-  testWidgets('intent: the empty state\'s New zone warms the editor\'s read',
-      (tester) async {
+  testWidgets('intent: the empty state\'s New zone warms the editor\'s read', (
+    tester,
+  ) async {
     final h = await _pump(tester, query: _zamalek);
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);

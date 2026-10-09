@@ -67,26 +67,20 @@ void main() {
         'program_name': 'loyalty.errors.nameRequired',
       });
       for (final bad in ['', '0', '0.001', 'abc', '1000001']) {
-        expect(
-          validateProgram(ok.set('earn_egp_per_point', bad)).keys,
-          ['earn_egp_per_point'],
-          reason: bad,
-        );
+        expect(validateProgram(ok.set('earn_egp_per_point', bad)).keys, [
+          'earn_egp_per_point',
+        ], reason: bad);
       }
       expect(validateProgram(ok.set('earn_egp_per_point', '0.01')), isEmpty);
       for (final bad in ['', '0', '-3', '2.5', 'x']) {
-        expect(
-          validateProgram(ok.set('default_reward_cost', bad)).keys,
-          ['default_reward_cost'],
-          reason: bad,
-        );
+        expect(validateProgram(ok.set('default_reward_cost', bad)).keys, [
+          'default_reward_cost',
+        ], reason: bad);
       }
       for (final bad in ['0', '-3', '2.5', 'abc', '2147483648']) {
-        expect(
-          validateProgram(ok.set('balance_cap', bad)).keys,
-          ['balance_cap'],
-          reason: bad,
-        );
+        expect(validateProgram(ok.set('balance_cap', bad)).keys, [
+          'balance_cap',
+        ], reason: bad);
       }
       expect(validateProgram(ok.set('balance_cap', '')), isEmpty);
     });
@@ -96,8 +90,12 @@ void main() {
           .set('program_name', '  Bean Club+  ')
           .set('earn_egp_per_point', '19.99')
           .set('program_name_ar', '');
-      final w = programToWire(v, orgId: 'org-1', branchId: 'b-1', saved: _saved())
-          .toJson();
+      final w = programToWire(
+        v,
+        orgId: 'org-1',
+        branchId: 'b-1',
+        saved: _saved(),
+      ).toJson();
       expect(w['branch_id'], 'b-1');
       expect(w['program_name'], 'Bean Club+');
       expect(w['program_name_ar'], isNull);
@@ -116,8 +114,12 @@ void main() {
           .set('birthday_enabled', false)
           .set('balance_cap_enabled', false)
           .set('max_rewards_per_order', '');
-      final w = programToWire(v, orgId: 'org-1', branchId: null, saved: _saved())
-          .toJson();
+      final w = programToWire(
+        v,
+        orgId: 'org-1',
+        branchId: null,
+        saved: _saved(),
+      ).toJson();
       expect(w['birthday_reward_amount'], isNull);
       expect(w['birthday_message'], isNull);
       expect(w['balance_cap'], isNull);
@@ -127,13 +129,16 @@ void main() {
 
     test('the preview renders the edited values; none while birthdays are '
         'off', () {
-      final v = programFromWire(_saved())
-          .set('birthday_reward_amount', '4')
-          .set('program_name', '');
+      final v = programFromWire(
+        _saved(),
+      ).set('birthday_reward_amount', '4').set('program_name', '');
       final p = birthdayPreviewOf(v, _saved())!;
       expect(p.birthdayRewardAmount, 4);
       expect(p.programName, 'Bean Club');
-      expect(birthdayPreviewOf(v.set('birthday_enabled', false), _saved()), isNull);
+      expect(
+        birthdayPreviewOf(v.set('birthday_enabled', false), _saved()),
+        isNull,
+      );
     });
   });
 
@@ -155,7 +160,11 @@ void main() {
         (menuItemId: id, name: id, cost: cost);
 
     test('problems: cost, duplicate, deleted, switched off', () {
-      final menu = [item('a'), item('b', active: false), item('c', deleted: true)];
+      final menu = [
+        item('a'),
+        item('b', active: false),
+        item('c', deleted: true),
+      ];
       expect(
         rewardProblems([
           row('a', '5'),
@@ -211,40 +220,57 @@ void main() {
       'sort_order': 0,
     });
     test('a reorder is not a change; ids deduplicated in order', () {
-      final rows = [
-        (menuItemId: 'b', name: 'b'),
-        (menuItemId: 'a', name: 'a'),
-      ];
+      final rows = [(menuItemId: 'b', name: 'b'), (menuItemId: 'a', name: 'a')];
       expect(earningChanged(rows, [saved('a'), saved('b')]), isFalse);
-      expect(earningChanged(rows.take(1).toList(), [saved('a'), saved('b')]), isTrue);
       expect(
-        earningToWire([...rows, (menuItemId: 'b', name: 'b')]),
-        ['b', 'a'],
+        earningChanged(rows.take(1).toList(), [saved('a'), saved('b')]),
+        isTrue,
       );
+      expect(earningToWire([...rows, (menuItemId: 'b', name: 'b')]), [
+        'b',
+        'a',
+      ]);
     });
   });
 
   group('the ledger (SET-LOY-067, 084)', () {
-    LedgerEntry e(String kind, String source, {String? by, String? name, String? rev}) =>
-        LedgerEntry.fromJson({
-          'id': '$kind-$source',
-          'branch_id': 'b',
-          'created_at': '2026-10-01T10:00:00Z',
-          'created_by': by,
-          'created_by_name': name,
-          'currency': 'visits',
-          'kind': kind,
-          'source': source,
-          'points': 1,
-          'reverses_id': rev,
-        });
+    LedgerEntry e(
+      String kind,
+      String source, {
+      String? by,
+      String? name,
+      String? rev,
+    }) => LedgerEntry.fromJson({
+      'id': '$kind-$source',
+      'branch_id': 'b',
+      'created_at': '2026-10-01T10:00:00Z',
+      'created_by': by,
+      'created_by_name': name,
+      'currency': 'visits',
+      'kind': kind,
+      'source': source,
+      'points': 1,
+      'reverses_id': rev,
+    });
     test('labels and tones', () {
       final t = _tr;
       expect(ledgerLabel(e('earn', 'sale'), t), 'loyalty.ledger.sale');
-      expect(ledgerLabel(e('reverse_redeem', 'refund'), t), 'loyalty.ledger.refundRedeem');
-      expect(ledgerLabel(e('reverse_earn', 'refund'), t), 'loyalty.ledger.refundEarn');
-      expect(ledgerLabel(e('reverse_adjust', 'void'), t), 'loyalty.ledger.voidAdjust');
-      expect(ledgerLabel(e('reverse_earn', 'other'), t), 'loyalty.ledger.reversal');
+      expect(
+        ledgerLabel(e('reverse_redeem', 'refund'), t),
+        'loyalty.ledger.refundRedeem',
+      );
+      expect(
+        ledgerLabel(e('reverse_earn', 'refund'), t),
+        'loyalty.ledger.refundEarn',
+      );
+      expect(
+        ledgerLabel(e('reverse_adjust', 'void'), t),
+        'loyalty.ledger.voidAdjust',
+      );
+      expect(
+        ledgerLabel(e('reverse_earn', 'other'), t),
+        'loyalty.ledger.reversal',
+      );
       expect(ledgerLabel(e('odd', 'mystery'), t), 'odd');
       expect(ledgerTone(e('redeem', 'redemption')), LedgerTone.spend);
       expect(ledgerTone(e('adjust', 'birthday')), LedgerTone.gift);
@@ -266,7 +292,10 @@ void main() {
         }),
         'en',
       );
-      expect(ledgerActor(e('earn', 'sale', by: 'u', name: 'Mona'), t), 'by Mona');
+      expect(
+        ledgerActor(e('earn', 'sale', by: 'u', name: 'Mona'), t),
+        'by Mona',
+      );
       expect(ledgerActor(e('earn', 'sale', by: 'u'), t), 'by —');
       expect(ledgerActor(e('earn', 'sale'), t), 'automatic');
     });
@@ -279,15 +308,23 @@ void main() {
       details: {'error': 'Bad request: $text'},
     );
     expect(
-      loyaltyServerError(ex('Say why the points are being adjusted (note)'), _tr).kind,
+      loyaltyServerError(
+        ex('Say why the points are being adjusted (note)'),
+        _tr,
+      ).kind,
       LoyaltyRefusal.noteRequired,
     );
     expect(
-      loyaltyServerError(ex('reward items must be active menu items of this org'), _tr)
-          .message,
+      loyaltyServerError(
+        ex('reward items must be active menu items of this org'),
+        _tr,
+      ).message,
       'loyalty.errors.serverInactiveReward',
     );
-    expect(loyaltyServerError(ex('Something else'), _tr).message, 'Something else');
+    expect(
+      loyaltyServerError(ex('Something else'), _tr).message,
+      'Something else',
+    );
   });
 
   test('phones read +20 1xx xxx xxxx; anything else as given', () {

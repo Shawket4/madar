@@ -51,24 +51,27 @@ void main() {
     test('by start time then name; the cap and midnight worked out per '
         'read (cap 14 h)', () async {
       final rows = await api().listWorkShifts();
-      expect([for (final w in rows) w.name], [
-        'Morning', // 07:00
-        'Brunch', // 10:00
-        'Evening', // 15:00
-        'Late evening', // 16:00
-        'Maadi late', // 18:00
-        'Old night', // 18:00
-      ]);
+      expect(
+        [for (final w in rows) w.name],
+        [
+          'Morning', // 07:00
+          'Brunch', // 10:00
+          'Evening', // 15:00
+          'Late evening', // 16:00
+          'Maadi late', // 18:00
+          'Old night', // 18:00
+        ],
+      );
       WorkShift named(String n) => rows.firstWhere((w) => w.name == n);
       // 18:00 → 09:00 is 15 h, past the 14 h cap; Thursday's own 9 h is not.
       expect(named('Old night').overPresenceCap, isTrue);
       expect(named('Late evening').overPresenceCap, isFalse);
       expect(named('Late evening').crossesMidnight, isTrue);
       expect(named('Morning').crossesMidnight, isFalse);
-      expect([for (final d in named('Late evening').dayTimes!) d.dayOfWeek], [
-        4,
-        5,
-      ]);
+      expect(
+        [for (final d in named('Late evening').dayTimes!) d.dayOfWeek],
+        [4, 5],
+      );
     });
 
     test('a branch manager sees the business\'s blocks and their own '
@@ -128,9 +131,9 @@ void main() {
 
     test('a business-wide block needs the right at every branch', () async {
       expect(
-        api(Persona.manager).createWorkShift(
-          body: block('X', '09:00:00', '17:00:00'),
-        ),
+        api(
+          Persona.manager,
+        ).createWorkShift(body: block('X', '09:00:00', '17:00:00')),
         refused(403),
       );
     });
@@ -164,10 +167,7 @@ void main() {
   group('DELETE /staff/work-shifts/{id}', () {
     test('a block on the roster is kept; free, it goes', () async {
       final morning = sabahShift('morning');
-      expect(
-        api().deleteWorkShift(id: morning),
-        refused(409, 'SHIFT_IN_USE'),
-      );
+      expect(api().deleteWorkShift(id: morning), refused(409, 'SHIFT_IN_USE'));
       noRoster(db);
       await api().deleteWorkShift(id: morning);
       final ids = [for (final w in await api().listWorkShifts()) w.id];
@@ -186,15 +186,18 @@ void main() {
           explicitNulls: const {'day_of_week'},
         );
 
-    test('a create shows in the whole org\'s list; a delete removes it', () async {
-      final made = await api().createAssignment(body: row(eveningZ, null));
-      expect(made.dayOfWeek, isNull);
-      expect(made.workShiftName, 'Late evening');
-      final all = await api().listAssignments();
-      expect([for (final a in all) a.id], [made.id]);
-      await api().deleteAssignment(id: made.id);
-      expect(await api().listAssignments(), isEmpty);
-    });
+    test(
+      'a create shows in the whole org\'s list; a delete removes it',
+      () async {
+        final made = await api().createAssignment(body: row(eveningZ, null));
+        expect(made.dayOfWeek, isNull);
+        expect(made.workShiftName, 'Late evening');
+        final all = await api().listAssignments();
+        expect([for (final a in all) a.id], [made.id]);
+        await api().deleteAssignment(id: made.id);
+        expect(await api().listAssignments(), isEmpty);
+      },
+    );
 
     test('a block on a day it does not run, or another branch\'s, is '
         'refused', () async {
@@ -213,12 +216,7 @@ void main() {
       // Thursday's own Late evening ends 01:00 Friday; a Zamalek block at
       // 00:30 on Friday starts before it ends.
       final dawn = await api().createWorkShift(
-        body: block(
-          'Dawn',
-          '00:30:00',
-          '08:00:00',
-          branchId: SeedIds.zamalek,
-        ),
+        body: block('Dawn', '00:30:00', '08:00:00', branchId: SeedIds.zamalek),
       );
       await api().createAssignment(body: row(eveningZ, 4));
       await expectLater(

@@ -14,7 +14,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'customers_data.dart';
 import 'people_widgets.dart';
-import 'person_surface.dart';
 import '../shared/error_text.dart';
 
 class AddressesSection extends ConsumerWidget {
@@ -87,7 +86,7 @@ class _AddressRow extends ConsumerWidget {
                   children: [
                     Text(
                       title,
-                      textDirection: autoDirection(title),
+                      textDirection: dashTextDirectionOf(title),
                       style: DashType.bodyMedium.copyWith(color: c.textPrimary),
                     ),
                     if (label.isNotEmpty)
@@ -100,13 +99,13 @@ class _AddressRow extends ConsumerWidget {
                 if (line.isNotEmpty)
                   Text(
                     line,
-                    textDirection: autoDirection(line),
+                    textDirection: dashTextDirectionOf(line),
                     style: DashType.body.copyWith(color: c.textSecondary),
                   ),
                 if (notes.isNotEmpty)
                   Text(
                     notes,
-                    textDirection: autoDirection(notes),
+                    textDirection: dashTextDirectionOf(notes),
                     style: DashType.small.copyWith(color: c.textSecondary),
                   ),
               ],

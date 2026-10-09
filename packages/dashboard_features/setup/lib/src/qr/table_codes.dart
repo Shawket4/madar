@@ -23,7 +23,6 @@ import 'package:printing/printing.dart';
 
 import '../shared/qr_preview_dialog.dart';
 import 'qr_providers.dart';
-import 'qr_result.dart';
 
 /// One table's code on the sheet.
 typedef QrTableCode = (BranchTable table, QrResponse qr);

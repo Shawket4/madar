@@ -100,13 +100,28 @@ bool isPaletteShortcut(KeyEvent event) {
   return k.isMetaPressed || k.isControlPressed;
 }
 
-/// Opens the palette over [context]; resolves when it closes.
-Future<void> showDashCommandPalette(BuildContext context) =>
-    showDashDialog<void>(
+/// The open palette's token: one palette at a time, whoever opened it (the
+/// search action, the phone's search, Ctrl/Cmd+K).
+Object? _openPalette;
+
+/// Whether a palette is open now.
+bool get dashPaletteOpen => _openPalette != null;
+
+/// Opens the palette over [context]; resolves when it closes. Does nothing
+/// while one is already open.
+Future<void> showDashCommandPalette(BuildContext context) async {
+  if (dashPaletteOpen) return;
+  final token = _openPalette = Object();
+  try {
+    await showDashDialog<void>(
       context,
       width: DashMetrics.dialog,
       builder: (context) => const DashCommandPalette(),
     );
+  } finally {
+    if (identical(_openPalette, token)) _openPalette = null;
+  }
+}
 
 /// The palette's body.
 class DashCommandPalette extends ConsumerStatefulWidget {
@@ -120,11 +135,34 @@ class _PaletteState extends ConsumerState<DashCommandPalette> {
   String _query = '';
   int _cursor = 0;
   final _scroll = ScrollController();
+  final _cursorKey = GlobalKey();
+
+  /// A palette torn down without closing (its navigator gone) never resolves
+  /// its dialog's future: it frees the flag itself.
+  final Object? _token = _openPalette;
 
   @override
   void dispose() {
+    if (identical(_openPalette, _token)) _openPalette = null;
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Moves the highlight by [step] and keeps its row in sight (cmdk scrolls
+  /// the selected item into view).
+  void _move(int step, int count) {
+    if (count == 0) return;
+    setState(() => _cursor = (_cursor + step).clamp(0, count - 1));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final row = _cursorKey.currentContext;
+      if (row == null) return;
+      Scrollable.ensureVisible(
+        row,
+        alignmentPolicy: step > 0
+            ? ScrollPositionAlignmentPolicy.keepVisibleAtEnd
+            : ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+      );
+    });
   }
 
   void _open(String to) {
@@ -180,6 +218,7 @@ class _PaletteState extends ConsumerState<DashCommandPalette> {
                   PrefetchOnIntent(
                     to: item.to,
                     child: _PaletteRow(
+                      key: index == _cursor ? _cursorKey : null,
                       item: item,
                       selected: index++ == _cursor,
                       onTap: () => _open(item.to),
@@ -188,15 +227,49 @@ class _PaletteState extends ConsumerState<DashCommandPalette> {
               ],
             ],
           );
-    return DashSurface(
-      scrollable: false,
-      title: t('common.search', defaultValue: 'Search…'),
-      description: t('commandPalette.hint', defaultValue: 'Jump to any page'),
-      body: Column(
-        mainAxisSize: phone ? MainAxisSize.max : MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          DashTextInput(
+    // The title and the hint are for screen readers only, as on the web
+    // (`DialogHeader className="sr-only"`); the close × sits beside the field.
+    return Semantics(
+      scopesRoute: true,
+      namesRoute: true,
+      explicitChildNodes: true,
+      label: t('common.search', defaultValue: 'Search…'),
+      hint: t('commandPalette.hint', defaultValue: 'Jump to any page'),
+      child: Padding(
+        padding: const EdgeInsets.all(Space.sm),
+        child: Column(
+          mainAxisSize: phone ? MainAxisSize.max : MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              spacing: Space.xs,
+              children: [
+                Expanded(child: _input(t, flat)),
+                DashIconButton(
+                  icon: 'x',
+                  semanticLabel: context.dashStrings.close,
+                  color: c.textSecondary,
+                  onPressed: () => Navigator.of(context).maybePop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: Space.sm),
+            if (phone)
+              Expanded(child: list)
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxHeight: paletteListMaxHeight,
+                ),
+                child: list,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _input(Translator t, List<PaletteItem> flat) => DashTextInput(
             value: _query,
             autofocus: true,
             leadingIcon: 'search',
@@ -215,15 +288,11 @@ class _PaletteState extends ConsumerState<DashCommandPalette> {
                 return KeyEventResult.ignored;
               }
               if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                setState(
-                  () => _cursor = (_cursor + 1).clamp(0, flat.length - 1),
-                );
+                _move(1, flat.length);
                 return KeyEventResult.handled;
               }
               if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                setState(
-                  () => _cursor = (_cursor - 1).clamp(0, flat.length - 1),
-                );
+                _move(-1, flat.length);
                 return KeyEventResult.handled;
               }
               if (event.logicalKey == LogicalKeyboardKey.enter &&
@@ -233,25 +302,12 @@ class _PaletteState extends ConsumerState<DashCommandPalette> {
               }
               return KeyEventResult.ignored;
             },
-          ),
-          const SizedBox(height: Space.sm),
-          if (phone)
-            Expanded(child: list)
-          else
-            ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxHeight: paletteListMaxHeight,
-              ),
-              child: list,
-            ),
-        ],
-      ),
-    );
-  }
+          );
 }
 
 class _PaletteRow extends StatelessWidget {
   const _PaletteRow({
+    super.key,
     required this.item,
     required this.selected,
     required this.onTap,

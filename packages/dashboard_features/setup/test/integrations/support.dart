@@ -46,7 +46,9 @@ Future<DashHarness> pumpIntegrations(
     server: b.server,
     db: b.db,
     prefs: persona == Persona.platform && pickOrg
-        ? {ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg})}
+        ? {
+            ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg}),
+          }
         : null,
   );
 }

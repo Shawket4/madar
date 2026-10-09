@@ -78,7 +78,7 @@ class PersonSurface extends StatelessWidget {
                         header: true,
                         child: Text(
                           title,
-                          textDirection: _directionOf(title),
+                          textDirection: dashTextDirectionOf(title),
                           style: DashType.sectionTitle.copyWith(
                             color: c.textPrimary,
                           ),
@@ -110,23 +110,3 @@ class PersonSurface extends StatelessWidget {
     );
   }
 }
-
-/// `dir="auto"`: the direction of the first strong character.
-TextDirection? _directionOf(String s) {
-  for (final r in s.runes) {
-    if ((r >= 0x0590 && r <= 0x08FF) ||
-        (r >= 0xFB1D && r <= 0xFDFF) ||
-        (r >= 0xFE70 && r <= 0xFEFF)) {
-      return TextDirection.rtl;
-    }
-    if ((r >= 0x41 && r <= 0x5A) ||
-        (r >= 0x61 && r <= 0x7A) ||
-        (r >= 0xC0 && r <= 0x24F)) {
-      return TextDirection.ltr;
-    }
-  }
-  return null;
-}
-
-/// [_directionOf] for the unit's other `dir="auto"` texts.
-TextDirection? autoDirection(String s) => _directionOf(s);

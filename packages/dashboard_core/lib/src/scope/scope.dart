@@ -178,7 +178,11 @@ final orgsProvider = FutureProvider<List<Org>>((ref) async {
   final session = ref.watch(currentSessionProvider);
   if (session == null || !session.isPlatform) return const [];
   final orgs = await ref.watch(coreApiProvider).listOrgs();
-  return [...orgs]..sort((a, b) => a.name.compareTo(b.name));
+  // `localeCompare` in spirit: case does not split "acme" from "Bistro".
+  return [...orgs]..sort((a, b) {
+    final c = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    return c != 0 ? c : a.name.compareTo(b.name);
+  });
 }, retry: (_, _) => null);
 
 // ── Branch + period ───────────────────────────────────────────────────────

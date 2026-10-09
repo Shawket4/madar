@@ -177,10 +177,7 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
               textDirection: TextDirection.ltr,
               maxLines: 1,
               softWrap: false,
-              style: DashType.mono.copyWith(
-                fontSize: 14,
-                color: c.textPrimary,
-              ),
+              style: DashType.mono.copyWith(fontSize: 14, color: c.textPrimary),
             ),
     );
     final balance = DashColumn<PersonRow>(
@@ -266,7 +263,11 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
                         tone: DashTone.success,
                       )
                     : Text(
-                        loyaltyCost(t, r.mode ?? 'points', m.pointsToNextReward),
+                        loyaltyCost(
+                          t,
+                          r.mode ?? 'points',
+                          m.pointsToNextReward,
+                        ),
                         style: DashType.body.copyWith(color: c.textSecondary),
                       );
               },
@@ -303,9 +304,11 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
             value: _source,
             onChanged: (v) => _reset(() => _source = v),
             onOptionIntent: (v) => ref.warm(
-              memberCustomersProvider(
-                (q: _q, source: v, limit: membersPageSize),
-              ),
+              memberCustomersProvider((
+                q: _q,
+                source: v,
+                limit: membersPageSize,
+              )),
             ),
           ),
       ],
@@ -320,7 +323,10 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
       ],
       footer: total != null && total > rows.length
           ? DashListCount(
-              t('loyalty.showingOf', args: {'shown': rows.length, 'total': total}),
+              t(
+                'loyalty.showingOf',
+                args: {'shown': rows.length, 'total': total},
+              ),
             )
           : null,
       table: (toolbar) => DashDataTable<PersonRow>(
@@ -366,7 +372,9 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
             : null,
         empty: DashEmptyState(
           icon: 'users',
-          title: filtered ? t('loyalty.noMembersMatch') : t('loyalty.noMembers'),
+          title: filtered
+              ? t('loyalty.noMembersMatch')
+              : t('loyalty.noMembers'),
           description: filtered
               ? t('customers.emptySearchHint')
               : t('loyalty.noMembersHint'),
@@ -426,8 +434,9 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
         ),
         ExcelColumn(
           header: t('loyalty.balanceUnit'),
-          accessor: (r) =>
-              r.mode != null && r.balance != null ? loyaltyUnit(t, r.mode!) : '',
+          accessor: (r) => r.mode != null && r.balance != null
+              ? loyaltyUnit(t, r.mode!)
+              : '',
           type: ExcelColumnType.text,
           width: 12,
         ),
@@ -481,7 +490,11 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
                 ? ''
                 : r.member!.canRedeem
                 ? t('loyalty.rewardReady')
-                : loyaltyCost(t, r.mode ?? 'points', r.member!.pointsToNextReward),
+                : loyaltyCost(
+                    t,
+                    r.mode ?? 'points',
+                    r.member!.pointsToNextReward,
+                  ),
             type: ExcelColumnType.text,
             width: 20,
           ),

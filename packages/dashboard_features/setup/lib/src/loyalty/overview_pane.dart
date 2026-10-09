@@ -154,7 +154,9 @@ class OverviewPane extends ConsumerWidget {
               children: [
                 for (var j = i; j < i + cols; j++)
                   Expanded(
-                    child: j < cards.length ? cards[j] : const SizedBox.shrink(),
+                    child: j < cards.length
+                        ? cards[j]
+                        : const SizedBox.shrink(),
                   ),
               ],
             ),
@@ -179,7 +181,8 @@ class OverviewPane extends ConsumerWidget {
                 )
               else
                 for (final (i, r) in a.topRewards.indexed) ...[
-                  if (i > 0) Divider(height: 1, thickness: 1, color: c.hairline),
+                  if (i > 0)
+                    Divider(height: 1, thickness: 1, color: c.hairline),
                   Padding(
                     key: ValueKey('top-reward-${r.menuItemId}'),
                     padding: const EdgeInsets.symmetric(vertical: Space.sm),

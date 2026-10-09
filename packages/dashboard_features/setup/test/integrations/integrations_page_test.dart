@@ -81,8 +81,10 @@ void main() {
         find.byKey(const ValueKey('integrations-restricted')),
         findsNothing,
       );
-      expect(inPage(find.byKey(const ValueKey('integrations-table'))),
-          findsOneWidget);
+      expect(
+        inPage(find.byKey(const ValueKey('integrations-table'))),
+        findsOneWidget,
+      );
       expect(listCalls(h), 1);
     });
   });
@@ -100,8 +102,10 @@ void main() {
         'description and "Issue credential" → ?edit=new', (tester) async {
       final h = await pumpIntegrations(tester, persona: Persona.platform);
       expect(
-        pageText("Give a partner read-only access to one branch's order "
-            'analytics.'),
+        pageText(
+          "Give a partner read-only access to one branch's order "
+          'analytics.',
+        ),
         findsOneWidget,
       );
       expect(pageText(h.t('integrations.hintReadOnly')), findsNothing);

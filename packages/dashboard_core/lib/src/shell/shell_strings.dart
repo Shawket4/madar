@@ -19,13 +19,9 @@ const Map<String, Map<String, String>> shellSupplement = {
     // The web's sidebar passes `{{count}} more` inline.
     'nav.showMoreCount_one': '{{count}} more',
     'nav.showMoreCount_other': '{{count}} more',
-    // The web's SidebarTrigger says "Toggle Sidebar" (screen-reader only).
-    'shell.toggleSidebar': 'Toggle Sidebar',
     // The phone's bottom bar.
     'shell.home': 'Home',
     'shell.navigation': 'Navigation',
-    // The command palette's shortcut hint and the phone's search action.
-    'shell.searchPages': 'Search pages',
     // A page whose port is not in this build yet.
     'shell.pendingTitle': 'This page is on its way',
     'shell.pendingBody':
@@ -42,10 +38,8 @@ const Map<String, Map<String, String>> shellSupplement = {
     'nav.showMoreCount_few': '{{count}} عناصر أخرى',
     'nav.showMoreCount_many': '{{count}} عنصرًا آخر',
     'nav.showMoreCount_other': '{{count}} عنصر آخر',
-    'shell.toggleSidebar': 'إظهار الشريط الجانبي أو إخفاؤه',
     'shell.home': 'الرئيسية',
     'shell.navigation': 'التنقل',
-    'shell.searchPages': 'ابحث في الصفحات',
     'shell.pendingTitle': 'هذه الصفحة في الطريق',
     'shell.pendingBody':
         'لم تصل إلى التطبيق بعد. إلى أن تصل، افتحها من لوحة التحكم على الويب.',

@@ -42,8 +42,10 @@ int _span(Object? start, Object? end) {
   return m <= 0 ? m + 1440 : m;
 }
 
-List<int> _days(MockRow w) =>
-    ((w['valid_days'] as List?) ?? _allDays).cast<num>().map((n) => n.toInt()).toList();
+List<int> _days(MockRow w) => ((w['valid_days'] as List?) ?? _allDays)
+    .cast<num>()
+    .map((n) => n.toInt())
+    .toList();
 
 List<Map<String, Object?>> _dayTimes(MockRow w) => [
   for (final d in ((w['day_times'] as List?) ?? const []).cast<Map>())
@@ -60,14 +62,18 @@ int _presenceCap(MockDb db, String? orgId) {
 /// A block as the API answers it (`complete_shifts`).
 MockRow shiftAsRead(MockDb db, MockRow w) {
   final cap = _presenceCap(db, w['org_id'] as String?);
-  final times = [
-    for (final d in _dayTimes(w))
-      {
-        'day_of_week': d['day_of_week'],
-        'start_time': _sec(d['start_time']),
-        'end_time': _sec(d['end_time']),
-      },
-  ]..sort((a, b) => (a['day_of_week']! as num).compareTo(b['day_of_week']! as num));
+  final times =
+      [
+        for (final d in _dayTimes(w))
+          {
+            'day_of_week': d['day_of_week'],
+            'start_time': _sec(d['start_time']),
+            'end_time': _sec(d['end_time']),
+          },
+      ]..sort(
+        (a, b) =>
+            (a['day_of_week']! as num).compareTo(b['day_of_week']! as num),
+      );
   return {
     'grace_minutes': 15,
     'break_minutes': 0,
@@ -92,8 +98,13 @@ void registerShiftsMocks(MockServer server, MockDb db) {
   final shifts = db['work_shifts'];
   final roster = db[TeamTables.assignments];
 
-  Never coded(MockRequest req, int status, String code, String reason, [Object? vars]) =>
-      req.fail(MockResponse.error(status, reason, code: code, vars: vars));
+  Never coded(
+    MockRequest req,
+    int status,
+    String code,
+    String reason, [
+    Object? vars,
+  ]) => req.fail(MockResponse.error(status, reason, code: code, vars: vars));
 
   /// `require_at`: the right at [branch] (in this org).
   void requireAt(MockRequest req, String cap, String branch) {
@@ -138,14 +149,29 @@ void registerShiftsMocks(MockServer server, MockDb db) {
       coded(req, 400, 'SHIFT_NAME_REQUIRED', 'Shift name is required');
     }
     if (b['start_time'] == b['end_time']) {
-      coded(req, 400, 'SHIFT_EMPTY', 'A shift cannot start and end at the same time');
+      coded(
+        req,
+        400,
+        'SHIFT_EMPTY',
+        'A shift cannot start and end at the same time',
+      );
     }
     num? n(String k) => b[k] as num?;
-    for (final k in const ['grace_minutes', 'break_minutes', 'overtime_threshold_minutes']) {
+    for (final k in const [
+      'grace_minutes',
+      'break_minutes',
+      'overtime_threshold_minutes',
+    ]) {
       if ((n(k) ?? 0) < 0) settingInvalid(req, k, '$k cannot be negative');
     }
-    for (final k in const ['checkin_window_minutes', 'half_day_threshold_minutes', 'overtime_multiplier']) {
-      if (n(k) != null && n(k)! <= 0) settingInvalid(req, k, '$k must be positive');
+    for (final k in const [
+      'checkin_window_minutes',
+      'half_day_threshold_minutes',
+      'overtime_multiplier',
+    ]) {
+      if (n(k) != null && n(k)! <= 0) {
+        settingInvalid(req, k, '$k must be positive');
+      }
     }
     for (final k in const ['ot_day_multiplier', 'ot_night_multiplier']) {
       if (n(k) != null && (n(k)! <= 0 || n(k)! >= 100)) {
@@ -153,9 +179,14 @@ void registerShiftsMocks(MockServer server, MockDb db) {
       }
     }
     final days = b['valid_days'] as List?;
-    if (days != null && (days.isEmpty || days.any((d) => d is! num || d < 0 || d > 6))) {
-      coded(req, 400, 'SHIFT_DAYS_REQUIRED',
-          'valid_days needs at least one day, 0 (Sunday) through 6 (Saturday)');
+    if (days != null &&
+        (days.isEmpty || days.any((d) => d is! num || d < 0 || d > 6))) {
+      coded(
+        req,
+        400,
+        'SHIFT_DAYS_REQUIRED',
+        'valid_days needs at least one day, 0 (Sunday) through 6 (Saturday)',
+      );
     }
     final times = (b['day_times'] as List?)?.cast<Map>();
     if (times != null) {
@@ -163,11 +194,20 @@ void registerShiftsMocks(MockServer server, MockDb db) {
       for (final d in times) {
         final dow = d['day_of_week'];
         if (dow is! num || dow < 0 || dow > 6 || !seen.add(dow)) {
-          coded(req, 400, 'SHIFT_DAY_TIMES_INVALID',
-              'day_times: one entry per day, 0 (Sunday) through 6 (Saturday)');
+          coded(
+            req,
+            400,
+            'SHIFT_DAY_TIMES_INVALID',
+            'day_times: one entry per day, 0 (Sunday) through 6 (Saturday)',
+          );
         }
         if (d['start_time'] == d['end_time']) {
-          coded(req, 400, 'SHIFT_EMPTY', 'A shift cannot start and end at the same time');
+          coded(
+            req,
+            400,
+            'SHIFT_EMPTY',
+            'A shift cannot start and end at the same time',
+          );
         }
       }
     }
@@ -178,9 +218,13 @@ void registerShiftsMocks(MockServer server, MockDb db) {
   void timesOnDays(MockRequest req, List<int> days, List times) {
     for (final d in times.cast<Map>()) {
       if (!days.contains(d['day_of_week'])) {
-        coded(req, 400, 'SHIFT_DAY_TIMES_OFF_DAY',
-            "day ${d['day_of_week']} has its own times but isn't one of the block's days",
-            {'day_of_week': d['day_of_week']});
+        coded(
+          req,
+          400,
+          'SHIFT_DAY_TIMES_OFF_DAY',
+          "day ${d['day_of_week']} has its own times but isn't one of the block's days",
+          {'day_of_week': d['day_of_week']},
+        );
       }
     }
   }
@@ -189,17 +233,20 @@ void registerShiftsMocks(MockServer server, MockDb db) {
 
   server.on('GET', '/staff/work-shifts', (req) {
     req.requireCap('hr.schedule.read');
-    final rows = shifts.where(
-      (w) =>
-          w['org_id'] == req.orgId &&
-          (w['branch_id'] == null ||
-              req.persona.seesBranch('${w['branch_id']}')),
-    )..sort((a, b) {
-        final c = _sec(a['start_time']).compareTo(_sec(b['start_time']));
-        return c != 0
-            ? c
-            : '${a['name']}'.toLowerCase().compareTo('${b['name']}'.toLowerCase());
-      });
+    final rows =
+        shifts.where(
+          (w) =>
+              w['org_id'] == req.orgId &&
+              (w['branch_id'] == null ||
+                  req.persona.seesBranch('${w['branch_id']}')),
+        )..sort((a, b) {
+          final c = _sec(a['start_time']).compareTo(_sec(b['start_time']));
+          return c != 0
+              ? c
+              : '${a['name']}'.toLowerCase().compareTo(
+                  '${b['name']}'.toLowerCase(),
+                );
+        });
     return MockResponse.ok([for (final w in rows) shiftAsRead(db, w)]);
   });
 
@@ -209,7 +256,10 @@ void registerShiftsMocks(MockServer server, MockDb db) {
     final branch = b['branch_id'] as String?;
     requireScope(req, 'hr.schedule.create', branch);
     final name = validate(req, b);
-    final days = ((b['valid_days'] as List?) ?? _allDays).cast<num>().map((n) => n.toInt()).toList();
+    final days = ((b['valid_days'] as List?) ?? _allDays)
+        .cast<num>()
+        .map((n) => n.toInt())
+        .toList();
     final times = (b['day_times'] as List?) ?? const [];
     timesOnDays(req, days, times);
     final row = shifts.insert({
@@ -242,7 +292,9 @@ void registerShiftsMocks(MockServer server, MockDb db) {
     final b = req.json;
     // Omitted keeps the branch; only an explicit null moves the block to
     // the whole business.
-    final branch = b.containsKey('branch_id') ? b['branch_id'] as String? : current;
+    final branch = b.containsKey('branch_id')
+        ? b['branch_id'] as String?
+        : current;
     if (branch != current) requireScope(req, 'hr.schedule.edit', branch);
     final name = validate(req, b);
     final days = b['valid_days'] == null
@@ -252,19 +304,29 @@ void registerShiftsMocks(MockServer server, MockDb db) {
     timesOnDays(req, days, times);
     // Taking a day away while people are rostered on it would silently
     // unroster them: move them first.
-    final dropped = [for (final d in _days(w)) if (!days.contains(d)) d];
+    final dropped = [
+      for (final d in _days(w))
+        if (!days.contains(d)) d,
+    ];
     if (dropped.isNotEmpty) {
       final today = db.clock.today;
-      final stuck = roster.where(
-        (a) =>
-            a['work_shift_id'] == w['id'] &&
-            dropped.contains(a['day_of_week']) &&
-            (a['effective_to'] == null || '${a['effective_to']}'.compareTo(today) >= 0),
-      ).length;
+      final stuck = roster
+          .where(
+            (a) =>
+                a['work_shift_id'] == w['id'] &&
+                dropped.contains(a['day_of_week']) &&
+                (a['effective_to'] == null ||
+                    '${a['effective_to']}'.compareTo(today) >= 0),
+          )
+          .length;
       if (stuck > 0) {
-        coded(req, 409, 'SHIFT_DAYS_IN_USE',
-            '$stuck roster entr${stuck == 1 ? 'y' : 'ies'} still put ${w['name']} on the days you took away — move them first.',
-            {'n': stuck, 'name': w['name'], 'days': dropped});
+        coded(
+          req,
+          409,
+          'SHIFT_DAYS_IN_USE',
+          '$stuck roster entr${stuck == 1 ? 'y' : 'ies'} still put ${w['name']} on the days you took away — move them first.',
+          {'n': stuck, 'name': w['name'], 'days': dropped},
+        );
       }
     }
     num? keep(String k) => (b[k] as num?) ?? (w[k] as num?);
@@ -282,8 +344,10 @@ void registerShiftsMocks(MockServer server, MockDb db) {
       'checkin_window_minutes': keep('checkin_window_minutes'),
       'is_active': b['is_active'] ?? w['is_active'],
       'valid_days': days,
-      if (b.containsKey('ot_day_multiplier')) 'ot_day_multiplier': b['ot_day_multiplier'],
-      if (b.containsKey('ot_night_multiplier')) 'ot_night_multiplier': b['ot_night_multiplier'],
+      if (b.containsKey('ot_day_multiplier'))
+        'ot_day_multiplier': b['ot_day_multiplier'],
+      if (b.containsKey('ot_night_multiplier'))
+        'ot_night_multiplier': b['ot_night_multiplier'],
       'day_times': times,
     });
     for (final a in roster.where((a) => a['work_shift_id'] == w['id'])) {
@@ -298,9 +362,13 @@ void registerShiftsMocks(MockServer server, MockDb db) {
     requireScope(req, 'hr.schedule.delete', w['branch_id'] as String?);
     final n = roster.where((a) => a['work_shift_id'] == w['id']).length;
     if (n > 0) {
-      coded(req, 409, 'SHIFT_IN_USE',
-          '$n roster assignment(s) still use ${w['name']} — remove them first, or switch the shift off instead',
-          {'n': n, 'name': w['name']});
+      coded(
+        req,
+        409,
+        'SHIFT_IN_USE',
+        '$n roster assignment(s) still use ${w['name']} — remove them first, or switch the shift off instead',
+        {'n': n, 'name': w['name']},
+      );
     }
     shifts.delete('${w['id']}');
     return MockResponse.empty();
@@ -331,7 +399,10 @@ void registerShiftsMocks(MockServer server, MockDb db) {
     });
     return MockResponse.ok([
       for (final a in rows)
-        {...a, 'work_shift_name': shifts.find('${a['work_shift_id']}')?['name']},
+        {
+          ...a,
+          'work_shift_name': shifts.find('${a['work_shift_id']}')?['name'],
+        },
     ]);
   });
 
@@ -355,17 +426,32 @@ void registerShiftsMocks(MockServer server, MockDb db) {
     final e = subject(req, b['employee_id'] as String?);
     final dow = (b['day_of_week'] as num?)?.toInt();
     if (dow != null && (dow < 0 || dow > 6)) {
-      coded(req, 400, 'DAY_OF_WEEK_INVALID', 'day_of_week must be 0 (Sunday) through 6 (Saturday)');
+      coded(
+        req,
+        400,
+        'DAY_OF_WEEK_INVALID',
+        'day_of_week must be 0 (Sunday) through 6 (Saturday)',
+      );
     }
     final w = block(req, '${b['work_shift_id']}');
     final own = w['branch_id'] as String?;
     if (own != null) requireAt(req, 'hr.schedule.edit', own);
     if (dow != null && !_days(w).contains(dow)) {
-      coded(req, 400, 'SHIFT_NOT_ON_DAY', "${w['name']} isn't a shift on that weekday.");
+      coded(
+        req,
+        400,
+        'SHIFT_NOT_ON_DAY',
+        "${w['name']} isn't a shift on that weekday.",
+      );
     }
     final branches = ((e['branch_ids'] as List?) ?? const []).cast<String>();
     if (own != null && !branches.contains(own)) {
-      coded(req, 400, 'SHIFT_OTHER_BRANCH', "${w['name']} doesn't work at ${e['name']}'s branch.");
+      coded(
+        req,
+        400,
+        'SHIFT_OTHER_BRANCH',
+        "${w['name']} doesn't work at ${e['name']}'s branch.",
+      );
     }
     final at = b['branch_id'] as String?;
     final row = <String, Object?>{
@@ -378,7 +464,9 @@ void registerShiftsMocks(MockServer server, MockDb db) {
       'effective_from': b['effective_from'] ?? db.clock.today,
       'effective_to': b['effective_to'],
       'created_at': db.nowIso,
-      'branch_id': own == null && at != null && branches.contains(at) ? at : null,
+      'branch_id': own == null && at != null && branches.contains(at)
+          ? at
+          : null,
     };
     _refuseOverlap(req, db, '${e['id']}', [row, ...roster.rows]);
     roster.insert(row, timestamps: false);
@@ -400,18 +488,29 @@ void registerShiftsMocks(MockServer server, MockDb db) {
 /// `check_overlaps` over the next two weeks of the standing pattern [rows]
 /// (newest first per slot; a weekday's own row beats the every-day row): a
 /// night that runs into the next day's block is refused, naming both.
-void _refuseOverlap(MockRequest req, MockDb db, String employeeId, List<MockRow> rows) {
-  final mine = [
-    for (final a in rows)
-      if (a['employee_id'] == employeeId) a,
-  ]..sort((a, b) => '${b['effective_from']}'.compareTo('${a['effective_from']}'));
+void _refuseOverlap(
+  MockRequest req,
+  MockDb db,
+  String employeeId,
+  List<MockRow> rows,
+) {
+  final mine =
+      [
+        for (final a in rows)
+          if (a['employee_id'] == employeeId) a,
+      ]..sort(
+        (a, b) => '${b['effective_from']}'.compareTo('${a['effective_from']}'),
+      );
   ({String name, String date, int from, int to})? on(DateTime day, int index) {
     final dow = day.weekday % 7;
-    MockRow? pick(int? d) => mine.where((a) => a['day_of_week'] == d).firstOrNull;
+    MockRow? pick(int? d) =>
+        mine.where((a) => a['day_of_week'] == d).firstOrNull;
     final a = pick(dow) ?? pick(null);
     if (a == null) return null;
     final w = db['work_shifts'].find('${a['work_shift_id']}');
-    if (w == null || w['is_active'] == false || !_days(w).contains(dow)) return null;
+    if (w == null || w['is_active'] == false || !_days(w).contains(dow)) {
+      return null;
+    }
     final own = _dayTimes(w).where((d) => d['day_of_week'] == dow).firstOrNull;
     final start = _min(own?['start_time'] ?? w['start_time']);
     final from = index * 1440 + start;
@@ -420,13 +519,20 @@ void _refuseOverlap(MockRequest req, MockDb db, String employeeId, List<MockRow>
       name: '${w['name']}',
       date: iso,
       from: from,
-      to: from + _span(own?['start_time'] ?? w['start_time'], own?['end_time'] ?? w['end_time']),
+      to:
+          from +
+          _span(
+            own?['start_time'] ?? w['start_time'],
+            own?['end_time'] ?? w['end_time'],
+          ),
     );
   }
 
   final p = db.clock.today.split('-').map(int.parse).toList();
   final first = DateTime.utc(p[0], p[1], p[2]);
-  final days = [for (var i = 0; i <= 15; i++) on(first.add(Duration(days: i)), i)];
+  final days = [
+    for (var i = 0; i <= 15; i++) on(first.add(Duration(days: i)), i),
+  ];
   for (var i = 0; i + 1 < days.length; i++) {
     final a = days[i];
     final b = days[i + 1];
@@ -436,7 +542,13 @@ void _refuseOverlap(MockRequest req, MockDb db, String employeeId, List<MockRow>
           409,
           '${a.name} on ${a.date} and ${b.name} on ${b.date} overlap.',
           code: 'SHIFTS_OVERLAP',
-          vars: {'a': a.name, 'b': b.name, 'date': a.date, 'a_date': a.date, 'b_date': b.date},
+          vars: {
+            'a': a.name,
+            'b': b.name,
+            'date': a.date,
+            'a_date': a.date,
+            'b_date': b.date,
+          },
         ),
       );
     }

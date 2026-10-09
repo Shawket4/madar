@@ -52,7 +52,12 @@ void main() {
       (s) => s.employeeId == emp('laila') && s.date == wd(4),
     );
     expect(
-      (laila.startTime, laila.endTime, laila.crossesMidnight, laila.timesEdited),
+      (
+        laila.startTime,
+        laila.endTime,
+        laila.crossesMidnight,
+        laila.timesEdited,
+      ),
       ('16:00:00', '00:00:00', true, true),
     );
     expect(laila.changed, isTrue);
@@ -65,7 +70,8 @@ void main() {
     final v = await week0();
     final mine = [
       for (final w in v.warnings)
-        if (w.employeeId == emp('youssef')) (w.date, w.kind, w.minutes, w.limitMinutes),
+        if (w.employeeId == emp('youssef'))
+          (w.date, w.kind, w.minutes, w.limitMinutes),
     ];
     expect(mine, [
       (wd(2), 'day_hours', 960, 720),
@@ -74,36 +80,39 @@ void main() {
     ]);
   });
 
-  test('publish: the week shows published; a later change marks the day', () async {
-    final staff = api(Persona.manager);
-    await staff.publish(
-      body: PublishWeek(branchId: SeedIds.zamalek, weekStart: wd(7)),
-    );
-    final next = await staff.roster(
-      branchId: SeedIds.zamalek,
-      from: wd(7),
-      to: wd(13),
-    );
-    expect(next.publishedWeeks, [wd(7)]);
-    expect(next.shifts.where((s) => s.changed), isEmpty);
-    await staff.putDay(
-      body: PutDayRequest(
-        employeeId: emp('adham'),
-        onDate: wd(7),
-        shifts: const [],
+  test(
+    'publish: the week shows published; a later change marks the day',
+    () async {
+      final staff = api(Persona.manager);
+      await staff.publish(
+        body: PublishWeek(branchId: SeedIds.zamalek, weekStart: wd(7)),
+      );
+      final next = await staff.roster(
         branchId: SeedIds.zamalek,
-      ),
-    );
-    final after = await staff.roster(
-      branchId: SeedIds.zamalek,
-      from: wd(7),
-      to: wd(13),
-    );
-    expect(
-      after.dateSets!.any((d) => d.employeeId == emp('adham') && d.dayOff),
-      isTrue,
-    );
-  });
+        from: wd(7),
+        to: wd(13),
+      );
+      expect(next.publishedWeeks, [wd(7)]);
+      expect(next.shifts.where((s) => s.changed), isEmpty);
+      await staff.putDay(
+        body: PutDayRequest(
+          employeeId: emp('adham'),
+          onDate: wd(7),
+          shifts: const [],
+          branchId: SeedIds.zamalek,
+        ),
+      );
+      final after = await staff.roster(
+        branchId: SeedIds.zamalek,
+        from: wd(7),
+        to: wd(13),
+      );
+      expect(
+        after.dateSets!.any((d) => d.employeeId == emp('adham') && d.dayOff),
+        isTrue,
+      );
+    },
+  );
 
   test('a day that would overlap is refused 409 SHIFTS_OVERLAP', () async {
     final morning = TeamSeedIds.workShift('sabah', 'morning');
@@ -115,7 +124,11 @@ void main() {
           onDate: wd(0),
           branchId: SeedIds.zamalek,
           shifts: [
-            DayBlock(workShiftId: morning, startTime: '07:00', endTime: '16:00'),
+            DayBlock(
+              workShiftId: morning,
+              startTime: '07:00',
+              endTime: '16:00',
+            ),
             DayBlock(workShiftId: evening),
           ],
         ),
@@ -124,110 +137,115 @@ void main() {
     );
   });
 
-  test('move onto someone already on that block: 409 ALREADY_ROSTERED', () async {
-    final morning = TeamSeedIds.workShift('sabah', 'morning');
-    await expectLater(
-      api().moveShift(
+  test(
+    'move onto someone already on that block: 409 ALREADY_ROSTERED',
+    () async {
+      final morning = TeamSeedIds.workShift('sabah', 'morning');
+      await expectLater(
+        api().moveShift(
+          body: MoveShiftRequest(
+            employeeId: emp('adham'),
+            toEmployeeId: emp('karim'),
+            onDate: wd(0),
+            workShiftId: morning,
+          ),
+        ),
+        refused(409, 'ALREADY_ROSTERED'),
+      );
+    },
+  );
+
+  test(
+    'a move answers both days; the receiver\'s 16 h and short rest warn',
+    () async {
+      final morning = TeamSeedIds.workShift('sabah', 'morning');
+      final moved = await api().moveShift(
         body: MoveShiftRequest(
           employeeId: emp('adham'),
-          toEmployeeId: emp('karim'),
+          toEmployeeId: emp('hassan'),
           onDate: wd(0),
           workShiftId: morning,
         ),
-      ),
-      refused(409, 'ALREADY_ROSTERED'),
-    );
-  });
-
-  test('a move answers both days; the receiver\'s 16 h and short rest warn',
-      () async {
-    final morning = TeamSeedIds.workShift('sabah', 'morning');
-    final moved = await api().moveShift(
-      body: MoveShiftRequest(
-        employeeId: emp('adham'),
-        toEmployeeId: emp('hassan'),
+      );
+      expect(moved.from.shifts, isEmpty);
+      expect(moved.to.shifts, hasLength(2));
+      // Hassan worked the Friday evening until 23:00: 8 h of rest.
+      expect(
+        [for (final w in moved.to.warnings) w.kind],
+        ['day_hours', 'presence', 'rest'],
+      );
+      final back = await api().resetDay(
+        employeeId: emp('hassan'),
         onDate: wd(0),
-        workShiftId: morning,
-      ),
-    );
-    expect(moved.from.shifts, isEmpty);
-    expect(moved.to.shifts, hasLength(2));
-    // Hassan worked the Friday evening until 23:00: 8 h of rest.
-    expect([for (final w in moved.to.warnings) w.kind], [
-      'day_hours',
-      'presence',
-      'rest',
-    ]);
-    final back = await api().resetDay(
-      employeeId: emp('hassan'),
-      onDate: wd(0),
-      branchId: SeedIds.zamalek,
-    );
-    expect(back.followsPattern, isTrue);
-    expect(back.shifts.single.name, 'Evening');
-  });
-
-  test('suggestions: decided ones leave the list; a stale one is refused', () async {
-    final staff = api();
-    final list = await staff.suggestions(
-      branchId: SeedIds.zamalek,
-      weekStart: week,
-    );
-    final pattern = list.firstWhere((g) => g.id.startsWith('pattern|'));
-    expect(pattern.reasonKey, 'staff.sg_pattern_off');
-    for (final g in list.where((g) => !g.id.startsWith('pattern|'))) {
-      expect(g.date.compareTo(today) >= 0, isTrue, reason: 'from today on');
-      expect(g.reasonKey, 'staff.sg_gap');
-    }
-    await staff.decideSuggestion(
-      body: DecideSuggestion(
         branchId: SeedIds.zamalek,
-        id: pattern.id,
-        accept: false,
-      ),
-    );
-    final after = await staff.suggestions(
-      branchId: SeedIds.zamalek,
-      weekStart: week,
-    );
-    expect(after.any((g) => g.id == pattern.id), isFalse);
-    await expectLater(
-      staff.decideSuggestion(
+      );
+      expect(back.followsPattern, isTrue);
+      expect(back.shifts.single.name, 'Evening');
+    },
+  );
+
+  test(
+    'suggestions: decided ones leave the list; a stale one is refused',
+    () async {
+      final staff = api();
+      final list = await staff.suggestions(
+        branchId: SeedIds.zamalek,
+        weekStart: week,
+      );
+      final pattern = list.firstWhere((g) => g.id.startsWith('pattern|'));
+      expect(pattern.reasonKey, 'staff.sg_pattern_off');
+      for (final g in list.where((g) => !g.id.startsWith('pattern|'))) {
+        expect(g.date.compareTo(today) >= 0, isTrue, reason: 'from today on');
+        expect(g.reasonKey, 'staff.sg_gap');
+      }
+      await staff.decideSuggestion(
         body: DecideSuggestion(
           branchId: SeedIds.zamalek,
           id: pattern.id,
-          accept: true,
+          accept: false,
         ),
-      ),
-      refused(409, 'SUGGESTION_STALE'),
-    );
-  });
-
-  test('suggestions need hr.schedule.edit; the roster hr.schedule.read', () async {
-    await expectLater(
-      api(Persona.limited).suggestions(
-        branchId: SeedIds.maadi,
+      );
+      final after = await staff.suggestions(
+        branchId: SeedIds.zamalek,
         weekStart: week,
-      ),
-      refused(403),
-    );
-    await expectLater(
-      api(Persona.limited).roster(
-        branchId: SeedIds.maadi,
-        from: week,
-        to: wd(6),
-      ),
-      refused(403),
-    );
-    await expectLater(
-      api(Persona.manager).roster(
-        branchId: SeedIds.maadi,
-        from: week,
-        to: wd(6),
-      ),
-      refused(403),
-    );
-  });
+      );
+      expect(after.any((g) => g.id == pattern.id), isFalse);
+      await expectLater(
+        staff.decideSuggestion(
+          body: DecideSuggestion(
+            branchId: SeedIds.zamalek,
+            id: pattern.id,
+            accept: true,
+          ),
+        ),
+        refused(409, 'SUGGESTION_STALE'),
+      );
+    },
+  );
+
+  test(
+    'suggestions need hr.schedule.edit; the roster hr.schedule.read',
+    () async {
+      await expectLater(
+        api(
+          Persona.limited,
+        ).suggestions(branchId: SeedIds.maadi, weekStart: week),
+        refused(403),
+      );
+      await expectLater(
+        api(
+          Persona.limited,
+        ).roster(branchId: SeedIds.maadi, from: week, to: wd(6)),
+        refused(403),
+      );
+      await expectLater(
+        api(
+          Persona.manager,
+        ).roster(branchId: SeedIds.maadi, from: week, to: wd(6)),
+        refused(403),
+      );
+    },
+  );
 
   test('a range over 62 days is refused 400 RANGE_TOO_WIDE', () async {
     await expectLater(
@@ -358,7 +376,11 @@ void main() {
     await expectLater(
       staff.putEmployeePreferences(
         id: emp('adham'),
-        body: Preferences(prefTime: null, cantWorkDays: const [], note: 'x' * 301),
+        body: Preferences(
+          prefTime: null,
+          cantWorkDays: const [],
+          note: 'x' * 301,
+        ),
       ),
       refused(400),
     );

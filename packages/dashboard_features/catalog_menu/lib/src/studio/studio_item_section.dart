@@ -103,9 +103,7 @@ class StudioItemSection extends ConsumerWidget {
           onPickImage(file);
           return _staged;
         },
-        onRemove: onRemoveImage == null
-            ? null
-            : () async => onRemoveImage!(),
+        onRemove: onRemoveImage == null ? null : () async => onRemoveImage!(),
         imageBuilder: (context, url) => url == _staged && pendingBytes != null
             ? Image.memory(pendingBytes!, fit: BoxFit.cover)
             : url == _processing

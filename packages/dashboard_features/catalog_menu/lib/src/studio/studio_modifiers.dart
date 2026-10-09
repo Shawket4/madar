@@ -5,8 +5,7 @@
 /// "New group" opens the choice-group editor and attaches what it saves.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show GroupOut;
+import 'package:dashboard_api/dashboard_api.dart' show GroupOut;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -61,7 +60,9 @@ class StudioModifiersSection extends ConsumerWidget {
     // Another item's own options set is not a reusable group.
     final pickable = [
       for (final g in all)
-        if (g.isActive && g.isItemOptions != true && !attachedIds.contains(g.id))
+        if (g.isActive &&
+            g.isItemOptions != true &&
+            !attachedIds.contains(g.id))
           g,
     ];
 
@@ -145,7 +146,9 @@ class StudioModifiersSection extends ConsumerWidget {
                     _OptionChip(
                       key: ValueKey('chip-${a.groupId}-${o.id}'),
                       label: o.name,
-                      price: o.price > 0 ? fmt.fmtMoney(o.price, signed: true) : null,
+                      price: o.price > 0
+                          ? fmt.fmtMoney(o.price, signed: true)
+                          : null,
                       offered: a.offers(o.id),
                       onTap: () => update(i, a.toggle(o.id)),
                     ),
@@ -216,8 +219,7 @@ class StudioModifiersSection extends ConsumerWidget {
                       DashSwitch(
                         value: a.isRequired,
                         semanticLabel: t('menu.studio.modifiers.required'),
-                        onChanged: (v) =>
-                            update(i, a.copyWith(isRequired: v)),
+                        onChanged: (v) => update(i, a.copyWith(isRequired: v)),
                       ),
                       Text(
                         t('menu.studio.modifiers.required'),
@@ -277,7 +279,8 @@ class StudioModifiersSection extends ConsumerWidget {
                     DashOption(
                       value: g.id,
                       label: g.name,
-                      hint: g.legacyAddonType == null ||
+                      hint:
+                          g.legacyAddonType == null ||
                               g.legacyAddonType!.isEmpty
                           ? t('menu.studio.modifiers.option')
                           : humanizeAddonType(g.legacyAddonType!),
@@ -375,7 +378,11 @@ class _OptionChip extends StatelessWidget {
               spacing: Space.xs,
               children: [
                 if (offered)
-                  DashIcon('check', size: IconSize.xs - 2, color: c.textPrimary),
+                  DashIcon(
+                    'check',
+                    size: IconSize.xs - 2,
+                    color: c.textPrimary,
+                  ),
                 Text(
                   label,
                   style: DashType.smallMedium.copyWith(
@@ -419,7 +426,10 @@ class _CountField extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       spacing: Space.sm,
       children: [
-        Text(label, style: DashType.smallMedium.copyWith(color: c.textSecondary)),
+        Text(
+          label,
+          style: DashType.smallMedium.copyWith(color: c.textSecondary),
+        ),
         SizedBox(
           width: Space.xxl * 2 + Space.lg,
           child: DashTextInput(

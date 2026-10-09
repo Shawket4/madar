@@ -4,8 +4,7 @@
 /// decides (MENU-STUDIO-112).
 library;
 
-import 'package:dashboard_api/dashboard_api.dart'
-    show OrgIngredient;
+import 'package:dashboard_api/dashboard_api.dart' show OrgIngredient;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -21,8 +20,12 @@ import 'studio_widgets.dart';
 /// The price box (`w-32`), and the width where Name (`min-w-40`), Price,
 /// Active and the trash share one line.
 const double _priceWidth = Space.xxl * 4;
-const double _oneLine = Space.xxl * 5 + _priceWidth + Space.xxl * 3 +
-    DashMetrics.target + Space.md * 3;
+const double _oneLine =
+    Space.xxl * 5 +
+    _priceWidth +
+    Space.xxl * 3 +
+    DashMetrics.target +
+    Space.md * 3;
 
 class StudioOptionsSection extends ConsumerWidget {
   const StudioOptionsSection({
@@ -54,7 +57,10 @@ class StudioOptionsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.xs,
       children: [
-        Text(label, style: DashType.smallMedium.copyWith(color: c.textSecondary)),
+        Text(
+          label,
+          style: DashType.smallMedium.copyWith(color: c.textSecondary),
+        ),
         child,
       ],
     );
@@ -137,7 +143,12 @@ class StudioOptionsSection extends ConsumerWidget {
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     spacing: Space.md,
-                    children: [Expanded(child: name), price, active, remove],
+                    children: [
+                      Expanded(child: name),
+                      price,
+                      active,
+                      remove,
+                    ],
                   );
                 }
                 return Column(
@@ -147,7 +158,10 @@ class StudioOptionsSection extends ConsumerWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       spacing: Space.md,
-                      children: [Expanded(child: name), price],
+                      children: [
+                        Expanded(child: name),
+                        price,
+                      ],
                     ),
                     Row(children: [active, const Spacer(), remove]),
                   ],
@@ -182,7 +196,10 @@ class StudioOptionsSection extends ConsumerWidget {
                       emptyText: t('common.noResults'),
                       onChanged: (v) => set(
                         i,
-                        r.copyWith(ingredientId: v, unit: byId[v]?.unit ?? r.unit),
+                        r.copyWith(
+                          ingredientId: v,
+                          unit: byId[v]?.unit ?? r.unit,
+                        ),
                       ),
                     ),
                   ),
@@ -218,10 +235,8 @@ class StudioOptionsSection extends ConsumerWidget {
                       label: t('common.clear'),
                       variant: DashButtonVariant.link,
                       size: DashButtonSize.compact,
-                      onPressed: () => set(
-                        i,
-                        r.copyWith(ingredientId: '', quantity: ''),
-                      ),
+                      onPressed: () =>
+                          set(i, r.copyWith(ingredientId: '', quantity: '')),
                     ),
                   ],
                 ],

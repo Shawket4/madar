@@ -126,8 +126,10 @@ Future<void> pickMenu(DashHarness h, String label) =>
 /// Taps [label] in the confirm dialog (its button: the title may say the
 /// same).
 Future<void> confirm(DashHarness h, String label) => h.tap(
-  find.descendant(
-    of: find.byType(DashConfirmDialog),
-    matching: find.text(label),
-  ).last,
+  find
+      .descendant(
+        of: find.byType(DashConfirmDialog),
+        matching: find.text(label),
+      )
+      .last,
 );

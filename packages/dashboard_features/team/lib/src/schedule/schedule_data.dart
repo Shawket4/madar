@@ -99,7 +99,8 @@ int _hourOf(String t) => int.parse(t.substring(0, 2));
 /// A band's end hour: a partial hour rounds up.
 int _endHour(String t) {
   final p = t.split(':').map(int.parse).toList();
-  return p[0] + ((p.length > 1 && p[1] != 0) || (p.length > 2 && p[2] != 0) ? 1 : 0);
+  return p[0] +
+      ((p.length > 1 && p[1] != 0) || (p.length > 2 && p[2] != 0) ? 1 : 0);
 }
 
 /// Bands (department-wide only) → one cell per weekday and hour.

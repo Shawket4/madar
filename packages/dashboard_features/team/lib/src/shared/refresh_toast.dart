@@ -56,8 +56,12 @@ void showStaffRefreshFailure(
   }
   // The web's `getErrorMessage`: an uncoded 429 reads "Too many requests
   // just now…" in the person's language, never the server's English.
-  final f = ProviderScope.containerOf(context, listen: false).read(
-    formatProvider,
+  final f = ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(formatProvider);
+  _shown[id] = (
+    DashToast.error(context, attendanceErrorText(error, t, f)),
+    now,
   );
-  _shown[id] = (DashToast.error(context, attendanceErrorText(error, t, f)), now);
 }

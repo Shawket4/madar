@@ -12,12 +12,7 @@ void main() {
   for (final size in DashSize.values) {
     for (final (lang, dark) in [('en', false), ('ar', true)]) {
       testWidgets('default, ${size.name} $lang', (tester) async {
-        final h = await pumpRules(
-          tester,
-          size: size,
-          locale: lang,
-          dark: dark,
-        );
+        final h = await pumpRules(tester, size: size, locale: lang, dark: dark);
         await shootPage(h, 'default');
       });
     }
@@ -69,9 +64,11 @@ void main() {
         RulesKeys.scope,
         h.t('staff.rulesBranchOwn', args: {'name': 'Zamalek'}),
       );
-      await h.tap(find.bySemanticsLabel(
-        h.t('staff.rulesInherit', args: {'rule': h.t('dawam.limitDay')}),
-      ));
+      await h.tap(
+        find.bySemanticsLabel(
+          h.t('staff.rulesInherit', args: {'rule': h.t('dawam.limitDay')}),
+        ),
+      );
       await typeIn(h, RulesKeys.workingDays, '24');
       await shootPage(h, 'branch');
       await tapKey(h, RulesKeys.save);

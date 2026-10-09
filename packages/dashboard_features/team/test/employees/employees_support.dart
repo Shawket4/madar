@@ -91,9 +91,8 @@ MockRow empRow(MockDb db, String key) => db['employees'].find(emp(key))!;
 /// Sabah's people as GET /staff/employees lists them (by name).
 List<MockRow> sabahPeople(MockDb db) =>
     db['employees'].where((e) => e['org_id'] == SeedIds.sabahOrg)..sort(
-      (a, b) => '${a['name']}'.toLowerCase().compareTo(
-        '${b['name']}'.toLowerCase(),
-      ),
+      (a, b) =>
+          '${a['name']}'.toLowerCase().compareTo('${b['name']}'.toLowerCase()),
     );
 
 /// Nobody at Sabah at all.

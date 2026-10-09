@@ -238,7 +238,9 @@ class _CoverageCardState extends ConsumerState<CoverageCard> {
                                   ),
                                   child: DashTextInput(
                                     key: ValueKey('coverage-$d-$h'),
-                                    value: _grid[coverageKey(d, h)]?.toString() ?? '',
+                                    value:
+                                        _grid[coverageKey(d, h)]?.toString() ??
+                                        '',
                                     placeholder: derived[coverageKey(d, h)]
                                         ?.toString(),
                                     semanticLabel: '${day(d)} ${hourLabel(h)}',

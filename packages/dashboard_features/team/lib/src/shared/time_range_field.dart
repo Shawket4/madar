@@ -110,9 +110,8 @@ class TeamTimeRangeField extends ConsumerWidget {
           : len;
     }
 
-    String spoken(String label) => hideLabels && groupLabel != null
-        ? '$groupLabel: $label'
-        : label;
+    String spoken(String label) =>
+        hideLabels && groupLabel != null ? '$groupLabel: $label' : label;
 
     Widget labelled(String label, Widget field) => hideLabels
         ? field

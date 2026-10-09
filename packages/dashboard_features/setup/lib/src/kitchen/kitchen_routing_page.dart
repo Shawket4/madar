@@ -279,9 +279,11 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
         key: const ValueKey('routing-error'),
         title: t('kitchen.routingLoadFailed'),
         message: errorMessage(failedQ.error, t),
-        retrying: [stationsQ, categoriesQ, routesQ].any(
-          (q) => q?.isLoading ?? false,
-        ),
+        retrying: [
+          stationsQ,
+          categoriesQ,
+          routesQ,
+        ].any((q) => q?.isLoading ?? false),
         onRetry: () {
           ref.invalidate(kitchenStationsProvider(branchId));
           if (orgId != null) ref.invalidate(kitchenCategoriesProvider(orgId));

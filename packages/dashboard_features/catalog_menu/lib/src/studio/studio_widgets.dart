@@ -4,7 +4,10 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show AssetGroupRefProcessingGroupRef, AssetGroupRefReadyGroupRef, StudioAggregate;
+    show
+        AssetGroupRefProcessingGroupRef,
+        AssetGroupRefReadyGroupRef,
+        StudioAggregate;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -162,11 +165,7 @@ class StudioHint extends StatelessWidget {
 
 /// A dashed, full-width "+ Add …" button (the web's dashed add rows).
 class StudioDashedAdd extends StatelessWidget {
-  const StudioDashedAdd({
-    required this.label,
-    required this.onTap,
-    super.key,
-  });
+  const StudioDashedAdd({required this.label, required this.onTap, super.key});
 
   final String label;
   final VoidCallback? onTap;

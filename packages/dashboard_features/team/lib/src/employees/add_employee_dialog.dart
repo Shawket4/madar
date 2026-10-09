@@ -156,7 +156,12 @@ class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
               baseSalaryPiastres: canSetSalary && _salary.trim().isNotEmpty
                   ? readPounds(_salary)
                   : null,
-              explicitNulls: const {'phone', 'job_title', 'hire_date', 'gender'},
+              explicitNulls: const {
+                'phone',
+                'job_title',
+                'hire_date',
+                'gender',
+              },
             ),
           );
       staff.invalidateStaff();

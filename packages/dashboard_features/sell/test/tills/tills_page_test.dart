@@ -17,9 +17,10 @@ String get _helio => SeedIds.heliopolis;
 
 /// Texts of [finder]'s RichTexts, joined.
 String textsOf(WidgetTester tester, Finder finder) => [
-  for (final e in find
-      .descendant(of: finder, matching: find.byType(RichText))
-      .evaluate())
+  for (final e
+      in find
+          .descendant(of: finder, matching: find.byType(RichText))
+          .evaluate())
     (e.widget as RichText).text.toPlainText(),
 ].join(' | ');
 
@@ -52,7 +53,10 @@ void main() {
       h.server.callsTo(tillsCurrent).single.path,
       '/tills/branches/$_helio/current',
     );
-    expect(h.server.callsTo(tillsOpen).single.path, '/tills/branches/$_helio/open');
+    expect(
+      h.server.callsTo(tillsOpen).single.path,
+      '/tills/branches/$_helio/open',
+    );
     expect(
       h.server.callsTo(tillsNotice).single.path,
       '/tills/branches/$_helio/open-bills-notice',
@@ -62,9 +66,7 @@ void main() {
     expect(list.query, isEmpty);
   });
 
-  testWidgets('SELL-TIL-003 Status filter → ?status= → status', (
-    tester,
-  ) async {
+  testWidgets('SELL-TIL-003 Status filter → ?status= → status', (tester) async {
     final h = await pumpTills(tester);
     expect(
       filterOptions(h, 'filter-status'),
@@ -92,10 +94,7 @@ void main() {
       'teller_id': [SeedIds.user('farida')],
     });
     // The rows now hold Farida only, so the other tellers are gone.
-    expect(filterOptions(h, 'filter-teller'), [
-      'All tellers',
-      'Farida Wael',
-    ]);
+    expect(filterOptions(h, 'filter-teller'), ['All tellers', 'Farida Wael']);
   });
 
   testWidgets('SELL-TIL-005 Device filter: label, else code → device_id', (
@@ -131,10 +130,7 @@ void main() {
         if (!DateTime.parse(t['opened_at']! as String).isBefore(midnight)) t,
     ];
     expect(today, isNotEmpty);
-    expect(
-      inKey('all-tills', find.text('${today.length}')),
-      findsOneWidget,
-    );
+    expect(inKey('all-tills', find.text('${today.length}')), findsOneWidget);
   });
 
   testWidgets('SELL-TIL-007 Flagged only → flagged=true; unchecking drops it', (
@@ -191,10 +187,7 @@ void main() {
     expect(text('flagged'), allOf(contains('Flagged in list'), contains('1')));
     expect(tester.widget<DashStatCard>(card('open')).tone, DashTone.success);
     expect(tester.widget<DashStatCard>(card('old')).tone, DashTone.warning);
-    expect(
-      tester.widget<DashStatCard>(card('flagged')).tone,
-      DashTone.warning,
-    );
+    expect(tester.widget<DashStatCard>(card('flagged')).tone, DashTone.warning);
   });
 
   testWidgets('SELL-TIL-010 the bills line: count since the last close, the '
@@ -234,8 +227,10 @@ void main() {
     );
     await h.tap(row);
     expect(h.location.queryParameters['report'], TillIds.helioSecond);
-    expect(h.server.callsTo(tillReport).last.path,
-        '/tills/${TillIds.helioSecond}/report');
+    expect(
+      h.server.callsTo(tillReport).last.path,
+      '/tills/${TillIds.helioSecond}/report',
+    );
     expect(find.text('Till Report'), findsOneWidget);
   });
 
@@ -255,7 +250,9 @@ void main() {
     expect(
       find.descendant(
         of: empty,
-        matching: find.text('A till opens when a teller starts selling on a POS.'),
+        matching: find.text(
+          'A till opens when a teller starts selling on a POS.',
+        ),
       ),
       findsOneWidget,
     );
@@ -266,8 +263,10 @@ void main() {
   ) async {
     final h = await pumpTills(tester);
     final head = find.byKey(const ValueKey('all-tills'));
-    expect(find.descendant(of: head, matching: find.text('All tills')),
-        findsOneWidget);
+    expect(
+      find.descendant(of: head, matching: find.text('All tills')),
+      findsOneWidget,
+    );
     expect(
       find.descendant(
         of: head,
@@ -290,7 +289,13 @@ void main() {
     s.db['tills'].get(even)['cash_discrepancy'] = 0;
     await pumpTills(tester, server: s.server, db: s.db);
     final text = textsOf(tester, tillsTable);
-    for (final h in ['TELLER', 'DEVICE', 'STATUS', 'OPENING CASH', 'DISCREPANCY']) {
+    for (final h in [
+      'TELLER',
+      'DEVICE',
+      'STATUS',
+      'OPENING CASH',
+      'DISCREPANCY',
+    ]) {
       expect(text, contains(h));
     }
     expect(text, isNot(contains('BRANCH')));
@@ -311,8 +316,10 @@ void main() {
   testWidgets('SELL-TIL-015/056 All branches: the Branch column, no KPIs, no '
       'Open now, no Open till; only the list is read', (tester) async {
     final h = await pumpTills(tester, allBranches: true);
-    expect(h.server.callsTo(tillsList).single.path,
-        '/tills/branches/$allBranchesId');
+    expect(
+      h.server.callsTo(tillsList).single.path,
+      '/tills/branches/$allBranchesId',
+    );
     expect(h.server.callsTo(tillsCurrent), isEmpty);
     expect(h.server.callsTo(tillsOpen), isEmpty);
     expect(h.server.callsTo(tillsNotice), isEmpty);
@@ -328,10 +335,7 @@ void main() {
   testWidgets('SELL-TIL-017/018 status pills and verification badges', (
     tester,
   ) async {
-    final h = await pumpTills(
-      tester,
-      branchId: SeedIds.newCairo,
-    );
+    final h = await pumpTills(tester, branchId: SeedIds.newCairo);
     final unverified = find.byKey(
       ValueKey('till-badges-${TillIds.newCairoLastMorning}'),
     );
@@ -356,7 +360,11 @@ void main() {
   });
 
   testWidgets('SELL-TIL-017 force closed pill', (tester) async {
-    await pumpTills(tester, branchId: SeedIds.maadi, query: 'status=force_closed');
+    await pumpTills(
+      tester,
+      branchId: SeedIds.maadi,
+      query: 'status=force_closed',
+    );
     final badges = find.byKey(ValueKey('till-badges-${TillIds.maadiForced}'));
     final pill = tester.widget<DashStatusPill>(
       find.descendant(of: badges, matching: find.byType(DashStatusPill)).first,
@@ -460,7 +468,10 @@ void main() {
       times: null,
     );
     final h = await pumpTills(tester, server: s.server, db: s.db);
-    expect(inKey('tills-table', find.text("Couldn't load this")), findsOneWidget);
+    expect(
+      inKey('tills-table', find.text("Couldn't load this")),
+      findsOneWidget,
+    );
     expect(inKey('tills-table', find.text('connection reset')), findsOneWidget);
     s.server.clearFailures();
     final before = h.server.calls.length;
@@ -468,13 +479,15 @@ void main() {
     await h.tap(inKey('tills-table', find.text('Retry')));
     // While the retry is out the failure stays; never "No tills yet".
     expect(inPage(find.text('No tills yet')), findsNothing);
-    expect(inKey('tills-table', find.text("Couldn't load this")), findsOneWidget);
+    expect(
+      inKey('tills-table', find.text("Couldn't load this")),
+      findsOneWidget,
+    );
     gate.release();
     await h.settle();
-    expect(
-      h.server.calls.skip(before).map((c) => c.template).toSet(),
-      {tillsList},
-    );
+    expect(h.server.calls.skip(before).map((c) => c.template).toSet(), {
+      tillsList,
+    });
     expect(inKey('tills-table', find.text('Farida Wael')), findsWidgets);
   });
 
@@ -508,7 +521,13 @@ void main() {
       matching: find.byType(DashCard),
     );
     final text = textsOf(tester, card);
-    for (final w in ['Ali Hassan', 'Device', 'Status', 'Opening Cash', 'Discrepancy']) {
+    for (final w in [
+      'Ali Hassan',
+      'Device',
+      'Status',
+      'Opening Cash',
+      'Discrepancy',
+    ]) {
       expect(text, contains(w));
     }
     await h.tap(card.first);
@@ -521,7 +540,13 @@ void main() {
     final h = await pumpTills(tester, query: 'report=${TillIds.helioMorning}');
     int count(String t) => h.server.callsTo(t).length;
     final before = {
-      for (final t in [tillsOpen, tillsNotice, tillsList, tillsCurrent, tillReport])
+      for (final t in [
+        tillsOpen,
+        tillsNotice,
+        tillsList,
+        tillsCurrent,
+        tillReport,
+      ])
         t: count(t),
     };
     h.realtime.current!.emit('till.cash_moved', data: '{}');
@@ -540,17 +565,20 @@ void main() {
     final sheet = wb.sheets.single;
     expect(sheet.name, 'Tills');
     expect(sheet.title, 'Tills');
-    expect([for (final c in sheet.columns) c.header], [
-      'Opened',
-      'Teller',
-      'Device',
-      'Status',
-      'Opening Cash',
-      'Cash counted in drawer',
-      'Discrepancy',
-      'Opened while another till was open',
-      'Payment check',
-    ]);
+    expect(
+      [for (final c in sheet.columns) c.header],
+      [
+        'Opened',
+        'Teller',
+        'Device',
+        'Status',
+        'Opening Cash',
+        'Cash counted in drawer',
+        'Discrepancy',
+        'Opened while another till was open',
+        'Payment check',
+      ],
+    );
     expect(sheet.rows.single.sublist(1, 4), ['Ali Hassan', 'T3', 'Open']);
     expect(sheet.rows.single[7], '✓');
     expect(h.files.saved.single.filename, startsWith('Madar-Tills-'));
@@ -567,7 +595,9 @@ void main() {
       ..failNext = StateError('disk full');
     await h.tap(find.byKey(const ValueKey('tills-export')));
     expect(
-      tester.widget<DashExportButton>(find.byKey(const ValueKey('tills-export'))).loading,
+      tester
+          .widget<DashExportButton>(find.byKey(const ValueKey('tills-export')))
+          .loading,
       isTrue,
     );
     gate.complete();
@@ -612,10 +642,9 @@ void main() {
     s.server.clearFailures();
     final before = h.server.calls.length;
     await h.tap(find.descendant(of: error, matching: find.text('Retry')));
-    expect(
-      h.server.calls.skip(before).map((c) => c.template).toSet(),
-      {tillsOpen},
-    );
+    expect(h.server.calls.skip(before).map((c) => c.template).toSet(), {
+      tillsOpen,
+    });
     expect(
       find.byKey(ValueKey('open-now-${TillIds.helioMorning}')),
       findsOneWidget,

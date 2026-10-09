@@ -13,6 +13,7 @@ import '../customers/customers_data.dart' show apiWithHeaders;
 import '../customers/customers_list.dart' show runExcelExport;
 import 'export_data.dart';
 import 'orders_providers.dart';
+import '../shared/export_logo.dart';
 
 /// The sheet's width from `sm` (`sm:max-w-lg`).
 const double ordersExportWidth = 512;
@@ -24,8 +25,7 @@ Future<void> showOrdersExport(
 }) => showDashSidePanel<void>(
   context,
   width: ordersExportWidth,
-  builder: (_) =>
-      OrdersExportSheet(filters: filters, listKey: listKey),
+  builder: (_) => OrdersExportSheet(filters: filters, listKey: listKey),
 );
 
 class OrdersExportSheet extends ConsumerStatefulWidget {
@@ -72,7 +72,10 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
     setState(() => _busy = true);
     try {
       final m = f.merged(_preset);
-      final api = apiWithHeaders(ref.read(transportProvider), exportRequestHeaders);
+      final api = apiWithHeaders(
+        ref.read(transportProvider),
+        exportRequestHeaders,
+      );
       final res = await api.orders.exportOrders(
         branchId: m.branchId,
         tillId: m.till,
@@ -109,7 +112,7 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
           filename: _filename.isEmpty ? defaultName : _filename,
           sheets: sheets,
           meta: exportMeta(t: t, fmt: fmt, branchName: branchName, f: m),
-          logoUrl: brand?.customBranding == true ? brand?.logoUrl : null,
+          logoUrl: exportLogoOf(brand),
         ),
       );
       if (mounted) Navigator.of(context).pop();
@@ -275,7 +278,9 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
                   child: _SummaryItem(
                     label: t('common.date'),
                     value: m.from != null && m.to != null
-                        ? ltr('${m.from!.substring(0, 10)} → ${m.to!.substring(0, 10)}')
+                        ? ltr(
+                            '${m.from!.substring(0, 10)} → ${m.to!.substring(0, 10)}',
+                          )
                         : t('orders.allTime'),
                   ),
                 ),
@@ -372,7 +377,10 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
               'ordersExport.rowEstimate',
               args: {
                 'count':
-                    ref.watch(ordersListProvider(widget.listKey)).value?.total ??
+                    ref
+                        .watch(ordersListProvider(widget.listKey))
+                        .value
+                        ?.total ??
                     0,
               },
             ),
@@ -425,14 +433,21 @@ class _Footer extends StatelessWidget {
           text,
           Row(
             spacing: Space.sm,
-            children: [Expanded(child: cancel), Expanded(child: run)],
+            children: [
+              Expanded(child: cancel),
+              Expanded(child: run),
+            ],
           ),
         ],
       );
     }
     return Row(
       spacing: Space.sm,
-      children: [Expanded(child: text), cancel, run],
+      children: [
+        Expanded(child: text),
+        cancel,
+        run,
+      ],
     );
   }
 }
@@ -496,8 +511,14 @@ class _PresetCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 spacing: DashMetrics.hair,
                 children: [
-                  Text(label, style: DashType.bodyStrong.copyWith(color: c.textPrimary)),
-                  Text(description, style: DashType.small.copyWith(color: c.textSecondary)),
+                  Text(
+                    label,
+                    style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+                  ),
+                  Text(
+                    description,
+                    style: DashType.small.copyWith(color: c.textSecondary),
+                  ),
                 ],
               ),
             ),

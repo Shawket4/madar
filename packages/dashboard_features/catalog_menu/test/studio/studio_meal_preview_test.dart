@@ -49,7 +49,8 @@ Future<void> openSlot(DashHarness h) async {
   await h.tap(triggers.last);
 }
 
-Map<String, Object?> lastPreview(DashHarness h) => lastBody(h, 'POST', previewT);
+Map<String, Object?> lastPreview(DashHarness h) =>
+    lastBody(h, 'POST', previewT);
 
 void main() {
   group('MENU-STUDIO-090..098 make it a meal', () {
@@ -114,13 +115,14 @@ void main() {
       expect(off.onPressed, isNull);
       await openCombo(h);
       await h.tap(option('Breakfast Combo'));
-      expect(lastCall(h, 'GET', comboT).path, '/combos/${comboId('breakfast')}');
+      expect(
+        lastCall(h, 'GET', comboT).path,
+        '/combos/${comboId('breakfast')}',
+      );
       // The only slot that takes the item is chosen by itself.
       expect(studioText('Hot drink'), findsOneWidget);
       expect(
-        studioText(
-          h.t('combos.meal.preview', args: {'delta': '+EGP 35.00'}),
-        ),
+        studioText(h.t('combos.meal.preview', args: {'delta': '+EGP 35.00'})),
         findsOneWidget,
       );
       await h.shot('studio/meal-picked');
@@ -131,9 +133,9 @@ void main() {
       });
       await h.expectToast(h.t('combos.meal.saved'));
       expect(
-        h.server.callsTo(itemT, method: 'GET').where(
-          (c) => c.path == '/menu-items/$_latte',
-        ),
+        h.server
+            .callsTo(itemT, method: 'GET')
+            .where((c) => c.path == '/menu-items/$_latte'),
         hasLength(2),
       );
       // Saved: no Discard; the button is disabled again.
@@ -144,7 +146,12 @@ void main() {
       tester,
     ) async {
       final s = studioServer();
-      seedBreakfastCombo(s.db, drinkSlot: false, key: 'box', name: 'Pastry Box');
+      seedBreakfastCombo(
+        s.db,
+        drinkSlot: false,
+        key: 'box',
+        name: 'Pastry Box',
+      );
       final h = await pumpStudio(tester, seeded: s);
       await openCombo(h);
       await h.tap(option('Pastry Box'));
@@ -238,7 +245,10 @@ void main() {
       seedBreakfastCombo(s.db);
       final h = await pumpStudio(tester, persona: Persona.manager, seeded: s);
       final trigger = tester.widget<DashSelectTrigger>(
-        inSection(h.t('combos.meal.title'), find.byType(DashSelectTrigger)).first,
+        inSection(
+          h.t('combos.meal.title'),
+          find.byType(DashSelectTrigger),
+        ).first,
       );
       expect(trigger.enabled, isFalse);
       expect(studioText(h.t('combos.meal.turnOff')), findsNothing);
@@ -304,28 +314,32 @@ void main() {
       expect(selected(tester, 'Regular'), isFalse);
     });
 
-    testWidgets('MENU-STUDIO-102/106 a single choice replaces; the price line', (
-      tester,
-    ) async {
-      final h = await pumpStudio(tester);
-      expect(chip('Full cream ${h.t('modeling.preview.default')}'), findsOneWidget);
-      await h.tap(chip('Oat milk +25'));
-      expect(selected(tester, 'Oat milk +25'), isTrue);
-      expect(
-        selected(tester, 'Full cream ${h.t('modeling.preview.default')}'),
-        isFalse,
-      );
-      expect(
-        inStudio(find.byKey(const ValueKey('preview-price-line'))),
-        findsOneWidget,
-      );
-      expect(studioHas('115 + 25 = 140'), findsOneWidget);
-      // Multi choice: toggles.
-      await h.tap(chip('Extra shot +30'));
-      expect(studioHas('115 + 25 + 30 = 170'), findsOneWidget);
-      await h.tap(chip('Extra shot +30'));
-      expect(studioHas('115 + 25 = 140'), findsOneWidget);
-    });
+    testWidgets(
+      'MENU-STUDIO-102/106 a single choice replaces; the price line',
+      (tester) async {
+        final h = await pumpStudio(tester);
+        expect(
+          chip('Full cream ${h.t('modeling.preview.default')}'),
+          findsOneWidget,
+        );
+        await h.tap(chip('Oat milk +25'));
+        expect(selected(tester, 'Oat milk +25'), isTrue);
+        expect(
+          selected(tester, 'Full cream ${h.t('modeling.preview.default')}'),
+          isFalse,
+        );
+        expect(
+          inStudio(find.byKey(const ValueKey('preview-price-line'))),
+          findsOneWidget,
+        );
+        expect(studioHas('115 + 25 = 140'), findsOneWidget);
+        // Multi choice: toggles.
+        await h.tap(chip('Extra shot +30'));
+        expect(studioHas('115 + 25 + 30 = 170'), findsOneWidget);
+        await h.tap(chip('Extra shot +30'));
+        expect(studioHas('115 + 25 = 140'), findsOneWidget);
+      },
+    );
 
     testWidgets('MENU-STUDIO-102 a required single choice cannot be cleared; '
         'required groups are starred', (tester) async {
@@ -367,20 +381,24 @@ void main() {
       expect(ids.length, greaterThanOrEqualTo(2));
     });
 
-    testWidgets('MENU-STUDIO-104/107 dine-in skips packaging (struck through)', (
-      tester,
-    ) async {
-      final h = await pumpStudio(tester);
-      expect(studioPlain('12oz paper cup · 1'), findsOneWidget);
-      expect(studioHas(h.t('modeling.preview.source.packaging')), findsWidgets);
-      await h.tap(chip(h.t('modeling.preview.dineIn')));
-      expect(lastPreview(h)['service_mode'], 'dine_in');
-      final cup = tester.widget<Text>(
-        studioPlain('12oz paper cup · 1').first,
-      );
-      expect(cup.style?.decoration, TextDecoration.lineThrough);
-      expect(studioHas('skipped on dine-in'), findsWidgets);
-    });
+    testWidgets(
+      'MENU-STUDIO-104/107 dine-in skips packaging (struck through)',
+      (tester) async {
+        final h = await pumpStudio(tester);
+        expect(studioPlain('12oz paper cup · 1'), findsOneWidget);
+        expect(
+          studioHas(h.t('modeling.preview.source.packaging')),
+          findsWidgets,
+        );
+        await h.tap(chip(h.t('modeling.preview.dineIn')));
+        expect(lastPreview(h)['service_mode'], 'dine_in');
+        final cup = tester.widget<Text>(
+          studioPlain('12oz paper cup · 1').first,
+        );
+        expect(cup.style?.decoration, TextDecoration.lineThrough);
+        expect(studioHas('skipped on dine-in'), findsWidgets);
+      },
+    );
 
     testWidgets('MENU-STUDIO-105 the quantity stepper', (tester) async {
       final h = await pumpStudio(tester);
@@ -388,7 +406,9 @@ void main() {
       expect(
         tester
             .widget<DashIconButton>(
-              find.ancestor(of: dec, matching: find.byType(DashIconButton)).first,
+              find
+                  .ancestor(of: dec, matching: find.byType(DashIconButton))
+                  .first,
             )
             .onPressed,
         isNull,
@@ -416,7 +436,10 @@ void main() {
       );
       await h.go(studioPath('pistachio_latte'));
       expect(studioHas(h.t('modeling.preview.costPartial')), findsOneWidget);
-      expect(studioHas(h.t('modeling.preview.margin', args: {'pct': ''})), findsNothing);
+      expect(
+        studioHas(h.t('modeling.preview.margin', args: {'pct': ''})),
+        findsNothing,
+      );
     });
 
     testWidgets('MENU-STUDIO-109 warnings with their rule; none: "No issues '
@@ -462,7 +485,10 @@ void main() {
       final h = await pumpStudio(tester, seeded: s);
       expect(
         studioText(
-          h.t('modeling.preview.error', args: {'error': h.refusalWords(failure)}),
+          h.t(
+            'modeling.preview.error',
+            args: {'error': h.refusalWords(failure)},
+          ),
         ),
         findsOneWidget,
       );

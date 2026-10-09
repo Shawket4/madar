@@ -67,7 +67,10 @@ void _moreItems(MockDb db, int n) {
       ...template,
       'id': mockUuid('menu-item:extra-$i'),
       'name': 'Zaatar Manousheh $i',
-      'name_translations': {'en': 'Zaatar Manousheh $i', 'ar': 'منقوشة زعتر $i'},
+      'name_translations': {
+        'en': 'Zaatar Manousheh $i',
+        'ar': 'منقوشة زعتر $i',
+      },
       'category_id': _cat('breakfast'),
     });
   }
@@ -163,7 +166,10 @@ void main() {
       final h = await pumpKitchen(tester, path: routingPath, query: maadi);
       final empty = inRouting(byKey('routing-no-stations'));
       expect(
-        find.descendant(of: empty, matching: find.text('Create a station first')),
+        find.descendant(
+          of: empty,
+          matching: find.text('Create a station first'),
+        ),
         findsOneWidget,
       );
       expect(
@@ -195,7 +201,10 @@ void main() {
         inRouting(find.byType(DashSegmentedControl<KitchenRoutingTab>)),
       );
       expect(seg.value, KitchenRoutingTab.categories);
-      expect([for (final o in seg.options) o.label], ['By category', 'Per item']);
+      expect(
+        [for (final o in seg.options) o.label],
+        ['By category', 'Per item'],
+      );
       final export = tester.widget<DashButton>(
         find.descendant(
           of: inRouting(byKey('routing-export')),
@@ -235,11 +244,10 @@ void main() {
       expect(_shown(tester, _catSelect('breakfast')), 'Kitchen');
       expect(_shown(tester, _catSelect('dessert')), 'Default / unassigned');
       final s = _select(tester, _catSelect('hot'));
-      expect([for (final o in s.options) o.label], [
-        'Default / unassigned',
-        'Bar',
-        'Kitchen',
-      ]);
+      expect(
+        [for (final o in s.options) o.label],
+        ['Default / unassigned', 'Bar', 'Kitchen'],
+      );
       expect(s.width, 208);
       expect(
         h.server.callsTo(KitchenRoutes.categories).single.query['org_id'],
@@ -248,19 +256,14 @@ void main() {
       expect(_catalog(h), isEmpty, reason: 'items only on their tab');
     });
 
-    testWidgets('SET-KRT-007 Arabic names; 160 wide under 640', (
-      tester,
-    ) async {
+    testWidgets('SET-KRT-007 Arabic names; 160 wide under 640', (tester) async {
       await pumpKitchen(
         tester,
         path: routingPath,
         size: DashSize.phone,
         locale: 'ar',
       );
-      expect(
-        inRouting(find.text('قهوة ساخنة')),
-        findsOneWidget,
-      );
+      expect(inRouting(find.text('قهوة ساخنة')), findsOneWidget);
       expect(_select(tester, _catSelect('hot')).width, 160);
     });
 
@@ -442,11 +445,10 @@ void main() {
       expect(_shown(tester, _itemSelect('croissant')), 'Kitchen');
       final s = _select(tester, _itemSelect('espresso'));
       expect(_shown(tester, _itemSelect('espresso')), 'Inherit (category)');
-      expect([for (final o in s.options) o.label], [
-        'Inherit (category)',
-        'Bar',
-        'Kitchen',
-      ]);
+      expect(
+        [for (final o in s.options) o.label],
+        ['Inherit (category)', 'Bar', 'Kitchen'],
+      );
       expect(h.server.callsTo(KitchenRoutes.routes), hasLength(1));
     });
 
@@ -531,7 +533,10 @@ void main() {
       await _perItem(h2);
       final err = inRouting(byKey('routing-items-error'));
       expect(
-        find.descendant(of: err, matching: find.text("Couldn't load menu items")),
+        find.descendant(
+          of: err,
+          matching: find.text("Couldn't load menu items"),
+        ),
         findsOneWidget,
       );
       expect(
@@ -579,7 +584,9 @@ void main() {
         ),
       );
       expect(btn('Previous').onPressed, isNull);
-      await h.tap(find.descendant(of: pager, matching: find.bySemanticsLabel('Next')));
+      await h.tap(
+        find.descendant(of: pager, matching: find.bySemanticsLabel('Next')),
+      );
       expect(_catalog(h).last.query['page'], ['2']);
       expect(btn('Next').onPressed, isNull);
       expect(btn('Previous').onPressed, isNotNull);
@@ -701,12 +708,10 @@ void main() {
       expect(items.name, 'Per item');
       expect(items.title, 'Order routing');
       expect(items.subtitle, startsWith('Per item'));
-      expect([for (final c in items.columns) c.header], [
-        'Item',
-        'Inherited station',
-        'Override',
-        'Routed to',
-      ]);
+      expect(
+        [for (final c in items.columns) c.header],
+        ['Item', 'Inherited station', 'Override', 'Routed to'],
+      );
       expect(items.rows, hasLength(55));
       List<Object?> row(String name) =>
           items.rows.firstWhere((r) => r.first == name);
@@ -748,7 +753,10 @@ void main() {
       expect(items.name, 'لكل صنف');
       expect(items.rows.map((r) => r.first), contains('كرواسون زبدة'));
       // A station is named as it was typed.
-      expect(h.exports.built.single.sheets[0].rows.first, ['قهوة ساخنة', 'Bar']);
+      expect(h.exports.built.single.sheets[0].rows.first, [
+        'قهوة ساخنة',
+        'Bar',
+      ]);
     });
 
     testWidgets('SET-KRT-018 a failed walk toasts the server\'s words, no '

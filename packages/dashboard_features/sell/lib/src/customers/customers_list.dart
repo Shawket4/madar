@@ -16,8 +16,8 @@ import '../shared/phone.dart';
 import 'customers_data.dart';
 import 'google_object_dialog.dart';
 import 'people_widgets.dart';
-import 'person_surface.dart';
 import '../shared/error_text.dart';
+import '../shared/export_logo.dart';
 
 class CustomersList extends ConsumerStatefulWidget {
   const CustomersList({
@@ -66,8 +66,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
     limit: (customersPageSize * pages).clamp(1, customersLimitMax),
   );
 
-  void _warmList(CustomersQuery key) =>
-      ref.warm(customersListProvider(key));
+  void _warmList(CustomersQuery key) => ref.warm(customersListProvider(key));
 
   /// A row's sheet: the customer, and a member's card. The page opens the
   /// sheet org-wide (no branch).
@@ -129,7 +128,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
                 r.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                textDirection: autoDirection(r.name),
+                textDirection: dashTextDirectionOf(r.name),
                 style: DashType.bodyMedium.copyWith(color: c.textPrimary),
               ),
             ),
@@ -253,6 +252,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
         loading: loading,
         errorMessage: error,
         onRetry: () => ref.invalidate(customersListProvider(_key)),
+        retrying: list.isLoading,
         onRowTap: (r) => widget.onOpen(r.id),
         onRowIntent: _warmSheet,
         selectedRowKey: widget.openId,
@@ -379,10 +379,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
       // `useExportLogo`: the brand the shell already holds, no extra read
       // (an export-header read would spend the export budget).
       final brand = ref.read(publicBrandProvider).value;
-      final logoUrl = brand?.logoUrl?.trim() ?? '';
-      final logo = brand != null && brand.customBranding && logoUrl.isNotEmpty
-          ? logoUrl
-          : null;
+      final logo = exportLogoOf(brand);
       if (!mounted) return;
       await runExcelExport(
         context,

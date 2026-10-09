@@ -9,7 +9,13 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show OrgIngredient, PutSizeBaseRequest, RecipeBaseOut, RecipeLinkInfo, StudioAggregate, UpdateCatalogItemRequest;
+    show
+        OrgIngredient,
+        PutSizeBaseRequest,
+        RecipeBaseOut,
+        RecipeLinkInfo,
+        StudioAggregate,
+        UpdateCatalogItemRequest;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -301,7 +307,8 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
               placeholder: t('menu.studio.sizes.labelPh'),
               semanticLabel: t('menu.sizeLabel'),
               onChanged: (v) => _set([
-                for (final x in blocks) x.key == b.key ? x.copyWith(label: v) : x,
+                for (final x in blocks)
+                  x.key == b.key ? x.copyWith(label: v) : x,
               ]),
             );
       return Row(
@@ -387,7 +394,10 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         semanticLabel: t(
           'modeling.grid.cellAria',
-          args: {'ingredient': catalogById[r.ingredientId]?.name ?? '', 'size': b.label},
+          args: {
+            'ingredient': catalogById[r.ingredientId]?.name ?? '',
+            'size': b.label,
+          },
         ),
         focusNode: _node(rowIndex, b.key),
         onKeyEvent: (_, e) => _onKey(rowIndex, b.key, e),
@@ -495,11 +505,7 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
             border: Border(bottom: BorderSide(color: c.hairline)),
           ),
           children: [
-            pad(
-              headerLabel(
-                '${t('common.price')} (${fmt.currencyLabel()})',
-              ),
-            ),
+            pad(headerLabel('${t('common.price')} (${fmt.currencyLabel()})')),
             for (final b in blocks)
               pad(
                 priceCell(b),
@@ -798,7 +804,9 @@ class _ScaleDialogState extends ConsumerState<_ScaleDialog> {
   void _apply() {
     final f = jsNumber(_factor);
     if (!f.isFinite || f <= 0) {
-      setState(() => _error = ref.read(tProvider)('modeling.grid.factorInvalid'));
+      setState(
+        () => _error = ref.read(tProvider)('modeling.grid.factorInvalid'),
+      );
       return;
     }
     Navigator.of(context).pop((_from, f));
@@ -1050,12 +1058,12 @@ class _StudioBasePickerState extends ConsumerState<StudioBasePicker> {
     try {
       for (final s in widget.sizes) {
         await api.menu.putSizeBase(
-              sizeId: s.id,
-              body: PutSizeBaseRequest(
-                baseId: baseId,
-                explicitNulls: const {'base_id'},
-              ),
-            );
+          sizeId: s.id,
+          body: PutSizeBaseRequest(
+            baseId: baseId,
+            explicitNulls: const {'base_id'},
+          ),
+        );
       }
       if (mounted) {
         DashToast.success(

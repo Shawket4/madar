@@ -55,9 +55,8 @@ void main() {
     await h.tap(find.text('Suspended').hitTestable().last);
     expect(gets(h, listT, status, 'suspended'), 1, reason: 'from the cache');
 
-    final kitchen = '${h.db![TeamTables.departments].firstWhere(
-      (d) => d['name'] == 'Kitchen',
-    )!['id']}';
+    final kitchen =
+        '${h.db![TeamTables.departments].firstWhere((d) => d['name'] == 'Kitchen')!['id']}';
     expect(gets(h, listT, 'department_id', kitchen), 0);
     await h.tap(inPage(find.text('All departments')));
     await hover(h, mouse, find.text('Kitchen').hitTestable().last);

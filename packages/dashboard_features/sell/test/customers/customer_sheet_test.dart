@@ -393,8 +393,7 @@ void main() {
         final h = await pumpCustomers(tester, locale: 'ar');
         await openNada(h);
         // The number isolated, the unit after it in the page's direction.
-        final line =
-            '\u2066+1\u2069 ${h.t('loyalty.unitOrders', count: 1)}';
+        final line = '\u2066+1\u2069 ${h.t('loyalty.unitOrders', count: 1)}';
         final amounts = inSheet(
           find.byWidgetPredicate(
             (w) => w is RichText && w.text.toPlainText() == line,

@@ -50,7 +50,9 @@ num _docked(double x) => x.isFinite ? math.max(0, x.round()) : double.nan;
 num rungPiastres(String kind, double value, PayExample ex) {
   if (kind == 'piastres') return _docked(value);
   if (ex.workingDays <= 0) return 0;
-  if (kind == 'day_fraction') return _docked(ex.salary * value / ex.workingDays);
+  if (kind == 'day_fraction') {
+    return _docked(ex.salary * value / ex.workingDays);
+  }
   if (ex.shiftMinutes <= 0) return 0;
   return _docked(ex.salary * value / (ex.workingDays * ex.shiftMinutes));
 }

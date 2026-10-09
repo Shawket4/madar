@@ -337,7 +337,9 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
 
     Widget method(String? m) {
       final text = punchMethodText(t, m);
-      return text.isEmpty ? const SizedBox.shrink() : DashBadge(text, outline: true);
+      return text.isEmpty
+          ? const SizedBox.shrink()
+          : DashBadge(text, outline: true);
     }
 
     // `text` is what the web's search reads (the accessor: the name, the ISO
@@ -405,10 +407,14 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
               ),
               // Its month is approved or paid: the server refuses a
               // correction (PERIOD_CLOSED).
-              if (r.monthClosed == true) DashBadge(t('staff.monthClosed'), outline: true),
+              if (r.monthClosed == true)
+                DashBadge(t('staff.monthClosed'), outline: true),
               // A colleague covers this shift: no punch goes on it (D1).
               if (coverer != null)
-                DashBadge(t('dawam.coveredBy', args: {'name': coverer}), outline: true),
+                DashBadge(
+                  t('dawam.coveredBy', args: {'name': coverer}),
+                  outline: true,
+                ),
             ],
           );
         },
@@ -602,7 +608,8 @@ class _Filters extends ConsumerWidget {
                 periodStartDay: periodStartDay,
                 fromLabel: t('staff.from'),
                 toLabel: t('staff.to'),
-                onQuickIntent: (f, to) => onRangeIntent(dashYmd(f), dashYmd(to)),
+                onQuickIntent: (f, to) =>
+                    onRangeIntent(dashYmd(f), dashYmd(to)),
                 onChanged: (f, to) => onRange(
                   f == null ? from : dashYmd(f),
                   to == null ? this.to : dashYmd(to),
@@ -810,4 +817,3 @@ class _AttendanceWordsState extends ConsumerState<_AttendanceWords> {
     );
   }
 }
-

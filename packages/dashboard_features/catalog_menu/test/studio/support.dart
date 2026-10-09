@@ -267,10 +267,8 @@ Finder fieldWithText(String text) => inStudio(
 );
 
 /// The section whose heading is [title] (the StudioSection widget).
-Finder sectionOf(String title) => find.ancestor(
-  of: studioText(title),
-  matching: find.byType(StudioSection),
-);
+Finder sectionOf(String title) =>
+    find.ancestor(of: studioText(title), matching: find.byType(StudioSection));
 
 /// [f] inside the section titled [title].
 Finder inSection(String title, Finder f) =>
@@ -285,8 +283,7 @@ void overrideCaps(
   List<String> add = const [],
 }) {
   server.on('GET', '/authz/me', (req) {
-    final caps = {...persona.capabilities, ...add}
-      ..removeAll(remove);
+    final caps = {...persona.capabilities, ...add}..removeAll(remove);
     final list = caps.toList()..sort();
     return MockResponse.ok({
       'user_id': persona.userId,

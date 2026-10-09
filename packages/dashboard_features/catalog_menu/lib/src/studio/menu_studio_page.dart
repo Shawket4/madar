@@ -201,6 +201,9 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
 
   void _goBack() => context.go(_keepingQuery('/menu/items').toString());
 
+  /// Back is about to be pressed: the items page's first reads.
+  void _warmBack() => ref.prefetchRoute('/menu/items');
+
   Future<void> _duplicate() async {
     final t = ref.read(tProvider);
     final ok = await showDashConfirm(
@@ -396,9 +399,8 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
           return;
         }
         update(
-          () => _pristine = _pristine.copyWith(
-            modifiers: modifiersSig(attached),
-          ),
+          () =>
+              _pristine = _pristine.copyWith(modifiers: modifiersSig(attached)),
         );
       }
 
@@ -410,9 +412,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
           fail(t('menu.studio.tabs.options'), e);
           return;
         }
-        update(
-          () => _pristine = _pristine.copyWith(options: optionsSig(rows)),
-        );
+        update(() => _pristine = _pristine.copyWith(options: optionsSig(rows)));
       }
 
       // 7 · Refresh + one toast; the refetch re-baselines every section.
@@ -443,6 +443,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
         ),
         width: DashPageWidth.reading,
         onBack: _goBack,
+        onBackIntent: _warmBack,
         body: const StudioLoadingSkeleton(),
       );
     }
@@ -451,6 +452,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
         title: t('menu.studio.itemTitle'),
         width: DashPageWidth.reading,
         onBack: _goBack,
+        onBackIntent: _warmBack,
         body: DashErrorState(
           title: t('menu.studio.loadError'),
           message: errorMessage(q.error, t),
@@ -606,6 +608,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
               ),
         width: DashPageWidth.reading,
         onBack: _goBack,
+        onBackIntent: _warmBack,
         actions: [
           DashButton(
             label: t('menu.studio.pricingLink'),

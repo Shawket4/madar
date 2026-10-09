@@ -33,7 +33,8 @@ Future<void> _pickMode(DashHarness h, String option) async {
 Map<String, Object?> _body(MockCall c) => c.body! as Map<String, Object?>;
 
 /// A station row as stored.
-MockRow _station(MockDb db, String id) => db[KitchenSeed.stationsTable].find(id)!;
+MockRow _station(MockDb db, String id) =>
+    db[KitchenSeed.stationsTable].find(id)!;
 
 void main() {
   group('header and branch', () {
@@ -122,9 +123,7 @@ void main() {
       );
       await pumpKitchen(tester, backend: m);
       expect(
-        tester
-            .widget<DashStatusPill>(_inBar(byKey('kitchen-effective')))
-            .label,
+        tester.widget<DashStatusPill>(_inBar(byKey('kitchen-effective'))).label,
         'Now: printer',
       );
     });
@@ -134,13 +133,10 @@ void main() {
       final h = await pumpKitchen(tester);
       expect(_mode(tester), 'auto');
       final select = tester.widget<DashSelect<String>>(byKey('kitchen-mode'));
-      expect([for (final o in select.options) o.label], [
-        'Auto',
-        'KDS screens',
-        'POS queue',
-        'Both',
-        'Off (no kitchen)',
-      ]);
+      expect(
+        [for (final o in select.options) o.label],
+        ['Auto', 'KDS screens', 'POS queue', 'Both', 'Off (no kitchen)'],
+      );
       expect(select.width, kitchenSelectWidth);
       await h.go('$stationsPath$heliopolis');
       expect(_mode(tester), 'both');
@@ -224,9 +220,7 @@ void main() {
       await _pickMode(h2, 'Off (no kitchen)');
       expect(
         _body(
-          h2.server
-              .callsTo(KitchenRoutes.routingMode, method: 'PUT')
-              .single,
+          h2.server.callsTo(KitchenRoutes.routingMode, method: 'PUT').single,
         )['mode'],
         'off',
       );
@@ -246,11 +240,10 @@ void main() {
       final table = tester.widget<DashDataTable<KitchenStation>>(
         inStations(find.byType(DashDataTable<KitchenStation>)),
       );
-      expect([for (final c in table.columns) c.label], [
-        'Name',
-        'Printer',
-        'Status',
-      ]);
+      expect(
+        [for (final c in table.columns) c.label],
+        ['Name', 'Printer', 'Status'],
+      );
       expect(table.hideViewOptions, isTrue);
       final pill = tester.widget<DashStatusPill>(
         _inTable(byKey('kitchen-default-${stationId('zamalek', 'bar')}')),
@@ -279,8 +272,7 @@ void main() {
       tester,
     ) async {
       final h = await pumpKitchen(tester);
-      Finder field() =>
-          _inTable(find.byType(DashSearchInput)).first;
+      Finder field() => _inTable(find.byType(DashSearchInput)).first;
       await h.enterText(field(), 'kit');
       await h.flushTimers();
       expect(_inTable(find.text('Kitchen')), findsOneWidget);
@@ -379,9 +371,7 @@ void main() {
       await h.tap(_inTable(find.text('Kitchen')));
       expect(_inDialog(find.text('Edit station')), findsOneWidget);
       expect(
-        tester
-            .widget<DashTextField>(_inDialog(byKey('station-name')))
-            .value,
+        tester.widget<DashTextField>(_inDialog(byKey('station-name'))).value,
         'Kitchen',
       );
       await h.tap(_inDialog(byKey('station-cancel')));
@@ -393,9 +383,7 @@ void main() {
       expect(pencil.semanticLabel, 'Edit');
       await h.tap(_inTable(byKey('kitchen-edit-$bar')));
       expect(
-        tester
-            .widget<DashTextField>(_inDialog(byKey('station-name')))
-            .value,
+        tester.widget<DashTextField>(_inDialog(byKey('station-name'))).value,
         'Bar',
       );
     });
@@ -487,7 +475,9 @@ void main() {
         _inDialog(find.text(h.t('kitchen.stationSubtitle'))),
         findsOneWidget,
       );
-      final name = tester.widget<DashTextField>(_inDialog(byKey('station-name')));
+      final name = tester.widget<DashTextField>(
+        _inDialog(byKey('station-name')),
+      );
       expect(name.label, 'Name');
       expect(name.placeholder, 'Grill');
       await h.tap(_inDialog(byKey('station-save')));
@@ -505,11 +495,10 @@ void main() {
       );
       expect(brand.label, 'Printer Model');
       expect(brand.value, 'none');
-      expect([for (final o in brand.options) o.label], [
-        'None (no printer)',
-        'Star',
-        'Epson',
-      ]);
+      expect(
+        [for (final o in brand.options) o.label],
+        ['None (no printer)', 'Star', 'Epson'],
+      );
       expect(_inDialog(byKey('station-ip')), findsNothing);
       expect(h.server.calls.where((c) => c.method != 'GET'), isEmpty);
     });
@@ -581,7 +570,10 @@ void main() {
         ['/kitchen/stations'],
       ]);
       expect(_dialog(), findsNothing);
-      expect(h.server.callsTo(KitchenRoutes.stations, method: 'GET'), hasLength(2));
+      expect(
+        h.server.callsTo(KitchenRoutes.stations, method: 'GET'),
+        hasLength(2),
+      );
       expect(_inTable(find.text('Grill')), findsOneWidget);
     });
 
@@ -662,9 +654,7 @@ void main() {
       expect(_inTable(find.text('Coffee bar')), findsOneWidget);
     });
 
-    testWidgets('SET-KST-018 Saving… while busy, then closes', (
-      tester,
-    ) async {
+    testWidgets('SET-KST-018 Saving… while busy, then closes', (tester) async {
       final m = setupMockServer();
       final gate = m.server.hold('POST', KitchenRoutes.stations);
       final h = await pumpKitchen(tester, backend: m);
@@ -695,7 +685,10 @@ void main() {
         tester.widget<DashButton>(_inDialog(byKey('station-save'))).label,
         'Save',
       );
-      expect(h.server.callsTo(KitchenRoutes.stations, method: 'GET'), hasLength(1));
+      expect(
+        h.server.callsTo(KitchenRoutes.stations, method: 'GET'),
+        hasLength(1),
+      );
       await h.tap(_inDialog(byKey('station-cancel')));
       expect(_dialog(), findsNothing);
       expect(
@@ -711,9 +704,12 @@ void main() {
       await h.tap(inStations(byKey('kitchen-new-station')));
       await h.enterText(_inDialog(byKey('station-name')), '   ');
       await h.tap(_inDialog(byKey('station-save')));
-      expect(_body(
-        h.server.callsTo(KitchenRoutes.stations, method: 'POST').single,
-      )['name'], '');
+      expect(
+        _body(
+          h.server.callsTo(KitchenRoutes.stations, method: 'POST').single,
+        )['name'],
+        '',
+      );
       await h.expectToast(
         h.refusalWords(MockResponse.badRequest(KitchenRefusals.nameRequired)),
       );
@@ -794,7 +790,9 @@ void main() {
         _inTable(find.textContaining('printer.local', findRichText: true)),
         findsOneWidget,
       );
-      await h.tap(_inTable(byKey('kitchen-edit-${stationId('zamalek', 'bar')}')));
+      await h.tap(
+        _inTable(byKey('kitchen-edit-${stationId('zamalek', 'bar')}')),
+      );
       expect(
         tester.widget<DashButton>(_inDialog(byKey('station-save'))).label,
         'Save',
@@ -827,10 +825,9 @@ void main() {
     testWidgets('SET-KST-021 a kitchen.* event reads the stations and the '
         'mode again', (tester) async {
       final h = await pumpKitchen(tester);
-      h.db![KitchenSeed.stationsTable].update(
-        stationId('zamalek', 'pastry'),
-        {'is_active': true},
-      );
+      h.db![KitchenSeed.stationsTable].update(stationId('zamalek', 'pastry'), {
+        'is_active': true,
+      });
       h.realtime.current!.emit('kitchen.station_changed', data: '{}');
       await h.settle();
       expect(h.server.callsTo(KitchenRoutes.stations), hasLength(2));

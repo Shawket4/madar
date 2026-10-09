@@ -57,7 +57,11 @@ class _LoyaltyPageState extends ConsumerState<LoyaltyPage> {
         switch (membersSourceOf(access)) {
           case MembersSource.customers:
             ref.warm(
-              memberCustomersProvider((q: '', source: null, limit: membersPageSize)),
+              memberCustomersProvider((
+                q: '',
+                source: null,
+                limit: membersPageSize,
+              )),
             );
             if (access.canReadProgram) {
               ref.warm(loyaltySettingsProvider(branchId));
@@ -93,9 +97,7 @@ class _LoyaltyPageState extends ConsumerState<LoyaltyPage> {
         .where((b) => b.isActive && b.id == branchId)
         .firstOrNull
         ?.name;
-    final tab = _tab == LoyaltyTab.overview && !canListMembers
-        ? null
-        : _tab;
+    final tab = _tab == LoyaltyTab.overview && !canListMembers ? null : _tab;
     final scopeKey = ValueKey('${tab?.name}-${branchId ?? 'org'}');
 
     final pane = switch (tab) {
@@ -129,9 +131,18 @@ class _LoyaltyPageState extends ConsumerState<LoyaltyPage> {
               key: const ValueKey('loyalty-tabs'),
               semanticLabel: t('nav.loyalty'),
               options: [
-                DashOption(value: LoyaltyTab.program, label: t('loyalty.tabProgram')),
-                DashOption(value: LoyaltyTab.rewards, label: t('loyalty.tabRewards')),
-                DashOption(value: LoyaltyTab.members, label: t('loyalty.tabMembers')),
+                DashOption(
+                  value: LoyaltyTab.program,
+                  label: t('loyalty.tabProgram'),
+                ),
+                DashOption(
+                  value: LoyaltyTab.rewards,
+                  label: t('loyalty.tabRewards'),
+                ),
+                DashOption(
+                  value: LoyaltyTab.members,
+                  label: t('loyalty.tabMembers'),
+                ),
                 if (canListMembers)
                   DashOption(
                     value: LoyaltyTab.overview,
@@ -143,7 +154,10 @@ class _LoyaltyPageState extends ConsumerState<LoyaltyPage> {
               onIntent: (v) => _warm(v, orgId, branchId),
             ),
           ),
-          Padding(padding: const EdgeInsets.only(top: Space.xs), child: pane),
+          Padding(
+            padding: const EdgeInsets.only(top: Space.xs),
+            child: pane,
+          ),
         ],
       ),
     );
@@ -242,7 +256,9 @@ class _SignUpCodeState extends ConsumerState<SignUpCode> {
     );
     final button = DashButton(
       key: const ValueKey('loyalty-code'),
-      label: widget.branchId != null ? t('loyalty.counterQr') : t('loyalty.orgQr'),
+      label: widget.branchId != null
+          ? t('loyalty.counterQr')
+          : t('loyalty.orgQr'),
       icon: 'qr-code',
       variant: DashButtonVariant.outline,
       loading: _busy,
@@ -258,7 +274,11 @@ class _SignUpCodeState extends ConsumerState<SignUpCode> {
       child: wide
           ? Row(
               spacing: Space.md,
-              children: [label, Expanded(child: hint), button],
+              children: [
+                label,
+                Expanded(child: hint),
+                button,
+              ],
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -266,7 +286,10 @@ class _SignUpCodeState extends ConsumerState<SignUpCode> {
               children: [
                 label,
                 hint,
-                Align(alignment: AlignmentDirectional.centerStart, child: button),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: button,
+                ),
               ],
             ),
     );

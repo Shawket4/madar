@@ -31,26 +31,29 @@ void ownHelioMorning(MockDb db) {
 
 /// The branch's last declared close (`suggested_opening_cash`).
 int lastDeclared(MockDb db, String branchId) {
-  final closed = db['tills'].rows
-      .where(
-        (t) =>
-            t['branch_id'] == branchId &&
-            t['status'] != 'open' &&
-            t['closing_cash_declared'] != null,
-      )
-      .toList()
-    ..sort(
-      (a, b) => (b['opened_at']! as String).compareTo(a['opened_at']! as String),
-    );
+  final closed =
+      db['tills'].rows
+          .where(
+            (t) =>
+                t['branch_id'] == branchId &&
+                t['status'] != 'open' &&
+                t['closing_cash_declared'] != null,
+          )
+          .toList()
+        ..sort(
+          (a, b) =>
+              (b['opened_at']! as String).compareTo(a['opened_at']! as String),
+        );
   return closed.first['closing_cash_declared']! as int;
 }
 
-DashButton _button(WidgetTester tester, String label) => tester.widget<DashButton>(
-  find.ancestor(
-    of: inSurface(find.text(label)).last,
-    matching: find.byType(DashButton),
-  ),
-);
+DashButton _button(WidgetTester tester, String label) =>
+    tester.widget<DashButton>(
+      find.ancestor(
+        of: inSurface(find.text(label)).last,
+        matching: find.byType(DashButton),
+      ),
+    );
 
 void main() {
   group('row menu', () {
@@ -69,7 +72,11 @@ void main() {
         'close', (tester) async {
       final h = await pumpTills(tester);
       await openRowMenu(h, TillIds.helioSecond);
-      expect(menuLabels(h, _menuWords), ['View report', 'Force close', 'Delete']);
+      expect(menuLabels(h, _menuWords), [
+        'View report',
+        'Force close',
+        'Delete',
+      ]);
     });
 
     testWidgets('SELL-TIL-023/063 a closed till: View report and Delete', (
@@ -91,7 +98,11 @@ void main() {
         db: s.db,
       );
       await openRowMenu(h, TillIds.helioMorning);
-      expect(menuLabels(h, _menuWords), ['View report', 'Force close', 'Delete']);
+      expect(menuLabels(h, _menuWords), [
+        'View report',
+        'Force close',
+        'Delete',
+      ]);
     });
 
     testWidgets('SELL-TIL-029 manager (till.force_close, no till.delete): '
@@ -181,9 +192,9 @@ void main() {
         find.descendant(of: dialog, matching: find.text('Delete till')),
         findsOneWidget,
       );
-      final opened = h.container.read(formatProvider).fmtDateTime(
-        h.db!['tills'].get(empty)['opened_at'],
-      );
+      final opened = h.container
+          .read(formatProvider)
+          .fmtDateTime(h.db!['tills'].get(empty)['opened_at']);
       expect(
         find.descendant(of: dialog, matching: find.text('Delete "$opened"?')),
         findsOneWidget,
@@ -222,7 +233,9 @@ void main() {
       expect(find.byType(OpenTillDialog), findsOneWidget);
       expect(inSurface(find.text('Open Till')), findsWidgets);
       expect(
-        inSurface(find.text('Declare the opening drawer float to start a till.')),
+        inSurface(
+          find.text('Declare the opening drawer float to start a till.'),
+        ),
         findsOneWidget,
       );
       expect(inSurface(find.text('Opening Cash')), findsOneWidget);
@@ -252,10 +265,7 @@ void main() {
       expect(find.byType(OpenTillDialog), findsNothing);
       // My till is open here now: no button, and it is listed.
       expect(inPage(find.text('Open till')), findsNothing);
-      expect(
-        inKey('open-now', find.text('Nour El-Sayed')),
-        findsOneWidget,
-      );
+      expect(inKey('open-now', find.text('Nour El-Sayed')), findsOneWidget);
     });
 
     testWidgets('SELL-TIL-033 Cancel closes without a request', (tester) async {
@@ -401,7 +411,9 @@ void main() {
       await pickMenu(h, 'Cash Movement');
       expect(find.byType(CashMovementDialog), findsOneWidget);
       expect(
-        inSurface(find.text('Record cash paid into or taken out of the drawer.')),
+        inSurface(
+          find.text('Record cash paid into or taken out of the drawer.'),
+        ),
         findsOneWidget,
       );
       DirectionButton dir(String label) => tester.widget<DirectionButton>(
@@ -412,10 +424,7 @@ void main() {
       );
       expect(dir('Cash in').pressed, isTrue);
       expect(dir('Cash out').pressed, isFalse);
-      expect(
-        inSurface(find.text('Reason for this movement')),
-        findsOneWidget,
-      );
+      expect(inSurface(find.text('Reason for this movement')), findsOneWidget);
       expect(_button(tester, 'Save').onPressed, isNull);
       await h.tap(inSurface(find.text('Cash out')));
       expect(dir('Cash out').pressed, isTrue);
@@ -464,7 +473,10 @@ void main() {
       final h = await pumpTills(tester, server: s.server, db: s.db);
       await openRowMenu(h, TillIds.helioMorning);
       await pickMenu(h, 'Close till');
-      expect(find.byKey(const ValueKey('close-preview-loading')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('close-preview-loading')),
+        findsOneWidget,
+      );
       expect(
         inSurface(find.text('Count the drawer and check each payment method.')),
         findsOneWidget,
@@ -500,7 +512,10 @@ void main() {
       // No count: the cash error, no request.
       await h.tap(find.byKey(const ValueKey('close-till-submit')));
       expect(inSurface(find.text('Enter the counted cash.')), findsOneWidget);
-      expect(h.server.callsTo('/tills/{tillId}/close', method: 'POST'), isEmpty);
+      expect(
+        h.server.callsTo('/tills/{tillId}/close', method: 'POST'),
+        isEmpty,
+      );
       // The payment check lists each non-cash method, Checked by default.
       final rows = find.descendant(
         of: dialog,
@@ -542,13 +557,19 @@ void main() {
       );
       expect(inSurface(find.text('Amount you see')), findsWidgets);
       await h.enterText(find.byKey(const ValueKey('closing-cash')), '1000');
-      await h.enterText(find.byKey(const ValueKey('close-note')), ' Counted twice ');
+      await h.enterText(
+        find.byKey(const ValueKey('close-note')),
+        ' Counted twice ',
+      );
       await h.tap(find.byKey(const ValueKey('close-till-submit')));
       expect(
         inSurface(find.text('Add the amount and a note for the difference.')),
         findsOneWidget,
       );
-      await h.enterText(find.byKey(ValueKey('reconcile-amount-$method')), '120.5');
+      await h.enterText(
+        find.byKey(ValueKey('reconcile-amount-$method')),
+        '120.5',
+      );
       await h.enterText(
         find.byKey(ValueKey('reconcile-note-$method')),
         'One slip missing',
@@ -561,7 +582,8 @@ void main() {
       final body = post.body! as Map<String, Object?>;
       expect(body['closing_cash_declared'], 100000);
       expect(body['cash_note'], 'Counted twice');
-      final rec = (body['reconciliation']! as List).cast<Map<String, Object?>>();
+      final rec = (body['reconciliation']! as List)
+          .cast<Map<String, Object?>>();
       expect(rec.first, {
         'method': method,
         'status': 'disagreed',
@@ -648,7 +670,9 @@ void main() {
       await pickMenu(h, 'Close till');
       expect(find.byKey(const ValueKey('close-preview-loading')), findsNothing);
       expect(
-        inSurface(find.text("You don't have permission to perform this action.")),
+        inSurface(
+          find.text("You don't have permission to perform this action."),
+        ),
         findsOneWidget,
       );
       expect(inSurface(find.text('Retry')), findsOneWidget);

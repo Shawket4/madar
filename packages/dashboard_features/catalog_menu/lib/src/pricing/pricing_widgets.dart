@@ -66,9 +66,7 @@ class PricingControl extends StatelessWidget {
     final from = resolved.priceFromBranch
         ? t('menu.pricing.fromBranch')
         : t('menu.pricing.fromCatalog');
-    final box = touch
-        ? PricingMetrics.toggleTouch
-        : PricingMetrics.toggleSmall;
+    final box = touch ? PricingMetrics.toggleTouch : PricingMetrics.toggleSmall;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -78,10 +76,7 @@ class PricingControl extends StatelessWidget {
           value: draft.price,
           onChanged: (v) => onChange(price: v),
           placeholder: pricePlaceholder(resolved.effectivePrice),
-          label: t(
-            'menu.pricing.priceAria',
-            args: {'currency': currencyLabel},
-          ),
+          label: t('menu.pricing.priceAria', args: {'currency': currencyLabel}),
           strong: explicit,
           clearLabel: resolved.priceExplicit && !dirty
               ? t('menu.pricing.clearOverride')
@@ -286,7 +281,9 @@ class _PriceFieldState extends State<PriceField> {
             signed: true,
           ),
           // A number input: what `type=number` lets through.
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))],
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
+          ],
           // Digits read left to right, aligned to the line's start.
           textDirection: TextDirection.ltr,
           textAlign: context.isRtl ? TextAlign.right : TextAlign.left,
@@ -455,9 +452,7 @@ typedef MatrixWidths = ({double first, double catalog, double cell});
 
 MatrixWidths matrixWidths(double available) {
   const min =
-      PricingMetrics.first +
-      PricingMetrics.catalog +
-      PricingMetrics.cell * 5;
+      PricingMetrics.first + PricingMetrics.catalog + PricingMetrics.cell * 5;
   final k = available > min ? available / min : 1.0;
   return (
     first: PricingMetrics.first * k,

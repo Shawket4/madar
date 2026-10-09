@@ -15,12 +15,13 @@ import 'support.dart';
 /// `<name>-1`, `<name>-2`, …
 Future<void> _shootPage(DashHarness h, String name) async {
   ScrollableState? state;
-  for (final e in find
-      .ancestor(
-        of: find.byType(StaffPoolSettingsPage),
-        matching: find.byType(Scrollable),
-      )
-      .evaluate()) {
+  for (final e
+      in find
+          .ancestor(
+            of: find.byType(StaffPoolSettingsPage),
+            matching: find.byType(Scrollable),
+          )
+          .evaluate()) {
     final s = (e as StatefulElement).state as ScrollableState;
     if (s.position.axis == Axis.vertical) {
       state = s;
@@ -46,7 +47,10 @@ Future<void> _shootPage(DashHarness h, String name) async {
 
 Finder _key(String k) => find.byKey(ValueKey(k));
 
-const _states = [('en', false, DashSize.desktop), ('ar', false, DashSize.phone)];
+const _states = [
+  ('en', false, DashSize.desktop),
+  ('ar', false, DashSize.phone),
+];
 
 void main() {
   for (final size in DashSize.values) {

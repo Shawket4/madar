@@ -10,11 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
 
-const _loyaltyOnly = [
-  'loyalty.read',
-  'loyalty.use',
-  'loyalty.members.list',
-];
+const _loyaltyOnly = ['loyalty.read', 'loyalty.use', 'loyalty.members.list'];
 
 Future<DashHarness> _members(
   WidgetTester tester, {
@@ -51,7 +47,11 @@ void main() {
   testWidgets('SET-LOY-052 without loyalty.members.list: "Members are for '
       'managers", nothing read', (tester) async {
     final m = loyaltyServer();
-    grantOnly(m.server, const ['loyalty.read', 'loyalty.use', 'customers.view']);
+    grantOnly(m.server, const [
+      'loyalty.read',
+      'loyalty.use',
+      'customers.view',
+    ]);
     final h = await _members(tester, backend: m);
     expect(pageText('Members are for managers'), findsOneWidget);
     expect(pageText(h.t('loyalty.membersRestrictedHint')), findsOneWidget);
@@ -97,14 +97,23 @@ void main() {
     final h = await _members(tester, backend: m);
     expect(h.server.callsTo(LoyaltyRoutes.customers), isEmpty);
     expect(q1(h.server.callsTo(LoyaltyRoutes.members).last), {'limit': '50'});
-    for (final head in ['NAME', 'PHONE', 'BALANCE', 'TO NEXT REWARD', 'JOINED']) {
+    for (final head in [
+      'NAME',
+      'PHONE',
+      'BALANCE',
+      'TO NEXT REWARD',
+      'JOINED',
+    ]) {
       expect(inPage(find.text(head)), findsOneWidget, reason: head);
     }
     expect(inPage(find.text('CAME FROM')), findsNothing);
     await _search(h, 'Nada');
     // Six stamps against the four-stamp cookie: a reward is earned.
     expect(
-      find.descendant(of: _row('Nada Kamal'), matching: find.text('Reward earned')),
+      find.descendant(
+        of: _row('Nada Kamal'),
+        matching: find.text('Reward earned'),
+      ),
       findsOneWidget,
     );
     expect(inPage(find.byType(DashFilterSelect<String>)), findsNothing);
@@ -119,10 +128,10 @@ void main() {
       query: atBranch(SeedIds.zamalek),
       backend: m,
     );
-    expect(
-      q1(h.server.callsTo(LoyaltyRoutes.members).last),
-      {'branch_id': SeedIds.zamalek, 'limit': '50'},
-    );
+    expect(q1(h.server.callsTo(LoyaltyRoutes.members).last), {
+      'branch_id': SeedIds.zamalek,
+      'limit': '50',
+    });
   });
 
   testWidgets('SET-LOY-054 search: debounced, trimmed, the window starts '
@@ -153,7 +162,9 @@ void main() {
         reason: s,
       );
     }
-    await h.tap(find.descendant(of: options, matching: find.text('Loyalty sign-up')));
+    await h.tap(
+      find.descendant(of: options, matching: find.text('Loyalty sign-up')),
+    );
     final last = q1(h.server.callsTo(LoyaltyRoutes.customers).last);
     expect(last['source'], 'loyalty');
     expect(last['member'], 'true');
@@ -178,8 +189,9 @@ void main() {
     expect(pageText('Showing 100 of $total'), findsOneWidget);
   });
 
-  testWidgets('SET-LOY-059 no members yet; no match for a search',
-      (tester) async {
+  testWidgets('SET-LOY-059 no members yet; no match for a search', (
+    tester,
+  ) async {
     final m = loyaltyServer();
     for (final c in m.db['customers'].rows) {
       c['is_member'] = false;
@@ -229,24 +241,24 @@ void main() {
         if (c.headers['X-Madar-Export'] == '1') c,
     ];
     expect(q1(walk.first), {'member': 'true', 'limit': '500', 'offset': '0'});
-    expect(
-      h.files.saved.single.filename,
-      startsWith('Madar-Loyalty-Members-'),
-    );
+    expect(h.files.saved.single.filename, startsWith('Madar-Loyalty-Members-'));
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Members');
     expect(sheet.title, 'Members');
     expect(sheet.rows, hasLength(_memberCount(m.db)));
-    expect([for (final c in sheet.columns) c.header], [
-      'Name',
-      'Phone',
-      'Balance',
-      'Unit',
-      'Came from',
-      'Orders',
-      'Total spent',
-      'Last visit',
-    ]);
+    expect(
+      [for (final c in sheet.columns) c.header],
+      [
+        'Name',
+        'Phone',
+        'Balance',
+        'Unit',
+        'Came from',
+        'Orders',
+        'Total spent',
+        'Last visit',
+      ],
+    );
   });
 
   testWidgets('SET-LOY-061 export (members source): the loyalty columns; '
@@ -259,14 +271,10 @@ void main() {
     await h.flushTimers();
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.subtitle, startsWith('Nada'));
-    expect([for (final c in sheet.columns) c.header], [
-      'Name',
-      'Phone',
-      'Balance',
-      'Unit',
-      'To next reward',
-      'Joined',
-    ]);
+    expect(
+      [for (final c in sheet.columns) c.header],
+      ['Name', 'Phone', 'Balance', 'Unit', 'To next reward', 'Joined'],
+    );
     expect(
       {
         for (final c in h.server.calls)
@@ -276,8 +284,9 @@ void main() {
     );
   });
 
-  testWidgets('SET-LOY-061 export is off with no rows; a failed walk toasts',
-      (tester) async {
+  testWidgets('SET-LOY-061 export is off with no rows; a failed walk toasts', (
+    tester,
+  ) async {
     final m = loyaltyServer();
     final h = await _members(tester, backend: m);
     final boom = MockResponse.error(500, 'Database error: timeout');
@@ -288,9 +297,11 @@ void main() {
     expect(
       tester
           .widget<DashButton>(
-            inPage(find.byWidgetPredicate(
-              (w) => w is DashButton && w.label == 'Export Excel',
-            )),
+            inPage(
+              find.byWidgetPredicate(
+                (w) => w is DashButton && w.label == 'Export Excel',
+              ),
+            ),
           )
           .onPressed,
       isNull,
@@ -306,10 +317,7 @@ void main() {
     final read = h.server.callsTo(LoyaltyRoutes.member).last;
     expect(read.path, '/loyalty/members/$nadaId');
     expect(q1(read), {'branch_id': SeedIds.zamalek});
-    expect(
-      tester.widget<DashPressable>(_row('Nada Kamal')).selected,
-      isTrue,
-    );
+    expect(tester.widget<DashPressable>(_row('Nada Kamal')).selected, isTrue);
   });
 
   testWidgets('SET-LOY-063 platform: a wallet action per row opens the '

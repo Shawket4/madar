@@ -10,7 +10,6 @@
 /// capabilities; a group with nothing visible is not drawn.
 library;
 
-
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';

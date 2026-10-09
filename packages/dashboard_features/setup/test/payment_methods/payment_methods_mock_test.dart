@@ -37,16 +37,19 @@ void main() {
     test('the list: the org\'s eight methods, oldest first', () async {
       final b = _backend();
       final list = await b.api.paymentMethods.listPaymentMethods();
-      expect([for (final m in list) m.name], [
-        'cash',
-        'card',
-        'digital_wallet',
-        'mixed',
-        'talabat_online',
-        'talabat_cash',
-        'instapay',
-        'gift_card',
-      ]);
+      expect(
+        [for (final m in list) m.name],
+        [
+          'cash',
+          'card',
+          'digital_wallet',
+          'mixed',
+          'talabat_online',
+          'talabat_cash',
+          'instapay',
+          'gift_card',
+        ],
+      );
       expect(list.where((m) => m.isActive), hasLength(6));
       expect(list.where((m) => !m.visibleInIntegrations).map((m) => m.name), [
         'mixed',
@@ -67,32 +70,33 @@ void main() {
       expect(list.last.id, made.id);
     });
 
-    test('a name the org has is refused (409), on create and on rename',
-        () async {
-      final b = _backend();
-      final dup = await _refusal(
-        b.api.paymentMethods.createPaymentMethod(
-          body: const CreatePaymentMethodRequest(
-            name: 'cash',
-            labelTranslations: {'en': 'Cash'},
-            color: '#10B981',
-            icon: 'money',
-            isCash: true,
+    test(
+      'a name the org has is refused (409), on create and on rename',
+      () async {
+        final b = _backend();
+        final dup = await _refusal(
+          b.api.paymentMethods.createPaymentMethod(
+            body: const CreatePaymentMethodRequest(
+              name: 'cash',
+              labelTranslations: {'en': 'Cash'},
+              color: '#10B981',
+              icon: 'money',
+              isCash: true,
+            ),
           ),
-        ),
-      );
-      expect(dup.status, 409);
-      final rename = await _refusal(
-        b.api.paymentMethods.updatePaymentMethod(
-          id: pmId('instapay'),
-          body: const UpdatePaymentMethodRequest(name: 'card'),
-        ),
-      );
-      expect(rename.status, 409);
-    });
+        );
+        expect(dup.status, 409);
+        final rename = await _refusal(
+          b.api.paymentMethods.updatePaymentMethod(
+            id: pmId('instapay'),
+            body: const UpdatePaymentMethodRequest(name: 'card'),
+          ),
+        );
+        expect(rename.status, 409);
+      },
+    );
 
-    test('an update changes only what it sends; unknown ids are 404',
-        () async {
+    test('an update changes only what it sends; unknown ids are 404', () async {
       final b = _backend();
       final out = await b.api.paymentMethods.updatePaymentMethod(
         id: pmId('instapay'),
@@ -155,8 +159,7 @@ void main() {
   });
 
   group('availability', () {
-    test('Zamalek: its list, every teller list, its devices\' lists',
-        () async {
+    test('Zamalek: its list, every teller list, its devices\' lists', () async {
       final b = _backend();
       final a = await b.api.paymentMethods.getAvailability(
         branchId: SeedIds.zamalek,
@@ -174,17 +177,19 @@ void main() {
       expect(a.devices.single.deviceId, PmSeed.deviceId('zamalek', 'T2'));
     });
 
-    test('Heliopolis: unrestricted, the org\'s teller lists, no devices',
-        () async {
-      final b = _backend();
-      final a = await b.api.paymentMethods.getAvailability(
-        branchId: SeedIds.heliopolis,
-      );
-      expect(a.branch.restricted, isFalse);
-      expect(a.branch.paymentMethodIds, isEmpty);
-      expect(a.users, hasLength(1));
-      expect(a.devices, isEmpty);
-    });
+    test(
+      'Heliopolis: unrestricted, the org\'s teller lists, no devices',
+      () async {
+        final b = _backend();
+        final a = await b.api.paymentMethods.getAvailability(
+          branchId: SeedIds.heliopolis,
+        );
+        expect(a.branch.restricted, isFalse);
+        expect(a.branch.paymentMethodIds, isEmpty);
+        expect(a.users, hasLength(1));
+        expect(a.devices, isEmpty);
+      },
+    );
 
     test('a branch outside the org is 404', () async {
       final b = _backend();
@@ -263,9 +268,7 @@ void main() {
       final users = await b.api.users.listUsers(orgId: SeedIds.sabahOrg);
       expect(users.first.name, 'Adham Reda');
       expect(users.every((u) => u.orgId == SeedIds.sabahOrg), isTrue);
-      final devices = await b.api.devices.listDevices(
-        branchId: SeedIds.maadi,
-      );
+      final devices = await b.api.devices.listDevices(branchId: SeedIds.maadi);
       expect([for (final d in devices) d.code], ['T1', 'T9']);
       expect(devices.last.retiredAt, isNotNull);
     });

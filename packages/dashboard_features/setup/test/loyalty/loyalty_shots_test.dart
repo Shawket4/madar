@@ -16,9 +16,13 @@ const _shot = 'loyalty';
 /// Shoots the page one screen at a time down the settings shell's scroll.
 Future<void> shootPage(DashHarness h, String name, {int max = 4}) async {
   ScrollableState? state;
-  for (final e in find
-      .ancestor(of: find.byType(LoyaltyPage), matching: find.byType(Scrollable))
-      .evaluate()) {
+  for (final e
+      in find
+          .ancestor(
+            of: find.byType(LoyaltyPage),
+            matching: find.byType(Scrollable),
+          )
+          .evaluate()) {
     final s = (e as StatefulElement).state as ScrollableState;
     if (s.position.axis == Axis.vertical) {
       state = s;
@@ -34,7 +38,10 @@ Future<void> shootPage(DashHarness h, String name, {int max = 4}) async {
     await h.settle(rounds: 2);
     await h.shot('$_shot/$name-$i');
     if (y >= position.maxScrollExtent || i >= max) break;
-    y = (y + position.viewportDimension * 0.85).clamp(0, position.maxScrollExtent);
+    y = (y + position.viewportDimension * 0.85).clamp(
+      0,
+      position.maxScrollExtent,
+    );
     i++;
   }
 }
@@ -69,7 +76,10 @@ void main() {
     }
   }
 
-  for (final (size, lang) in [(DashSize.desktop, 'en'), (DashSize.phone, 'ar')]) {
+  for (final (size, lang) in [
+    (DashSize.desktop, 'en'),
+    (DashSize.phone, 'ar'),
+  ]) {
     final tag = '${size.name} $lang';
     Future<DashHarness> open(
       WidgetTester tester, {
@@ -169,17 +179,21 @@ void main() {
       await h.settle();
       if (find.byKey(const ValueKey('adjust-confirm')).evaluate().isNotEmpty) {
         await h.tap(
-          find.byWidgetPredicate(
-            (w) => w is DashButton && w.label == h.t('common.cancel'),
-          ).last,
+          find
+              .byWidgetPredicate(
+                (w) => w is DashButton && w.label == h.t('common.cancel'),
+              )
+              .last,
         );
       }
       await h.tap(find.byKey(const ValueKey('member-leave')));
       await h.shot('$_shot/leave-dialog');
       await h.tap(
-        find.byWidgetPredicate(
-          (w) => w is DashButton && w.label == h.t('common.cancel'),
-        ).last,
+        find
+            .byWidgetPredicate(
+              (w) => w is DashButton && w.label == h.t('common.cancel'),
+            )
+            .last,
       );
       await h.tap(find.byKey(const ValueKey('member-google')));
       await h.tap(inDialog(find.text(h.t('loyalty.refreshFromGoogle'))));

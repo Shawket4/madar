@@ -31,8 +31,10 @@ Finder inSuggestions(Finder f) => find.descendant(
   matching: f,
 );
 
-Finder inHolidays(Finder f) =>
-    find.descendant(of: find.byKey(const Key('schedule-holidays')), matching: f);
+Finder inHolidays(Finder f) => find.descendant(
+  of: find.byKey(const Key('schedule-holidays')),
+  matching: f,
+);
 
 void main() {
   // ── gating and header ────────────────────────────────────────────────
@@ -126,20 +128,23 @@ void main() {
     await h.tap(select);
     await h.tap(find.text('Maadi').hitTestable().last);
     expect(
-      weekCalls(h, week).where(
-        (c) => c.query['branch_id']!.single == SeedIds.maadi,
-      ),
+      weekCalls(
+        h,
+        week,
+      ).where((c) => c.query['branch_id']!.single == SeedIds.maadi),
       hasLength(1),
     );
   });
 
-  testWidgets('TEAM-ALL-018 a scoped branch is the board: every read names it',
-      (tester) async {
-    final h = await pumpSchedule(tester);
-    for (final c in [...calls(h, rosterT), ...calls(h, suggestionsT)]) {
-      expect(c.query['branch_id'], [SeedIds.zamalek]);
-    }
-  });
+  testWidgets(
+    'TEAM-ALL-018 a scoped branch is the board: every read names it',
+    (tester) async {
+      final h = await pumpSchedule(tester);
+      for (final c in [...calls(h, rosterT), ...calls(h, suggestionsT)]) {
+        expect(c.query['branch_id'], [SeedIds.zamalek]);
+      }
+    },
+  );
 
   testWidgets('TEAM-SCH-005 branches failed: the error with Retry, never a '
       'skeleton for ever', (tester) async {
@@ -339,7 +344,9 @@ void main() {
 
   // ── roster states ────────────────────────────────────────────────────
 
-  testWidgets('TEAM-SCH-014 loading: the skeleton, never empty or failed', (tester) async {
+  testWidgets('TEAM-SCH-014 loading: the skeleton, never empty or failed', (
+    tester,
+  ) async {
     final s = scheduleServer();
     final gate = s.server.hold('GET', rosterT);
     final h = await pumpSchedule(tester, s: s);
@@ -364,8 +371,9 @@ void main() {
     expect(calls(h2, suggestionsT), hasLength(sg));
   });
 
-  testWidgets('TEAM-SCH-015 no active staff: the empty state opens Employees',
-      (tester) async {
+  testWidgets('TEAM-SCH-015 no active staff: the empty state opens Employees', (
+    tester,
+  ) async {
     final h = await pumpSchedule(
       tester,
       edit: (db) {
@@ -429,10 +437,7 @@ void main() {
     expect(inCell('Laila Ehab', 4, plainHas('16:00–00:00')), findsWidgets);
     expect(inCell('Laila Ehab', 4, find.text('Edited')), findsOneWidget);
     expect(inCell('Laila Ehab', 4, find.text('+1')), findsOneWidget);
-    expect(
-      inCell('Laila Ehab', 4, find.byType(ChangedDot)),
-      findsOneWidget,
-    );
+    expect(inCell('Laila Ehab', 4, find.byType(ChangedDot)), findsOneWidget);
     expect(inCell('Adham Reda', 0, plainHas('07:00–15:00')), findsWidgets);
     expect(h.t('dawam.off'), 'Off');
   });
@@ -507,10 +512,12 @@ void main() {
       findsOneWidget,
     );
     final tip = tester.widget<Tooltip>(
-      find.ancestor(
-        of: find.descendant(of: cell, matching: find.text('Hours a day')),
-        matching: find.byType(Tooltip),
-      ).first,
+      find
+          .ancestor(
+            of: find.descendant(of: cell, matching: find.text('Hours a day')),
+            matching: find.byType(Tooltip),
+          )
+          .first,
     );
     expect(tip.message, 'Hours a day: 16h / 12h');
   });
@@ -591,9 +598,7 @@ void main() {
         o['claimed_by_name'] = 'Karim Adel';
       },
     );
-    await h.tap(
-      inGrid(pressable('Take back the open Evening on 09 Oct 2026')),
-    );
+    await h.tap(inGrid(pressable('Take back the open Evening on 09 Oct 2026')));
     expect(
       inConfirm(find.text('Karim Adel claimed it and will be told.')),
       findsOneWidget,
@@ -776,12 +781,15 @@ void main() {
     expect(inHolidays(find.text('Public holidays')), findsOneWidget);
     expect(inHolidays(find.text('Armed Forces Day')), findsOneWidget);
     expect(
-      inHolidays(find.text(h.t('dawam.holidayHint', args: {'date': '06 Oct 2026'}))),
+      inHolidays(
+        find.text(h.t('dawam.holidayHint', args: {'date': '06 Oct 2026'})),
+      ),
       findsOneWidget,
     );
-    final upcoming = calls(h, rosterT).where(
-      (c) => c.query['from']!.single == today,
-    );
+    final upcoming = calls(
+      h,
+      rosterT,
+    ).where((c) => c.query['from']!.single == today);
     expect(upcoming.single.query['to'], ['2026-11-22']);
   });
 
@@ -797,7 +805,10 @@ void main() {
       'owner-only note', (tester) async {
     final h = await pumpSchedule(tester, persona: Persona.manager);
     expect(inHolidays(find.text('Not decided yet')), findsOneWidget);
-    expect(inHolidays(find.text(h.t('dawam.holidaysOwnerOnly'))), findsOneWidget);
+    expect(
+      inHolidays(find.text(h.t('dawam.holidaysOwnerOnly'))),
+      findsOneWidget,
+    );
     expect(inHolidays(find.text('Make it a holiday')), findsNothing);
   });
 
@@ -813,7 +824,10 @@ void main() {
       },
     );
     expect(inHolidays(find.text('Holiday')), findsOneWidget);
-    expect(inHolidays(find.text(h.t('dawam.holidaysOwnerOnly'))), findsOneWidget);
+    expect(
+      inHolidays(find.text(h.t('dawam.holidaysOwnerOnly'))),
+      findsOneWidget,
+    );
   });
 
   testWidgets('TEAM-SCH-034/035 the owner decides: "Make it a holiday" PUTs; '
@@ -830,12 +844,13 @@ void main() {
 
   testWidgets('TEAM-SCH-035 "Normal day" dismisses it', (tester) async {
     final h = await pumpSchedule(tester);
-    await h.tap(
-      inHolidays(find.widgetWithText(DashButton, 'Normal day')),
-    );
+    await h.tap(inHolidays(find.widgetWithText(DashButton, 'Normal day')));
     expect(bodyOf(calls(h, holidayT, 'PUT').single), {'decision': 'dismissed'});
     await h.expectToast('Kept as a normal day');
-    expect(inHolidays(find.widgetWithText(DashButton, 'Normal day')), findsNothing);
+    expect(
+      inHolidays(find.widgetWithText(DashButton, 'Normal day')),
+      findsNothing,
+    );
     expect(inHolidays(find.text('Normal day')), findsOneWidget);
   });
 

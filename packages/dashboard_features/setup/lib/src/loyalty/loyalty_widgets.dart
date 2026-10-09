@@ -65,7 +65,10 @@ class LoyaltyGroup extends StatelessWidget {
               ),
             ),
             if (hint != null)
-              Text(hint!, style: DashType.body.copyWith(color: c.textSecondary)),
+              Text(
+                hint!,
+                style: DashType.body.copyWith(color: c.textSecondary),
+              ),
           ],
         ),
         child,

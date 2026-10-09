@@ -76,9 +76,7 @@ String translatedName(
 /// A discount as the channel select lists it: `<name> · 15%` for a
 /// percentage, `<name> · EGP 25.00` for a fixed amount (the legacy `value`).
 String discountLabel(Discount d, String lang, DashFormat fmt) {
-  final value = d.dtype == 'percentage'
-      ? '${d.value}%'
-      : fmt.fmtMoney(d.value);
+  final value = d.dtype == 'percentage' ? '${d.value}%' : fmt.fmtMoney(d.value);
   return '${translatedName(d.name, d.nameTranslations, lang)} · $value';
 }
 

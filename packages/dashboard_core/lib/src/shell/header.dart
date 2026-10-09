@@ -53,7 +53,7 @@ class DashHeader extends ConsumerWidget {
             children: [
               DashIconButton(
                 icon: 'panel-left',
-                semanticLabel: t('shell.toggleSidebar'),
+                semanticLabel: t('ui.sidebar.toggle'),
                 color: c.onChromeMuted,
                 onPressed: () =>
                     ref.read(sidebarCollapsedProvider.notifier).toggle(),
@@ -121,7 +121,7 @@ class DashPhoneBar extends ConsumerWidget {
                 const SizedBox(width: Space.xs),
                 DashIconButton(
                   icon: 'search',
-                  semanticLabel: t('shell.searchPages'),
+                  semanticLabel: t('common.search'),
                   color: c.onChromeMuted,
                   onPressed: () => showDashCommandPalette(paperContext),
                 ),

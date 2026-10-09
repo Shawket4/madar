@@ -34,11 +34,9 @@ Future<DashHarness> openProfile(
   return h;
 }
 
-Finder field<T>(String label) =>
-    inSurface(find.widgetWithText(T, label)).first;
+Finder field<T>(String label) => inSurface(find.widgetWithText(T, label)).first;
 
-Future<void> type(DashHarness h, Finder f, String text) =>
-    h.enterText(f, text);
+Future<void> type(DashHarness h, Finder f, String text) => h.enterText(f, text);
 
 Future<void> pick(DashHarness h, String label, String option) async {
   await h.tap(field<DashSelectField<String>>(label));
@@ -175,9 +173,7 @@ void main() {
   });
 
   testWidgets('TEAM-EMP-016/028 a fresher row re-seeds the form until '
-      'something is edited; the save never sends a stale copy', (
-    tester,
-  ) async {
+      'something is edited; the save never sends a stale copy', (tester) async {
     final h = await openProfile(tester, 'Adham Reda');
     expect(boxText(tester, field<DashTextField>('Job title')), 'Waiter');
     empRow(h.db!, 'adham')['job_title'] = 'Head waiter';
@@ -337,11 +333,7 @@ void main() {
   testWidgets('TEAM-EMP-024 refusal: a manager sees no salary box', (
     tester,
   ) async {
-    final h = await openProfile(
-      tester,
-      'Adham Reda',
-      persona: Persona.manager,
-    );
+    final h = await openProfile(tester, 'Adham Reda', persona: Persona.manager);
     expect(surfaceText('Base salary (monthly)'), findsNothing);
     expect(find.byType(SalaryCalculator), findsNothing);
     await save(h);

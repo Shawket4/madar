@@ -91,7 +91,10 @@ void _seedPayslips(MockDb db) {
     if (p['status'] == 'draft') continue;
     for (final e in staff) {
       if (e['org_id'] != p['org_id'] || e['on_payroll'] != true) continue;
-      if (((e['hire_date'] as String?) ?? '').compareTo(p['end_date']! as String) > 0) {
+      if (((e['hire_date'] as String?) ?? '').compareTo(
+            p['end_date']! as String,
+          ) >
+          0) {
         continue;
       }
       final salary = (e['base_salary_piastres'] as num?)?.toInt() ?? 0;
@@ -136,8 +139,7 @@ void _seedPayslips(MockDb db) {
 int _int(Object? v) => v is num ? v.round() : 0;
 
 Map<String, Object?> _settingsOf(MockDb db, String org) =>
-    db['attendance_settings'].firstWhere((r) => r['org_id'] == org) ??
-    const {};
+    db['attendance_settings'].firstWhere((r) => r['org_id'] == org) ?? const {};
 
 /// `ensure_current_period`: the month covering today, opened when missing.
 MockRow currentPeriod(MockDb db, String org) {
@@ -176,7 +178,8 @@ bool _lineIn(MockRow a, String from, String to) {
   final eff = a['effective_date']! as String;
   if (a['recurring'] == true) {
     final ends = a['ends_on'] as String?;
-    return eff.compareTo(to) <= 0 && (ends == null || ends.compareTo(from) >= 0);
+    return eff.compareTo(to) <= 0 &&
+        (ends == null || ends.compareTo(from) >= 0);
   }
   return _inWindow(eff, from, to);
 }
@@ -360,7 +363,9 @@ MockRow _wire(MockRow r) => {
 /// method and account, and its period.
 MockRow payslipOut(MockDb db, MockRow s) {
   final e = db['employees'].find(s['employee_id']! as String);
-  final p = db[TeamTables.payrollPeriods].find(s['payroll_period_id']! as String);
+  final p = db[TeamTables.payrollPeriods].find(
+    s['payroll_period_id']! as String,
+  );
   return {
     ..._wire(s),
     'employee_name': e?['name'],
@@ -397,7 +402,9 @@ Map<String, Object?> _totals(List<MockRow> slips, {required bool computed}) {
     'carry_out_piastres': sum('carry_out_piastres'),
     'people': slips.length,
     if (computed)
-      'missing_salary_count': slips.where((s) => s['salary_missing'] == true).length,
+      'missing_salary_count': slips
+          .where((s) => s['salary_missing'] == true)
+          .length,
   };
 }
 
@@ -418,7 +425,13 @@ bool? closedAt(MockDb db, String org, String day) {
 }
 
 /// 409 `PERIOD_CLOSED` when [day] is in an approved month.
-void assertOpen(MockRequest req, MockDb db, String org, String day, String what) {
+void assertOpen(
+  MockRequest req,
+  MockDb db,
+  String org,
+  String day,
+  String what,
+) {
   final paid = closedAt(db, org, day);
   if (paid == null) return;
   req.fail(
@@ -472,7 +485,10 @@ String _capOf(String kind) =>
 String _gateKind(MockRequest req, String kind) {
   if (kind != 'bonus' && kind != 'deduction') {
     req.requireAnyCap(const ['hr.adjustments.create', 'hr.deductions.create']);
-    req.badRequest('kind is bonus or deduction', code: 'ADJUSTMENT_KIND_INVALID');
+    req.badRequest(
+      'kind is bonus or deduction',
+      code: 'ADJUSTMENT_KIND_INVALID',
+    );
   }
   final cap = _capOf(kind);
   req.requireCap(cap);
@@ -495,8 +511,7 @@ String? _trimmed(Object? v) {
 
 // ── advances ─────────────────────────────────────────────────────────────
 
-int _capOfEmployee(MockRow e) =>
-    (_int(e['base_salary_piastres']) * 50) ~/ 100;
+int _capOfEmployee(MockRow e) => (_int(e['base_salary_piastres']) * 50) ~/ 100;
 
 int _outstanding(MockDb db, String employeeId) => db[TeamTables.advances].rows
     .where(
@@ -733,7 +748,8 @@ void registerPayrollMocks(MockServer server, MockDb db) {
       // The run collects the installments (the ledger).
       for (final a in (s['_applied']! as List).cast<Map<String, Object?>>()) {
         final adv = advances.find(a['id']! as String)!;
-        final left = _int(adv['remaining_piastres']) - _int(a['applied_piastres']);
+        final left =
+            _int(adv['remaining_piastres']) - _int(a['applied_piastres']);
         adv['remaining_piastres'] = left;
         if (left <= 0) adv['status'] = 'settled';
       }
@@ -789,7 +805,9 @@ void registerPayrollMocks(MockServer server, MockDb db) {
     );
     if (current == 'generated' && target == 'draft') {
       if (reason == null) req.badRequest('Reopening needs a reason');
-      if (slips.any((s) => s['paid_at'] != null && s['paid_method'] != 'none')) {
+      if (slips.any(
+        (s) => s['paid_at'] != null && s['paid_method'] != 'none',
+      )) {
         req.conflict(
           "Someone has already been paid — this payroll can't be reopened.",
           code: 'PAYROLL_PAID_NO_REOPEN',
@@ -797,8 +815,9 @@ void registerPayrollMocks(MockServer server, MockDb db) {
       }
       // The ledger gives the installments back, never taking them twice.
       for (final s in slips) {
-        for (final a in ((s['_applied'] as List?) ?? const [])
-            .cast<Map<String, Object?>>()) {
+        for (final a
+            in ((s['_applied'] as List?) ?? const [])
+                .cast<Map<String, Object?>>()) {
           final adv = advances.find(a['id']! as String);
           if (adv == null) continue;
           adv['remaining_piastres'] =
@@ -841,46 +860,51 @@ void registerPayrollMocks(MockServer server, MockDb db) {
     return MockResponse.ok(p);
   });
 
-  server.on('PATCH', '/staff/payroll/periods/{id}/payslips/{employee_id}/paid', (
-    req,
-  ) {
-    requireEverywhere(req, 'hr.payroll.run');
-    final method = req.json['method'];
-    if (method != 'cash' && method != 'bank' && method != 'wallet') {
-      req.badRequest('method is cash, bank or wallet', code: 'PAY_METHOD_INVALID');
-    }
-    final p = periodOf(req, req.param('id'), coded: true);
-    if (p['status'] != 'generated' && p['status'] != 'paid') {
-      req.conflict(
-        'Approve the payroll before paying it.',
-        code: 'PAYROLL_NOT_APPROVED',
+  server.on(
+    'PATCH',
+    '/staff/payroll/periods/{id}/payslips/{employee_id}/paid',
+    (req) {
+      requireEverywhere(req, 'hr.payroll.run');
+      final method = req.json['method'];
+      if (method != 'cash' && method != 'bank' && method != 'wallet') {
+        req.badRequest(
+          'method is cash, bank or wallet',
+          code: 'PAY_METHOD_INVALID',
+        );
+      }
+      final p = periodOf(req, req.param('id'), coded: true);
+      if (p['status'] != 'generated' && p['status'] != 'paid') {
+        req.conflict(
+          'Approve the payroll before paying it.',
+          code: 'PAYROLL_NOT_APPROVED',
+        );
+      }
+      final slip = db[payslipsTable].firstWhere(
+        (s) =>
+            s['payroll_period_id'] == p['id'] &&
+            s['employee_id'] == req.param('employee_id') &&
+            s['paid_at'] == null,
       );
-    }
-    final slip = db[payslipsTable].firstWhere(
-      (s) =>
-          s['payroll_period_id'] == p['id'] &&
-          s['employee_id'] == req.param('employee_id') &&
-          s['paid_at'] == null,
-    );
-    if (slip == null) {
-      req.conflict(
-        "That payslip is already paid or doesn't exist.",
-        code: 'PAYSLIP_ALREADY_PAID',
-      );
-    }
-    slip.addAll({
-      'paid_method': method,
-      'paid_at': db.nowIso,
-      'paid_by': req.persona.userId,
-    });
-    // The month is Paid once everyone is (`settle_period_if_all_paid`).
-    if (db[payslipsTable].rows
-        .where((s) => s['payroll_period_id'] == p['id'])
-        .every((s) => s['paid_at'] != null)) {
-      p.addAll({'status': 'paid', 'paid_at': db.nowIso});
-    }
-    return MockResponse.ok(payslipOut(db, slip));
-  });
+      if (slip == null) {
+        req.conflict(
+          "That payslip is already paid or doesn't exist.",
+          code: 'PAYSLIP_ALREADY_PAID',
+        );
+      }
+      slip.addAll({
+        'paid_method': method,
+        'paid_at': db.nowIso,
+        'paid_by': req.persona.userId,
+      });
+      // The month is Paid once everyone is (`settle_period_if_all_paid`).
+      if (db[payslipsTable].rows
+          .where((s) => s['payroll_period_id'] == p['id'])
+          .every((s) => s['paid_at'] != null)) {
+        p.addAll({'status': 'paid', 'paid_at': db.nowIso});
+      }
+      return MockResponse.ok(payslipOut(db, slip));
+    },
+  );
 
   server.on('GET', '/staff/payroll/periods/{id}/export.csv', (req) {
     requireEverywhere(req, 'hr.payroll.read');
@@ -979,7 +1003,11 @@ void registerPayrollMocks(MockServer server, MockDb db) {
       final p = periods.firstWhere(
         (p) =>
             p['org_id'] == org &&
-            _inWindow(day, p['start_date']! as String, p['end_date']! as String),
+            _inWindow(
+              day,
+              p['start_date']! as String,
+              p['end_date']! as String,
+            ),
       )!;
       day = _iso(_d(p['end_date']! as String).add(const Duration(days: 1)));
     }
@@ -1056,7 +1084,13 @@ void registerPayrollMocks(MockServer server, MockDb db) {
     final a = lineOf(req, kind, req.param('id'));
     if (a['status'] != 'pending') _alreadyDecided(req, a['status']);
     _subject(req, db, a['employee_id'] as String?, cap);
-    assertOpen(req, db, req.orgId!, a['effective_date']! as String, 'this pay line');
+    assertOpen(
+      req,
+      db,
+      req.orgId!,
+      a['effective_date']! as String,
+      'this pay line',
+    );
     // Only someone whose limit covers it settles a waiting line.
     if (!_everywhere(req, 'hr.payroll.run')) req.fail(MockResponse.denied(cap));
     final body = req.json;
@@ -1196,7 +1230,11 @@ void registerPayrollMocks(MockServer server, MockDb db) {
     if (a['waived_at'] == null) {
       req.conflict('This deduction is not waived.', code: 'NOT_WAIVED');
     }
-    a.addAll({'waived_at': null, 'waive_reason': null, 'unwaive_reason': reason});
+    a.addAll({
+      'waived_at': null,
+      'waive_reason': null,
+      'unwaive_reason': reason,
+    });
     return MockResponse.ok(adjustmentOut(a));
   });
 
@@ -1217,7 +1255,13 @@ void registerPayrollMocks(MockServer server, MockDb db) {
         code: 'RULE_LINE_NOT_DELETED',
       );
     }
-    assertOpen(req, db, req.orgId!, a['effective_date']! as String, 'a pay line');
+    assertOpen(
+      req,
+      db,
+      req.orgId!,
+      a['effective_date']! as String,
+      'a pay line',
+    );
     lines.delete(a['id']! as String);
     return MockResponse.empty();
   }
@@ -1367,7 +1411,9 @@ void registerPayrollMocks(MockServer server, MockDb db) {
         (body['branch_id'] as String?) ??
         (e['branch_ids'] as List?)?.cast<String>().first;
     if (body['branch_id'] != null) {
-      if (teamOrgOfBranch(db, branch) != req.orgId) req.notFound('Branch not found');
+      if (teamOrgOfBranch(db, branch) != req.orgId) {
+        req.notFound('Branch not found');
+      }
       req.requireCap('hr.expense_advances.log', branchId: branch);
     }
     final via = body['via'];
@@ -1388,10 +1434,7 @@ void registerPayrollMocks(MockServer server, MockDb db) {
     final today = MockClock.cairoDate(req.now);
     final givenOn = (body['given_on'] as String?) ?? today;
     if (givenOn.compareTo(today) > 0) {
-      req.badRequest(
-        "The date can't be in the future",
-        code: 'DATE_IN_FUTURE',
-      );
+      req.badRequest("The date can't be in the future", code: 'DATE_IN_FUTURE');
     }
     final row = expenses.insert({
       'employee_id': e['id'],
@@ -1424,10 +1467,7 @@ void registerPayrollMocks(MockServer server, MockDb db) {
       req.notFound('Expense advance not found');
     }
     if (_trimmed(reason) == null) {
-      req.badRequest(
-        "Say why you're correcting it.",
-        code: 'REASON_REQUIRED',
-      );
+      req.badRequest("Say why you're correcting it.", code: 'REASON_REQUIRED');
     }
     assertOpen(
       req,
@@ -1451,7 +1491,11 @@ void registerPayrollMocks(MockServer server, MockDb db) {
     final to = teamEmployeeRow(db, body['employee_id'] as String?);
     if (to == null || to['org_id'] != req.orgId) {
       req.fail(
-        MockResponse.error(404, 'Employee not found', code: 'EMPLOYEE_NOT_FOUND'),
+        MockResponse.error(
+          404,
+          'Employee not found',
+          code: 'EMPLOYEE_NOT_FOUND',
+        ),
       );
     }
     if (to['employment_status'] != 'active') {

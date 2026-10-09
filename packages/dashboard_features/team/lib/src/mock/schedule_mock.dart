@@ -279,8 +279,7 @@ void registerScheduleMocks(MockServer server, MockDb db) {
 
   // ── public holidays (owner decision D3) ──────────────────────────────
   server.on('PUT', '/staff/holidays/{date}', (req) {
-    if (!(req.persona.can('hr.rules.edit') &&
-        req.persona.branchIds == null)) {
+    if (!(req.persona.can('hr.rules.edit') && req.persona.branchIds == null)) {
       req.fail(
         MockResponse.error(
           403,
@@ -719,7 +718,8 @@ class _Roster {
               (a['effective_to'] == null ||
                   '${a['effective_to']}'.compareTo(date) >= 0),
         )..sort(
-          (a, b) => '${b['effective_from']}'.compareTo('${a['effective_from']}'),
+          (a, b) =>
+              '${b['effective_from']}'.compareTo('${a['effective_from']}'),
         );
     for (final a in rows) {
       final w = db['work_shifts'].find('${a['work_shift_id']}');
@@ -773,9 +773,9 @@ class _Roster {
       });
     }
     final week = weekStartOf(date);
-    final published = _branchesOf(emp).any(
-      (b) => db[ScheduleTables.publications].find('$b|$week') != null,
-    );
+    final published = _branchesOf(
+      emp,
+    ).any((b) => db[ScheduleTables.publications].find('$b|$week') != null);
     if (published) db[ScheduleTables.changed].put({'id': '$id|$date'});
   }
 
@@ -1027,8 +1027,8 @@ class _Roster {
               'checkin_window_minutes': w['checkin_window_minutes'] ?? 60,
               'valid_days': w['valid_days'] ?? const [0, 1, 2, 3, 4, 5, 6],
               'day_times': [
-                for (final d in ((w['day_times'] as List?) ?? const [])
-                    .cast<Map>())
+                for (final d
+                    in ((w['day_times'] as List?) ?? const []).cast<Map>())
                   {
                     'day_of_week': d['day_of_week'],
                     'start_time': _sec('${d['start_time']}'),
@@ -1190,8 +1190,7 @@ class _Roster {
       }
       final usual = freq.entries
           .reduce(
-            (a, b) =>
-                b.value > a.value || (b.value == a.value && b.key > a.key)
+            (a, b) => b.value > a.value || (b.value == a.value && b.key > a.key)
                 ? b
                 : a,
           )

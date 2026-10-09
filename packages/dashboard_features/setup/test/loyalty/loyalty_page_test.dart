@@ -17,8 +17,9 @@ Finder _tab(String label) =>
     find.descendant(of: _tabs(), matching: find.text(label));
 
 void main() {
-  testWidgets('SET-LOY-001 the pane header: "Loyalty" and its description',
-      (tester) async {
+  testWidgets('SET-LOY-001 the pane header: "Loyalty" and its description', (
+    tester,
+  ) async {
     final h = await pumpLoyalty(tester);
     expect(pageText('Loyalty'), findsWidgets);
     expect(pageText(h.t('loyalty.subtitle')), findsOneWidget);
@@ -33,15 +34,21 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: scope, matching: find.byWidgetPredicate(
-        (w) => w is DashIcon && w.name == 'lock',
-      )),
+      find.descendant(
+        of: scope,
+        matching: find.byWidgetPredicate(
+          (w) => w is DashIcon && w.name == 'lock',
+        ),
+      ),
       findsOneWidget,
     );
     expect(
-      find.ancestor(of: scope, matching: find.byWidgetPredicate(
-        (w) => w is Tooltip && w.message == h.t('loyalty.scopeLocked'),
-      )),
+      find.ancestor(
+        of: scope,
+        matching: find.byWidgetPredicate(
+          (w) => w is Tooltip && w.message == h.t('loyalty.scopeLocked'),
+        ),
+      ),
       findsOneWidget,
     );
     expect(pageText(h.t('loyalty.qrOrgTip')), findsOneWidget);
@@ -110,8 +117,9 @@ void main() {
     expect(buttonAt(tester, 'loyalty-code').onPressed, isNull);
   });
 
-  testWidgets('SET-LOY-005 a programme switched off: the refusal is toasted',
-      (tester) async {
+  testWidgets('SET-LOY-005 a programme switched off: the refusal is toasted', (
+    tester,
+  ) async {
     final m = loyaltyServer();
     settingsRow(m.db)['enabled'] = false;
     final h = await pumpLoyalty(tester, backend: m);
@@ -164,10 +172,9 @@ void main() {
       'Sabah Stamps',
     );
     await h.go('$loyaltyPath${atBranch(SeedIds.zamalek)}');
-    expect(
-      q1(h.server.callsTo(LoyaltyRoutes.settings).last),
-      {'branch_id': SeedIds.zamalek},
-    );
+    expect(q1(h.server.callsTo(LoyaltyRoutes.settings).last), {
+      'branch_id': SeedIds.zamalek,
+    });
     expect(
       tester
           .widget<EditableText>(inputOf(programField('program_name')))
@@ -193,8 +200,9 @@ void main() {
   });
 
   testWidgets('SET-LOY-081 (divergence) an inactive branch cannot stay in '
-      'scope: label, hint and button all follow the organisation',
-      (tester) async {
+      'scope: label, hint and button all follow the organisation', (
+    tester,
+  ) async {
     final m = loyaltyServer();
     m.db['branches'].find(SeedIds.zamalek)!['is_active'] = false;
     final h = await pumpLoyalty(
@@ -217,18 +225,17 @@ void main() {
       'Members search', (tester) async {
     final h = await pumpLoyalty(tester);
     await openTab(h, 'Members');
-    await h.enterText(
-      inPage(find.byType(DashSearchInput)),
-      'Nada',
-    );
+    await h.enterText(inPage(find.byType(DashSearchInput)), 'Nada');
     await h.flushTimers();
     await h.go('$loyaltyPath${atBranch(SeedIds.zamalek)}');
     expect(find.byType(MembersPane), findsOneWidget);
     final input = tester.widget<EditableText>(
-      inPage(find.descendant(
-        of: find.byType(DashSearchInput),
-        matching: find.byType(EditableText),
-      )),
+      inPage(
+        find.descendant(
+          of: find.byType(DashSearchInput),
+          matching: find.byType(EditableText),
+        ),
+      ),
     );
     expect(input.controller.text, 'Nada');
     // The customers list is org-wide: the branch does not re-read it.
@@ -236,9 +243,8 @@ void main() {
     expect(last['q'], 'Nada');
     expect(last.containsKey('branch_id'), isFalse);
     // Only the balance unit is read under the branch's programme.
-    expect(
-      q1(h.server.callsTo(LoyaltyRoutes.settings).last),
-      {'branch_id': SeedIds.zamalek},
-    );
+    expect(q1(h.server.callsTo(LoyaltyRoutes.settings).last), {
+      'branch_id': SeedIds.zamalek,
+    });
   });
 }

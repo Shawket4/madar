@@ -111,6 +111,21 @@ void main() {
     expect(_get(h, comboT), 1);
   });
 
+  testWidgets('MENU-STUDIO-004 intent: Back warms the items page; going '
+      'back reads no catalog page again', (tester) async {
+    final h = await pumpStudio(tester);
+    final back = find.bySemanticsLabel('Back');
+    final before = _get(h, _costingT);
+
+    await _rest(h, back);
+    final warmed = _get(h, _costingT);
+    expect(warmed, greaterThan(before));
+
+    await h.tap(back);
+    expect(h.location.path, '/menu/items');
+    expect(_get(h, _costingT), warmed);
+  });
+
   testWidgets('MENU-STUDIO-005 intent: the pricing link warms the pricing '
       'page; opening it reads no catalog page again', (tester) async {
     // The pricing page reads a branch's overrides: a branch is in scope.

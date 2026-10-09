@@ -50,7 +50,9 @@ Future<void> _search(DashHarness h, String name) => h.enterText(
 
 /// Opens the picker inside [scope], searches and picks [name].
 Future<void> _pick(DashHarness h, Finder scope, String name) async {
-  await h.tap(find.descendant(of: scope, matching: find.byType(DashSelect<String>)));
+  await h.tap(
+    find.descendant(of: scope, matching: find.byType(DashSelect<String>)),
+  );
   await _search(h, name);
   await h.tap(_option(name));
 }
@@ -97,14 +99,14 @@ void main() {
         'inherited note', (tester) async {
       final h = await _open(tester, query: atBranch(SeedIds.maadi));
       expect(pageText(h.t('loyalty.rewardsInherited')), findsOneWidget);
-      expect(
-        q1(h.server.callsTo(LoyaltyRoutes.rewards).single),
-        {'branch_id': SeedIds.maadi},
-      );
+      expect(q1(h.server.callsTo(LoyaltyRoutes.rewards).single), {
+        'branch_id': SeedIds.maadi,
+      });
     });
 
-    testWidgets('SET-LOY-038 "any item" on: the warning names the cost',
-        (tester) async {
+    testWidgets('SET-LOY-038 "any item" on: the warning names the cost', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       settingsRow(m.db)['reward_any_item'] = true;
       await _open(tester, backend: m);
@@ -117,8 +119,9 @@ void main() {
       );
     });
 
-    testWidgets('SET-LOY-039 an empty catalogue: "No rewards yet"',
-        (tester) async {
+    testWidgets('SET-LOY-039 an empty catalogue: "No rewards yet"', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       m.db[LoyaltyTables.rewards].clear();
       final h = await _open(tester, backend: m);
@@ -126,8 +129,9 @@ void main() {
       expect(pageText(h.t('loyalty.noRewardsHint')), findsOneWidget);
     });
 
-    testWidgets('SET-LOY-040 rows: name, cost under its unit, remove',
-        (tester) async {
+    testWidgets('SET-LOY-040 rows: name, cost under its unit, remove', (
+      tester,
+    ) async {
       final h = await _open(tester);
       for (final (key, cost) in loyaltySeedRewards) {
         expect(
@@ -169,8 +173,7 @@ void main() {
       expect(pageText('Enter a whole number above zero.'), findsOneWidget);
       expect(buttonAt(tester, 'rewards-save').onPressed, isNull);
       await h.enterText(_cost('latte'), '6');
-      m.db['menu_items'].find(_item('espresso'))!['deleted_at'] =
-          m.db.nowIso;
+      m.db['menu_items'].find(_item('espresso'))!['deleted_at'] = m.db.nowIso;
       h.container.read(realtimeBusProvider).invalidate(const ['/menu-items']);
       await h.settle();
       expect(
@@ -180,8 +183,9 @@ void main() {
       expect(buttonAt(tester, 'rewards-save').onPressed, isNull);
     });
 
-    testWidgets('SET-LOY-041 nothing is flagged while the menu is loading',
-        (tester) async {
+    testWidgets('SET-LOY-041 nothing is flagged while the menu is loading', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       m.db['menu_items'].find(_item('cappuccino'))!['is_active'] = false;
       final gate = m.server.hold('GET', LoyaltyRoutes.menu);
@@ -207,7 +211,10 @@ void main() {
       );
       expect(tester.widget<DashButton>(add).onPressed, isNull);
       await h.tap(
-        find.descendant(of: _rewardsCard(), matching: find.byType(DashSelect<String>)),
+        find.descendant(
+          of: _rewardsCard(),
+          matching: find.byType(DashSelect<String>),
+        ),
       );
       Finder option(String s) => _option(s);
       await _search(h, 'Espresso');
@@ -253,7 +260,10 @@ void main() {
       });
       await h.expectToast('Rewards saved');
       expect(seen, contains(const [LoyaltyRoutes.rewards]));
-      expect(h.server.callsTo(LoyaltyRoutes.rewards, method: 'GET'), hasLength(2));
+      expect(
+        h.server.callsTo(LoyaltyRoutes.rewards, method: 'GET'),
+        hasLength(2),
+      );
       expect(buttonAt(tester, 'rewards-save').onPressed, isNull);
     });
 
@@ -280,8 +290,9 @@ void main() {
       await h.expectToast(h.t('loyalty.errors.serverInactiveReward'));
     });
 
-    testWidgets('SET-LOY-044 any other refusal: the server\'s words',
-        (tester) async {
+    testWidgets('SET-LOY-044 any other refusal: the server\'s words', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       final no = MockResponse.denied('loyalty.use');
       m.server.fail('PUT', LoyaltyRoutes.rewards, no);
@@ -306,8 +317,14 @@ void main() {
     testWidgets('SET-LOY-046 a stamp card: the card and its "everything '
         'collects" line; a points card has none', (tester) async {
       final h = await _open(tester);
-      expect(_inEarning(find.text('Items that collect a stamp')), findsOneWidget);
-      expect(_inEarning(find.text(h.t('loyalty.earningItemsAll'))), findsOneWidget);
+      expect(
+        _inEarning(find.text('Items that collect a stamp')),
+        findsOneWidget,
+      );
+      expect(
+        _inEarning(find.text(h.t('loyalty.earningItemsAll'))),
+        findsOneWidget,
+      );
     });
 
     testWidgets('SET-LOY-046 points mode: no earning card', (tester) async {
@@ -321,7 +338,10 @@ void main() {
     testWidgets('SET-LOY-047 per-order counting: the inert note; at a branch '
         'that inherits, the inherited note', (tester) async {
       final h = await _open(tester, query: atBranch(SeedIds.maadi));
-      expect(_inEarning(find.text(h.t('loyalty.earningItemsInert'))), findsOneWidget);
+      expect(
+        _inEarning(find.text(h.t('loyalty.earningItemsInert'))),
+        findsOneWidget,
+      );
       expect(
         _inEarning(find.text(h.t('loyalty.earningItemsInherited'))),
         findsOneWidget,
@@ -333,7 +353,10 @@ void main() {
       final m = loyaltyServer();
       final gate = m.server.hold('GET', LoyaltyRoutes.earning);
       final h = await _open(tester, backend: m);
-      expect(find.byKey(const ValueKey('loyalty-earning-loading')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('loyalty-earning-loading')),
+        findsOneWidget,
+      );
       m.server.fail(
         'GET',
         LoyaltyRoutes.earning,
@@ -342,7 +365,10 @@ void main() {
       );
       gate.release();
       await h.settle();
-      expect(_inEarning(find.text(h.t('loyalty.earningItemsAll'))), findsOneWidget);
+      expect(
+        _inEarning(find.text(h.t('loyalty.earningItemsAll'))),
+        findsOneWidget,
+      );
       expect(_inEarning(find.text('Retry')), findsNothing);
     });
 
@@ -359,9 +385,15 @@ void main() {
         }, timestamps: false);
       }
       final h = await _open(tester, backend: m);
-      expect(_inEarning(find.text(h.t('loyalty.earningItemsSome'))), findsOneWidget);
+      expect(
+        _inEarning(find.text(h.t('loyalty.earningItemsSome'))),
+        findsOneWidget,
+      );
       expect(_inEarning(find.text('Caffè Latte')), findsOneWidget);
-      expect(_inEarning(find.text(h.t('loyalty.earningItemsInert'))), findsNothing);
+      expect(
+        _inEarning(find.text(h.t('loyalty.earningItemsInert'))),
+        findsNothing,
+      );
       expect(buttonAt(tester, 'earning-save').onPressed, isNull);
       await h.tap(_inEarning(find.bySemanticsLabel('Remove')).first);
       expect(_inEarning(find.text('Caffè Latte')), findsNothing);
@@ -370,16 +402,24 @@ void main() {
       expect(body['menu_item_ids'], [_item('cappuccino')]);
       expect(body.containsKey('branch_id'), isTrue);
       await h.expectToast('Saved');
-      expect(h.server.callsTo(LoyaltyRoutes.earning, method: 'GET'), hasLength(2));
+      expect(
+        h.server.callsTo(LoyaltyRoutes.earning, method: 'GET'),
+        hasLength(2),
+      );
     });
 
     testWidgets('SET-LOY-050 SET-LOY-051 add an item that collects; '
         'Discard puts the list back', (tester) async {
       final h = await _open(tester);
-      expect(_inEarning(find.text('Add an item that collects')), findsOneWidget);
+      expect(
+        _inEarning(find.text('Add an item that collects')),
+        findsOneWidget,
+      );
       await _pick(h, _earning(), 'Mint Lemonade');
       await h.tap(
-        _inEarning(find.byWidgetPredicate((w) => w is DashButton && w.label == 'Add')),
+        _inEarning(
+          find.byWidgetPredicate((w) => w is DashButton && w.label == 'Add'),
+        ),
       );
       expect(_inEarning(find.text('Mint Lemonade')), findsOneWidget);
       expect(buttonAt(tester, 'earning-save').onPressed, isNotNull);
@@ -387,15 +427,18 @@ void main() {
       expect(_inEarning(find.text('Mint Lemonade')), findsNothing);
     });
 
-    testWidgets('SET-LOY-051 a refused save toasts the server\'s words',
-        (tester) async {
+    testWidgets('SET-LOY-051 a refused save toasts the server\'s words', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       final no = MockResponse.denied('loyalty.use');
       m.server.fail('PUT', LoyaltyRoutes.earning, no);
       final h = await _open(tester, backend: m);
       await _pick(h, _earning(), 'Mint Lemonade');
       await h.tap(
-        _inEarning(find.byWidgetPredicate((w) => w is DashButton && w.label == 'Add')),
+        _inEarning(
+          find.byWidgetPredicate((w) => w is DashButton && w.label == 'Add'),
+        ),
       );
       await h.tap(find.byKey(const ValueKey('earning-save')));
       await h.expectToast(h.refusalWords(no));

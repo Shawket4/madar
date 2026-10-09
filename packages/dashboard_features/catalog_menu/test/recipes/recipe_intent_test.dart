@@ -24,11 +24,17 @@ void main() {
 
     await mouse.moveTo(tester.getCenter(button));
     await h.settle();
-    expect(h.server.callsTo(_categories, method: 'GET'), hasLength(1),
-        reason: 'the dialog read is warmed');
+    expect(
+      h.server.callsTo(_categories, method: 'GET'),
+      hasLength(1),
+      reason: 'the dialog read is warmed',
+    );
     await h.tap(button);
     expect(find.byType(CreateIngredientDialog), findsOneWidget);
-    expect(h.server.callsTo(_categories, method: 'GET'), hasLength(1),
-        reason: 'the dialog opened from the cache');
+    expect(
+      h.server.callsTo(_categories, method: 'GET'),
+      hasLength(1),
+      reason: 'the dialog opened from the cache',
+    );
   });
 }

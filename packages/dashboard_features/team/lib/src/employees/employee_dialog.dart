@@ -129,7 +129,9 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
         ? e.employmentStatus
         : 'active';
     _terminationDate = e.terminationDate ?? '';
-    _salary = e.baseSalaryPiastres == null ? '' : egpText(e.baseSalaryPiastres!);
+    _salary = e.baseSalaryPiastres == null
+        ? ''
+        : egpText(e.baseSalaryPiastres!);
     _nationalId = e.nationalId ?? '';
     _emergencyName = e.emergencyContactName ?? '';
     _emergencyPhone = e.emergencyContactPhone ?? '';
@@ -592,7 +594,10 @@ class _Grid extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: Space.lg,
-          children: [Expanded(child: half!), const Spacer()],
+          children: [
+            Expanded(child: half!),
+            const Spacer(),
+          ],
         ),
       );
       half = null;
@@ -609,7 +614,10 @@ class _Grid extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: Space.lg,
-            children: [Expanded(child: half!), Expanded(child: w)],
+            children: [
+              Expanded(child: half!),
+              Expanded(child: w),
+            ],
           ),
         );
         half = null;

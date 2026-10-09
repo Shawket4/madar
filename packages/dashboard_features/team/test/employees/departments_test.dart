@@ -31,9 +31,8 @@ Future<DashHarness> openDepartments(
   return h;
 }
 
-Finder card(String name) => find
-    .ancestor(of: surfaceText(name), matching: find.byType(DashCard))
-    .first;
+Finder card(String name) =>
+    find.ancestor(of: surfaceText(name), matching: find.byType(DashCard)).first;
 
 Finder inCard(String name, Finder f) =>
     find.descendant(of: card(name), matching: f);
@@ -88,7 +87,14 @@ void main() {
       'list (and the filter) updated; no toast', (tester) async {
     final h = await openDepartments(tester);
     final add = inSurface(find.bySemanticsLabel('Add department'));
-    expect(tester.widget<DashIconButton>(find.ancestor(of: add, matching: find.byType(DashIconButton)).first).onPressed, isNull);
+    expect(
+      tester
+          .widget<DashIconButton>(
+            find.ancestor(of: add, matching: find.byType(DashIconButton)).first,
+          )
+          .onPressed,
+      isNull,
+    );
     final box = inSurface(find.byType(DashTextInput));
     await h.enterText(box, '  Bakery ');
     await tester.testTextInput.receiveAction(TextInputAction.done);
@@ -97,9 +103,12 @@ void main() {
     expect(post.body, {'name': 'Bakery'});
     expect(inCard('Bakery', find.text('0 staff')), findsOneWidget);
     expect(
-      tester.widget<EditableText>(
-        find.descendant(of: box, matching: find.byType(EditableText)),
-      ).controller.text,
+      tester
+          .widget<EditableText>(
+            find.descendant(of: box, matching: find.byType(EditableText)),
+          )
+          .controller
+          .text,
       '',
     );
     await h.enterText(box, 'Delivery');
@@ -164,7 +173,10 @@ void main() {
     await h.tap(inCard('Pastry', find.bySemanticsLabel('Delete')));
     await h.tap(confirmText('Delete'));
     expect(surfaceText('Pastry'), findsNothing);
-    expect(h.db![TeamTables.departments].find(mockUuid('department:sabah:pastry')), isNull);
+    expect(
+      h.db![TeamTables.departments].find(mockUuid('department:sabah:pastry')),
+      isNull,
+    );
   });
 
   testWidgets('TEAM-EMP-061 loading: skeletons, never "No departments yet." '

@@ -477,7 +477,7 @@ class _Identity extends ConsumerWidget {
                     t('customers.notes'),
                     style: DashType.small.copyWith(color: c.textSecondary),
                   ),
-                  Text(n, textDirection: autoDirection(n), style: strong),
+                  Text(n, textDirection: dashTextDirectionOf(n), style: strong),
                 ],
               ),
             ),

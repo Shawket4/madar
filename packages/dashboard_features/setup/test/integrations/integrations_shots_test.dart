@@ -20,12 +20,13 @@ const _shot = 'integrations';
 /// Shoots the pane one screen at a time down the settings shell's scroll.
 Future<void> shootPage(DashHarness h, String name) async {
   ScrollableState? state;
-  for (final e in find
-      .ancestor(
-        of: find.byType(IntegrationsPage),
-        matching: find.byType(Scrollable),
-      )
-      .evaluate()) {
+  for (final e
+      in find
+          .ancestor(
+            of: find.byType(IntegrationsPage),
+            matching: find.byType(Scrollable),
+          )
+          .evaluate()) {
     final s = (e as StatefulElement).state as ScrollableState;
     if (s.position.axis == Axis.vertical) {
       state = s;

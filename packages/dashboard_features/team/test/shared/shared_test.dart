@@ -156,7 +156,10 @@ void main() {
       );
       expect(teamExportLogo(brand(own: true, logo: '   ')), isNull);
       expect(teamExportLogo(brand(own: true)), isNull);
-      expect(teamExportLogo(brand(own: false, logo: 'https://x/l.png')), isNull);
+      expect(
+        teamExportLogo(brand(own: false, logo: 'https://x/l.png')),
+        isNull,
+      );
     });
 
     test('stale refusals', () {

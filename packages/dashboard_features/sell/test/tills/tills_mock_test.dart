@@ -50,21 +50,24 @@ void main() {
     );
   });
 
-  test('the bills notice needs tickets.read; the list only till.read', () async {
-    final m = _api(persona: Persona.limited);
-    await expectLater(
-      m.api.tills.getOpenBillsNotice(branchId: SeedIds.maadi),
-      throwsA(_status(403)),
-    );
-    final mine = await m.api.tills.getCurrentTill(branchId: SeedIds.maadi);
-    expect(mine.hasOpenTill, isTrue);
-    expect(mine.openTill!.id, TillIds.maadiMorning);
-    // A branch the persona is not assigned to.
-    await expectLater(
-      m.api.tills.listTills(branchId: helio),
-      throwsA(_status(403)),
-    );
-  });
+  test(
+    'the bills notice needs tickets.read; the list only till.read',
+    () async {
+      final m = _api(persona: Persona.limited);
+      await expectLater(
+        m.api.tills.getOpenBillsNotice(branchId: SeedIds.maadi),
+        throwsA(_status(403)),
+      );
+      final mine = await m.api.tills.getCurrentTill(branchId: SeedIds.maadi);
+      expect(mine.hasOpenTill, isTrue);
+      expect(mine.openTill!.id, TillIds.maadiMorning);
+      // A branch the persona is not assigned to.
+      await expectLater(
+        m.api.tills.listTills(branchId: helio),
+        throwsA(_status(403)),
+      );
+    },
+  );
 
   test('open: the suggested float passes; another amount needs a reason; '
       'one open till per person', () async {
@@ -83,8 +86,10 @@ void main() {
       body: OpenTillRequest(openingCash: pre.suggestedOpeningCash),
     );
     expect(till.tellerId, SeedIds.owner);
-    expect((await m.api.tills.getCurrentTill(branchId: helio)).openTill!.id,
-        till.id);
+    expect(
+      (await m.api.tills.getCurrentTill(branchId: helio)).openTill!.id,
+      till.id,
+    );
     await expectLater(
       m.api.tills.openTill(
         branchId: SeedIds.maadi,
@@ -131,52 +136,65 @@ void main() {
     );
     final after = await m.api.tills.closePreview(tillId: TillIds.helioMorning);
     expect(after.expectedCash, before.expectedCash - 2500);
-    final report = await m.api.tills.getTillReport(tillId: TillIds.helioMorning);
+    final report = await m.api.tills.getTillReport(
+      tillId: TillIds.helioMorning,
+    );
     expect(report.cashMovements.last.note, 'Bank run');
     expect(report.cashMovementsOut, 8500 + 2500);
     expect(report.cashMovementsIn, 20000);
   });
 
-  test('close: the count against the drawer, each method checked or '
-      'disagreed (a disagreement needs an amount and a note), the rollup', () async {
-    final m = _api();
-    m.db['tills'].get(TillIds.helioMorning)['teller_id'] = SeedIds.owner;
-    final preview = await m.api.tills.closePreview(tillId: TillIds.helioMorning);
-    final cards = [for (final x in preview.methods) if (!x.isCash) x];
-    expect(cards, isNotEmpty);
-    await expectLater(
-      m.api.tills.closeTill(
+  test(
+    'close: the count against the drawer, each method checked or '
+    'disagreed (a disagreement needs an amount and a note), the rollup',
+    () async {
+      final m = _api();
+      m.db['tills'].get(TillIds.helioMorning)['teller_id'] = SeedIds.owner;
+      final preview = await m.api.tills.closePreview(
+        tillId: TillIds.helioMorning,
+      );
+      final cards = [
+        for (final x in preview.methods)
+          if (!x.isCash) x,
+      ];
+      expect(cards, isNotEmpty);
+      await expectLater(
+        m.api.tills.closeTill(
+          tillId: TillIds.helioMorning,
+          body: CloseTillRequest(
+            closingCashDeclared: preview.expectedCash,
+            reconciliation: [
+              ReconciliationInput(
+                method: cards.first.method,
+                status: 'disagreed',
+              ),
+            ],
+          ),
+        ),
+        throwsA(_status(400)),
+      );
+      final res = await m.api.tills.closeTill(
         tillId: TillIds.helioMorning,
         body: CloseTillRequest(
-          closingCashDeclared: preview.expectedCash,
+          closingCashDeclared: preview.expectedCash - 5000,
           reconciliation: [
-            ReconciliationInput(method: cards.first.method, status: 'disagreed'),
+            ReconciliationInput(
+              method: cards.first.method,
+              status: 'disagreed',
+              declaredAmount: cards.first.systemTotal - 1000,
+              note: 'Slip missing',
+            ),
           ],
         ),
-      ),
-      throwsA(_status(400)),
-    );
-    final res = await m.api.tills.closeTill(
-      tillId: TillIds.helioMorning,
-      body: CloseTillRequest(
-        closingCashDeclared: preview.expectedCash - 5000,
-        reconciliation: [
-          ReconciliationInput(
-            method: cards.first.method,
-            status: 'disagreed',
-            declaredAmount: cards.first.systemTotal - 1000,
-            note: 'Slip missing',
-          ),
-        ],
-      ),
-    );
-    expect(res.till.status.value, 'closed');
-    expect(res.till.cashDiscrepancy, -5000);
-    expect(res.till.reconciliationStatus, 'disagreed');
-    expect(res.till.disagreementCount, 2); // the short count and the card
-    // Another till is still open at the branch: no last-till warning.
-    expect(res.lastTillWarning, isNull);
-  });
+      );
+      expect(res.till.status.value, 'closed');
+      expect(res.till.cashDiscrepancy, -5000);
+      expect(res.till.reconciliationStatus, 'disagreed');
+      expect(res.till.disagreementCount, 2); // the short count and the card
+      // Another till is still open at the branch: no last-till warning.
+      expect(res.lastTillWarning, isNull);
+    },
+  );
 
   test('close the last open till with bills open: the warning', () async {
     final m = _api();

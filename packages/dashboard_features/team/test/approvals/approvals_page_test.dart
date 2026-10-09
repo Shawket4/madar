@@ -19,7 +19,8 @@ import 'approvals_support.dart';
 const _lists = [requestsT, advancesT, swapsT, claimsT, payLinesT];
 
 Map<String, int> _counts(DashHarness h) => {
-  for (final t in [..._lists, attendanceT]) t: h.server.callsTo(t, method: 'GET').length,
+  for (final t in [..._lists, attendanceT])
+    t: h.server.callsTo(t, method: 'GET').length,
 };
 
 Map<String, Object?> _body(DashHarness h, String template) =>
@@ -61,11 +62,19 @@ void main() {
     final h = await pumpApprovals(tester, s: s);
     expect(h.server.callsTo(swapsT), hasLength(1));
     expect(h.server.callsTo(claimsT), hasLength(1));
-    for (final t in [requestsT, advancesT, payLinesT, attendanceT, employeesT]) {
+    for (final t in [
+      requestsT,
+      advancesT,
+      payLinesT,
+      attendanceT,
+      employeesT,
+    ]) {
       expect(h.server.callsTo(t), isEmpty, reason: t);
     }
     final types = {
-      for (final r in tester.widgetList<PendingRow>(inPage(find.byType(PendingRow))))
+      for (final r in tester.widgetList<PendingRow>(
+        inPage(find.byType(PendingRow)),
+      ))
         r.item.type,
     };
     expect(types, {PendingType.swap, PendingType.claim});
@@ -124,8 +133,12 @@ void main() {
     tester,
   ) async {
     final s = approvalsServer();
-    s.server.fail('GET', advancesT, MockResponse.denied('hr.advances.decide'),
-        times: null);
+    s.server.fail(
+      'GET',
+      advancesT,
+      MockResponse.denied('hr.advances.decide'),
+      times: null,
+    );
     final h = await pumpApprovals(tester, s: s);
     final title = h.t(
       'dawam.sectionLoadError',
@@ -172,7 +185,9 @@ void main() {
       'Approve and Reject; newest first, nothing decided', (tester) async {
     final h = await pumpApprovals(tester);
     final items = [
-      for (final r in tester.widgetList<PendingRow>(inPage(find.byType(PendingRow))))
+      for (final r in tester.widgetList<PendingRow>(
+        inPage(find.byType(PendingRow)),
+      ))
         r.item,
     ];
     for (var i = 1; i < items.length; i++) {
@@ -182,7 +197,10 @@ void main() {
     final swap = rowOfType(PendingType.swap);
     final it = itemOf(tester, swap);
     for (final text in [it.who, h.t('dawam.swap'), h.t('dawamOps.meansSwap')]) {
-      expect(find.descendant(of: swap, matching: find.text(text)), findsOneWidget);
+      expect(
+        find.descendant(of: swap, matching: find.text(text)),
+        findsOneWidget,
+      );
     }
     expect(approveOf(swap), findsOneWidget);
     expect(rejectOf(swap), findsOneWidget);
@@ -203,8 +221,10 @@ void main() {
       find.descendant(of: swap, matching: find.byType(DashIconButton)),
     );
     expect(reject.semanticLabel, h.t('common.reject'));
-    expect(find.descendant(of: swap, matching: find.text(h.t('common.reject'))),
-        findsNothing);
+    expect(
+      find.descendant(of: swap, matching: find.text(h.t('common.reject'))),
+      findsNothing,
+    );
   });
 
   // ── the one-click runner ─────────────────────────────────────────────────
@@ -219,7 +239,9 @@ void main() {
     await tester.tap(approveOf(claim));
     await h.settle();
     expect(_patches(h, decideClaimT), 1);
-    for (final b in tester.widgetList<DashButton>(approveOf(find.byType(PendingRow)))) {
+    for (final b in tester.widgetList<DashButton>(
+      approveOf(find.byType(PendingRow)),
+    )) {
       expect(b.onPressed, isNull);
     }
     gate.release();
@@ -293,8 +315,11 @@ void main() {
     s.server.fail(
       'PATCH',
       decideClaimT,
-      MockResponse.error(403, "You can't approve your own claim.",
-          code: 'OWN_CLAIM'),
+      MockResponse.error(
+        403,
+        "You can't approve your own claim.",
+        code: 'OWN_CLAIM',
+      ),
     );
     final h = await pumpApprovals(tester, s: s);
     final before = _counts(h);
@@ -310,7 +335,11 @@ void main() {
     s.server.fail(
       'PATCH',
       decideClaimT,
-      MockResponse.error(404, 'No claim waiting here.', code: 'NO_CLAIM_WAITING'),
+      MockResponse.error(
+        404,
+        'No claim waiting here.',
+        code: 'NO_CLAIM_WAITING',
+      ),
     );
     final h = await pumpApprovals(tester, s: s);
     final before = _counts(h);
@@ -327,24 +356,65 @@ void main() {
       tester,
       edit: (db) {
         db[TeamTables.requests]
-          ..insert(requestRow(id: 'rq-no', employeeKey: 'laila', kind: 'late_arrival',
-              onDate: day(1), toTime: '10:00:00', reason: 'Not mine to decide', canDecide: false))
-          ..insert(requestRow(id: 'rq-own', employeeKey: 'laila', kind: 'late_arrival',
-              onDate: day(1), toTime: '10:00:00', reason: 'My own request', isOwn: true))
-          ..insert(requestRow(id: 'rq-ok', employeeKey: 'laila', kind: 'correction',
-              onDate: day(-1), fromTime: '09:00:00', reason: 'Forgot to clock in',
-              title: 'Clock-in missed'));
+          ..insert(
+            requestRow(
+              id: 'rq-no',
+              employeeKey: 'laila',
+              kind: 'late_arrival',
+              onDate: day(1),
+              toTime: '10:00:00',
+              reason: 'Not mine to decide',
+              canDecide: false,
+            ),
+          )
+          ..insert(
+            requestRow(
+              id: 'rq-own',
+              employeeKey: 'laila',
+              kind: 'late_arrival',
+              onDate: day(1),
+              toTime: '10:00:00',
+              reason: 'My own request',
+              isOwn: true,
+            ),
+          )
+          ..insert(
+            requestRow(
+              id: 'rq-ok',
+              employeeKey: 'laila',
+              kind: 'correction',
+              onDate: day(-1),
+              fromTime: '09:00:00',
+              reason: 'Forgot to clock in',
+              title: 'Clock-in missed',
+            ),
+          );
       },
     );
     expect(pageHas('Not mine to decide'), findsNothing);
     expect(pageHas('My own request'), findsNothing);
     final row = rowOf('Forgot to clock in');
-    expect(find.descendant(of: row, matching: find.text(h.t('dawam.kindCorrection'))),
-        findsOneWidget);
-    expect(find.descendant(of: row, matching: find.textContaining('Clock-in missed')),
-        findsOneWidget);
-    expect(find.descendant(of: row, matching: find.text(h.t('dawamOps.meansCorrection'))),
-        findsOneWidget);
+    expect(
+      find.descendant(
+        of: row,
+        matching: find.text(h.t('dawam.kindCorrection')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: row,
+        matching: find.textContaining('Clock-in missed'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: row,
+        matching: find.text(h.t('dawamOps.meansCorrection')),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('TEAM-APR-011 a manager is never offered a request of an '
@@ -352,24 +422,39 @@ void main() {
     final h = await pumpApprovals(
       tester,
       edit: (db) {
-        final e = db['employees'].rows.firstWhere((e) => e['id'] == emp('laila'));
+        final e = db['employees'].rows.firstWhere(
+          (e) => e['id'] == emp('laila'),
+        );
         db['employees'].update(e['id']! as String, {'user_id': SeedIds.owner});
-        db[TeamTables.requests].insert(requestRow(id: 'rq-linked', employeeKey: 'laila',
-            kind: 'late_arrival', onDate: day(1), toTime: '10:00:00',
-            reason: 'Linked to me'));
+        db[TeamTables.requests].insert(
+          requestRow(
+            id: 'rq-linked',
+            employeeKey: 'laila',
+            kind: 'late_arrival',
+            onDate: day(1),
+            toTime: '10:00:00',
+            reason: 'Linked to me',
+          ),
+        );
       },
     );
-    expect(h.server.callsTo(employeesT).where((c) => c.query.isEmpty), isNotEmpty);
+    expect(
+      h.server.callsTo(employeesT).where((c) => c.query.isEmpty),
+      isNotEmpty,
+    );
     expect(pageHas('Linked to me'), findsNothing);
   });
 
-  testWidgets('TEAM-APR-012 a late arrival is approved in one click with no pay '
-      'question', (tester) async {
-    final h = await pumpApprovals(tester);
-    await h.tap(approveIn('Renewing my national ID'));
-    expect(_body(h, decideRequestT), {'status': 'approved'});
-    await h.expectToast(h.t('staff.decisionSaved'));
-  });
+  testWidgets(
+    'TEAM-APR-012 a late arrival is approved in one click with no pay '
+    'question',
+    (tester) async {
+      final h = await pumpApprovals(tester);
+      await h.tap(approveIn('Renewing my national ID'));
+      expect(_body(h, decideRequestT), {'status': 'approved'});
+      await h.expectToast(h.t('staff.decisionSaved'));
+    },
+  );
 
   testWidgets('TEAM-APR-012 / TEAM-APR-026 leave asks paid or not; unpaid is '
       'sent; the row leaves on the refetch, not before', (tester) async {
@@ -386,40 +471,65 @@ void main() {
       'note': null,
     });
     expect(find.byType(ApproveWithPayDialog), findsNothing);
-    expect(pageHas("My sister's wedding"), findsWidgets, reason: 'not hidden locally');
+    expect(
+      pageHas("My sister's wedding"),
+      findsWidgets,
+      reason: 'not hidden locally',
+    );
     gate.release();
     await h.settle();
     await h.expectToast(h.t('staff.decisionSaved'));
     expect(pageHas("My sister's wedding"), findsNothing);
   });
 
-  testWidgets('TEAM-APR-012 an excuse starts from the rule and leaves it to the '
-      'rule unless changed', (tester) async {
-    final h = await pumpApprovals(
-      tester,
-      edit: (db) {
-        onlyPending(db, const {});
-        db[TeamTables.requests].insert(requestRow(id: 'rq-ex', employeeKey: 'laila',
-            kind: 'excuse', onDate: day(-1), fromTime: '12:00:00', toTime: '13:00:00',
-            reason: 'Bank errand', paidDefault: false));
-      },
-    );
-    await h.tap(approveIn('Bank errand'));
-    expect(tester.widget<DashSwitch>(inSurface(find.byType(DashSwitch))).value, isFalse);
-    expect(surfaceText(h.t('staff.ruleSaysUnpaid')), findsOneWidget);
-    await h.tap(inSurface(find.text(h.t('common.approve'))));
-    expect(_body(h, decideRequestT), {'status': 'approved', 'note': null});
-    await h.expectToast(h.t('staff.decisionSaved'));
-  });
+  testWidgets(
+    'TEAM-APR-012 an excuse starts from the rule and leaves it to the '
+    'rule unless changed',
+    (tester) async {
+      final h = await pumpApprovals(
+        tester,
+        edit: (db) {
+          onlyPending(db, const {});
+          db[TeamTables.requests].insert(
+            requestRow(
+              id: 'rq-ex',
+              employeeKey: 'laila',
+              kind: 'excuse',
+              onDate: day(-1),
+              fromTime: '12:00:00',
+              toTime: '13:00:00',
+              reason: 'Bank errand',
+              paidDefault: false,
+            ),
+          );
+        },
+      );
+      await h.tap(approveIn('Bank errand'));
+      expect(
+        tester.widget<DashSwitch>(inSurface(find.byType(DashSwitch))).value,
+        isFalse,
+      );
+      expect(surfaceText(h.t('staff.ruleSaysUnpaid')), findsOneWidget);
+      await h.tap(inSurface(find.text(h.t('common.approve'))));
+      expect(_body(h, decideRequestT), {'status': 'approved', 'note': null});
+      await h.expectToast(h.t('staff.decisionSaved'));
+    },
+  );
 
   testWidgets('TEAM-APR-026 a refused dialog decision stays open with the '
       'server\'s words', (tester) async {
     final s = approvalsServer();
     final h = await pumpApprovals(tester, s: s);
-    s.server.fail('PATCH', decideRequestT, MockResponse.error(422, 'Leave balance is used up.'));
+    s.server.fail(
+      'PATCH',
+      decideRequestT,
+      MockResponse.error(422, 'Leave balance is used up.'),
+    );
     await h.tap(approveIn(h.t('staff.kindLeave')));
     await h.tap(inSurface(find.text(h.t('common.approve'))));
-    await h.expectToast(h.refusalWords(MockResponse.error(422, 'Leave balance is used up.')));
+    await h.expectToast(
+      h.refusalWords(MockResponse.error(422, 'Leave balance is used up.')),
+    );
     expect(find.byType(ApproveWithPayDialog), findsOneWidget);
   });
 
@@ -427,9 +537,17 @@ void main() {
       'out sends and says nothing', (tester) async {
     final h = await pumpApprovals(
       tester,
-      edit: (db) => db[TeamTables.requests].insert(requestRow(id: 'rq-m',
-          employeeKey: 'laila', kind: 'mission', onDate: day(-1),
-          title: 'Roastery visit', reason: 'Tasting day', workedDates: [day(-1)])),
+      edit: (db) => db[TeamTables.requests].insert(
+        requestRow(
+          id: 'rq-m',
+          employeeKey: 'laila',
+          kind: 'mission',
+          onDate: day(-1),
+          title: 'Roastery visit',
+          reason: 'Tasting day',
+          workedDates: [day(-1)],
+        ),
+      ),
     );
     final row = rowOf('Tasting day');
     expect(itemOf(tester, row).batchable, isFalse);
@@ -449,17 +567,30 @@ void main() {
       'reason sent as the note (empty → null)', (tester) async {
     final h = await pumpApprovals(tester);
     await h.tap(rejectIn('Renewing my national ID'));
-    expect(surfaceText(h.t('dawam.rejectTitle',
-        args: {'name': 'Youssef Samir', 'kind': h.t('staff.kindLateArrival')})), findsOneWidget);
+    expect(
+      surfaceText(
+        h.t(
+          'dawam.rejectTitle',
+          args: {'name': 'Youssef Samir', 'kind': h.t('staff.kindLateArrival')},
+        ),
+      ),
+      findsOneWidget,
+    );
     expect(surfaceText(h.t('staff.rejectRequestHint')), findsOneWidget);
     await h.tap(inSurface(find.text(h.t('common.reject'))).last);
     expect(_body(h, decideRequestT), {'status': 'rejected', 'note': null});
     await h.expectToast(h.t('staff.decisionSaved'));
 
     await h.tap(rejectIn(h.t('staff.kindLeave')));
-    await h.enterText(inSurface(find.byType(DashTextField)), 'Too busy that week');
+    await h.enterText(
+      inSurface(find.byType(DashTextField)),
+      'Too busy that week',
+    );
     await h.tap(inSurface(find.text(h.t('common.reject'))).last);
-    expect(_body(h, decideRequestT), {'status': 'rejected', 'note': 'Too busy that week'});
+    expect(_body(h, decideRequestT), {
+      'status': 'rejected',
+      'note': 'Too busy that week',
+    });
     await h.flushTimers();
   });
 
@@ -468,23 +599,39 @@ void main() {
   ) async {
     final h = await pumpApprovals(
       tester,
-      edit: (db) => db[TeamTables.requests].insert(requestRow(id: 'rq-c',
-          employeeKey: 'laila', kind: 'late_arrival', onDate: '2026-09-20',
-          toTime: '10:00:00', reason: 'Old late note', monthClosed: true)),
+      edit: (db) => db[TeamTables.requests].insert(
+        requestRow(
+          id: 'rq-c',
+          employeeKey: 'laila',
+          kind: 'late_arrival',
+          onDate: '2026-09-20',
+          toTime: '10:00:00',
+          reason: 'Old late note',
+          monthClosed: true,
+        ),
+      ),
     );
     final row = rowOf('Old late note');
     expect(approveOf(row), findsNothing);
     expect(rejectOf(row), findsOneWidget);
-    expect(find.descendant(of: row, matching: find.text(h.t('staff.monthClosedRejectOnly'))),
-        findsOneWidget);
+    expect(
+      find.descendant(
+        of: row,
+        matching: find.text(h.t('staff.monthClosedRejectOnly')),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('TEAM-ALL-019 a reason the server needs on a rejection is worded '
       'for declining', (tester) async {
     final s = approvalsServer();
     final h = await pumpApprovals(tester, s: s);
-    s.server.fail('PATCH', decideRequestT,
-        MockResponse.error(400, 'Say why.', code: 'REASON_REQUIRED'));
+    s.server.fail(
+      'PATCH',
+      decideRequestT,
+      MockResponse.error(400, 'Say why.', code: 'REASON_REQUIRED'),
+    );
     await h.tap(rejectIn('Renewing my national ID'));
     await h.tap(inSurface(find.text(h.t('common.reject'))).last);
     await h.expectToast(h.t('errors.codes.REASON_REQUIRED_decline'));
@@ -493,26 +640,36 @@ void main() {
 
   // ── money ────────────────────────────────────────────────────────────────
 
-  testWidgets('TEAM-APR-014 an advance: amount, installments, cap note; Approve '
-      'reviews it and sends the changed installments only', (tester) async {
-    final h = await pumpApprovals(tester);
-    final row = rowOf("My mother's eye operation");
-    expect(find.descendant(of: row, matching: find.text(h.t('dawam.withinCap'))),
-        findsOneWidget);
-    expect(find.descendant(of: row, matching: find.text(h.t('dawamOps.meansAdvance'))),
-        findsOneWidget);
-    await h.tap(approveOf(row));
-    expect(find.byType(ReviewAdvanceDialog), findsOneWidget);
-    await h.enterText(inSurface(find.byType(DashNumberField)), '4');
-    await h.tap(inSurface(find.text(h.t('common.approve'))));
-    expect(_body(h, reviewAdvanceT), {
-      'approve': true,
-      'amount_piastres': null,
-      'installments': 4,
-      'note': null,
-    });
-    await h.expectToast(h.t('staff.decisionSaved'));
-  });
+  testWidgets(
+    'TEAM-APR-014 an advance: amount, installments, cap note; Approve '
+    'reviews it and sends the changed installments only',
+    (tester) async {
+      final h = await pumpApprovals(tester);
+      final row = rowOf("My mother's eye operation");
+      expect(
+        find.descendant(of: row, matching: find.text(h.t('dawam.withinCap'))),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.text(h.t('dawamOps.meansAdvance')),
+        ),
+        findsOneWidget,
+      );
+      await h.tap(approveOf(row));
+      expect(find.byType(ReviewAdvanceDialog), findsOneWidget);
+      await h.enterText(inSurface(find.byType(DashNumberField)), '4');
+      await h.tap(inSurface(find.text(h.t('common.approve'))));
+      expect(_body(h, reviewAdvanceT), {
+        'approve': true,
+        'amount_piastres': null,
+        'installments': 4,
+        'note': null,
+      });
+      await h.expectToast(h.t('staff.decisionSaved'));
+    },
+  );
 
   testWidgets('TEAM-APR-014 an advance over the cap is reject-only for someone '
       'who may not pass the cap', (tester) async {
@@ -520,8 +677,10 @@ void main() {
     answerAuthz(s.server, const ['hr.advances.decide'], everywhere: const []);
     final h = await pumpApprovals(tester, s: s);
     final row = rowOf('Deposit on a new flat');
-    expect(find.descendant(of: row, matching: find.text(h.t('dawam.overCapOwner'))),
-        findsOneWidget);
+    expect(
+      find.descendant(of: row, matching: find.text(h.t('dawam.overCapOwner'))),
+      findsOneWidget,
+    );
     expect(approveOf(row), findsNothing);
     expect(approveOf(rowOf("My mother's eye operation")), findsOneWidget);
   });
@@ -537,7 +696,10 @@ void main() {
     expect(_patches(h, reviewAdvanceT), 0);
     await h.enterText(inSurface(find.byType(DashTextField)), 'Owes too much');
     await h.tap(inSurface(find.text(h.t('common.reject'))).last);
-    expect(_body(h, reviewAdvanceT), {'approve': false, 'reason': 'Owes too much'});
+    expect(_body(h, reviewAdvanceT), {
+      'approve': false,
+      'reason': 'Owes too much',
+    });
     await h.expectToast(h.t('staff.decisionSaved'));
   });
 
@@ -547,18 +709,28 @@ void main() {
     final row = rowOfType(PendingType.payLine);
     final it = itemOf(tester, row);
     expect(it.batchable, isFalse);
-    expect(find.descendant(of: row, matching: find.byType(DashCheckbox)), findsNothing);
-    expect(find.descendant(of: row, matching: find.text(h.t('dawamOps.meansBonus'))),
-        findsOneWidget);
+    expect(
+      find.descendant(of: row, matching: find.byType(DashCheckbox)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: row, matching: find.text(h.t('dawamOps.meansBonus'))),
+      findsOneWidget,
+    );
     await h.tap(rejectOf(row));
     await h.tap(inSurface(find.text(h.t('common.reject'))).last);
     expect(surfaceText(h.t('dawam.reasonRequired')), findsOneWidget);
     await h.enterText(inSurface(find.byType(DashTextField)), 'Over budget');
     await h.tap(inSurface(find.text(h.t('common.reject'))).last);
     final id = (it.source as dynamic).id as String;
-    expect(h.server.callsTo(decideAdjustmentT, method: 'PATCH').last.path,
-        '/staff/adjustments/bonus/$id/decision');
-    expect(_body(h, decideAdjustmentT), {'approve': false, 'reason': 'Over budget'});
+    expect(
+      h.server.callsTo(decideAdjustmentT, method: 'PATCH').last.path,
+      '/staff/adjustments/bonus/$id/decision',
+    );
+    expect(_body(h, decideAdjustmentT), {
+      'approve': false,
+      'reason': 'Over budget',
+    });
     await h.flushTimers();
   });
 
@@ -577,8 +749,14 @@ void main() {
     final h = await pumpApprovals(tester);
     final it = itemOf(tester, rowOfType(PendingType.swap));
     await h.tap(rejectOf(rowOfType(PendingType.swap)));
-    expect(inConfirm(find.text(h.t('dawam.rejectTitle',
-        args: {'name': it.who, 'kind': it.kind}))), findsOneWidget);
+    expect(
+      inConfirm(
+        find.text(
+          h.t('dawam.rejectTitle', args: {'name': it.who, 'kind': it.kind}),
+        ),
+      ),
+      findsOneWidget,
+    );
     expect(inConfirm(find.text(h.t('dawam.rejectHint'))), findsOneWidget);
     expect(_patches(h, decideSwapT), 0);
     await h.tap(inConfirm(find.text(h.t('common.reject'))));
@@ -600,13 +778,25 @@ void main() {
       'old; approve and reject in one click', (tester) async {
     final h = await pumpApprovals(tester);
     final att = h.server.callsTo(attendanceT).map((c) => c.query).toList();
-    expect(att, containsAll([
-      {'cover_status': ['pending']},
-      {'overtime_status': ['pending']},
-    ]));
+    expect(
+      att,
+      containsAll([
+        {
+          'cover_status': ['pending'],
+        },
+        {
+          'overtime_status': ['pending'],
+        },
+      ]),
+    );
     final cover = rowOfType(PendingType.cover);
-    expect(find.descendant(of: cover, matching: find.text(h.t('dawamOps.meansCover'))),
-        findsOneWidget);
+    expect(
+      find.descendant(
+        of: cover,
+        matching: find.text(h.t('dawamOps.meansCover')),
+      ),
+      findsOneWidget,
+    );
     await h.tap(approveOf(cover));
     expect(_body(h, decideCoverT), {'approve': true});
     await h.expectToast(h.t('staff.decisionSaved'));
@@ -629,15 +819,29 @@ void main() {
       },
     );
     for (final type in [PendingType.cover, PendingType.overtime]) {
-      final row = find
-          .byWidgetPredicate((w) => w is PendingRow && w.item.type == type && w.item.rejectOnly);
+      final row = find.byWidgetPredicate(
+        (w) => w is PendingRow && w.item.type == type && w.item.rejectOnly,
+      );
       expect(row, findsOneWidget, reason: '$type');
       expect(approveOf(row), findsNothing);
-      expect(find.descendant(of: row, matching: find.text(h.t('dawam.closedMonthNextLine'))),
-          findsOneWidget);
-      expect(find.descendant(of: row, matching: find.text(h.t('staff.monthClosedRejectOnly'))),
-          findsOneWidget);
-      expect(find.descendant(of: row, matching: find.byType(DashCheckbox)), findsNothing);
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.text(h.t('dawam.closedMonthNextLine')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.text(h.t('staff.monthClosedRejectOnly')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.byType(DashCheckbox)),
+        findsNothing,
+      );
     }
   });
 
@@ -653,52 +857,97 @@ void main() {
     expect(pageText(h.t('dawamOps.selectAll', count: n)), findsOneWidget);
     expect(pageText(h.t('dawamOps.pickToBatch')), findsOneWidget);
     expect(
-      tester.widget<DashButton>(inPage(find.widgetWithText(DashButton,
-          h.t('dawamOps.approveSelected')))).onPressed,
+      tester
+          .widget<DashButton>(
+            inPage(
+              find.widgetWithText(DashButton, h.t('dawamOps.approveSelected')),
+            ),
+          )
+          .onPressed,
       isNull,
     );
     final swap = rowOfType(PendingType.swap);
     final it = itemOf(tester, swap);
-    await h.tap(find.descendant(
-      of: swap,
-      matching: find.bySemanticsLabel(
-          h.t('dawamOps.selectItem', args: {'name': it.who, 'kind': it.kind})),
-    ));
+    await h.tap(
+      find.descendant(
+        of: swap,
+        matching: find.bySemanticsLabel(
+          h.t('dawamOps.selectItem', args: {'name': it.who, 'kind': it.kind}),
+        ),
+      ),
+    );
     expect(pageText(h.t('dawamOps.approveCount', count: 1)), findsOneWidget);
     expect(pageText(h.t('dawamOps.pickToBatch')), findsNothing);
-    expect(find.descendant(of: rowOfType(PendingType.advance), matching: find.byType(DashCheckbox)),
-        findsNothing);
+    expect(
+      find.descendant(
+        of: rowOfType(PendingType.advance),
+        matching: find.byType(DashCheckbox),
+      ),
+      findsNothing,
+    );
   });
 
-  testWidgets('TEAM-APR-024 approving together: confirm, one call each in turn, '
-      'what failed says why and stays', (tester) async {
-    final s = approvalsServer();
-    final h = await pumpApprovals(tester, s: s);
-    final n = batchCount(tester);
-    final swap = itemOf(tester, rowOfType(PendingType.swap));
-    s.server.fail('PATCH', decideSwapT,
-        MockResponse.error(403, "You can't approve a swap you're part of.", code: 'OWN_SWAP'));
-    await h.tap(inPage(find.bySemanticsLabel(h.t('dawamOps.selectAll', count: n))));
-    await h.tap(inPage(find.text(h.t('dawamOps.approveCount', count: n))));
-    expect(inConfirm(find.text(h.t('dawamOps.bulkTitle', count: n))), findsOneWidget);
-    expect(inConfirm(find.textContaining(h.t('dawamOps.bulkHint'))), findsOneWidget);
-    await h.tap(inConfirm(find.text(h.t('dawamOps.approveCount', count: n))));
-    final patches = [decideRequestT, decideSwapT, decideClaimT, decideCoverT, decideOvertimeT]
-        .map((t) => _patches(h, t))
-        .fold<int>(0, (a, b) => a + b);
-    expect(patches, n);
-    expect(find.text(h.t('dawamOps.bulkDone', count: n - 1)), findsOneWidget);
-    final why = h.t('errors.codes.OWN_SWAP');
-    expect(find.text(h.t('dawamOps.bulkFailed',
-        args: {'first': '${swap.who}: $why'}, count: 1)), findsOneWidget);
-    expect(rowOfType(PendingType.swap), findsOneWidget);
-    expect(batchCount(tester), 1);
-    await h.flushTimers();
-  });
+  testWidgets(
+    'TEAM-APR-024 approving together: confirm, one call each in turn, '
+    'what failed says why and stays',
+    (tester) async {
+      final s = approvalsServer();
+      final h = await pumpApprovals(tester, s: s);
+      final n = batchCount(tester);
+      final swap = itemOf(tester, rowOfType(PendingType.swap));
+      s.server.fail(
+        'PATCH',
+        decideSwapT,
+        MockResponse.error(
+          403,
+          "You can't approve a swap you're part of.",
+          code: 'OWN_SWAP',
+        ),
+      );
+      await h.tap(
+        inPage(find.bySemanticsLabel(h.t('dawamOps.selectAll', count: n))),
+      );
+      await h.tap(inPage(find.text(h.t('dawamOps.approveCount', count: n))));
+      expect(
+        inConfirm(find.text(h.t('dawamOps.bulkTitle', count: n))),
+        findsOneWidget,
+      );
+      expect(
+        inConfirm(find.textContaining(h.t('dawamOps.bulkHint'))),
+        findsOneWidget,
+      );
+      await h.tap(inConfirm(find.text(h.t('dawamOps.approveCount', count: n))));
+      final patches = [
+        decideRequestT,
+        decideSwapT,
+        decideClaimT,
+        decideCoverT,
+        decideOvertimeT,
+      ].map((t) => _patches(h, t)).fold<int>(0, (a, b) => a + b);
+      expect(patches, n);
+      expect(find.text(h.t('dawamOps.bulkDone', count: n - 1)), findsOneWidget);
+      final why = h.t('errors.codes.OWN_SWAP');
+      expect(
+        find.text(
+          h.t(
+            'dawamOps.bulkFailed',
+            args: {'first': '${swap.who}: $why'},
+            count: 1,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(rowOfType(PendingType.swap), findsOneWidget);
+      expect(batchCount(tester), 1);
+      await h.flushTimers();
+    },
+  );
 
   // ── area-wide ────────────────────────────────────────────────────────────
 
-  testWidgets('TEAM-ALL-008 Refresh asks every shown list again', (tester) async {
+  testWidgets('TEAM-ALL-008 Refresh asks every shown list again', (
+    tester,
+  ) async {
     final h = await pumpApprovals(tester);
     final before = _counts(h);
     await h.tap(inPage(find.byTooltip(h.t('common.refresh'))));
@@ -727,9 +976,16 @@ void main() {
     s.server.fail('GET', swapsT, MockResponse.error(500, 'down'), times: null);
     await h.tap(inPage(find.byTooltip(h.t('common.refresh'))));
     expect(rowOfType(PendingType.swap), findsOneWidget);
-    expect(pageText(h.t('dawam.sectionLoadError', args: {'section': h.t('dawam.swap')})),
-        findsNothing);
-    expect(find.text(h.refusalWords(MockResponse.error(500, 'down'))), findsOneWidget);
+    expect(
+      pageText(
+        h.t('dawam.sectionLoadError', args: {'section': h.t('dawam.swap')}),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.text(h.refusalWords(MockResponse.error(500, 'down'))),
+      findsOneWidget,
+    );
     await h.flushTimers();
   });
 
@@ -757,8 +1013,9 @@ void main() {
       'read; pressing asks nothing more', (tester) async {
     final h = await pumpApprovals(tester);
     final row = rowOfType(PendingType.request, index: 0);
-    final mission = find.byWidgetPredicate((w) =>
-        w is PendingRow && w.item.approveMode == ApproveMode.mission);
+    final mission = find.byWidgetPredicate(
+      (w) => w is PendingRow && w.item.approveMode == ApproveMode.mission,
+    );
     expect(mission, findsOneWidget, reason: '$row');
     final r = itemOf(tester, mission).source as dynamic;
     bool days(MockCall c) => c.query['employee_id']?.single == r.employeeId;

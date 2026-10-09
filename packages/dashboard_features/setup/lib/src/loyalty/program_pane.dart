@@ -147,8 +147,7 @@ class _ProgramPaneState extends ConsumerState<ProgramPane> {
         message: q.hasError ? errorMessage(q.error, t) : null,
         retryLabel: t('common.retry'),
         retrying: q.isLoading,
-        onRetry: () =>
-            ref.invalidate(loyaltySettingsProvider(widget.branchId)),
+        onRetry: () => ref.invalidate(loyaltySettingsProvider(widget.branchId)),
       );
     }
     _sync(saved);
@@ -317,9 +316,7 @@ class _ProgramPaneState extends ConsumerState<ProgramPane> {
                     derivedCap != null
                         ? t(
                             'loyalty.capBalanceDerived',
-                            args: {
-                              'amount': loyaltyCost(t, mode, derivedCap),
-                            },
+                            args: {'amount': loyaltyCost(t, mode, derivedCap)},
                           )
                         : t('loyalty.capBalanceNoRewards'),
                     key: const ValueKey('loyalty-cap-derived'),
@@ -732,9 +729,7 @@ class _WalletStatusPanelState extends ConsumerState<WalletStatusPanel> {
                     DashIcon('wallet', size: IconSize.sm, color: c.textPrimary),
                     Text(
                       t('loyalty.walletStatus'),
-                      style: DashType.bodyMedium.copyWith(
-                        color: c.textPrimary,
-                      ),
+                      style: DashType.bodyMedium.copyWith(color: c.textPrimary),
                     ),
                   ],
                 ),

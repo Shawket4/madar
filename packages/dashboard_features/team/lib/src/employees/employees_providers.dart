@@ -20,7 +20,10 @@ final employeesListProvider = FutureProvider.autoDispose
       return ref
           .watch(apiProvider)
           .staff
-          .listEmployees(employmentStatus: k.status, departmentId: k.departmentId);
+          .listEmployees(
+            employmentStatus: k.status,
+            departmentId: k.departmentId,
+          );
     });
 
 /// The read for [k]: "Active" with no department is the very request the

@@ -93,7 +93,10 @@ void main() {
     expect(inRow(2, 'EGP 9,000.00'), findsOneWidget);
     expect(inRow(3, 'No name'), findsOneWidget);
     expect(inRow(4, '"12" isn\'t a phone number'), findsOneWidget);
-    expect(inRow(5, '01001234567 is already on an earlier row'), findsOneWidget);
+    expect(
+      inRow(5, '01001234567 is already on an earlier row'),
+      findsOneWidget,
+    );
     expect(inRow(6, 'No branch called "Giza"'), findsOneWidget);
     expect(inRow(7, '"abc" isn\'t a salary'), findsOneWidget);
     expect(rowOf(8), findsNothing);
@@ -160,7 +163,10 @@ void main() {
   testWidgets('TEAM-EMP-054 without the pay right: the salaries notice, no '
       'salary shown or sent', (tester) async {
     final h = await openImport(tester, persona: Persona.manager);
-    await choose(h, csv('Name,Phone,Branch,Salary\nRania Adel,01001234567,Zamalek,9000\n'));
+    await choose(
+      h,
+      csv('Name,Phone,Branch,Salary\nRania Adel,01001234567,Zamalek,9000\n'),
+    );
     expect(surfaceText(h.t('dawam.importNoSalaryRight')), findsOneWidget);
     expect(inRow(2, '—'), findsOneWidget);
     expect(inRow(2, 'EGP 9,000.00'), findsNothing);
@@ -173,7 +179,10 @@ void main() {
     tester,
   ) async {
     final h = await openImport(tester);
-    await choose(h, csv('Name,Phone,Branch,Salary\nRania Adel,01001234567,Zamalek,9000\n'));
+    await choose(
+      h,
+      csv('Name,Phone,Branch,Salary\nRania Adel,01001234567,Zamalek,9000\n'),
+    );
     expect(surfaceText(h.t('dawam.importNoSalaryRight')), findsNothing);
     await h.tap(surfaceText('Add 1'));
     expect(posts(h).single['base_salary_piastres'], 900000);
@@ -210,7 +219,9 @@ void main() {
     expect(surfaceText('Add 0'), findsOneWidget);
     expect(
       tester
-          .widget<DashButton>(inSurface(find.widgetWithText(DashButton, 'Add 0')))
+          .widget<DashButton>(
+            inSurface(find.widgetWithText(DashButton, 'Add 0')),
+          )
           .onPressed,
       isNull,
     );
@@ -230,7 +241,10 @@ void main() {
     await h.tap(surfaceText('Add 2'));
     expect(inRow(2, 'Added'), findsOneWidget);
     expect(
-      inRow(3, h.t('errors.codes.PHONE_TAKEN', args: {'phone': '+201110001111'})),
+      inRow(
+        3,
+        h.t('errors.codes.PHONE_TAKEN', args: {'phone': '+201110001111'}),
+      ),
       findsOneWidget,
     );
     await h.expectToast('1 of 2 added');
@@ -302,7 +316,10 @@ void main() {
       DashSurfaceScope.maybeOf(tester.element(find.byType(ImportPeopleDialog))),
       DashSurfaceMode.fullScreen,
     );
-    expect(find.descendant(of: rowOf(2), matching: find.byType(DashCard)), findsNothing);
+    expect(
+      find.descendant(of: rowOf(2), matching: find.byType(DashCard)),
+      findsNothing,
+    );
     expect(rowOf(2), findsOneWidget);
     expect(tester.widget(rowOf(2)), isA<DashCard>());
   });

@@ -123,7 +123,10 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Space.md,
+            vertical: Space.sm,
+          ),
           decoration: BoxDecoration(
             color: c.muted.withValues(alpha: 0.4),
             border: Border(bottom: BorderSide(color: c.hairline)),
@@ -147,7 +150,9 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
               ? Padding(
                   padding: const EdgeInsets.all(Space.lg),
                   child: Text(
-                    menu.awaitingFirst ? t('common.loading') : t('common.noResults'),
+                    menu.awaitingFirst
+                        ? t('common.loading')
+                        : t('common.noResults'),
                     textAlign: TextAlign.center,
                     style: DashType.body.copyWith(color: c.textSecondary),
                   ),
@@ -163,7 +168,9 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
                       ),
                       child: Text(
                         t('analytics.excludedFromCount'),
-                        style: DashType.smallMedium.copyWith(color: c.textSecondary),
+                        style: DashType.smallMedium.copyWith(
+                          color: c.textSecondary,
+                        ),
                       ),
                     ),
                     for (final (id, label) in shown)
@@ -175,22 +182,32 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
                         semanticLabel: label,
                         excludeChildSemantics: true,
                         builder: (context, s) => Container(
-                          constraints: const BoxConstraints(minHeight: DashMetrics.target),
-                          padding: const EdgeInsets.symmetric(horizontal: Space.md),
+                          constraints: const BoxConstraints(
+                            minHeight: DashMetrics.target,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: Space.md,
+                          ),
                           color: s.highlighted ? c.hover : null,
                           child: Row(
                             spacing: Space.sm,
                             children: [
                               Opacity(
                                 opacity: excluded.contains(id) ? 1 : 0,
-                                child: DashIcon('check', size: IconSize.sm, color: c.textPrimary),
+                                child: DashIcon(
+                                  'check',
+                                  size: IconSize.sm,
+                                  color: c.textPrimary,
+                                ),
                               ),
                               Expanded(
                                 child: MadarClippedText(
                                   label,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: DashType.body.copyWith(color: c.textPrimary),
+                                  style: DashType.body.copyWith(
+                                    color: c.textPrimary,
+                                  ),
                                 ),
                               ),
                             ],
@@ -203,7 +220,9 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
         if (excluded.isNotEmpty)
           Container(
             padding: const EdgeInsets.all(Space.xs),
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: c.hairline))),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: c.hairline)),
+            ),
             child: DashButton(
               key: const ValueKey('orders-exclude-clear'),
               label: t('common.clear'),

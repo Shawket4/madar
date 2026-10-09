@@ -83,7 +83,13 @@ void main() {
       final blocks = toSizeBlocks(
         agg({
           'sizes': [
-            size('b', 'Large', 13500, sort: 1, recipe: [line('milk', '240.000')]),
+            size(
+              'b',
+              'Large',
+              13500,
+              sort: 1,
+              recipe: [line('milk', '240.000')],
+            ),
             size('a', 'Regular', 11550, recipe: [line('milk', '180.500')]),
             size('c', 'Kids', 9000, sort: -1, active: false),
           ],
@@ -159,7 +165,11 @@ void main() {
             },
         ],
       };
-      final all = toAttachDrafts(agg({'modifier_groups': [g]})).single;
+      final all = toAttachDrafts(
+        agg({
+          'modifier_groups': [g],
+        }),
+      ).single;
       expect(all.includedOptionIds, isNull);
       final off = all.toggle('o2');
       expect(off.includedOptionIds, ['o1']);
@@ -195,7 +205,14 @@ void main() {
         allOptions: const [],
         includedOptionIds: ids,
       );
-      expect(modifiersSig([d(['b', 'a'])]), modifiersSig([d(['a', 'b'])]));
+      expect(
+        modifiersSig([
+          d(['b', 'a']),
+        ]),
+        modifiersSig([
+          d(['a', 'b']),
+        ]),
+      );
       expect(modifiersSig([d(null)]), isNot(modifiersSig([d(const [])])));
     });
 
@@ -223,8 +240,12 @@ void main() {
         'menu.studio.validate.nameRequired',
       );
       expect(
-        validateStudio(item: item, blocks: [b(' ', '1')], steps: const [], rows: const [])
-            ?.key,
+        validateStudio(
+          item: item,
+          blocks: [b(' ', '1')],
+          steps: const [],
+          rows: const [],
+        )?.key,
         'menu.studio.validate.sizeLabel',
       );
       final dup = validateStudio(
@@ -236,13 +257,22 @@ void main() {
       expect(dup?.key, 'menu.studio.validate.sizeLabelDup');
       expect(dup?.args, {'label': 'Cup'});
       expect(
-        validateStudio(item: item, blocks: [b('Cup', '-1')], steps: const [], rows: const [])
-            ?.args,
+        validateStudio(
+          item: item,
+          blocks: [b('Cup', '-1')],
+          steps: const [],
+          rows: const [],
+        )?.args,
         {'name': 'Cup'},
       );
       // parseFloat: "12abc" is 12, a valid price.
       expect(
-        validateStudio(item: item, blocks: [b('Cup', '12abc')], steps: const [], rows: const []),
+        validateStudio(
+          item: item,
+          blocks: [b('Cup', '12abc')],
+          steps: const [],
+          rows: const [],
+        ),
         isNull,
       );
       expect(
@@ -301,23 +331,30 @@ void main() {
       });
     });
 
-    test('steps: a preset sends its slug and notes; a written one its names',
-        () {
-      final j = stepsPayload(const [
-        StepDraft(kind: 'preset', presetSlug: 'blend', note: ' 30 s '),
-        StepDraft(kind: 'custom', titleAr: 'قلّب'),
-      ]).toJson();
-      expect(j['steps'], [
-        {'kind': 'preset', 'note': '30 s', 'note_ar': null, 'preset_slug': 'blend'},
-        {
-          'kind': 'custom',
-          'note': null,
-          'note_ar': null,
-          'title': null,
-          'title_ar': 'قلّب',
-        },
-      ]);
-    });
+    test(
+      'steps: a preset sends its slug and notes; a written one its names',
+      () {
+        final j = stepsPayload(const [
+          StepDraft(kind: 'preset', presetSlug: 'blend', note: ' 30 s '),
+          StepDraft(kind: 'custom', titleAr: 'قلّب'),
+        ]).toJson();
+        expect(j['steps'], [
+          {
+            'kind': 'preset',
+            'note': '30 s',
+            'note_ar': null,
+            'preset_slug': 'blend',
+          },
+          {
+            'kind': 'custom',
+            'note': null,
+            'note_ar': null,
+            'title': null,
+            'title_ar': 'قلّب',
+          },
+        ]);
+      },
+    );
 
     test('modifiers: max and the allowlist are sent even when null', () {
       final j = modifiersPayload(const [
@@ -347,7 +384,13 @@ void main() {
 
     test('options: deduction, cleared deduction, no usable quantity', () {
       final j = optionsPayload(const [
-        OptionRow(name: ' Foam ', price: '5', ingredientId: 'i', quantity: '20', unit: 'ml'),
+        OptionRow(
+          name: ' Foam ',
+          price: '5',
+          ingredientId: 'i',
+          quantity: '20',
+          unit: 'ml',
+        ),
         OptionRow(id: 'o2', name: 'Plain', price: '0'),
         OptionRow(name: 'Half', price: '1', ingredientId: 'i', quantity: ''),
       ]).toJson();
@@ -369,25 +412,31 @@ void main() {
 
   group('grid', () {
     final catalog = {'milk': ing('milk', 4.2), 'syrup': ing('syrup', null)};
-    SizeBlock col(List<GridLine> lines, {String price = '115', bool isNew = false}) =>
-        SizeBlock(
-          key: 'a',
-          id: isNew ? null : 'a',
-          label: 'R',
-          price: price,
-          seededPrice: '115',
-          serverCost: (piastres: 2706, incomplete: false),
-          lines: lines,
-        );
+    SizeBlock col(
+      List<GridLine> lines, {
+      String price = '115',
+      bool isNew = false,
+    }) => SizeBlock(
+      key: 'a',
+      id: isNew ? null : 'a',
+      label: 'R',
+      price: price,
+      seededPrice: '115',
+      serverCost: (piastres: 2706, incomplete: false),
+      lines: lines,
+    );
 
     test('the server cost unless edited; the estimate then', () {
-      final lines = [const GridLine(ingredientId: 'milk', quantity: '180', unit: 'ml')];
+      final lines = [
+        const GridLine(ingredientId: 'milk', quantity: '180', unit: 'ml'),
+      ];
       final server = columnCost(col(lines), catalog, recipeDirty: false);
       expect(server, isA<CostKnown>());
       expect((server as CostKnown).piastres, 2706);
       expect(server.estimated, isFalse);
       expect(server.margin, closeTo((11500 - 2706) / 11500, 1e-9));
-      final est = columnCost(col(lines), catalog, recipeDirty: true) as CostKnown;
+      final est =
+          columnCost(col(lines), catalog, recipeDirty: true) as CostKnown;
       expect(est.piastres, closeTo(756, 1e-9));
       expect(est.estimated, isTrue);
       expect(
@@ -399,18 +448,31 @@ void main() {
     test('an uncosted line: incomplete; no line: "—"; price 0: no margin', () {
       expect(
         columnCost(
-          col([const GridLine(ingredientId: 'syrup', quantity: '5', unit: 'g')]),
+          col([
+            const GridLine(ingredientId: 'syrup', quantity: '5', unit: 'g'),
+          ]),
           catalog,
           recipeDirty: true,
         ),
         isA<CostIncomplete>(),
       );
-      expect(columnCost(col(const []), catalog, recipeDirty: true), isA<NoLines>());
-      final free = columnCost(
-        col([const GridLine(ingredientId: 'milk', quantity: '10', unit: 'ml')], price: '0'),
-        catalog,
-        recipeDirty: true,
-      ) as CostKnown;
+      expect(
+        columnCost(col(const []), catalog, recipeDirty: true),
+        isA<NoLines>(),
+      );
+      final free =
+          columnCost(
+                col([
+                  const GridLine(
+                    ingredientId: 'milk',
+                    quantity: '10',
+                    unit: 'ml',
+                  ),
+                ], price: '0'),
+                catalog,
+                recipeDirty: true,
+              )
+              as CostKnown;
       expect(free.margin, isNull);
     });
 
@@ -459,7 +521,10 @@ void main() {
       name: 'Milk',
       single: true,
       required: false,
-      options: [(id: 'full', name: 'Full', price: 0), (id: 'oat', name: 'Oat', price: 2500)],
+      options: [
+        (id: 'full', name: 'Full', price: 0),
+        (id: 'oat', name: 'Oat', price: 2500),
+      ],
     );
     const multi = PreviewGroup(
       id: 'extras',
@@ -521,9 +586,19 @@ void main() {
       final p = PreviewPrice.fromJson({
         'base': 15000,
         'options': [
-          {'option_id': 'a', 'name': 'a', 'price_delta': 5500, 'reason': 'adds'},
+          {
+            'option_id': 'a',
+            'name': 'a',
+            'price_delta': 5500,
+            'reason': 'adds',
+          },
           {'option_id': 'b', 'name': 'b', 'price_delta': 0, 'reason': 'none'},
-          {'option_id': 'c', 'name': 'c', 'price_delta': 3000, 'reason': 'adds'},
+          {
+            'option_id': 'c',
+            'name': 'c',
+            'price_delta': 3000,
+            'reason': 'adds',
+          },
         ],
         'total': 23500,
       });
@@ -551,18 +626,23 @@ void main() {
       ],
       'sort': 0,
     });
-    ComboSlot slot(String id, List<ComboChoice> choices, {int min = 1, String? def, String? defSize}) =>
-        ComboSlot.fromJson({
-          'id': id,
-          'name': id,
-          'name_translations': <String, Object?>{},
-          'sort': 0,
-          'min': min,
-          'max': 1,
-          'default_item_id': def,
-          'default_size_label': defSize,
-          'choices': [for (final c in choices) c.toJson()],
-        });
+    ComboSlot slot(
+      String id,
+      List<ComboChoice> choices, {
+      int min = 1,
+      String? def,
+      String? defSize,
+    }) => ComboSlot.fromJson({
+      'id': id,
+      'name': id,
+      'name_translations': <String, Object?>{},
+      'sort': 0,
+      'min': min,
+      'max': 1,
+      'default_item_id': def,
+      'default_size_label': defSize,
+      'choices': [for (final c in choices) c.toJson()],
+    });
     Combo combo(List<ComboSlot> slots) => Combo.fromJson({
       'id': 'k',
       'kind': 'combo',
@@ -605,7 +685,10 @@ void main() {
         {'latte': latte, 'croissant': croissant, 'juice': juice}[id];
 
     test('the item\'s own choice wins over its category', () {
-      final s = slot('d', [choice(null, 'hot'), choice('latte', null, surcharge: 500)]);
+      final s = slot('d', [
+        choice(null, 'hot'),
+        choice('latte', null, surcharge: 500),
+      ]);
       expect(choiceFor(s, 'latte', 'hot')?.surcharge, 500);
       expect(slotsAdmitting(combo([s]), 'tea', 'tea'), isEmpty);
     });
@@ -631,7 +714,9 @@ void main() {
         ),
         slot(
           'big',
-          [choice('juice', null, included: 'Small', extras: [('Big', 1500)])],
+          [
+            choice('juice', null, included: 'Small', extras: [('Big', 1500)]),
+          ],
           def: 'juice',
           defSize: 'Big',
           min: 2,
@@ -642,7 +727,9 @@ void main() {
     });
 
     test('unknown slot: null; an unsold included size costs the lowest', () {
-      final k = combo([slot('drink', [choice(null, 'hot', included: 'Kids')])]);
+      final k = combo([
+        slot('drink', [choice(null, 'hot', included: 'Kids')]),
+      ]);
       expect(mealDelta(k, 'nope', latte, lookup), isNull);
       // unit_price: Kids is not sold, so the latte alone is Regular 11500.
       expect(mealDelta(k, 'drink', latte, lookup), 15000 - 11500);

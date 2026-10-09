@@ -11,10 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
 
-String _text(WidgetTester tester, String key) => tester
-    .widget<EditableText>(inputOf(programField(key)))
-    .controller
-    .text;
+String _text(WidgetTester tester, String key) =>
+    tester.widget<EditableText>(inputOf(programField(key))).controller.text;
 
 Finder _inField(String key, Finder f) =>
     find.descendant(of: programField(key), matching: f);
@@ -64,21 +62,22 @@ void main() {
       expect(programField('program_name'), findsOneWidget);
     });
 
-    testWidgets('a background refresh re-seeds the form until it is edited',
-        (tester) async {
+    testWidgets('a background refresh re-seeds the form until it is edited', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       final h = await pumpLoyalty(tester, backend: m);
       settingsRow(m.db)['program_name'] = 'Sabah Rewards';
-      h.container.read(realtimeBusProvider).invalidate(
-        const [LoyaltyRoutes.settings],
-      );
+      h.container.read(realtimeBusProvider).invalidate(const [
+        LoyaltyRoutes.settings,
+      ]);
       await h.settle();
       expect(_text(tester, 'program_name'), 'Sabah Rewards');
       await _type(h, 'terms', 'Edited terms');
       settingsRow(m.db)['program_name'] = 'Sabah Club';
-      h.container.read(realtimeBusProvider).invalidate(
-        const [LoyaltyRoutes.settings],
-      );
+      h.container.read(realtimeBusProvider).invalidate(const [
+        LoyaltyRoutes.settings,
+      ]);
       await h.settle();
       expect(_text(tester, 'program_name'), 'Sabah Rewards');
       expect(_text(tester, 'terms'), 'Edited terms');
@@ -97,15 +96,16 @@ void main() {
       );
       expect(name.enabled, isFalse);
       expect(
-        tester.widget<DashPressable>(toggle('Program is running').first)
-            .onTap,
+        tester.widget<DashPressable>(toggle('Program is running').first).onTap,
         isNull,
       );
       expect(find.byKey(const ValueKey('loyalty-save')), findsNothing);
       expect(
-        tester.widget<DashSegmentedControl<String>>(
-          find.byKey(const ValueKey('loyalty-mode')),
-        ).enabled,
+        tester
+            .widget<DashSegmentedControl<String>>(
+              find.byKey(const ValueKey('loyalty-mode')),
+            )
+            .enabled,
         isFalse,
       );
     });
@@ -137,9 +137,11 @@ void main() {
       expect(_text(tester, 'program_name'), 'Sabah Stamps');
       expect(_text(tester, 'program_name_ar'), 'طوابع صباح');
       expect(
-        tester.widget<DashTextInput>(
-          _inField('program_name_ar', find.byType(DashTextInput)),
-        ).textDirection,
+        tester
+            .widget<DashTextInput>(
+              _inField('program_name_ar', find.byType(DashTextInput)),
+            )
+            .textDirection,
         TextDirection.rtl,
       );
       expect(
@@ -156,8 +158,7 @@ void main() {
     });
 
     testWidgets('SET-LOY-014 SET-LOY-015 points: the segmented choice swaps '
-        'in the earn rate, the two switches and the tips note',
-        (tester) async {
+        'in the earn rate, the two switches and the tips note', (tester) async {
       final h = await pumpLoyalty(tester);
       expect(pageText('What customers collect'), findsOneWidget);
       expect(programField('earn_egp_per_point'), findsNothing);
@@ -214,8 +215,9 @@ void main() {
       expect(pageText(h.t('loyalty.defaultCostHint')), findsNothing);
     });
 
-    testWidgets('SET-LOY-018 "Any item can be a reward" and its hint',
-        (tester) async {
+    testWidgets('SET-LOY-018 "Any item can be a reward" and its hint', (
+      tester,
+    ) async {
       final h = await pumpLoyalty(tester);
       expect(pageText(h.t('loyalty.anyItemHint')), findsOneWidget);
       expect(toggleOn(tester, 'Any item can be a reward'), isFalse);
@@ -224,8 +226,9 @@ void main() {
     });
 
     testWidgets('SET-LOY-019 SET-LOY-020 limits: the cap switch shows the '
-        'figure and, while it is empty, the ceiling the server derives',
-        (tester) async {
+        'figure and, while it is empty, the ceiling the server derives', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       settingsRow(m.db)['balance_cap_enabled'] = true;
       final h = await pumpLoyalty(tester, backend: m);
@@ -264,9 +267,9 @@ void main() {
         findsOneWidget,
       );
       settingsRow(m.db)['balance_cap_enabled'] = false;
-      h.container.read(realtimeBusProvider).invalidate(
-        const [LoyaltyRoutes.settings],
-      );
+      h.container.read(realtimeBusProvider).invalidate(const [
+        LoyaltyRoutes.settings,
+      ]);
       await h.settle();
       await h.tap(toggle('Stop collecting at a maximum'));
       expect(
@@ -321,9 +324,11 @@ void main() {
         findsOneWidget,
       );
       expect(
-        tester.widget<DashTextInput>(
-          _inField('birthday_message_ar', find.byType(DashTextInput)),
-        ).textDirection,
+        tester
+            .widget<DashTextInput>(
+              _inField('birthday_message_ar', find.byType(DashTextInput)),
+            )
+            .textDirection,
         TextDirection.rtl,
       );
       await h.tap(toggle('Birthdays'));
@@ -333,8 +338,9 @@ void main() {
     });
 
     testWidgets('SET-LOY-024 the birthday preview: 400 ms after an edit the '
-        'server renders the EDITED greeting, in both languages',
-        (tester) async {
+        'server renders the EDITED greeting, in both languages', (
+      tester,
+    ) async {
       final h = await pumpLoyalty(tester);
       await h.settle();
       final first = h.server.callsTo(LoyaltyRoutes.preview);
@@ -374,8 +380,9 @@ void main() {
       );
     });
 
-    testWidgets('SET-LOY-024 a failed preview hides the panel, no toast',
-        (tester) async {
+    testWidgets('SET-LOY-024 a failed preview hides the panel, no toast', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       m.server.fail(
         'POST',
@@ -386,18 +393,28 @@ void main() {
       final h = await pumpLoyalty(tester, backend: m);
       await h.settle();
       expect(h.server.callsTo(LoyaltyRoutes.preview), hasLength(1));
-      expect(find.byKey(const ValueKey('loyalty-birthday-preview')), findsNothing);
-      expect(find.text(h.refusalWords(MockResponse.error(500, 'boom'))), findsNothing);
+      expect(
+        find.byKey(const ValueKey('loyalty-birthday-preview')),
+        findsNothing,
+      );
+      expect(
+        find.text(h.refusalWords(MockResponse.error(500, 'boom'))),
+        findsNothing,
+      );
     });
 
-    testWidgets('SET-LOY-025 win-back: on shows the gift and the wording',
-        (tester) async {
+    testWidgets('SET-LOY-025 win-back: on shows the gift and the wording', (
+      tester,
+    ) async {
       final h = await pumpLoyalty(tester);
       expect(pageText(h.t('loyalty.winbackHint')), findsOneWidget);
       expect(programField('winback_reward_amount'), findsNothing);
       await h.tap(toggle('Win back quiet customers'));
       expect(
-        _inField('winback_reward_amount', find.text('Leave empty for words only')),
+        _inField(
+          'winback_reward_amount',
+          find.text('Leave empty for words only'),
+        ),
         findsOneWidget,
       );
       expect(pageText(h.t('loyalty.winbackGiftHint')), findsOneWidget);
@@ -428,8 +445,9 @@ void main() {
       expect(pageText(h.t('loyalty.noGeofenceHint')), findsOneWidget);
     });
 
-    testWidgets('SET-LOY-027 branches with coordinates: no warning',
-        (tester) async {
+    testWidgets('SET-LOY-027 branches with coordinates: no warning', (
+      tester,
+    ) async {
       await pumpLoyalty(tester);
       expect(find.byKey(const ValueKey('loyalty-no-geofence')), findsNothing);
     });
@@ -445,7 +463,11 @@ void main() {
         'org scope and draws the three providers', (tester) async {
       final m = loyaltyServer(persona: Persona.platform);
       final gate = m.server.hold('GET', LoyaltyRoutes.wallet);
-      final h = await pumpLoyalty(tester, persona: Persona.platform, backend: m);
+      final h = await pumpLoyalty(
+        tester,
+        persona: Persona.platform,
+        backend: m,
+      );
       final panel = find.byType(WalletStatusPanel);
       expect(
         find.descendant(of: panel, matching: find.text('Wallet passes')),
@@ -481,8 +503,9 @@ void main() {
     });
 
     testWidgets('SET-LOY-029 at a branch the check names it; a failure is a '
-        'red line beside the previous result, cleared by the next Check',
-        (tester) async {
+        'red line beside the previous result, cleared by the next Check', (
+      tester,
+    ) async {
       final m = loyaltyServer(persona: Persona.platform);
       final h = await pumpLoyalty(
         tester,
@@ -491,14 +514,16 @@ void main() {
         backend: m,
       );
       await h.tap(find.byKey(const ValueKey('loyalty-wallet-check')));
-      expect(
-        q1(h.server.callsTo(LoyaltyRoutes.wallet).single),
-        {'branch_id': SeedIds.zamalek},
-      );
+      expect(q1(h.server.callsTo(LoyaltyRoutes.wallet).single), {
+        'branch_id': SeedIds.zamalek,
+      });
       final boom = MockResponse.error(502, 'Google did not answer');
       m.server.fail('GET', LoyaltyRoutes.wallet, boom);
       await h.tap(find.byKey(const ValueKey('loyalty-wallet-check')));
-      expect(find.byKey(const ValueKey('loyalty-wallet-error')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('loyalty-wallet-error')),
+        findsOneWidget,
+      );
       expect(pageText(h.refusalWords(boom)), findsOneWidget);
       expect(pageText('Apple Wallet'), findsOneWidget);
       await h.tap(find.byKey(const ValueKey('loyalty-wallet-check')));
@@ -513,7 +538,10 @@ void main() {
       await _type(h, 'program_name', '');
       expect(find.byKey(const ValueKey('loyalty-fix-errors')), findsNothing);
       await _save(h);
-      expect(pageText('Fix the highlighted fields before saving.'), findsOneWidget);
+      expect(
+        pageText('Fix the highlighted fields before saving.'),
+        findsOneWidget,
+      );
       await _type(h, 'program_name', 'Sabah');
       expect(find.byKey(const ValueKey('loyalty-fix-errors')), findsNothing);
       expect(_puts(h), isEmpty);
@@ -526,7 +554,10 @@ void main() {
       await _type(h, 'balance_cap', '0');
       await h.tap(toggle('Stop collecting at a maximum'));
       await _save(h);
-      expect(pageText('Fix the highlighted fields before saving.'), findsOneWidget);
+      expect(
+        pageText('Fix the highlighted fields before saving.'),
+        findsOneWidget,
+      );
       expect(
         pageText('Enter a whole number above zero, or leave it empty.'),
         findsNothing,
@@ -583,8 +614,9 @@ void main() {
       expect(find.byKey(const ValueKey('loyalty-revert')), findsOneWidget);
     });
 
-    testWidgets('SET-LOY-032 a refused save toasts the server\'s words',
-        (tester) async {
+    testWidgets('SET-LOY-032 a refused save toasts the server\'s words', (
+      tester,
+    ) async {
       final m = loyaltyServer();
       final no = MockResponse.denied('loyalty.use');
       m.server.fail('PUT', LoyaltyRoutes.settings, no);
@@ -599,7 +631,10 @@ void main() {
     testWidgets('SET-LOY-033 a branch with its own row: "Follow the '
         'organisation" asks first; Cancel keeps it', (tester) async {
       final h = await pumpLoyalty(tester, query: atBranch(SeedIds.zamalek));
-      expect(buttonAt(tester, 'loyalty-revert').label, 'Follow the organisation');
+      expect(
+        buttonAt(tester, 'loyalty-revert').label,
+        'Follow the organisation',
+      );
       await h.tap(find.byKey(const ValueKey('loyalty-revert')));
       expect(find.text("Use the organisation's program here?"), findsOneWidget);
       expect(find.text(h.t('loyalty.revertBody')), findsOneWidget);

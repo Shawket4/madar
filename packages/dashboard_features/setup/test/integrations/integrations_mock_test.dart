@@ -53,11 +53,10 @@ void main() {
     final r = await _send(s, 'GET', list);
     expect(r.status, 200);
     final rows = (_json(r)! as List).cast<Map<String, Object?>>();
-    expect([for (final c in rows) c['name']], [
-      'Talabat Insights',
-      'Rue — One Ninety',
-      'Cairo Analytics Co.',
-    ]);
+    expect(
+      [for (final c in rows) c['name']],
+      ['Talabat Insights', 'Rue — One Ninety', 'Cairo Analytics Co.'],
+    );
     expect(rows[1]['branch_name'], 'Zamalek');
     expect(rows[0]['last_used_at'], isNull);
     expect(rows[2]['revoked_at'], isNotNull);
@@ -157,10 +156,7 @@ void main() {
     expect(at, isNotNull);
     expect(await _status(_send(s, 'DELETE', '$list/$rue')), 204);
     expect(db[IntegrationsSeed.table].find(rue)!['revoked_at'], at);
-    expect(
-      await _status(_send(s, 'DELETE', '$list/${mockUuid('nope')}')),
-      404,
-    );
+    expect(await _status(_send(s, 'DELETE', '$list/${mockUuid('nope')}')), 404);
     final rows = _json(await _send(s, 'GET', list))! as List;
     expect(rows, hasLength(3));
   });

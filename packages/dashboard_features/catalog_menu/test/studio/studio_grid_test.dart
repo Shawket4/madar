@@ -19,10 +19,7 @@ String _ing(String k) => MenuSeedIds.ingredient(k);
 
 /// The quantity cell of [ingredient] in [size].
 Finder cell(DashHarness h, String ingredient, String size) => studioLabel(
-  h.t(
-    'modeling.grid.cellAria',
-    args: {'ingredient': ingredient, 'size': size},
-  ),
+  h.t('modeling.grid.cellAria', args: {'ingredient': ingredient, 'size': size}),
 );
 
 /// The price box of [size].
@@ -49,9 +46,7 @@ Finder columnMenu(DashHarness h, int i) =>
 /// An option row's words in an open list (not the search box).
 Finder option(Finder list, String name) => find.descendant(
   of: list,
-  matching: find.byWidgetPredicate(
-    (w) => w is Text && w.data == name,
-  ),
+  matching: find.byWidgetPredicate((w) => w is Text && w.data == name),
 );
 
 /// [name] in an open dropdown menu.
@@ -113,7 +108,10 @@ void main() {
       await h.enterText(search, 'Full cream');
       expect(option(list, 'Full cream milk'), findsNothing);
       await h.enterText(search, 'Oat');
-      expect(find.descendant(of: list, matching: find.text('ml')), findsWidgets);
+      expect(
+        find.descendant(of: list, matching: find.text('ml')),
+        findsWidgets,
+      );
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await h.settle();
     });
@@ -171,10 +169,7 @@ void main() {
       final s = studioServer();
       final gate = s.server.hold('GET', catalogT);
       final h = await pumpStudio(tester, key: 'pistachio_latte', seeded: s);
-      expect(
-        studioText(h.t('modeling.grid.unknownIngredient')),
-        findsWidgets,
-      );
+      expect(studioText(h.t('modeling.grid.unknownIngredient')), findsWidgets);
       expect(studioText(h.t('menu.studio.recipe.setCost')), findsNothing);
       gate.release();
       await h.settle();
@@ -266,7 +261,10 @@ void main() {
         findsOneWidget,
       );
       final cup = inStudio(row('rule', 'cup_16oz'));
-      expect(find.descendant(of: cup, matching: find.text('—')), findsOneWidget);
+      expect(
+        find.descendant(of: cup, matching: find.text('—')),
+        findsOneWidget,
+      );
     });
   });
 
@@ -279,7 +277,10 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await h.settle(rounds: 2);
       expect(
-        editableIn(tester, cell(h, 'Full cream milk', 'Large')).focusNode.hasFocus,
+        editableIn(
+          tester,
+          cell(h, 'Full cream milk', 'Large'),
+        ).focusNode.hasFocus,
         isTrue,
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
@@ -288,7 +289,10 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await h.settle(rounds: 2);
       expect(
-        editableIn(tester, cell(h, 'Full cream milk', 'Large')).focusNode.hasFocus,
+        editableIn(
+          tester,
+          cell(h, 'Full cream milk', 'Large'),
+        ).focusNode.hasFocus,
         isTrue,
       );
       await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
@@ -301,7 +305,10 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await h.settle(rounds: 2);
       expect(
-        editableIn(tester, cell(h, 'Full cream milk', 'Large')).focusNode.hasFocus,
+        editableIn(
+          tester,
+          cell(h, 'Full cream milk', 'Large'),
+        ).focusNode.hasFocus,
         isTrue,
       );
     });
@@ -339,7 +346,10 @@ void main() {
       expect(inStudio(rowHead('own', 'vanilla_syrup')), findsOneWidget);
       final first = cell(h, 'Vanilla syrup', 'Regular');
       expect(editableIn(tester, first).controller.text, '');
-      expect(editableIn(tester, cell(h, 'Vanilla syrup', 'Large')).controller.text, '');
+      expect(
+        editableIn(tester, cell(h, 'Vanilla syrup', 'Large')).controller.text,
+        '',
+      );
       expect(editableIn(tester, first).focusNode.hasFocus, isTrue);
       // Blank cells send nothing: not dirty until a quantity is typed.
       expect(saveBar, findsNothing);
@@ -347,22 +357,23 @@ void main() {
       expect(saveBar, findsOneWidget);
     });
 
-    testWidgets('MENU-STUDIO-040 the Price row: "Price (EGP)", a box per size', (
-      tester,
-    ) async {
-      final h = await pumpStudio(tester);
-      expect(studioText('${h.t('common.price')} (EGP)'), findsOneWidget);
-      expect(editableIn(tester, price(h, 'Regular')).controller.text, '115');
-      await h.enterText(price(h, 'Regular'), '12,5x');
-      expect(editableIn(tester, price(h, 'Regular')).controller.text, '12.5');
-      expect(
-        inSection(
-          h.t('menu.studio.sections.sizesTitle'),
-          find.text(h.t('menu.studio.unsaved')),
-        ),
-        findsOneWidget,
-      );
-    });
+    testWidgets(
+      'MENU-STUDIO-040 the Price row: "Price (EGP)", a box per size',
+      (tester) async {
+        final h = await pumpStudio(tester);
+        expect(studioText('${h.t('common.price')} (EGP)'), findsOneWidget);
+        expect(editableIn(tester, price(h, 'Regular')).controller.text, '115');
+        await h.enterText(price(h, 'Regular'), '12,5x');
+        expect(editableIn(tester, price(h, 'Regular')).controller.text, '12.5');
+        expect(
+          inSection(
+            h.t('menu.studio.sections.sizesTitle'),
+            find.text(h.t('menu.studio.unsaved')),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets('MENU-STUDIO-040 Arabic: the currency label', (tester) async {
       final h = await pumpStudio(tester, locale: 'ar');
@@ -398,7 +409,10 @@ void main() {
       await h.tap(studioText(h.t('modeling.grid.addSize')));
       expect(studioLabel(h.t('menu.sizeLabel')), findsNWidgets(3));
       expect(editableIn(tester, price(h, '')).controller.text, '0');
-      expect(editableIn(tester, cell(h, 'Full cream milk', '')).controller.text, '');
+      expect(
+        editableIn(tester, cell(h, 'Full cream milk', '')).controller.text,
+        '',
+      );
     });
 
     testWidgets('MENU-STUDIO-042 on a one-price item both must be named', (
@@ -426,9 +440,13 @@ void main() {
       await h.tap(columnMenu(h, 0));
       final earlier = find.bySemanticsLabel(h.t('modeling.grid.moveLeft'));
       expect(
-        tester.widget<DashPressable>(
-          find.ancestor(of: earlier, matching: find.byType(DashPressable)).first,
-        ).enabled,
+        tester
+            .widget<DashPressable>(
+              find
+                  .ancestor(of: earlier, matching: find.byType(DashPressable))
+                  .first,
+            )
+            .enabled,
         isFalse,
       );
       await h.tap(find.bySemanticsLabel(h.t('modeling.grid.moveRight')));
@@ -561,10 +579,7 @@ void main() {
       );
       await h.go(studioPath('cookie'));
       expect(
-        inSection(
-          h.t('menu.studio.sections.sizesTitle'),
-          find.text('—'),
-        ),
+        inSection(h.t('menu.studio.sections.sizesTitle'), find.text('—')),
         findsOneWidget,
       );
     });
@@ -579,21 +594,25 @@ void main() {
       );
       expect(cell(h, 'Full cream milk', 'Regular'), findsNothing);
       expect(
-        tester.widget<TextField>(
-          find.descendant(
-            of: price(h, 'Regular'),
-            matching: find.byType(TextField),
-          ),
-        ).enabled,
+        tester
+            .widget<TextField>(
+              find.descendant(
+                of: price(h, 'Regular'),
+                matching: find.byType(TextField),
+              ),
+            )
+            .enabled,
         isFalse,
       );
       expect(
-        tester.widget<TextField>(
-          find.descendant(
-            of: studioLabel(h.t('menu.sizeLabel')).first,
-            matching: find.byType(TextField),
-          ),
-        ).enabled,
+        tester
+            .widget<TextField>(
+              find.descendant(
+                of: studioLabel(h.t('menu.sizeLabel')).first,
+                matching: find.byType(TextField),
+              ),
+            )
+            .enabled,
         isFalse,
       );
       expect(studioLabel(h.t('modeling.grid.columnActions')), findsNothing);
@@ -642,18 +661,26 @@ void main() {
       expect(studioLabel(h.t('modeling.base.label')), findsNothing);
       // Labels and prices stay editable; the menu keeps move and remove.
       expect(
-        tester.widget<TextField>(
-          find.descendant(
-            of: price(h, 'Regular'),
-            matching: find.byType(TextField),
-          ),
-        ).enabled,
+        tester
+            .widget<TextField>(
+              find.descendant(
+                of: price(h, 'Regular'),
+                matching: find.byType(TextField),
+              ),
+            )
+            .enabled,
         isTrue,
       );
       await h.tap(columnMenu(h, 0));
-      expect(find.bySemanticsLabel(h.t('modeling.grid.moveRight')), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(h.t('modeling.grid.moveRight')),
+        findsOneWidget,
+      );
       expect(find.bySemanticsLabel(h.t('menu.removeSize')), findsOneWidget);
-      expect(find.bySemanticsLabel(h.t('modeling.grid.copyFrom')), findsNothing);
+      expect(
+        find.bySemanticsLabel(h.t('modeling.grid.copyFrom')),
+        findsNothing,
+      );
       expect(find.bySemanticsLabel(h.t('modeling.grid.scale')), findsNothing);
       await h.shot('studio/linked-copy');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -680,7 +707,10 @@ void main() {
         // Inactive but in use here.
         'Mocha base (old)',
       ]) {
-        expect(find.descendant(of: list, matching: find.text(name)), findsOneWidget);
+        expect(
+          find.descendant(of: list, matching: find.text(name)),
+          findsOneWidget,
+        );
       }
       await h.shot('studio/base-picker');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -702,17 +732,18 @@ void main() {
       await h.settle();
     });
 
-    testWidgets('MENU-STUDIO-051 disabled while sizes are dirty, with the note', (
-      tester,
-    ) async {
-      final h = await pumpStudio(tester);
-      await h.enterText(price(h, 'Regular'), '116');
-      expect(studioText(h.t('modeling.base.saveFirst')), findsOneWidget);
-      final picker = tester.widget<DashSelect<String>>(
-        find.byKey(const ValueKey('studio-base-picker')),
-      );
-      expect(picker.enabled, isFalse);
-    });
+    testWidgets(
+      'MENU-STUDIO-051 disabled while sizes are dirty, with the note',
+      (tester) async {
+        final h = await pumpStudio(tester);
+        await h.enterText(price(h, 'Regular'), '116');
+        expect(studioText(h.t('modeling.base.saveFirst')), findsOneWidget);
+        final picker = tester.widget<DashSelect<String>>(
+          find.byKey(const ValueKey('studio-base-picker')),
+        );
+        expect(picker.enabled, isFalse);
+      },
+    );
 
     testWidgets('MENU-STUDIO-051 refusal (manager): the picker is disabled', (
       tester,
@@ -795,7 +826,10 @@ void main() {
       )!;
       line['quantity'] = '999';
       final h = await pumpStudio(tester, key: 'iced_spanish', seeded: s);
-      expect(lastCall(h, 'GET', linkT).path, '/menu-items/${item('iced_spanish')}/recipe-link');
+      expect(
+        lastCall(h, 'GET', linkT).path,
+        '/menu-items/${item('iced_spanish')}/recipe-link',
+      );
       expect(studioText(h.t('modeling.linked.follows')), findsOneWidget);
       expect(studioText(h.t('modeling.linked.outOfSync')), findsOneWidget);
       // The web's neutral outline badge, not a warning wash.
@@ -840,7 +874,10 @@ void main() {
         findsOneWidget,
       );
       await h.tap(find.text(h.t('modeling.linked.unlink')).last);
-      expect(lastCall(h, 'DELETE', linkT).path, '/menu-items/${item('iced_spanish')}/recipe-link');
+      expect(
+        lastCall(h, 'DELETE', linkT).path,
+        '/menu-items/${item('iced_spanish')}/recipe-link',
+      );
       await h.expectToast(h.t('modeling.linked.unlinked'));
       expect(cell(h, 'Full cream milk', 'Regular'), findsOneWidget);
       expect(studioText(h.t('modeling.linked.follows')), findsNothing);
@@ -880,12 +917,7 @@ void main() {
     ) async {
       final s = studioServer();
       linkCopy(s.db, 'iced_spanish', 'spanish');
-      s.server.fail(
-        'GET',
-        itemT,
-        MockResponse.error(500, 'boom'),
-        times: null,
-      );
+      s.server.fail('GET', itemT, MockResponse.error(500, 'boom'), times: null);
       final h = await pumpStudio(tester, key: 'spanish', seeded: s);
       expect(
         studioText(h.t('modeling.linked.copyN', args: {'n': 1})),
@@ -893,9 +925,7 @@ void main() {
       );
     });
 
-    testWidgets('MENU-STUDIO-057 refusal (manager): no Unlink', (
-      tester,
-    ) async {
+    testWidgets('MENU-STUDIO-057 refusal (manager): no Unlink', (tester) async {
       final s = studioServer(persona: Persona.manager);
       linkCopy(s.db, 'iced_spanish', 'spanish');
       final h = await pumpStudio(
@@ -921,30 +951,37 @@ void main() {
       expect(saveBar, findsOneWidget);
     });
 
-    testWidgets('MENU-STUDIO-059 seeding: active sizes by sort, plain figures', (
-      tester,
-    ) async {
-      final s = studioServer();
-      s.db[MenuTables.sizes].update(MenuSeedIds.size('latte', 'Regular'), {
-        'sort': 5,
-      });
-      s.db[MenuTables.sizes].insert({
-        'menu_item_id': _latte,
-        'label': 'Kids',
-        'price_override': 9000,
-        'is_active': false,
-        'sort': 0,
-        'base_id': null,
-      }, timestamps: false);
-      final h = await pumpStudio(tester, seeded: s);
-      expect(fieldWithText('Kids'), findsNothing);
-      expect(
-        tester.getTopLeft(fieldWithText('Large')).dx,
-        lessThan(tester.getTopLeft(fieldWithText('Regular')).dx),
-      );
-      expect(editableIn(tester, cell(h, 'Full cream milk', 'Regular')).controller.text, '180');
-      expect(editableIn(tester, price(h, 'Large')).controller.text, '135');
-    });
+    testWidgets(
+      'MENU-STUDIO-059 seeding: active sizes by sort, plain figures',
+      (tester) async {
+        final s = studioServer();
+        s.db[MenuTables.sizes].update(MenuSeedIds.size('latte', 'Regular'), {
+          'sort': 5,
+        });
+        s.db[MenuTables.sizes].insert({
+          'menu_item_id': _latte,
+          'label': 'Kids',
+          'price_override': 9000,
+          'is_active': false,
+          'sort': 0,
+          'base_id': null,
+        }, timestamps: false);
+        final h = await pumpStudio(tester, seeded: s);
+        expect(fieldWithText('Kids'), findsNothing);
+        expect(
+          tester.getTopLeft(fieldWithText('Large')).dx,
+          lessThan(tester.getTopLeft(fieldWithText('Regular')).dx),
+        );
+        expect(
+          editableIn(
+            tester,
+            cell(h, 'Full cream milk', 'Regular'),
+          ).controller.text,
+          '180',
+        );
+        expect(editableIn(tester, price(h, 'Large')).controller.text, '135');
+      },
+    );
 
     testWidgets('MENU-STUDIO-060 phone: the grid scrolls sideways', (
       tester,

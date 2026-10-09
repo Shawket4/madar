@@ -16,9 +16,10 @@ Finder _section(String key) =>
     find.descendant(of: _panel, matching: find.byKey(ValueKey(key)));
 
 String _texts(WidgetTester tester, Finder finder) => [
-  for (final e in find
-      .descendant(of: finder, matching: find.byType(RichText))
-      .evaluate())
+  for (final e
+      in find
+          .descendant(of: finder, matching: find.byType(RichText))
+          .evaluate())
     (e.widget as RichText).text.toPlainText(),
 ].join(' | ');
 
@@ -45,19 +46,27 @@ void main() {
   testWidgets('SELL-TIL-045 the panel: "Till Report", the teller, Close; '
       '448 wide from the end side', (tester) async {
     final h = await _report(tester, TillIds.helioMorning);
-    expect(find.descendant(of: _panel, matching: find.text('Till Report')),
-        findsOneWidget);
-    expect(find.descendant(of: _panel, matching: find.text('Ali Hassan')),
-        findsWidgets);
+    expect(
+      find.descendant(of: _panel, matching: find.text('Till Report')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: _panel, matching: find.text('Ali Hassan')),
+      findsWidgets,
+    );
     // The panel (its start border inside) is 448 wide.
     final size = tester.getSize(find.byType(DashSurface).last);
     expect(size.width, closeTo(tillReportWidth, 1));
     // The end side: flush with the window's right edge in English.
     expect(tester.getTopRight(find.byType(DashSurface).last).dx, 1440);
-    expect(h.server.callsTo(tillReport).single.path,
-        '/tills/${TillIds.helioMorning}/report');
-    expect(h.server.callsTo(tillSummary).single.path,
-        '/reports/tills/${TillIds.helioMorning}/summary');
+    expect(
+      h.server.callsTo(tillReport).single.path,
+      '/tills/${TillIds.helioMorning}/report',
+    );
+    expect(
+      h.server.callsTo(tillSummary).single.path,
+      '/reports/tills/${TillIds.helioMorning}/summary',
+    );
   });
 
   testWidgets('SELL-TIL-045 phone: the report full screen', (tester) async {
@@ -81,16 +90,16 @@ void main() {
       find.descendant(of: loading, matching: find.byType(DashSkeleton)),
       findsNWidgets(4),
     );
-    expect(find.descendant(of: _panel, matching: find.text('Loading…')),
-        findsOneWidget);
+    expect(
+      find.descendant(of: _panel, matching: find.text('Loading…')),
+      findsOneWidget,
+    );
     gate.release();
     await h.settle();
     expect(loading, findsNothing);
   });
 
-  testWidgets('SELL-TIL-046 report error: its words and Retry', (
-    tester,
-  ) async {
+  testWidgets('SELL-TIL-046 report error: its words and Retry', (tester) async {
     final s = tillsServer();
     s.server.fail(
       'GET',
@@ -107,7 +116,9 @@ void main() {
     expect(
       find.descendant(
         of: _panel,
-        matching: find.text('Could not load the till report. Please try again.'),
+        matching: find.text(
+          'Could not load the till report. Please try again.',
+        ),
       ),
       findsOneWidget,
     );
@@ -118,7 +129,11 @@ void main() {
 
   testWidgets('SELL-TIL-047 info: opened, closed, device, order numbers, '
       'bills at close, held orders left open, badges', (tester) async {
-    await _report(tester, TillIds.zamalekLastEvening, branchId: SeedIds.zamalek);
+    await _report(
+      tester,
+      TillIds.zamalekLastEvening,
+      branchId: SeedIds.zamalek,
+    );
     final text = _texts(tester, _section('till-report-info'));
     for (final w in [
       'Opened',
@@ -144,8 +159,10 @@ void main() {
       find.descendant(of: info, matching: find.text('See the other till')),
     );
     expect(h.location.queryParameters['report'], TillIds.helioMorning);
-    expect(h.server.callsTo(tillReport).last.path,
-        '/tills/${TillIds.helioMorning}/report');
+    expect(
+      h.server.callsTo(tillReport).last.path,
+      '/tills/${TillIds.helioMorning}/report',
+    );
     expect(find.byType(TillReportView), findsOneWidget);
   });
 
@@ -155,7 +172,8 @@ void main() {
     final s = tillsServer();
     final id = TillIds.zamalekLastEvening;
     final orders = s.db['orders'].where((o) => o['till_id'] == id).toList();
-    bool sold(MockRow o) => o['status'] != 'voided' && o['status'] != 'refunded';
+    bool sold(MockRow o) =>
+        o['status'] != 'voided' && o['status'] != 'refunded';
     // One cash tip on a paid order.
     orders.firstWhere(sold)
       ..['tip_amount'] = 2500
@@ -176,20 +194,32 @@ void main() {
     String line(String key, String label) {
       final lines = tester
           .widgetList<ReportLine>(
-            find.descendant(of: _section(key), matching: find.byType(ReportLine)),
+            find.descendant(
+              of: _section(key),
+              matching: find.byType(ReportLine),
+            ),
           )
           .where((l) => l.label == label);
       return lines.single.value;
     }
 
     expect(line('till-summary', 'Orders'), '${paid.length}');
-    expect(line('till-summary', 'Revenue'), fmt.fmtMoney(sum(paid, 'total_amount')));
-    expect(line('till-summary', 'Discounts'), fmt.fmtMoney(sum(paid, 'discount_amount')));
+    expect(
+      line('till-summary', 'Revenue'),
+      fmt.fmtMoney(sum(paid, 'total_amount')),
+    );
+    expect(
+      line('till-summary', 'Discounts'),
+      fmt.fmtMoney(sum(paid, 'discount_amount')),
+    );
     expect(line('till-summary', 'Tax'), fmt.fmtMoney(sum(paid, 'tax_amount')));
     expect(line('till-summary', 'Order voided'), '${voided.length}');
     expect(line('till-payments', 'Tips'), fmt.fmtMoney(2500));
     expect(line('till-payments', 'of which cash'), fmt.fmtMoney(2500));
-    expect(line('till-payments', 'Voided'), fmt.fmtMoney(sum(voided, 'total_amount')));
+    expect(
+      line('till-payments', 'Voided'),
+      fmt.fmtMoney(sum(voided, 'total_amount')),
+    );
     final payments = _texts(tester, _section('till-payments'));
     expect(payments, contains('Payment summary'));
     expect(payments, contains('Net payments'));
@@ -199,14 +229,21 @@ void main() {
 
   testWidgets('SELL-TIL-049 no payments: "No results found"', (tester) async {
     await _report(tester, TillIds.emptyTill, branchId: SeedIds.newCairo);
-    expect(_texts(tester, _section('till-payments')), contains('No results found'));
+    expect(
+      _texts(tester, _section('till-payments')),
+      contains('No results found'),
+    );
     // An empty till used no stock: the section is hidden.
     expect(_section('till-deductions'), findsNothing);
   });
 
   testWidgets('SELL-TIL-050 Payment check (stacked in the 448 panel): '
       'method, status, note, system total, declared', (tester) async {
-    await _report(tester, TillIds.zamalekLastEvening, branchId: SeedIds.zamalek);
+    await _report(
+      tester,
+      TillIds.zamalekLastEvening,
+      branchId: SeedIds.zamalek,
+    );
     final table = _section('reconciliation-table');
     expect(_texts(tester, table), contains('Payment check'));
     final card = find.descendant(
@@ -229,7 +266,10 @@ void main() {
     );
     expect(_texts(tester, cash), contains('Checked'));
     // No word is broken across lines: the Method column is gone.
-    expect(find.descendant(of: table, matching: find.byType(Table)), findsNothing);
+    expect(
+      find.descendant(of: table, matching: find.byType(Table)),
+      findsNothing,
+    );
   });
 
   testWidgets('SELL-TIL-051/062 Cash reconciliation: the edited float (+), '
@@ -275,7 +315,10 @@ void main() {
     expect(text, contains('Rana'));
     expect(text, contains('unlocked by'));
     expect(
-      find.descendant(of: views, matching: find.byKey(const ValueKey('spot-view-printed'))),
+      find.descendant(
+        of: views,
+        matching: find.byKey(const ValueKey('spot-view-printed')),
+      ),
       findsOneWidget,
     );
   });
@@ -295,10 +338,7 @@ void main() {
       server: s.server,
       db: s.db,
     );
-    expect(
-      _texts(tester, _section('spot-views-error')),
-      'spot views offline',
-    );
+    expect(_texts(tester, _section('spot-views-error')), 'spot views offline');
   });
 
   testWidgets('SELL-TIL-052 empty spot views', (tester) async {
@@ -319,24 +359,30 @@ void main() {
     expect(text, matches(RegExp(r'\d ml')));
     // The voided order's stock came back.
     expect(text, matches(RegExp(r'\d+(\.\d+)? \w+ put back by voids')));
-    expect(h.server.callsTo(tillDeductions).single.path,
-        '/reports/tills/$id/deductions');
+    expect(
+      h.server.callsTo(tillDeductions).single.path,
+      '/reports/tills/$id/deductions',
+    );
   });
 
   test('SELL-TIL-053 summarizeDeductions: net of restocks per item and '
       'unit, returned kept apart, most used then by name', () {
-    DeductionLogRow row(String item, String name, String unit, double q,
-            String source) =>
-        DeductionLogRow(
-          id: '$item$q$source',
-          orderId: 'o',
-          inventoryItemId: item,
-          itemName: name,
-          unit: unit,
-          quantityDeducted: q,
-          source: source,
-          createdAt: DateTime.utc(2026, 10, 8),
-        );
+    DeductionLogRow row(
+      String item,
+      String name,
+      String unit,
+      double q,
+      String source,
+    ) => DeductionLogRow(
+      id: '$item$q$source',
+      orderId: 'o',
+      inventoryItemId: item,
+      itemName: name,
+      unit: unit,
+      quantityDeducted: q,
+      source: source,
+      createdAt: DateTime.utc(2026, 10, 8),
+    );
     final totals = summarizeDeductions([
       row('beans', 'Espresso beans', 'g', 18, 'sale'),
       row('beans', 'Espresso beans', 'g', 18, 'sale'),
@@ -345,12 +391,10 @@ void main() {
       row('cup', 'Paper cup', 'pcs', 1, 'sale'),
       row('lid', 'Lid', 'pcs', 1, 'sale'),
     ]);
-    expect([for (final d in totals) d.name], [
-      'Full-cream milk',
-      'Espresso beans',
-      'Lid',
-      'Paper cup',
-    ]);
+    expect(
+      [for (final d in totals) d.name],
+      ['Full-cream milk', 'Espresso beans', 'Lid', 'Paper cup'],
+    );
     final beans = totals[1];
     expect(beans.used, 18);
     expect(beans.returned, 18);
@@ -391,12 +435,7 @@ void main() {
     for (final m in s.db['till_cash_movements'].rows) {
       if (m['till_id'] == TillIds.helioMorning) m['note'] = '';
     }
-    await _report(
-      tester,
-      TillIds.helioMorning,
-      server: s.server,
-      db: s.db,
-    );
+    await _report(tester, TillIds.helioMorning, server: s.server, db: s.db);
     final text = _texts(tester, _section('till-movements'));
     expect(text, allOf(contains('Cash in'), contains('Cash out')));
   });
@@ -405,7 +444,11 @@ void main() {
       'Payment check, Cash, Spot views, Stock used, Cash movements', (
     tester,
   ) async {
-    await _report(tester, TillIds.zamalekLastEvening, branchId: SeedIds.zamalek);
+    await _report(
+      tester,
+      TillIds.zamalekLastEvening,
+      branchId: SeedIds.zamalek,
+    );
     final order = [
       'till-report-info',
       'till-summary',

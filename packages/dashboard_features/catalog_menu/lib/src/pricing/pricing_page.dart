@@ -356,7 +356,10 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
               }),
               options: [
                 DashOption(value: 'items', label: t('menu.pricing.menuItems')),
-                DashOption(value: 'addons', label: t('menu.pricing.addonItems')),
+                DashOption(
+                  value: 'addons',
+                  label: t('menu.pricing.addonItems'),
+                ),
               ],
             ),
             DashSearchInput(
@@ -446,9 +449,7 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
         title: t('menu.pricing.noItems'),
       );
     } else {
-      final rows = [
-        for (final m in list) _itemState(m, branchId),
-      ];
+      final rows = [for (final m in list) _itemState(m, branchId)];
       content = phone
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -471,9 +472,7 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
           data.totalPages,
           (p) => setState(() => _itemsPage = p),
           (p) => ref.warm(
-            menuCatalogProvider(
-              pricingCatalogKey(org, key.search, p + 1),
-            ),
+            menuCatalogProvider(pricingCatalogKey(org, key.search, p + 1)),
           ),
         ),
       ],
@@ -596,10 +595,7 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
       return [head, message(Text(t('menu.pricing.loadError'), style: muted))];
     }
     if (sizes == null) {
-      return [
-        head,
-        message(const DashSkeleton(height: Space.xxl + Space.xs)),
-      ];
+      return [head, message(const DashSkeleton(height: Space.xxl + Space.xs))];
     }
     if (sizes.isEmpty) {
       return [head, message(Text(t('menu.pricing.noSizes'), style: muted))];
@@ -743,7 +739,7 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
             open: r.open,
             dirty: r.dirty,
             onToggle: () => _toggle(r.item.id),
-          onIntent: _studioWarmer(r),
+            onIntent: _studioWarmer(r),
           ),
           body,
         ],

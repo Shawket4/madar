@@ -18,12 +18,15 @@ const String listRoute = '/orders';
 const String orderRoute = '/orders/{order_id}';
 const String voidRoute = '/orders/{order_id}/void';
 const String exportRoute = '/orders/export';
-const String deliverySalesRoute = '/reports/branches/{branch_id}/delivery-sales';
+const String deliverySalesRoute =
+    '/reports/branches/{branch_id}/delivery-sales';
 const String deliveryOrderRoute = '/delivery-orders/{id}';
 const String catalogRoute = '/inventory/orgs/{org_id}/catalog';
 const String menuItemsRoute = '/menu-items';
 
-({MockServer server, MockDb db}) ordersServer({Persona persona = Persona.owner}) {
+({MockServer server, MockDb db}) ordersServer({
+  Persona persona = Persona.owner,
+}) {
   final db = MockDb.seeded();
   final server = MockServer(persona: persona, clock: db.clock);
   registerCoreMocks(server, db);
@@ -103,14 +106,13 @@ void dropCaps(MockServer server, Set<String> drop) {
 List<Map<String, Object?>> todaysOrders(MockDb db, String branchId) {
   final today = MockClock.startOfCairoDay(db.clock.now);
   return db['orders'].where(
-      (o) =>
-          o['branch_id'] == branchId &&
-          !DateTime.parse(o['created_at']! as String).isBefore(today),
-    )
-    ..sort(
-      (a, b) =>
-          (b['created_at']! as String).compareTo(a['created_at']! as String),
-    );
+    (o) =>
+        o['branch_id'] == branchId &&
+        !DateTime.parse(o['created_at']! as String).isBefore(today),
+  )..sort(
+    (a, b) =>
+        (b['created_at']! as String).compareTo(a['created_at']! as String),
+  );
 }
 
 /// Units sold on [orderId] (combo headers left out): what Items Sold counts.

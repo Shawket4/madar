@@ -165,6 +165,37 @@ void main() {
   });
 
   group('inventory', () {
+    test('low-stock and waste-report are the inventory area\'s: kept when it '
+        'registered them first; the rest are ours', () async {
+      final db = MockDb.seeded();
+      final server = MockServer(persona: Persona.owner, clock: db.clock);
+      registerCoreMocks(server, db);
+      const theirs = [
+        '/reports/branches/{branch_id}/low-stock',
+        '/reports/orgs/{org_id}/low-stock',
+        '/reports/branches/{branch_id}/waste-report',
+        '/reports/branches/{branch_id}/consumption',
+      ];
+      for (final t in theirs) {
+        server.on('GET', t, (_) => MockResponse.ok(const ['inventory']));
+      }
+      registerLoyaltyInventoryStaffMocks(server, db);
+      final z = SeedIds.zamalek;
+      for (final path in [
+        '/reports/branches/$z/low-stock',
+        '/reports/orgs/${SeedIds.sabahOrg}/low-stock',
+        '/reports/branches/$z/waste-report',
+      ]) {
+        expect((await _get(server, path, _range)).$2, ['inventory'], reason: path);
+      }
+      final (_, consumption) = await _get(
+        server,
+        '/reports/branches/$z/consumption',
+        _range,
+      );
+      expect(consumption, isNot(['inventory']));
+    });
+
     test('consumption: daily use at the branch\'s size plus waste', () async {
       final s = _server();
       final (status, body) = await _get(
@@ -319,7 +350,8 @@ void main() {
   });
 
   group('staff discipline', () {
-    test('ranked within departments, unassigned last', () async {
+    test('ranked within departments; the Zamalek waiters front of house, '
+        'as the team seed places them', () async {
       final s = _server();
       final (status, body) = await _get(s.server, '/staff/discipline-report', {
         'from': '2026-09-09',
@@ -328,8 +360,11 @@ void main() {
       expect(status, 200);
       final r = DisciplineReport.fromJson(body! as Map<String, Object?>);
       expect(r.rows, isNotEmpty);
-      expect(r.rows.last.departmentId, isNull);
-      expect(r.rows.where((x) => x.departmentId == null), isNotEmpty);
+      expect(r.rows.where((x) => x.departmentId == null), isEmpty);
+      for (final name in ['Laila Ehab', 'Adham Reda']) {
+        final w = r.rows.firstWhere((x) => x.employeeName == name);
+        expect(w.departmentName, 'Front of house', reason: name);
+      }
       expect(r.rows.any((x) => (x.coversGiven ?? 0) > 0), isTrue);
       expect(r.rows.any((x) => (x.coveredByOthers ?? 0) > 0), isTrue);
       // Within a department, rank follows absences, then lates, then minutes.

@@ -69,10 +69,8 @@ Finder inPage(Finder f) => find.descendant(of: page, matching: f);
 Finder pageText(String s) => inPage(find.text(s));
 
 /// The editable text inside the control keyed [key].
-Finder box(Key key) => find.descendant(
-  of: find.byKey(key),
-  matching: find.byType(EditableText),
-);
+Finder box(Key key) =>
+    find.descendant(of: find.byKey(key), matching: find.byType(EditableText));
 
 String shown(WidgetTester tester, Key key) =>
     tester.widget<EditableText>(box(key).first).controller.text;

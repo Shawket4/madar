@@ -296,9 +296,7 @@ ParsedPeople parsePeople(
       continue;
     }
     final branchName = get('branch');
-    final branchId = branchName.isNotEmpty
-        ? byName[_norm(branchName)]
-        : only;
+    final branchId = branchName.isNotEmpty ? byName[_norm(branchName)] : only;
     if (branchId == null) {
       errors.add(RowError(row, 'importNoBranch', branchName));
       continue;

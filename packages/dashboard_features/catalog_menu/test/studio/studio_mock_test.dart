@@ -38,7 +38,9 @@ void main() {
     expect(regular.costPiastres, 2706);
     expect(regular.costIncomplete, isFalse);
     expect(
-      regular.recipe.map((l) => '${l.source}:${l.ingredientName}:${l.quantity}'),
+      regular.recipe.map(
+        (l) => '${l.source}:${l.ingredientName}:${l.quantity}',
+      ),
       [
         'own:Full cream milk:180.000',
         'base:House espresso blend:18.000',
@@ -46,7 +48,10 @@ void main() {
         'rule:Hot cup lid:1.000',
       ],
     );
-    expect(a.modifierGroups.map((g) => g.name), containsAll(['Milk', 'Extras']));
+    expect(
+      a.modifierGroups.map((g) => g.name),
+      containsAll(['Milk', 'Extras']),
+    );
     expect(a.recipeSteps.map((st) => st.presetSlug), [
       'pull-espresso',
       'steam-milk',
@@ -137,172 +142,210 @@ void main() {
     );
   });
 
-  test('PUT size recipe: own lines replaced, base and rules re-expanded', () async {
-    final sizeId = MenuSeedIds.size('latte', 'Regular');
-    expect(
-      (await refused(
+  test(
+    'PUT size recipe: own lines replaced, base and rules re-expanded',
+    () async {
+      final sizeId = MenuSeedIds.size('latte', 'Regular');
+      expect(
+        (await refused(
+          api.menu.putSizeRecipe(
+            sizeId: sizeId,
+            body: PutRecipeRequest(
+              lines: [
+                RecipeLineInput(
+                  ingredientId: _ing('oat_milk'),
+                  quantity: 1,
+                  unit: 'ml',
+                ),
+                RecipeLineInput(
+                  ingredientId: _ing('oat_milk'),
+                  quantity: 2,
+                  unit: 'ml',
+                ),
+              ],
+            ),
+          ),
+        )).message,
+        contains('Duplicate ingredient'),
+      );
+      final r = await api.menu.putSizeRecipe(
+        sizeId: sizeId,
+        body: PutRecipeRequest(
+          lines: [
+            RecipeLineInput(
+              ingredientId: _ing('oat_milk'),
+              quantity: 200,
+              unit: 'ml',
+            ),
+            // An own line of the base's ingredient wins over the base.
+            RecipeLineInput(
+              ingredientId: _ing('house_blend'),
+              quantity: 20,
+              unit: 'g',
+            ),
+          ],
+        ),
+      );
+      expect(r.recipe.map((l) => '${l.source}:${l.ingredientName}'), [
+        'own:Oat milk',
+        'own:House espresso blend',
+        'rule:12oz paper cup',
+        'rule:Hot cup lid',
+      ]);
+      // 200 × 14 + 20 × 95 + 180 + 60 = 4,940.
+      expect(r.costPiastres, 4940);
+    },
+  );
+
+  test(
+    'a linked copy: recipe 409, link info, unlink keeps the lines',
+    () async {
+      linkCopy(s.db, 'iced_spanish', 'spanish');
+      final copy = item('iced_spanish');
+      final e = await refused(
         api.menu.putSizeRecipe(
-          sizeId: sizeId,
-          body: PutRecipeRequest(
-            lines: [
-              RecipeLineInput(ingredientId: _ing('oat_milk'), quantity: 1, unit: 'ml'),
-              RecipeLineInput(ingredientId: _ing('oat_milk'), quantity: 2, unit: 'ml'),
-            ],
-          ),
+          sizeId: MenuSeedIds.size('iced_spanish', 'Regular'),
+          body: const PutRecipeRequest(lines: []),
         ),
-      )).message,
-      contains('Duplicate ingredient'),
-    );
-    final r = await api.menu.putSizeRecipe(
-      sizeId: sizeId,
-      body: PutRecipeRequest(
-        lines: [
-          RecipeLineInput(ingredientId: _ing('oat_milk'), quantity: 200, unit: 'ml'),
-          // An own line of the base's ingredient wins over the base.
-          RecipeLineInput(ingredientId: _ing('house_blend'), quantity: 20, unit: 'g'),
-        ],
-      ),
-    );
-    expect(r.recipe.map((l) => '${l.source}:${l.ingredientName}'), [
-      'own:Oat milk',
-      'own:House espresso blend',
-      'rule:12oz paper cup',
-      'rule:Hot cup lid',
-    ]);
-    // 200 × 14 + 20 × 95 + 180 + 60 = 4,940.
-    expect(r.costPiastres, 4940);
-  });
+      );
+      expect(e.status, 409);
+      final info = await api.menu.getRecipeLink(id: copy);
+      expect(info.recipeSourceItemName, 'Spanish Latte');
+      expect(info.inSync, isTrue);
+      final source = await api.menu.getRecipeLink(id: item('spanish'));
+      expect(source.linkedCopyIds, [copy]);
+      expect(source.inSync, isNull);
+      await api.menu.deleteRecipeLink(id: copy);
+      final a = await api.menu.getStudio(id: copy);
+      expect(a.recipeSourceItemId, isNull);
+      expect(a.sizes.first.recipe.map((l) => l.source).toSet(), {'own'});
+    },
+  );
 
-  test('a linked copy: recipe 409, link info, unlink keeps the lines', () async {
-    linkCopy(s.db, 'iced_spanish', 'spanish');
-    final copy = item('iced_spanish');
-    final e = await refused(
-      api.menu.putSizeRecipe(
-        sizeId: MenuSeedIds.size('iced_spanish', 'Regular'),
-        body: const PutRecipeRequest(lines: []),
-      ),
-    );
-    expect(e.status, 409);
-    final info = await api.menu.getRecipeLink(id: copy);
-    expect(info.recipeSourceItemName, 'Spanish Latte');
-    expect(info.inSync, isTrue);
-    final source = await api.menu.getRecipeLink(id: item('spanish'));
-    expect(source.linkedCopyIds, [copy]);
-    expect(source.inSync, isNull);
-    await api.menu.deleteRecipeLink(id: copy);
-    final a = await api.menu.getStudio(id: copy);
-    expect(a.recipeSourceItemId, isNull);
-    expect(a.sizes.first.recipe.map((l) => l.source).toSet(), {'own'});
-  });
+  test(
+    'PUT size base: an unknown base is refused; None removes base lines',
+    () async {
+      final sizeId = MenuSeedIds.size('latte', 'Regular');
+      expect(
+        (await refused(
+          api.menu.putSizeBase(
+            sizeId: sizeId,
+            body: PutSizeBaseRequest(baseId: mockUuid('nope')),
+          ),
+        )).status,
+        400,
+      );
+      final r = await api.menu.putSizeBase(
+        sizeId: sizeId,
+        body: const PutSizeBaseRequest(explicitNulls: {'base_id'}),
+      );
+      expect(r.baseId, isNull);
+      expect(r.sizesChanged, 1);
+      final a = await api.menu.getStudio(id: latte);
+      expect(a.sizes.first.recipe.any((l) => l.source == 'base'), isFalse);
+    },
+  );
 
-  test('PUT size base: an unknown base is refused; None removes base lines', () async {
-    final sizeId = MenuSeedIds.size('latte', 'Regular');
-    expect(
-      (await refused(
-        api.menu.putSizeBase(
-          sizeId: sizeId,
-          body: PutSizeBaseRequest(baseId: mockUuid('nope')),
+  test(
+    'PUT modifier-groups: refusals; [] detaches; the overrides read back',
+    () async {
+      expect(
+        (await refused(
+          api.menu.putModifierGroups(
+            id: latte,
+            body: PutModifierGroupsRequest(
+              groups: [GroupAttachInput(groupId: mockUuid('nope'))],
+            ),
+          ),
+        )).status,
+        400,
+      );
+      final a = await api.menu.putModifierGroups(
+        id: latte,
+        body: PutModifierGroupsRequest(
+          groups: [
+            GroupAttachInput(
+              groupId: MenuSeedIds.group('milk'),
+              sort: 0,
+              minOverride: 1,
+              isRequiredOverride: true,
+              includedOptionIds: [MenuSeedIds.option('milk', 'full')],
+            ),
+          ],
         ),
-      )).status,
-      400,
-    );
-    final r = await api.menu.putSizeBase(
-      sizeId: sizeId,
-      body: const PutSizeBaseRequest(explicitNulls: {'base_id'}),
-    );
-    expect(r.baseId, isNull);
-    expect(r.sizesChanged, 1);
-    final a = await api.menu.getStudio(id: latte);
-    expect(a.sizes.first.recipe.any((l) => l.source == 'base'), isFalse);
-  });
+      );
+      final milk = a.modifierGroups.single;
+      expect(milk.min, 1);
+      expect(milk.isRequired, isTrue);
+      expect(milk.options.where((o) => o.included).map((o) => o.id), [
+        MenuSeedIds.option('milk', 'full'),
+      ]);
+      final none = await api.menu.putModifierGroups(
+        id: latte,
+        body: const PutModifierGroupsRequest(groups: []),
+      );
+      expect(none.modifierGroups, isEmpty);
+    },
+  );
 
-  test('PUT modifier-groups: refusals; [] detaches; the overrides read back', () async {
-    expect(
-      (await refused(
-        api.menu.putModifierGroups(
-          id: latte,
-          body: PutModifierGroupsRequest(
-            groups: [GroupAttachInput(groupId: mockUuid('nope'))],
-          ),
+  test(
+    'PUT options: an item-private group; ids kept; [] clears a recipe',
+    () async {
+      final out = await api.menu.putItemOptions(
+        id: latte,
+        body: PutItemOptionsRequest(
+          options: [
+            ItemOptionInput(
+              name: 'Extra foam',
+              price: 500,
+              isActive: true,
+              recipe: [
+                OptionRecipeLineInput(
+                  ingredientId: _ing('full_milk'),
+                  quantity: 30,
+                  unit: 'ml',
+                ),
+              ],
+            ),
+          ],
         ),
-      )).status,
-      400,
-    );
-    final a = await api.menu.putModifierGroups(
-      id: latte,
-      body: PutModifierGroupsRequest(
-        groups: [
-          GroupAttachInput(
-            groupId: MenuSeedIds.group('milk'),
-            sort: 0,
-            minOverride: 1,
-            isRequiredOverride: true,
-            includedOptionIds: [MenuSeedIds.option('milk', 'full')],
-          ),
-        ],
-      ),
-    );
-    final milk = a.modifierGroups.single;
-    expect(milk.min, 1);
-    expect(milk.isRequired, isTrue);
-    expect(milk.options.where((o) => o.included).map((o) => o.id), [
-      MenuSeedIds.option('milk', 'full'),
-    ]);
-    final none = await api.menu.putModifierGroups(
-      id: latte,
-      body: const PutModifierGroupsRequest(groups: []),
-    );
-    expect(none.modifierGroups, isEmpty);
-  });
-
-  test('PUT options: an item-private group; ids kept; [] clears a recipe', () async {
-    final out = await api.menu.putItemOptions(
-      id: latte,
-      body: PutItemOptionsRequest(
-        options: [
-          ItemOptionInput(
-            name: 'Extra foam',
-            price: 500,
-            isActive: true,
-            recipe: [
-              OptionRecipeLineInput(
-                ingredientId: _ing('full_milk'),
-                quantity: 30,
-                unit: 'ml',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-    final id = out.single.id;
-    // 30 ml × 4.2 = 126.
-    expect(out.single.costPiastres, 126);
-    final a = await api.menu.getStudio(id: latte);
-    expect(a.options.single.id, id);
-    // Not among the reusable groups.
-    expect(a.modifierGroups.map((g) => g.name), isNot(contains('Options')));
-    final cleared = await api.menu.putItemOptions(
-      id: latte,
-      body: PutItemOptionsRequest(
-        options: [
-          ItemOptionInput(id: id, name: 'Extra foam', price: 500, recipe: const []),
-        ],
-      ),
-    );
-    expect(cleared.single.id, id);
-    expect(cleared.single.recipe, isEmpty);
-  });
+      );
+      final id = out.single.id;
+      // 30 ml × 4.2 = 126.
+      expect(out.single.costPiastres, 126);
+      final a = await api.menu.getStudio(id: latte);
+      expect(a.options.single.id, id);
+      // Not among the reusable groups.
+      expect(a.modifierGroups.map((g) => g.name), isNot(contains('Options')));
+      final cleared = await api.menu.putItemOptions(
+        id: latte,
+        body: PutItemOptionsRequest(
+          options: [
+            ItemOptionInput(
+              id: id,
+              name: 'Extra foam',
+              price: 500,
+              recipe: const [],
+            ),
+          ],
+        ),
+      );
+      expect(cleared.single.id, id);
+      expect(cleared.single.recipe, isEmpty);
+    },
+  );
 
   test('PUT steps: validated before anything is written', () async {
-    Future<ApiException> bad(List<RecipeStepInput> steps) =>
-        refused(api.recipes.putRecipeSteps(
-          menuItemId: latte,
-          body: PutRecipeStepsRequest(steps: steps),
-        ));
+    Future<ApiException> bad(List<RecipeStepInput> steps) => refused(
+      api.recipes.putRecipeSteps(
+        menuItemId: latte,
+        body: PutRecipeStepsRequest(steps: steps),
+      ),
+    );
     expect(
-      (await bad(const [RecipeStepInput(kind: 'preset', presetSlug: 'nope')]))
-          .message,
+      (await bad(const [
+        RecipeStepInput(kind: 'preset', presetSlug: 'nope'),
+      ])).message,
       contains("Step 1: no such step 'nope'"),
     );
     expect(
@@ -310,8 +353,9 @@ void main() {
       contains('Step 1 needs a name'),
     );
     expect(
-      (await bad([RecipeStepInput(kind: 'custom', title: 'x', note: 'n' * 281)]))
-          .message,
+      (await bad([
+        RecipeStepInput(kind: 'custom', title: 'x', note: 'n' * 281),
+      ])).message,
       contains("Step 1's note is too long"),
     );
     final out = await api.recipes.putRecipeSteps(
@@ -344,7 +388,10 @@ void main() {
     expect(p.price.base, 13500);
     expect(p.price.options.single.priceDelta, 2500);
     expect(p.price.total, 32000);
-    expect(p.defaults[MenuSeedIds.group('milk')], MenuSeedIds.option('milk', 'full'));
+    expect(
+      p.defaults[MenuSeedIds.group('milk')],
+      MenuSeedIds.option('milk', 'full'),
+    );
     final oat = p.deductions.firstWhere((d) => d.source == 'swap');
     expect(oat.name, 'Oat milk');
     expect(oat.quantity, 480);

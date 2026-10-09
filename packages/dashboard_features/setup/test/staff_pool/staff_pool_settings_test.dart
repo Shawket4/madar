@@ -13,10 +13,8 @@ import 'support.dart';
 
 Finder _key(String k) => find.byKey(ValueKey(k));
 
-Finder _switch() => find.descendant(
-  of: _key('spl-enabled'),
-  matching: find.byType(DashSwitch),
-);
+Finder _switch() =>
+    find.descendant(of: _key('spl-enabled'), matching: find.byType(DashSwitch));
 
 int _gets(DashHarness h) => h.server.callsTo(splSettings, method: 'GET').length;
 
@@ -29,7 +27,9 @@ void main() {
       expect(paneText('Staff drinks'), findsOneWidget);
       expect(paneText('Not available on this account'), findsOneWidget);
       expect(
-        paneText("Your account can't change this. The owner can give you access."),
+        paneText(
+          "Your account can't change this. The owner can give you access.",
+        ),
         findsOneWidget,
       );
       expect(h.server.callsTo(splSettings), isEmpty);
@@ -95,16 +95,16 @@ void main() {
   testWidgets('SET-SPL-005 a reader: the note, every control disabled, no '
       'Save or Revert', (tester) async {
     final m = splServer();
-    grantOnly(m.server, const ['org.settings.read', 'orders.staff_drink.record']);
+    grantOnly(m.server, const [
+      'org.settings.read',
+      'orders.staff_drink.record',
+    ]);
     final h = await pumpStaffPool(
       tester,
       backend: m,
       query: atBranch(SeedIds.heliopolis),
     );
-    expect(
-      paneText(h.t('staffPool.readOnly')),
-      findsOneWidget,
-    );
+    expect(paneText(h.t('staffPool.readOnly')), findsOneWidget);
     expect(tester.widget<DashSwitch>(_switch()).enabled, isFalse);
     expect(
       tester.widget<DashTextField>(_key('spl-allowance')).enabled,
@@ -133,9 +133,7 @@ void main() {
     m.server.fail(
       'GET',
       splSettings,
-      MockResponse.ok(
-        StaffPoolSettingsMock.wire(savedRow(m.db, null)!),
-      ),
+      MockResponse.ok(StaffPoolSettingsMock.wire(savedRow(m.db, null)!)),
       times: null,
     );
     final h = await pumpStaffPool(
@@ -165,23 +163,25 @@ void main() {
     expect(buttonAt(tester, 'spl-save').onPressed, isNull);
   });
 
-  testWidgets('SET-SPL-007 the switch: its words, and flipping it offers Save',
-      (tester) async {
-    final h = await pumpStaffPool(tester);
-    expect(paneText('Staff drinks are on'), findsOneWidget);
-    expect(
-      paneText("Tellers can ring up a staff drink against the day's pool."),
-      findsOneWidget,
-    );
-    expect(tester.widget<DashSwitch>(_switch()).value, isTrue);
-    expect(buttonAt(tester, 'spl-save').onPressed, isNull);
-    await h.tap(_switch());
-    expect(tester.widget<DashSwitch>(_switch()).value, isFalse);
-    expect(buttonAt(tester, 'spl-save').onPressed, isNotNull);
-    // Back as it was: nothing to save (react-hook-form's isDirty).
-    await h.tap(_switch());
-    expect(buttonAt(tester, 'spl-save').onPressed, isNull);
-  });
+  testWidgets(
+    'SET-SPL-007 the switch: its words, and flipping it offers Save',
+    (tester) async {
+      final h = await pumpStaffPool(tester);
+      expect(paneText('Staff drinks are on'), findsOneWidget);
+      expect(
+        paneText("Tellers can ring up a staff drink against the day's pool."),
+        findsOneWidget,
+      );
+      expect(tester.widget<DashSwitch>(_switch()).value, isTrue);
+      expect(buttonAt(tester, 'spl-save').onPressed, isNull);
+      await h.tap(_switch());
+      expect(tester.widget<DashSwitch>(_switch()).value, isFalse);
+      expect(buttonAt(tester, 'spl-save').onPressed, isNotNull);
+      // Back as it was: nothing to save (react-hook-form's isDirty).
+      await h.tap(_switch());
+      expect(buttonAt(tester, 'spl-save').onPressed, isNull);
+    },
+  );
 
   testWidgets('SET-SPL-008 the allowance: label, the figure, mono, and the '
       'hint while valid', (tester) async {
@@ -244,7 +244,10 @@ void main() {
     await h.tap(_key('spl-items-trigger'));
     final menu = h.server.callsTo(splMenu).single;
     expect(menu.query['org_id'], [SeedIds.sabahOrg]);
-    expect(inPicker(find.text(h.t('staffPool.itemsPickerNote'))), findsOneWidget);
+    expect(
+      inPicker(find.text(h.t('staffPool.itemsPickerNote'))),
+      findsOneWidget,
+    );
     expect(inPicker(find.text('Loading…')), findsOneWidget);
     gate.release();
     await h.settle();
@@ -253,7 +256,9 @@ void main() {
     await h.tap(inPicker(find.text(itemName('latte'))));
     expect(
       tester
-          .widget<DashOptionList<String>>(inPicker(find.byType(DashOptionList<String>)))
+          .widget<DashOptionList<String>>(
+            inPicker(find.byType(DashOptionList<String>)),
+          )
           .isSelected(itemId('latte')),
       isTrue,
     );
@@ -306,12 +311,19 @@ void main() {
     );
     expect(rule, findsOneWidget);
     expect(
-      find.descendant(of: _key('spl-items'), matching: find.text('Items that count')),
+      find.descendant(
+        of: _key('spl-items'),
+        matching: find.text('Items that count'),
+      ),
       findsOneWidget,
     );
     h = await pumpStaffPool(tester, locale: 'ar');
     expect(
-      inPane(find.textContaining('المجاني هو أصغر حجم والاختيار الأساسي في كل اختيار إلزامي')),
+      inPane(
+        find.textContaining(
+          'المجاني هو أصغر حجم والاختيار الأساسي في كل اختيار إلزامي',
+        ),
+      ),
       findsOneWidget,
     );
     expect(inPane(find.textContaining("What's free")), findsNothing);
@@ -323,7 +335,8 @@ void main() {
     const noItems =
         'The pool is off: with no items chosen, nobody can ring up a staff '
         'drink — whatever the switch above says.';
-    const disabled = "The pool is off. Tellers can't ring up a staff drink here.";
+    const disabled =
+        "The pool is off. Tellers can't ring up a staff drink here.";
     final h = await pumpStaffPool(tester, query: atBranch(SeedIds.newCairo));
     expect(paneText(disabled), findsOneWidget);
     await h.tap(_switch());
@@ -362,7 +375,8 @@ void main() {
     final h = await pumpStaffPool(tester);
     await h.enterText(_key('spl-allowance'), '2');
     await h.tap(_key('spl-save'));
-    final body = h.server.callsTo(splSettings, method: 'PUT').single.body as Map;
+    final body =
+        h.server.callsTo(splSettings, method: 'PUT').single.body as Map;
     expect(body.containsKey('branch_id'), isTrue);
     expect(body['branch_id'], isNull);
     await h.expectToast('Staff drinks saved');
@@ -493,16 +507,24 @@ void main() {
     final list = tester.widget<DashOptionList<String>>(
       inPicker(find.byType(DashOptionList<String>)),
     );
-    final all = m.db['menu_items'].where((r) => r['org_id'] == SeedIds.sabahOrg);
+    final all = m.db['menu_items'].where(
+      (r) => r['org_id'] == SeedIds.sabahOrg,
+    );
     expect(list.options, hasLength(all.length));
     // The 288 px card (`w-72`), less its 1 px border each side.
     expect(tester.getSize(_key('spl-picker')).width, 288 - 2);
     // Chips are named in Arabic too.
     expect(
-      find.descendant(of: _key('spl-chips'), matching: find.text(itemName('latte', 'ar'))),
+      find.descendant(
+        of: _key('spl-chips'),
+        matching: find.text(itemName('latte', 'ar')),
+      ),
       findsOneWidget,
     );
-    await h.enterText(inPicker(find.byType(DashTextInput)), itemName('latte', 'ar'));
+    await h.enterText(
+      inPicker(find.byType(DashTextInput)),
+      itemName('latte', 'ar'),
+    );
     final row = find.descendant(
       of: inPicker(find.byType(ListView)),
       matching: find.text(itemName('latte', 'ar')),
@@ -511,7 +533,10 @@ void main() {
     await h.tap(row);
     expect(_key('spl-picker'), findsOneWidget, reason: 'still open');
     expect(
-      find.descendant(of: _key('spl-chips'), matching: find.text(itemName('latte', 'ar'))),
+      find.descendant(
+        of: _key('spl-chips'),
+        matching: find.text(itemName('latte', 'ar')),
+      ),
       findsNothing,
     );
   });
@@ -566,7 +591,9 @@ void main() {
     await h.tap(inPicker(find.text(itemName('latte'))));
     expect(
       tester
-          .widget<DashOptionList<String>>(inPicker(find.byType(DashOptionList<String>)))
+          .widget<DashOptionList<String>>(
+            inPicker(find.byType(DashOptionList<String>)),
+          )
           .isSelected(itemId('latte')),
       isFalse,
     );

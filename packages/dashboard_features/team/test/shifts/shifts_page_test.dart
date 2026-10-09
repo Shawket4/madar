@@ -47,7 +47,10 @@ void main() {
     final s = shiftsServer();
     final gate = s.server.hold('GET', shiftsT);
     final h = await pumpShifts(tester, s: s);
-    expect(inPage(find.byKey(const ValueKey('shifts-loading'))), findsOneWidget);
+    expect(
+      inPage(find.byKey(const ValueKey('shifts-loading'))),
+      findsOneWidget,
+    );
     expect(pageText(h.t('staff.noShifts')), findsNothing);
     // The grid waits for the shift list too: never "nothing to assign".
     expect(find.byKey(const ValueKey('roster-loading')), findsOneWidget);
@@ -92,9 +95,8 @@ void main() {
   ) async {
     final h = await pumpShifts(
       tester,
-      edit: (db) => db['work_shifts'].removeWhere(
-        (w) => w['org_id'] == SeedIds.sabahOrg,
-      ),
+      edit: (db) =>
+          db['work_shifts'].removeWhere((w) => w['org_id'] == SeedIds.sabahOrg),
     );
     expect(pageText(h.t('staff.noShifts')), findsOneWidget);
     expect(pageText(h.t('staff.noShiftsHintV2')), findsOneWidget);
@@ -114,9 +116,8 @@ void main() {
     final h = await pumpShifts(
       tester,
       persona: Persona.manager,
-      edit: (db) => db['work_shifts'].removeWhere(
-        (w) => w['org_id'] == SeedIds.sabahOrg,
-      ),
+      edit: (db) =>
+          db['work_shifts'].removeWhere((w) => w['org_id'] == SeedIds.sabahOrg),
     );
     expect(pageText(h.t('staff.noShiftsNoAccess')), findsOneWidget);
     expect(pageText('New shift'), findsNothing);
@@ -154,11 +155,17 @@ void main() {
       'over the presence cap a warning pill', (tester) async {
     await pumpShifts(tester, edit: addDemoShifts);
     final row = tester.widget<DashListRow>(
-      find.descendant(of: shiftRow(oldNight), matching: find.byType(DashListRow)),
+      find.descendant(
+        of: shiftRow(oldNight),
+        matching: find.byType(DashListRow),
+      ),
     );
     expect(row.enabled, isFalse);
     expect(inRow(oldNight, find.text('Inactive')), findsOneWidget);
-    expect(inRow(oldNight, find.text('Over the presence limit')), findsOneWidget);
+    expect(
+      inRow(oldNight, find.text('Over the presence limit')),
+      findsOneWidget,
+    );
     expect(inRow(eveningZ, find.text('Inactive')), findsNothing);
     expect(inRow(eveningZ, find.text('Over the presence limit')), findsNothing);
   });
@@ -171,7 +178,10 @@ void main() {
     expect(shiftRow(maadiLate), findsNothing);
     expect(inRow(eveningZ, find.bySemanticsLabel('Edit')), findsOneWidget);
     expect(inRow(brunch, find.bySemanticsLabel('Edit')), findsNothing);
-    expect(inRow(sabahShift('morning'), find.bySemanticsLabel('Edit')), findsNothing);
+    expect(
+      inRow(sabahShift('morning'), find.bySemanticsLabel('Edit')),
+      findsNothing,
+    );
     // No delete for a manager.
     expect(inPage(find.bySemanticsLabel('Delete work shift')), findsNothing);
   });
@@ -191,9 +201,15 @@ void main() {
     );
     final h = await pumpShifts(tester, s: s);
     expect(inRow(eveningZ, find.bySemanticsLabel('Edit')), findsOneWidget);
-    expect(inRow(eveningZ, find.bySemanticsLabel('Delete work shift')), findsOneWidget);
+    expect(
+      inRow(eveningZ, find.bySemanticsLabel('Delete work shift')),
+      findsOneWidget,
+    );
     expect(inRow(brunch, find.bySemanticsLabel('Edit')), findsNothing);
-    expect(inRow(brunch, find.bySemanticsLabel('Delete work shift')), findsNothing);
+    expect(
+      inRow(brunch, find.bySemanticsLabel('Delete work shift')),
+      findsNothing,
+    );
     // A new block is their branch's: "Every branch" is not offered.
     await h.tap(inPage(find.byKey(const ValueKey('shifts-new'))));
     await h.tap(inSurface(find.text('Heliopolis')));
@@ -227,8 +243,10 @@ void main() {
     expect(confirmText(h.t('staff.deleteShiftHint')), findsOneWidget);
     await h.shot('shifts/delete-confirm');
     await h.tap(confirmText('Delete'));
-    expect(h.server.callsTo(shiftT, method: 'DELETE').single.path,
-        '/staff/work-shifts/$brunch');
+    expect(
+      h.server.callsTo(shiftT, method: 'DELETE').single.path,
+      '/staff/work-shifts/$brunch',
+    );
     await h.expectToast('Work shift deleted');
     expect(shiftRow(brunch), findsNothing);
     // invalidateStaff: the list and the roster read again.
@@ -253,9 +271,9 @@ void main() {
     await h.tap(confirmText('Delete'));
     final res = h.server.callsTo(shiftT, method: 'DELETE').single;
     expect(res.status, 409);
-    final n = h.db![
-      'schedule_assignments'
-    ].where((a) => a['work_shift_id'] == sabahShift('morning')).length;
+    final n = h.db!['schedule_assignments']
+        .where((a) => a['work_shift_id'] == sabahShift('morning'))
+        .length;
     await h.expectToast(
       h.t('errors.codes.SHIFT_IN_USE', args: {'n': n, 'name': 'Morning'}),
     );
@@ -271,11 +289,7 @@ void main() {
         noRoster(db);
       },
     );
-    s.server.fail(
-      'DELETE',
-      shiftT,
-      MockResponse.denied('hr.schedule.delete'),
-    );
+    s.server.fail('DELETE', shiftT, MockResponse.denied('hr.schedule.delete'));
     final h = await pumpShifts(tester, s: s);
     await h.tap(inRow(brunch, find.bySemanticsLabel('Delete work shift')));
     await h.tap(confirmText('Delete'));

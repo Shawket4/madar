@@ -62,7 +62,10 @@ void main() {
   test('salaryStateOf: not set, hidden, set', () {
     expect(salaryStateOf(_employee(set: false)), SalaryState.notSet);
     expect(salaryStateOf(_employee(set: true)), SalaryState.hidden);
-    expect(salaryStateOf(_employee(salary: 900000, set: true)), SalaryState.set);
+    expect(
+      salaryStateOf(_employee(salary: 900000, set: true)),
+      SalaryState.set,
+    );
   });
 
   test('readPounds: Arabic digits and separators; above zero only', () {
@@ -93,20 +96,25 @@ void main() {
       expect(ratesFrom(defaultPayBasis, hourly: 3125), want);
     });
 
-    test('multiplies before dividing; the rules\' days and hours; half days', () {
-      expect(
-        ratesFrom(defaultPayBasis, monthly: 1000000),
-        (monthly: 1000000, daily: 38462, hourly: 4808),
-      );
-      expect(
-        ratesFrom((workingDays: 30, dayMinutes: 540), monthly: 900000),
-        (monthly: 900000, daily: 30000, hourly: 3333),
-      );
-      expect(
-        ratesFrom((workingDays: 26.5, dayMinutes: 480), daily: 20000).monthly,
-        530000,
-      );
-    });
+    test(
+      'multiplies before dividing; the rules\' days and hours; half days',
+      () {
+        expect(ratesFrom(defaultPayBasis, monthly: 1000000), (
+          monthly: 1000000,
+          daily: 38462,
+          hourly: 4808,
+        ));
+        expect(ratesFrom((workingDays: 30, dayMinutes: 540), monthly: 900000), (
+          monthly: 900000,
+          daily: 30000,
+          hourly: 3333,
+        ));
+        expect(
+          ratesFrom((workingDays: 26.5, dayMinutes: 480), daily: 20000).monthly,
+          530000,
+        );
+      },
+    );
 
     test('periodOf: calendar months, 26th–25th, across the year', () {
       expect(periodOf('2026-10-16', 1), (
@@ -143,24 +151,27 @@ void main() {
   });
 
   group('the import', () {
-    test('English or Arabic headers, canonical phones, salaries in piastres', () {
-      final r = parsePeople([
-        ['الاسم', 'رقم الواتساب', 'الفرع', 'الراتب'],
-        ['Sara Ahmed', '0100 123 4567', 'zamalek', '9,000'],
-        ['Omar', '+20 101 234 5678', 'Maadi', ''],
-      ], _branches);
-      expect(r.errors, isEmpty);
-      expect(
-        [
-          for (final p in r.people)
-            (p.row, p.name, p.phone, p.branchId, p.salaryPiastres),
-        ],
-        [
-          (2, 'Sara Ahmed', '201001234567', 'b1', 900000),
-          (3, 'Omar', '201012345678', 'b2', null),
-        ],
-      );
-    });
+    test(
+      'English or Arabic headers, canonical phones, salaries in piastres',
+      () {
+        final r = parsePeople([
+          ['الاسم', 'رقم الواتساب', 'الفرع', 'الراتب'],
+          ['Sara Ahmed', '0100 123 4567', 'zamalek', '9,000'],
+          ['Omar', '+20 101 234 5678', 'Maadi', ''],
+        ], _branches);
+        expect(r.errors, isEmpty);
+        expect(
+          [
+            for (final p in r.people)
+              (p.row, p.name, p.phone, p.branchId, p.salaryPiastres),
+          ],
+          [
+            (2, 'Sara Ahmed', '201001234567', 'b1', 900000),
+            (3, 'Omar', '201012345678', 'b2', null),
+          ],
+        );
+      },
+    );
 
     test('names every row it cannot read and skips blank ones', () {
       final r = parsePeople([
@@ -173,22 +184,28 @@ void main() {
         ['D', '01001234567', 'Zamalek', '100'],
         ['E', '0100 123 4567', 'Zamalek', '100'],
       ], _branches);
-      expect([for (final e in r.errors) (e.row, e.key)], [
-        (2, 'importNoName'),
-        (3, 'importBadPhone'),
-        (4, 'importNoBranch'),
-        (5, 'importBadSalary'),
-        (8, 'importDuplicatePhone'),
-      ]);
+      expect(
+        [for (final e in r.errors) (e.row, e.key)],
+        [
+          (2, 'importNoName'),
+          (3, 'importBadPhone'),
+          (4, 'importNoBranch'),
+          (5, 'importBadSalary'),
+          (8, 'importDuplicatePhone'),
+        ],
+      );
       expect([for (final p in r.people) p.name], ['D']);
     });
 
     test('a salary of 0 is refused; the only branch when none is named', () {
-      final r = parsePeople([
-        ['Name', 'Phone', 'Salary'],
-        ['A', '01001234567', '0'],
-        ['B', '01001234568', ''],
-      ], [_branches.first]);
+      final r = parsePeople(
+        [
+          ['Name', 'Phone', 'Salary'],
+          ['A', '01001234567', '0'],
+          ['B', '01001234568', ''],
+        ],
+        [_branches.first],
+      );
       expect([for (final e in r.errors) e.key], ['importBadSalary']);
       expect(r.people.single.branchId, 'b1');
     });
@@ -199,10 +216,13 @@ void main() {
       expect(cellText(8500.5), '8500.5');
       expect(cellText(DateTime.utc(2026, 9)), '2026-09-01');
       expect(cellText(null), '');
-      final r = parsePeople([
-        ['Name', 'Phone', 'Salary'],
-        ['Sara', 1001234567, 9000.0],
-      ], [_branches.first]);
+      final r = parsePeople(
+        [
+          ['Name', 'Phone', 'Salary'],
+          ['Sara', 1001234567, 9000.0],
+        ],
+        [_branches.first],
+      );
       expect(r.people.single.phone, '201001234567');
       expect(r.people.single.salaryPiastres, 900000);
     });

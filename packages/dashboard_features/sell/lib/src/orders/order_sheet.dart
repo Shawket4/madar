@@ -160,12 +160,14 @@ class OrderSheet extends ConsumerWidget {
                                 displayNumber: order.displayNumber,
                                 orderNumber: order.orderNumber,
                               ),
-                        style: (order == null
-                                ? DashType.sectionTitle
-                                : DashType.monoStrong.copyWith(
-                                    fontSize: DashType.sectionTitle.fontSize,
-                                  ))
-                            .copyWith(color: c.textPrimary),
+                        style:
+                            (order == null
+                                    ? DashType.sectionTitle
+                                    : DashType.monoStrong.copyWith(
+                                        fontSize:
+                                            DashType.sectionTitle.fontSize,
+                                      ))
+                                .copyWith(color: c.textPrimary),
                       ),
                     ),
                     if (order != null) OrderStatusPill(status: order.status),
@@ -188,10 +190,12 @@ class OrderSheet extends ConsumerWidget {
             ),
           ),
           if (order != null && order.status == 'completed' && onVoid != null)
-            OutlineDangerButton(
+            DashButton(
               key: const ValueKey('order-sheet-void'),
               label: t('orders.void'),
               icon: 'ban',
+              variant: DashButtonVariant.outlineDanger,
+              size: DashButtonSize.compact,
               onPressed: () {
                 Navigator.of(context).maybePop();
                 onVoid!(order);
@@ -239,59 +243,6 @@ class OrderSheet extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// A compact outline button in the danger colour (the web's `variant="outline"`
-/// with `text-destructive`, `hover:bg-destructive/10`). Kit candidate:
-/// `DashButtonVariant.outlineDanger`.
-class OutlineDangerButton extends StatelessWidget {
-  const OutlineDangerButton({
-    required this.label,
-    required this.onPressed,
-    this.icon,
-    super.key,
-  });
-
-  final String label;
-  final String? icon;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    final radius = BorderRadius.circular(Radii.sm);
-    return DashPressable(
-      onTap: onPressed,
-      enabled: onPressed != null,
-      semanticLabel: label,
-      excludeChildSemantics: true,
-      builder: (context, s) => Container(
-        height: DashMetrics.control,
-        padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.md),
-        foregroundDecoration: dashFocusRing(context, s, radius),
-        decoration: BoxDecoration(
-          color: s.highlighted ? c.danger.withValues(alpha: 0.1) : c.card,
-          borderRadius: radius,
-          border: Border.all(color: c.input),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: Space.sm,
-          children: [
-            if (icon != null) DashIcon(icon!, color: c.danger),
-            Text(
-              label,
-              maxLines: 1,
-              style: DashType.meta.copyWith(
-                fontWeight: FontWeight.w500,
-                color: c.danger,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -428,7 +379,9 @@ class _OrderBody extends ConsumerWidget {
           );
 
     final info = <Widget>[
-      if (rewards.memberId != null && rewards.memberName != null && canViewMember)
+      if (rewards.memberId != null &&
+          rewards.memberName != null &&
+          canViewMember)
         _Row(
           label: t('orders.loyaltyMember'),
           child: CustomerLink(
@@ -448,7 +401,10 @@ class _OrderBody extends ConsumerWidget {
           label: t('orders.loyaltyMember'),
           value: rewards.memberName ?? t('orders.loyaltyMemberForgotten'),
         ),
-      _Row.text(label: t('common.date'), value: fmt.fmtDateTimeFull(o.createdAt)),
+      _Row.text(
+        label: t('common.date'),
+        value: fmt.fmtDateTimeFull(o.createdAt),
+      ),
       _Row.text(label: t('tills.teller'), value: o.tellerName),
       if (o.startedByName != null && o.startedBy != o.tellerId)
         _Row.text(label: t('orders.startedBy'), value: o.startedByName!),
@@ -482,7 +438,11 @@ class _OrderBody extends ConsumerWidget {
             tone: DashTone.danger,
             icon: 'ban',
             title: t('orderStatus.voided'),
-            body: orTranslated(t, 'orders.voidReasons.${o.voidReason}', o.voidReason!),
+            body: orTranslated(
+              t,
+              'orders.voidReasons.${o.voidReason}',
+              o.voidReason!,
+            ),
           ),
         if (rewards.refused != null)
           Semantics(
@@ -635,8 +595,14 @@ class _ToneCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: DashMetrics.hair,
               children: [
-                Text(title, style: DashType.bodyStrong.copyWith(color: c.textPrimary)),
-                Text(body, style: DashType.small.copyWith(color: c.textSecondary)),
+                Text(
+                  title,
+                  style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+                ),
+                Text(
+                  body,
+                  style: DashType.small.copyWith(color: c.textSecondary),
+                ),
                 if (quote != null)
                   Padding(
                     padding: const EdgeInsets.only(top: Space.xs),
@@ -679,13 +645,12 @@ class _DeliveryInfo extends ConsumerWidget {
       d.addressLine,
       d.landmark,
       if ((d.floor ?? '').isNotEmpty) '${t('orders.floor')} ${d.floor}',
-      if ((d.unitNumber ?? '').isNotEmpty) '${t('orders.unit')} ${d.unitNumber}',
+      if ((d.unitNumber ?? '').isNotEmpty)
+        '${t('orders.unit')} ${d.unitNumber}',
     ].whereType<String>().where((p) => p.trim().isNotEmpty).toList();
     final lat = order.deliveryLat, lng = order.deliveryLng;
     final maps = lat != null && lng != null
-        ? Uri.parse(
-            'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
-          )
+        ? Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng')
         : null;
     final dOrder = deliveryOrder;
     return Column(
@@ -734,12 +699,18 @@ class _DeliveryInfo extends ConsumerWidget {
               excludeChildSemantics: true,
               pressScale: false,
               builder: (context, s) => ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: DashMetrics.target),
+                constraints: const BoxConstraints(
+                  minHeight: DashMetrics.target,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   spacing: Space.xs,
                   children: [
-                    DashIcon('map-pin', size: IconSize.xs, color: c.textPrimary),
+                    DashIcon(
+                      'map-pin',
+                      size: IconSize.xs,
+                      color: c.textPrimary,
+                    ),
                     Text(
                       t('orders.openInMaps'),
                       style: DashType.bodyMedium.copyWith(
@@ -794,7 +765,10 @@ class _ContactNote extends ConsumerWidget {
       container: true,
       child: Container(
         key: const ValueKey('order-sheet-contact-note'),
-        padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Space.md,
+          vertical: Space.sm,
+        ),
         decoration: BoxDecoration(
           color: c.muted.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(Radii.control),
@@ -873,7 +847,11 @@ class _DeliveryTimeline extends ConsumerWidget {
                 builder: (context, s) => SizedBox.square(
                   dimension: DashMetrics.target,
                   child: Center(
-                    child: DashIcon('info', size: IconSize.xs, color: c.textSecondary),
+                    child: DashIcon(
+                      'info',
+                      size: IconSize.xs,
+                      color: c.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -885,14 +863,20 @@ class _DeliveryTimeline extends ConsumerWidget {
               alignment: AlignmentDirectional.centerStart,
               child: DashStatusPill(
                 tone: DashTone.danger,
-                label: orTranslated(t, 'orderStatus.${order.status}', order.status),
+                label: orTranslated(
+                  t,
+                  'orderStatus.${order.status}',
+                  order.status,
+                ),
               ),
             )
           else
             for (final (i, (key, label)) in _steps.indexed)
               _Step(
                 label: t(label),
-                stamp: _stamp(key) == null ? null : fmt.fmtDateTimeFull(_stamp(key)),
+                stamp: _stamp(key) == null
+                    ? null
+                    : fmt.fmtDateTimeFull(_stamp(key)),
                 reached: current >= 0 && i <= current,
                 lineFilled: i < current,
                 last: i == _steps.length - 1,
@@ -969,7 +953,9 @@ class _Step extends StatelessWidget {
                   Text(
                     label,
                     style: (reached ? DashType.bodyMedium : DashType.body)
-                        .copyWith(color: reached ? c.textPrimary : c.textSecondary),
+                        .copyWith(
+                          color: reached ? c.textPrimary : c.textSecondary,
+                        ),
                   ),
                   if (stamp != null)
                     Text(
@@ -1081,7 +1067,10 @@ class _ComboHeader extends ConsumerWidget {
                 ),
                 if (l.comboUnitPrice != null)
                   Text(
-                    t('combos.order.each', args: {'price': fmt.fmtMoney(l.comboUnitPrice)}),
+                    t(
+                      'combos.order.each',
+                      args: {'price': fmt.fmtMoney(l.comboUnitPrice)},
+                    ),
                     style: DashType.small.copyWith(color: c.textSecondary),
                   ),
                 if ((l.notes ?? '').isNotEmpty)
@@ -1164,15 +1153,22 @@ class _LineState extends ConsumerState<_Line> {
         '× ${fmt.fmtNumber(it.quantity)} · ${fmt.fmtMoney(it.unitPrice)}',
         style: small,
       ),
-      if (widget.part) ?_partNote(t, fmt, lang, it, small)
-      else ?_dealNote(t, fmt, lang, it, small),
+      if (widget.part)
+        ?_partNote(t, fmt, lang, it, small)
+      else
+        ?_dealNote(t, fmt, lang, it, small),
       if (it.addons.isNotEmpty)
         Padding(
-          padding: const EdgeInsetsDirectional.only(start: Space.sm, top: Space.xs),
+          padding: const EdgeInsetsDirectional.only(
+            start: Space.sm,
+            top: Space.xs,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: DashMetrics.hair,
-            children: [for (final a in it.addons) _addon(t, fmt, lang, a, small)],
+            children: [
+              for (final a in it.addons) _addon(t, fmt, lang, a, small),
+            ],
           ),
         ),
       if (it.optionals.isNotEmpty)
@@ -1183,7 +1179,11 @@ class _LineState extends ConsumerState<_Line> {
             runSpacing: Space.xs,
             children: [
               for (final o in it.optionals)
-                if (translatedName(o.fieldName, o.nameTranslations, lang).isNotEmpty)
+                if (translatedName(
+                  o.fieldName,
+                  o.nameTranslations,
+                  lang,
+                ).isNotEmpty)
                   DashBadge(
                     '${translatedName(o.fieldName, o.nameTranslations, lang)}'
                     '${o.price > 0 ? ' +${fmt.fmtMoney(o.price)}' : ''}',
@@ -1215,7 +1215,9 @@ class _LineState extends ConsumerState<_Line> {
                     children: [
                       Text(
                         translatedName(it.itemName, it.nameTranslations, lang),
-                        style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+                        style: DashType.bodyStrong.copyWith(
+                          color: c.textPrimary,
+                        ),
                       ),
                       // A combo part of a single-size item carries
                       // "one_size": not a size anyone chose.
@@ -1248,10 +1250,11 @@ class _LineState extends ConsumerState<_Line> {
               children: [
                 Text(
                   fmt.fmtMoney(it.lineTotal),
-                  style: (widget.part ? DashType.mono : DashType.monoStrong).copyWith(
-                    fontSize: DashType.body.fontSize,
-                    color: widget.part ? c.textSecondary : c.textPrimary,
-                  ),
+                  style: (widget.part ? DashType.mono : DashType.monoStrong)
+                      .copyWith(
+                        fontSize: DashType.body.fontSize,
+                        color: widget.part ? c.textSecondary : c.textPrimary,
+                      ),
                 ),
                 Text(
                   '${t('orders.cost')}: ${fmt.fmtMoney(it.lineCost)}'
@@ -1265,16 +1268,31 @@ class _LineState extends ConsumerState<_Line> {
         if (staff != null && staff.comp > 0)
           Container(
             key: ValueKey('staff-line-${it.id}'),
-            padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Space.md,
+              vertical: Space.sm,
+            ),
             decoration: BoxDecoration(
               color: c.muted.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(Radii.control),
             ),
             child: Column(
               children: [
-                _staffRow(t('orders.staffLineNormal'), fmt.fmtMoney(staff.normal), false),
-                _staffRow(t('orders.staffLineComp'), fmt.fmtMoney(-staff.comp), false),
-                _staffRow(t('orders.staffLineCharged'), fmt.fmtMoney(staff.charged), true),
+                _staffRow(
+                  t('orders.staffLineNormal'),
+                  fmt.fmtMoney(staff.normal),
+                  false,
+                ),
+                _staffRow(
+                  t('orders.staffLineComp'),
+                  fmt.fmtMoney(-staff.comp),
+                  false,
+                ),
+                _staffRow(
+                  t('orders.staffLineCharged'),
+                  fmt.fmtMoney(staff.charged),
+                  true,
+                ),
               ],
             ),
           ),
@@ -1284,7 +1302,9 @@ class _LineState extends ConsumerState<_Line> {
 
     return Container(
       key: ValueKey('order-line-${it.id}'),
-      margin: widget.part ? const EdgeInsetsDirectional.only(start: Space.md) : null,
+      margin: widget.part
+          ? const EdgeInsetsDirectional.only(start: Space.md)
+          : null,
       padding: EdgeInsetsDirectional.only(
         start: widget.part ? Space.md : 0,
         top: Space.sm,
@@ -1292,9 +1312,7 @@ class _LineState extends ConsumerState<_Line> {
       ),
       decoration: BoxDecoration(
         border: BorderDirectional(
-          start: widget.part
-              ? BorderSide(color: c.hairline)
-              : BorderSide.none,
+          start: widget.part ? BorderSide(color: c.hairline) : BorderSide.none,
           bottom: widget.last ? BorderSide.none : BorderSide(color: c.hairline),
         ),
       ),
@@ -1360,7 +1378,10 @@ class _LineState extends ConsumerState<_Line> {
         ? t('combos.order.aDeal')
         : translatedName(deal.name, deal.nameTranslations, lang);
     return Text(
-      t('combos.order.dealCut', args: {'deal': name, 'amount': fmt.fmtMoney(-cut)}),
+      t(
+        'combos.order.dealCut',
+        args: {'deal': name, 'amount': fmt.fmtMoney(-cut)},
+      ),
       style: style,
     );
   }
@@ -1389,7 +1410,10 @@ class _LineState extends ConsumerState<_Line> {
               style: muted,
             )
           else if (a.lineTotal > 0)
-            TextSpan(text: ' (${nbsp(fmt.fmtMoney(a.lineTotal))})', style: muted),
+            TextSpan(
+              text: ' (${nbsp(fmt.fmtMoney(a.lineTotal))})',
+              style: muted,
+            ),
         ],
       ),
     );
@@ -1404,7 +1428,9 @@ class _LineState extends ConsumerState<_Line> {
     final c = context.madarColors;
     return Container(
       margin: const EdgeInsets.only(top: Space.xs),
-      decoration: BoxDecoration(border: Border(top: BorderSide(color: c.hairline))),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: c.hairline)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1412,7 +1438,8 @@ class _LineState extends ConsumerState<_Line> {
             key: ValueKey('ingredients-${widget.line.id}'),
             onTap: () => setState(() => _open = !_open),
             pressScale: false,
-            semanticLabel: '${t('orders.ingredientsUsed')} (${deductions.length})',
+            semanticLabel:
+                '${t('orders.ingredientsUsed')} (${deductions.length})',
             excludeChildSemantics: true,
             expanded: _open,
             builder: (context, s) => ConstrainedBox(
@@ -1437,7 +1464,10 @@ class _LineState extends ConsumerState<_Line> {
           ),
           if (_open)
             Padding(
-              padding: const EdgeInsetsDirectional.only(start: Space.md, bottom: Space.xs),
+              padding: const EdgeInsetsDirectional.only(
+                start: Space.md,
+                bottom: Space.xs,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: DashMetrics.hair,
@@ -1453,7 +1483,10 @@ class _LineState extends ConsumerState<_Line> {
                           ),
                         ),
                         if (d.costWith(widget.costPerUnit) != null)
-                          Text(fmt.fmtMoney(d.costWith(widget.costPerUnit)), style: small),
+                          Text(
+                            fmt.fmtMoney(d.costWith(widget.costPerUnit)),
+                            style: small,
+                          ),
                       ],
                     ),
                 ],
@@ -1516,18 +1549,27 @@ class _Summary extends ConsumerWidget {
               value: fmt.fmtMoney(-d.discount),
             ),
         ],
-        DashSummaryLine(label: t('common.subtotal'), value: fmt.fmtMoney(o.subtotal)),
+        DashSummaryLine(
+          label: t('common.subtotal'),
+          value: fmt.fmtMoney(o.subtotal),
+        ),
         if (rewards.totalCovered > 0 || rewards.memberId != null)
           DashSummaryLine(
             label: rewards.memberName != null
-                ? t('orders.loyaltyRewardsFor', args: {'name': rewards.memberName})
+                ? t(
+                    'orders.loyaltyRewardsFor',
+                    args: {'name': rewards.memberName},
+                  )
                 : t('orders.loyaltyRewards'),
             value: rewards.totalCovered > 0
                 ? fmt.fmtMoney(-rewards.totalCovered)
                 : '—',
           ),
         if (o.discountAmount > 0) ...[
-          DashSummaryLine(label: t('orders.discount'), value: fmt.fmtMoney(-o.discountAmount)),
+          DashSummaryLine(
+            label: t('orders.discount'),
+            value: fmt.fmtMoney(-o.discountAmount),
+          ),
           if (attribution != null)
             Padding(
               padding: const EdgeInsets.only(bottom: Space.xs),
@@ -1535,14 +1577,25 @@ class _Summary extends ConsumerWidget {
             ),
         ],
         if (o.taxAmount > 0)
-          DashSummaryLine(label: t('orders.tax'), value: fmt.fmtMoney(o.taxAmount)),
+          DashSummaryLine(
+            label: t('orders.tax'),
+            value: fmt.fmtMoney(o.taxAmount),
+          ),
         if ((o.tipAmount ?? 0) != 0)
-          DashSummaryLine(label: t('orders.tip'), value: fmt.fmtMoney(o.tipAmount)),
+          DashSummaryLine(
+            label: t('orders.tip'),
+            value: fmt.fmtMoney(o.tipAmount),
+          ),
         if (o.deliveryFee > 0)
-          DashSummaryLine(label: t('orders.deliveryFee'), value: fmt.fmtMoney(o.deliveryFee)),
+          DashSummaryLine(
+            label: t('orders.deliveryFee'),
+            value: fmt.fmtMoney(o.deliveryFee),
+          ),
         Container(
           margin: const EdgeInsets.only(top: Space.xs),
-          decoration: BoxDecoration(border: Border(top: BorderSide(color: c.hairline))),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: c.hairline)),
+          ),
           child: _TotalLine(
             label: t('common.total'),
             value: fmt.fmtMoney(o.totalAmount),
@@ -1554,7 +1607,9 @@ class _Summary extends ConsumerWidget {
             key: const ValueKey('order-sheet-cogs'),
             margin: const EdgeInsets.only(top: Space.sm),
             padding: const EdgeInsets.only(top: Space.sm),
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: c.hairline))),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: c.hairline)),
+            ),
             child: Wrap(
               alignment: WrapAlignment.spaceBetween,
               spacing: Space.sm,
@@ -1566,7 +1621,8 @@ class _Summary extends ConsumerWidget {
                     children: [
                       TextSpan(text: '${t('orders.cogs')}: '),
                       TextSpan(
-                        text: '${cogs.anyMissing ? '≥ ' : ''}${fmt.fmtMoney(cogs.known)}',
+                        text:
+                            '${cogs.anyMissing ? '≥ ' : ''}${fmt.fmtMoney(cogs.known)}',
                         style: figure,
                       ),
                     ],
@@ -1596,7 +1652,11 @@ class _Summary extends ConsumerWidget {
 
 /// The emphasised Total; struck through on a voided order.
 class _TotalLine extends StatelessWidget {
-  const _TotalLine({required this.label, required this.value, required this.struck});
+  const _TotalLine({
+    required this.label,
+    required this.value,
+    required this.struck,
+  });
 
   final String label;
   final String value;

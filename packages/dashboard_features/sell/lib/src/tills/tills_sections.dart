@@ -255,7 +255,8 @@ class OpenBillsLine extends ConsumerWidget {
               text: words,
               children: [
                 TextSpan(
-                  text: ' ${MadarFormat.isolate('(${fmt.fmtMoney(n.openBillsAmount)})')}',
+                  text:
+                      ' ${MadarFormat.isolate('(${fmt.fmtMoney(n.openBillsAmount)})')}',
                   style: DashType.mono.copyWith(
                     fontSize: 13,
                     color: c.textSecondary,
@@ -427,30 +428,31 @@ class AllTillsSection extends ConsumerWidget {
         minWidth: 150,
         text: (s) => s.tellerName,
         cell: (context, s) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              MadarClippedText(
-                s.tellerName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MadarClippedText(
+              s.tellerName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textDirection: dashTextDirectionOf(s.tellerName),
+              style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+            ),
+            MadarClippedText(
+              // Each stamp in its own direction (`<bdi>`).
+              s.closedAt == null
+                  ? MadarFormat.isolate(fmt.fmtDateTime(s.openedAt))
+                  : '${MadarFormat.isolate(fmt.fmtDateTime(s.openedAt))} → '
+                        '${MadarFormat.isolate(fmt.fmtDateTime(s.closedAt))}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: DashType.mono.copyWith(
+                fontSize: 12,
+                color: c.textSecondary,
               ),
-              MadarClippedText(
-                // Each stamp in its own direction (`<bdi>`).
-                s.closedAt == null
-                    ? MadarFormat.isolate(fmt.fmtDateTime(s.openedAt))
-                    : '${MadarFormat.isolate(fmt.fmtDateTime(s.openedAt))} → '
-                          '${MadarFormat.isolate(fmt.fmtDateTime(s.closedAt))}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: DashType.mono.copyWith(
-                  fontSize: 12,
-                  color: c.textSecondary,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
+        ),
       ),
       if (showBranch)
         DashColumn(
@@ -459,11 +461,12 @@ class AllTillsSection extends ConsumerWidget {
           flex: 2,
           text: (s) => s.branchName ?? '—',
           cell: (context, s) => MadarClippedText(
-              s.branchName ?? '—',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: DashType.body.copyWith(color: c.textPrimary),
-            ),
+            s.branchName ?? '—',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textDirection: dashTextDirectionOf(s.branchName ?? ''),
+            style: DashType.body.copyWith(color: c.textPrimary),
+          ),
         ),
       DashColumn(
         id: 'device',
@@ -479,28 +482,26 @@ class AllTillsSection extends ConsumerWidget {
             return Text('—', style: muted);
           }
           return Text.rich(
-              TextSpan(
-                children: [
-                  if (code != null && code.isNotEmpty)
-                    TextSpan(
-                      text: code,
-                      style: DashType.monoMedium.copyWith(
-                        fontSize: 14,
-                        color: c.textPrimary,
-                      ),
+            TextSpan(
+              children: [
+                if (code != null && code.isNotEmpty)
+                  TextSpan(
+                    text: code,
+                    style: DashType.monoMedium.copyWith(
+                      fontSize: 14,
+                      color: c.textPrimary,
                     ),
-                  if (label != null && label.isNotEmpty)
-                    TextSpan(
-                      text: code != null && code.isNotEmpty
-                          ? '  $label'
-                          : label,
-                      style: muted,
-                    ),
-                ],
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            );
+                  ),
+                if (label != null && label.isNotEmpty)
+                  TextSpan(
+                    text: code != null && code.isNotEmpty ? '  $label' : label,
+                    style: muted,
+                  ),
+              ],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
         },
       ),
       DashColumn(
@@ -510,12 +511,12 @@ class AllTillsSection extends ConsumerWidget {
         minWidth: 140,
         text: (s) => tillStatusLabel(t, s.status.value),
         cell: (context, s) => Wrap(
-            key: ValueKey('till-badges-${s.id}'),
-            spacing: Space.xs + DashMetrics.hair,
-            runSpacing: Space.xs,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: tillBadges(s, onOpenOther: onOpenReport),
-          ),
+          key: ValueKey('till-badges-${s.id}'),
+          spacing: Space.xs + DashMetrics.hair,
+          runSpacing: Space.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: tillBadges(s, onOpenOther: onOpenReport),
+        ),
       ),
       DashColumn(
         id: 'opening',
@@ -524,11 +525,11 @@ class AllTillsSection extends ConsumerWidget {
         minWidth: 130,
         text: (s) => fmt.fmtMoney(s.openingCash),
         cell: (context, s) => Text(
-            dashFigure(fmt.fmtMoney(s.openingCash)),
-            maxLines: 1,
-            softWrap: false,
-            style: DashType.mono.copyWith(fontSize: 14, color: c.textPrimary),
-          ),
+          dashFigure(fmt.fmtMoney(s.openingCash)),
+          maxLines: 1,
+          softWrap: false,
+          style: DashType.mono.copyWith(fontSize: 14, color: c.textPrimary),
+        ),
       ),
       DashColumn(
         id: 'discrepancy',
@@ -540,20 +541,17 @@ class AllTillsSection extends ConsumerWidget {
           final d = s.cashDiscrepancy;
           final strong = d != null && d != 0;
           return Text(
-              d == null ? '—' : dashFigure(discrepancyText(fmt, d)),
-              key: ValueKey('discrepancy-${s.id}'),
-              maxLines: 1,
-              softWrap: false,
-              style: strong
-                  ? DashType.monoStrong.copyWith(
-                      fontSize: 14,
-                      color: DashTone.danger.foreground(c),
-                    )
-                  : DashType.mono.copyWith(
-                      fontSize: 14,
-                      color: c.textSecondary,
-                    ),
-            );
+            d == null ? '—' : dashFigure(discrepancyText(fmt, d)),
+            key: ValueKey('discrepancy-${s.id}'),
+            maxLines: 1,
+            softWrap: false,
+            style: strong
+                ? DashType.monoStrong.copyWith(
+                    fontSize: 14,
+                    color: DashTone.danger.foreground(c),
+                  )
+                : DashType.mono.copyWith(fontSize: 14, color: c.textSecondary),
+          );
         },
       ),
     ];
@@ -577,6 +575,7 @@ class AllTillsSection extends ConsumerWidget {
               ? sellErrorText(list.error, t)
               : null,
           onRetry: onRetry,
+          retrying: list.isLoading,
           onRowTap: (s) => onOpenReport(s.id),
           // Pointing at a row warms its report (`onRowPrefetch`).
           onRowIntent: (s) => warmTillReport(ref, s.id),

@@ -398,7 +398,10 @@ void main() {
       final h = await _onAddons(tester, seeded: s);
       await openRecipe(h, 'Extra shot');
       expect(inSurface(find.text("Couldn't load this")), findsOneWidget);
-      expect(inSurface(find.text(h.t('recipes.builder.saveAll'))), findsNothing);
+      expect(
+        inSurface(find.text(h.t('recipes.builder.saveAll'))),
+        findsNothing,
+      );
       s.server.clearFailures();
       await h.tap(inSurface(find.text('Retry')));
       expect(inSurface(find.text("Couldn't load this")), findsNothing);

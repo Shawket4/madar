@@ -180,11 +180,7 @@ enum PmOwner { branches, users, devices }
 
 /// `allowListFor`: the branch's list as the server says; a teller or a
 /// device is restricted exactly when it has a row.
-AllowList allowListFor(
-  PaymentMethodAvailability? a,
-  PmOwner owner,
-  String id,
-) {
+AllowList allowListFor(PaymentMethodAvailability? a, PmOwner owner, String id) {
   const none = AllowList(restricted: false, paymentMethodIds: []);
   if (a == null) return none;
   if (owner == PmOwner.branches) return a.branch;
@@ -208,4 +204,3 @@ List<UserPublic> availabilityTellers(List<UserPublic> users, String branchId) =>
     ];
 
 /// React Query's `isLoading`: the first load, nothing to show yet.
-

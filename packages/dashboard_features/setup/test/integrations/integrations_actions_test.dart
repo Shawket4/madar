@@ -16,10 +16,8 @@ Finder _revokeRue() => find.byKey(ValueKey('integrations-revoke-$_rue'));
 final Finder _handoff = find.byKey(const ValueKey('handoff-dialog'));
 
 /// Calls to [template] with [method].
-int _calls(DashHarness h, String method, String template) => h.server
-    .callsTo(template)
-    .where((c) => c.method == method)
-    .length;
+int _calls(DashHarness h, String method, String template) =>
+    h.server.callsTo(template).where((c) => c.method == method).length;
 
 void main() {
   group('rotate', () {
@@ -34,14 +32,17 @@ void main() {
       await h.expectToast(h.t('integrations.handoff.noSecureRandom'));
     });
 
-    testWidgets('SET-INT-012 confirm names the partner; Cancel asks nothing',
-        (tester) async {
+    testWidgets('SET-INT-012 confirm names the partner; Cancel asks nothing', (
+      tester,
+    ) async {
       final h = await pumpIntegrations(tester, persona: Persona.platform);
       await h.tap(_rotateRue());
       expect(top('Rotate password?'), findsOneWidget);
       expect(
-        top('Rue — One Ninety will stop working immediately until the '
-            'partner updates to the new password.'),
+        top(
+          'Rue — One Ninety will stop working immediately until the '
+          'partner updates to the new password.',
+        ),
         findsOneWidget,
       );
       await h.tap(top('Cancel'));

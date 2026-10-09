@@ -325,8 +325,8 @@ void main() {
   });
 
   group('the cards', () {
-    testWidgets('REP-STF-007 a card per department in the server\'s order, '
-        '"Unassigned" for none', (tester) async {
+    testWidgets('REP-STF-007 a card per department in the server\'s order '
+        '(every seeded person has one)', (tester) async {
       final s = unitServer();
       final h = await pumpUnit(
         tester,
@@ -347,8 +347,7 @@ void main() {
         if (!order.contains(name)) order.add(name);
       }
       expect(cardTitles(tester), order);
-      expect(order.last, 'Unassigned');
-      expect(inPage(find.text('Unassigned')), findsOneWidget);
+      expect(inPage(find.text('Unassigned')), findsNothing);
       for (final t in ['Bar', 'Front of house', 'Kitchen', 'Management']) {
         expect(inPage(find.text(t)), findsOneWidget, reason: t);
       }

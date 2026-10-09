@@ -40,7 +40,9 @@ void main() {
       ];
       expect(all.total, seeded.length);
       expect(all.totalPages, 1);
-      final keys = [for (final a in all.data) (a.addonType, a.name.toLowerCase())];
+      final keys = [
+        for (final a in all.data) (a.addonType, a.name.toLowerCase()),
+      ];
       final sorted = [...keys]
         ..sort((a, b) {
           final c = a.$1.compareTo(b.$1);
@@ -157,26 +159,29 @@ void main() {
       );
     });
 
-    test('a write through PUT /menu-price-overrides shows in the lists', () async {
-      final api = _server().api;
-      final oat = MenuSeedIds.option('milk', 'oat');
-      await api.menu.putPriceOverride(
-        body: PriceOverrideRequest(
-          scope: 'branch_channel',
+    test(
+      'a write through PUT /menu-price-overrides shows in the lists',
+      () async {
+        final api = _server().api;
+        final oat = MenuSeedIds.option('milk', 'oat');
+        await api.menu.putPriceOverride(
+          body: PriceOverrideRequest(
+            scope: 'branch_channel',
+            branchId: SeedIds.zamalek,
+            channel: 'pickup',
+            targetType: 'modifier_option',
+            targetId: oat,
+            price: 3500,
+          ),
+        );
+        final pickup = await api.delivery.listChannelAddonOverrides(
           branchId: SeedIds.zamalek,
           channel: 'pickup',
-          targetType: 'modifier_option',
-          targetId: oat,
-          price: 3500,
-        ),
-      );
-      final pickup = await api.delivery.listChannelAddonOverrides(
-        branchId: SeedIds.zamalek,
-        channel: 'pickup',
-      );
-      expect(pickup.single.addonItemId, oat);
-      expect(pickup.single.priceOverride, 3500);
-      expect(pickup.single.isAvailable, isNull);
-    });
+        );
+        expect(pickup.single.addonItemId, oat);
+        expect(pickup.single.priceOverride, 3500);
+        expect(pickup.single.isAvailable, isNull);
+      },
+    );
   });
 }

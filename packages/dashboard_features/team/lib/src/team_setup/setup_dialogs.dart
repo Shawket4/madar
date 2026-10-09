@@ -16,8 +16,5 @@ Future<void> openSetupNewShift(
   WidgetRef ref, {
   required List<Branch> branches,
   required bool wholeBusiness,
-}) => showShiftDialog(
-  context,
-  branches: branches,
-  wholeBusiness: wholeBusiness,
-);
+}) =>
+    showShiftDialog(context, branches: branches, wholeBusiness: wholeBusiness);

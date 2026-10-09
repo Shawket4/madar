@@ -98,41 +98,54 @@ void main() {
       expect((maadi.json! as Map)['eligible_item_ids'], isEmpty);
     });
 
-    test('the till capability reads it; a branch must be known and held', () async {
-      final b = splServer(persona: Persona.manager);
-      expect((await _send(b, 'GET', branch: SeedIds.zamalek)).status, 200);
-      final other = await _send(b, 'GET', branch: SeedIds.heliopolis);
-      expect(other.status, 403);
-      expect(
-        other.error,
-        _words(MockResponse.forbidden('Not assigned to this branch')),
-      );
-      final limited = await _send(b, 'GET', as: Persona.limited);
-      expect(limited.status, 403);
-      expect(limited.error, _words(MockResponse.denied('orders.staff_drink.record')));
-      final unknown = await _send(
-        b,
-        'GET',
-        branch: mockUuid('branch:nowhere'),
-        as: Persona.owner,
-      );
-      expect(unknown.status, 404);
-      expect((await _send(b, 'GET', branch: 'not-a-uuid')).status, 400);
-    });
+    test(
+      'the till capability reads it; a branch must be known and held',
+      () async {
+        final b = splServer(persona: Persona.manager);
+        expect((await _send(b, 'GET', branch: SeedIds.zamalek)).status, 200);
+        final other = await _send(b, 'GET', branch: SeedIds.heliopolis);
+        expect(other.status, 403);
+        expect(
+          other.error,
+          _words(MockResponse.forbidden('Not assigned to this branch')),
+        );
+        final limited = await _send(b, 'GET', as: Persona.limited);
+        expect(limited.status, 403);
+        expect(
+          limited.error,
+          _words(MockResponse.denied('orders.staff_drink.record')),
+        );
+        final unknown = await _send(
+          b,
+          'GET',
+          branch: mockUuid('branch:nowhere'),
+          as: Persona.owner,
+        );
+        expect(unknown.status, 404);
+        expect((await _send(b, 'GET', branch: 'not-a-uuid')).status, 400);
+      },
+    );
 
     test('a platform admin with no organisation is told to pick one', () async {
       final b = splServer(persona: Persona.platform);
       b.server.platformOrgId = null;
       final r = await _send(b, 'GET');
       expect(r.status, 400);
-      expect(r.error, _words(MockResponse.badRequest('Pick an organisation first')));
+      expect(
+        r.error,
+        _words(MockResponse.badRequest('Pick an organisation first')),
+      );
     });
   });
 
   group('PUT /staff-pool/settings', () {
     test("saves a branch's own row, which the next read returns", () async {
       final b = splServer();
-      final r = await _send(b, 'PUT', body: _body(branch: SeedIds.maadi, allowance: 6));
+      final r = await _send(
+        b,
+        'PUT',
+        body: _body(branch: SeedIds.maadi, allowance: 6),
+      );
       expect(r.status, 200);
       expect((r.json! as Map)['branch_id'], SeedIds.maadi);
       final back = await _send(b, 'GET', branch: SeedIds.maadi);
@@ -145,7 +158,11 @@ void main() {
     test('updates in place: one row per scope', () async {
       final b = splServer();
       final n = b.db[StaffPoolSettingsMock.table].length;
-      await _send(b, 'PUT', body: _body(allowance: 0, enabled: false, items: []));
+      await _send(
+        b,
+        'PUT',
+        body: _body(allowance: 0, enabled: false, items: []),
+      );
       expect(b.db[StaffPoolSettingsMock.table].length, n);
       final org = await _send(b, 'GET');
       expect(org.json, {
@@ -160,7 +177,11 @@ void main() {
     test('needs org.settings.edit; refuses a negative allowance and an item '
         'off the menu', () async {
       final b = splServer(persona: Persona.manager);
-      final denied = await _send(b, 'PUT', body: _body(branch: SeedIds.zamalek));
+      final denied = await _send(
+        b,
+        'PUT',
+        body: _body(branch: SeedIds.zamalek),
+      );
       expect(denied.status, 403);
       expect(denied.error, _words(MockResponse.denied('org.settings.edit')));
       b.server.persona = Persona.owner;
@@ -168,7 +189,9 @@ void main() {
       expect(negative.status, 400);
       expect(
         negative.error,
-        _words(MockResponse.badRequest('A daily allowance cannot be less than zero')),
+        _words(
+          MockResponse.badRequest('A daily allowance cannot be less than zero'),
+        ),
       );
       final gone = await _send(
         b,
@@ -196,14 +219,17 @@ void main() {
   });
 
   group('DELETE /staff-pool/settings', () {
-    test("removes a branch's own row; the branch then follows the org", () async {
-      final b = splServer();
-      final r = await _send(b, 'DELETE', branch: SeedIds.heliopolis);
-      expect(r.status, 204);
-      expect(savedRow(b.db, SeedIds.heliopolis), isNull);
-      final back = await _send(b, 'GET', branch: SeedIds.heliopolis);
-      expect((back.json! as Map)['daily_allowance'], 3);
-    });
+    test(
+      "removes a branch's own row; the branch then follows the org",
+      () async {
+        final b = splServer();
+        final r = await _send(b, 'DELETE', branch: SeedIds.heliopolis);
+        expect(r.status, 204);
+        expect(savedRow(b.db, SeedIds.heliopolis), isNull);
+        final back = await _send(b, 'GET', branch: SeedIds.heliopolis);
+        expect((back.json! as Map)['daily_allowance'], 3);
+      },
+    );
 
     test('asks the capability before the branch', () async {
       final b = splServer(persona: Persona.manager);
@@ -214,7 +240,9 @@ void main() {
       expect(
         missing.error,
         _words(
-          MockResponse.badRequest('Name the branch whose override you want to remove'),
+          MockResponse.badRequest(
+            'Name the branch whose override you want to remove',
+          ),
         ),
       );
     });
@@ -228,7 +256,9 @@ void main() {
       path: splMenu,
       query: {'org_id': SeedIds.sabahOrg},
     );
-    final names = [for (final m in r.json! as List) (m as Map)['name'] as String];
+    final names = [
+      for (final m in r.json! as List) (m as Map)['name'] as String,
+    ];
     expect(names, isNotEmpty);
     expect(names, [...names]..sort());
   });
@@ -238,7 +268,17 @@ void main() {
       for (final ok in ['0', '3', ' 12 ', '1000']) {
         expect(allowanceOk(ok), isTrue, reason: ok);
       }
-      for (final bad in ['', ' ', '-1', '1.5', '1e3', 'abc', '1001', '٣', '99999999999999999999']) {
+      for (final bad in [
+        '',
+        ' ',
+        '-1',
+        '1.5',
+        '1e3',
+        'abc',
+        '1001',
+        '٣',
+        '99999999999999999999',
+      ]) {
         expect(allowanceOk(bad), isFalse, reason: bad);
       }
     });
@@ -254,7 +294,10 @@ void main() {
       final f = StaffPoolForm.from(
         const StaffPoolSettings(orgId: 'o', branchId: 'b'),
       );
-      expect(f, const StaffPoolForm(enabled: false, allowance: '0', itemIds: []));
+      expect(
+        f,
+        const StaffPoolForm(enabled: false, allowance: '0', itemIds: []),
+      );
       final w = f
           .copyWith(allowance: ' 7 ', itemIds: ['x', 'y', 'x'])
           .toWire(orgId: 'o');

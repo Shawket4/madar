@@ -36,7 +36,8 @@ Future<void> showVoidDialog(
   required VoidDraft draft,
 }) => showDashDialog<void>(
   context,
-  builder: (_) => VoidOrderDialog(orderId: orderId, orderRef: ref, draft: draft),
+  builder: (_) =>
+      VoidOrderDialog(orderId: orderId, orderRef: ref, draft: draft),
 );
 
 class VoidOrderDialog extends ConsumerStatefulWidget {

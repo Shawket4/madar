@@ -136,11 +136,7 @@ void registerApprovalsMocks(MockServer server, MockDb db) {
     final row = db[TeamTables.openShifts].find(req.param('id'));
     final branch = row?['branch_id'] as String?;
     if (row == null || teamOrgOfBranch(db, branch) != req.orgId) {
-      _nothingWaiting(
-        req,
-        'NO_CLAIM_WAITING',
-        'No claim waiting here.',
-      );
+      _nothingWaiting(req, 'NO_CLAIM_WAITING', 'No claim waiting here.');
     }
     if (row['status'] != 'claimed' || row['claimed_by'] == null) {
       // `no_claim_waiting`: the last claim's decision, else nothing.
@@ -158,9 +154,7 @@ void registerApprovalsMocks(MockServer server, MockDb db) {
     }
     final id = row['id']! as String;
     if (approve) {
-      db[TeamTables.openShifts].update(id, {
-        'status': 'filled',
-      });
+      db[TeamTables.openShifts].update(id, {'status': 'filled'});
       lastClaim[id] = 'approved';
     } else {
       // The shift reopens; the claimer's declined claim stays theirs.
@@ -234,11 +228,7 @@ void registerApprovalsMocks(MockServer server, MockDb db) {
     if (row == null ||
         row['org_id'] != req.orgId ||
         row['overtime_status'] == null) {
-      _nothingWaiting(
-        req,
-        'NO_OVERTIME_WAITING',
-        'No overtime waiting here.',
-      );
+      _nothingWaiting(req, 'NO_OVERTIME_WAITING', 'No overtime waiting here.');
     }
     final status = row['overtime_status']! as String;
     if (status != 'pending') _alreadyDecided(req, status);

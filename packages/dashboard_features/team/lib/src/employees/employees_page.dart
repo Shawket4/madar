@@ -7,7 +7,8 @@
 /// and the Departments, Add employee and Import dialogs.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart' show Branch, Department, Employee;
+import 'package:dashboard_api/dashboard_api.dart'
+    show Branch, Department, Employee;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -120,8 +121,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
     // Redaction is per caller: a salary on any row, or the right to set pay
     // (the owner sees it even while nobody has a salary yet).
     final showSalary =
-        employees.any((e) => e.baseSalaryPiastres != null) ||
-        canSetPay;
+        employees.any((e) => e.baseSalaryPiastres != null) || canSetPay;
     final addButton = DashButton(
       label: t('dawam.addEmployee'),
       icon: 'plus',
@@ -361,7 +361,10 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
             ? const Text('—')
             : two(
                 e.deviceModel!,
-                t('staff.deviceSince', args: {'date': f.fmtDate(e.deviceSince)}),
+                t(
+                  'staff.deviceSince',
+                  args: {'date': f.fmtDate(e.deviceSince)},
+                ),
               ),
       ),
       DashColumn(

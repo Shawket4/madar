@@ -35,9 +35,11 @@ void main() {
     expect(all, hasLength(16));
     expect(all.first.name, 'Adham Reda');
     expect(all.every((e) => e.kind == 'linked'), isTrue);
-    final kitchen = db[TeamTables.departments].firstWhere(
-      (d) => d['org_id'] == SeedIds.sabahOrg && d['name'] == 'Kitchen',
-    )!['id']! as String;
+    final kitchen =
+        db[TeamTables.departments].firstWhere(
+              (d) => d['org_id'] == SeedIds.sabahOrg && d['name'] == 'Kitchen',
+            )!['id']!
+            as String;
     final k = await api.listEmployees(departmentId: kitchen);
     expect([for (final e in k) e.name], ['Hassan Ibrahim']);
     final e = await refused(api.listEmployees(employmentStatus: 'gone'));
@@ -58,15 +60,18 @@ void main() {
     expect((nour.baseSalaryPiastres, nour.salarySet), (null, false));
     server.persona = Persona.manager;
     final mine = await api.listEmployees();
-    expect([for (final e in mine) e.name], [
-      'Adham Reda',
-      'Hassan Ibrahim',
-      'Karim Adel',
-      'Laila Ehab',
-      'Mariam Fathy',
-      'Nour El-Sayed',
-      'Youssef Samir',
-    ]);
+    expect(
+      [for (final e in mine) e.name],
+      [
+        'Adham Reda',
+        'Hassan Ibrahim',
+        'Karim Adel',
+        'Laila Ehab',
+        'Mariam Fathy',
+        'Nour El-Sayed',
+        'Youssef Samir',
+      ],
+    );
     final adham = mine.first;
     expect((adham.baseSalaryPiastres, adham.salarySet), (null, true));
     server.persona = Persona.limited;
@@ -75,20 +80,27 @@ void main() {
 
   test('create: needs a branch, a name, a number for the app; 409 for a '
       'number in use; pay only from the owner; hire date today', () async {
-    Future<Employee> add(Map<String, Object?> b) => api.createEmployee(
-      body: CreateEmployeeRequest.fromJson(b),
-    );
+    Future<Employee> add(Map<String, Object?> b) =>
+        api.createEmployee(body: CreateEmployeeRequest.fromJson(b));
     expect(
       (await refused(add({'name': 'A', 'branch_ids': <String>[]}))).message,
       'Bad request: Pick the branch they work at',
     );
     expect(
-      (await refused(add({'branch_ids': [SeedIds.maadi]}))).message,
+      (await refused(
+        add({
+          'branch_ids': [SeedIds.maadi],
+        }),
+      )).message,
       'Bad request: name is required',
     );
     expect(
       (await refused(
-        add({'name': 'A', 'app_access': true, 'branch_ids': [SeedIds.maadi]}),
+        add({
+          'name': 'A',
+          'app_access': true,
+          'branch_ids': [SeedIds.maadi],
+        }),
       )).message,
       'Bad request: The staff app needs their WhatsApp number.',
     );
@@ -113,7 +125,10 @@ void main() {
 
     server.persona = Persona.manager;
     final away = await refused(
-      add({'name': 'B', 'branch_ids': [SeedIds.maadi]}),
+      add({
+        'name': 'B',
+        'branch_ids': [SeedIds.maadi],
+      }),
     );
     expect(away.status, 403);
     final m = await add({
@@ -134,22 +149,28 @@ void main() {
     final e = await api.createEmployee(
       body: CreateEmployeeRequest(userId: id, branchIds: [SeedIds.heliopolis]),
     );
-    expect((e.name, e.phone, e.kind, e.role, e.appAccess), (
-      'Mostafa Kamal',
-      '+201110010101',
-      'linked',
-      'teller',
-      true,
-    ));
+    expect(
+      (e.name, e.phone, e.kind, e.role, e.appAccess),
+      ('Mostafa Kamal', '+201110010101', 'linked', 'teller', true),
+    );
     final again = await refused(
       api.createEmployee(
-        body: CreateEmployeeRequest(userId: id, branchIds: [SeedIds.heliopolis]),
+        body: CreateEmployeeRequest(
+          userId: id,
+          branchIds: [SeedIds.heliopolis],
+        ),
       ),
     );
     expect((again.status, again.code), (409, 'ALREADY_EMPLOYEE'));
-    expect([for (final u in await api.linkableUsers()) u.name], ['Nadia Farouk']);
+    expect(
+      [for (final u in await api.linkableUsers()) u.name],
+      ['Nadia Farouk'],
+    );
     server.persona = Persona.manager; // Zamalek's users only
-    expect([for (final u in await api.linkableUsers()) u.name], ['Nadia Farouk']);
+    expect(
+      [for (final u in await api.linkableUsers()) u.name],
+      ['Nadia Farouk'],
+    );
   });
 
   test('put: termination date rules; a new number or app off signs the '
@@ -173,7 +194,11 @@ void main() {
     e = await put({'phone': '01009876543'});
     expect(e.phone, '+201009876543');
     expect(e.deviceModel, isNull);
-    e = await put({'base_salary_piastres': 1000000, 'pay_method': 'bank', 'pay_account': 'EG12'});
+    e = await put({
+      'base_salary_piastres': 1000000,
+      'pay_method': 'bank',
+      'pay_account': 'EG12',
+    });
     expect((e.baseSalaryPiastres, e.payAccount), (1000000, 'EG12'));
     e = await put({'pay_method': 'cash', 'pay_account': 'EG12'});
     expect(e.payAccount, isNull);
@@ -216,12 +241,10 @@ void main() {
   test('departments: live counts (not terminated), org-wide add and delete, '
       'a staffed one refused with its count', () async {
     final list = await api.listDepartments();
-    expect({for (final d in list) d.name: d.employeeCount}, {
-      'Bar': 5,
-      'Front of house': 5,
-      'Kitchen': 1,
-      'Management': 4,
-    });
+    expect(
+      {for (final d in list) d.name: d.employeeCount},
+      {'Bar': 5, 'Front of house': 5, 'Kitchen': 1, 'Management': 4},
+    );
     final bar = list.firstWhere((d) => d.name == 'Bar');
     final e = await refused(api.deleteDepartment(id: bar.id));
     expect(
@@ -234,7 +257,10 @@ void main() {
     );
     expect((made.name, made.employeeCount), ('Bakery', 0));
     await api.deleteDepartment(id: made.id);
-    expect((await api.listDepartments()).map((d) => d.name), isNot(contains('Bakery')));
+    expect(
+      (await api.listDepartments()).map((d) => d.name),
+      isNot(contains('Bakery')),
+    );
     expect(
       (await refused(
         api.createDepartment(body: const UpsertDepartmentRequest(name: ' ')),

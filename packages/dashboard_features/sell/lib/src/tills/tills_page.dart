@@ -23,6 +23,7 @@ import 'till_report_sheet.dart';
 import 'tills_data.dart';
 import 'tills_sections.dart';
 import '../shared/error_text.dart';
+import '../shared/export_logo.dart';
 
 class TillsPage extends ConsumerStatefulWidget {
   const TillsPage({this.query = const {}, super.key});
@@ -112,8 +113,10 @@ class _TillsPageState extends ConsumerState<TillsPage> {
     if (at.path != '/tills') return;
     final query = patchQuery(at.queryParameters, patch);
     router.go(
-      Uri(path: '/tills', queryParameters: query.isEmpty ? null : query)
-          .toString(),
+      Uri(
+        path: '/tills',
+        queryParameters: query.isEmpty ? null : query,
+      ).toString(),
     );
   }
 
@@ -196,7 +199,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
       final title = t('nav.tills');
       final config = ExcelConfig(
         filename: 'Madar-Tills',
-        logoUrl: tillsExportLogo(ref),
+        logoUrl: exportLogoOf(ref.read(publicBrandProvider).value),
         sheets: [
           ExcelSheet<Till>(
             name: title,
@@ -351,15 +354,6 @@ class _TillsPageState extends ConsumerState<TillsPage> {
       body: body,
     );
   }
-}
-
-/// The logo a generated spreadsheet wears (`useExportLogo`): the shop's own
-/// on the branding tier, else null (Madar's).
-String? tillsExportLogo(WidgetRef ref) {
-  final brand = ref.read(publicBrandProvider).value;
-  final logo = brand?.logoUrl?.trim();
-  if (brand == null || !brand.customBranding) return null;
-  return logo == null || logo.isEmpty ? null : logo;
 }
 
 /// The export's columns (SELL-TIL-059), as the web's `handleExport`.

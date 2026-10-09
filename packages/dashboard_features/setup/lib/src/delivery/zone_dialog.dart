@@ -137,8 +137,7 @@ class _ZoneDialogState extends ConsumerState<ZoneDialog> {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final zones =
-        ref.watch(deliveryZonesProvider(widget.branchId)).value ??
-        widget.zones;
+        ref.watch(deliveryZonesProvider(widget.branchId)).value ?? widget.zones;
     _follow(zones);
     // Always the next ring's number, in the edit dialog too (the web's).
     final fallbackName = zoneLabel(t, zones.length + 1);

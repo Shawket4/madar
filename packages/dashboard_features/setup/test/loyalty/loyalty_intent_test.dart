@@ -65,8 +65,9 @@ void main() {
     expect(_count(s, LoyaltyRoutes.members), 1);
   });
 
-  testWidgets('a member row warms its card; opening it asks nothing more',
-      (tester) async {
+  testWidgets('a member row warms its card; opening it asks nothing more', (
+    tester,
+  ) async {
     final h = await pumpLoyalty(tester);
     await openTab(h, 'Members');
     await h.enterText(inPage(find.byType(DashSearchInput)), 'Nada Kamal');

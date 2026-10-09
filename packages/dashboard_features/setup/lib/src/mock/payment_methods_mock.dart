@@ -153,13 +153,7 @@ abstract final class PmSeed {
       retiredAt: DateTime.utc(2026, 8, 20, 6, 55),
     ),
     _device('new-cairo', 'T1', DeviceKind.pos, 'Counter 1'),
-    _device(
-      'new-cairo',
-      'T2',
-      DeviceKind.pos,
-      'Drive-through',
-      conflict: true,
-    ),
+    _device('new-cairo', 'T2', DeviceKind.pos, 'Drive-through', conflict: true),
     _device(
       'new-cairo',
       'T2',
@@ -207,8 +201,7 @@ void registerPaymentMethodsMocks(MockServer server, MockDb db) {
     final rows = methods.where((r) => r['org_id'] == orgId);
     mergeSort(
       rows,
-      compare: (a, b) =>
-          '${a['created_at']}'.compareTo('${b['created_at']}'),
+      compare: (a, b) => '${a['created_at']}'.compareTo('${b['created_at']}'),
     );
     return rows;
   }
@@ -221,8 +214,10 @@ void registerPaymentMethodsMocks(MockServer server, MockDb db) {
     return row;
   }
 
-  bool nameTaken(String orgId, String name, {String? except}) => methods.rows
-      .any((r) => r['org_id'] == orgId && r['name'] == name && r['id'] != except);
+  bool nameTaken(String orgId, String name, {String? except}) =>
+      methods.rows.any(
+        (r) => r['org_id'] == orgId && r['name'] == name && r['id'] != except,
+      );
 
   /// The owner's ticked ids in the methods' order (`ids_for`).
   List<String> idsFor(String owner, String ownerId) {
@@ -426,7 +421,9 @@ void registerPaymentMethodsMocks(MockServer server, MockDb db) {
     req.requireCap('branches.read');
     if (!req.persona.isPlatform) {
       final b = db['branches'].find(branchId);
-      if (b == null || b['deleted_at'] != null) req.notFound('Branch not found');
+      if (b == null || b['deleted_at'] != null) {
+        req.notFound('Branch not found');
+      }
       if (b['org_id'] != req.orgId) {
         req.fail(MockResponse.forbidden('Branch belongs to a different org'));
       }

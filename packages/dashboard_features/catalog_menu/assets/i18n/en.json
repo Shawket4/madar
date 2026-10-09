@@ -1,4 +1,5 @@
 {
+  "menu.addonGroupsNotReady": "The add-on groups haven't loaded yet, so the add-ons can't be saved. Try again in a moment.",
   "menu.addonsEmpty": "No addons selected — the full org catalog applies.",
   "menu.addonsHint": "Which addons customers can pick for this item",
   "menu.groups.editor.notANumber": "Invalid input: expected number, received NaN",

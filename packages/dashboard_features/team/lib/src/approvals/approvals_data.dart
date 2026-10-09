@@ -129,8 +129,9 @@ bool isMine(StaffRequest r, Set<String> own) =>
 bool mayDecide(StaffRequest r, Set<String> own) =>
     r.status == 'pending' && (r.canDecide ?? !isMine(r, own));
 
-String _wire(DashFormat f, String? s) =>
-    s == null || s.isEmpty ? '' : f.fmtWireTime(s.length > 5 ? s.substring(0, 5) : s);
+String _wire(DashFormat f, String? s) => s == null || s.isEmpty
+    ? ''
+    : f.fmtWireTime(s.length > 5 ? s.substring(0, 5) : s);
 
 /// "10 Sept → 12 Sept", "arriving by 10:00 AM", "in 09:12 AM → 09:00 AM"
 /// (`describeWindow`).
@@ -256,8 +257,7 @@ List<PendingBadge> advanceCapNote(
 }
 
 /// A JavaScript number as `${n}` writes it: `10`, `12.5`.
-String jsNumber(num n) =>
-    n is double && n == n.truncateToDouble() && n.isFinite
+String jsNumber(num n) => n is double && n == n.truncateToDouble() && n.isFinite
     ? n.toInt().toString()
     : '$n';
 

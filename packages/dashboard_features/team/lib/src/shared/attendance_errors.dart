@@ -137,13 +137,15 @@ String attendanceErrorText(
       }
     }
     // A work shift's refused number, by the shift dialog's label.
-    final shiftField = code == 'SHIFT_SETTING_INVALID' && vars['field'] is String
+    final shiftField =
+        code == 'SHIFT_SETTING_INVALID' && vars['field'] is String
         ? _shiftFieldKeys[vars['field']]
         : null;
     final field = vars['field'];
     if (field is String) {
       vars['field'] =
-          fieldLabel?.call(field) ?? (shiftField != null ? t(shiftField) : field);
+          fieldLabel?.call(field) ??
+          (shiftField != null ? t(shiftField) : field);
     }
     final variant =
         raw['status'] is String &&

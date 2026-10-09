@@ -23,7 +23,10 @@ void main() {
     }
   }
 
-  for (final (size, lang) in [(DashSize.desktop, 'en'), (DashSize.phone, 'ar')]) {
+  for (final (size, lang) in [
+    (DashSize.desktop, 'en'),
+    (DashSize.phone, 'ar'),
+  ]) {
     final tag = '${size.name} $lang';
 
     testWidgets('loading, $tag', (tester) async {
@@ -73,7 +76,9 @@ void main() {
       final s = approvalsServer(
         edit: (db) {
           final t = db[TeamTables.attendance];
-          final ot = t.rows.firstWhere((r) => r['overtime_status'] == 'pending');
+          final ot = t.rows.firstWhere(
+            (r) => r['overtime_status'] == 'pending',
+          );
           final cv = t.rows.firstWhere((r) => r['cover_status'] == 'pending');
           t.update(ot['id']! as String, {'business_date': '2026-09-28'});
           t.update(cv['id']! as String, {'business_date': '2026-09-27'});
@@ -117,7 +122,9 @@ void main() {
     testWidgets('batch confirm, $tag', (tester) async {
       final h = await pumpApprovals(tester, size: size, locale: lang);
       final n = batchCount(tester);
-      await h.tap(inPage(find.bySemanticsLabel(h.t('dawamOps.selectAll', count: n))));
+      await h.tap(
+        inPage(find.bySemanticsLabel(h.t('dawamOps.selectAll', count: n))),
+      );
       await h.tap(inPage(find.text(h.t('dawamOps.approveCount', count: n))));
       await h.shot('approvals/batch-confirm');
     });

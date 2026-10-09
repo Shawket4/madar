@@ -151,10 +151,7 @@ void main() {
       tester,
     ) async {
       final h = await pumpPricing(tester);
-      await tester.enterText(
-        inPage(find.byType(EditableText)).first,
-        'latte',
-      );
+      await tester.enterText(inPage(find.byType(EditableText)).first, 'latte');
       await tester.pump(const Duration(milliseconds: 200));
       expect(h.server.callsTo(catalogT), hasLength(1));
       await tester.pump(const Duration(milliseconds: 100));
@@ -206,8 +203,17 @@ void main() {
       final h = await pumpPricing(tester);
       expect(inPage(find.byType(PricingMatrix)), findsOneWidget);
       expect(pageText('Item / size'), findsOneWidget);
-      expect(inPage(find.text('Catalog (ref)', findRichText: true)), findsOneWidget);
-      for (final w in ['In-store', 'In-mall', 'Outside', 'Umbrella', 'Pickup']) {
+      expect(
+        inPage(find.text('Catalog (ref)', findRichText: true)),
+        findsOneWidget,
+      );
+      for (final w in [
+        'In-store',
+        'In-mall',
+        'Outside',
+        'Umbrella',
+        'Pickup',
+      ]) {
         expect(pageText(w), findsOneWidget, reason: w);
       }
       expect(h.server.callsTo(studioT), isEmpty);
@@ -305,8 +311,10 @@ void main() {
       final gate = s.server.hold('GET', studioT);
       final h = await pumpPricing(tester, seeded: s);
       await expand(h, 'Iced Latte');
-      expect(h.server.callsTo(studioT).single.path,
-          '/menu-items/${MenuSeedIds.item('iced_latte')}/studio');
+      expect(
+        h.server.callsTo(studioT).single.path,
+        '/menu-items/${MenuSeedIds.item('iced_latte')}/studio',
+      );
       expect(
         find.descendant(
           of: find.byType(PricingMatrix),
@@ -324,12 +332,7 @@ void main() {
       final s = pricingServer();
       // Twice: the press's touch warms the read first, and a failed warm is
       // dropped so the expanded row asks again.
-      s.server.fail(
-        'GET',
-        studioT,
-        MockResponse.error(500, 'boom'),
-        times: 2,
-      );
+      s.server.fail('GET', studioT, MockResponse.error(500, 'boom'), times: 2);
       final h = await pumpPricing(tester, seeded: s);
       await expand(h, 'Iced Latte');
       expect(
@@ -361,7 +364,13 @@ void main() {
       expect(pageText('Large'), findsOneWidget);
       expect(pageText('EGP 130.00'), findsOneWidget);
       expect(pageText('EGP 150.00'), findsOneWidget);
-      for (final col in ['in_store', 'in_mall', 'outside', 'umbrella', 'pickup']) {
+      for (final col in [
+        'in_store',
+        'in_mall',
+        'outside',
+        'umbrella',
+        'pickup',
+      ]) {
         expect(cellOf(_iced, col), findsOneWidget, reason: col);
         expect(cellOf(_icedL, col), findsOneWidget, reason: col);
       }
@@ -409,10 +418,8 @@ void main() {
       });
       final h = await pumpPricing(tester, seeded: s);
       await expand(h, 'Iced Latte');
-      Finder inCell(String id, String col, String text) => find.descendant(
-        of: cellOf(id, col),
-        matching: find.text(text),
-      );
+      Finder inCell(String id, String col, String text) =>
+          find.descendant(of: cellOf(id, col), matching: find.text(text));
       expect(inCell(_iced, 'outside', 'Set here'), findsOneWidget);
       expect(inCell(_iced, 'in_store', 'Catalog'), findsOneWidget);
       expect(inCell(_icedL, 'in_store', 'Set here'), findsOneWidget);
@@ -474,13 +481,15 @@ void main() {
         findsOneWidget,
       );
       final tip = tester.widget<MadarHoldHint>(
-        find.ancestor(
-          of: find.descendant(
-            of: toggleOf(_iced, 'in_store'),
-            matching: find.byType(DashIcon),
-          ),
-          matching: find.byType(MadarHoldHint),
-        ).first,
+        find
+            .ancestor(
+              of: find.descendant(
+                of: toggleOf(_iced, 'in_store'),
+                matching: find.byType(DashIcon),
+              ),
+              matching: find.byType(MadarHoldHint),
+            )
+            .first,
       );
       expect(tip.message, 'Show at this scope');
     });
@@ -552,10 +561,9 @@ void main() {
           'target_type': 'menu_item_size',
         },
       ]);
-      expect(
-        rowsFor(s.db, SeedIds.zamalek, _icedL).map((r) => r['scope']),
-        ['branch'],
-      );
+      expect(rowsFor(s.db, SeedIds.zamalek, _icedL).map((r) => r['scope']), [
+        'branch',
+      ]);
       await h.expectToast('Saved 1 changes');
     });
 
@@ -658,10 +666,9 @@ void main() {
       await _addonsTab(h);
       await h.shot('pricing/addons');
       expect(pageText('Add-on'), findsOneWidget);
-      final row = find.ancestor(
-        of: pageText('Oat milk'),
-        matching: find.byType(Row),
-      ).first;
+      final row = find
+          .ancestor(of: pageText('Oat milk'), matching: find.byType(Row))
+          .first;
       expect(
         find.descendant(of: row, matching: find.byType(MenuImageTile)),
         findsOneWidget,
@@ -685,10 +692,9 @@ void main() {
         find.descendant(of: row, matching: find.byType(PricingDirtyDot)),
         findsNothing,
       );
-      final almondRow = find.ancestor(
-        of: pageText('Almond milk'),
-        matching: find.byType(Row),
-      ).first;
+      final almondRow = find
+          .ancestor(of: pageText('Almond milk'), matching: find.byType(Row))
+          .first;
       expect(
         find.descendant(of: almondRow, matching: find.byType(PricingDirtyDot)),
         findsOneWidget,
@@ -732,13 +738,19 @@ void main() {
       final h = await pumpPricing(tester);
       final pager = inPage(find.byType(DashPagination));
       await reveal(h, pager);
-      expect(find.descendant(of: pager, matching: find.text('Page 1 of 2')),
-          findsOneWidget);
-      await h.tap(find.descendant(of: pager, matching: find.bySemanticsLabel('Next')));
+      expect(
+        find.descendant(of: pager, matching: find.text('Page 1 of 2')),
+        findsOneWidget,
+      );
+      await h.tap(
+        find.descendant(of: pager, matching: find.bySemanticsLabel('Next')),
+      );
       expect(h.server.callsTo(catalogT).last.query['page'], ['2']);
       expect(pageText('Spanish Latte'), findsOneWidget);
-      expect(find.descendant(of: pager, matching: find.text('Page 2 of 2')),
-          findsOneWidget);
+      expect(
+        find.descendant(of: pager, matching: find.text('Page 2 of 2')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('MENU-PRC-023 no pager on a single page (add-ons)', (
@@ -813,33 +825,48 @@ void main() {
       await _save(h);
       final puts = _writes(h, 'PUT');
       expect(puts, hasLength(3));
-      expect(puts, contains(equals({
-        'branch_id': SeedIds.zamalek,
-        'channel': null,
-        'is_available': null,
-        'price': 13250,
-        'scope': 'branch',
-        'target_id': _iced,
-        'target_type': 'menu_item_size',
-      })));
-      expect(puts, contains(equals({
-        'branch_id': SeedIds.zamalek,
-        'channel': 'in_mall',
-        'is_available': false,
-        'price': null,
-        'scope': 'branch_channel',
-        'target_id': _icedL,
-        'target_type': 'menu_item_size',
-      })));
-      expect(puts, contains(equals({
-        'branch_id': SeedIds.zamalek,
-        'channel': 'umbrella',
-        'is_available': null,
-        'price': 2800,
-        'scope': 'branch_channel',
-        'target_id': _oat,
-        'target_type': 'modifier_option',
-      })));
+      expect(
+        puts,
+        contains(
+          equals({
+            'branch_id': SeedIds.zamalek,
+            'channel': null,
+            'is_available': null,
+            'price': 13250,
+            'scope': 'branch',
+            'target_id': _iced,
+            'target_type': 'menu_item_size',
+          }),
+        ),
+      );
+      expect(
+        puts,
+        contains(
+          equals({
+            'branch_id': SeedIds.zamalek,
+            'channel': 'in_mall',
+            'is_available': false,
+            'price': null,
+            'scope': 'branch_channel',
+            'target_id': _icedL,
+            'target_type': 'menu_item_size',
+          }),
+        ),
+      );
+      expect(
+        puts,
+        contains(
+          equals({
+            'branch_id': SeedIds.zamalek,
+            'channel': 'umbrella',
+            'is_available': null,
+            'price': 2800,
+            'scope': 'branch_channel',
+            'target_id': _oat,
+            'target_type': 'modifier_option',
+          }),
+        ),
+      );
       expect(_writes(h, 'DELETE').single['target_id'], _iced);
       await h.expectToast('Saved 4 changes');
     });
@@ -859,8 +886,13 @@ void main() {
       expect(h.server.callsTo(studioT).length, studio + 1);
       expect(h.server.callsTo(branchAddonT).length, branch + 1);
       expect(h.server.callsTo(channelAddonT).length, channels + 4);
-      expect(h.server.callsTo(catalogT).length, catalog, reason: 'not '
-          'invalidated by the web');
+      expect(
+        h.server.callsTo(catalogT).length,
+        catalog,
+        reason:
+            'not '
+            'invalidated by the web',
+      );
       expect(priceText(tester, _iced, 'in_store'), '135');
       expect(clearOf(_iced, 'in_store'), findsOneWidget);
     });
@@ -901,7 +933,9 @@ void main() {
       await typePrice(h, _oat, 'in_store', '27');
       final pager = inPage(find.byType(DashPagination));
       await reveal(h, pager);
-      await h.tap(find.descendant(of: pager, matching: find.bySemanticsLabel('Next')));
+      await h.tap(
+        find.descendant(of: pager, matching: find.bySemanticsLabel('Next')),
+      );
       expect(h.server.callsTo(addonCatalogT).last.query['page'], ['2']);
       expect(cellOf(_oat, 'in_store'), findsNothing);
       await _save(h);
@@ -948,7 +982,9 @@ void main() {
       final h = await pumpPricing(tester);
       final pager = inPage(find.byType(DashPagination));
       await reveal(h, pager);
-      await h.tap(find.descendant(of: pager, matching: find.bySemanticsLabel('Next')));
+      await h.tap(
+        find.descendant(of: pager, matching: find.bySemanticsLabel('Next')),
+      );
       await _search(h, 'latte');
       final q = h.server.callsTo(catalogT).last.query;
       expect(q['page'], ['1']);
@@ -964,7 +1000,9 @@ void main() {
       await typePrice(h, _iced, 'in_store', '-1');
       final pager = inPage(find.byType(DashPagination));
       await reveal(h, pager);
-      await h.tap(find.descendant(of: pager, matching: find.bySemanticsLabel('Next')));
+      await h.tap(
+        find.descendant(of: pager, matching: find.bySemanticsLabel('Next')),
+      );
       await _save(h);
       await h.expectToast('Enter a valid price for Iced Latte');
     });
@@ -1020,7 +1058,9 @@ void main() {
       final h = await pumpPricing(tester, seeded: s);
       final gate = s.server.hold('GET', catalogT);
       await h.tap(pageText('Retry'));
-      final err = tester.widget<DashErrorState>(inPage(find.byType(DashErrorState)));
+      final err = tester.widget<DashErrorState>(
+        inPage(find.byType(DashErrorState)),
+      );
       expect(err.retrying, isTrue);
       expect(pageText('No menu items'), findsNothing);
       gate.release();
@@ -1049,9 +1089,8 @@ void main() {
       final h = await pumpPricing(tester, seeded: s);
       await expand(h, 'Iced Latte');
       await typePrice(h, _iced, 'in_store', '135');
-      int epoch() => h.container.read(
-        realtimeEpochProvider('/branch-addon-overrides'),
-      );
+      int epoch() =>
+          h.container.read(realtimeEpochProvider('/branch-addon-overrides'));
       final before = epoch();
       final gate = s.server.hold('PUT', overrideT);
       await _save(h);
@@ -1060,8 +1099,11 @@ void main() {
       await h.settle();
       expect(epoch(), greaterThan(before));
       expect(
-        rowsFor(s.db, SeedIds.zamalek, _iced)
-            .singleWhere((r) => r['scope'] == 'branch')['price'],
+        rowsFor(
+          s.db,
+          SeedIds.zamalek,
+          _iced,
+        ).singleWhere((r) => r['scope'] == 'branch')['price'],
         13500,
       );
       await h.expectToast('Saved 1 changes');
@@ -1075,9 +1117,8 @@ void main() {
       final h = await pumpPricing(tester, seeded: s);
       await expand(h, 'Iced Latte');
       await typePrice(h, _iced, 'in_store', '135');
-      int epoch() => h.container.read(
-        realtimeEpochProvider('/branch-addon-overrides'),
-      );
+      int epoch() =>
+          h.container.read(realtimeEpochProvider('/branch-addon-overrides'));
       final before = epoch();
       final gate = s.server.hold('PUT', overrideT);
       await _save(h);
@@ -1116,8 +1157,9 @@ void main() {
       await typePrice(h, _iced, 'outside', '150');
       expect(_inBar('1 unsaved changes'), findsOneWidget);
       // Someone else sets the same price; the studio refetches.
-      s.db[MenuTables.priceOverrides].rows
-          .firstWhere((r) => r['target_id'] == _iced)['price'] = 15000;
+      s.db[MenuTables.priceOverrides].rows.firstWhere(
+        (r) => r['target_id'] == _iced,
+      )['price'] = 15000;
       h.container.read(realtimeBusProvider).invalidate(const [
         '/menu-items/*/studio',
       ]);

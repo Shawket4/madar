@@ -170,13 +170,17 @@ class _ApproveWithPayDialogState extends ConsumerState<ApproveWithPayDialog> {
                     spacing: DashMetrics.hair,
                     children: [
                       Text(
-                        leave ? t('staff.paidLeaveSwitch') : t('staff.paidTime'),
+                        leave
+                            ? t('staff.paidLeaveSwitch')
+                            : t('staff.paidTime'),
                         style: DashType.bodyMedium.copyWith(
                           color: c.textPrimary,
                         ),
                       ),
                       Text(
-                        leave ? t('staff.paidLeaveHint') : t('staff.paidTimeHint'),
+                        leave
+                            ? t('staff.paidLeaveHint')
+                            : t('staff.paidTimeHint'),
                         style: DashType.small.copyWith(color: c.textSecondary),
                       ),
                       // Leave over a worked day turns it into leave (M16).

@@ -103,8 +103,9 @@ void main() {
     expect(surfaceText('Off'), findsOneWidget);
   });
 
-  testWidgets('TEAM-SCH-040 shifts at another branch are said, never listed',
-      (tester) async {
+  testWidgets('TEAM-SCH-040 shifts at another branch are said, never listed', (
+    tester,
+  ) async {
     final h = await openDay(
       tester,
       'Adham Reda',
@@ -206,7 +207,10 @@ void main() {
     expect(
       inSurface(
         find.text(
-          h.t('dawamOps.clashTimes', args: {'with': 'Evening ${ltr('15:00–23:00')}'}),
+          h.t(
+            'dawamOps.clashTimes',
+            args: {'with': 'Evening ${ltr('15:00–23:00')}'},
+          ),
         ),
       ),
       findsOneWidget,
@@ -258,10 +262,7 @@ void main() {
       'work_shift_id': morningId,
     });
     expect(find.text('Shift moved'), findsWidgets);
-    expect(
-      find.text('Hours a day: 16h of 12h. Only a warning.'),
-      findsWidgets,
-    );
+    expect(find.text('Hours a day: 16h of 12h. Only a warning.'), findsWidgets);
     await h.flushTimers();
     expect(find.byType(DashSurface), findsNothing);
   });
@@ -271,14 +272,8 @@ void main() {
     final h = await openDay(tester, 'Adham Reda', 0);
     await h.tap(inSurface(pressable('Give Morning to someone else')));
     await pickIn(h, const Key('day-give-to'), 'Karim Adel');
-    expect(
-      inSurface(find.byKey(const Key('day-clash'))),
-      findsOneWidget,
-    );
-    expect(
-      surfaceHas('Karim Adel already works Morning'),
-      findsOneWidget,
-    );
+    expect(inSurface(find.byKey(const Key('day-clash'))), findsOneWidget);
+    expect(surfaceHas('Karim Adel already works Morning'), findsOneWidget);
     expect(on(tester, surfaceButton('Move')), isFalse);
   });
 
@@ -410,7 +405,9 @@ void main() {
     await pickIn(h, const Key('day-add-shift'), 'Evening');
     await h.tap(surfaceButton('Add'));
     expect(
-      find.textContaining(h.t('errors.codes.SHIFTS_OVERLAP_named').split('{{').first),
+      find.textContaining(
+        h.t('errors.codes.SHIFTS_OVERLAP_named').split('{{').first,
+      ),
       findsWidgets,
     );
     await h.flushTimers();
@@ -503,12 +500,13 @@ void main() {
       },
     );
     final h2 = await openCoverage(tester, s: s2);
-    expect(inCoverage(find.text(h2.t('dawam.coveragePattern'))), findsOneWidget);
+    expect(
+      inCoverage(find.text(h2.t('dawam.coveragePattern'))),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('TEAM-SCH-056 coverage loading: a skeleton', (
-    tester,
-  ) async {
+  testWidgets('TEAM-SCH-056 coverage loading: a skeleton', (tester) async {
     final s = scheduleServer();
     final gate = s.server.hold('GET', coverageT);
     final h = await openCoverage(tester, s: s);
@@ -722,7 +720,9 @@ void main() {
     await h.expectToast('Preferences saved; they were told');
     expect(find.byType(DashSurface), findsNothing);
     expect(
-      inGrid(find.text("Prefers evenings · Can't work: Sun · set by a manager")),
+      inGrid(
+        find.text("Prefers evenings · Can't work: Sun · set by a manager"),
+      ),
       findsOneWidget,
     );
   });
@@ -749,7 +749,9 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('TEAM-SCH-062 the change log: by whom and when, what', (tester) async {
+  testWidgets('TEAM-SCH-062 the change log: by whom and when, what', (
+    tester,
+  ) async {
     final h = await openPrefs(tester, 'Hassan Ibrahim');
     expect(surfaceText('By Karim Adel'), findsOneWidget);
     expect(surfaceText('By the employee'), findsOneWidget);
@@ -796,16 +798,20 @@ void main() {
     final h = await pumpSchedule(tester);
     await h.scrollUntilVisible(find.byType(FairnessCard));
     expect(inFair(find.text('Night shifts, fairly')), findsOneWidget);
-    for (final w in ['Gender', 'People', 'Prefer evenings', 'Shifts', 'Night shifts']) {
+    for (final w in [
+      'Gender',
+      'People',
+      'Prefer evenings',
+      'Shifts',
+      'Night shifts',
+    ]) {
       expect(inFair(find.text(w)), findsWidgets, reason: w);
     }
     expect(inFair(find.text('Female')), findsOneWidget);
     expect(inFair(find.text('Male')), findsOneWidget);
     expect(
       inFair(
-        find.text(
-          'Managers accepted 7 of 14 suggestions in the last 4 weeks.',
-        ),
+        find.text('Managers accepted 7 of 14 suggestions in the last 4 weeks.'),
       ),
       findsOneWidget,
     );
@@ -835,7 +841,10 @@ void main() {
       },
     );
     await h.scrollUntilVisible(find.byType(FairnessCard));
-    expect(inFair(find.textContaining(h.t('dawam.learningFrozen'))), findsOneWidget);
+    expect(
+      inFair(find.textContaining(h.t('dawam.learningFrozen'))),
+      findsOneWidget,
+    );
   });
 
   testWidgets('TEAM-SCH-065 fairness loading: a skeleton', (tester) async {
@@ -872,9 +881,7 @@ void main() {
     expect(h.location.path, schedulePath);
   });
 
-  testWidgets('TEAM-SCH-067 the monthly audits: gap and pill', (
-    tester,
-  ) async {
+  testWidgets('TEAM-SCH-067 the monthly audits: gap and pill', (tester) async {
     final h = await pumpSchedule(tester);
     await h.scrollUntilVisible(find.byType(FairnessCard));
     final audits = find.byKey(const Key('fairness-audits'));

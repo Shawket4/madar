@@ -60,9 +60,18 @@ void main() {
   });
 
   test('SELL-ORD-018 refs: order_ref, else #display, else #number', () {
-    expect(orderDisplayRef(orderRef: 'HL-1', displayNumber: 'T1-4', orderNumber: 4), 'HL-1');
-    expect(orderDisplayRef(orderRef: null, displayNumber: 'T1-4', orderNumber: 4), '#T1-4');
-    expect(orderDisplayRef(orderRef: null, displayNumber: null, orderNumber: 4), '#4');
+    expect(
+      orderDisplayRef(orderRef: 'HL-1', displayNumber: 'T1-4', orderNumber: 4),
+      'HL-1',
+    );
+    expect(
+      orderDisplayRef(orderRef: null, displayNumber: 'T1-4', orderNumber: 4),
+      '#T1-4',
+    );
+    expect(
+      orderDisplayRef(orderRef: null, displayNumber: null, orderNumber: 4),
+      '#4',
+    );
     expect(orderPlainRef(orderRef: null, orderNumber: 4), '#4');
   });
 
@@ -97,7 +106,13 @@ void main() {
       'part stays a plain line', () {
     final rows = orderRows([
       _line('h', kind: 'combo', total: 0),
-      _line('p1', kind: 'combo_part', combo: 'h', total: 11000, addons: [_addon(2500)]),
+      _line(
+        'p1',
+        kind: 'combo_part',
+        combo: 'h',
+        total: 11000,
+        addons: [_addon(2500)],
+      ),
       _line('plain'),
       _line('p2', kind: 'combo_part', combo: 'h', total: 9000),
       _line('orphan', kind: 'combo_part', combo: 'gone', total: 4000),
@@ -180,7 +195,11 @@ void main() {
       'ingredient_consumption',
       'custom',
     ]);
-    const f = OrdersExportFilters(branchId: 'b', status: 'voided', payment: 'card');
+    const f = OrdersExportFilters(
+      branchId: 'b',
+      status: 'voided',
+      payment: 'card',
+    );
     expect(f.merged(exportPresets[0]).status, 'completed');
     expect(f.merged(exportPresets[1]).payment, 'talabat_online,talabat_cash');
     expect(f.merged(exportPresets[2]).status, 'voided');

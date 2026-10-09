@@ -31,10 +31,12 @@ void main() {
       reason: 'the studio read is warmed',
     );
     await h.tap(head);
-    expect(cellOf(sizeId('iced_latte', 'Regular'), 'in_store'),
-        findsOneWidget);
-    expect(h.server.callsTo(studioT, method: 'GET'), hasLength(1),
-        reason: 'the row opened from the cache');
+    expect(cellOf(sizeId('iced_latte', 'Regular'), 'in_store'), findsOneWidget);
+    expect(
+      h.server.callsTo(studioT, method: 'GET'),
+      hasLength(1),
+      reason: 'the row opened from the cache',
+    );
 
     int page2() => [
       for (final c in h.server.callsTo(catalogT, method: 'GET'))

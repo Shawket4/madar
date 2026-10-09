@@ -61,7 +61,9 @@ void main() {
       expect(studioText('Menu item'), findsOneWidget);
       expect(studioText('Could not load this item'), findsOneWidget);
       expect(
-        studioText(h.refusalWords(MockResponse.notFound('Menu item not found'))),
+        studioText(
+          h.refusalWords(MockResponse.notFound('Menu item not found')),
+        ),
         findsOneWidget,
       );
       s.server.clearFailures();
@@ -106,13 +108,14 @@ void main() {
       expect(studioText(h.t('menu.studio.untitled')), findsOneWidget);
     });
 
-    testWidgets('MENU-STUDIO-005 "Branch & channel pricing" opens /menu/pricing', (
-      tester,
-    ) async {
-      final h = await pumpStudio(tester);
-      await h.tap(studioText(h.t('menu.studio.pricingLink')));
-      expect(h.location.path, '/menu/pricing');
-    });
+    testWidgets(
+      'MENU-STUDIO-005 "Branch & channel pricing" opens /menu/pricing',
+      (tester) async {
+        final h = await pumpStudio(tester);
+        await h.tap(studioText(h.t('menu.studio.pricingLink')));
+        expect(h.location.path, '/menu/pricing');
+      },
+    );
 
     testWidgets('MENU-STUDIO-006 Duplicate: confirm, copy, toast, its studio', (
       tester,
@@ -219,10 +222,16 @@ void main() {
       ];
       final ys = [
         for (final k in titles)
-          tester.getTopLeft(find.descendant(
-            of: find.byType(StudioSection),
-            matching: find.text(h.t(k)),
-          ).first).dy,
+          tester
+              .getTopLeft(
+                find
+                    .descendant(
+                      of: find.byType(StudioSection),
+                      matching: find.text(h.t(k)),
+                    )
+                    .first,
+              )
+              .dy,
       ];
       expect(ys, orderedEquals([...ys]..sort()));
       for (final k in [
@@ -432,10 +441,7 @@ void main() {
       final h = await pumpStudio(tester);
       await h.tap(studioText(h.t('menu.studio.options.add')));
       await expectRefused(h, 'Every option needs a name');
-      await h.enterText(
-        studioLabel(h.t('common.name')).last,
-        'Extra foam',
-      );
+      await h.enterText(studioLabel(h.t('common.name')).last, 'Extra foam');
       await h.enterText(studioLabel('${h.t('common.price')} (EGP)').last, '');
       await expectRefused(
         h,
@@ -445,9 +451,7 @@ void main() {
   });
 
   group('MENU-STUDIO-015..022 the batched save', () {
-    testWidgets('MENU-STUDIO-015 item details: the PATCH body', (
-      tester,
-    ) async {
+    testWidgets('MENU-STUDIO-015 item details: the PATCH body', (tester) async {
       final h = await pumpStudio(tester);
       await h.enterText(fieldWithText('Caffè Latte'), 'Latte');
       await h.enterText(fieldWithText('لاتيه'), '');
@@ -475,9 +479,7 @@ void main() {
     ) async {
       final h = await pumpStudio(tester);
       final descs = inStudio(
-        find.byWidgetPredicate(
-          (w) => w is EditableText && w.maxLines != 1,
-        ),
+        find.byWidgetPredicate((w) => w is EditableText && w.maxLines != 1),
       );
       await h.enterText(descs.at(0), 'Smooth and milky');
       await h.enterText(descs.at(1), 'ناعم وكريمي');
@@ -654,7 +656,10 @@ void main() {
       );
       await tapSave(h);
       final body = lastBody(h, 'PUT', stepsT);
-      expect(lastCall(h, 'PUT', stepsT).path, '/recipes/steps/${item('spanish')}');
+      expect(
+        lastCall(h, 'PUT', stepsT).path,
+        '/recipes/steps/${item('spanish')}',
+      );
       final steps = (body['steps']! as List).cast<Map<String, Object?>>();
       expect(steps, hasLength(4));
       expect(steps[0], {
@@ -699,10 +704,7 @@ void main() {
       expect(h.server.callsTo(itemT, method: 'PATCH'), isEmpty);
       expect(h.server.callsTo(sizesT), isEmpty);
       await h.expectToast(h.t('common.savedChanges'));
-      expect(
-        studioText(h.t('menu.studio.modifiers.empty')),
-        findsOneWidget,
-      );
+      expect(studioText(h.t('menu.studio.modifiers.empty')), findsOneWidget);
     });
 
     testWidgets('MENU-STUDIO-019 the set in order with the overrides', (
@@ -715,7 +717,9 @@ void main() {
       await h.tap(
         find.descendant(
           of: find.byKey(ValueKey('studio-group-$milk')),
-          matching: find.bySemanticsLabel(h.t('menu.studio.modifiers.required')),
+          matching: find.bySemanticsLabel(
+            h.t('menu.studio.modifiers.required'),
+          ),
         ),
       );
       await tapSave(h);

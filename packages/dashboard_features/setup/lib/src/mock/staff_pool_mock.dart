@@ -93,7 +93,11 @@ final RegExp _uuid = RegExp(
 );
 
 void registerStaffPoolMocks(MockServer server, MockDb db) {
-  seedTableIfAbsent(db, StaffPoolSettingsMock.table, StaffPoolSettingsMock.rows);
+  seedTableIfAbsent(
+    db,
+    StaffPoolSettingsMock.table,
+    StaffPoolSettingsMock.rows,
+  );
 
   String? branchParam(MockRequest req) {
     final b = req.q('branch_id');
@@ -149,7 +153,8 @@ void registerStaffPoolMocks(MockServer server, MockDb db) {
     if (body['org_id'] is! String) {
       req.badRequest('Json deserialize error: missing field `org_id`');
     }
-    if (rawBranch != null && (rawBranch is! String || !_uuid.hasMatch(rawBranch))) {
+    if (rawBranch != null &&
+        (rawBranch is! String || !_uuid.hasMatch(rawBranch))) {
       req.badRequest('Json deserialize error: UUID parsing failed');
     }
     final allowance = body['daily_allowance'] ?? 0;
@@ -166,7 +171,9 @@ void registerStaffPoolMocks(MockServer server, MockDb db) {
     }
     final enabled = body['enabled'] ?? false;
     if (enabled is! bool) {
-      req.badRequest('Json deserialize error: invalid type: expected a boolean');
+      req.badRequest(
+        'Json deserialize error: invalid type: expected a boolean',
+      );
     }
     final branchId = rawBranch as String?;
     final org = scopeOrg(req, branchId);

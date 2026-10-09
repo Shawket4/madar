@@ -23,11 +23,7 @@ const Map<String, (String, String)> _channelMeta = {
 
 /// Four totals, then one card per channel.
 class DeliveryChannels extends ConsumerWidget {
-  const DeliveryChannels({
-    required this.data,
-    this.loading = false,
-    super.key,
-  });
+  const DeliveryChannels({required this.data, this.loading = false, super.key});
 
   final DeliverySalesReport? data;
   final bool loading;
@@ -210,7 +206,10 @@ class _ChannelCard extends ConsumerWidget {
                     TextSpan(
                       children: [
                         TextSpan(text: '${t('delivery.deliveredOrders')} '),
-                        TextSpan(text: ltr(fmt.fmtNumber(ch.orders)), style: figure),
+                        TextSpan(
+                          text: ltr(fmt.fmtNumber(ch.orders)),
+                          style: figure,
+                        ),
                       ],
                     ),
                     style: muted,
@@ -219,7 +218,10 @@ class _ChannelCard extends ConsumerWidget {
                     TextSpan(
                       children: [
                         TextSpan(text: '${t('delivery.fees')} '),
-                        TextSpan(text: fmt.fmtMoney(ch.deliveryFees), style: figure),
+                        TextSpan(
+                          text: fmt.fmtMoney(ch.deliveryFees),
+                          style: figure,
+                        ),
                       ],
                     ),
                     style: muted,

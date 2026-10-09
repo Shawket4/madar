@@ -120,39 +120,43 @@ class _StudioMealSectionState extends ConsumerState<StudioMealSection> {
         (current?.slotId ?? '') != _slotId;
     final combos = combosQ.value?.data ?? const <ComboSummary>[];
 
-    Widget note(String text, {String? icon, required String link, required String to}) =>
-        StudioDashedBox(
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: Space.md,
-            runSpacing: Space.sm,
+    Widget note(
+      String text, {
+      String? icon,
+      required String link,
+      required String to,
+    }) => StudioDashedBox(
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: Space.md,
+        runSpacing: Space.sm,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: Space.sm,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: Space.sm,
-                children: [
-                  if (icon != null)
-                    DashIcon(icon, size: IconSize.sm, color: c.textSecondary),
-                  Flexible(
-                    child: Text(
-                      text,
-                      style: DashType.body.copyWith(color: c.textSecondary),
-                    ),
-                  ),
-                ],
-              ),
-              DashButton(
-                label: link,
-                variant: DashButtonVariant.ghost,
-                size: DashButtonSize.compact,
-                trailingIcon: DashIcon.arrowForward(context),
-                onIntent: () => ref.prefetchRoute(to),
-                onPressed: () => context.go(to),
+              if (icon != null)
+                DashIcon(icon, size: IconSize.sm, color: c.textSecondary),
+              Flexible(
+                child: Text(
+                  text,
+                  style: DashType.body.copyWith(color: c.textSecondary),
+                ),
               ),
             ],
           ),
-        );
+          DashButton(
+            label: link,
+            variant: DashButtonVariant.ghost,
+            size: DashButtonSize.compact,
+            trailingIcon: DashIcon.arrowForward(context),
+            onIntent: () => ref.prefetchRoute(to),
+            onPressed: () => context.go(to),
+          ),
+        ],
+      ),
+    );
 
     // A combo is not made a meal; its slots live in the combo editor.
     if (itemQ.value?.kind == 'combo') {

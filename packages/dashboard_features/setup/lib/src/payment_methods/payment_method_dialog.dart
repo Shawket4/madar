@@ -398,7 +398,11 @@ class _SwitchCard extends StatelessWidget {
                 ],
               ),
             ),
-            DashSwitch(value: value, semanticLabel: label, onChanged: onChanged),
+            DashSwitch(
+              value: value,
+              semanticLabel: label,
+              onChanged: onChanged,
+            ),
           ],
         ),
       ),

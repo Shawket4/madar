@@ -487,6 +487,18 @@ void main() {
       await h.expectToast('Decision saved');
     });
 
+    testWidgets('TEAM-MNY-039 Enter in a field submits the form, as the '
+        "web's form does", (tester) async {
+      final h = await onTab(tester, 'Salary advances');
+      final omar = rowOf('advance-${TeamSeedIds.advance('omar')}');
+      await h.tap(inRow(omar, find.widgetWithText(DashButton, 'Review')));
+      await h.enterText(field<DashNumberField>('Monthly installments'), '6');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await h.settle();
+      expect(lastBody(h, reviewT)['installments'], 6);
+      await h.expectToast('Decision saved');
+    });
+
     testWidgets('TEAM-MNY-039 the review form follows a refetch until edited; '
         'an edit survives one', (tester) async {
       final s = payrollServer();

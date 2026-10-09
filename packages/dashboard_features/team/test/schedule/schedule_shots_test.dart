@@ -105,7 +105,9 @@ void main() {
       );
       await h.tap(dayCellOf(h, 'Laila Ehab', 4));
       await h.tap(
-        inSurface(pressable(h.t('dawam.editTimesOf', args: {'shift': 'Evening'}))),
+        inSurface(
+          pressable(h.t('dawam.editTimesOf', args: {'shift': 'Evening'})),
+        ),
       );
       await h.shot('schedule/day-editor');
       await h.tap(
@@ -126,7 +128,9 @@ void main() {
         dark: dark,
       );
       await h.tap(dayCellOf(h, 'Adham Reda', 0));
-      await h.tap(inSurface(find.widgetWithText(DashButton, h.t('dawam.dayOff'))));
+      await h.tap(
+        inSurface(find.widgetWithText(DashButton, h.t('dawam.dayOff'))),
+      );
       await h.shot('schedule/day-off-confirm');
     });
 

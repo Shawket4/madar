@@ -44,6 +44,16 @@ bool isRefreshShortcut(KeyEvent event) {
   return apple ? k.isMetaPressed : k.isControlPressed;
 }
 
+/// Whether [event] folds or unfolds the sidebar: Ctrl/Cmd+B (the web's
+/// `SIDEBAR_KEYBOARD_SHORTCUT`, either modifier on every platform).
+bool isSidebarShortcut(KeyEvent event) {
+  if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyB) {
+    return false;
+  }
+  final k = HardwareKeyboard.instance;
+  return k.isMetaPressed || k.isControlPressed;
+}
+
 /// The frame around every signed-in page.
 class DashShell extends ConsumerStatefulWidget {
   const DashShell({required this.state, required this.child, super.key});
@@ -58,7 +68,6 @@ class DashShell extends ConsumerStatefulWidget {
 class _DashShellState extends ConsumerState<DashShell> {
   final _scaffold = GlobalKey<ScaffoldState>();
   Uri? _scopeFrom;
-  bool _paletteOpen = false;
   late final _refresh = DashPageRefresh(_refreshPage);
 
   @override
@@ -88,22 +97,26 @@ class _DashShellState extends ConsumerState<DashShell> {
       _refresh.refresh();
       return true;
     }
+    if (isSidebarShortcut(event)) {
+      // The web's toggleSidebar: the rail on a wide window, the drawer on a
+      // phone.
+      final scaffold = _scaffold.currentState;
+      if (scaffold == null) {
+        ref.read(sidebarCollapsedProvider.notifier).toggle();
+      } else if (scaffold.isDrawerOpen) {
+        scaffold.closeDrawer();
+      } else {
+        scaffold.openDrawer();
+      }
+      return true;
+    }
     if (!isPaletteShortcut(event)) return false;
-    if (_paletteOpen) {
+    if (dashPaletteOpen) {
       Navigator.of(context, rootNavigator: true).maybePop();
     } else {
-      _openPalette();
+      showDashCommandPalette(context);
     }
     return true;
-  }
-
-  Future<void> _openPalette() async {
-    _paletteOpen = true;
-    try {
-      await showDashCommandPalette(context);
-    } finally {
-      _paletteOpen = false;
-    }
   }
 
   /// A link that names the scope (`?branchId=…&preset=…`) sets it, as the
@@ -161,25 +174,41 @@ class _DashShellState extends ConsumerState<DashShell> {
       color: c.chrome,
       child: SafeArea(
         bottom: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
           children: [
-            DashSidebar(path: path, collapsed: collapsed),
-            Expanded(
-              child: Material(
-                color: c.bg,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    DashHeader(paperContext: context),
-                    const DashOfflineBanner(),
-                    Expanded(
-                      child: _PageSlot(refresh: _refresh, child: widget.child),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DashSidebar(path: path, collapsed: collapsed),
+                Expanded(
+                  child: Material(
+                    color: c.bg,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        DashHeader(paperContext: context),
+                        const DashOfflineBanner(),
+                        Expanded(
+                          child: _PageWithFoot(
+                            path: path,
+                            page: _PageSlot(
+                              refresh: _refresh,
+                              child: widget.child,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SafeArea(top: false, child: DashFooter()),
-                  ],
+                  ),
                 ),
-              ),
+              ],
+            ),
+            PositionedDirectional(
+              start: collapsed ? SidebarMetrics.rail : SidebarMetrics.width,
+              top: 0,
+              bottom: 0,
+              width: Space.sm,
+              child: const _SidebarEdge(),
             ),
           ],
         ),
@@ -236,6 +265,101 @@ class _PageSlot extends StatelessWidget {
     explicitChildNodes: true,
     child: DashPageRefreshScope(controller: refresh, child: child),
   );
+}
+
+/// The page and, under it, the foot. The web's foot follows the content, so
+/// it is seen at the end of the page: here it shows while the page's scroll
+/// is at its end, or the page does not scroll.
+class _PageWithFoot extends StatefulWidget {
+  const _PageWithFoot({required this.path, required this.page});
+  final String path;
+  final Widget page;
+
+  @override
+  State<_PageWithFoot> createState() => _PageWithFootState();
+}
+
+class _PageWithFootState extends State<_PageWithFoot> {
+  final _foot = GlobalKey();
+  bool _shown = true;
+
+  @override
+  void didUpdateWidget(_PageWithFoot old) {
+    super.didUpdateWidget(old);
+    // A new page starts with its foot; its scroll says otherwise.
+    if (old.path != widget.path) _shown = true;
+  }
+
+  bool _onScroll(Notification n) {
+    final m = switch (n) {
+      ScrollNotification(:final metrics, depth: 0) => metrics,
+      ScrollMetricsNotification(:final metrics, depth: 0) => metrics,
+      _ => null,
+    };
+    if (m == null || m.axis != Axis.vertical) return false;
+    // Showing the foot takes its height from the page, which then has that
+    // much more to scroll: it hides only past that, or it would flicker.
+    final footHeight = _foot.currentContext?.size?.height ?? 0;
+    final shown = _shown
+        ? m.extentAfter <= footHeight + 1
+        : m.extentAfter < 1;
+    if (shown != _shown) setState(() => _shown = shown);
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Expanded(
+        child: NotificationListener<Notification>(
+          onNotification: _onScroll,
+          child: widget.page,
+        ),
+      ),
+      if (_shown) SafeArea(key: _foot, top: false, child: const DashFooter()),
+    ],
+  );
+}
+
+/// The thin toggle along the sidebar's inner edge (`SidebarRail`): a click
+/// folds or unfolds it; a hairline shows under the pointer. Out of the tab
+/// order, as on the web (Ctrl/Cmd+B is the keyboard's way).
+class _SidebarEdge extends ConsumerStatefulWidget {
+  const _SidebarEdge();
+
+  @override
+  ConsumerState<_SidebarEdge> createState() => _SidebarEdgeState();
+}
+
+class _SidebarEdgeState extends ConsumerState<_SidebarEdge> {
+  final _focus = FocusNode(skipTraversal: true);
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = ref.watch(tProvider)('ui.sidebar.toggle');
+    final c = context.madarColors;
+    return DashPressable(
+      focusNode: _focus,
+      pressScale: false,
+      semanticLabel: label,
+      tooltip: label,
+      onTap: () => ref.read(sidebarCollapsedProvider.notifier).toggle(),
+      builder: (context, s) => Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Container(
+          width: DashMetrics.hair,
+          color: s.highlighted ? c.input : null,
+        ),
+      ),
+    );
+  }
 }
 
 /// Holds the selected branch's realtime connection while the frame is up

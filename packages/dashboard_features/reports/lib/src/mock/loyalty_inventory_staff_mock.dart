@@ -765,13 +765,22 @@ void _registerInventory(MockServer server, MockDb db) {
 
   void read(
     String report,
-    Object Function(MockRequest req, List<String> branches) answer,
-  ) {
-    server.on('GET', '/reports/branches/{branch_id}/$report', (req) {
+    Object Function(MockRequest req, List<String> branches) answer, {
+    bool inventoryOwns = false,
+  }) {
+    // The inventory area owns low-stock and waste-report (its Today and
+    // Waste pages): register those only where it has not, so the app answers
+    // both areas from one handler, whatever the order.
+    void on(String template, MockHandler handler) {
+      if (inventoryOwns && server.handles('GET', template)) return;
+      server.on('GET', template, handler);
+    }
+
+    on('/reports/branches/{branch_id}/$report', (req) {
       req.requireCap('inventory.read');
       return MockResponse.ok(answer(req, branchScope(req)));
     });
-    server.on('GET', '/reports/orgs/{org_id}/$report', (req) {
+    on('/reports/orgs/{org_id}/$report', (req) {
       req.requireCap('inventory.read');
       return MockResponse.ok(answer(req, orgScope(req)));
     });
@@ -800,8 +809,9 @@ void _registerInventory(MockServer server, MockDb db) {
       from: req.qDateTime('from'),
       to: req.qDateTime('to'),
     ),
+    inventoryOwns: true,
   );
-  read('low-stock', (req, b) => inventoryLowStock(db, b));
+  read('low-stock', (req, b) => inventoryLowStock(db, b), inventoryOwns: true);
 
   // PO lead time is purchasing's (`require_purchasing_read`).
   server.on('GET', '/reports/branches/{branch_id}/po-lead-time', (req) {
@@ -838,14 +848,15 @@ void _registerInventory(MockServer server, MockDb db) {
 
 // ── staff discipline ─────────────────────────────────────────────────────
 
-/// A person's department, by job title (the team area's departments; new
-/// waiters have not been placed in one yet: "Unassigned").
+/// A person's department, by job title, as the team seed places them
+/// (`TeamSeed._departmentKey`): waiters and cashiers are front of house; any
+/// other title has none ("Unassigned").
 ({String id, String name})? disciplineDepartment(MockRow employee) {
   final org = employee['org_id'] == SeedIds.nakhlaOrg ? 'nakhla' : 'sabah';
   final key = switch (employee['job_title']) {
     'Branch manager' || 'Shift lead' => 'management',
     'Barista' => 'bar',
-    'Cashier' => 'front',
+    'Cashier' || 'Waiter' => 'front',
     'Chef' => 'kitchen',
     'Head baker' || 'Baker' => 'bakery',
     _ => null,

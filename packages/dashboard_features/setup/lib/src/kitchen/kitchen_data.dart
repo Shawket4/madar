@@ -103,9 +103,8 @@ const List<String> kitchenModes = ['auto', 'kds', 'till', 'both', 'off'];
 
 /// The printer brand as the table shows it (CSS `capitalize`): "Star",
 /// "Epson"; an unknown brand from a newer server, its first letter raised.
-String printerBrandLabel(PrinterBrand b) => b.value.isEmpty
-    ? b.value
-    : b.value[0].toUpperCase() + b.value.substring(1);
+String printerBrandLabel(PrinterBrand b) =>
+    b.value.isEmpty ? b.value : b.value[0].toUpperCase() + b.value.substring(1);
 
 /// `getTranslatedName`: the Arabic name when the UI is Arabic and the
 /// translations carry an Arabic string, else [name].
@@ -127,7 +126,8 @@ class KitchenRouting {
            if (s.isActive) s,
        ],
        byCategory = {
-         for (final r in routes?.categories ?? const []) r.categoryId: r.stationId,
+         for (final r in routes?.categories ?? const [])
+           r.categoryId: r.stationId,
        },
        byItem = {
          for (final r in routes?.items ?? const []) r.menuItemId: r.stationId,

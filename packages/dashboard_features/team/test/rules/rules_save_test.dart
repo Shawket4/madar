@@ -171,10 +171,7 @@ void main() {
     expect(find.byKey(RulesKeys.chip('cover_pay_mode')), findsOneWidget);
     await tapKey(h, RulesDawamKeys.cover(coverBusiness));
     await save(h);
-    expect(
-      find.text("Cover pay: back to the business's"),
-      findsOneWidget,
-    );
+    expect(find.text("Cover pay: back to the business's"), findsOneWidget);
     await h.tap(find.text('Save the changes'));
     expect(puts(h).last, {
       'branch_id': SeedIds.maadi,
@@ -231,14 +228,13 @@ void main() {
     final h = await pumpRules(tester);
     await pickIn(h, RulesKeys.scope, 'Zamalek · own rules');
     await tapKey(h, RulesKeys.follow);
-    expect(
-      find.text("Zamalek follows the business's rules?"),
-      findsOneWidget,
-    );
+    expect(find.text("Zamalek follows the business's rules?"), findsOneWidget);
     expect(find.text(h.t('staff.rulesFollowBusinessHint')), findsOneWidget);
     await h.tap(find.text('Follow the business').last);
-    expect(h.server.callsTo(deleteT).single.path,
-        '/staff/attendance/settings/branches/${SeedIds.zamalek}');
+    expect(
+      h.server.callsTo(deleteT).single.path,
+      '/staff/attendance/settings/branches/${SeedIds.zamalek}',
+    );
     await h.expectToast('Rules saved');
     expect(pageText(h.t('staff.rulesBranchNone')), findsOneWidget);
     expect(shown(tester, RulesKeys.autoBuffer), '60');
@@ -292,17 +288,22 @@ void main() {
     await typeIn(h, RulesKeys.workingDays, '22');
     await save(h);
     await h.tap(find.text('Save the changes'));
-    expect(tester.widget<DashButton>(find.byKey(RulesKeys.save)).loading,
-        isTrue);
+    expect(
+      tester.widget<DashButton>(find.byKey(RulesKeys.save)).loading,
+      isTrue,
+    );
     gate.release();
     await h.settle();
-    expect(tester.widget<DashButton>(find.byKey(RulesKeys.save)).loading,
-        isFalse);
+    expect(
+      tester.widget<DashButton>(find.byKey(RulesKeys.save)).loading,
+      isFalse,
+    );
     await h.flushTimers();
   });
 
-  testWidgets('TEAM-ALL-021 Escape closes the confirmation, sending nothing',
-      (tester) async {
+  testWidgets('TEAM-ALL-021 Escape closes the confirmation, sending nothing', (
+    tester,
+  ) async {
     final h = await pumpRules(tester);
     await typeIn(h, RulesKeys.workingDays, '22');
     await save(h);

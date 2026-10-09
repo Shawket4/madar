@@ -149,7 +149,10 @@ class _StudioPreviewPanelState extends ConsumerState<StudioPreviewPanel> {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: Space.xs,
-              children: [label(name, required: required), wrap],
+              children: [
+                label(name, required: required),
+                wrap,
+              ],
             );
     }
 
@@ -253,7 +256,10 @@ class _StudioPreviewPanelState extends ConsumerState<StudioPreviewPanel> {
       result = Semantics(
         liveRegion: true,
         child: Text(
-          t('modeling.preview.error', args: {'error': errorMessage(q.error, t)}),
+          t(
+            'modeling.preview.error',
+            args: {'error': errorMessage(q.error, t)},
+          ),
           style: DashType.body.copyWith(color: c.errorText),
         ),
       );

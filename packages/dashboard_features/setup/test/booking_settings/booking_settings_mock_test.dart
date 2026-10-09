@@ -115,6 +115,10 @@ void main() {
       'replaces the row; the next read shows it; a first save creates it',
       () async {
         final b = bkgServer();
+        // Never set up (the seed sets up every branch).
+        b.db[BookingSettingsMock.table].removeWhere(
+          (r) => r['branch_id'] == SeedIds.newCairo,
+        );
         final body = _rules(SeedIds.newCairo, {
           'enabled': true,
           'max_party': 10,
@@ -169,7 +173,7 @@ void main() {
         expect(a.error, _words(MockResponse.badRequest(e.value)));
       }
       // Nothing was stored.
-      expect(BookingSettingsMock.row(b.db, SeedIds.maadi)!['min_party'], 2);
+      expect(BookingSettingsMock.row(b.db, SeedIds.maadi)!['min_party'], 1);
     });
 
     test('bookings.edit at the body\'s branch', () async {

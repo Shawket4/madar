@@ -174,7 +174,9 @@ class _WorkShiftsPageState extends ConsumerState<WorkShiftsPage> {
               shift: s,
               branchName: s.branchId == null
                   ? t('staff.wholeBusiness')
-                  : branches.firstWhereOrNull((b) => b.id == s.branchId)?.name ??
+                  : branches
+                            .firstWhereOrNull((b) => b.id == s.branchId)
+                            ?.name ??
                         '',
               onEdit: canEditShift(s) ? () => _open(shift: s) : null,
               onDelete: canDeleteShift(s) ? () => _remove(s) : null,
@@ -249,12 +251,7 @@ class _ShiftRow extends ConsumerWidget {
       t('staff.graceBadge', args: {'n': s.graceMinutes}),
       t('staff.otBadge', args: {'n': jsFigure(s.overtimeMultiplier)}),
       branchName,
-      summarizeDays(
-        s.validDays,
-        lang,
-        t('staff.everyDay'),
-        t('inputs.noDays'),
-      ),
+      summarizeDays(s.validDays, lang, t('staff.everyDay'), t('inputs.noDays')),
       if (ownTimes > 0) t('staff.ownTimesOn', args: {'n': ownTimes}),
     ].join(' · ');
     final pills = [
@@ -308,11 +305,7 @@ class _ShiftRow extends ConsumerWidget {
             end: Space.lg,
             bottom: Space.sm + DashMetrics.hair,
           ),
-          child: Wrap(
-            spacing: Space.xs,
-            runSpacing: Space.xs,
-            children: pills,
-          ),
+          child: Wrap(spacing: Space.xs, runSpacing: Space.xs, children: pills),
         ),
       ],
     );

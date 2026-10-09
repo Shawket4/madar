@@ -275,9 +275,7 @@ class _StaffPoolSettingsFormState extends ConsumerState<StaffPoolSettingsForm> {
                   ),
                   // The server's rule, said where the items are chosen.
                   ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: _ruleMeasure,
-                    ),
+                    constraints: const BoxConstraints(maxWidth: _ruleMeasure),
                     child: Text(
                       t('staffPool.pricingRule'),
                       style: DashType.small.copyWith(color: c.textSecondary),

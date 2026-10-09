@@ -67,7 +67,10 @@ void main() {
     await h.tap(pressable('Next week'));
     expect(weekCalls(h, wd(7)), hasLength(1), reason: 'from the cache');
     expect(
-      calls(h, suggestionsT).where((c) => c.query['week_start']!.single == wd(7)),
+      calls(
+        h,
+        suggestionsT,
+      ).where((c) => c.query['week_start']!.single == wd(7)),
       hasLength(1),
     );
 
@@ -93,7 +96,9 @@ void main() {
     await mouse.addPointer(location: Offset.zero);
     addTearDown(mouse.removePointer);
     final before = calls(h, prefsLogT).length;
-    final from = tester.getCenter(inGrid(pressable("Adham Reda's preferences")));
+    final from = tester.getCenter(
+      inGrid(pressable("Adham Reda's preferences")),
+    );
     for (var i = 0; i < 6; i++) {
       await mouse.moveTo(from + Offset(0, i * 70.0));
       await tester.pump(const Duration(milliseconds: 20));

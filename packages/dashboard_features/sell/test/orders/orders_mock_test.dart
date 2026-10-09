@@ -19,76 +19,88 @@ void main() {
   final today = MockClock.startOfCairoDay(MockSeed.now);
   final tomorrow = today.add(const Duration(days: 1));
 
-  test('GET /orders: one branch today, newest first, the summary over all', () async {
-    final s = _setup();
-    final page = await s.api.orders.listOrders(
-      branchId: SeedIds.heliopolis,
-      from: today,
-      to: tomorrow,
-      page: 1,
-      perPage: 20,
-    );
-    final all = s.db['orders'].where(
-      (o) =>
-          o['branch_id'] == SeedIds.heliopolis &&
-          !DateTime.parse(o['created_at']! as String).isBefore(today),
-    );
-    expect(page.total, all.length);
-    expect(page.data.length, 20);
-    expect(page.totalPages, (all.length / 20).ceil());
-    final at = [for (final o in page.data) o.createdAt];
-    expect(at, [...at]..sort((a, b) => b.compareTo(a)));
-    final sold = all.where((o) => o['status'] != 'voided');
-    expect(
-      page.summary.revenue,
-      sold.fold<int>(0, (s, o) => s + (o['total_amount']! as int)),
-    );
-    expect(page.summary.completed, sold.length);
-    expect(page.summary.voided, all.length - sold.length);
-    expect(page.summary.voided, greaterThanOrEqualTo(1)); // the showcase void
-  });
+  test(
+    'GET /orders: one branch today, newest first, the summary over all',
+    () async {
+      final s = _setup();
+      final page = await s.api.orders.listOrders(
+        branchId: SeedIds.heliopolis,
+        from: today,
+        to: tomorrow,
+        page: 1,
+        perPage: 20,
+      );
+      final all = s.db['orders'].where(
+        (o) =>
+            o['branch_id'] == SeedIds.heliopolis &&
+            !DateTime.parse(o['created_at']! as String).isBefore(today),
+      );
+      expect(page.total, all.length);
+      expect(page.data.length, 20);
+      expect(page.totalPages, (all.length / 20).ceil());
+      final at = [for (final o in page.data) o.createdAt];
+      expect(at, [...at]..sort((a, b) => b.compareTo(a)));
+      final sold = all.where((o) => o['status'] != 'voided');
+      expect(
+        page.summary.revenue,
+        sold.fold<int>(0, (s, o) => s + (o['total_amount']! as int)),
+      );
+      expect(page.summary.completed, sold.length);
+      expect(page.summary.voided, all.length - sold.length);
+      expect(page.summary.voided, greaterThanOrEqualTo(1)); // the showcase void
+    },
+  );
 
-  test('GET /orders: filters (teller, payment legs, type, channel, status)', () async {
-    final s = _setup();
-    Future<PaginatedOrders> q({
-      String? teller,
-      String? payment,
-      String? type,
-      String? channel,
-      String? status,
-    }) => s.api.orders.listOrders(
-      branchId: SeedIds.zamalek,
-      from: today,
-      to: tomorrow,
-      tellerName: teller,
-      paymentMethod: payment,
-      orderType: type,
-      channel: channel,
-      status: status,
-      perPage: 200,
-    );
-    final mariam = await q(teller: 'mari');
-    expect(mariam.data, isNotEmpty);
-    expect(mariam.data.every((o) => o.tellerName == 'Mariam Fathy'), isTrue);
-    // A split sale answers to either of its legs.
-    final cash = await q(payment: 'cash');
-    expect(cash.data.any((o) => o.id == OrderSeedIds.showcase('split')), isTrue);
-    final card = await q(payment: 'card');
-    expect(card.data.any((o) => o.id == OrderSeedIds.showcase('split')), isTrue);
-    final voided = await q(status: 'voided');
-    expect(voided.data.every((o) => o.status == 'voided'), isTrue);
-    final heliDelivery = await s.api.orders.listOrders(
-      branchId: SeedIds.heliopolis,
-      orderType: 'delivery',
-      channel: 'in_mall',
-      perPage: 500,
-    );
-    expect(heliDelivery.data, isNotEmpty);
-    expect(
-      heliDelivery.data.every((o) => o.deliveryChannel == 'in_mall'),
-      isTrue,
-    );
-  });
+  test(
+    'GET /orders: filters (teller, payment legs, type, channel, status)',
+    () async {
+      final s = _setup();
+      Future<PaginatedOrders> q({
+        String? teller,
+        String? payment,
+        String? type,
+        String? channel,
+        String? status,
+      }) => s.api.orders.listOrders(
+        branchId: SeedIds.zamalek,
+        from: today,
+        to: tomorrow,
+        tellerName: teller,
+        paymentMethod: payment,
+        orderType: type,
+        channel: channel,
+        status: status,
+        perPage: 200,
+      );
+      final mariam = await q(teller: 'mari');
+      expect(mariam.data, isNotEmpty);
+      expect(mariam.data.every((o) => o.tellerName == 'Mariam Fathy'), isTrue);
+      // A split sale answers to either of its legs.
+      final cash = await q(payment: 'cash');
+      expect(
+        cash.data.any((o) => o.id == OrderSeedIds.showcase('split')),
+        isTrue,
+      );
+      final card = await q(payment: 'card');
+      expect(
+        card.data.any((o) => o.id == OrderSeedIds.showcase('split')),
+        isTrue,
+      );
+      final voided = await q(status: 'voided');
+      expect(voided.data.every((o) => o.status == 'voided'), isTrue);
+      final heliDelivery = await s.api.orders.listOrders(
+        branchId: SeedIds.heliopolis,
+        orderType: 'delivery',
+        channel: 'in_mall',
+        perPage: 500,
+      );
+      expect(heliDelivery.data, isNotEmpty);
+      expect(
+        heliDelivery.data.every((o) => o.deliveryChannel == 'in_mall'),
+        isTrue,
+      );
+    },
+  );
 
   test('GET /orders: refusals and validation', () async {
     final s = _setup(Persona.manager);
@@ -156,9 +168,11 @@ void main() {
     expect(latte.deductionsSnapshot, isA<List<Object?>>());
     expect((latte.deductionsSnapshot! as List).length, 4);
     final onRoad = s.db['orders'].firstWhere(
-      (o) => o['order_type'] == 'delivery' && o['delivery_channel'] == 'outside'
-          && (o['delivery_order_id'] as String?) != null
-          && DateTime.parse(o['created_at']! as String).isAfter(today),
+      (o) =>
+          o['order_type'] == 'delivery' &&
+          o['delivery_channel'] == 'outside' &&
+          (o['delivery_order_id'] as String?) != null &&
+          DateTime.parse(o['created_at']! as String).isAfter(today),
     )!;
     final full = await s.api.orders.getOrder(orderId: onRoad['id']! as String);
     expect(full.delivery!.zoneName, isNotNull);
@@ -224,7 +238,9 @@ void main() {
       from: today,
       to: tomorrow,
     );
-    final split = r.data.firstWhere((o) => o.id == OrderSeedIds.showcase('split'));
+    final split = r.data.firstWhere(
+      (o) => o.id == OrderSeedIds.showcase('split'),
+    );
     expect(split.payments.map((p) => p.method), ['cash', 'card']);
     expect(
       split.payments.fold<int>(0, (s, p) => s + p.amount),
@@ -243,10 +259,19 @@ void main() {
     expect(till['device_code'], 'T2');
     expect(till['status'], 'open');
     final sales = db['orders'].where((o) => o['till_id'] == tillId)
-      ..sort((a, b) => (a['created_at']! as String).compareTo(b['created_at']! as String));
-    expect([for (final o in sales) o['order_number']], [for (var i = 1; i <= sales.length; i++) i]);
+      ..sort(
+        (a, b) =>
+            (a['created_at']! as String).compareTo(b['created_at']! as String),
+      );
+    expect(
+      [for (final o in sales) o['order_number']],
+      [for (var i = 1; i <= sales.length; i++) i],
+    );
     expect(sales.every((o) => o['device_code'] == 'T2'), isTrue);
-    expect(sales.every((o) => (o['display_number']! as String).startsWith('T2-')), isTrue);
+    expect(
+      sales.every((o) => (o['display_number']! as String).startsWith('T2-')),
+      isTrue,
+    );
     // No added sale sits on a T1 till.
     for (final o in db['orders'].where((o) => o['device_code'] == 'T2')) {
       final t = db['tills'].find(o['till_id']! as String)!;

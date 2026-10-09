@@ -18,12 +18,13 @@ const _shot = 'payment-methods';
 /// shell's), `<name>-1`, `<name>-2`, …
 Future<void> shootPage(DashHarness h, String name) async {
   ScrollableState? state;
-  for (final e in find
-      .ancestor(
-        of: find.byType(PaymentMethodsPage),
-        matching: find.byType(Scrollable),
-      )
-      .evaluate()) {
+  for (final e
+      in find
+          .ancestor(
+            of: find.byType(PaymentMethodsPage),
+            matching: find.byType(Scrollable),
+          )
+          .evaluate()) {
     final s = (e as StatefulElement).state as ScrollableState;
     if (s.position.axis == Axis.vertical) {
       state = s;

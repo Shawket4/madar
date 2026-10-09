@@ -11,8 +11,7 @@
 library;
 
 import 'package:collection/collection.dart';
-import 'package:dashboard_api/dashboard_api.dart'
-    show Branch, WorkShift;
+import 'package:dashboard_api/dashboard_api.dart' show Branch, WorkShift;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -217,9 +216,8 @@ class _WorkShiftDialogState extends ConsumerState<WorkShiftDialog> {
           unitWord: duration ? unit : null,
           prefix: duration ? null : '×',
           presets: presets,
-          presetLabel: (p) => p >= 60
-              ? formatSpan(p, lang)
-              : '${f.fmtNumber(p)} $unit',
+          presetLabel: (p) =>
+              p >= 60 ? formatSpan(p, lang) : '${f.fmtNumber(p)} $unit',
           allowEmpty: allowEmpty,
           emptyLabel: emptyLabel,
           // Minutes past an hour read back as hours ("= 1 h 30 min").
@@ -348,8 +346,7 @@ class _WorkShiftDialogState extends ConsumerState<WorkShiftDialog> {
           options: [
             if (widget.wholeBusiness || _v.branchId == wholeBusiness)
               DashOption(value: wholeBusiness, label: t('staff.wholeBusiness')),
-            for (final b in branches)
-              DashOption(value: b.id, label: b.name),
+            for (final b in branches) DashOption(value: b.id, label: b.name),
           ],
           onChanged: (v) => _edit(() => _v.branchId = v),
         ),

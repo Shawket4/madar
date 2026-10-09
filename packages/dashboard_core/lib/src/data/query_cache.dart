@@ -53,26 +53,26 @@ extension WebQueryCache on Ref {
     // each build and adds them back during it, while its `ref.watch` stays:
     // a listener added in the same turn as a removal, with the read still
     // watched, is that rebuild re-listening, not a new mount.
-    var listeners = 0;
+    // The cache's own idle mark (set when the last listener leaves, cleared
+    // when one arrives) says whether anyone still listens; a counter local
+    // to one build would drift across rebuilds.
     var removedThisTurn = false;
     onRemoveListener(() {
-      listeners--;
       removedThisTurn = true;
       scheduleMicrotask(() => removedThisTurn = false);
     });
     // A page opening on stale data refetches it (`refetchOnMount`); not
     // inside the listener's own build, on the next turn.
     onAddListener(() {
+      final wasIdle = gc.isIdle(link);
       gc.busy(link);
-      final relisten = removedThisTurn && listeners > 0;
-      listeners++;
-      if (relisten) return;
+      if (removedThisTurn && !wasIdle) return;
       if (now().difference(builtAt) < staleTime) return;
       // Only while still listened: Riverpod disposes an unlistened autoDispose
       // read on invalidation, so a one-shot read (`read(p.future)`) would
       // drop the cached data instead of refreshing it.
       Future.microtask(() {
-        if (mounted && listeners > 0) invalidateSelf();
+        if (mounted && !gc.isIdle(link)) invalidateSelf();
       });
     });
     onCancel(() {
@@ -168,6 +168,9 @@ class QueryCache {
   }
 
   void busy(KeepAliveLink link) => _idle.remove(link);
+
+  /// Whether nobody listens to [link]'s read right now.
+  bool isIdle(KeepAliveLink link) => _idle.containsKey(link);
 }
 
 final queryCacheProvider = Provider<QueryCache>((ref) => QueryCache());

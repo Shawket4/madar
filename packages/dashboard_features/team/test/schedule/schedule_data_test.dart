@@ -93,10 +93,13 @@ void main() {
     // A partial hour rounds up: 08, 09 and 10.
     expect(g, {'6|8': 2, '6|9': 2, '6|10': 2, '6|22': 1, '6|23': 1});
     final back = fromGrid(g);
-    expect([for (final n in back) '${n.dayOfWeek} ${n.bandStart}-${n.bandEnd} ${n.staff}'], [
-      '6 08:00:00-11:00:00 2',
-      '6 22:00:00-23:59:59 1',
-    ]);
+    expect(
+      [
+        for (final n in back)
+          '${n.dayOfWeek} ${n.bandStart}-${n.bandEnd} ${n.staff}',
+      ],
+      ['6 08:00:00-11:00:00 2', '6 22:00:00-23:59:59 1'],
+    );
     expect(back.first.toJson()['department_id'], isNull);
     expect(back.first.toJson().containsKey('department_id'), isTrue);
     expect(coverageHours(['6|8']).first, 6);
@@ -115,11 +118,10 @@ void main() {
       [_holiday('2026-10-20'), _holiday('2026-10-06')],
       [_holiday('2026-10-06'), _holiday('2026-12-25')],
     );
-    expect([for (final h in merged) h.onDate], [
-      '2026-10-06',
-      '2026-10-20',
-      '2026-12-25',
-    ]);
+    expect(
+      [for (final h in merged) h.onDate],
+      ['2026-10-06', '2026-10-20', '2026-12-25'],
+    );
     expect(mergeHolidays(null, null), isEmpty);
   });
 

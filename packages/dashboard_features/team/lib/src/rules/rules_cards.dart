@@ -213,8 +213,9 @@ class RulesLadderCard extends StatelessWidget {
   final Translator t;
   final DashFormat f;
 
-  void _patch(int i, RuleTier tier) =>
-      onChanged([for (var j = 0; j < tiers.length; j++) j == i ? tier : tiers[j]]);
+  void _patch(int i, RuleTier tier) => onChanged([
+    for (var j = 0; j < tiers.length; j++) j == i ? tier : tiers[j],
+  ]);
 
   @override
   Widget build(BuildContext context) {
@@ -250,8 +251,7 @@ class RulesLadderCard extends StatelessWidget {
                       invalid: error != null,
                       readOnly: readOnly,
                       onChanged: (tier) => _patch(i, tier),
-                      onRemove: () =>
-                          onChanged([...tiers]..removeAt(i)),
+                      onRemove: () => onChanged([...tiers]..removeAt(i)),
                       t: t,
                       f: f,
                     ),

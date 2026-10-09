@@ -24,9 +24,8 @@ const String splMenu = '/menu-items';
 String atBranch(String branchId) => '?branchId=$branchId';
 
 /// A fresh seeded backend (core + this area) to edit before pumping.
-({MockServer server, MockDb db}) splServer({
-  Persona persona = Persona.owner,
-}) => setupMockServer(persona: persona);
+({MockServer server, MockDb db}) splServer({Persona persona = Persona.owner}) =>
+    setupMockServer(persona: persona);
 
 /// `/authz/me` grants exactly [caps] (the server's own checks still follow
 /// the persona).
@@ -73,7 +72,9 @@ Future<DashHarness> pumpStaffPool(
     server: b.server,
     db: b.db,
     prefs: persona == Persona.platform && pickOrg
-        ? {ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg})}
+        ? {
+            ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg}),
+          }
         : null,
   );
 }

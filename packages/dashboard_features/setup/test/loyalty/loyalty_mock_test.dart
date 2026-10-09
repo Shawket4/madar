@@ -42,9 +42,13 @@ void main() {
 
     test('a branch with no row answers the org\'s; Zamalek its own', () async {
       final b = _backend();
-      final maadi = await b.api.loyalty.getLoyaltySettings(branchId: SeedIds.maadi);
+      final maadi = await b.api.loyalty.getLoyaltySettings(
+        branchId: SeedIds.maadi,
+      );
       expect(maadi.branchId, isNull);
-      final zam = await b.api.loyalty.getLoyaltySettings(branchId: SeedIds.zamalek);
+      final zam = await b.api.loyalty.getLoyaltySettings(
+        branchId: SeedIds.zamalek,
+      );
       expect(zam.branchId, SeedIds.zamalek);
       expect(zam.defaultRewardCost, 5);
     });
@@ -69,7 +73,9 @@ void main() {
       json['mode'] = 'points';
       expect(
         await _status(
-          b.api.loyalty.putLoyaltySettings(body: LoyaltySettings.fromJson(json)),
+          b.api.loyalty.putLoyaltySettings(
+            body: LoyaltySettings.fromJson(json),
+          ),
         ),
         200,
       );
@@ -82,18 +88,24 @@ void main() {
       );
     });
 
-    test('DELETE needs a branch; it puts the branch back on the org\'s',
-        () async {
-      final b = _backend();
-      expect(await _status(b.api.loyalty.deleteLoyaltySettings()), 400);
-      await b.api.loyalty.deleteLoyaltySettings(branchId: SeedIds.zamalek);
-      final zam = await b.api.loyalty.getLoyaltySettings(branchId: SeedIds.zamalek);
-      expect(zam.branchId, isNull);
-    });
+    test(
+      'DELETE needs a branch; it puts the branch back on the org\'s',
+      () async {
+        final b = _backend();
+        expect(await _status(b.api.loyalty.deleteLoyaltySettings()), 400);
+        await b.api.loyalty.deleteLoyaltySettings(branchId: SeedIds.zamalek);
+        final zam = await b.api.loyalty.getLoyaltySettings(
+          branchId: SeedIds.zamalek,
+        );
+        expect(zam.branchId, isNull);
+      },
+    );
 
     test('capabilities and branches', () async {
       expect(
-        await _status(_backend(Persona.limited).api.loyalty.getLoyaltySettings()),
+        await _status(
+          _backend(Persona.limited).api.loyalty.getLoyaltySettings(),
+        ),
         403,
       );
       final manager = _backend(Persona.manager);
@@ -103,12 +115,7 @@ void main() {
         ),
         403,
       );
-      expect(
-        await _status(
-          manager.api.loyalty.getLoyaltyWalletStatus(),
-        ),
-        403,
-      );
+      expect(await _status(manager.api.loyalty.getLoyaltyWalletStatus()), 403);
       expect(
         await _status(
           _backend(Persona.platform).api.loyalty.getLoyaltyWalletStatus(),
@@ -119,16 +126,20 @@ void main() {
   });
 
   group('rewards and earning items', () {
-    test('a branch inherits the org\'s catalogue, priced in its own mode',
-        () async {
-      final b = _backend();
-      final org = await b.api.loyalty.getLoyaltyRewardItems();
-      expect([for (final i in org.items) i.costAmount], [6, 6, 6, 6, 4]);
-      expect(org.inherited, isFalse);
-      final zam = await b.api.loyalty.getLoyaltyRewardItems(branchId: SeedIds.zamalek);
-      expect(zam.inherited, isTrue);
-      expect(zam.items.first.costCurrency, 'visits');
-    });
+    test(
+      'a branch inherits the org\'s catalogue, priced in its own mode',
+      () async {
+        final b = _backend();
+        final org = await b.api.loyalty.getLoyaltyRewardItems();
+        expect([for (final i in org.items) i.costAmount], [6, 6, 6, 6, 4]);
+        expect(org.inherited, isFalse);
+        final zam = await b.api.loyalty.getLoyaltyRewardItems(
+          branchId: SeedIds.zamalek,
+        );
+        expect(zam.inherited, isTrue);
+        expect(zam.items.first.costCurrency, 'visits');
+      },
+    );
 
     test('PUT: inactive items refused; duplicates dropped; the default cost '
         'fills a missing amount', () async {
@@ -155,18 +166,21 @@ void main() {
         ),
       );
       expect([for (final i in saved.items) i.costAmount], [3, 6]);
-      final maadi = await b.api.loyalty.getLoyaltyRewardItems(branchId: SeedIds.maadi);
+      final maadi = await b.api.loyalty.getLoyaltyRewardItems(
+        branchId: SeedIds.maadi,
+      );
       expect(maadi.inherited, isFalse);
     });
 
-    test('earning items: empty means everything; a branch inherits',
-        () async {
+    test('earning items: empty means everything; a branch inherits', () async {
       final b = _backend();
       expect((await b.api.loyalty.getLoyaltyEarningItems()).items, isEmpty);
       await b.api.loyalty.putLoyaltyEarningItems(
         body: PutEarningItems(menuItemIds: [_item('latte'), _item('latte')]),
       );
-      final maadi = await b.api.loyalty.getLoyaltyEarningItems(branchId: SeedIds.maadi);
+      final maadi = await b.api.loyalty.getLoyaltyEarningItems(
+        branchId: SeedIds.maadi,
+      );
       expect(maadi.inherited, isTrue);
       expect([for (final i in maadi.items) i.name], ['Caffè Latte']);
     });
@@ -184,9 +198,9 @@ void main() {
       expect(page.members, hasLength(members.clamp(0, 200)));
       final enrolled = [for (final m in page.members) m.enrolledAt];
       expect(enrolled, [...enrolled]..sort((a, c) => c.compareTo(a)));
-      final nada = (await b.api.loyalty.listLoyaltyMembers(q: 'Nada Kamal'))
-          .members
-          .single;
+      final nada = (await b.api.loyalty.listLoyaltyMembers(
+        q: 'Nada Kamal',
+      )).members.single;
       // Six stamps against a four-stamp cookie: one earned, two to go.
       expect(nada.nextRewardCost, 4);
       expect(nada.rewardsReady, 1);
@@ -234,10 +248,7 @@ void main() {
       await b.api.loyalty.deleteLoyaltyMember(id: nadaId);
       await b.api.loyalty.deleteLoyaltyMember(id: nadaId);
       expect(b.db['customers'].find(nadaId)!['is_member'], false);
-      expect(
-        await _status(b.api.loyalty.getLoyaltyMember(id: nadaId)),
-        404,
-      );
+      expect(await _status(b.api.loyalty.getLoyaltyMember(id: nadaId)), 404);
     });
   });
 
@@ -258,10 +269,15 @@ void main() {
         a.redeemedValueMinor,
         redeems.fold<int>(0, (s, e) => s + (e['reward_value_minor']! as int)),
       );
-      final members = b.db['customers'].rows.where((c) => c['is_member'] == true);
+      final members = b.db['customers'].rows.where(
+        (c) => c['is_member'] == true,
+      );
       expect(
         a.liability.outstandingVisits,
-        members.fold<int>(0, (s, c) => s + ((c['visits_balance'] as int?) ?? 0)),
+        members.fold<int>(
+          0,
+          (s, c) => s + ((c['visits_balance'] as int?) ?? 0),
+        ),
       );
       expect(a.liability.currency, 'visits');
       expect(a.topRewards.length, lessThanOrEqualTo(10));
@@ -283,27 +299,28 @@ void main() {
         'https://sabah-coffee.madar-pos.cloud/join/${SeedIds.zamalek}',
       );
       settingsRow(b.db, SeedIds.zamalek)['enabled'] = false;
-      expect(
-        await _status(b.api.qr.branchLoyaltyQr(id: SeedIds.zamalek)),
-        409,
-      );
+      expect(await _status(b.api.qr.branchLoyaltyQr(id: SeedIds.zamalek)), 409);
     });
 
-    test('the birthday greeting: the shop\'s words, else ours with the gift',
-        () async {
-      final b = _backend();
-      final saved = await b.api.loyalty.getLoyaltySettings();
-      final ours = await b.api.loyalty.previewLoyaltyBirthdayMessage(body: saved);
-      expect(ours.en, contains('1 stamps on your Sabah Stamps card'));
-      expect(ours.ar, startsWith('كل سنة وأنت طيب يا Sara'));
-      final custom = await b.api.loyalty.previewLoyaltyBirthdayMessage(
-        body: LoyaltySettings.fromJson({
-          ...saved.toJson(),
-          'birthday_message': 'Hi {name}!',
-        }),
-      );
-      expect(custom.en, 'Hi Sara!');
-      expect(custom.ar, 'Hi Sara!');
-    });
+    test(
+      'the birthday greeting: the shop\'s words, else ours with the gift',
+      () async {
+        final b = _backend();
+        final saved = await b.api.loyalty.getLoyaltySettings();
+        final ours = await b.api.loyalty.previewLoyaltyBirthdayMessage(
+          body: saved,
+        );
+        expect(ours.en, contains('1 stamps on your Sabah Stamps card'));
+        expect(ours.ar, startsWith('كل سنة وأنت طيب يا Sara'));
+        final custom = await b.api.loyalty.previewLoyaltyBirthdayMessage(
+          body: LoyaltySettings.fromJson({
+            ...saved.toJson(),
+            'birthday_message': 'Hi {name}!',
+          }),
+        );
+        expect(custom.en, 'Hi Sara!');
+        expect(custom.ar, 'Hi Sara!');
+      },
+    );
   });
 }

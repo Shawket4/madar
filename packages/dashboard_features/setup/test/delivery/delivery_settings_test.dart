@@ -74,10 +74,7 @@ void main() {
       final gate = m.server.hold('GET', DeliveryRoutes.settings);
       final h = await pumpDelivery(tester, query: _helio, backend: m);
       expect(inSettings(byKey('dlv-loading')), findsOneWidget);
-      expect(
-        inKey('dlv-loading', find.byType(DashSkeleton)),
-        findsNWidgets(4),
-      );
+      expect(inKey('dlv-loading', find.byType(DashSkeleton)), findsNWidgets(4));
       expect(inSettings(byKey('dlv-save')), findsNothing);
       gate.release();
       await h.settle();
@@ -131,7 +128,9 @@ void main() {
       );
       expect(
         inSettings(
-          find.text(h.refusalWords(MockResponse.denied('delivery.settings.read'))),
+          find.text(
+            h.refusalWords(MockResponse.denied('delivery.settings.read')),
+          ),
         ),
         findsOneWidget,
       );
@@ -184,10 +183,15 @@ void main() {
     testWidgets('SET-DLV-006 in-mall card: its words; the fields show only '
         'while it is on', (tester) async {
       final h = await pumpDelivery(tester, query: _helio);
-      expect(inKey('dlv-card-in-mall', find.text('In-mall delivery')),
-          findsOneWidget);
       expect(
-        inKey('dlv-card-in-mall', find.text('Orders delivered within the mall.')),
+        inKey('dlv-card-in-mall', find.text('In-mall delivery')),
+        findsOneWidget,
+      );
+      expect(
+        inKey(
+          'dlv-card-in-mall',
+          find.text('Orders delivered within the mall.'),
+        ),
         findsOneWidget,
       );
       expect(byKey('dlv-in-mall-fee'), findsNothing);
@@ -412,17 +416,26 @@ void main() {
     testWidgets('SET-DLV-014 OTP: on by default here, its words; switched '
         'off it saves false', (tester) async {
       final h = await pumpDelivery(tester, query: _helio);
-      expect(inKey('dlv-otp', find.text('Require OTP verification')),
-          findsOneWidget);
-      expect(inKey('dlv-otp', find.text(h.t('delivery.otpRequiredHint'))),
-          findsOneWidget);
       expect(
-        tester.widget<DashSwitch>(inKey('dlv-otp', find.byType(DashSwitch))).value,
+        inKey('dlv-otp', find.text('Require OTP verification')),
+        findsOneWidget,
+      );
+      expect(
+        inKey('dlv-otp', find.text(h.t('delivery.otpRequiredHint'))),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<DashSwitch>(inKey('dlv-otp', find.byType(DashSwitch)))
+            .value,
         isTrue,
       );
       await _toggle(h, 'dlv-otp');
       await _save(h);
-      expect(lastBody(h, 'PUT', DeliveryRoutes.settings)['otp_required'], false);
+      expect(
+        lastBody(h, 'PUT', DeliveryRoutes.settings)['otp_required'],
+        false,
+      );
       await h.flushTimers();
     });
 
@@ -456,7 +469,10 @@ void main() {
         expect(find.text(w).hitTestable(), findsOneWidget, reason: w);
       }
       await h.tap(find.text('Student Discount · 15%').hitTestable());
-      expect(_trigger(tester, 'dlv-outside-discount'), 'Student Discount · 15%');
+      expect(
+        _trigger(tester, 'dlv-outside-discount'),
+        'Student Discount · 15%',
+      );
       await _save(h);
       expect(
         lastBody(h, 'PUT', DeliveryRoutes.settings)['outside_discount_id'],
@@ -512,18 +528,24 @@ void main() {
       final h = await pumpDelivery(tester, query: _helio);
       expect(inSettings(find.text('Prep time (minutes)')), findsOneWidget);
       expect(
-        inSettings(find.text('Added to the delivery ETA quoted to the customer.')),
+        inSettings(
+          find.text('Added to the delivery ETA quoted to the customer.'),
+        ),
         findsOneWidget,
       );
       await typeIn(h, 'dlv-prep', '-3');
       await _save(h);
-      expect(inSettings(find.text('Prep time cannot be negative')),
-          findsOneWidget);
+      expect(
+        inSettings(find.text('Prep time cannot be negative')),
+        findsOneWidget,
+      );
       expect(countCalls(h, 'PUT', DeliveryRoutes.settings), 0);
       await typeIn(h, 'dlv-prep', '25');
       await _save(h);
-      expect(lastBody(h, 'PUT', DeliveryRoutes.settings)['prep_time_minutes'],
-          25);
+      expect(
+        lastBody(h, 'PUT', DeliveryRoutes.settings)['prep_time_minutes'],
+        25,
+      );
       await h.flushTimers();
     });
   });
@@ -568,16 +590,14 @@ void main() {
       expect(h.server.callsTo(DeliveryRoutes.settings).length, reads + 2);
     });
 
-    testWidgets('SET-DLV-017 Save shows its spinner while the request runs',
-        (tester) async {
+    testWidgets('SET-DLV-017 Save shows its spinner while the request runs', (
+      tester,
+    ) async {
       final m = setupMockServer();
       final h = await pumpDelivery(tester, query: _helio, backend: m);
       final gate = m.server.hold('PUT', DeliveryRoutes.settings);
       await _save(h);
-      expect(
-        tester.widget<DashButton>(byKey('dlv-save')).loading,
-        isTrue,
-      );
+      expect(tester.widget<DashButton>(byKey('dlv-save')).loading, isTrue);
       gate.release();
       await h.settle();
       expect(tester.widget<DashButton>(byKey('dlv-save')).loading, isFalse);
@@ -618,7 +638,9 @@ void main() {
       final h = await pumpDelivery(tester, query: _helio, backend: m);
       await _save(h);
       await h.expectToast(
-        h.refusalWords(MockResponse.badRequest('Discount not found or inactive')),
+        h.refusalWords(
+          MockResponse.badRequest('Discount not found or inactive'),
+        ),
       );
     });
 

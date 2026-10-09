@@ -117,9 +117,8 @@ class ProgramValues {
   );
 }
 
-String _egp(int piastres) => piastres % 100 == 0
-    ? '${piastres ~/ 100}'
-    : (piastres / 100).toString();
+String _egp(int piastres) =>
+    piastres % 100 == 0 ? '${piastres ~/ 100}' : (piastres / 100).toString();
 
 String _positive(int? n) => n != null && n > 0 ? '$n' : '';
 
@@ -255,9 +254,7 @@ LoyaltySettings programToWire(
     balanceCapEnabled: v.flag('balance_cap_enabled'),
     birthdayEnabled: birthday,
     birthdayMessage: birthday ? _orNull(v.text('birthday_message')) : null,
-    birthdayMessageAr: birthday
-        ? _orNull(v.text('birthday_message_ar'))
-        : null,
+    birthdayMessageAr: birthday ? _orNull(v.text('birthday_message_ar')) : null,
     birthdayRewardAmount: birthday
         ? intOrNull(v.text('birthday_reward_amount'))
         : null,
@@ -344,7 +341,10 @@ List<RewardRow> rewardRowsFrom(List<RewardItem> items) => [
 
 /// `rowProblems`: index-aligned; nothing flagged unavailable while [menu]
 /// (null) is still loading.
-List<RewardProblem?> rewardProblems(List<RewardRow> rows, List<MenuItem>? menu) {
+List<RewardProblem?> rewardProblems(
+  List<RewardRow> rows,
+  List<MenuItem>? menu,
+) {
   final byId = menu == null ? null : {for (final m in menu) m.id: m};
   final seen = <String>{};
   return [
@@ -764,4 +764,3 @@ String formatPhoneDisplay(String? phone) {
   final m = _egMobileGroups.firstMatch(d);
   return m != null ? '+20 ${m[1]} ${m[2]} ${m[3]}' : '+$d';
 }
-

@@ -47,8 +47,9 @@ void main() {
       expect(h.server.callsTo(PmRoutes.list), isEmpty);
     });
 
-    testWidgets('SET-PAY-002 title, description, Export Excel and Add',
-        (tester) async {
+    testWidgets('SET-PAY-002 title, description, Export Excel and Add', (
+      tester,
+    ) async {
       final h = await pumpPm(tester);
       expect(inPage(find.text('Payment Methods')), findsWidgets);
       expect(
@@ -66,8 +67,9 @@ void main() {
       expect(inPage(find.text('Add')), findsOneWidget);
     });
 
-    testWidgets('SET-PAY-002 Export is disabled with no methods',
-        (tester) async {
+    testWidgets('SET-PAY-002 Export is disabled with no methods', (
+      tester,
+    ) async {
       final m = setupMockServer();
       m.db['payment_methods'].clear();
       await pumpPm(tester, backend: m);
@@ -101,8 +103,9 @@ void main() {
       expect(h.location.queryParameters, isEmpty);
     });
 
-    testWidgets('SET-PAY-004 stats: Total, Active, Inactive, System methods',
-        (tester) async {
+    testWidgets('SET-PAY-004 stats: Total, Active, Inactive, System methods', (
+      tester,
+    ) async {
       await pumpPm(tester);
       // 6 core methods (talabat_cash off) + InstaPay + the retired gift card.
       expect(stat(tester, 'Total').value, 8);
@@ -121,9 +124,11 @@ void main() {
       final h = await pumpPm(tester, backend: m);
       expect(stat(tester, 'Total').loading, isTrue);
       expect(
-        tester.widget<DashDataTable<OrgPaymentMethod>>(
-          inPage(find.byType(DashDataTable<OrgPaymentMethod>)),
-        ).loading,
+        tester
+            .widget<DashDataTable<OrgPaymentMethod>>(
+              inPage(find.byType(DashDataTable<OrgPaymentMethod>)),
+            )
+            .loading,
         isTrue,
       );
       gate.release();
@@ -190,22 +195,26 @@ void main() {
           .widgetList<DashBadge>(inPage(find.byType(DashBadge)))
           .where((b) => b.label == 'Cash' || b.label == 'Non-cash')
           .toList();
-      expect([for (final b in badges) b.label], [
-        'Cash',
-        'Non-cash',
-        'Non-cash',
-        'Non-cash',
-        'Non-cash',
-        'Cash',
-        'Non-cash',
-        'Non-cash',
-      ]);
+      expect(
+        [for (final b in badges) b.label],
+        [
+          'Cash',
+          'Non-cash',
+          'Non-cash',
+          'Non-cash',
+          'Non-cash',
+          'Cash',
+          'Non-cash',
+          'Non-cash',
+        ],
+      );
       expect(badges.first.tone, DashTone.success);
       expect(badges[1].tone, DashTone.neutral);
     });
 
-    testWidgets('SET-PAY-007 Partners: "Hidden" only when not shared',
-        (tester) async {
+    testWidgets('SET-PAY-007 Partners: "Hidden" only when not shared', (
+      tester,
+    ) async {
       await pumpPm(tester);
       // The seed hides Mixed and the gift card from partners.
       expect(inPage(find.text('Hidden')), findsNWidgets(2));
@@ -225,8 +234,10 @@ void main() {
       final h = await pumpPm(tester);
       final before = h.server.callsTo(PmRoutes.list).length;
       await h.tap(inPage(_key('pm-active-${pmId('card')}')));
-      expect(h.server.callsTo(PmRoutes.deactivate).single.path,
-          '/payment-methods/${pmId('card')}/deactivate');
+      expect(
+        h.server.callsTo(PmRoutes.deactivate).single.path,
+        '/payment-methods/${pmId('card')}/deactivate',
+      );
       expect(h.server.callsTo(PmRoutes.list).length, before + 1);
       expect(h.location.queryParameters['edit'], isNull);
       expect(_dialog(), findsNothing);
@@ -234,8 +245,10 @@ void main() {
       expect(find.text('Saved'), findsNothing);
       // And back on.
       await h.tap(inPage(_key('pm-active-${pmId('card')}')));
-      expect(h.server.callsTo(PmRoutes.activate).single.path,
-          '/payment-methods/${pmId('card')}/activate');
+      expect(
+        h.server.callsTo(PmRoutes.activate).single.path,
+        '/payment-methods/${pmId('card')}/activate',
+      );
       expect(stat(tester, 'Active').value, 6);
     });
 
@@ -250,14 +263,12 @@ void main() {
       expect(stat(tester, 'Active').value, 6);
     });
 
-    testWidgets('SET-PAY-009 search filters by identifier, not by label',
-        (tester) async {
+    testWidgets('SET-PAY-009 search filters by identifier, not by label', (
+      tester,
+    ) async {
       final h = await pumpPm(tester);
       final search = inPage(find.byType(DashSearchInput));
-      expect(
-        tester.widget<DashSearchInput>(search).placeholder,
-        'Search',
-      );
+      expect(tester.widget<DashSearchInput>(search).placeholder, 'Search');
       await h.enterText(search, 'talabat');
       expect(_names(tester), ['talabat_online', 'talabat_cash']);
       await h.enterText(search, 'Talabat Online');
@@ -267,8 +278,9 @@ void main() {
       expect(_names(tester), ['instapay']);
     });
 
-    testWidgets('SET-PAY-009 ten a page with the pager, no Columns menu',
-        (tester) async {
+    testWidgets('SET-PAY-009 ten a page with the pager, no Columns menu', (
+      tester,
+    ) async {
       final m = setupMockServer();
       for (var i = 1; i <= 4; i++) {
         m.db['payment_methods'].insert({
@@ -329,7 +341,9 @@ void main() {
       expect(inPage(find.text("Couldn't load this")), findsOneWidget);
       expect(
         inPage(
-          find.text(h.refusalWords(MockResponse.denied('payment_methods.read'))),
+          find.text(
+            h.refusalWords(MockResponse.denied('payment_methods.read')),
+          ),
         ),
         findsOneWidget,
       );
@@ -362,7 +376,8 @@ void main() {
       expect(h.location.queryParameters['edit'], pmId('instapay'));
       expect(_inDialog(find.text('Edit payment method')), findsOneWidget);
       expect(
-        tester.widget<DashIconButton>(inPage(_key('pm-edit-${pmId('cash')}')))
+        tester
+            .widget<DashIconButton>(inPage(_key('pm-edit-${pmId('cash')}')))
             .semanticLabel,
         'Edit',
       );
@@ -390,8 +405,9 @@ void main() {
     });
 
     testWidgets('SET-PAY-012 deep links: ?edit=new opens on load, '
-        '?edit=<id> once the list has it, an unknown id nothing',
-        (tester) async {
+        '?edit=<id> once the list has it, an unknown id nothing', (
+      tester,
+    ) async {
       var h = await pumpPm(tester, query: '?edit=new');
       expect(_inDialog(find.text('New payment method')), findsOneWidget);
 
@@ -412,8 +428,9 @@ void main() {
       expect(inPage(find.byType(PmNameCell)), findsNWidgets(8));
     });
 
-    testWidgets('SET-PAY-013 the dialog: titles and the page description',
-        (tester) async {
+    testWidgets('SET-PAY-013 the dialog: titles and the page description', (
+      tester,
+    ) async {
       final h = await pumpPm(tester, query: '?edit=new');
       expect(_inDialog(find.text('New payment method')), findsOneWidget);
       expect(
@@ -427,8 +444,12 @@ void main() {
       final h = await pumpPm(tester, query: '?edit=new');
       final id = _inDialog(_key('pm-id'));
       expect(
-        _inDialog(find.text('A unique internal identifier (lowercase, '
-            'underscores only).')),
+        _inDialog(
+          find.text(
+            'A unique internal identifier (lowercase, '
+            'underscores only).',
+          ),
+        ),
         findsOneWidget,
       );
       expect(tester.widget<DashTextField>(id).placeholder, 'e.g. visa_card');
@@ -444,8 +465,10 @@ void main() {
       await h.tap(inPage(_key('pm-edit-${pmId('instapay')}')));
       final locked = tester.widget<DashTextField>(_inDialog(_key('pm-id')));
       expect(locked.enabled, isFalse);
-      expect(_inDialog(find.text('Identifiers cannot be changed.')),
-          findsOneWidget);
+      expect(
+        _inDialog(find.text('Identifiers cannot be changed.')),
+        findsOneWidget,
+      );
     });
 
     test('SET-PAY-014 the identifier rules', () {
@@ -457,8 +480,9 @@ void main() {
     });
 
     testWidgets('SET-PAY-015 SET-PAY-041 labels: English required, Arabic '
-        'optional and right-to-left, side by side even on a phone',
-        (tester) async {
+        'optional and right-to-left, side by side even on a phone', (
+      tester,
+    ) async {
       final h = await pumpPm(tester, query: '?edit=new', size: DashSize.phone);
       final en = _inDialog(_key('pm-label-en'));
       final ar = _inDialog(_key('pm-label-ar'));
@@ -486,26 +510,30 @@ void main() {
         _inDialog(_key('pm-icon')),
       );
       expect(select.value, 'money');
-      expect([for (final o in select.options) o.label], [
-        'Cash / Money',
-        'Credit Card',
-        'Digital Wallet',
-        'Mixed / Split',
-        'Delivery',
-        'QR Code',
-        'Bank Transfer',
-        'Gift Card',
-        'Mobile Pay',
-        'Voucher',
-        'Store Credit',
-        'Loyalty Points',
-        'Payment Link',
-      ]);
+      expect(
+        [for (final o in select.options) o.label],
+        [
+          'Cash / Money',
+          'Credit Card',
+          'Digital Wallet',
+          'Mixed / Split',
+          'Delivery',
+          'QR Code',
+          'Bank Transfer',
+          'Gift Card',
+          'Mobile Pay',
+          'Voucher',
+          'Store Credit',
+          'Loyalty Points',
+          'Payment Link',
+        ],
+      );
       expect(select.options[1].icon, 'credit-card');
       await h.tap(_inDialog(find.text('Cash / Money')));
       await h.tap(top('Bank Transfer'));
       expect(
-        tester.widget<DashSelectField<String>>(_inDialog(_key('pm-icon')))
+        tester
+            .widget<DashSelectField<String>>(_inDialog(_key('pm-icon')))
             .value,
         'bank',
       );
@@ -543,7 +571,10 @@ void main() {
       expect(on('pm-is-cash'), isFalse);
       expect(on('pm-is-active'), isTrue);
       expect(on('pm-visible'), isTrue);
-      expect(_inDialog(find.text('Counts toward cash drawer.')), findsOneWidget);
+      expect(
+        _inDialog(find.text('Counts toward cash drawer.')),
+        findsOneWidget,
+      );
       expect(_inDialog(find.text('Available at checkout.')), findsOneWidget);
       expect(
         _inDialog(find.text(h.t('settings.pm.visibleInIntegrationsHint'))),
@@ -574,16 +605,14 @@ void main() {
       await h.expectToast('Saved');
       expect(_dialog(), findsNothing);
       expect(h.location.queryParameters['edit'], isNull);
-      expect(
-        h.server.callsTo(PmRoutes.list, method: 'GET').length,
-        lists + 1,
-      );
+      expect(h.server.callsTo(PmRoutes.list, method: 'GET').length, lists + 1);
       expect(inPage(find.text('Visa Card')), findsOneWidget);
       expect(stat(tester, 'Total').value, 9);
     });
 
-    testWidgets('SET-PAY-019 Save on an edit sends every field with PUT',
-        (tester) async {
+    testWidgets('SET-PAY-019 Save on an edit sends every field with PUT', (
+      tester,
+    ) async {
       final h = await pumpPm(tester, query: '?edit=${pmId('instapay')}');
       await h.enterText(_inDialog(_key('pm-label-ar')), 'انستاباي');
       await h.tap(_inDialog(_key('pm-visible')));
@@ -672,8 +701,9 @@ void main() {
       expect(_dialog(), findsOneWidget);
     });
 
-    testWidgets('SET-PAY-019 Save spins while the answer is on its way',
-        (tester) async {
+    testWidgets('SET-PAY-019 Save spins while the answer is on its way', (
+      tester,
+    ) async {
       final m = setupMockServer();
       final gate = m.server.hold('POST', PmRoutes.list);
       final h = await pumpPm(tester, query: '?edit=new', backend: m);
@@ -698,15 +728,24 @@ void main() {
       await h.tap(inPage(_key('pm-export')));
       await h.expectToast(h.t('excel.done', count: 8));
       final spec = h.exports.built.single;
-      expect(h.files.saved.single.filename,
-          'Madar-PaymentMethods-2026-10-08.xlsx');
+      expect(
+        h.files.saved.single.filename,
+        'Madar-PaymentMethods-2026-10-08.xlsx',
+      );
       final sheet = spec.sheets.single;
       expect(sheet.name, 'Payment Methods');
       expect(sheet.title, 'Payment Methods');
-      expect([for (final c in sheet.columns) c.header],
-          ['Identifier', 'Name', 'Type', 'Status']);
+      expect(
+        [for (final c in sheet.columns) c.header],
+        ['Identifier', 'Name', 'Type', 'Status'],
+      );
       expect(sheet.rows.first, ['cash', 'Cash', 'Cash', 'Active']);
-      expect(sheet.rows.last, ['gift_card', 'Gift card', 'Non-cash', 'Inactive']);
+      expect(sheet.rows.last, [
+        'gift_card',
+        'Gift card',
+        'Non-cash',
+        'Inactive',
+      ]);
       expect(sheet.rows, hasLength(8));
     });
 
@@ -721,11 +760,15 @@ void main() {
 
   group('phone', () {
     testWidgets('SET-PAY-021 a card per method: Type, Partners, Status and '
-        'the pencil; the switch does not open it, the card does',
-        (tester) async {
+        'the pencil; the switch does not open it, the card does', (
+      tester,
+    ) async {
       final h = await pumpPm(tester, size: DashSize.phone);
       final card = find
-          .ancestor(of: inPage(find.text('InstaPay')), matching: find.byType(DashCard))
+          .ancestor(
+            of: inPage(find.text('InstaPay')),
+            matching: find.byType(DashCard),
+          )
           .first;
       for (final label in ['Type', 'Partners', 'Status']) {
         expect(
@@ -737,9 +780,7 @@ void main() {
         find.descendant(of: card, matching: find.byType(DashIconButton)),
         findsOneWidget,
       );
-      await h.tap(
-        find.descendant(of: card, matching: find.byType(DashSwitch)),
-      );
+      await h.tap(find.descendant(of: card, matching: find.byType(DashSwitch)));
       expect(h.server.callsTo(PmRoutes.deactivate), hasLength(1));
       expect(h.location.queryParameters['edit'], isNull);
       await h.tap(find.descendant(of: card, matching: find.text('InstaPay')));
@@ -755,7 +796,10 @@ void main() {
       List<MockCall> lists() => h.server.callsTo(PmRoutes.list, method: 'GET');
       expect(lists(), isEmpty);
       final prefetch = h.container.read(routePrefetchesProvider)[pmPath]!;
-      prefetch(DashPrefetcher(h.container), h.container.read(currentScopeProvider));
+      prefetch(
+        DashPrefetcher(h.container),
+        h.container.read(currentScopeProvider),
+      );
       await h.settle();
       expect(lists(), hasLength(1));
       await h.go(pmPath);

@@ -499,8 +499,10 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
         ),
       ],
       onCommit: _commitItem,
-      image: (context, m) =>
-          MenuImageTile(url: menuImageUrl(m.image, m.imageUrl), icon: 'cup-soda'),
+      image: (context, m) => MenuImageTile(
+        url: menuImageUrl(m.image, m.imageUrl),
+        icon: 'cup-soda',
+      ),
       footer: (context, m) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.sm,

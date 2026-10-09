@@ -63,9 +63,7 @@ final stepPresetsProvider = FutureProvider.autoDispose<List<RecipeStepPreset>>((
 });
 
 /// `GET /combos?per_page=200`.
-final studioCombosProvider = FutureProvider.autoDispose<PaginatedCombos>((
-  ref,
-) {
+final studioCombosProvider = FutureProvider.autoDispose<PaginatedCombos>((ref) {
   ref.webCache();
   watchMenuPath(ref, MenuPaths.combos);
   return ref.watch(apiProvider).menu.listCombos(perPage: 200);

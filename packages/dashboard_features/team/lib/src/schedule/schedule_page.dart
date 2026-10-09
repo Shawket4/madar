@@ -11,7 +11,17 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show Branch, DecideSuggestion, HolidayDecision, HolidayView, OpenShift, PostOpenShift, PublishWeek, RosterView, Suggestion, WorkShiftBrief;
+    show
+        Branch,
+        DecideSuggestion,
+        HolidayDecision,
+        HolidayView,
+        OpenShift,
+        PostOpenShift,
+        PublishWeek,
+        RosterView,
+        Suggestion,
+        WorkShiftBrief;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -274,7 +284,9 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
           body: HolidayDecision(decision: decision),
         );
       },
-      decision == 'holiday' ? t('dawam.holidaySet') : t('dawam.holidayDismissed'),
+      decision == 'holiday'
+          ? t('dawam.holidaySet')
+          : t('dawam.holidayDismissed'),
     );
   }
 
@@ -336,7 +348,9 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
     final view = rosterQ.value;
     final published = view?.publishedWeeks.contains(_week) ?? false;
     final index = RosterIndex(view, branch ?? '');
-    final branchNames = {for (final b in branches ?? const <Branch>[]) b.id: b.name};
+    final branchNames = {
+      for (final b in branches ?? const <Branch>[]) b.id: b.name,
+    };
     final holidays = mergeHolidays(upcomingQ?.value?.holidays, view?.holidays);
 
     final actions = <Widget>[
@@ -358,18 +372,18 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
         Semantics(
           toggled: _showCoverage,
           child: DashButton(
-          label: t('dawam.coverageTitle'),
-          icon: 'grid-3x3',
-          variant: _showCoverage
-              ? DashButtonVariant.secondary
-              : DashButtonVariant.outline,
-          semanticLabel: t('dawam.coverageTitle'),
-          onIntent: _showCoverage || branch == null
-              ? null
-              : () => ref.warm(scheduleCoverageProvider(branch)),
-          onPressed: () => setState(() => _showCoverage = !_showCoverage),
-          key: const Key('schedule-coverage-toggle'),
-        ),
+            label: t('dawam.coverageTitle'),
+            icon: 'grid-3x3',
+            variant: _showCoverage
+                ? DashButtonVariant.secondary
+                : DashButtonVariant.outline,
+            semanticLabel: t('dawam.coverageTitle'),
+            onIntent: _showCoverage || branch == null
+                ? null
+                : () => ref.warm(scheduleCoverageProvider(branch)),
+            onPressed: () => setState(() => _showCoverage = !_showCoverage),
+            key: const Key('schedule-coverage-toggle'),
+          ),
         ),
       if (scoped == null && (branches?.length ?? 0) > 1)
         SizedBox(
@@ -379,8 +393,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
             value: branch,
             semanticLabel: t('dawam.branch'),
             options: [
-              for (final b in branches!)
-                DashOption(value: b.id, label: b.name),
+              for (final b in branches!) DashOption(value: b.id, label: b.name),
             ],
             onOptionIntent: _warmBranch,
             onChanged: (v) => setState(() => _picked = v),
@@ -440,12 +453,8 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
         branchNames: branchNames,
         canEdit: canEdit,
         busy: _busy,
-        onOpenDay: (p, d) => showDayEditor(
-          context,
-          key: weekKey!,
-          person: p,
-          date: d,
-        ),
+        onOpenDay: (p, d) =>
+            showDayEditor(context, key: weekKey!, person: p, date: d),
         onPrefs: (p) => showPreferencesDialog(
           context,
           key: weekKey!,
@@ -459,83 +468,83 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
 
     final note = DashType.body.copyWith(color: c.textSecondary);
     Widget body = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.lg,
-        children: [
-          const RulesFirstBanner(),
-          if (branch != null)
-            ScheduleWeekBar(
-              week: _week,
-              today: today,
-              onWeek: (w) => setState(() => _week = w),
-              onWeekIntent: (w) => _warmWeek(branch, w),
-              published: published,
-              canPublish: canPublish,
-              publishing: _busy == 'publish',
-              ready: view != null,
-              changedCount: index.changedDays,
-              onPublish: () => _publish(branch),
-            ),
-          if (view != null && view.staff.isNotEmpty)
-            _Note(
-              icon: 'repeat',
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(text: t('dawamOps.patternNote')),
-                    if (canEdit) ...[
-                      const TextSpan(text: ' '),
-                      WidgetSpan(
-                        alignment: PlaceholderAlignment.baseline,
-                        baseline: TextBaseline.alphabetic,
-                        child: _Link(
-                          label: t('dawamOps.editPattern'),
-                          onIntent: () => ref.prefetchRoute('/staff/shifts'),
-                          onTap: () => context.go('/staff/shifts'),
-                        ),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.lg,
+      children: [
+        const RulesFirstBanner(),
+        if (branch != null)
+          ScheduleWeekBar(
+            week: _week,
+            today: today,
+            onWeek: (w) => setState(() => _week = w),
+            onWeekIntent: (w) => _warmWeek(branch, w),
+            published: published,
+            canPublish: canPublish,
+            publishing: _busy == 'publish',
+            ready: view != null,
+            changedCount: index.changedDays,
+            onPublish: () => _publish(branch),
+          ),
+        if (view != null && view.staff.isNotEmpty)
+          _Note(
+            icon: 'repeat',
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: t('dawamOps.patternNote')),
+                  if (canEdit) ...[
+                    const TextSpan(text: ' '),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.baseline,
+                      baseline: TextBaseline.alphabetic,
+                      child: _Link(
+                        label: t('dawamOps.editPattern'),
+                        onIntent: () => ref.prefetchRoute('/staff/shifts'),
+                        onTap: () => context.go('/staff/shifts'),
                       ),
-                    ],
+                    ),
                   ],
-                ),
-                style: note,
+                ],
               ),
+              style: note,
             ),
-          if (view != null && view.staff.isNotEmpty && index.templates.isEmpty)
-            _NoBlocksBanner(
-              onOpen: () => context.go('/staff/shifts'),
-              onIntent: () => ref.prefetchRoute('/staff/shifts'),
+          ),
+        if (view != null && view.staff.isNotEmpty && index.templates.isEmpty)
+          _NoBlocksBanner(
+            onOpen: () => context.go('/staff/shifts'),
+            onIntent: () => ref.prefetchRoute('/staff/shifts'),
+          ),
+        if (canEdit && _showCoverage && branch != null)
+          CoverageCard(branchId: branch),
+        if (view != null && view.warnings.isNotEmpty)
+          _Note(
+            icon: 'triangle-alert',
+            iconColor: DashTone.warning.foreground(c),
+            child: Text(
+              view.limitsUnconfirmed
+                  ? t('dawam.warningsUnconfirmed')
+                  : t('dawam.warningsNote'),
+              style: note,
             ),
-          if (canEdit && _showCoverage && branch != null)
-            CoverageCard(branchId: branch),
-          if (view != null && view.warnings.isNotEmpty)
-            _Note(
-              icon: 'triangle-alert',
-              iconColor: DashTone.warning.foreground(c),
-              child: Text(
-                view.limitsUnconfirmed
-                    ? t('dawam.warningsUnconfirmed')
-                    : t('dawam.warningsNote'),
-                style: note,
-              ),
-            ),
-          main,
-          if (canEdit && suggestionsQ != null)
-            _Suggestions(
-              q: suggestionsQ,
-              busy: _busy,
-              onRetry: () => ref.invalidate(scheduleSuggestionsProvider(sgKey!)),
-              onDecide: (g, accept) => _decide(branch!, g, accept),
-              err: _err,
-            ),
-          if (holidays.isNotEmpty)
-            _Holidays(
-              holidays: holidays,
-              canDecide: canDecideHoliday,
-              busy: _busy,
-              onDecide: _decideHoliday,
-            ),
-          if (canSettings) FairnessCard(month: monthOf(_week)),
-        ],
+          ),
+        main,
+        if (canEdit && suggestionsQ != null)
+          _Suggestions(
+            q: suggestionsQ,
+            busy: _busy,
+            onRetry: () => ref.invalidate(scheduleSuggestionsProvider(sgKey!)),
+            onDecide: (g, accept) => _decide(branch!, g, accept),
+            err: _err,
+          ),
+        if (holidays.isNotEmpty)
+          _Holidays(
+            holidays: holidays,
+            canDecide: canDecideHoliday,
+            busy: _busy,
+            onDecide: _decideHoliday,
+          ),
+        if (canSettings) FairnessCard(month: monthOf(_week)),
+      ],
     );
     return DashPageScaffold(
       title: t('dawam.schedule'),
@@ -593,7 +602,9 @@ class _Link extends StatelessWidget {
         label,
         style: DashType.bodyMedium.copyWith(
           color: c.textPrimary,
-          decoration: s.hovered ? TextDecoration.none : TextDecoration.underline,
+          decoration: s.hovered
+              ? TextDecoration.none
+              : TextDecoration.underline,
         ),
       ),
     );
@@ -711,10 +722,7 @@ class ScheduleListRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          title,
-          style: DashType.bodyStrong.copyWith(color: c.textPrimary),
-        ),
+        Text(title, style: DashType.bodyStrong.copyWith(color: c.textPrimary)),
         Text(meta, style: DashType.meta.copyWith(color: c.textSecondary)),
       ],
     );
@@ -740,14 +748,24 @@ class ScheduleListRow extends StatelessWidget {
               children: [
                 Row(
                   spacing: Space.md,
-                  children: [glyph, Expanded(child: words)],
+                  children: [
+                    glyph,
+                    Expanded(child: words),
+                  ],
                 ),
-                Align(alignment: AlignmentDirectional.centerEnd, child: trailing),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: trailing,
+                ),
               ],
             )
           : Row(
               spacing: Space.md,
-              children: [glyph, Expanded(child: words), trailing],
+              children: [
+                glyph,
+                Expanded(child: words),
+                trailing,
+              ],
             ),
     );
   }
@@ -802,7 +820,10 @@ class _Suggestions extends ConsumerWidget {
               final args = <String, Object?>{
                 if (g.reasonArgs case final Map<String, Object?> m) ...m,
               };
-              final key = g.reasonKey.replaceFirst(RegExp(r'^staff\.'), 'dawam.');
+              final key = g.reasonKey.replaceFirst(
+                RegExp(r'^staff\.'),
+                'dawam.',
+              );
               final why = t.exists(key) ? t(key, args: args) : g.reasonKey;
               final wait = busy == 'g|${g.id}';
               return ScheduleListRow(
@@ -888,7 +909,10 @@ class _Holidays extends ConsumerWidget {
                 key: ValueKey('holiday-${h.onDate}'),
                 icon: 'party-popper',
                 title: t.lang == 'ar' ? h.nameAr : h.nameEn,
-                meta: t('dawam.holidayHint', args: {'date': f.fmtDate(h.onDate)}),
+                meta: t(
+                  'dawam.holidayHint',
+                  args: {'date': f.fmtDate(h.onDate)},
+                ),
                 trailing: h.decision != null
                     ? DashStatusPill(
                         label: h.decision == 'holiday'

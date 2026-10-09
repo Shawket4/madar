@@ -352,6 +352,7 @@ class _CloseTillDialogState extends ConsumerState<CloseTillDialog> {
               ),
               textDirection: TextDirection.ltr,
               mono: true,
+              onSubmitted: (_) => _submit(),
             ),
             DashTextInput(
               key: ValueKey('reconcile-note-${r.method}'),

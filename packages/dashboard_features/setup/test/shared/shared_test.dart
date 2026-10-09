@@ -121,6 +121,18 @@ void main() {
       ),
       findsOneWidget,
     );
+    // The web's `variant="outline"` badge.
+    expect(
+      tester
+          .widget<DashBadge>(
+            find.ancestor(
+              of: find.textContaining(qr.shortCode),
+              matching: find.byType(DashBadge),
+            ),
+          )
+          .outline,
+      isTrue,
+    );
     await h.shot('shared/qr-preview');
 
     await h.tapText(h.t('common.download'));
@@ -159,7 +171,7 @@ void main() {
     expect(h.t('legal.retention'), 'الاحتفاظ بالبيانات');
   });
 
-  test('export logo: the shop's own on the branding tier, trimmed; blank or '
+  test('export logo: the shop\'s own on the branding tier, trimmed; blank or '
       'not on the tier → none (use-brand.ts)', () {
     PublicBrand brand(String? logo, {bool own = true}) => PublicBrand(
       accentColor: '#000000',

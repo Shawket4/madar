@@ -209,7 +209,10 @@ class _RulesBodyState extends ConsumerState<_RulesBody> {
           (label: ruleLabel(c.name, t), change: describeChange(c, t, f)),
         for (final n in _inherit)
           (
-            label: t('staff.rulesConfirmInherit', args: {'rule': ruleLabel(n, t)}),
+            label: t(
+              'staff.rulesConfirmInherit',
+              args: {'rule': ruleLabel(n, t)},
+            ),
             change: null,
           ),
       ],
@@ -369,7 +372,8 @@ class _RulesBodyState extends ConsumerState<_RulesBody> {
           // Picking a scope reads its rules: warm that read.
           onOptionIntent: (v) =>
               ref.warm(rulesSettingsFor(v == _business ? null : v)),
-          onChanged: (v) => setState(() => _branchId = v == _business ? null : v),
+          onChanged: (v) =>
+              setState(() => _branchId = v == _business ? null : v),
         ),
       ),
     );
@@ -515,10 +519,8 @@ class _RulesBodyState extends ConsumerState<_RulesBody> {
                 v.copyWith(absenceDays: () => n),
                 RulesField.absenceDays,
               ),
-              onAutoBuffer: (n) => _set(
-                v.copyWith(autoBuffer: () => n),
-                RulesField.autoBuffer,
-              ),
+              onAutoBuffer: (n) =>
+                  _set(v.copyWith(autoBuffer: () => n), RulesField.autoBuffer),
             ),
             RulesPoliciesCard(
               excusedPaid: v.excusedPaid,
@@ -535,8 +537,7 @@ class _RulesBodyState extends ConsumerState<_RulesBody> {
               branch: branchId != null,
               coverFollows: coverFollows,
               onCoverChoice: (choice) => _chooseCover(choice, overridden),
-              onChanged: (d) =>
-                  _set(v.copyWith(dawam: d), RulesField.dawam),
+              onChanged: (d) => _set(v.copyWith(dawam: d), RulesField.dawam),
             ),
             if (shownErrors[RulesField.dawam] != null)
               RulesErrorText(shownErrors[RulesField.dawam]!),

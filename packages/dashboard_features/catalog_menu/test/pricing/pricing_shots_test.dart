@@ -111,11 +111,7 @@ void main() {
       final h = await pumpPricing(tester, size: size, locale: lang, seeded: s);
       await expand(h, name);
       await typePrice(h, _iced, 'in_store', '135');
-      s.server.fail(
-        'PUT',
-        overrideT,
-        MockResponse.denied('menu.items.edit'),
-      );
+      s.server.fail('PUT', overrideT, MockResponse.denied('menu.items.edit'));
       await h.tap(
         find.descendant(
           of: find.byType(MenuUnsavedBar),

@@ -22,9 +22,10 @@ final String _zamalek = atBranch(SeedIds.zamalek);
 /// `<name>-1`, `<name>-2`, …
 Future<void> _shootPage(DashHarness h, Type page, String name) async {
   ScrollableState? state;
-  for (final e in find
-      .ancestor(of: find.byType(page), matching: find.byType(Scrollable))
-      .evaluate()) {
+  for (final e
+      in find
+          .ancestor(of: find.byType(page), matching: find.byType(Scrollable))
+          .evaluate()) {
     final s = (e as StatefulElement).state as ScrollableState;
     if (s.position.axis == Axis.vertical) {
       state = s;
@@ -48,7 +49,10 @@ Future<void> _shootPage(DashHarness h, Type page, String name) async {
   }
 }
 
-const _states = [('en', false, DashSize.desktop), ('ar', false, DashSize.phone)];
+const _states = [
+  ('en', false, DashSize.desktop),
+  ('ar', false, DashSize.phone),
+];
 
 void main() {
   for (final size in DashSize.values) {
@@ -81,7 +85,12 @@ void main() {
     final tag = '${size.name} $lang';
 
     testWidgets('settings no branch, $tag', (tester) async {
-      final h = await pumpDelivery(tester, size: size, locale: lang, dark: dark);
+      final h = await pumpDelivery(
+        tester,
+        size: size,
+        locale: lang,
+        dark: dark,
+      );
       await h.shot('delivery/no-branch');
     });
 
@@ -160,7 +169,9 @@ void main() {
         dark: dark,
       );
       await tester.ensureVisible(byKey('dlv-outside-discount'));
-      await h.tap(inKey('dlv-outside-discount', find.byType(DashSelectTrigger)));
+      await h.tap(
+        inKey('dlv-outside-discount', find.byType(DashSelectTrigger)),
+      );
       await h.shot('delivery/discounts');
     });
 

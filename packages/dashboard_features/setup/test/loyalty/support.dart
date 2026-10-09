@@ -50,11 +50,7 @@ String atBranch(String branchId) => '?branchId=$branchId';
 
 /// `/authz/me` grants exactly [caps] (the server's own checks still follow
 /// the persona), optionally as a platform admin.
-void grantOnly(
-  MockServer server,
-  List<String> caps, {
-  bool platform = false,
-}) {
+void grantOnly(MockServer server, List<String> caps, {bool platform = false}) {
   final p = server.persona;
   server.on(
     'GET',
@@ -97,7 +93,9 @@ Future<DashHarness> pumpLoyalty(
     server: b.server,
     db: b.db,
     prefs: persona == Persona.platform && pickOrg
-        ? {ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg})}
+        ? {
+            ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg}),
+          }
         : null,
   );
 }
@@ -118,8 +116,7 @@ Finder inDialog(Finder f) =>
     find.descendant(of: find.byType(DashSurface).last, matching: f);
 
 /// The field labelled by wire [key] on the Program tab.
-Finder programField(String key) =>
-    find.byKey(ValueKey('loyalty-field-$key'));
+Finder programField(String key) => find.byKey(ValueKey('loyalty-field-$key'));
 
 /// The text input inside [field].
 Finder inputOf(Finder field) =>

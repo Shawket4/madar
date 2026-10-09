@@ -192,8 +192,9 @@ abstract final class KitchenSeed {
 
 /// The effective mode at [branchId] (`effective_routing_mode`).
 String kitchenEffectiveMode(MockDb db, String branchId) {
-  final stored = db[KitchenSeed.modesTable]
-      .firstWhere((r) => r['branch_id'] == branchId)?['mode'];
+  final stored = db[KitchenSeed.modesTable].firstWhere(
+    (r) => r['branch_id'] == branchId,
+  )?['mode'];
   if (stored is String) return stored;
   final hasStation = db[KitchenSeed.stationsTable].rows.any(
     (s) =>
@@ -431,7 +432,10 @@ void registerKitchenMocks(MockServer server, MockDb db) {
     final modes = db[KitchenSeed.modesTable]
       ..removeWhere((r) => r['branch_id'] == body.branchId);
     if (mode != null) {
-      modes.insert({'branch_id': body.branchId, 'mode': mode}, timestamps: false);
+      modes.insert({
+        'branch_id': body.branchId,
+        'mode': mode,
+      }, timestamps: false);
     }
     return MockResponse.ok({
       'mode': mode,
@@ -449,15 +453,16 @@ void registerKitchenMocks(MockServer server, MockDb db) {
     }
     req.requireSameOrg(org);
     return MockResponse.ok(
-      db['categories'].where((c) => c['org_id'] == org && c['deleted_at'] == null)
-        ..sort((a, b) {
-          final byOrder = (a['display_order']! as int).compareTo(
-            b['display_order']! as int,
-          );
-          return byOrder != 0
-              ? byOrder
-              : '${a['name']}'.compareTo('${b['name']}');
-        }),
+      db['categories'].where(
+        (c) => c['org_id'] == org && c['deleted_at'] == null,
+      )..sort((a, b) {
+        final byOrder = (a['display_order']! as int).compareTo(
+          b['display_order']! as int,
+        );
+        return byOrder != 0
+            ? byOrder
+            : '${a['name']}'.compareTo('${b['name']}');
+      }),
     );
   });
 
@@ -470,16 +475,15 @@ void registerKitchenMocks(MockServer server, MockDb db) {
     req.requireSameOrg(org);
     final search = req.q('search')?.trim().toLowerCase();
     final category = req.q('category_id');
-    final rows =
-        db['menu_items'].where(
-          (m) =>
-              m['org_id'] == org &&
-              m['deleted_at'] == null &&
-              (category == null || m['category_id'] == category) &&
-              (search == null ||
-                  search.isEmpty ||
-                  '${m['name']}'.toLowerCase().contains(search)),
-        )..sort((a, b) => '${a['name']}'.compareTo('${b['name']}'));
+    final rows = db['menu_items'].where(
+      (m) =>
+          m['org_id'] == org &&
+          m['deleted_at'] == null &&
+          (category == null || m['category_id'] == category) &&
+          (search == null ||
+              search.isEmpty ||
+              '${m['name']}'.toLowerCase().contains(search)),
+    )..sort((a, b) => '${a['name']}'.compareTo('${b['name']}'));
     return MockResponse.ok(
       pageOf(
         [

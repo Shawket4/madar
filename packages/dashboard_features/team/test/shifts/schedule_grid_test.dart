@@ -94,12 +94,7 @@ void main() {
   testWidgets('TEAM-SHF-027 error: the words, and Retry asks both reads '
       'again', (tester) async {
     final s = shiftsServer();
-    s.server.fail(
-      'GET',
-      rosterT,
-      MockResponse.error(500, 'boom'),
-      times: null,
-    );
+    s.server.fail('GET', rosterT, MockResponse.error(500, 'boom'), times: null);
     final h = await pumpShifts(tester, s: s);
     expect(inGrid(find.text("Couldn't load the roster")), findsOneWidget);
     // The shift list above still shows.
@@ -299,7 +294,10 @@ void main() {
     expect(inCell(6, find.text('Morning')), findsOneWidget);
     expect(rosterCell(tester, 6).assignment, isNull);
     // The date is worded by the coded-vars rules; the names lead.
-    expect(textHas('Late evening and Morning would overlap on'), findsOneWidget);
+    expect(
+      textHas('Late evening and Morning would overlap on'),
+      findsOneWidget,
+    );
     await h.flushTimers();
   });
 

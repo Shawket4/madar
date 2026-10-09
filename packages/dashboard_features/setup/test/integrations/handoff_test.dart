@@ -59,9 +59,7 @@ DashButton _button(WidgetTester tester, String key) =>
 /// The archive's files, opened with [passphrase].
 Map<String, String> _open(List<int> zip, String passphrase) {
   final archive = ZipDecoder().decodeBytes(zip, password: passphrase);
-  return {
-    for (final f in archive.files) f.name: utf8.decode(f.content),
-  };
+  return {for (final f in archive.files) f.name: utf8.decode(f.content)};
 }
 
 void main() {
@@ -74,14 +72,19 @@ void main() {
     expect(passphrase, matches(_passphraseShape));
     final saved = h.files.saved.single;
     // The mock's now is 2026-10-08 (UTC).
-    expect(saved.filename, 'madar-credentials-rue-one-ninety-k7m2xq-2026-10-08.zip');
+    expect(
+      saved.filename,
+      'madar-credentials-rue-one-ninety-k7m2xq-2026-10-08.zip',
+    );
     expect(saved.mimeType, 'application/zip');
     final files = _open(saved.bytes, passphrase);
     expect(files.keys, ['README.txt', 'credentials.txt']);
     final creds = files['credentials.txt']!;
     expect(creds, contains('Issued for : Rue — One Ninety'));
     expect(creds, contains('Username   : rue-one-ninety-k7m2xq'));
-    final secret = RegExp(r'Password   : ([0-9a-f]{64})').firstMatch(creds)![1]!;
+    final secret = RegExp(
+      r'Password   : ([0-9a-f]{64})',
+    ).firstMatch(creds)![1]!;
     expect(creds, contains(basicAuthHeader('rue-one-ninety-k7m2xq', secret)));
     expect(files['README.txt'], isNot(contains(secret)));
     // The secret is never on screen.
@@ -97,8 +100,10 @@ void main() {
   ) async {
     final h = await _rotateRue(tester);
     expect(_in(find.text('New password for Rue — One Ninety')), findsOneWidget);
-    expect(_in(find.text(h.t('integrations.handoff.rotatedHint'))),
-        findsOneWidget);
+    expect(
+      _in(find.text(h.t('integrations.handoff.rotatedHint'))),
+      findsOneWidget,
+    );
     expect(handoffDialogWidth, 560);
     expect(tester.getSize(_handoff).width, lessThanOrEqualTo(560));
   });
@@ -110,7 +115,8 @@ void main() {
     final h = await _rotateRue(tester);
     expect(_shown(tester), 'Preparing…');
     expect(
-      tester.widget<DashIconButton>(find.byKey(const ValueKey('handoff-copy')))
+      tester
+          .widget<DashIconButton>(find.byKey(const ValueKey('handoff-copy')))
           .onPressed,
       isNull,
     );
@@ -231,8 +237,9 @@ void main() {
     expect(top('Close without the file?'), findsNothing);
   });
 
-  testWidgets('SET-INT-026 saved after all with Download again: Done closes',
-      (tester) async {
+  testWidgets('SET-INT-026 saved after all with Download again: Done closes', (
+    tester,
+  ) async {
     final h = await pumpIntegrations(tester, persona: Persona.platform);
     h.files.cancelNextSave = true;
     await h.tap(
@@ -312,8 +319,13 @@ void main() {
       expect(created, contains('new credentials for the Madar Analytics API'));
       expect(rotated, contains('REPLACEMENT password'));
       expect(rotated, contains('previous password stopped'));
-      expect(created, contains('GET https://api.example.test/integrations/'
-          'analytics/orders\r\n'));
+      expect(
+        created,
+        contains(
+          'GET https://api.example.test/integrations/'
+          'analytics/orders\r\n',
+        ),
+      );
       for (final s in ['Africa/Cairo', '429', '401', '400']) {
         expect(created, contains(s));
       }
@@ -339,9 +351,14 @@ void main() {
         'madar-credentials-rue-one-ninety-k7m2-2026-08-04.zip',
       );
       final odd = handoffFilename('../مدار/x', DateTime.utc(2026, 8, 4));
-      expect(odd, matches(RegExp(r'^madar-credentials-[a-z0-9-]*-2026-08-04\.zip$')));
-      expect(handoffFilename('مدار', DateTime.utc(2026, 8, 4)),
-          'madar-credentials-partner-2026-08-04.zip');
+      expect(
+        odd,
+        matches(RegExp(r'^madar-credentials-[a-z0-9-]*-2026-08-04\.zip$')),
+      );
+      expect(
+        handoffFilename('مدار', DateTime.utc(2026, 8, 4)),
+        'madar-credentials-partner-2026-08-04.zip',
+      );
     });
 
     test('SET-INT-020 the archive opens with its passphrase only (WinZip '

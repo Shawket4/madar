@@ -61,7 +61,8 @@ int refundedOn(MockDb db, String orderId) {
   for (final t in [OrderTables.refunds, 'legal_refunds']) {
     if (!db.hasTable(t)) continue;
     for (final r in db[t].rows) {
-      if (r['order_id'] == orderId) total += (r['amount'] as num?)?.toInt() ?? 0;
+      if (r['order_id'] == orderId)
+        total += (r['amount'] as num?)?.toInt() ?? 0;
     }
   }
   return total;
@@ -152,7 +153,8 @@ List<(String, double, String)> _recipe(String item, String category, int size) {
       if (_milkDrinks.contains(item)) ('full_milk', big ? 220 : 160, 'recipe'),
       if (item == 'spanish') ('condensed_milk', big ? 35 : 25, 'recipe'),
       if (item == 'mocha') ('chocolate_sauce', big ? 35 : 25, 'recipe'),
-      if (item == 'pistachio_latte') ('pistachio_paste', big ? 20 : 15, 'recipe'),
+      if (item == 'pistachio_latte')
+        ('pistachio_paste', big ? 20 : 15, 'recipe'),
       ('cup_12oz', 1, 'packaging'),
       ('hot_lid', 1, 'packaging'),
     ];
@@ -257,7 +259,9 @@ class _OrdersSeed {
 
   late final DateTime today = MockClock.startOfCairoDay(now);
 
-  final Map<String, String> _names = {for (final p in sabahStaff) p.key: p.name};
+  final Map<String, String> _names = {
+    for (final p in sabahStaff) p.key: p.name,
+  };
 
   Map<String, Object?> _customer(int i) =>
       db['customers'].find(MockSeed.customerId(i)) ?? const {};
@@ -425,7 +429,8 @@ class _OrdersSeed {
           ..['display_number'] = 'T2-$n'
           ..['order_ref'] = '${b.code}-$ymd-T2-${n.toString().padLeft(4, '0')}';
         if (o['status'] != 'voided') {
-          for (final l in (o['payment_legs']! as List).cast<Map<String, Object?>>()) {
+          for (final l
+              in (o['payment_legs']! as List).cast<Map<String, Object?>>()) {
             if (l['is_cash'] == true) cash += (l['amount']! as num).toInt();
           }
         }
@@ -524,10 +529,38 @@ class _OrdersSeed {
 
   /// Heliopolis's mall is Korba Plaza; outside runs go to a few streets.
   static const List<(String, String, String, int, double, double)> _streets = [
-    ('Al Ahram St 21', 'Next to Roxy Square', 'Heliopolis — Zone A', 2100, 30.0915, 31.3189),
-    ('El-Merghany St 14', 'Opposite Baron Palace', 'Heliopolis — Zone B', 3400, 30.0868, 31.3302),
-    ('Abou Bakr El-Seddik St 7', 'Behind Triumph Hotel', 'Heliopolis — Zone A', 2700, 30.0997, 31.3305),
-    ('Hassan Sabry St 9', 'Near Gezira Club gate', 'Zamalek — Island', 1600, 30.0581, 31.2196),
+    (
+      'Al Ahram St 21',
+      'Next to Roxy Square',
+      'Heliopolis — Zone A',
+      2100,
+      30.0915,
+      31.3189,
+    ),
+    (
+      'El-Merghany St 14',
+      'Opposite Baron Palace',
+      'Heliopolis — Zone B',
+      3400,
+      30.0868,
+      31.3302,
+    ),
+    (
+      'Abou Bakr El-Seddik St 7',
+      'Behind Triumph Hotel',
+      'Heliopolis — Zone A',
+      2700,
+      30.0997,
+      31.3305,
+    ),
+    (
+      'Hassan Sabry St 9',
+      'Near Gezira Club gate',
+      'Zamalek — Island',
+      1600,
+      30.0581,
+      31.2196,
+    ),
   ];
 
   Map<String, Object?> _delivery({
@@ -553,7 +586,13 @@ class _OrdersSeed {
     final saleLines =
         lines?.call(saleId) ??
         [
-          _line(saleId, 0, item, size: dayIndex % 2, qty: 1 + (dayIndex % 3 == 0 ? 1 : 0)),
+          _line(
+            saleId,
+            0,
+            item,
+            size: dayIndex % 2,
+            qty: 1 + (dayIndex % 3 == 0 ? 1 : 0),
+          ),
           _line(saleId, 1, 'croissant'),
         ];
     final subtotal = saleLines
@@ -573,7 +612,8 @@ class _OrdersSeed {
     final reached = steps.indexOf(status);
     DateTime? stamp(int step, int minutes) =>
         reached >= step ? at.add(Duration(minutes: minutes)) : null;
-    final ref = 'DLV-${date.substring(5).replaceAll('-', '')}${branchKey == 'zamalek' ? 'Z' : 'H'}$n';
+    final ref =
+        'DLV-${date.substring(5).replaceAll('-', '')}${branchKey == 'zamalek' ? 'Z' : 'H'}$n';
     final materialised = status != 'cancelled' && reached >= 3;
     final row = DeliveryOrder(
       id: id,
@@ -610,7 +650,9 @@ class _OrdersSeed {
       readyAt: stamp(3, 12),
       outForDeliveryAt: inMall ? null : stamp(4, 15),
       deliveredAt: stamp(5, inMall ? 18 : 34),
-      cancelledAt: status == 'cancelled' ? at.add(const Duration(minutes: 9)) : null,
+      cancelledAt: status == 'cancelled'
+          ? at.add(const Duration(minutes: 9))
+          : null,
       cancelReason: status == 'cancelled' ? 'Customer unreachable' : null,
       createdAt: at,
       updatedAt: at.add(const Duration(minutes: 34)),
@@ -967,17 +1009,18 @@ class _Handlers {
   /// Lines per order, read once (the core seed builds them on demand).
   final Map<String, List<Map<String, Object?>>> _lines = {};
 
-  List<Map<String, Object?>> linesOf(String orderId) =>
-      _lines[orderId] ??= () {
-        final own = db[OrderTables.details].find(orderId)?['items'];
-        if (own is List) {
-          return [for (final l in own) Map<String, Object?>.of(l as Map<String, Object?>)];
-        }
-        return [
-          for (final it in MockSeed.instance.orderItems(orderId))
-            _withDeductions(it.toJson()),
-        ];
-      }();
+  List<Map<String, Object?>> linesOf(String orderId) => _lines[orderId] ??= () {
+    final own = db[OrderTables.details].find(orderId)?['items'];
+    if (own is List) {
+      return [
+        for (final l in own) Map<String, Object?>.of(l as Map<String, Object?>),
+      ];
+    }
+    return [
+      for (final it in MockSeed.instance.orderItems(orderId))
+        _withDeductions(it.toJson()),
+    ];
+  }();
 
   String _org(MockRequest req) =>
       req.orgId ??
@@ -1073,7 +1116,9 @@ class _Handlers {
       if (from != null && at.isBefore(from)) return false;
       if (to != null && at.isAfter(to)) return false;
       if (updatedAfter != null) {
-        final u = DateTime.parse((o['updated_at'] ?? o['created_at'])! as String);
+        final u = DateTime.parse(
+          (o['updated_at'] ?? o['created_at'])! as String,
+        );
         if (!u.isAfter(updatedAfter)) return false;
       }
       if (type != null && o['order_type'] != type) return false;
@@ -1155,7 +1200,8 @@ class _Handlers {
       for (final p in rawExclude.split(',')) {
         final s = p.trim();
         if (s.isEmpty) continue;
-        if (!_uuid.hasMatch(s)) req.badRequest('Invalid uuid in exclude_items: $s');
+        if (!_uuid.hasMatch(s))
+          req.badRequest('Invalid uuid in exclude_items: $s');
         exclude.add(s.toLowerCase());
       }
     }
@@ -1217,7 +1263,8 @@ class _Handlers {
     }
     if (o['status'] == 'voided') return MockResponse.ok(o);
     // A teller may not rewrite a settled (closed) shift.
-    if (teller && db['tills'].find(o['till_id']! as String)?['status'] != 'open') {
+    if (teller &&
+        db['tills'].find(o['till_id']! as String)?['status'] != 'open') {
       req.fail(
         MockResponse.forbidden(
           "This order's shift is closed — ask a manager to void it.",
@@ -1226,7 +1273,12 @@ class _Handlers {
     }
     // `VoidReason::read`: an older till's label reads as "other" with the
     // label kept as the note.
-    const reasons = {'customer_request', 'wrong_order', 'quality_issue', 'other'};
+    const reasons = {
+      'customer_request',
+      'wrong_order',
+      'quality_issue',
+      'other',
+    };
     final known = reasons.contains(body.reason);
     final reason = known ? body.reason : 'other';
     final typed = body.note?.trim();
@@ -1365,7 +1417,9 @@ class _Handlers {
   MockResponse deliveryOrder(MockRequest req) {
     req.requireCap('delivery.orders.read');
     final id = req.param('id');
-    final r = _uuid.hasMatch(id) ? db[OrderTables.deliveryOrders].find(id) : null;
+    final r = _uuid.hasMatch(id)
+        ? db[OrderTables.deliveryOrders].find(id)
+        : null;
     if (r == null) req.notFound('Delivery order not found');
     req.requireBranch(r['branch_id']! as String);
     return MockResponse.ok(r);
@@ -1381,28 +1435,34 @@ class _Handlers {
       );
     }
     final at = DateTime.utc(2025, 11, 2, 8);
-    return MockResponse.ok([
-      for (final (key, name, category, unit, cpu) in _ingredients)
-        OrgIngredient(
-          id: OrderSeedIds.ingredient(key),
-          orgId: org,
-          name: name,
-          unit: unit,
-          costPerUnit: cpu,
-          categoryId: mockUuid('ingredient-category:$category'),
-          categoryName: category,
-          categorySlug: category.toLowerCase().replaceAll(RegExp('[^a-z]+'), '_'),
-          isActive: true,
-          createdAt: at,
-          updatedAt: at,
-        ),
-    ]..sort((a, b) => a.name.compareTo(b.name)));
+    return MockResponse.ok(
+      [
+        for (final (key, name, category, unit, cpu) in _ingredients)
+          OrgIngredient(
+            id: OrderSeedIds.ingredient(key),
+            orgId: org,
+            name: name,
+            unit: unit,
+            costPerUnit: cpu,
+            categoryId: mockUuid('ingredient-category:$category'),
+            categoryName: category,
+            categorySlug: category.toLowerCase().replaceAll(
+              RegExp('[^a-z]+'),
+              '_',
+            ),
+            isActive: true,
+            createdAt: at,
+            updatedAt: at,
+          ),
+      ]..sort((a, b) => a.name.compareTo(b.name)),
+    );
   }
 
   MockResponse menuItems(MockRequest req) {
     req.requireCap('menu.items.read');
     final org = req.q('org_id');
-    if (org == null) req.badRequest('Query deserialize error: missing field `org_id`');
+    if (org == null)
+      req.badRequest('Query deserialize error: missing field `org_id`');
     req.requireSameOrg(org);
     return MockResponse.ok(
       db['menu_items'].query(filters: {'org_id': org}, sort: 'name'),

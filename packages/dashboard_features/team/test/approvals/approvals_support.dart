@@ -98,24 +98,37 @@ void answerAuthz(
 /// those units have not registered them, as the backend does: the right,
 /// one decision only, a rejection's reason (D8).
 void _decisionFallbacks(MockServer server, MockDb db) {
-  Never already(MockRequest req, String status, [String code = 'ALREADY_DECIDED']) =>
-      req.fail(
-        MockResponse.error(
-          409,
-          'This was already decided ($status).',
-          code: code,
-          vars: {'status': status},
-        ),
-      );
+  Never already(
+    MockRequest req,
+    String status, [
+    String code = 'ALREADY_DECIDED',
+  ]) => req.fail(
+    MockResponse.error(
+      409,
+      'This was already decided ($status).',
+      code: code,
+      vars: {'status': status},
+    ),
+  );
   Never noReason(MockRequest req) => req.fail(
-    MockResponse.error(400, 'Say why: this needs a reason.', code: 'REASON_REQUIRED'),
+    MockResponse.error(
+      400,
+      'Say why: this needs a reason.',
+      code: 'REASON_REQUIRED',
+    ),
   );
   if (!server.handles('PATCH', decideRequestT)) {
     server.on('PATCH', decideRequestT, (req) {
       req.requireCap('hr.leave.edit');
       final row = db[TeamTables.requests].find(req.param('id'));
       if (row == null || row['org_id'] != req.orgId) {
-        req.fail(MockResponse.error(404, 'Request not found', code: 'REQUEST_NOT_FOUND'));
+        req.fail(
+          MockResponse.error(
+            404,
+            'Request not found',
+            code: 'REQUEST_NOT_FOUND',
+          ),
+        );
       }
       final status = row['status']! as String;
       if (status != 'pending') already(req, status, 'REQUEST_ALREADY_DECIDED');
@@ -128,7 +141,9 @@ void _decisionFallbacks(MockServer server, MockDb db) {
         'decided_by': req.persona.userId,
         'decided_at': db.nowIso,
       });
-      return MockResponse.ok(db[TeamTables.requests].find(row['id']! as String));
+      return MockResponse.ok(
+        db[TeamTables.requests].find(row['id']! as String),
+      );
     });
   }
   if (!server.handles('PATCH', reviewAdvanceT)) {
@@ -136,22 +151,32 @@ void _decisionFallbacks(MockServer server, MockDb db) {
       req.requireCap('hr.advances.decide');
       final row = db[TeamTables.advances].find(req.param('id'));
       if (row == null || row['org_id'] != req.orgId) {
-        req.fail(MockResponse.error(404, 'Advance not found', code: 'ADVANCE_NOT_FOUND'));
+        req.fail(
+          MockResponse.error(
+            404,
+            'Advance not found',
+            code: 'ADVANCE_NOT_FOUND',
+          ),
+        );
       }
       final body = req.json;
       final approve = body['approve'] == true;
-      final reason = ((body['reason'] ?? body['note']) as String?)?.trim() ?? '';
+      final reason =
+          ((body['reason'] ?? body['note']) as String?)?.trim() ?? '';
       if (!approve && reason.isEmpty) noReason(req);
       final status = row['status']! as String;
       if (status != 'pending') already(req, status);
-      final amount = (body['amount_piastres'] as int?) ?? row['amount_piastres']! as int;
+      final amount =
+          (body['amount_piastres'] as int?) ?? row['amount_piastres']! as int;
       db[TeamTables.advances].update(row['id']! as String, {
         'status': approve ? 'approved' : 'rejected',
         'amount_piastres': amount,
         if (body['installments'] != null) 'installments': body['installments'],
         'decision_note': reason.isEmpty ? null : reason,
       });
-      return MockResponse.ok(db[TeamTables.advances].find(row['id']! as String));
+      return MockResponse.ok(
+        db[TeamTables.advances].find(row['id']! as String),
+      );
     });
   }
   if (!server.handles('PATCH', decideAdjustmentT)) {
@@ -159,7 +184,13 @@ void _decisionFallbacks(MockServer server, MockDb db) {
       req.requireCap('hr.payroll.run');
       final row = db[TeamTables.adjustments].find(req.param('id'));
       if (row == null || row['kind'] != req.param('kind')) {
-        req.fail(MockResponse.error(404, 'Adjustment not found', code: 'ADJUSTMENT_NOT_FOUND'));
+        req.fail(
+          MockResponse.error(
+            404,
+            'Adjustment not found',
+            code: 'ADJUSTMENT_NOT_FOUND',
+          ),
+        );
       }
       final body = req.json;
       final approve = body['approve'] == true;
@@ -171,7 +202,9 @@ void _decisionFallbacks(MockServer server, MockDb db) {
         'status': approve ? 'approved' : 'rejected',
         'decision_note': reason.isEmpty ? null : reason,
       });
-      return MockResponse.ok(db[TeamTables.adjustments].find(row['id']! as String));
+      return MockResponse.ok(
+        db[TeamTables.adjustments].find(row['id']! as String),
+      );
     });
   }
 }
@@ -256,7 +289,9 @@ MockRow requestRow({
   DateTime? recordCheckOutAt,
   DateTime? createdAt,
 }) {
-  final e = MockSeed.instance.employees.firstWhere((e) => e.id == emp(employeeKey));
+  final e = MockSeed.instance.employees.firstWhere(
+    (e) => e.id == emp(employeeKey),
+  );
   final at = createdAt ?? DateTime.utc(2026, 10, 7, 9);
   return StaffRequest(
     id: id,

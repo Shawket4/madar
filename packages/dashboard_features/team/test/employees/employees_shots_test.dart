@@ -27,7 +27,6 @@ const String _sheet =
     'Copy Cat,01110001111,Zamalek,\n'
     'Yara Nabil,01001114444,Maadi,\n';
 
-
 void main() {
   for (final size in DashSize.values) {
     for (final (lang, dark) in _modes) {
@@ -93,12 +92,19 @@ void main() {
       await h.flushTimers();
       await h.tap(inPage(find.text('Nour El-Sayed')));
       await h.tap(
-        inSurface(find.widgetWithText(DashSelectField<String>, h.t('staff.employmentStatus'))),
+        inSurface(
+          find.widgetWithText(
+            DashSelectField<String>,
+            h.t('staff.employmentStatus'),
+          ),
+        ),
       );
       await h.tap(find.text(h.t('staff.statusTerminated')).hitTestable().last);
       await h.tap(surfaceText(h.t('common.save')));
       await h.shot('employees/profile-errors');
-      final scroll = find.descendant(of: surface(), matching: find.byType(Scrollable)).first;
+      final scroll = find
+          .descendant(of: surface(), matching: find.byType(Scrollable))
+          .first;
       await tester.drag(scroll, const Offset(0, -2000));
       await h.settle();
       await h.shot('employees/profile-2');
@@ -107,7 +113,11 @@ void main() {
     testWidgets('date picker, $tag', (tester) async {
       final h = await open(tester);
       await h.tap(inPage(find.text('Adham Reda')));
-      await h.tap(inSurface(find.widgetWithText(EmployeeDateField, h.t('staff.hireDate'))));
+      await h.tap(
+        inSurface(
+          find.widgetWithText(EmployeeDateField, h.t('staff.hireDate')),
+        ),
+      );
       await h.shot('employees/date-picker');
     });
 
@@ -124,7 +134,9 @@ void main() {
 
     testWidgets('end employment confirm, $tag', (tester) async {
       final h = await open(tester);
-      await h.tap(inPage(find.bySemanticsLabel(h.t('staff.endEmployment'))).first);
+      await h.tap(
+        inPage(find.bySemanticsLabel(h.t('staff.endEmployment'))).first,
+      );
       await h.shot('employees/confirm-end');
     });
 
@@ -144,13 +156,17 @@ void main() {
         'Saeed Hamdy',
       );
       await h.enterText(
-        find.descendant(
-          of: inSurface(find.byType(SalaryCalculator)),
-          matching: find.byType(DashTextInput),
-        ).first,
+        find
+            .descendant(
+              of: inSurface(find.byType(SalaryCalculator)),
+              matching: find.byType(DashTextInput),
+            )
+            .first,
         '3100',
       );
-      final scroll = find.descendant(of: surface(), matching: find.byType(Scrollable)).first;
+      final scroll = find
+          .descendant(of: surface(), matching: find.byType(Scrollable))
+          .first;
       await tester.drag(scroll, const Offset(0, -2000));
       await h.settle();
       await h.shot('employees/add-manual-salary');
@@ -164,7 +180,9 @@ void main() {
         locale: lang,
       );
       await h.tap(pageText(h.t('dawam.addEmployee')));
-      final scroll = find.descendant(of: surface(), matching: find.byType(Scrollable)).first;
+      final scroll = find
+          .descendant(of: surface(), matching: find.byType(Scrollable))
+          .first;
       await tester.drag(scroll, const Offset(0, -2000));
       await h.settle();
       await h.shot('employees/add-manager');
@@ -204,10 +222,12 @@ void main() {
       await h.tap(pageText(h.t('staff.departments')));
       await h.shot('employees/departments');
       await h.tap(
-        find.descendant(
-          of: surface(),
-          matching: find.bySemanticsLabel(h.t('common.delete')),
-        ).first,
+        find
+            .descendant(
+              of: surface(),
+              matching: find.bySemanticsLabel(h.t('common.delete')),
+            )
+            .first,
       );
       await h.shot('employees/departments-confirm');
     });

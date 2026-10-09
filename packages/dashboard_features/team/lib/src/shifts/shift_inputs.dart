@@ -48,8 +48,7 @@ class ShiftWeekdayPicker extends ConsumerStatefulWidget {
   final bool invalid;
 
   @override
-  ConsumerState<ShiftWeekdayPicker> createState() =>
-      _ShiftWeekdayPickerState();
+  ConsumerState<ShiftWeekdayPicker> createState() => _ShiftWeekdayPickerState();
 }
 
 class _ShiftWeekdayPickerState extends ConsumerState<ShiftWeekdayPicker> {
@@ -79,8 +78,12 @@ class _ShiftWeekdayPickerState extends ConsumerState<ShiftWeekdayPicker> {
   KeyEventResult _key(KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final rtl = Directionality.of(context) == TextDirection.rtl;
-    final fwd = rtl ? LogicalKeyboardKey.arrowLeft : LogicalKeyboardKey.arrowRight;
-    final back = rtl ? LogicalKeyboardKey.arrowRight : LogicalKeyboardKey.arrowLeft;
+    final fwd = rtl
+        ? LogicalKeyboardKey.arrowLeft
+        : LogicalKeyboardKey.arrowRight;
+    final back = rtl
+        ? LogicalKeyboardKey.arrowRight
+        : LogicalKeyboardKey.arrowLeft;
     final k = e.logicalKey;
     final int next;
     if (k == fwd) {
@@ -117,7 +120,9 @@ class _ShiftWeekdayPickerState extends ConsumerState<ShiftWeekdayPicker> {
         skipTraversal: true,
         onKeyEvent: (_, e) => _key(e),
         child: Container(
-          padding: widget.invalid ? const EdgeInsets.all(DashMetrics.hair) : null,
+          padding: widget.invalid
+              ? const EdgeInsets.all(DashMetrics.hair)
+              : null,
           decoration: widget.invalid
               ? BoxDecoration(
                   borderRadius: BorderRadius.circular(Radii.xs),

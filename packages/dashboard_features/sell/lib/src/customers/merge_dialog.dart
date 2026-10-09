@@ -16,7 +16,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'customers_data.dart';
 import 'people_widgets.dart';
-import 'person_surface.dart';
 import '../shared/error_text.dart';
 
 /// Opens the merge for [duplicate]; resolves with the customer that was
@@ -392,7 +391,7 @@ class _OptionRow extends StatelessWidget {
                       customer.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      textDirection: autoDirection(customer.name),
+                      textDirection: dashTextDirectionOf(customer.name),
                       style: DashType.body.copyWith(color: c.textPrimary),
                     ),
                   ),

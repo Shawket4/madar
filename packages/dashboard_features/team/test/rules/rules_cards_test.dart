@@ -98,11 +98,15 @@ void main() {
     final h = await pumpRules(tester);
     expect(pageText(h.t('staff.fenceAlwaysOn')), findsOneWidget);
     expect(pageText(h.t('staff.excusedPaidHint')), findsOneWidget);
-    expect(tester.widget<DashSwitch>(find.byKey(RulesKeys.excused)).value,
-        isTrue);
+    expect(
+      tester.widget<DashSwitch>(find.byKey(RulesKeys.excused)).value,
+      isTrue,
+    );
     await tapKey(h, RulesKeys.excused);
-    expect(tester.widget<DashSwitch>(find.byKey(RulesKeys.excused)).value,
-        isFalse);
+    expect(
+      tester.widget<DashSwitch>(find.byKey(RulesKeys.excused)).value,
+      isFalse,
+    );
     expect(find.text(h.t('staff.rulesUnsaved')), findsOneWidget);
   });
 
@@ -136,7 +140,11 @@ void main() {
     expect(find.byKey(RulesDawamKeys.number('periodStartDay')), findsOneWidget);
     expect(pageText(h.t('dawam.genderHint')), findsOneWidget);
     expect(
-      tester.widget<DashSegmentedControl<String>>(segmented(h, 'dawam.genderTitle')).enabled,
+      tester
+          .widget<DashSegmentedControl<String>>(
+            segmented(h, 'dawam.genderTitle'),
+          )
+          .enabled,
       isTrue,
     );
     await pickIn(h, RulesKeys.scope, 'Maadi');
@@ -150,12 +158,18 @@ void main() {
   ) async {
     final h = await pumpRules(tester);
     final half = segmented(h, 'dawam.halfDayLeave');
-    expect(tester.widget<DashSegmentedControl<String>>(half).value,
-        'half_shift');
+    expect(
+      tester.widget<DashSegmentedControl<String>>(half).value,
+      'half_shift',
+    );
     await tester.ensureVisible(half);
-    await h.tap(find.descendant(of: half, matching: find.text('The whole day')));
-    expect(tester.widget<DashSegmentedControl<String>>(half).value,
-        'whole_day');
+    await h.tap(
+      find.descendant(of: half, matching: find.text('The whole day')),
+    );
+    expect(
+      tester.widget<DashSegmentedControl<String>>(half).value,
+      'whole_day',
+    );
     expect(pageText(h.t('dawam.nightUnconfirmed')), findsOneWidget);
     await typeIn(h, RulesDawamKeys.nightEnd, '05:00');
     expect(find.textContaining('10:00 PM – 05:00 AM'), findsOneWidget);
@@ -224,9 +238,7 @@ void main() {
     expect(find.text(h.t('staff.rulesFixFirst')), findsNothing);
   });
 
-  testWidgets('TEAM-RUL-001 a viewer (manager) is not refused', (
-    tester,
-  ) async {
+  testWidgets('TEAM-RUL-001 a viewer (manager) is not refused', (tester) async {
     final h = await pumpRules(tester, persona: Persona.manager);
     expect(pageText('Overtime, holidays and pay'), findsOneWidget);
     expect(h.server.callsTo(settingsT).last.status, 200);

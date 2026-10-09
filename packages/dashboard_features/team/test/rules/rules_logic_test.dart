@@ -27,9 +27,14 @@ const PayExample ex = PayExample(
 final Translator en = Translator(
   Strings({
     'en': {
-      for (final e in (jsonDecode(
-        File('../../dashboard_core/assets/i18n/en.json').readAsStringSync(),
-      ) as Map).entries)
+      for (final e
+          in (jsonDecode(
+                    File(
+                      '../../dashboard_core/assets/i18n/en.json',
+                    ).readAsStringSync(),
+                  )
+                  as Map)
+              .entries)
         '${e.key}': '${e.value}',
     },
   }),
@@ -149,8 +154,10 @@ void main() {
         rulesRequest(d.copyWith(ordersPerStaff: () => 2.5)).error,
         'dawam.rulesOrdersPerStaff',
       );
-      expect(rulesRequest(d.copyWith(nightStart: '9pm')).error,
-          'dawam.rulesNight');
+      expect(
+        rulesRequest(d.copyWith(nightStart: '9pm')).error,
+        'dawam.rulesNight',
+      );
     });
     test('gender rides only with the right; times gain seconds', () {
       expect(rulesRequest(d).ok!.containsKey('gender_mode'), isFalse);
@@ -177,8 +184,10 @@ void main() {
       });
     });
     test('a forced rule is sent at the same value', () {
-      expect(branchBody('b', loaded, loaded, const [], const ['cover_pay_mode']),
-          {'cover_pay_mode': 'minute_rate', 'branch_id': 'b'});
+      expect(
+        branchBody('b', loaded, loaded, const [], const ['cover_pay_mode']),
+        {'cover_pay_mode': 'minute_rate', 'branch_id': 'b'},
+      );
     });
   });
 
@@ -313,8 +322,18 @@ void main() {
       expect(
         await status(s, {
           'late_deduction_tiers': [
-            {'from_minutes': 1, 'to_minutes': 15, 'kind': 'minutes', 'value': 1},
-            {'from_minutes': 10, 'to_minutes': 20, 'kind': 'minutes', 'value': 1},
+            {
+              'from_minutes': 1,
+              'to_minutes': 15,
+              'kind': 'minutes',
+              'value': 1,
+            },
+            {
+              'from_minutes': 10,
+              'to_minutes': 20,
+              'kind': 'minutes',
+              'value': 1,
+            },
           ],
         }),
         400,
@@ -346,10 +365,15 @@ void main() {
       await send(s, 'PUT', settingsT, body: {'working_days_per_month': 25});
       var j = body(await send(s, 'GET', settingsT))! as Map;
       expect(j['rules_saved_at'], isNull);
-      await send(s, 'PUT', settingsT, body: {
-        'late_deduction_tiers': const <Object?>[],
-        'absence_deduction_days': 1,
-      });
+      await send(
+        s,
+        'PUT',
+        settingsT,
+        body: {
+          'late_deduction_tiers': const <Object?>[],
+          'absence_deduction_days': 1,
+        },
+      );
       j = body(await send(s, 'GET', settingsT))! as Map;
       expect(j['rules_saved_at'], isNotNull);
     });

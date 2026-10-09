@@ -58,7 +58,10 @@ void main() {
     }
   }
 
-  for (final (size, lang) in [(DashSize.desktop, 'en'), (DashSize.phone, 'ar')]) {
+  for (final (size, lang) in [
+    (DashSize.desktop, 'en'),
+    (DashSize.phone, 'ar'),
+  ]) {
     final tag = '${size.name} $lang';
 
     testWidgets('loading, $tag', (tester) async {

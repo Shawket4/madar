@@ -38,8 +38,9 @@ void main() {
       expect(r.priceFromBranch, isFalse);
       expect(r.availEffective, isTrue);
       expect(r.hadOverride, isFalse);
-      final b = target(branch: (price: 14000, isAvailable: null))
-          .resolve(inStore);
+      final b = target(
+        branch: (price: 14000, isAvailable: null),
+      ).resolve(inStore);
       expect(b.effectivePrice, 14000);
       expect(b.priceExplicit, isTrue);
       expect(b.hadOverride, isTrue);
@@ -83,8 +84,9 @@ void main() {
     });
 
     test('dirty when the trimmed price or the toggle differs', () {
-      final r = target(branch: (price: 14000, isAvailable: null))
-          .resolve(inStore);
+      final r = target(
+        branch: (price: 14000, isAvailable: null),
+      ).resolve(inStore);
       expect(isDirtyCell((price: ' 140 ', available: true), r), isFalse);
       expect(isDirtyCell((price: '141', available: true), r), isTrue);
       expect(isDirtyCell((price: '140', available: false), r), isTrue);
@@ -137,7 +139,10 @@ void main() {
       expect(p.put, isFalse);
       expect(p.body.toJson()['price'], isNull);
       expect(
-        planCell(pending(target(), inStore, (price: '', available: true)), 'b1'),
+        planCell(
+          pending(target(), inStore, (price: '', available: true)),
+          'b1',
+        ),
         isNull,
       );
     });
@@ -145,7 +150,10 @@ void main() {
     test('MENU-PRC-029 (divergence) showing a channel the branch hides '
         'writes is_available true', () {
       final t = target(branch: (price: null, isAvailable: false));
-      final p = planCell(pending(t, outside, (price: '', available: true)), 'b1')!;
+      final p = planCell(
+        pending(t, outside, (price: '', available: true)),
+        'b1',
+      )!;
       expect(p.put, isTrue);
       expect(p.body.isAvailable, isTrue);
       final priced = planCell(
@@ -195,7 +203,9 @@ void main() {
       expect(invalidPrice('0'), isFalse);
       expect(invalidPrice('12.5'), isFalse);
       expect(
-        firstInvalidLabel([pending(t, inStore, (price: '-1', available: true))]),
+        firstInvalidLabel([
+          pending(t, inStore, (price: '-1', available: true)),
+        ]),
         'Spanish Latte',
       );
       expect(

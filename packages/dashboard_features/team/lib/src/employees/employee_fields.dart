@@ -260,21 +260,25 @@ class _SalaryCalculatorState extends ConsumerState<SalaryCalculator> {
         (!widget.onlyOpenPeriod ||
             first.to.compareTo(todayUtc.substring(0, 10)) >= 0);
 
-    Widget box(String label, String value, ValueChanged<String> onChanged,
-        {String? placeholder, String? error}) =>
-        DashFormField<String>(
-          label: label,
-          errorText: error,
-          builder: (context, invalid) => DashTextInput(
-            value: value,
-            semanticLabel: label,
-            placeholder: placeholder,
-            invalid: invalid,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            textDirection: TextDirection.ltr,
-            onChanged: onChanged,
-          ),
-        );
+    Widget box(
+      String label,
+      String value,
+      ValueChanged<String> onChanged, {
+      String? placeholder,
+      String? error,
+    }) => DashFormField<String>(
+      label: label,
+      errorText: error,
+      builder: (context, invalid) => DashTextInput(
+        value: value,
+        semanticLabel: label,
+        placeholder: placeholder,
+        invalid: invalid,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        textDirection: TextDirection.ltr,
+        onChanged: onChanged,
+      ),
+    );
 
     final boxes = [
       box(

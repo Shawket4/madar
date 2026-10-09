@@ -51,6 +51,24 @@ void main() {
     expect(gets(h, summaryT), hasLength(1));
   });
 
+  testWidgets('TEAM-RPT-003 (intent) a quick-range pill warms the shown '
+      'tab\'s report for its range; pressing it asks nothing more', (
+    tester,
+  ) async {
+    final h = await pumpReports(tester);
+    final mouse = await _mouse(tester);
+    final pill = find.text('Last month').hitTestable();
+    await mouse.moveTo(tester.getCenter(pill));
+    await h.settle();
+    expect(gets(h, summaryT).last.query, {
+      'from': ['2026-09-01'],
+      'to': ['2026-09-30'],
+    }, reason: 'warmed');
+    final n = gets(h, summaryT).length;
+    await h.tap(pill);
+    expect(gets(h, summaryT), hasLength(n), reason: 'from the cache');
+  });
+
   testWidgets('TEAM-ALL-023 one 500 on a report: the skeleton, then the '
       'data; never the report\'s error', (tester) async {
     final s = reportsServer();

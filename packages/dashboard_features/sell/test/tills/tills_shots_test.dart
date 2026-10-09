@@ -138,23 +138,13 @@ void main() {
     });
 
     testWidgets('status filter, $tag', (tester) async {
-      final h = await pumpTills(
-        tester,
-        size: size,
-        locale: lang,
-        dark: dark,
-      );
+      final h = await pumpTills(tester, size: size, locale: lang, dark: dark);
       await h.tap(inKey('filter-status', find.byType(DashSelectTrigger)));
       await h.shot('tills/status-filter');
     });
 
     testWidgets('open till dialog, $tag', (tester) async {
-      final h = await pumpTills(
-        tester,
-        size: size,
-        locale: lang,
-        dark: dark,
-      );
+      final h = await pumpTills(tester, size: size, locale: lang, dark: dark);
       await h.tap(inPage(find.text(h.t('tills.openTill'))));
       await h.shot('tills/open-till');
     });
@@ -218,12 +208,7 @@ void main() {
     });
 
     testWidgets('force close and delete confirms, $tag', (tester) async {
-      final h = await pumpTills(
-        tester,
-        size: size,
-        locale: lang,
-        dark: dark,
-      );
+      final h = await pumpTills(tester, size: size, locale: lang, dark: dark);
       await openRowMenu(h, TillIds.helioSecond);
       await pickMenu(h, h.t('tills.forceClose'));
       await h.shot('tills/force-close');

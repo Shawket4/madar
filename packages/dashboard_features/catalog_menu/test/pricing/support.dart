@@ -81,8 +81,9 @@ Future<void> reveal(DashHarness h, Finder f) =>
     h.scrollUntilVisible(f, scrollable: pageScroll);
 
 /// The control of the cell [targetId] × [col] (`in_store` or a channel).
-Finder cellOf(String targetId, String col) =>
-    find.byKey(ValueKey('$targetId|${col == 'in_store' ? col : 'channel:$col'}'));
+Finder cellOf(String targetId, String col) => find.byKey(
+  ValueKey('$targetId|${col == 'in_store' ? col : 'channel:$col'}'),
+);
 
 /// The price box inside the cell.
 Finder priceBox(String targetId, String col) => find.descendant(

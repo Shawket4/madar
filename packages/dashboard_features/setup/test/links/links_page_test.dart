@@ -579,8 +579,10 @@ void main() {
       expect(
         id,
         matches(
-          RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-'
-              r'[0-9a-f]{12}$'),
+          RegExp(
+            r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-'
+            r'[0-9a-f]{12}$',
+          ),
         ),
       );
       await _type(h, 'links-item-$id-title-en', 'Gift cards');
@@ -614,7 +616,10 @@ void main() {
       await h.go(linksPath);
       expect(gets(h, LinksRoutes.page), pages + 1, reason: 're-read once');
       expect(
-        tester.widget<EditableText>(fieldOf('links-tagline-en')).controller.text,
+        tester
+            .widget<EditableText>(fieldOf('links-tagline-en'))
+            .controller
+            .text,
         'Roasted in Zamalek',
       );
       expect(inPreview(find.text('Roasted in Zamalek')), findsOneWidget);

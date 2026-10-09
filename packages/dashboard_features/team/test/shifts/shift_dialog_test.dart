@@ -34,7 +34,10 @@ Future<void> pickBranch(DashHarness h, String from, String label) async {
 }
 
 Map<String, Object?> lastBody(DashHarness h, String method) =>
-    (h.server.callsTo(method == 'POST' ? shiftsT : shiftT, method: method).last.body!
+    (h.server
+                .callsTo(method == 'POST' ? shiftsT : shiftT, method: method)
+                .last
+                .body!
             as Map)
         .cast<String, Object?>();
 
@@ -78,10 +81,12 @@ void main() {
     // The default 09:00–17:00 is the Day preset.
     bool pressed(String label) => tester
         .widget<DashPressable>(
-          find.ancestor(
-            of: surfaceText(label),
-            matching: find.byType(DashPressable),
-          ).first,
+          find
+              .ancestor(
+                of: surfaceText(label),
+                matching: find.byType(DashPressable),
+              )
+              .first,
         )
         .checked!;
     expect(pressed('Day'), isTrue);
@@ -265,9 +270,7 @@ void main() {
   });
 
   testWidgets('TEAM-SHF-017 own times on some days: summary, one range per '
-      'valid day, a half-set day refused, only full days sent', (
-    tester,
-  ) async {
+      'valid day, a half-set day refused, only full days sent', (tester) async {
     final h = await pumpShifts(tester);
     await openNew(h);
     await typeName(h, 'Day');
@@ -444,6 +447,17 @@ void main() {
     expect(h.server.callsTo(rosterT).length, roster + 1);
   });
 
+  testWidgets('TEAM-SHF-022 Enter in the name submits the form, as the '
+      "web's form does", (tester) async {
+    final h = await pumpShifts(tester);
+    await openNew(h);
+    await typeName(h, 'Day');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await h.settle();
+    expect(lastBody(h, 'POST')['name'], 'Day');
+    await h.expectToast('Work shift saved');
+  });
+
   testWidgets('TEAM-SHF-024 the web test: a branch\'s block on some days '
       'with its own Thursday times and a day rate', (tester) async {
     final h = await pumpShifts(tester);
@@ -512,10 +526,7 @@ void main() {
       ),
     );
     expect(find.byType(WorkShiftDialog), findsOneWidget);
-    expect(
-      tester.widget<DashButton>(save()).loading,
-      isFalse,
-    );
+    expect(tester.widget<DashButton>(save()).loading, isFalse);
   });
 
   testWidgets('TEAM-ALL-019 a refused number names the field by its label', (
@@ -544,9 +555,7 @@ void main() {
     );
   });
 
-  testWidgets('TEAM-SHF-024 Save shows its spinner while busy', (
-    tester,
-  ) async {
+  testWidgets('TEAM-SHF-024 Save shows its spinner while busy', (tester) async {
     final s = shiftsServer();
     final gate = s.server.hold('POST', shiftsT);
     final h = await pumpShifts(tester, s: s);
@@ -582,10 +591,11 @@ void main() {
   testWidgets('TEAM-SHF-024 a refusal from the server for the whole '
       'business: the dialog stays, its words toast', (tester) async {
     final s = shiftsServer();
-    answerAuthz(
-      s.server,
-      const ['hr.schedule.read', 'hr.schedule.edit', 'hr.schedule.create'],
-    );
+    answerAuthz(s.server, const [
+      'hr.schedule.read',
+      'hr.schedule.edit',
+      'hr.schedule.create',
+    ]);
     final h = await pumpShifts(tester, persona: Persona.manager, s: s);
     // The client was told "everywhere", the server knows better.
     s.server.fail(

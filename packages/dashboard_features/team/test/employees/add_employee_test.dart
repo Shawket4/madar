@@ -36,8 +36,7 @@ Future<DashHarness> openAdd(
   return h;
 }
 
-Finder field<T>(String label) =>
-    inSurface(find.widgetWithText(T, label)).first;
+Finder field<T>(String label) => inSurface(find.widgetWithText(T, label)).first;
 
 Finder addButton() =>
     inSurface(find.widgetWithText(DashButton, 'Add employee'));
@@ -62,10 +61,12 @@ Finder salaryBox(String label, int i) => find
     )
     .at(i);
 
-String boxText(WidgetTester tester, Finder f) =>
-    tester.widget<EditableText>(
+String boxText(WidgetTester tester, Finder f) => tester
+    .widget<EditableText>(
       find.descendant(of: f, matching: find.byType(EditableText)),
-    ).controller.text;
+    )
+    .controller
+    .text;
 
 void main() {
   testWidgets('TEAM-EMP-030 Add employee: title and the kind\'s hint', (
@@ -339,7 +340,9 @@ void main() {
     expect(find.byType(AddEmployeeDialog), findsNothing);
     expect(h.server.callsTo(listT, method: 'GET').length, greaterThan(lists));
     expect(h.server.callsTo(departmentsT).length, greaterThan(departments));
-    final row = h.db!['employees'].firstWhere((e) => e['name'] == 'Rania Adel')!;
+    final row = h.db!['employees'].firstWhere(
+      (e) => e['name'] == 'Rania Adel',
+    )!;
     expect(row['hire_date'], '2026-10-08');
     expect(row['base_salary_piastres'], 900000);
   });
@@ -381,12 +384,11 @@ void main() {
       'refusal in the person\'s language, the dialog stays', (tester) async {
     final h = await openAdd(tester, locale: 'ar');
     await h.enterText(field<DashTextField>(h.t('staff.name')), 'رانيا عادل');
-    await h.enterText(
-      field<PhoneField>(h.t('dawam.whatsapp')),
-      '01110001111',
-    );
+    await h.enterText(field<PhoneField>(h.t('dawam.whatsapp')), '01110001111');
     await branch(h, 'Zamalek');
-    await h.tap(inSurface(find.widgetWithText(DashButton, h.t('dawam.addEmployee'))));
+    await h.tap(
+      inSurface(find.widgetWithText(DashButton, h.t('dawam.addEmployee'))),
+    );
     expect(h.server.callsTo(listT, method: 'POST').last.status, 409);
     await h.expectToast(
       h.t('errors.codes.PHONE_TAKEN', args: {'phone': '+201110001111'}),

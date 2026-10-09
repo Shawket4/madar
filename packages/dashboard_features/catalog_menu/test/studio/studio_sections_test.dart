@@ -39,10 +39,7 @@ void main() {
       final h = await pumpStudio(tester);
       final image = studioLabel(h.t('uploader.choose'));
       final name = fieldWithText('Caffè Latte');
-      expect(
-        tester.getTopLeft(image).dx,
-        lessThan(tester.getTopLeft(name).dx),
-      );
+      expect(tester.getTopLeft(image).dx, lessThan(tester.getTopLeft(name).dx));
       expect(studioText(h.t('menu.imageHint')), findsOneWidget);
     });
 
@@ -97,23 +94,31 @@ void main() {
       tester,
     ) async {
       final h = await pumpStudio(tester);
-      expect(inSection(
+      expect(
+        inSection(
           h.t('menu.studio.basics.title'),
           find.bySemanticsLabel(h.t('uploader.remove')),
-        ), findsNothing);
+        ),
+        findsNothing,
+      );
       h.files.imageQueue.add(
         PickedFile(name: 'latte.png', bytes: _png, mimeType: 'image/png'),
       );
       await h.tap(studioLabel(h.t('uploader.choose')));
-      await h.tap(inSection(
+      await h.tap(
+        inSection(
           h.t('menu.studio.basics.title'),
           find.bySemanticsLabel(h.t('uploader.remove')),
-        ));
+        ),
+      );
       expect(saveBar, findsNothing);
-      expect(inSection(
+      expect(
+        inSection(
           h.t('menu.studio.basics.title'),
           find.bySemanticsLabel(h.t('uploader.remove')),
-        ), findsNothing);
+        ),
+        findsNothing,
+      );
       expect(studioLabel(h.t('uploader.choose')), findsOneWidget);
     });
 
@@ -125,18 +130,23 @@ void main() {
         'image_url': 'https://cdn.sabah.test/latte.webp',
       });
       final h = await pumpStudio(tester, seeded: s);
-      await h.tap(inSection(
+      await h.tap(
+        inSection(
           h.t('menu.studio.basics.title'),
           find.bySemanticsLabel(h.t('uploader.remove')),
-        ));
+        ),
+      );
       expect(studioLabel(h.t('uploader.choose')), findsOneWidget);
       expect(saveBar, findsOneWidget);
       expect(h.server.callsTo(itemT, method: 'PATCH'), isEmpty);
       await h.tap(inSaveBar(h.t('menu.studio.discard')));
-      expect(inSection(
+      expect(
+        inSection(
           h.t('menu.studio.basics.title'),
           find.bySemanticsLabel(h.t('uploader.remove')),
-        ), findsOneWidget);
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('MENU-STUDIO-025 a picture still processing (no legacy '
@@ -169,7 +179,10 @@ void main() {
       expect(studioText(h.t('common.name')), findsWidgets);
       expect(
         studioText(
-          h.t('bilingualField.arabicLabel', args: {'label': h.t('common.name')}),
+          h.t(
+            'bilingualField.arabicLabel',
+            args: {'label': h.t('common.name')},
+          ),
         ),
         findsOneWidget,
       );
@@ -185,15 +198,19 @@ void main() {
     testWidgets('MENU-STUDIO-028 the category: translated choices, "+" '
         'creates and selects', (tester) async {
       final h = await pumpStudio(tester, locale: 'ar');
-      expect(lastCall(h, 'GET', categoriesT).query['org_id'], [SeedIds.sabahOrg]);
+      expect(lastCall(h, 'GET', categoriesT).query['org_id'], [
+        SeedIds.sabahOrg,
+      ]);
       await h.tap(
-        find.descendant(
-          of: inSection(
-            h.t('menu.studio.basics.title'),
-            find.byType(DashSelect<String>),
-          ),
-          matching: find.byType(DashSelectTrigger),
-        ).first,
+        find
+            .descendant(
+              of: inSection(
+                h.t('menu.studio.basics.title'),
+                find.byType(DashSelect<String>),
+              ),
+              matching: find.byType(DashSelectTrigger),
+            )
+            .first,
       );
       expect(option('مخبوزات'), findsWidgets);
     });
@@ -204,10 +221,12 @@ void main() {
       final h = await pumpStudio(tester);
       await h.tap(studioLabel(h.t('menu.newCategory')));
       await h.enterText(
-        find.descendant(
-          of: find.byType(DashSurface),
-          matching: find.byType(EditableText),
-        ).first,
+        find
+            .descendant(
+              of: find.byType(DashSurface),
+              matching: find.byType(EditableText),
+            )
+            .first,
         'Seasonal',
       );
       await h.tap(find.text(h.t('common.save')).last);
@@ -254,9 +273,9 @@ void main() {
       // Preset rows hold their animation's still frame; a written row a
       // sparkle.
       expect(
-        h.server.callsTo('/recipes/step-presets/{slug}/animation').map(
-          (c) => c.path,
-        ),
+        h.server
+            .callsTo('/recipes/step-presets/{slug}/animation')
+            .map((c) => c.path),
         containsAll([
           '/recipes/step-presets/pull-espresso/animation',
           '/recipes/step-presets/steam-milk/animation',
@@ -298,7 +317,10 @@ void main() {
       }, timestamps: false);
       final h = await pumpStudio(tester, seeded: s);
       expect(
-        find.descendant(of: stepRow(0), matching: find.text('Pull the espresso')),
+        find.descendant(
+          of: stepRow(0),
+          matching: find.text('Pull the espresso'),
+        ),
         findsOneWidget,
       );
       expect(
@@ -333,7 +355,10 @@ void main() {
     ) async {
       await pumpStudio(tester, locale: 'ar');
       expect(
-        find.descendant(of: stepRow(0), matching: find.text('استخلص الإسبريسو')),
+        find.descendant(
+          of: stepRow(0),
+          matching: find.text('استخلص الإسبريسو'),
+        ),
         findsOneWidget,
       );
     });
@@ -355,9 +380,11 @@ void main() {
         matching: find.bySemanticsLabel(h.t('menu.studio.steps.titleAr')),
       );
       expect(
-        tester.widget<EditableText>(
-          find.descendant(of: ar, matching: find.byType(EditableText)),
-        ).textDirection,
+        tester
+            .widget<EditableText>(
+              find.descendant(of: ar, matching: find.byType(EditableText)),
+            )
+            .textDirection,
         TextDirection.rtl,
       );
       final note = find.descendant(
@@ -451,34 +478,38 @@ void main() {
       await h.tap(find.byKey(const ValueKey('step-preset-blend')));
       expect(find.text(h.t('menu.studio.steps.pickDesc')), findsNothing);
       expect(
-        find.descendant(of: stepRow(3), matching: find.text('Blend until smooth')),
+        find.descendant(
+          of: stepRow(3),
+          matching: find.text('Blend until smooth'),
+        ),
         findsOneWidget,
       );
     });
 
-    testWidgets('MENU-STUDIO-070 the picker\'s own "Write your own" and Close', (
-      tester,
-    ) async {
-      final h = await pumpStudio(tester);
-      await h.tap(studioText(h.t('menu.studio.steps.addFromLibrary')));
-      await h.tap(find.text(h.t('common.close')).last);
-      expect(stepRow(3), findsNothing);
-      await h.tap(studioText(h.t('menu.studio.steps.addFromLibrary')));
-      await h.tap(
-        find.descendant(
-          of: find.byType(DashSurface),
-          matching: find.text(h.t('menu.studio.steps.addCustom')),
-        ),
-      );
-      expect(find.text(h.t('menu.studio.steps.pickDesc')), findsNothing);
-      expect(
-        find.descendant(
-          of: stepRow(3),
-          matching: find.bySemanticsLabel(h.t('menu.studio.steps.titleEn')),
-        ),
-        findsOneWidget,
-      );
-    });
+    testWidgets(
+      'MENU-STUDIO-070 the picker\'s own "Write your own" and Close',
+      (tester) async {
+        final h = await pumpStudio(tester);
+        await h.tap(studioText(h.t('menu.studio.steps.addFromLibrary')));
+        await h.tap(find.text(h.t('common.close')).last);
+        expect(stepRow(3), findsNothing);
+        await h.tap(studioText(h.t('menu.studio.steps.addFromLibrary')));
+        await h.tap(
+          find.descendant(
+            of: find.byType(DashSurface),
+            matching: find.text(h.t('menu.studio.steps.addCustom')),
+          ),
+        );
+        expect(find.text(h.t('menu.studio.steps.pickDesc')), findsNothing);
+        expect(
+          find.descendant(
+            of: stepRow(3),
+            matching: find.bySemanticsLabel(h.t('menu.studio.steps.titleEn')),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
     for (final locale in ['en', 'ar']) {
       testWidgets('MENU-STUDIO-070 the picker\'s footer ($locale): "Write '
@@ -562,9 +593,13 @@ void main() {
       );
       expect(stepRow(1), findsOneWidget);
       expect(
-        tester.widget<TextField>(
-          find.descendant(of: stepRow(1), matching: find.byType(TextField)).first,
-        ).enabled,
+        tester
+            .widget<TextField>(
+              find
+                  .descendant(of: stepRow(1), matching: find.byType(TextField))
+                  .first,
+            )
+            .enabled,
         isFalse,
       );
       expect(
@@ -608,7 +643,10 @@ void main() {
       final call = lastCall(h, 'GET', orgGroupsT);
       expect(call.query['org_id'], [SeedIds.sabahOrg]);
       final milk = groupCard('milk');
-      expect(find.descendant(of: milk, matching: find.text('Milk')), findsWidgets);
+      expect(
+        find.descendant(of: milk, matching: find.text('Milk')),
+        findsWidgets,
+      );
       expect(
         find.descendant(
           of: milk,
@@ -701,7 +739,10 @@ void main() {
         'sort': 9,
       }, timestamps: false);
       final h = await pumpStudio(tester, seeded: s);
-      expect(studioText(h.t('menu.studio.modifiers.noOptions')), findsOneWidget);
+      expect(
+        studioText(h.t('menu.studio.modifiers.noOptions')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('MENU-STUDIO-080 each option\'s recipe and cost, read-only', (
@@ -821,10 +862,7 @@ void main() {
       final h = await pumpStudio(tester, persona: Persona.manager);
       expect(studioText(h.t('menu.groups.editGroup')), findsNothing);
       expect(studioText(h.t('menu.groups.new')), findsNothing);
-      expect(
-        studioLabel(h.t('menu.studio.modifiers.detach')),
-        findsWidgets,
-      );
+      expect(studioLabel(h.t('menu.studio.modifiers.detach')), findsWidgets);
     });
   });
 
@@ -843,7 +881,10 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.descendant(of: row, matching: find.text('${h.t('common.price')} (EGP)')),
+        find.descendant(
+          of: row,
+          matching: find.text('${h.t('common.price')} (EGP)'),
+        ),
         findsOneWidget,
       );
       expect(
@@ -864,7 +905,10 @@ void main() {
         findsOneWidget,
       );
       await h.tap(
-        find.descendant(of: row, matching: find.bySemanticsLabel(h.t('common.remove'))),
+        find.descendant(
+          of: row,
+          matching: find.bySemanticsLabel(h.t('common.remove')),
+        ),
       );
       expect(optionRow(0), findsNothing);
     });
@@ -879,7 +923,10 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.descendant(of: optionRow(0), matching: find.bySemanticsLabel(label)),
+        find.descendant(
+          of: optionRow(0),
+          matching: find.bySemanticsLabel(label),
+        ),
         findsWidgets,
       );
       expect(
@@ -903,7 +950,9 @@ void main() {
         );
         final name = rect(find.bySemanticsLabel(h.t('common.name')));
         final price = rect(
-          find.bySemanticsLabel('${h.t('common.price')} (${locale == 'ar' ? 'ج.م' : 'EGP'})'),
+          find.bySemanticsLabel(
+            '${h.t('common.price')} (${locale == 'ar' ? 'ج.م' : 'EGP'})',
+          ),
         );
         final trash = rect(find.bySemanticsLabel(h.t('common.remove')));
         expect(name.width, greaterThan(price.width));
@@ -925,7 +974,10 @@ void main() {
       await h.tap(studioText(h.t('menu.studio.options.add')));
       final row = optionRow(0);
       await h.enterText(
-        find.descendant(of: row, matching: find.bySemanticsLabel(h.t('common.name'))),
+        find.descendant(
+          of: row,
+          matching: find.bySemanticsLabel(h.t('common.name')),
+        ),
         'Caramel drizzle',
       );
       await h.tap(
@@ -939,7 +991,10 @@ void main() {
         of: row,
         matching: find.bySemanticsLabel(h.t('common.quantity')),
       );
-      expect(find.descendant(of: row, matching: find.text('ml')), findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text('ml')),
+        findsOneWidget,
+      );
       await h.enterText(qty, '15');
       // 15 ml × EGP 0.08.
       expect(
@@ -952,15 +1007,22 @@ void main() {
         findsOneWidget,
       );
       await tapSave(h);
-      final opt = ((lastBody(h, 'PUT', optionsT)['options']! as List).single
-          as Map);
+      final opt =
+          ((lastBody(h, 'PUT', optionsT)['options']! as List).single as Map);
       expect(opt['recipe'], [
-        {'ingredient_id': _ing('caramel_syrup'), 'quantity': 15.0, 'unit': 'ml'},
+        {
+          'ingredient_id': _ing('caramel_syrup'),
+          'quantity': 15.0,
+          'unit': 'ml',
+        },
       ]);
       await h.flushTimers();
       // Clear: the deduction goes (an empty recipe is sent).
       await h.tap(
-        find.descendant(of: optionRow(0), matching: find.text(h.t('common.clear'))),
+        find.descendant(
+          of: optionRow(0),
+          matching: find.text(h.t('common.clear')),
+        ),
       );
       expect(
         find.descendant(
@@ -970,8 +1032,8 @@ void main() {
         findsNothing,
       );
       await tapSave(h);
-      final cleared = ((lastBody(h, 'PUT', optionsT)['options']! as List).single
-          as Map);
+      final cleared =
+          ((lastBody(h, 'PUT', optionsT)['options']! as List).single as Map);
       expect(cleared['recipe'], <Object?>[]);
       expect(cleared['id'], isNotNull);
       await h.flushTimers();
@@ -994,20 +1056,37 @@ void main() {
           'price': 2500,
           'is_active': true,
           'recipe': [
-            {'ingredient_id': _ing('vanilla_syrup'), 'quantity': 10, 'unit': 'ml'},
-            {'ingredient_id': _ing('whipped_cream'), 'quantity': 20, 'unit': 'g'},
+            {
+              'ingredient_id': _ing('vanilla_syrup'),
+              'quantity': 10,
+              'unit': 'ml',
+            },
+            {
+              'ingredient_id': _ing('whipped_cream'),
+              'quantity': 20,
+              'unit': 'g',
+            },
           ],
         },
       ]);
       final h = await pumpStudio(tester, seeded: s);
       final row = optionRow(0);
       expect(fieldWithText('Affogato style'), findsOneWidget);
-      expect(find.descendant(of: row, matching: find.text('Vanilla syrup')), findsOneWidget);
-      expect(find.descendant(of: row, matching: find.text('Whipped cream')), findsNothing);
+      expect(
+        find.descendant(of: row, matching: find.text('Vanilla syrup')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: row, matching: find.text('Whipped cream')),
+        findsNothing,
+      );
       expect(
         editableIn(
           tester,
-          find.descendant(of: row, matching: find.bySemanticsLabel(h.t('common.quantity'))),
+          find.descendant(
+            of: row,
+            matching: find.bySemanticsLabel(h.t('common.quantity')),
+          ),
         ).controller.text,
         '10',
       );
@@ -1047,7 +1126,10 @@ void main() {
     );
     expect(tiles, findsWidgets);
     for (final l in tester.widgetList<Lottie>(
-      find.descendant(of: find.byType(DashSurface), matching: find.byType(Lottie)),
+      find.descendant(
+        of: find.byType(DashSurface),
+        matching: find.byType(Lottie),
+      ),
     )) {
       expect(l.animate, isFalse);
     }

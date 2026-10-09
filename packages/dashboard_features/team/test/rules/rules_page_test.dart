@@ -47,12 +47,9 @@ void main() {
     }
     expect(find.text('Zamalek · own rules'), findsOneWidget);
     await h.tap(find.text('Zamalek · own rules').hitTestable().last);
-    expect(
-      h.server.callsTo(settingsT).last.query,
-      {
-        'branch_id': [SeedIds.zamalek],
-      },
-    );
+    expect(h.server.callsTo(settingsT).last.query, {
+      'branch_id': [SeedIds.zamalek],
+    });
     // Zamalek's own day limit (10 h) and auto-close (90 min).
     expect(shown(tester, RulesKeys.autoBuffer), '90');
     expect(pageText("This branch's own rules"), findsOneWidget);
@@ -60,8 +57,9 @@ void main() {
     expect(h.location.path, rulesPath);
   });
 
-  testWidgets('TEAM-RUL-004 loading: two skeleton cards under the header',
-      (tester) async {
+  testWidgets('TEAM-RUL-004 loading: two skeleton cards under the header', (
+    tester,
+  ) async {
     final s = rulesServer();
     final gate = s.server.hold('GET', settingsT);
     final h = await pumpRules(tester, s: s);
@@ -94,9 +92,7 @@ void main() {
     expect(find.byKey(RulesKeys.saveBar), findsNothing);
     expect(find.byKey(RulesKeys.addTier), findsNothing);
     expect(find.byKey(RulesKeys.tierRemove(0)), findsNothing);
-    final n = tester.widget<DashNumberInput>(
-      find.byKey(RulesKeys.tierFrom(0)),
-    );
+    final n = tester.widget<DashNumberInput>(find.byKey(RulesKeys.tierFrom(0)));
     expect(n.enabled, isFalse);
     expect(
       tester.widget<DashSwitch>(find.byKey(RulesKeys.excused)).enabled,
@@ -147,8 +143,10 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.byKey(RulesKeys.chip('auto_checkout_buffer_minutes')),
-        findsOneWidget);
+    expect(
+      find.byKey(RulesKeys.chip('auto_checkout_buffer_minutes')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('TEAM-RUL-008 a chip hands its rule back (struck through) and '
@@ -397,12 +395,7 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
     expect(rulesFormHidden(sub.read()), isFalse);
-    s.server.fail(
-      'GET',
-      settingsT,
-      MockResponse.error(500, 'boom'),
-      times: 1,
-    );
+    s.server.fail('GET', settingsT, MockResponse.error(500, 'boom'), times: 1);
     seen.clear();
     c.invalidate(staffAttendanceSettingsProvider);
     for (var i = 0; i < 10; i++) {
@@ -419,10 +412,7 @@ void main() {
       'read-back arrow points the way the line reads', (tester) async {
     final h = await pumpRules(tester, locale: 'ar');
     expect(shown(tester, RulesKeys.tierFrom(0)), '15');
-    expect(
-      find.textContaining(RegExp('15–30.*←')),
-      findsWidgets,
-    );
+    expect(find.textContaining(RegExp('15–30.*←')), findsWidgets);
     expect(h.location.path, rulesPath);
   });
 

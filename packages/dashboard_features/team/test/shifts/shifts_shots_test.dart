@@ -42,12 +42,7 @@ void main() {
     testWidgets('failed, ${size.name} $lang', (tester) async {
       final s = shiftsServer();
       for (final t in [shiftsT, rosterT]) {
-        s.server.fail(
-          'GET',
-          t,
-          MockResponse.error(500, 'boom'),
-          times: null,
-        );
+        s.server.fail('GET', t, MockResponse.error(500, 'boom'), times: null);
       }
       final h = await pumpShifts(tester, s: s, size: size, locale: lang);
       await shootPage(h, 'failed');
@@ -60,9 +55,7 @@ void main() {
         locale: lang,
         edit: (db) {
           noRoster(db);
-          db['work_shifts'].removeWhere(
-            (r) => r['org_id'] == SeedIds.sabahOrg,
-          );
+          db['work_shifts'].removeWhere((r) => r['org_id'] == SeedIds.sabahOrg);
         },
       );
       await shootPage(h, 'empty');
@@ -78,9 +71,7 @@ void main() {
       await h.shot('shifts/dialog-new-more');
     });
 
-    testWidgets('edit dialog over the cap, ${size.name} $lang', (
-      tester,
-    ) async {
+    testWidgets('edit dialog over the cap, ${size.name} $lang', (tester) async {
       final h = await pumpShifts(
         tester,
         size: size,
@@ -119,7 +110,8 @@ void main() {
       );
       final first = inGrid(
         find.byWidgetPredicate(
-          (w) => w.key is ValueKey<String> &&
+          (w) =>
+              w.key is ValueKey<String> &&
               (w.key! as ValueKey<String>).value.startsWith('roster-') &&
               (w.key! as ValueKey<String>).value.endsWith('-4'),
         ),

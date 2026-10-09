@@ -41,12 +41,10 @@ void main() {
     expect(v.branchId, wholeBusiness);
     expect((v.start, v.end), ('09:00', '17:00'));
     expect((v.grace, v.breakMinutes, v.paidBreak), (15, 0, true));
-    expect((v.otThreshold, v.otMultiplier, v.otDay, v.otNight), (
-      15,
-      1.5,
-      null,
-      null,
-    ));
+    expect(
+      (v.otThreshold, v.otMultiplier, v.otDay, v.otNight),
+      (15, 1.5, null, null),
+    );
     expect((v.halfDay, v.checkin, v.isActive), (null, 120, true));
     expect(v.validDays, allDays);
     expect(v.hasDayTimes || v.hasOptionalRates, isFalse);
@@ -100,7 +98,9 @@ void main() {
       ),
       isEmpty,
     );
-    expect(shiftProblems(ev()..name = '  ', _t), {'name': 'staff.errShiftName'});
+    expect(shiftProblems(ev()..name = '  ', _t), {
+      'name': 'staff.errShiftName',
+    });
     expect(shiftProblems(ev()..grace = -5, _t), {
       'grace': 'staff.errNonNegative',
     });
