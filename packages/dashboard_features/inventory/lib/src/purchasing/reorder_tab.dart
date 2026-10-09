@@ -11,6 +11,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/on_hand.dart';
 import 'purchase_order_dialog.dart';

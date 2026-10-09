@@ -124,6 +124,15 @@ String formatUnitCost(DashFormat f, num piastresPerUnit) => f.fmtNumber(
   ),
 );
 
+/// `String(n)` in JavaScript: a whole number without `.0`.
+String jsNumberString(num n) {
+  final d = n.toDouble();
+  if (d.isFinite && d == d.truncateToDouble() && d.abs() < 1e21) {
+    return d.toInt().toString();
+  }
+  return d.toString();
+}
+
 /// `Math.round`: halves go up (also for negatives, unlike Dart's `round`).
 int jsRound(num v) => (v + 0.5).floor();
 

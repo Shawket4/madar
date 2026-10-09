@@ -86,3 +86,15 @@ List<Supplier> activeSuppliers(List<Supplier> all) => [
   for (final s in all)
     if (s.isActive) s,
 ];
+
+/// A read as a table or a section shows it: the web's `isLoading` is a
+/// FIRST load only (a refetch keeps the rows), and an error wins over rows
+/// (React Query keeps `error` beside stale `data`).
+extension InventoryAsyncX<T> on AsyncValue<T> {
+  /// Loading with nothing to show yet.
+  bool get firstLoad => isLoading && !hasValue && !hasError;
+
+  /// The words for a failed read (none while a retry runs), or null.
+  String? errorText(Translator t) =>
+      hasError && !isLoading ? errorMessage(error, t) : null;
+}

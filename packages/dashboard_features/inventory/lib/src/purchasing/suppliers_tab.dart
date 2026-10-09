@@ -10,7 +10,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/inventory_data.dart';
-import 'purchasing_data.dart';
 import 'supplier_dialog.dart';
 
 class SuppliersTab extends ConsumerWidget {

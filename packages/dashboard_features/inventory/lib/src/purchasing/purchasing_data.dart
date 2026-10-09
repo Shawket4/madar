@@ -1,7 +1,7 @@
 /// Purchasing's own reads (INV-PUR-003, -022, -043, -048) as providers keyed
 /// like the web's React Query keys, and the helpers the page and its dialogs
-/// share: the order reference, a load state, the web's number parsing and
-/// the export with its toasts.
+/// share: the order reference and the web's number parsing. The load state,
+/// `jsNumberString` and the export live in `shared/`.
 ///
 /// The shared reads (suppliers, catalog) live in `shared/inventory_data.dart`
 /// so Today, Ingredients and these dialogs read one cache.
@@ -10,9 +10,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart'
     show GoodsReceipt, PurchaseOrder, PurchaseOrderFull, ReorderSuggestion;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show publicBrandProvider;
-import 'package:dashboard_kit/dashboard_kit.dart';
-import 'package:flutter/widgets.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show dashParseNumber;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// `listPurchaseOrders(scopeBranchId, {status})`: a branch, or the
@@ -73,60 +71,9 @@ String poReference({required String id, String? reference}) =>
     ? reference
     : '#${id.length > 8 ? id.substring(0, 8) : id}';
 
-/// A read as a record table or a section shows it: the web's `isLoading`
-/// is a FIRST load only (a refetch keeps the rows), and an error wins over
-/// rows (React Query keeps `error` beside stale `data`).
-extension PurchasingAsyncX<T> on AsyncValue<T> {
-  /// Loading with nothing to show yet.
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-
-  /// The words for a failed read, or null.
-  String? errorText(Translator t) =>
-      hasError && !isLoading ? errorMessage(error, t) : null;
-}
-
 /// `parseFloat` of an `<input type="number">`'s text: blank or unreadable
 /// is NaN; Arabic digits and the Arabic decimal sign are read too.
 double parseInputNumber(String raw) => dashParseNumber(raw) ?? double.nan;
 
-/// `String(n)` in JavaScript: a whole number without `.0`.
-String jsNumberString(num n) {
-  final d = n.toDouble();
-  if (d.isFinite && d == d.truncateToDouble() && d.abs() < 1e21) {
-    return d.toInt().toString();
-  }
-  return d.toString();
-}
-
 /// `piastres / 100` at exactly two decimals (`toFixed(2)`), for an input.
 String piastresToEgpFixed(num piastres) => (piastres / 100).toStringAsFixed(2);
-
-/// The logo a generated spreadsheet wears (`useExportLogo`): the shop's own
-/// on the branding tier, else null (Madar's).
-String? purchasingExportLogo(WidgetRef ref) {
-  final brand = ref.read(publicBrandProvider).value;
-  final logo = brand?.logoUrl?.trim();
-  if (brand == null || !brand.customBranding) return null;
-  return logo == null || logo.isEmpty ? null : logo;
-}
-
-/// `exportToExcel(config)` with the web's toasts (INV-ALL-013): nothing →
-/// "Nothing to export"; else "Gathering data…" that turns into "Exported N
-/// rows" or "Export failed".
-Future<void> purchasingExportExcel(
-  BuildContext context,
-  WidgetRef ref,
-  ExcelConfig config,
-) async {
-  final t = ref.read(tProvider);
-  if (config.sheets.every((s) => s.rows.isEmpty)) {
-    DashToast.error(context, const ExportNothing().message(t));
-    return;
-  }
-  final toast = DashToast.loading(context, t('excel.generating'));
-  final outcome = await ref.read(exporterProvider).exportToExcel(config);
-  toast.update(
-    outcome is ExportDone ? DashToastKind.success : DashToastKind.error,
-    outcome.message(t),
-  );
-}

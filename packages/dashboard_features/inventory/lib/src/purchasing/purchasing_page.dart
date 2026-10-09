@@ -16,6 +16,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/inventory_data.dart';
+import '../shared/inventory_export.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/no_org.dart';
 import 'orders_tab.dart';
@@ -47,7 +48,7 @@ class _PurchasingPageState extends ConsumerState<PurchasingPage> {
     required List<Supplier> suppliers,
   }) async {
     final t = ref.read(tProvider);
-    final logo = purchasingExportLogo(ref);
+    final logo = inventoryExportLogo(ref);
     // Both lists are whole (unpaged), and the orders already carry the
     // status filter: what the tab shows is what the file holds. The Reorder
     // tab exports the suppliers, as the web does.
@@ -151,7 +152,7 @@ class _PurchasingPageState extends ConsumerState<PurchasingPage> {
     }
     setState(() => _exporting = true);
     try {
-      await purchasingExportExcel(context, ref, config);
+      await inventoryExportExcel(context, ref, config);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }

@@ -135,8 +135,3 @@ List<StockMovement> wasteSince(List<StockMovement> lines, DateTime start) => [
   for (final m in lines)
     if (!m.createdAt.isBefore(start)) m,
 ];
-
-/// React Query's `isLoading`: the first load, nothing to show yet.
-extension TodayAsync<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}

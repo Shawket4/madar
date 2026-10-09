@@ -65,6 +65,7 @@ const List<DashRoute> inventoryRoutes = [
     titleFallback: 'Ingredients',
     caps: [Cap.inventoryRead],
     module: OrgModule.pos,
+    prefetch: _prefetchIngredients,
   ),
   DashRoute(
     path: '/inventory/purchasing',
@@ -131,4 +132,15 @@ void _prefetchPurchasing(DashPrefetcher warm, Scope s) {
   warm(inventorySuppliersProvider(orgId));
   warm(inventoryCatalogProvider(orgId));
   warm(purchaseOrdersProvider((branchId: s.scopeBranchId, status: null)));
+}
+
+/// The web's `prefetchRoute('/inventory/ingredients')` (also
+/// `/inventory/items`): the org catalog, the org's branches and, with a
+/// branch, its stock — the keys the page watches.
+void _prefetchIngredients(DashPrefetcher warm, Scope s) {
+  if (s.orgId != null) {
+    warm(inventoryCatalogProvider(s.orgId!));
+    warm(branchesProvider);
+  }
+  if (s.branchId != null) warm(branchStockProvider(s.branchId!));
 }
