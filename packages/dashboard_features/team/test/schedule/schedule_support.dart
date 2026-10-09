@@ -227,6 +227,15 @@ Finder dayCellOf(DashHarness h, String name, int day) => inGrid(
   ),
 );
 
+/// Scrolls [f] to the middle of its scroll view, then taps it (a phone's
+/// sticky header covers whatever `ensureVisible` leaves at the top).
+Future<void> tapCentered(DashHarness h, Finder f) async {
+  await Scrollable.ensureVisible(f.evaluate().first, alignment: 0.5);
+  await h.settle(rounds: 2);
+  await h.tester.tap(f.first);
+  await h.settle();
+}
+
 /// The JSON body a call sent.
 Map<String, Object?> bodyOf(MockCall c) =>
     (c.body! as Map).cast<String, Object?>();

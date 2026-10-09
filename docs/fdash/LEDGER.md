@@ -264,3 +264,4 @@ DONE catalog_menu/items (fixed; 231 tests). KIT FIX (me): DashIntent Focus inclu
 DONE catalog_menu/studio (fixed; 247 tests). Gaps: Deducts select fixed 224 (web flex-1); processing image job not polled (pre-existing).
 DONE team/employees (fixed; 429 team tests, 1 failing in team_setup TEAM-SET-005 429 toast → investigate). DONE setup/kitchen built (45/45, 104 tests) → VERIFY QUEUED.
 FOLLOW-UP: team_setup TEAM-SET-005 (429 refresh toast) fails since the employees fix/shifts work; re-run after the shifts+schedule builders finish; check refresh_toast.dart vs retrying + whether setup-refresh still refetches /staff/work-shifts.
+BUILT team/shifts (33/33 SHF, 111 tests; set-up step 3 wired) → VERIFY QUEUED. FIXED (me): TEAM-SET-005 test expected the server's 429 words; the shared refresh toast uses errors.tooManyRequests (TEAM-ALL-014) → test updated; team_setup 126 pass.

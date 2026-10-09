@@ -82,7 +82,7 @@ void main() {
   testWidgets('TEAM-SCH-040 the day editor: the title, the hint (published: '
       'they are told), the day\'s shifts', (tester) async {
     final h = await openDay(tester, 'Adham Reda', 0);
-    expect(surfaceText('Adham Reda, 03 Oct 2026'), findsOneWidget);
+    expect(inSurface(plainHas('Adham Reda, 03 Oct 2026')), findsWidgets);
     expect(
       surfaceText(
         '${h.t('dawam.dayEditorHint')} ${h.t('dawamOps.toldPublished')}',
@@ -363,8 +363,8 @@ void main() {
     final h = await openDay(tester, 'Adham Reda', 0);
     await h.tap(surfaceButton('Day off'));
     expect(
-      inConfirm(find.text('Give Adham Reda the day off on 03 Oct 2026?')),
-      findsOneWidget,
+      inConfirm(plainHas('Give Adham Reda the day off on 03 Oct 2026?')),
+      findsWidgets,
     );
     expect(
       inConfirm(

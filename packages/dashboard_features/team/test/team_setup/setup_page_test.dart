@@ -175,7 +175,9 @@ void main() {
     await h.tapKey(const ValueKey('setup-refresh'));
     expect(byKey('setup-ready'), findsOneWidget);
     expect(byKey('setup-error'), findsNothing);
-    await h.expectToast(h.refusalWords(busy));
+    // An uncoded 429 reads in the person's words (TEAM-ALL-014), not the
+    // server's sentence.
+    await h.expectToast(h.t('errors.tooManyRequests'));
   });
 
   // ── Done rules, opening step ─────────────────────────────────────────

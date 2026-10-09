@@ -137,7 +137,8 @@ void main() {
         locale: lang,
         dark: dark,
       );
-      await h.tap(
+      await tapCentered(
+        h,
         inGrid(
           pressable(h.t('dawam.prefsOf', args: {'name': 'Hassan Ibrahim'})),
         ),

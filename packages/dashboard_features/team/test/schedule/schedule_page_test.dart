@@ -13,6 +13,7 @@ import 'package:dashboard_team/src/schedule/schedule_page.dart';
 import 'package:dashboard_team/src/shared/refresh_button.dart';
 import 'package:flutter/material.dart' show Tooltip;
 import 'package:flutter/widgets.dart';
+import 'package:flutter/services.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'schedule_support.dart';
@@ -520,7 +521,7 @@ void main() {
     final h = await pumpSchedule(tester);
     expect(dayCells('Adham Reda'), findsNWidgets(7));
     await h.tap(dayCell('Adham Reda', 0));
-    expect(surfaceText('Adham Reda, 03 Oct 2026'), findsOneWidget);
+    expect(inSurface(plainHas('Adham Reda, 03 Oct 2026')), findsWidgets);
   });
 
   testWidgets('TEAM-SCH-022 the legend under the grid', (tester) async {
@@ -951,6 +952,46 @@ void main() {
     expect(grid, findsOneWidget);
     expect(pageText(h.t('staff.rosterLoadError')), findsNothing);
     await h.expectToast(h.refusalWords(MockResponse.error(500, 'boom')));
+  });
+
+  testWidgets('TEAM-ALL-009 back in the app after 30 s refetches the week; '
+      'sooner does nothing; the coverage editor never', (tester) async {
+    final h = await pumpSchedule(tester);
+    await h.tap(button('Coverage needs'));
+    Future<void> resume() async {
+      for (final s in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+      await h.settle();
+    }
+
+    final n = weekCalls(h, week).length;
+    final cov = calls(h, coverageT).length;
+    await resume();
+    expect(weekCalls(h, week), hasLength(n));
+    h.db!.clock.advance(const Duration(seconds: 31));
+    await resume();
+    expect(weekCalls(h, week), hasLength(n + 1));
+    expect(calls(h, coverageT), hasLength(cov));
+  });
+
+  testWidgets('TEAM-ALL-021 the week is page state: leaving resets it', (
+    tester,
+  ) async {
+    final h = await pumpSchedule(tester);
+    await h.tap(pressable('Next week'));
+    expect(pageText('Next week'), findsWidgets);
+    await h.go('/staff/employees');
+    await h.go(schedulePath);
+    expect(pageText('This week'), findsOneWidget);
+    expect(h.location.queryParameters, isEmpty);
   });
 
   testWidgets('TEAM-SCH-055 the coverage toggle shows the card, pressed', (

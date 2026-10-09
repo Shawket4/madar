@@ -528,7 +528,7 @@ class _AssignMenu extends ConsumerWidget {
                 times,
                 textDirection: TextDirection.ltr,
                 style: DashType.mono.copyWith(
-                  fontSize: 12,
+                  fontSize: DashType.small.fontSize,
                   color: c.textSecondary,
                 ),
               ),

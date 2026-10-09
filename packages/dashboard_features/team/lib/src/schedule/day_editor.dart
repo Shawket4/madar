@@ -147,7 +147,10 @@ class _DayEditorState extends ConsumerState<DayEditor> {
         context,
         title: t(
           'dawamOps.dayOffTitle',
-          args: {'name': widget.person.name, 'date': f.fmtDate(widget.date)},
+          args: {
+            'name': MadarFormat.isolate(widget.person.name),
+            'date': f.fmtDate(widget.date),
+          },
         ),
         description: published
             ? '$hint ${t('dawamOps.toldPublished')}'
@@ -553,9 +556,14 @@ class _DayEditorState extends ConsumerState<DayEditor> {
 
     final hint = t('dawam.dayEditorHint');
     return DashSurface(
+      // The name isolated: a Latin name in Arabic would pull the date's
+      // digits into its own run.
       title: t(
         'dawam.dayEditorTitle',
-        args: {'name': widget.person.name, 'date': f.fmtDate(date)},
+        args: {
+          'name': MadarFormat.isolate(widget.person.name),
+          'date': f.fmtDate(date),
+        },
       ),
       description: published ? '$hint ${t('dawamOps.toldPublished')}' : hint,
       body: body,
