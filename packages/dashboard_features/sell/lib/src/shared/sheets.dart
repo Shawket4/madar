@@ -9,8 +9,11 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../customers/customer_sheet.dart';
-import '../customers/customers_data.dart' show customerDetailProvider;
+import '../customers/customers_data.dart'
+    show customerDetailProvider, loyaltyMemberProvider, peopleAccessProvider;
 import '../orders/order_sheet.dart';
+import '../orders/orders_providers.dart'
+    show orderCatalogProvider, orderDetailProvider;
 import 'customer_link.dart';
 
 /// The [CustomerLinkControl] of one surface: links open when the viewer holds
@@ -66,4 +69,53 @@ ValueChanged<String> singleOrderSheet(BuildContext context) {
     });
   };
   return show;
+}
+
+/// The customer sheet as another area opens it (dashboard_core's
+/// [AreaOpeners], wired by the app): reports' table sittings (read-only) and
+/// the loyalty programme's members. An order chosen in it opens over it
+/// ([singleOrderSheet]); a read-only sheet closes itself first.
+const CustomerSheetOpener customerSheetOpener = CustomerSheetOpener(
+  open: _openCustomer,
+  warm: _warmCustomer,
+);
+
+Future<void> _openCustomer(
+  BuildContext context,
+  String customerId, {
+  bool readOnly = false,
+  String? branchId,
+}) => showCustomerSheet(
+  context,
+  customerId: customerId,
+  readOnly: readOnly,
+  branchId: branchId,
+  onOpenOrder: singleOrderSheet(context),
+);
+
+/// The sheet's first read: the customer, or the card alone for someone who
+/// sees only the loyalty side.
+void _warmCustomer(WidgetRef ref, String customerId, {String? branchId}) {
+  final access = ref.read(peopleAccessProvider);
+  if (access.canViewCustomers) {
+    ref.warm(customerDetailProvider(customerId));
+  } else if (access.canViewMember) {
+    ref.warm(loyaltyMemberProvider((id: customerId, branchId: branchId)));
+  }
+}
+
+/// The order sheet as another area opens it, without Void: reports' staff
+/// drinks and a loyalty card's ledger.
+const OrderSheetOpener orderSheetOpener = OrderSheetOpener(
+  open: _openOrder,
+  warm: _warmOrder,
+);
+
+Future<void> _openOrder(BuildContext context, String orderId) async =>
+    singleOrderSheet(context)(orderId);
+
+void _warmOrder(WidgetRef ref, String orderId) {
+  ref.warm(orderDetailProvider(orderId));
+  final orgId = ref.read(orgIdProvider);
+  if (orgId != null) ref.warm(orderCatalogProvider(orgId));
 }

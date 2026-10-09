@@ -30,6 +30,22 @@ Future<void> showAddEmployeeDialog(BuildContext context, {String? userId}) =>
       builder: (_) => AddEmployeeDialog(userId: userId),
     );
 
+/// The dialog as another area opens it (dashboard_core's [AreaOpeners],
+/// wired by the app): the Users page's "Make employee".
+const AddEmployeeOpener addEmployeeOpener = AddEmployeeOpener(
+  open: showAddEmployeeDialog,
+  warm: _warmAddEmployee,
+);
+
+/// The dialog's first reads: the linkable accounts, and the pay rules behind
+/// the salary calculator for someone who may set a salary.
+void _warmAddEmployee(WidgetRef ref) {
+  ref.warm(linkableUsersProvider);
+  if (ref.read(authzProvider).canEverywhere(Cap.hrPayrollEdit)) {
+    ref.warm(staffAttendanceSettingsProvider);
+  }
+}
+
 class AddEmployeeDialog extends ConsumerStatefulWidget {
   const AddEmployeeDialog({this.userId, super.key});
 

@@ -1,5 +1,6 @@
 // Shared set-up for the shell's tests: the whole app with every area.
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart' show areaOpenersProvider;
 import 'package:dashboard_core/shell.dart' show DashSidebar;
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +24,8 @@ Future<DashHarness> pumpShell(
   dark: dark,
   prefs: prefs,
   shotArea: 'shell',
+  // As the app boots: the real cross-area sheets and dialogs.
+  overrides: [areaOpenersProvider.overrideWithValue(dashboardOpeners)],
 );
 
 /// The text widget showing exactly [text] (a nav row, a label).

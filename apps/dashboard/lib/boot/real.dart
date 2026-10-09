@@ -77,6 +77,7 @@ Future<ProviderContainer> bootReal() async {
     retry: webRetry,
     overrides: [
       dashAreasProvider.overrideWithValue(dashboardAreas),
+      areaOpenersProvider.overrideWithValue(dashboardOpeners),
       stringsProvider.overrideWithValue(strings),
       preferencesProvider.overrideWithValue(prefs),
       sessionGatewayProvider.overrideWithValue(

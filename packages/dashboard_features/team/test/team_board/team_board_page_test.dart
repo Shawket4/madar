@@ -71,6 +71,15 @@ void main() {
     expect(h.server.callsTo(flagsT), isEmpty);
   });
 
+  testWidgets('TEAM-TEM (route) a Dawam-only org lands here from / and sees '
+      'its own people', (tester) async {
+    final h = await pumpTeam(tester, persona: Persona.dawamOnly, path: '/');
+    expect(h.location.path, '/staff/team');
+    expect(board, findsOneWidget);
+    expect(boardText('Adham Reda'), findsNothing);
+    expect(h.server.callsTo(presenceT), hasLength(1));
+  });
+
   testWidgets('TEAM-TEM-002 header: title, description and the owner\'s five '
       'actions', (tester) async {
     final h = await pumpTeam(tester);

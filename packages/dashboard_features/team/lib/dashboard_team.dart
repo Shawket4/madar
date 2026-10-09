@@ -7,6 +7,7 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'src/mock/register.dart';
 import 'src/routes.dart';
 
+export 'src/employees/add_employee_dialog.dart' show addEmployeeOpener;
 export 'src/mock/register.dart' show registerTeamMocks;
 export 'src/routes.dart' show teamRoutes;
 

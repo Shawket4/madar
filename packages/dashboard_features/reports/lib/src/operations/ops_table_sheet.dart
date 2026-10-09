@@ -3,9 +3,11 @@
 ///
 /// The panel turns the ledger's label into a table id through the floor's
 /// tables (one branch only), then shows the table's figures and its bills
-/// for the scope's period. A sitting's customer opens a read-only customer
-/// panel ([OpsCustomerSheet]) for whoever holds `customers.view`; one of the
-/// customer's orders opens a read-only order panel.
+/// for the scope's period. A sitting's customer opens the sell area's
+/// read-only customer sheet (through dashboard_core's [areaOpenersProvider])
+/// for whoever holds `customers.view`, and one of the customer's orders its
+/// order sheet; unwired, the local panels ([OpsCustomerSheet],
+/// [OpsOrderSheet]) stand in.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -209,6 +211,9 @@ class _SittingRow extends ConsumerWidget {
       authzProvider.select((a) => a.can(Cap.customersView)),
     );
     final customerId = s.customerId;
+    // The sell area's real sheet when the app wires it; the local panel in
+    // this package's own tests.
+    final seam = ref.watch(areaOpenersProvider).customerSheet;
     final Widget whoWidget =
         name != null && name.isNotEmpty && customerId != null && canOpen
         // The web's `CustomerLink`: the name, underlined, lined up with
@@ -220,11 +225,16 @@ class _SittingRow extends ConsumerWidget {
               pressScale: false,
               semanticLabel: name,
               excludeChildSemantics: true,
-              onTap: () => showDashSidePanel<void>(
-                context,
-                width: DashMetrics.dialogWide,
-                builder: (_) => OpsCustomerSheet(customerId: customerId),
-              ),
+              onTap: () => seam != null
+                  ? seam.open(context, customerId, readOnly: true)
+                  : showDashSidePanel<void>(
+                      context,
+                      width: DashMetrics.dialogWide,
+                      builder: (_) => OpsCustomerSheet(customerId: customerId),
+                    ),
+              onIntent: () => seam != null
+                  ? seam.warm(ref, customerId)
+                  : ref.warm(_customerProvider(customerId)),
               builder: (context, st) => ConstrainedBox(
                 constraints: const BoxConstraints(
                   minHeight: DashMetrics.target,
@@ -535,6 +545,7 @@ class _RecentOrders extends ConsumerWidget {
                 label: o.orderRef ?? o.id.substring(0, 8),
                 variant: DashButtonVariant.link,
                 size: DashButtonSize.compact,
+                onIntent: () => ref.warm(_orderProvider(o.id)),
                 onPressed: () {
                   // The customer panel closes first, then the order opens
                   // (`useCustomerSheet`'s onOpenOrder).

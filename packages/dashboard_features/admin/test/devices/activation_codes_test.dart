@@ -5,6 +5,7 @@ import 'package:dashboard_admin/src/orgs/org_errors.dart';
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +22,12 @@ Finder inCodes(Finder f) =>
 String wordsFor(DashHarness h, MockResponse response) => orgErrorWords(
   MockServer.toApiException(response),
   h.container.read(tProvider),
+);
+
+/// The name field's placeholder (a code in the table is named the same).
+Finder placeholder() => find.descendant(
+  of: find.byKey(const ValueKey('code-label')),
+  matching: find.text('Front counter'),
 );
 
 int _codeReads(DashHarness h) =>
@@ -74,7 +81,7 @@ void main() {
         );
         expect(pill.tone, tone, reason: label);
       }
-      for (final header in ['Code', 'Name', 'Type', 'Status', 'Expires / used']) {
+      for (final header in ['CODE', 'NAME', 'TYPE', 'STATUS', 'EXPIRES / USED']) {
         expect(inCodes(find.text(header)), findsOneWidget, reason: header);
       }
       expect(inCodes(find.text('Terrace tablet 2')), findsOneWidget);
@@ -196,7 +203,10 @@ void main() {
         ),
         findsNWidgets(2),
       );
-      expect(find.byType(DashToastView), findsNothing);
+      expect(
+        find.byWidgetPredicate((w) => '${w.runtimeType}' == '_ToastCard'),
+        findsNothing,
+      );
     });
 
     testWidgets('ADM-DEV-017 Cancel asks nothing', (tester) async {
@@ -235,7 +245,7 @@ void main() {
         findsOneWidget,
       );
       expect(top('Tablet name (optional)'), findsOneWidget);
-      expect(top('Front counter'), findsOneWidget);
+      expect(placeholder(), findsOneWidget);
       final kind = find.byKey(const ValueKey('code-kind'));
       expect(
         find.descendant(of: kind, matching: find.text('POS')),
@@ -304,7 +314,7 @@ void main() {
       // A fresh form on the next open.
       await h.tap(find.byKey(const ValueKey('issue-code')));
       expect(find.byKey(const ValueKey('issued-code')), findsNothing);
-      expect(top('Front counter'), findsOneWidget);
+      expect(placeholder(), findsOneWidget);
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('code-kind')),
@@ -367,4 +377,4 @@ void main() {
 }
 
 /// The codes table of the harness's database.
-MockTable b(DashHarness h) => h.db[AdminTables.activationCodes];
+MockTable b(DashHarness h) => h.db![AdminTables.activationCodes];

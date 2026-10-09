@@ -9,6 +9,7 @@ import 'src/routes.dart';
 
 export 'src/mock/register.dart' show registerSellMocks;
 export 'src/routes.dart' show sellRoutes;
+export 'src/shared/sheets.dart' show customerSheetOpener, orderSheetOpener;
 
 /// The sell area as the shell mounts it.
 ///

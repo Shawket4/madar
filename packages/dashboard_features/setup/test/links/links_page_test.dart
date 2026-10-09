@@ -149,14 +149,17 @@ void main() {
       'GET',
       LinksRoutes.qr,
       MockResponse.error(500, 'The link shortener did not answer'),
+      times: null,
     );
     final h = await pumpLinks(tester, backend: m);
     await h.tap(byKey('links-qr'));
     await h.expectToast('The link shortener did not answer');
     expect(find.text('Links page code'), findsNothing);
 
+    m.server.clearFailures();
+    final before = gets(h, LinksRoutes.qr);
     await h.tap(byKey('links-qr'));
-    expect(gets(h, LinksRoutes.qr), 2);
+    expect(gets(h, LinksRoutes.qr), before + 1);
     expect(h.server.callsTo(LinksRoutes.qr).last.query, isEmpty);
     expect(find.text('Links page code'), findsOneWidget);
   });
