@@ -302,6 +302,14 @@ class DashHarness {
     await settle(rounds: 2);
   }
 
+  /// The words a refusal shows (toast, field or error state): what the app's
+  /// transport makes of [response]. Assert with this, never a hand-copied
+  /// server sentence, so tests follow when the wording rules change (the
+  /// real app words refusals like the core: no "Conflict: " prefix, no
+  /// English on an Arabic screen).
+  String refusalWords(MockResponse response) =>
+      MockServer.toApiException(response).message;
+
   /// Expects a toast saying [text]; then lets it expire (so no timer is
   /// left running) unless [keep].
   Future<void> expectToast(String text, {bool keep = false}) async {

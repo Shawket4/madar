@@ -40,6 +40,11 @@ phone, tablet and desktop, English light and Arabic dark, and the key dialogs. L
 - poor dark-mode contrast;
 - anything unpolished next to the web.
 
+## Known, don't report
+- In mock mode a refusal shows the server's raw sentence ("Conflict: …"). The foundation will
+  align it with the real app's wording after the build phase. Tests should assert refusal text
+  through `h.refusalWords(response)`; a hand-copied server sentence is a minor finding at most.
+
 ## Report (your final message)
 A list of findings, each with:
 - severity:

@@ -72,7 +72,9 @@ missing or broken, build a local one in your unit and list it under kit candidat
   - the screenshot matrix.
 
   Scope finders to the widget under test (the shell builds every sidebar row, and pages share
-  words).
+  words). Assert a refusal's words with `h.refusalWords(response)`, never a hand-copied server
+  sentence: the mock's wording will be aligned with the real app's later, and the helper
+  follows.
 - A web bug is not copied: port the intent and log it in your divergences file.
 
 Iterate until all your tests pass, analyze is clean for your files, and your screenshots look right
