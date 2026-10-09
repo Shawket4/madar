@@ -5,9 +5,13 @@
 ///
 /// The frame also holds what the web's layout holds once for every page: the
 /// one realtime connection for the selected branch, the scope a deep link
-/// carries (`?branchId=&preset=&from=&to=`), and Ctrl/Cmd+K.
+/// carries (`?branchId=&preset=&from=&to=`), and Ctrl/Cmd+K. Beyond the web,
+/// the open page refreshes by hand ([DashPageRefresh]): pulled down, from
+/// its header, or Cmd+R (Ctrl+R off Apple).
 library;
 
+import 'package:dashboard_core/src/authz/gates.dart' show errorMessage;
+import 'package:dashboard_core/src/data/query_cache.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/providers.dart';
 import 'package:dashboard_core/src/scope/period.dart';
@@ -22,10 +26,23 @@ import 'package:dashboard_core/src/shell/shell_prefs.dart';
 import 'package:dashboard_core/src/shell/sidebar.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+/// Whether [event] refreshes the open page: Cmd+R on Apple, Ctrl+R elsewhere.
+bool isRefreshShortcut(KeyEvent event) {
+  if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyR) {
+    return false;
+  }
+  final k = HardwareKeyboard.instance;
+  final apple =
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+  return apple ? k.isMetaPressed : k.isControlPressed;
+}
 
 /// The frame around every signed-in page.
 class DashShell extends ConsumerStatefulWidget {
@@ -42,6 +59,7 @@ class _DashShellState extends ConsumerState<DashShell> {
   final _scaffold = GlobalKey<ScaffoldState>();
   Uri? _scopeFrom;
   bool _paletteOpen = false;
+  late final _refresh = DashPageRefresh(_refreshPage);
 
   @override
   void initState() {
@@ -52,11 +70,25 @@ class _DashShellState extends ConsumerState<DashShell> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_onKey);
+    _refresh.dispose();
     super.dispose();
   }
 
+  /// Everything the open page shows, read again from the server; a failure
+  /// keeps what is shown and says why.
+  Future<void> _refreshPage() async {
+    final failed = await ref.read(queryCacheProvider).refetchActive();
+    if (failed == null || !mounted) return;
+    DashToast.error(context, errorMessage(failed, ref.read(tProvider)));
+  }
+
   bool _onKey(KeyEvent event) {
-    if (!isPaletteShortcut(event) || !mounted) return false;
+    if (!mounted) return false;
+    if (isRefreshShortcut(event)) {
+      _refresh.refresh();
+      return true;
+    }
+    if (!isPaletteShortcut(event)) return false;
     if (_paletteOpen) {
       Navigator.of(context, rootNavigator: true).maybePop();
     } else {
@@ -137,7 +169,9 @@ class _DashShellState extends ConsumerState<DashShell> {
                   children: [
                     DashHeader(paperContext: context),
                     const DashOfflineBanner(),
-                    Expanded(child: _PageSlot(child: widget.child)),
+                    Expanded(
+                      child: _PageSlot(refresh: _refresh, child: widget.child),
+                    ),
                     const SafeArea(top: false, child: DashFooter()),
                   ],
                 ),
@@ -170,7 +204,9 @@ class _DashShellState extends ConsumerState<DashShell> {
         children: [
           DashPhoneBar(paperContext: context),
           const DashOfflineBanner(),
-          Expanded(child: _PageSlot(child: widget.child)),
+          Expanded(
+            child: _PageSlot(refresh: _refresh, child: widget.child),
+          ),
         ],
       ),
       bottomNavigationBar: DashBottomBar(
@@ -186,12 +222,16 @@ class _DashShellState extends ConsumerState<DashShell> {
 /// it in the same scope — without a boundary here, the sidebar and the
 /// header vanish from screen readers.
 class _PageSlot extends StatelessWidget {
-  const _PageSlot({required this.child});
+  const _PageSlot({required this.refresh, required this.child});
+  final DashPageRefresh refresh;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) =>
-      Semantics(container: true, explicitChildNodes: true, child: child);
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    explicitChildNodes: true,
+    child: DashPageRefreshScope(controller: refresh, child: child),
+  );
 }
 
 /// Holds the selected branch's realtime connection while the frame is up

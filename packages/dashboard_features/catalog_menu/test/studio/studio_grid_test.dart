@@ -5,6 +5,7 @@
 // (EGP 0.95/g) + a 12oz cup (EGP 1.80) + a hot lid (EGP 0.60).
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_catalog_menu/src/area_seed.dart';
+import 'package:dashboard_catalog_menu/src/studio/studio_widgets.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/material.dart';
@@ -797,6 +798,22 @@ void main() {
       expect(lastCall(h, 'GET', linkT).path, '/menu-items/${item('iced_spanish')}/recipe-link');
       expect(studioText(h.t('modeling.linked.follows')), findsOneWidget);
       expect(studioText(h.t('modeling.linked.outOfSync')), findsOneWidget);
+      // The web's neutral outline badge, not a warning wash.
+      expect(
+        find.ancestor(
+          of: studioText(h.t('modeling.linked.outOfSync')),
+          matching: find.byType(StudioOutlineBadge),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.ancestor(
+          of: studioText(h.t('modeling.linked.outOfSync')),
+          matching: find.byType(DashBadge),
+        ),
+        findsNothing,
+      );
+      await h.shot('studio/out-of-sync');
       await h.tap(studioText('Spanish Latte').last);
       expect(h.location.path, '/menu/items/${item('spanish')}');
     });

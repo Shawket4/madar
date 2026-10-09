@@ -224,7 +224,7 @@ class _ImportPeopleDialogState extends ConsumerState<ImportPeopleDialog> {
 typedef _Row = ({int row, NewPerson? person, RowError? error});
 
 // The preview's column shares.
-const int _name = 3, _phone = 4, _branch = 3, _salary = 3, _result = 7;
+const int _name = 3, _phone = 4, _branch = 3, _salary = 4, _result = 6;
 
 class _Preview extends ConsumerWidget {
   const _Preview({

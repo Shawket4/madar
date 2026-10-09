@@ -21,6 +21,10 @@ import 'studio_widgets.dart';
 /// The uploader's address for a staged file (drawn from its bytes).
 const String _staged = 'staged:';
 
+/// The uploader's address for a server picture still being processed: drawn
+/// as a skeleton, with Replace and Remove over it (the web's `AssetImage`).
+const String _processing = 'processing:';
+
 class StudioItemSection extends ConsumerWidget {
   const StudioItemSection({
     required this.orgId,
@@ -87,8 +91,11 @@ class StudioItemSection extends ConsumerWidget {
       width: StudioMetrics.imageBox,
       child: DashImageUploader(
         key: uploaderKey,
-        value: pendingBytes != null ? _staged : imageUrl,
-        processing: pendingBytes == null && processing,
+        value: pendingBytes != null
+            ? _staged
+            : processing
+            ? _processing
+            : imageUrl,
         hint: t('menu.imageHint'),
         semanticLabel: t('uploader.choose'),
         onPick: () => _pick(ref),
@@ -101,6 +108,8 @@ class StudioItemSection extends ConsumerWidget {
             : () async => onRemoveImage!(),
         imageBuilder: (context, url) => url == _staged && pendingBytes != null
             ? Image.memory(pendingBytes!, fit: BoxFit.cover)
+            : url == _processing
+            ? const DashSkeleton(height: StudioMetrics.imageBox, radius: 0)
             : Image.network(
                 url,
                 fit: BoxFit.cover,

@@ -57,6 +57,9 @@ class _DashIntentState extends State<DashIntent> {
       child: Focus(
         canRequestFocus: false,
         skipTraversal: true,
+        // A listener only: its own semantics node would merge every label
+        // under it (a focused card's fields lose their own labels).
+        includeSemantics: false,
         onFocusChange: (focused) {
           if (focused) _fire();
         },

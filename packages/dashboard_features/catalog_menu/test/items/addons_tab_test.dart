@@ -209,7 +209,7 @@ void main() {
   ) async {
     final h = await _open(tester);
     await h.tap(labelIn(cardOf('Oat milk'), 'Name: Oat milk'));
-    await typeAndSubmit(h, labelIn(page, 'Name'), 'Oat');
+    await typeAndSubmit(h, fieldIn(page, 'Name'), 'Oat');
     final call = lastCall(h, 'PATCH', _option);
     expect(call.path, '/modifier-options/${option('milk', 'oat')}');
     expect(call.body, {'name': 'Oat'});
@@ -232,11 +232,11 @@ void main() {
           .text,
       '25',
     );
-    await typeAndSubmit(h, labelIn(page, 'Price'), '27.5');
+    await typeAndSubmit(h, fieldIn(page, 'Price'), '27.5');
     expect(lastCall(h, 'PATCH', _option).body, {'price': 2750});
     await h.flushTimers();
     await h.tap(labelIn(cardOf('Oat milk'), 'Price: 2750'));
-    await typeAndSubmit(h, labelIn(page, 'Price'), '-3');
+    await typeAndSubmit(h, fieldIn(page, 'Price'), '-3');
     expect(callsOf(h, 'PATCH', _option), hasLength(1));
   });
 
@@ -251,7 +251,7 @@ void main() {
       'says saved', (tester) async {
     final h = await _open(tester);
     await h.tap(labelIn(cardOf('Oat milk'), 'Type: milk_type'));
-    await typeAndSubmit(h, labelIn(page, 'Type'), 'extra');
+    await typeAndSubmit(h, fieldIn(page, 'Type'), 'extra');
     expect(lastCall(h, 'PATCH', _option).body, <String, Object?>{});
     await h.expectToast('Changes saved');
     expect(inCard('Oat milk', find.text('milk_type')), findsOneWidget);
@@ -416,7 +416,7 @@ void main() {
   ) async {
     final h = await _open(tester);
     await h.tap(labelIn(cardOf('Oat milk'), 'Price: 2500'));
-    await typeAndSubmit(h, labelIn(page, 'Price'), '');
+    await typeAndSubmit(h, fieldIn(page, 'Price'), '');
     expect(callsOf(h, 'PATCH', _option), isEmpty);
   });
 }

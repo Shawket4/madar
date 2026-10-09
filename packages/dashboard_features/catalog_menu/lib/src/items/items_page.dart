@@ -26,13 +26,15 @@ import 'package:dashboard_api/dashboard_api.dart'
         UpdateCategoryRequest,
         UpdateMenuItemRequest;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show publicBrandProvider;
+import 'package:dashboard_core/shell.dart'
+    show DashRoutePrefetch, publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../recipes/recipe_providers.dart' show addonIngredientsProvider;
 import '../shared/category_dialog.dart';
 import '../shared/menu_no_org.dart';
 import '../shared/menu_providers.dart';
@@ -135,6 +137,10 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
     String description,
     Future<void> Function(DashboardApi api) run,
   ) async {
+    // Opened from a ⋯ menu: wait for the menu to close, or its focus
+    // hand-back lands after the confirm's and Esc no longer reaches it.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
     final ok = await showDashConfirm(
       context,
       title: _t('common.confirmDelete', args: {'name': name}),
@@ -238,13 +244,43 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
       ? context.go('/menu/combos/${m.id}')
       : context.go('/menu/items/${m.id}');
 
-  void _prefetchAddons(String orgId) {
-    final warm = DashPrefetcher(
-      ProviderScope.containerOf(context, listen: false),
-    );
-    warm(addonItemsProvider(orgId));
-    warm(addonCostsProvider(orgId));
+  // ── intent warm-ups (owner rule): the read a press is about to make ──
+
+  /// A tab's reads (`prefetchAddons` for Add-ons; the others' lists).
+  void _warmTab(MenuTab tab, String orgId, String? branchId, CatalogQuery q) {
+    switch (tab) {
+      case MenuTab.items:
+        ref.warm(menuCatalogProvider(q));
+        if (branchId != null) ref.warm(branchMenuOverridesProvider(branchId));
+      case MenuTab.addons:
+        ref
+          ..warm(addonItemsProvider(orgId))
+          ..warm(addonCostsProvider(orgId));
+        if (branchId != null) ref.warm(branchAddonOverridesProvider(branchId));
+      case MenuTab.categories:
+        ref.warm(menuCategoriesProvider(orgId));
+    }
   }
+
+  /// An item's full read and its studio (`prefetchItem`): the card, the full
+  /// editor.
+  void _warmItem(MenuItemWithCosts m) => ref
+    ..warm(studioMenuItemProvider(m.id))
+    ..warm(menuStudioProvider(m.id));
+
+  /// The catalog page [q] with other filters (page 1 unless given).
+  static CatalogQuery _with(
+    CatalogQuery q, {
+    String? categoryId,
+    bool? hasRecipe,
+    int page = 1,
+  }) => (
+    orgId: q.orgId,
+    categoryId: categoryId,
+    search: q.search,
+    hasRecipe: hasRecipe,
+    page: page,
+  );
 
   // ── build ─────────────────────────────────────────────────────────────
 
@@ -277,7 +313,7 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
     final tabs = MenuTabsBar(
       value: _tab,
       onChanged: (v) => setState(() => _tab = v),
-      onHoverAddons: () => _prefetchAddons(orgId),
+      onIntent: (v) => _warmTab(v, orgId, branchId, query),
       tabs: [
         (tab: MenuTab.items, label: t('nav.items'), count: catalog?.total ?? 0),
         (tab: MenuTab.addons, label: t('menu.addons'), count: addons.length),
@@ -296,8 +332,8 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
         canRecipes: canRecipes,
         query: query,
         catalog: catalog,
-        loading: catalog == null && catalogQ.isLoading && !catalogQ.hasError,
-        failed: catalog == null && catalogQ.hasError
+        loading: catalog == null && catalogQ.awaitingFirst,
+        failed: catalog == null && catalogQ.failedFirst
             ? _failed(
                 catalogQ,
                 () => ref.invalidate(menuCatalogProvider(query)),
@@ -310,19 +346,16 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
         orgId: orgId,
         branchId: branchId,
         addons: addons,
-        loading: addonsQ.isLoading && !addonsQ.hasValue && !addonsQ.hasError,
-        failed: addonsQ.hasError && !addonsQ.hasValue
+        loading: addonsQ.awaitingFirst,
+        failed: addonsQ.failedFirst
             ? _failed(addonsQ, () => ref.invalidate(addonItemsProvider(orgId)))
             : null,
       ),
       MenuTab.categories => _categoriesTab(
         orgId: orgId,
         categories: categories,
-        loading:
-            categoriesQ.isLoading &&
-            !categoriesQ.hasValue &&
-            !categoriesQ.hasError,
-        failed: categoriesQ.hasError && !categoriesQ.hasValue
+        loading: categoriesQ.awaitingFirst,
+        failed: categoriesQ.failedFirst
             ? _failed(
                 categoriesQ,
                 () => ref.invalidate(menuCategoriesProvider(orgId)),
@@ -422,18 +455,8 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
         ? null
         : ref.watch(branchMenuOverridesProvider(branchId)).value;
     final byItem = {for (final o in overrides ?? const []) o.menuItemId: o};
-    // Pointing at a card (or focusing in it) warms the item and its studio
-    // (`prefetchItem`); the kit card has no hover hook of its own, so its
-    // tile, title and footer carry it.
-    Widget warm(MenuItemWithCosts m, Widget child) => WarmOnIntent(
-      warm: (w) {
-        w(studioMenuItemProvider(m.id));
-        w(menuStudioProvider(m.id));
-      },
-      child: child,
-    );
     final pages = catalog?.totalPages ?? 0;
-    final grid = DashEditableCardGrid<MenuItemWithCosts>(
+    return DashEditableCardGrid<MenuItemWithCosts>(
       key: const ValueKey('menu-grid-items'),
       rows: catalog?.data ?? const [],
       rowKey: (m) => m.id,
@@ -441,15 +464,12 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
         key: 'name',
         label: t('common.name'),
         getValue: (m) => m.name,
-        display: (context, m) => warm(
-          m,
-          Text(
-            _name(m.name, m.nameTranslations),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: DashType.bodyStrong.copyWith(
-              color: context.madarColors.textPrimary,
-            ),
+        display: (context, m) => Text(
+          _name(m.name, m.nameTranslations),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: DashType.bodyStrong.copyWith(
+            color: context.madarColors.textPrimary,
           ),
         ),
       ),
@@ -479,39 +499,38 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
         ),
       ],
       onCommit: _commitItem,
-      image: (context, m) => warm(
-        m,
-        MenuImageTile(url: menuImageUrl(m.image, m.imageUrl), icon: 'cup-soda'),
+      image: (context, m) =>
+          MenuImageTile(url: menuImageUrl(m.image, m.imageUrl), icon: 'cup-soda'),
+      footer: (context, m) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.sm,
+        children: [
+          ItemCostFooter(item: m),
+          if (branchId != null)
+            ItemBranchSwitch(
+              key: ValueKey('branch-switch-${m.id}'),
+              branchId: branchId,
+              itemId: m.id,
+              row: byItem[m.id],
+            ),
+        ],
       ),
-      footer: (context, m) => warm(
-        m,
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.sm,
-          children: [
-            ItemCostFooter(item: m),
-            if (branchId != null)
-              ItemBranchSwitch(
-                key: ValueKey('branch-switch-${m.id}'),
-                branchId: branchId,
-                itemId: m.id,
-                row: byItem[m.id],
-              ),
-          ],
-        ),
-      ),
+      // Pointing at a card (or focusing in it) warms the item and its studio.
+      onItemIntent: _warmItem,
       actions: (m) => [
         if (m.kind == 'combo')
           DashMenuItem(
             label: t('menu.grid.comboEditor'),
             icon: 'pencil',
             onSelected: () => _openEditor(m),
+            onIntent: () => ref.prefetchRoute('/menu/combos/${m.id}'),
           )
         else ...[
           DashMenuItem(
             label: t('menu.grid.fullEditor'),
             icon: 'pencil',
             onSelected: () => _openEditor(m),
+            onIntent: () => _warmItem(m),
           ),
           DashMenuItem(
             label: t('menu.grid.duplicate'),
@@ -539,9 +558,22 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
       }),
       searchPlaceholder: t('common.search'),
       page: _itemsPage,
-      // The pager is drawn below (its Next warms the next page).
-      pageCount: 1,
+      pageCount: pages,
       onPageChanged: (p) => setState(() => _itemsPage = p),
+      // `prefetchNextItemsPage`, both ways: the same params, that page.
+      onPageIntent: (p) {
+        if (p < 0 || p >= pages) return;
+        ref.warm(
+          menuCatalogProvider(
+            _with(
+              query,
+              categoryId: query.categoryId,
+              hasRecipe: query.hasRecipe,
+              page: p + 1,
+            ),
+          ),
+        );
+      },
       loading: loading,
       onAdd: () => showMenuItemDialog(
         context,
@@ -574,6 +606,11 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
               _category = v;
               _itemsPage = 0;
             }),
+            onOptionIntent: (v) => ref.warm(
+              menuCatalogProvider(
+                _with(query, categoryId: v, hasRecipe: query.hasRecipe),
+              ),
+            ),
           ),
           if (canRecipes)
             DashFilterSelect<RecipeFilter>(
@@ -593,6 +630,15 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
                 _recipe = v ?? RecipeFilter.all;
                 _itemsPage = 0;
               }),
+              onOptionIntent: (v) => ref.warm(
+                menuCatalogProvider(
+                  _with(
+                    query,
+                    categoryId: query.categoryId,
+                    hasRecipe: hasRecipeParam(v ?? RecipeFilter.all),
+                  ),
+                ),
+              ),
             ),
           DashExportButton(
             loading: _exporting,
@@ -614,32 +660,6 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
         ),
         DashPasteColumn(key: 'category', header: t('common.category')),
         DashPasteColumn(key: 'description', header: t('common.description')),
-      ],
-    );
-    if (loading || pages <= 1) return grid;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.md,
-      children: [
-        grid,
-        MenuPager(
-          pageIndex: _itemsPage,
-          pageCount: pages,
-          onChanged: (p) => setState(() => _itemsPage = p),
-          // `prefetchNextItemsPage`: the same params, the page after.
-          onWarmNext: (w) {
-            if (_itemsPage + 1 >= pages) return;
-            w(
-              menuCatalogProvider((
-                orgId: query.orgId,
-                categoryId: query.categoryId,
-                search: query.search,
-                hasRecipe: query.hasRecipe,
-                page: query.page + 1,
-              )),
-            );
-          },
-        ),
       ],
     );
   }
@@ -735,12 +755,18 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
           label: t('common.edit'),
           icon: 'pencil',
           onSelected: () => showAddonDialog(context, orgId: orgId, addon: a),
+          onIntent: () => ref.warm(
+            modifierGroupsProvider((orgId: orgId, includeInactive: false)),
+          ),
         ),
         DashMenuItem(
           label: t('menu.addonRecipe.edit'),
           icon: 'chef-hat',
           onSelected: () =>
               showAddonRecipeDialog(context, orgId: orgId, addon: a),
+          onIntent: () => ref
+            ..warm(addonIngredientsProvider(a.id))
+            ..warm(ingredientCatalogProvider(orgId)),
         ),
         DashMenuItem(
           label: t('common.delete'),

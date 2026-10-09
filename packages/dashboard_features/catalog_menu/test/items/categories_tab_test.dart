@@ -142,7 +142,7 @@ void main() {
   testWidgets('MENU-ITEMS-060 inline rename', (tester) async {
     final h = await _open(tester);
     await h.tap(labelIn(cardOf('Bakery'), 'Name: Bakery'));
-    await typeAndSubmit(h, labelIn(page, 'Name'), 'Bakery & Pastry');
+    await typeAndSubmit(h, fieldIn(page, 'Name'), 'Bakery & Pastry');
     final call = lastCall(h, 'PATCH', _category);
     expect(call.path, '/categories/${category('bakery')}');
     expect(call.body, {'name': 'Bakery & Pastry'});

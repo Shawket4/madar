@@ -44,7 +44,7 @@ class BundlesMixDialog extends ConsumerWidget {
           for (var i = 0; i < 4; i++) const DashSkeleton(height: Space.xxl),
         ],
       );
-    } else if (q.failedFirst || q.value == null) {
+    } else if (q.failed || q.value == null) {
       body = DashErrorState(
         framed: false,
         retryLabel: t('common.retry'),

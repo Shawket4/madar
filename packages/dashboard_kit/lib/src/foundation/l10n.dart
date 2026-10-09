@@ -49,6 +49,7 @@ class DashKitStrings {
   String get noResults => _('common.noResults');
   String get loadFailed => _('common.loadFailed');
   String get retry => _('common.retry');
+  String get refresh => _('common.refresh');
   String get columns => _('common.columns');
   String get actions => _('common.actions');
   String get details => _('common.details');

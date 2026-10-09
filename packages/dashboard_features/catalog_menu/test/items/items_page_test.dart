@@ -387,7 +387,7 @@ void main() {
       final s = itemsServer();
       final h = await pumpItems(tester, seeded: s);
       await h.tap(labelIn(cardOf('Cortado'), 'Name: Cortado'));
-      await typeAndSubmit(h, labelIn(page, 'Name'), 'Cortado Doble');
+      await typeAndSubmit(h, fieldIn(page, 'Name'), 'Cortado Doble');
       final call = lastCall(h, 'PATCH', '/menu-items/{id}');
       expect(call.path, '/menu-items/${item('cortado')}');
       expect(call.body, {'name': 'Cortado Doble'});
@@ -399,7 +399,7 @@ void main() {
         'nothing', (tester) async {
       final h = await pumpItems(tester);
       await h.tap(labelIn(cardOf('Cortado'), 'Name: Cortado'));
-      await h.enterText(labelIn(page, 'Name'), 'Other');
+      await h.enterText(fieldIn(page, 'Name'), 'Other');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await h.settle();
       expect(inPage(find.text('Cortado')), findsOneWidget);
@@ -414,7 +414,7 @@ void main() {
     ) async {
       final h = await pumpItems(tester, persona: Persona.manager);
       await h.tap(labelIn(cardOf('Cortado'), 'Name: Cortado'));
-      await typeAndSubmit(h, labelIn(page, 'Name'), 'Cortado 2');
+      await typeAndSubmit(h, fieldIn(page, 'Name'), 'Cortado 2');
       await h.expectToast(
         h.refusalWords(MockResponse.denied('menu.items.edit')),
       );
@@ -515,6 +515,26 @@ void main() {
       await h.tap(find.bySemanticsLabel('Next'));
       expect(sw('Pistachio Latte').value, isFalse);
       expect(sw('Spanish Latte').value, isTrue);
+    });
+
+    testWidgets('MENU-ITEMS-021 the switch is disabled while it saves', (
+      tester,
+    ) async {
+      final s = itemsServer();
+      final gate = s.server.hold('PUT', '/menu-price-overrides');
+      final h = await pumpItems(tester, seeded: s, branchId: SeedIds.zamalek);
+      DashSwitch sw() => tester.widget<DashSwitch>(
+        find
+            .descendant(of: cardOf('Cortado'), matching: find.byType(DashSwitch))
+            .last,
+      );
+      expect(sw().enabled, isTrue);
+      await h.tap(switchIn(cardOf('Cortado'), 'Available at this branch'));
+      expect(sw().enabled, isFalse);
+      gate.release();
+      await h.settle();
+      expect(sw().enabled, isTrue);
+      await h.flushTimers();
     });
 
     testWidgets('MENU-ITEMS-021 no toggles without a branch', (tester) async {
@@ -765,7 +785,7 @@ void main() {
     testWidgets('MENU-ITEMS-109 a cleared title is sent as is', (tester) async {
       final h = await pumpItems(tester);
       await h.tap(labelIn(cardOf('Cortado'), 'Name: Cortado'));
-      await typeAndSubmit(h, labelIn(page, 'Name'), '');
+      await typeAndSubmit(h, fieldIn(page, 'Name'), '');
       expect(lastCall(h, 'PATCH', '/menu-items/{id}').body, {'name': ''});
       await h.flushTimers();
     });
@@ -804,6 +824,53 @@ void main() {
         hasLength(1),
         reason: 'served from the cache',
       );
+    });
+
+    testWidgets('MENU-ITEMS-106 focus landing in a card warms the item and '
+        'its studio', (tester) async {
+      final h = await pumpItems(tester);
+      expect(callsOf(h, 'GET', '/menu-items/{id}'), isEmpty);
+      final more = labelIn(cardOf('Cortado'), h.t('common.moreActions'));
+      Focus.of(
+        tester.element(
+          find
+              .descendant(of: more, matching: find.byWidgetPredicate((_) => true))
+              .last,
+        ),
+      ).requestFocus();
+      await h.settle();
+      expect(callsOf(h, 'GET', '/menu-items/{id}').map((c) => c.path), [
+        '/menu-items/${item('cortado')}',
+      ]);
+      expect(callsOf(h, 'GET', '/menu-items/{id}/studio').map((c) => c.path), [
+        '/menu-items/${item('cortado')}/studio',
+      ]);
+    });
+
+    testWidgets('MENU-ITEMS-012 (intent) a recipe option warms that list; '
+        'picking it asks nothing more', (tester) async {
+      final h = await pumpItems(tester);
+      List<MockCall> has() => [
+        for (final c in callsOf(h, 'GET', catalogPath))
+          if (c.query['has_recipe']?.single == 'true') c,
+      ];
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await h.tap(find.byKey(const ValueKey('filter-recipe')));
+      final option = find.text('Has a recipe').hitTestable().last;
+      expect(has(), isEmpty);
+      await mouse.moveTo(tester.getCenter(option));
+      await h.settle();
+      expect(has(), hasLength(1), reason: 'warmed');
+      expect(has().single.query, {
+        'org_id': [sabahOrg],
+        'has_recipe': ['true'],
+        'page': ['1'],
+        'per_page': ['24'],
+      });
+      await h.tap(option);
+      expect(has(), hasLength(1), reason: 'shown from the cache');
     });
 
     testWidgets('MENU-ITEMS-107 pointing at Next warms the next page; '

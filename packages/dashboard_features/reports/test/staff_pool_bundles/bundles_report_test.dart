@@ -713,7 +713,8 @@ void main() {
 
     testWidgets('REP-BUN-014 a failed mix: Retry', (tester) async {
       final s = reportsServer();
-      s.server.fail('GET', mixTpl, MockResponse.error(500, 'boom'));
+      // Twice: the press's warm-up, then the dialog's own read.
+      s.server.fail('GET', mixTpl, MockResponse.error(500, 'boom'), times: 2);
       final h = await pumpReports(
         tester,
         path: '$bundlesPath?branchId=${SeedIds.heliopolis}',

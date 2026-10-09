@@ -350,7 +350,8 @@ void main() {
     await h.shot('shifts/more-open');
     await typeIn(h, numberNamed('Day overtime rate'), '1.75');
     await typeIn(h, numberNamed('Half day below (minutes)'), '240');
-    await h.tap(surfaceText('1 h'));
+    // Break offers "1 h" too: check-in's is the later one.
+    await h.tap(surfaceText('1 h').last);
     await h.tap(save());
     final body = lastBody(h, 'POST');
     expect(body['ot_day_multiplier'], 1.75);
@@ -387,7 +388,7 @@ void main() {
     tester,
   ) async {
     final h = await pumpShifts(tester);
-    final lists = h.server.callsTo(shiftsT).length;
+    final lists = h.server.callsTo(shiftsT, method: 'GET').length;
     final roster = h.server.callsTo(rosterT).length;
     await openNew(h);
     expect(shownIn(tester, timeNamed('Start')), '09:00 AM');
@@ -417,7 +418,7 @@ void main() {
     expect(find.byType(WorkShiftDialog), findsNothing);
     expect(pageText('Day'), findsOneWidget);
     // invalidateStaff: the list and the roster read again.
-    expect(h.server.callsTo(shiftsT).length, lists + 1);
+    expect(h.server.callsTo(shiftsT, method: 'GET').length, lists + 1);
     expect(h.server.callsTo(rosterT).length, roster + 1);
   });
 

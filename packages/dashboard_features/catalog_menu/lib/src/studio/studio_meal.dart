@@ -7,6 +7,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart'
     show ComboSlot, ComboSummary, MealLink, MealLinkWrite, MenuItemFull;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -146,6 +147,7 @@ class _StudioMealSectionState extends ConsumerState<StudioMealSection> {
                 variant: DashButtonVariant.ghost,
                 size: DashButtonSize.compact,
                 trailingIcon: DashIcon.arrowForward(context),
+                onIntent: () => ref.prefetchRoute(to),
                 onPressed: () => context.go(to),
               ),
             ],
@@ -170,22 +172,30 @@ class _StudioMealSectionState extends ConsumerState<StudioMealSection> {
     }
 
     final wide = MediaQuery.sizeOf(context).width >= StudioMetrics.sm;
-    final comboField = DashSelectField<String>(
+    // DashSelectField has no option intent: its label and select, unrolled.
+    final comboField = DashFormField<String>(
       label: t('combos.meal.combo'),
-      options: [
-        DashOption(value: _none, label: t('combos.meal.none')),
-        for (final cb in combos)
-          DashOption(
-            value: cb.id,
-            label: translatedName(cb.name, cb.nameTranslations, lang),
-          ),
-      ],
-      value: _comboId.isEmpty ? _none : _comboId,
-      enabled: canEdit && !_busy,
-      onChanged: (v) => setState(() {
-        _comboId = v == _none ? '' : v;
-        _slotId = '';
-      }),
+      builder: (context, invalid) => DashSelect<String>(
+        options: [
+          DashOption(value: _none, label: t('combos.meal.none')),
+          for (final cb in combos)
+            DashOption(
+              value: cb.id,
+              label: translatedName(cb.name, cb.nameTranslations, lang),
+            ),
+        ],
+        value: _comboId.isEmpty ? _none : _comboId,
+        semanticLabel: t('combos.meal.combo'),
+        enabled: canEdit && !_busy,
+        // Picking a combo reads it (its slots).
+        onOptionIntent: (v) {
+          if (v != _none) ref.warm(studioComboProvider(v));
+        },
+        onChanged: (v) => setState(() {
+          _comboId = v == _none ? '' : v;
+          _slotId = '';
+        }),
+      ),
     );
     final slotField = _comboId.isEmpty
         ? null

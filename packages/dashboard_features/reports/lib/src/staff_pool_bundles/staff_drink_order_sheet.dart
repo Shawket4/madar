@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/report_shared.dart';
 import 'staff_pool_providers.dart';
+import 'unit_support.dart';
 
 /// Opens [orderId]'s sheet and resolves when it closes.
 Future<void> showStaffDrinkOrderSheet(
@@ -65,11 +66,11 @@ class StaffDrinkOrderSheet extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final q = ref.watch(staffDrinkOrderProvider(orderId));
     final order = q.value;
-    if (order == null) {
+    if (order == null || q.failed) {
       return DashSurface(
         title: t('orders.order'),
-        description: q.failedFirst ? null : t('common.loading'),
-        body: q.failedFirst
+        description: q.failed ? null : t('common.loading'),
+        body: q.failed
             ? DashErrorState(
                 message: errorMessage(q.error, t),
                 retryLabel: t('common.retry'),

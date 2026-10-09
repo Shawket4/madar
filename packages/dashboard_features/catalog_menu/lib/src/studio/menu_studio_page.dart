@@ -18,6 +18,7 @@ import 'dart:typed_data';
 import 'package:dashboard_api/dashboard_api.dart'
     show ApiFilePart, OrgIngredient, StudioAggregate, UploadImageMultipart;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -432,7 +433,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
     final q = ref.watch(menuStudioProvider(widget.itemId));
     final studio = q.value;
 
-    if (studio == null && !q.hasError) {
+    if (studio == null && !q.failedFirst) {
       return DashPageScaffold(
         title: '',
         subtitleWidget: const DashSkeleton(
@@ -471,8 +472,11 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
               const <OrgIngredient>[];
     final name = translatedName(studio.name, studio.nameTranslations, lang);
     final serverImage = studioImageUrl(studio);
+    // Any server picture counts, a processing one too (the web's
+    // `studioAsset || image_url`).
     final hasRemovable =
-        _pendingImage != null || (serverImage != null && !_imageRemoved);
+        _pendingImage != null ||
+        ((serverImage != null || studio.image != null) && !_imageRemoved);
 
     final dirtyCount = _dirtyCount;
     final sections = <Widget>[
@@ -608,6 +612,8 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
             variant: DashButtonVariant.ghost,
             size: DashButtonSize.compact,
             trailingIcon: DashIcon.arrowForward(context),
+            onIntent: () =>
+                ref.prefetchRoute(_keepingQuery('/menu/pricing').toString()),
             onPressed: () =>
                 context.go(_keepingQuery('/menu/pricing').toString()),
           ),

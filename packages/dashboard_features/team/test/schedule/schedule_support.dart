@@ -7,7 +7,9 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/dashboard_team.dart';
+import 'package:dashboard_team/src/area_seed.dart';
 import 'package:dashboard_team/src/schedule/schedule_page.dart';
+import 'package:dashboard_team/src/shared/week.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -125,6 +127,10 @@ void answerAuthz(
 
 String emp(String key) => SeedIds.employee(key);
 
+/// Sabah's Morning (07:00–15:00) and Evening (15:00–23:00) blocks.
+final String morningId = TeamSeedIds.workShift('sabah', 'morning');
+final String eveningId = TeamSeedIds.workShift('sabah', 'evening');
+
 // ── Finders ────────────────────────────────────────────────────────────────
 
 final Finder page = find.byType(ScheduleView);
@@ -151,7 +157,7 @@ Finder pressableStarting(String prefix) => find.byWidgetPredicate(
   (w) => w is DashPressable && (w.semanticLabel?.startsWith(prefix) ?? false),
 );
 
-/// [name]'s day cells, Saturday first.
+/// [name]'s day cells (in no particular order).
 Finder dayCells(String name) => inGrid(pressableStarting('$name, '));
 
 /// The open dialog / sheet (the last `DashSurface`).
@@ -164,8 +170,8 @@ Finder surfaceText(String s) => inSurface(find.text(s));
 Finder surfaceHas(String s) =>
     inSurface(find.textContaining(s, findRichText: true));
 
-/// The confirm card on top.
-Finder confirm() => find.byType(DashConfirmDialog).last;
+/// The confirm card (one at a time).
+Finder confirm() => find.byType(DashConfirmDialog);
 
 Finder inConfirm(Finder f) => find.descendant(of: confirm(), matching: f);
 
@@ -188,13 +194,38 @@ List<MockCall> calls(DashHarness h, String template, [String method = 'GET']) =>
 List<MockCall> weekCalls(DashHarness h, String from) => [
   for (final c in calls(h, rosterT))
     if (c.query['from']?.single == from &&
-        c.query['to']?.single ==
-            DateTime.parse(from)
-                .add(const Duration(days: 6))
-                .toIso8601String()
-                .substring(0, 10))
+        c.query['to']?.single == addDays(from, 6))
       c,
 ];
+
+const List<String> _months = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/// [iso] as the English page writes it ("03 Oct 2026").
+String enDate(String iso) {
+  final p = iso.split('-');
+  return '${p[2]} ${_months[int.parse(p[1]) - 1]} ${p[0]}';
+}
+
+/// [name]'s cell on day [day] of this week (0 = Saturday; 7 = next
+/// Saturday), as its button names it.
+Finder dayCell(String name, int day) =>
+    inGrid(pressable('$name, ${enDate(wd(day))}'));
+
+/// [dayCell] in the harness's language.
+Finder dayCellOf(DashHarness h, String name, int day) => inGrid(
+  pressable(
+    h.t(
+      'dawam.editDay',
+      args: {
+        'name': name,
+        'date': h.container.read(formatProvider).fmtDate(wd(day)),
+      },
+    ),
+  ),
+);
 
 /// The JSON body a call sent.
 Map<String, Object?> bodyOf(MockCall c) =>

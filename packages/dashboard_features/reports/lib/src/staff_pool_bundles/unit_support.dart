@@ -11,6 +11,14 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
+/// The error with Retry: [DashAsyncState.failedFirst], and also a refetch
+/// that failed over rows already shown (the web drops them, REP-ALL-018).
+/// Never during Riverpod's automatic retries; it stays up while a manual
+/// Retry runs.
+extension ReportAsync<T> on AsyncValue<T> {
+  bool get failed => hasError && !retrying;
+}
+
 /// A read the web keeps disabled until the person's rights are known: nothing
 /// is asked, and the page shows its skeleton meanwhile (never a zero or an
 /// empty state that is not the answer, REP-ALL-030).

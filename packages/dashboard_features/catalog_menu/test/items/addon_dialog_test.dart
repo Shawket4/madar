@@ -2,10 +2,13 @@
 // 115, MENU-AREA-013) driven through the real shell.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_catalog_menu/src/area_seed.dart';
+import 'package:dashboard_catalog_menu/src/shared/menu_providers.dart'
+    show modifierGroupsProvider;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart' show MadarSpinner;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -321,6 +324,69 @@ void main() {
       gate.release();
       await h.settle();
       expect(inSurface(find.byType(MadarSpinner)), findsNothing);
+    });
+
+    testWidgets('MENU-ITEMS-053 (intent) ⋯ Edit recipe warms the lines and '
+        'the Edit item the groups; choosing them asks nothing more', (
+      tester,
+    ) async {
+      final h = await _onAddons(tester);
+      const lines = '/recipes/addons/{addon_item_id}';
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await openCardMenu(h, 'Extra shot');
+      expect(callsOf(h, 'GET', lines), isEmpty);
+      final item = find.text('Edit recipe').hitTestable();
+      await mouse.moveTo(tester.getCenter(item));
+      await h.settle();
+      expect(callsOf(h, 'GET', lines).map((c) => c.path), [
+        '/recipes/addons/${option('extras', 'shot')}',
+      ]);
+      await h.tap(item);
+      expect(inSurface(find.text('Add-on recipe')), findsOneWidget);
+      expect(callsOf(h, 'GET', lines), hasLength(1), reason: 'from the cache');
+      await tester.tapAt(const Offset(4, 4));
+      await h.settle();
+      // Edit: the dialog's groups read, stale first so only the item warms it.
+      await mouse.moveTo(Offset.zero);
+      await openCardMenu(h, 'Extra shot');
+      h.container.invalidate(
+        modifierGroupsProvider((orgId: sabahOrg, includeInactive: false)),
+      );
+      final groups = callsOf(h, 'GET', '/modifier-groups').length;
+      final edit = find.text('Edit').hitTestable();
+      await mouse.moveTo(tester.getCenter(edit));
+      await h.settle();
+      expect(callsOf(h, 'GET', '/modifier-groups'), hasLength(groups + 1));
+      await h.tap(edit);
+      expect(inSurface(find.text('Edit add-on')), findsOneWidget);
+      expect(callsOf(h, 'GET', '/modifier-groups'), hasLength(groups + 1));
+    });
+
+    testWidgets('MENU-ITEMS-103 (divergence) a failed lines read: words and '
+        'Retry, never an empty builder whose Save would wipe the lines', (
+      tester,
+    ) async {
+      final s = itemsServer();
+      s.server.fail(
+        'GET',
+        '/recipes/addons/{addon_item_id}',
+        MockResponse.error(500, 'boom'),
+        times: null,
+      );
+      final h = await _onAddons(tester, seeded: s);
+      await openRecipe(h, 'Extra shot');
+      expect(inSurface(find.text("Couldn't load this")), findsOneWidget);
+      expect(inSurface(find.text(h.t('recipes.builder.saveAll'))), findsNothing);
+      s.server.clearFailures();
+      await h.tap(inSurface(find.text('Retry')));
+      expect(inSurface(find.text("Couldn't load this")), findsNothing);
+      expect(
+        inSurface(find.text(h.t('recipes.builder.saveAll'))),
+        findsOneWidget,
+      );
+      expect(callsOf(h, 'PUT', '/modifier-options/{oid}/recipe'), isEmpty);
     });
 
     testWidgets('MENU-ITEMS-105 Save recipe: the linked lines, "Recipe '

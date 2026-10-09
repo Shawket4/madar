@@ -84,6 +84,18 @@ void main() {
       });
     });
 
+    testWidgets('MENU-ITEMS-077 the category and its "+" take the first of '
+        'two columns (sm:grid-cols-2)', (tester) async {
+      final h = await pumpItems(tester);
+      await _openNew(h);
+      final select = selectIn(surface, 'Category');
+      expect(select, findsOneWidget);
+      expect(
+        tester.getSize(select).width,
+        lessThan(tester.getSize(surface).width / 2),
+      );
+    });
+
     testWidgets('MENU-ITEMS-075 / 077 name and category required', (
       tester,
     ) async {
@@ -483,6 +495,22 @@ void main() {
       );
     });
 
+    testWidgets('MENU-ITEMS-090 (divergence) Arabic search finds the Arabic '
+        'name the chips show, and still the raw one', (tester) async {
+      final h = await pumpItems(tester, locale: 'ar');
+      await h.tap(inPage(find.text(h.t('menu.newItem'))));
+      final oat = find.byKey(ValueKey('addon-pick-${option('milk', 'oat')}'));
+      final shot = find.byKey(ValueKey('addon-pick-${option('extras', 'shot')}'));
+      final search = fieldIn(surface, h.t('menu.searchAddons'));
+      await h.enterText(search, 'الشوفان');
+      expect(oat, findsOneWidget);
+      expect(shot, findsNothing);
+      expect(inSurface(find.text(h.t('menu.noAddonsMatch'))), findsNothing);
+      await h.enterText(search, 'oat');
+      expect(oat, findsOneWidget);
+      await h.flushTimers();
+    });
+
     testWidgets('MENU-ITEMS-092 a failed step toasts its words and stays', (
       tester,
     ) async {
@@ -666,6 +694,45 @@ void main() {
       await h.flushTimers();
     });
 
+    testWidgets('MENU-ITEMS-091 (divergence) a changed selection waits for '
+        'the groups read: no save, the words and Retry', (tester) async {
+      final s = itemsServer();
+      s.server.fail(
+        'GET',
+        '/modifier-groups',
+        MockResponse.error(500, 'boom'),
+        times: null,
+      );
+      final h = await pumpItems(tester, seeded: s);
+      await _openEdit(h, 'cortado');
+      await h.tap(
+        find.byKey(ValueKey('addon-pick-${option('extras', 'vanilla')}')),
+      );
+      final patches = callsOf(h, 'PATCH', '/menu-items/{id}').length;
+      await _save(h);
+      final words = find.byKey(const ValueKey('addon-groups-missing'));
+      expect(
+        find.descendant(
+          of: words,
+          matching: find.text(h.t('menu.addonGroupsNotReady')),
+        ),
+        findsOneWidget,
+      );
+      expect(callsOf(h, 'PATCH', '/menu-items/{id}'), hasLength(patches));
+      expect(callsOf(h, 'PUT', '/menu-items/{id}/modifier-groups'), isEmpty);
+      expect(inSurface(find.text('Edit item')), findsOneWidget);
+      s.server.clearFailures();
+      await h.tap(find.descendant(of: words, matching: find.text('Retry')));
+      expect(words, findsNothing);
+      await _save(h);
+      final groups =
+          (lastCall(h, 'PUT', '/menu-items/{id}/modifier-groups').body!
+                  as Map)['groups']!
+              as List;
+      expect(groups, isNotEmpty);
+      await h.flushTimers();
+    });
+
     testWidgets('MENU-ITEMS-081 a picked picture uploads now and is followed '
         'until processed', (tester) async {
       final s = itemsServer();
@@ -682,10 +749,16 @@ void main() {
       );
       expect(inSurface(find.text('Processing…')), findsOneWidget);
       expect(callsOf(h, 'GET', '/assets/jobs/{id}'), hasLength(1));
+      final catalogReads = callsOf(h, 'GET', catalogPath).length;
       await tester.pump(assetPollEvery);
       await h.settle();
       expect(callsOf(h, 'GET', '/assets/jobs/{id}'), hasLength(2));
       expect(inSurface(find.text('Processing…')), findsNothing);
+      expect(
+        callsOf(h, 'GET', catalogPath).length,
+        greaterThan(catalogReads),
+        reason: 'the settled job refetches the catalog',
+      );
       expect(
         s.db[MenuTables.menuItems].find(item('cortado'))!['image_url'],
         isNotNull,

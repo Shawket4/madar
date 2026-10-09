@@ -931,7 +931,13 @@ void main() {
       tester,
     ) async {
       final s = reportsServer();
-      s.server.fail('GET', orderTpl, MockResponse.error(500, 'Order gone'));
+      // Twice: the press's warm-up, then the sheet's own read.
+      s.server.fail(
+        'GET',
+        orderTpl,
+        MockResponse.error(500, 'Order gone'),
+        times: 2,
+      );
       final h = await pumpPool(
         tester,
         s: s,

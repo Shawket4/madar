@@ -127,7 +127,11 @@ class _StudioPreviewPanelState extends ConsumerState<StudioPreviewPanel> {
     );
 
     Widget row(String name, List<Widget> chips, {bool required = false}) {
-      final wrap = Wrap(spacing: Space.xs + 2, runSpacing: Space.xs + 2, children: chips);
+      final wrap = Wrap(
+        spacing: Space.xs + DashMetrics.hair,
+        runSpacing: Space.xs + DashMetrics.hair,
+        children: chips,
+      );
       return wide
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,7 +249,7 @@ class _StudioPreviewPanelState extends ConsumerState<StudioPreviewPanel> {
     );
 
     final Widget result;
-    if (q.hasError && data == null) {
+    if (q.failedFirst && data == null) {
       result = Semantics(
         liveRegion: true,
         child: Text(
@@ -344,7 +348,7 @@ class _StudioPreviewPanelState extends ConsumerState<StudioPreviewPanel> {
           else
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.xs + 2,
+              spacing: Space.xs + DashMetrics.hair,
               children: [
                 for (final w in data.warnings)
                   Row(
@@ -352,7 +356,7 @@ class _StudioPreviewPanelState extends ConsumerState<StudioPreviewPanel> {
                     spacing: Space.sm,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.only(top: DashMetrics.hair),
                         child: DashIcon(
                           'alert-triangle',
                           size: IconSize.xs,

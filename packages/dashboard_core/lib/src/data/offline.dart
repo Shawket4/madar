@@ -110,7 +110,9 @@ abstract interface class OfflineHost {
   void reachedServer();
 }
 
-/// [OfflineHost] over the provider container.
+/// [OfflineHost] over the provider container. It reads through
+/// `ref.container`: the scope and branches are built on the transport, so a
+/// `ref.read` from the transport's own ref is a circular dependency.
 class RefOfflineHost implements OfflineHost {
   const RefOfflineHost(this.ref);
 
@@ -118,22 +120,22 @@ class RefOfflineHost implements OfflineHost {
 
   @override
   OfflineScope? get scope {
-    final session = ref.read(currentSessionProvider);
+    final session = ref.container.read(currentSessionProvider);
     if (session == null) return null;
     return OfflineScope(
       session.user.id,
-      org: ref.read(orgIdProvider),
-      branch: ref.read(scopeProvider).branchId,
+      org: ref.container.read(orgIdProvider),
+      branch: ref.container.read(scopeProvider).branchId,
     );
   }
 
   @override
-  DateTime now() => ref.read(clockProvider)();
+  DateTime now() => ref.container.read(clockProvider)();
 
   @override
   String? zoneFor(String? branchId) {
-    if (branchId == null) return ref.read(currentOrgProvider).value?.timezone;
-    for (final b in ref.read(branchesProvider).value ?? const <Branch>[]) {
+    if (branchId == null) return ref.container.read(currentOrgProvider).value?.timezone;
+    for (final b in ref.container.read(branchesProvider).value ?? const <Branch>[]) {
       // `Branch.timezone` is the effective zone (branch → org → Cairo), the
       // one the server buckets in.
       if (b.id == branchId) return b.timezone;
@@ -142,14 +144,14 @@ class RefOfflineHost implements OfflineHost {
   }
 
   @override
-  String get cantSaveWords => ref.read(tProvider)('shell.offlineCantSave');
+  String get cantSaveWords => ref.container.read(tProvider)('shell.offlineCantSave');
 
   @override
   void showedSaved(DateTime savedAt) =>
-      ref.read(offlineProvider.notifier).showedSaved(savedAt);
+      ref.container.read(offlineProvider.notifier).showedSaved(savedAt);
 
   @override
-  void reachedServer() => ref.read(offlineProvider.notifier).reachedServer();
+  void reachedServer() => ref.container.read(offlineProvider.notifier).reachedServer();
 }
 
 /// A failure that never reached the Madar server: no network (the core's

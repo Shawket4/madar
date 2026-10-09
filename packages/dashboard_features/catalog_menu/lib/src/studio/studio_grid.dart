@@ -11,6 +11,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart'
     show OrgIngredient, PutSizeBaseRequest, RecipeBaseOut, RecipeLinkInfo, StudioAggregate, UpdateCatalogItemRequest;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';

@@ -8,9 +8,29 @@
 /// the backend's own query filters by a column every row carries. Totals
 /// summed from rows are exact; distinct counts, top-N lists, averages over
 /// the range's days and shares of a range total never are. The tests compare
-/// each one with the mock server's own answer over many sub-ranges.
+/// each one with the mock server's own answer over many sub-ranges
+/// (`apps/dashboard/test/offline_derivers_test.dart`).
 ///
-/// Rejected endpoints, and why, are listed in docs/fdash/OFFLINE.md.
+/// Rejected (MadarRust handlers read 2026-10-09), never derived:
+/// - `/reports/branches/{id}/sales`: subtotal, service charge, delivery fees,
+///   tips, money in by method and the top items are in no per-day answer;
+/// - `.../sales/peak-hours`, `peak-days`, `channel-breakdown`,
+///   `items-combined`, `addons`, `tellers`, `waiters`, `delivery-sales`,
+///   `/reports/orgs/{id}/comparison`, `/reports/bundles`, `/insights/...`
+///   (margin watch, menu margin, repricing): totals over the whole range
+///   (by hour of day, weekday, channel, item, person, branch), no per-day
+///   breakdown;
+/// - `waste-report`, `supplier-spend`: grouped over the range;
+///   `po-lead-time`: averages; `material-cost-trend`: "3+ consecutive
+///   rises" read over the range as a whole;
+/// - `/staff/attendance/summary`: per person over the range;
+///   `/staff/discipline-report`: distinct day counts;
+/// - `/loyalty/liability-trend`: weekly buckets (weeks from Saturday);
+///   `/loyalty/behavior`, `campaign-effectiveness`: range aggregates;
+/// - `/orders`, `/inventory/branches/{id}/movements`: paginated;
+///   `/staff/expense-advances`, `/staff/adjustments`: cut at 200/300 rows;
+/// - `/staff/requests`: a span-overlap filter (not a column in a range);
+///   `/bookings`: the page asks for one service day by `date`.
 library;
 
 import 'package:dashboard_core/src/format/tz.dart';
@@ -297,6 +317,8 @@ final List<RangeDeriver> rangeDerivers = [
   ),
   // MadarRust `list_attendance`: `business_date BETWEEN from AND to`, every
   // row the record's own (`month_closed` is its own month's), no limit.
+  // `ORDER BY business_date DESC, lower(name)`: rows tied on both come in no
+  // set order from the server either.
   RangeDeriver(
     path: RegExp(r'^/staff/attendance$'),
     kind: RangeKind.date,

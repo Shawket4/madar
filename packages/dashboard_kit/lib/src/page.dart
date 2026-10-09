@@ -37,6 +37,130 @@ class DashEmbeddedPages extends InheritedWidget {
   bool updateShouldNotify(DashEmbeddedPages oldWidget) => false;
 }
 
+/// The open page's refresh by hand (owner rule, beyond the web): the shell
+/// sets one around every page ([DashPageRefreshScope]). [DashPageScaffold]
+/// makes it pull to refresh where the page scrolls, and a refresh action in
+/// the header where the page owns its gestures (a canvas, a chat, a board);
+/// the shell's Cmd/Ctrl+R calls [refresh].
+class DashPageRefresh extends ChangeNotifier {
+  DashPageRefresh(this._run);
+
+  final Future<void> Function() _run;
+  Future<void>? _running;
+  final List<GlobalKey<RefreshIndicatorState>> _pulls = [];
+  bool _disposed = false;
+
+  /// A refresh is running (the header action spins).
+  bool get refreshing => _running != null;
+
+  /// Refreshes the open page, its pull indicator showing when it has one. A
+  /// refresh already running is joined, never doubled.
+  Future<void> refresh() {
+    final pull = _pulls.lastOrNull?.currentState;
+    if (_running == null && pull != null) return pull.show();
+    return _go();
+  }
+
+  Future<void> _go() {
+    final running = _running;
+    if (running != null) return running;
+    final f = _running = _run().whenComplete(() {
+      _running = null;
+      if (!_disposed) notifyListeners();
+    });
+    notifyListeners();
+    return f;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  static DashPageRefresh? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<DashPageRefreshScope>()
+      ?.controller;
+}
+
+/// Puts [controller] over the pages below.
+class DashPageRefreshScope extends InheritedWidget {
+  const DashPageRefreshScope({
+    required this.controller,
+    required super.child,
+    super.key,
+  });
+
+  final DashPageRefresh controller;
+
+  @override
+  bool updateShouldNotify(DashPageRefreshScope oldWidget) =>
+      controller != oldWidget.controller;
+}
+
+/// The pull indicator for [controller], known to it so Cmd/Ctrl+R shows it.
+class _Pull extends StatefulWidget {
+  const _Pull({required this.controller, required this.child});
+
+  final DashPageRefresh controller;
+  final Widget child;
+
+  @override
+  State<_Pull> createState() => _PullState();
+}
+
+class _PullState extends State<_Pull> {
+  final _key = GlobalKey<RefreshIndicatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller._pulls.add(_key);
+  }
+
+  @override
+  void didUpdateWidget(_Pull oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller._pulls.remove(_key);
+    widget.controller._pulls.add(_key);
+  }
+
+  @override
+  void dispose() {
+    widget.controller._pulls.remove(_key);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RefreshIndicator(
+    key: _key,
+    onRefresh: widget.controller._go,
+    color: context.madarColors.accent,
+    backgroundColor: context.madarColors.card,
+    child: widget.child,
+  );
+}
+
+/// The header's refresh action, spinning while a refresh runs.
+class _RefreshAction extends StatelessWidget {
+  const _RefreshAction({required this.controller});
+
+  final DashPageRefresh controller;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) => DashIconButton(
+      icon: 'refresh-cw',
+      semanticLabel: context.dashStrings.refresh,
+      variant: DashButtonVariant.outline,
+      loading: controller.refreshing,
+      onPressed: controller.refresh,
+    ),
+  );
+}
+
 /// A page (the web's `Page` + `PageHeader`):
 ///
 /// ```text
@@ -99,12 +223,16 @@ class DashPageScaffold extends StatelessWidget {
   final bool fillBody;
   final ScrollController? scrollController;
 
-  /// Pull to refresh (phone) — the web's refetch.
+  /// Pull to refresh (phone) — the web's refetch. Without it the shell's
+  /// [DashPageRefresh] refreshes the page.
   final Future<void> Function()? onRefresh;
 
   @override
   Widget build(BuildContext context) {
     final embedded = DashEmbeddedPages.of(context);
+    final shellRefresh = onRefresh == null
+        ? DashPageRefresh.maybeOf(context)
+        : null;
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
@@ -112,6 +240,7 @@ class DashPageScaffold extends StatelessWidget {
           MediaQuery.sizeOf(context).width,
         );
         final gutter = embedded ? 0.0 : DashBreakpoints.gutter(w);
+        final unbounded = !constraints.hasBoundedHeight;
         final header = DashPageHeader(
           title: title,
           subtitle: subtitle,
@@ -120,6 +249,8 @@ class DashPageScaffold extends StatelessWidget {
           onBack: onBack,
           tabs: tabs,
           filters: filters,
+          // A page that owns its height has nothing to pull.
+          refreshAction: fillBody && !unbounded,
         );
         final content = phone && phoneBody != null ? phoneBody! : body;
         final pad = EdgeInsetsDirectional.only(
@@ -135,7 +266,6 @@ class DashPageScaffold extends StatelessWidget {
             child: child,
           ),
         );
-        final unbounded = !constraints.hasBoundedHeight;
         if (fillBody && !unbounded) {
           return Padding(
             padding: pad,
@@ -165,7 +295,7 @@ class DashPageScaffold extends StatelessWidget {
         if (unbounded) return Padding(padding: pad, child: column);
         Widget scroll = SingleChildScrollView(
           controller: scrollController,
-          physics: onRefresh != null
+          physics: onRefresh != null || shellRefresh != null
               ? const AlwaysScrollableScrollPhysics()
               : null,
           padding: pad,
@@ -178,6 +308,8 @@ class DashPageScaffold extends StatelessWidget {
             backgroundColor: context.madarColors.card,
             child: scroll,
           );
+        } else if (shellRefresh != null) {
+          scroll = _Pull(controller: shellRefresh, child: scroll);
         }
         return scroll;
       },
@@ -195,6 +327,7 @@ class DashPageHeader extends StatelessWidget {
     this.onBack,
     this.tabs,
     this.filters,
+    this.refreshAction = true,
     super.key,
   });
 
@@ -206,10 +339,21 @@ class DashPageHeader extends StatelessWidget {
   final Widget? tabs;
   final Widget? filters;
 
+  /// Ends the actions with the shell's refresh ([DashPageRefresh]), for a
+  /// page with nothing to pull; never on an embedded pane.
+  final bool refreshAction;
+
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     final embedded = DashEmbeddedPages.of(context);
+    final refresh = refreshAction && !embedded
+        ? DashPageRefresh.maybeOf(context)
+        : null;
+    final actions = [
+      ...this.actions,
+      if (refresh != null) _RefreshAction(controller: refresh),
+    ];
     final phone = DashBreakpoints.isPhone(context);
     final sub =
         subtitleWidget ??

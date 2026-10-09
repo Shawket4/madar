@@ -3,7 +3,8 @@
 /// margin against the add-on's default price, "New ingredient" offered, its
 /// own "Save recipe": `PUT /modifier-options/{oid}/recipe` with the lines
 /// linked to a catalog ingredient → invalidate the catalog → "Recipe saved"
-/// → close. A failure toasts the server's words and stays open, unsaved.
+/// → close. A failure toasts the server's words and stays open, unsaved. A
+/// failed lines read shows its words and Retry instead of an empty builder.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -87,10 +88,21 @@ class AddonRecipeDialog extends ConsumerWidget {
       description:
           '${translatedName(addon.name, addon.nameTranslations, t.lang)} — '
           '${t('menu.addonRecipe.desc')}',
-      body: lines.isLoading && !lines.hasValue
+      body: lines.awaitingFirst
           ? const Padding(
               padding: EdgeInsets.symmetric(vertical: Space.xxl),
               child: Center(child: MadarSpinner()),
+            )
+          // The web opens an empty builder here, and its Save would wipe the
+          // real lines (see the divergences).
+          : lines.failedFirst
+          ? DashErrorState(
+              key: const ValueKey('addon-recipe-failed'),
+              title: t('common.loadFailed'),
+              message: errorMessage(lines.error, t),
+              retryLabel: t('common.retry'),
+              retrying: lines.isLoading,
+              onRetry: () => ref.invalidate(addonIngredientsProvider(addon.id)),
             )
           : RecipeBuilder(
               orgId: orgId,

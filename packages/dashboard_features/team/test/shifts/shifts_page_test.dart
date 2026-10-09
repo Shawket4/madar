@@ -1,7 +1,6 @@
 // Work shifts (`/staff/shifts`): the page, its list of blocks and their row
 // actions (TEAM-SHF-001…010) and the area-wide rows that land on it.
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -136,7 +135,7 @@ void main() {
     expect(row.icon, 'moon');
     expect(
       row.meta,
-      '⁨04:00 PM – 12:00 AM⁩ (8 h) · Ends the next day · '
+      '\u206804:00 PM – 12:00 AM\u2069 (8 h) · Ends the next day · '
       '15 min grace · OT ×1.5 · Zamalek · Every day · own times on 2 days',
     );
     final b = tester.widget<DashListRow>(
@@ -145,7 +144,7 @@ void main() {
     expect(b.icon, 'clock');
     expect(
       b.meta,
-      '⁨10:00 AM – 02:00 PM⁩ (4 h) · 5 min grace · OT ×1.5 · '
+      '\u206810:00 AM – 02:00 PM\u2069 (4 h) · 5 min grace · OT ×1.5 · '
       'Every branch · Sat – Thu',
     );
     expect(h.server.callsTo(shiftsT).length, 1);
@@ -395,7 +394,7 @@ void main() {
     final row = tester.widget<DashListRow>(
       find.descendant(of: shiftRow(brunch), matching: find.byType(DashListRow)),
     );
-    expect(row.meta, startsWith('⁨10:00 ص – 02:00 م⁩ (4 س)'));
+    expect(row.meta, startsWith('\u206810:00 ص – 02:00 م\u2069 (4 س)'));
     expect(row.meta, contains('السبت – الخميس'));
   });
 

@@ -7,6 +7,7 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 
@@ -136,6 +137,29 @@ void main() {
           h.t('menu.studio.basics.title'),
           find.bySemanticsLabel(h.t('uploader.remove')),
         ), findsOneWidget);
+    });
+
+    testWidgets('MENU-STUDIO-025 a picture still processing (no legacy '
+        'address) can be removed', (tester) async {
+      final s = studioServer();
+      s.db[MenuTables.menuItems].update(_latte, {
+        'image_url': null,
+        'image': {'status': 'processing', 'job_id': 'job-latte'},
+      });
+      final h = await pumpStudio(tester, seeded: s);
+      final remove = inSection(
+        h.t('menu.studio.basics.title'),
+        find.bySemanticsLabel(h.t('uploader.remove')),
+      );
+      expect(remove, findsOneWidget);
+      await h.shot('studio/image-processing');
+      await h.tap(remove);
+      expect(studioLabel(h.t('uploader.choose')), findsOneWidget);
+      await tapSave(h);
+      final body = lastBody(h, 'PATCH', itemT);
+      expect(body.containsKey('image_url'), isTrue);
+      expect(body['image_url'], isNull);
+      await h.flushTimers();
     });
 
     testWidgets('MENU-STUDIO-026/027 bilingual name and description', (
@@ -456,6 +480,34 @@ void main() {
       );
     });
 
+    for (final locale in ['en', 'ar']) {
+      testWidgets('MENU-STUDIO-070 the picker\'s footer ($locale): "Write '
+          'your own" at the start, Close at the end', (tester) async {
+        final h = await pumpStudio(tester, locale: locale);
+        await h.tap(studioText(h.t('menu.studio.steps.addFromLibrary')));
+        final surface = find.byType(DashSurface);
+        final write = tester.getRect(
+          find.descendant(
+            of: surface,
+            matching: find.text(h.t('menu.studio.steps.addCustom')),
+          ),
+        );
+        final close = tester.getRect(
+          find.descendant(
+            of: surface,
+            matching: find.text(h.t('common.close')),
+          ),
+        );
+        final mid = tester.getRect(surface).center.dx;
+        final rtl = locale == 'ar';
+        expect(write.center.dx < mid, !rtl);
+        expect(close.center.dx > mid, !rtl);
+        await h.shot('studio/step-picker-footer');
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await h.settle();
+      });
+    }
+
     testWidgets('MENU-STUDIO-070 an empty library', (tester) async {
       final s = studioServer();
       s.db[MenuTables.stepPresets].clear();
@@ -673,6 +725,28 @@ void main() {
       );
     });
 
+    testWidgets('MENU-STUDIO-080 Arabic: the deduction units in Arabic', (
+      tester,
+    ) async {
+      final h = await pumpStudio(tester, locale: 'ar');
+      final grams = h.t('units.g');
+      expect(grams, isNot('g'));
+      await tester.ensureVisible(groupCard('extras'));
+      await h.settle();
+      await h.shot('studio/modifiers-units');
+      expect(
+        find.descendant(
+          of: groupCard('extras'),
+          matching: studioPlain('18 $grams'),
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.descendant(of: groupCard('extras'), matching: studioPlain('18 g')),
+        findsNothing,
+      );
+    });
+
     testWidgets('MENU-STUDIO-081 Required, Min, Max (blank = ∞)', (
       tester,
     ) async {
@@ -794,6 +868,55 @@ void main() {
       );
       expect(optionRow(0), findsNothing);
     });
+
+    testWidgets('MENU-STUDIO-085 Arabic: the price label names the currency '
+        'in Arabic', (tester) async {
+      final h = await pumpStudio(tester, locale: 'ar');
+      await h.tap(studioText(h.t('menu.studio.options.add')));
+      final label = '${h.t('common.price')} (ج.م)';
+      expect(
+        find.descendant(of: optionRow(0), matching: find.text(label)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: optionRow(0), matching: find.bySemanticsLabel(label)),
+        findsWidgets,
+      );
+      expect(
+        find.descendant(of: optionRow(0), matching: find.textContaining('EGP')),
+        findsNothing,
+      );
+    });
+
+    for (final (size, locale) in [
+      (DashSize.desktop, 'en'),
+      (DashSize.desktop, 'ar'),
+      (DashSize.phone, 'en'),
+    ]) {
+      testWidgets('MENU-STUDIO-085 layout (${size.name}, $locale): Name '
+          'stretches, the trash sits at the row\'s end', (tester) async {
+        final h = await pumpStudio(tester, size: size, locale: locale);
+        await h.tap(studioText(h.t('menu.studio.options.add')));
+        final row = tester.getRect(optionRow(0));
+        Rect rect(Finder f) => tester.getRect(
+          find.descendant(of: optionRow(0), matching: f).first,
+        );
+        final name = rect(find.bySemanticsLabel(h.t('common.name')));
+        final price = rect(
+          find.bySemanticsLabel('${h.t('common.price')} (${locale == 'ar' ? 'ج.م' : 'EGP'})'),
+        );
+        final trash = rect(find.bySemanticsLabel(h.t('common.remove')));
+        expect(name.width, greaterThan(price.width));
+        // The row's inner edge is its padding (Space.md) in.
+        const slack = 12.0 + 1;
+        if (locale == 'ar') {
+          expect(trash.left - row.left, lessThanOrEqualTo(slack));
+        } else {
+          expect(row.right - trash.right, lessThanOrEqualTo(slack));
+        }
+        await h.shot('studio/option-row');
+      });
+    }
 
     testWidgets('MENU-STUDIO-086/087 deducts: pick, quantity, cost, clear', (
       tester,

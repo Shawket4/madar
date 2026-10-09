@@ -7,7 +7,8 @@
 // request the page then makes.
 //
 // The rule is the web's: a read warmed on hover (and, with a branch picked,
-// any read the web warms for that path) is never asked again on open.
+// any read the web warms for that path) is never asked again on open. The
+// palette's rows (Ctrl/Cmd+K, the path typed) are held to the same rule.
 // `FDASH_AUDIT=1` prints the audit table.
 import 'dart:convert';
 import 'dart:io';
@@ -16,8 +17,9 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
-import 'package:flutter/foundation.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashPageRefreshScope;
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:madar_dashboard/areas.dart';
@@ -83,10 +85,25 @@ const Map<String, String> parentsWarming = {
   '/inventory': '/inventory/today',
 };
 
+/// Pages the sidebar does not list, opened from a control on another page
+/// (its path, the control's label key): the Access tabs, the Settings list.
+const Map<String, (String, String)> inPageLinks = {
+  '/access/roles': ('/access/users', 'nav.rolesPermissions'),
+  '/settings/payment-methods': ('/settings', 'nav.paymentMethods'),
+};
+
+/// In-page links whose unit does not warm on intent yet (shown in the table,
+/// not failed): the Settings list (setup `settings_shell.dart`). Drop an entry
+/// once its unit wires `ref.prefetchRoute`.
+const Set<String> awaitingUnitWiring = {'/settings/payment-methods'};
+
 /// One page's audit line.
 class AuditRow {
   AuditRow(this.path);
   final String path;
+
+  /// Opened from a control on this page, not the sidebar.
+  String? via;
   bool inSidebar = false;
   String landed = '';
   List<String> warmed = [];
@@ -103,11 +120,13 @@ String _call(MockCall c) {
 
 /// Runs the audit as [persona] with [prefs] (the scope) and returns its rows;
 /// [webWarm] (with a branch picked) adds the web's own list to the rule.
+/// [palette]: through the command palette's rows instead of the sidebar's.
 Future<List<AuditRow>> _audit(
   WidgetTester tester, {
   required Persona persona,
   required Map<String, String> prefs,
   Map<String, List<String>>? webWarm,
+  bool palette = false,
 }) async {
   final db = MockDb.seeded();
   final server = MockServer(
@@ -208,11 +227,67 @@ Future<List<AuditRow>> _audit(
     return tester.getCenter(target);
   }
 
+  /// The same cold start, then the palette opened (Ctrl+K) with [to]'s
+  /// label typed.
+  Future<Offset?> coldPaletteRow(String to) async {
+    final leaf = navLeaves().where((l) => l.to == to).firstOrNull;
+    if (leaf == null) return null;
+    await mouse.moveTo(const Offset(1, 1));
+    await h.go('/settings');
+    await wait();
+    h.container.read(queryCacheProvider).clear();
+    await wait();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyK);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await wait(rounds: 4);
+    final box = find.byType(DashCommandPalette);
+    await tester.enterText(
+      find.descendant(of: box, matching: find.byType(EditableText)),
+      h.t(leaf.labelKey, defaultValue: leaf.fallback),
+    );
+    await wait(rounds: 2);
+    final target = find.descendant(
+      of: box,
+      matching: find.byWidgetPredicate(
+        (w) => w is PrefetchOnIntent && w.to == to,
+      ),
+    );
+    if (target.evaluate().isEmpty) {
+      Navigator.of(tester.element(box)).pop();
+      await wait(rounds: 4);
+      return null;
+    }
+    return tester.getCenter(target.first);
+  }
+
+  /// The same cold start on [from], then the control labelled [label].
+  Future<Offset?> coldLink(String from, String label) async {
+    await mouse.moveTo(const Offset(1, 1));
+    await h.go(from);
+    await wait();
+    h.container.read(queryCacheProvider).clear();
+    await wait();
+    final target = find.descendant(
+      of: find.byType(DashPageRefreshScope),
+      matching: find.text(label),
+    );
+    if (target.evaluate().isEmpty) return null;
+    await tester.ensureVisible(target.first);
+    await wait(rounds: 2);
+    return tester.getCenter(target.first);
+  }
+
   final rows = <AuditRow>[];
   for (final path in webWarmBranch.keys) {
     final row = AuditRow(path);
     rows.add(row);
-    final at = await coldRow(path);
+    var at = palette ? await coldPaletteRow(path) : await coldRow(path);
+    final link = inPageLinks[path];
+    if (at == null && !palette && link != null) {
+      at = await coldLink(link.$1, h.t(link.$2));
+      if (at != null) row.via = link.$1;
+    }
     if (at == null) continue;
     row.inSidebar = true;
 
@@ -225,6 +300,8 @@ Future<List<AuditRow>> _audit(
     mark = h.server.calls.length;
     await mouse.down(at);
     await mouse.up();
+    // Off the page, so no control under the pointer warms its own reads.
+    await mouse.moveTo(const Offset(1, 1));
     await wait(rounds: 30);
     row.landed = h.location.path;
     for (final c in h.server.calls.skip(mark)) {
@@ -239,6 +316,7 @@ Future<List<AuditRow>> _audit(
       }
     }
   }
+  if (palette) return rows;
   // A parent row warms the page its base path lands on.
   for (final MapEntry(key: parent, value: page) in parentsWarming.entries) {
     final row = AuditRow('$parent (parent row, warms $page)');
@@ -271,14 +349,15 @@ String _table(List<AuditRow> rows, Map<String, List<String>>? webWarm) {
         ? '(none)'
         : listed.join('<br>');
     if (!r.inSidebar) {
-      b.writeln('| ${r.path} | $web | not in the sidebar | | |');
+      b.writeln('| ${r.path} | $web | not shown | | |');
       continue;
     }
     final moved = r.landed == r.path || r.path.contains(' ')
         ? ''
         : ' → ${r.landed}';
+    final via = r.via == null ? '' : ' (from ${r.via})';
     b.writeln(
-      '| ${r.path}$moved | $web | '
+      '| ${r.path}$moved$via | $web | '
       '${r.warmed.isEmpty ? '(nothing)' : r.warmed.join('<br>')} | '
       '${r.refetched.isEmpty ? 'no' : 'YES: ${r.refetched.join('<br>')}'} | '
       '${r.other.toSet().join('<br>')} |',
@@ -295,14 +374,16 @@ void _check(String name, List<AuditRow> rows, Map<String, List<String>>? web) {
   expect(
     [
       for (final r in rows)
-        if (r.refetched.isNotEmpty) '${r.path}: ${r.refetched.join(', ')}',
+        if (r.refetched.isNotEmpty &&
+            !(r.via != null && awaitingUnitWiring.contains(r.path)))
+          '${r.path}: ${r.refetched.join(', ')}',
     ],
     isEmpty,
     reason: table,
   );
   for (final p in parentsWarming.keys) {
-    final r = rows.firstWhere((r) => r.path.startsWith('$p '));
-    if (r.inSidebar) {
+    final r = rows.where((r) => r.path.startsWith('$p ')).firstOrNull;
+    if (r != null && r.inSidebar) {
       expect(r.warmed, isNotEmpty, reason: '$p warms ${parentsWarming[p]}');
     }
   }
@@ -324,6 +405,24 @@ void main() {
       webWarm: webWarmBranch,
     );
     _check('owner, Heliopolis', rows, webWarmBranch);
+  });
+
+  testWidgets('owner, a branch picked, from the palette: the same', (
+    tester,
+  ) async {
+    final rows = await _audit(
+      tester,
+      persona: Persona.owner,
+      prefs: {
+        ScopePrefKeys.branch: jsonEncode({
+          'org': SeedIds.sabahOrg,
+          'branch': SeedIds.heliopolis,
+        }),
+      },
+      webWarm: webWarmBranch,
+      palette: true,
+    );
+    _check('owner, Heliopolis, palette', rows, webWarmBranch);
   });
 
   testWidgets('owner, all branches: what is warmed is not asked again', (

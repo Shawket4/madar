@@ -161,7 +161,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
             rows: rows,
             rowKey: (r) => '${r.kind}:${r.id}',
             loading: loading,
-            errorMessage: q.failedFirst ? errorMessage(q.error, t) : null,
+            errorMessage: q.failed ? errorMessage(q.error, t) : null,
             onRetry: () => ref.invalidate(bundlesReportProvider(query)),
             onRowTap: _combos
                 ? (r) => _openMix(r, query, _name(r, lang))

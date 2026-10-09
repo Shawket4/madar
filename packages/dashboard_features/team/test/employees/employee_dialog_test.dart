@@ -6,6 +6,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:dashboard_team/src/employees/employee_dialog.dart';
 import 'package:dashboard_team/src/employees/employee_fields.dart';
+import 'package:dashboard_team/src/shared/staff_query.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -45,6 +46,19 @@ Future<void> pick(DashHarness h, String label, String option) async {
 }
 
 Future<void> save(DashHarness h) => h.tap(surfaceText('Save'));
+
+String boxText(WidgetTester tester, Finder f) => tester
+    .widget<EditableText>(
+      find.descendant(of: f, matching: find.byType(EditableText)).first,
+    )
+    .controller
+    .text;
+
+/// A background refetch of everything under /staff/employees landing.
+Future<void> refetchList(DashHarness h) async {
+  h.container.read(staffRevisionsProvider.notifier).invalidateEmployees();
+  await h.settle();
+}
 
 Map<String, Object?> lastPut(DashHarness h) =>
     (h.server.callsTo(employeeT, method: 'PUT').last.body! as Map)
@@ -160,6 +174,27 @@ void main() {
     await h.expectToast('Employee saved');
   });
 
+  testWidgets('TEAM-EMP-016/028 a fresher row re-seeds the form until '
+      'something is edited; the save never sends a stale copy', (
+    tester,
+  ) async {
+    final h = await openProfile(tester, 'Adham Reda');
+    expect(boxText(tester, field<DashTextField>('Job title')), 'Waiter');
+    empRow(h.db!, 'adham')['job_title'] = 'Head waiter';
+    await refetchList(h);
+    expect(boxText(tester, field<DashTextField>('Job title')), 'Head waiter');
+    await type(h, field<DashTextField>('Notes'), 'Night owl');
+    empRow(h.db!, 'adham')['job_title'] = 'Floor lead';
+    await refetchList(h);
+    // Edited: what is on screen stays.
+    expect(boxText(tester, field<DashTextField>('Job title')), 'Head waiter');
+    expect(boxText(tester, field<DashTextField>('Notes')), 'Night owl');
+    await save(h);
+    expect(lastPut(h)['job_title'], 'Head waiter');
+    expect(lastPut(h)['notes'], 'Night owl');
+    await h.expectToast('Employee saved');
+  });
+
   testWidgets('TEAM-EMP-021 job title, employee number, department, hire '
       'date', (tester) async {
     final h = await openProfile(tester, 'Adham Reda');
@@ -179,6 +214,28 @@ void main() {
     final row = empRow(h.db!, 'adham');
     expect(row['job_title'], 'Head waiter');
     expect(row['department_id'], isNull);
+  });
+
+  testWidgets('TEAM-EMP-021 the hire date can be emptied: Clear sends '
+      'hire_date null', (tester) async {
+    final h = await openProfile(tester, 'Adham Reda');
+    await h.tap(field<EmployeeDateField>('Hire date'));
+    // Opens on the hire date's own month.
+    expect(find.text('June 2025').hitTestable(), findsOneWidget);
+    await h.tap(find.text('Clear').hitTestable());
+    expect(
+      find.descendant(
+        of: field<EmployeeDateField>('Hire date'),
+        matching: find.text('Pick a date'),
+      ),
+      findsOneWidget,
+    );
+    await save(h);
+    final body = lastPut(h);
+    expect(body.containsKey('hire_date'), isTrue);
+    expect(body['hire_date'], isNull);
+    await h.expectToast('Employee saved');
+    expect(empRow(h.db!, 'adham')['hire_date'], isNull);
   });
 
   testWidgets('TEAM-EMP-021 empty job title shows "Head chef"; too long is '
@@ -465,13 +522,21 @@ void main() {
   });
 
   testWidgets('TEAM-EMP-029 Sign the phone out from the profile: confirm, '
-      'DELETE, the dialog stays; Cancel closes without saving', (tester) async {
+      'DELETE, the dialog stays and follows the refreshed row (no phone, no '
+      'button); Cancel closes without saving', (tester) async {
     final h = await openProfile(tester, 'Mariam Fathy');
+    expect(
+      surfaceText('Signed in on Samsung Galaxy A54 since 02 Sept 2026'),
+      findsOneWidget,
+    );
     await h.tap(surfaceText('Sign the phone out'));
     await h.tap(confirmText('Sign the phone out'));
     expect(h.server.callsTo(deviceT).single.method, 'DELETE');
     await h.expectToast('Phone signed out');
     expect(find.byType(EmployeeDialog), findsOneWidget);
+    expect(textHas('Signed in on Samsung'), findsNothing);
+    expect(surfaceText(h.t('dawam.noDevice')), findsOneWidget);
+    expect(surfaceText('Sign the phone out'), findsNothing);
     await h.tap(surfaceText('Cancel'));
     expect(find.byType(EmployeeDialog), findsNothing);
     expect(h.server.callsTo(employeeT, method: 'PUT'), isEmpty);

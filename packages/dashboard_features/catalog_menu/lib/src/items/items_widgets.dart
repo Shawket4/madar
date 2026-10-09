@@ -33,21 +33,21 @@ const double menuTileSize = 44;
 typedef MenuTabSpec = ({MenuTab tab, String label, int count});
 
 /// The page's segmented tabs (the web's `SegmentedControl` in the header's
-/// `below`): each label with its count (mono, quieter). Pointing at the
-/// Add-ons label warms its reads ([onHoverAddons]).
+/// `below`): each label with its count (mono, quieter). A tab about to be
+/// pressed warms the reads it shows ([onIntent]).
 class MenuTabsBar extends StatelessWidget {
   const MenuTabsBar({
     required this.tabs,
     required this.value,
     required this.onChanged,
-    this.onHoverAddons,
+    this.onIntent,
     super.key,
   });
 
   final List<MenuTabSpec> tabs;
   final MenuTab value;
   final ValueChanged<MenuTab> onChanged;
-  final VoidCallback? onHoverAddons;
+  final ValueChanged<MenuTab>? onIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -67,13 +67,10 @@ class MenuTabsBar extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               for (final s in tabs)
-                MouseRegion(
-                  onEnter: s.tab == MenuTab.addons && onHoverAddons != null
-                      ? (_) => onHoverAddons!()
-                      : null,
-                  child: DashPressable(
+                DashPressable(
                     key: ValueKey('menu-tab-${s.tab.name}'),
                     onTap: () => onChanged(s.tab),
+                    onIntent: onIntent == null ? null : () => onIntent!(s.tab),
                     selected: s.tab == value,
                     checked: s.tab == value,
                     isButton: false,
@@ -112,8 +109,9 @@ class MenuTabsBar extends StatelessWidget {
                             ),
                             Text(
                               dashFigure(fmt.number(s.count)),
+                              // `text-xs` in mono: the small token's size.
                               style: DashType.mono.copyWith(
-                                fontSize: 12,
+                                fontSize: DashType.small.fontSize,
                                 color: fg.withValues(alpha: 0.7),
                               ),
                             ),
@@ -122,7 +120,6 @@ class MenuTabsBar extends StatelessWidget {
                       );
                     },
                   ),
-                ),
             ],
           ),
         ),
@@ -492,87 +489,4 @@ class MenuPriceField extends StatelessWidget {
     onChanged: onChanged,
     onSubmitted: onSubmit == null ? null : (_) => onSubmit!(),
   );
-}
-
-// ── warm-ups ───────────────────────────────────────────────────────────────
-
-/// Warms reads when the pointer enters [child] or focus lands in it (the
-/// web's `onMouseEnter` / `onFocus` prefetch), with the page's own keys.
-class WarmOnIntent extends StatelessWidget {
-  const WarmOnIntent({required this.warm, required this.child, super.key});
-
-  final void Function(DashPrefetcher warm) warm;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    void run() =>
-        warm(DashPrefetcher(ProviderScope.containerOf(context, listen: false)));
-    return MouseRegion(
-      onEnter: (_) => run(),
-      child: Focus(
-        canRequestFocus: false,
-        skipTraversal: true,
-        onFocusChange: (focused) {
-          if (focused) run();
-        },
-        child: child,
-      ),
-    );
-  }
-}
-
-/// The kit's pager (`DashPagination`) with Next warming the next page
-/// ([onWarmNext], the web's `onPrefetchNext`).
-class MenuPager extends StatelessWidget {
-  const MenuPager({
-    required this.pageIndex,
-    required this.pageCount,
-    required this.onChanged,
-    required this.onWarmNext,
-    super.key,
-  });
-
-  /// 0-based.
-  final int pageIndex;
-  final int pageCount;
-  final ValueChanged<int> onChanged;
-  final void Function(DashPrefetcher warm) onWarmNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.madarColors;
-    final t = context.dashStrings;
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            t.page(pageIndex + 1, pageCount),
-            style: DashType.body.copyWith(
-              color: c.textSecondary,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        ),
-        DashIconButton(
-          icon: DashIcon.backward(context),
-          semanticLabel: t.previous,
-          variant: DashButtonVariant.outline,
-          onPressed: pageIndex > 0 ? () => onChanged(pageIndex - 1) : null,
-        ),
-        const SizedBox(width: Space.sm),
-        WarmOnIntent(
-          warm: onWarmNext,
-          child: DashIconButton(
-            icon: DashIcon.forward(context),
-            semanticLabel: t.next,
-            variant: DashButtonVariant.outline,
-            onPressed: pageIndex < pageCount - 1
-                ? () => onChanged(pageIndex + 1)
-                : null,
-          ),
-        ),
-      ],
-    );
-  }
 }

@@ -35,6 +35,9 @@ Future<void> showDayEditor(
   required String date,
 }) => showDashDialog<void>(
   context,
+  // Wider than the web's 512: the kit's time list is as wide as its field
+  // and its length hints ("8 h 30 min · next day") need the room.
+  width: DashMetrics.dialogWide,
   builder: (_) => DayEditor(rosterKey: key, person: person, date: date),
 );
 

@@ -63,6 +63,7 @@ Future<DashHarness> pumpStudio(
   String locale = 'en',
   bool dark = false,
   ({MockServer server, MockDb db})? seeded,
+  Map<String, String>? prefs,
 }) => DashHarness.pump(
   tester,
   areas: const [catalogMenuArea],
@@ -73,6 +74,7 @@ Future<DashHarness> pumpStudio(
   dark: dark,
   server: seeded?.server,
   db: seeded?.db,
+  prefs: prefs,
 );
 
 /// [f] inside the studio page.

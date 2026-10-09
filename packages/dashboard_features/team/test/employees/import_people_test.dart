@@ -241,6 +241,20 @@ void main() {
     await h.expectToast('1 of 2 added');
   });
 
+  testWidgets('TEAM-EMP-055/075 closed mid-run: the run goes on and still '
+      'says "2 of 2 added"', (tester) async {
+    final h = await openImport(tester);
+    await choose(h, csv(_sheet));
+    final gate = h.server.hold('POST', listT);
+    await h.tap(surfaceText('Add 2'));
+    await h.tap(surfaceText('Close'));
+    expect(find.byType(ImportPeopleDialog), findsNothing);
+    gate.release();
+    await h.settle();
+    expect(posts(h), hasLength(2));
+    await h.expectToast('2 of 2 added');
+  });
+
   testWidgets('TEAM-EMP-056 Close closes; nothing sent', (tester) async {
     final h = await openImport(tester);
     await choose(h, csv(_sheet));

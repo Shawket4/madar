@@ -87,7 +87,7 @@ class StaffPoolReportPage extends ConsumerWidget {
             DashSkeleton(height: _Heights.table, radius: Radii.card),
           ],
         );
-      } else if (today.failedFirst) {
+      } else if (today.failed) {
         body = DashErrorState(
           retryLabel: t('common.retry'),
           retrying: today.isLoading,
@@ -252,13 +252,13 @@ class _PoolDay extends ConsumerWidget {
               StaffDrinksSummaryStrip(
                 summary: summary.value,
                 loading: summary.awaitingFirst,
-                failed: summary.failedFirst,
+                failed: summary.failed,
                 onRetry: onRetrySummary,
               ),
               StaffDrinksTable(
                 drinks: drinks.value ?? const <StaffDrink>[],
                 loading: drinks.awaitingFirst,
-                error: drinks.failedFirst ? drinks.error : null,
+                error: drinks.failed ? drinks.error : null,
                 onRetry: onRetryDrinks,
                 showDate: showDate,
                 onOpenOrder: onOpenOrder,

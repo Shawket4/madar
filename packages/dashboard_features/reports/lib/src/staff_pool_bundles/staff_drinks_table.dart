@@ -113,7 +113,8 @@ class StaffDrinksTable extends ConsumerWidget {
         id: 'note',
         label: t('staffPool.colNote'),
         flex: 3,
-        minWidth: 224,
+        // Gives the Item column its 48: the note wraps, the item does not.
+        minWidth: 176,
         text: (d) => d.note,
         cell: (context, d) {
           final money = staffDrinkMoney(d);

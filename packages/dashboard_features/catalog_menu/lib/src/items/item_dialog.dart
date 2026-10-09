@@ -136,10 +136,16 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
   String? _nameError;
   String? _categoryError;
   String? _sizesError;
+
+  /// Save was pressed with a changed add-on selection before the groups
+  /// read landed (the attachments need it).
+  bool _groupsMissing = false;
   final Map<Key, String> _labelErrors = {};
   bool _busy = false;
 
   bool get _editing => widget.item != null;
+
+  GroupsQuery get _groupsKey => (orgId: widget.orgId, includeInactive: false);
 
   /// Set once [initState] is done (a cached item seeds before that).
   bool _ready = false;
@@ -273,16 +279,13 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
     final t = ref.read(tProvider);
     final api = ref.read(apiProvider);
     final addons = ref.read(addonItemsProvider(widget.orgId)).value ?? [];
-    final groups =
-        ref
-            .read(
-              modifierGroupsProvider((
-                orgId: widget.orgId,
-                includeInactive: false,
-              )),
-            )
-            .value ??
-        [];
+    final groups = ref.read(modifierGroupsProvider(_groupsKey)).value;
+    // Without the groups the attachments would be empty and detach every
+    // group (the web sends that); hold the save and say why.
+    if (groups == null && selectionKey(_allowed) != _seededAllowed) {
+      setState(() => _groupsMissing = true);
+      return;
+    }
     setState(() => _busy = true);
     final invalidate = ref.menuInvalidate;
     final nameTr = _nameAr.isEmpty ? null : <String, Object?>{'ar': _nameAr};
@@ -362,7 +365,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
         await api.menu.putModifierGroups(
           id: itemId,
           body: PutModifierGroupsRequest(
-            groups: addonAttachments(_allowed, addons, groups),
+            groups: addonAttachments(_allowed, addons, groups ?? const []),
           ),
         );
       }
@@ -507,16 +510,8 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
     final addons =
         ref.watch(addonItemsProvider(widget.orgId)).value ??
         const <AddonItem>[];
-    final groups =
-        ref
-            .watch(
-              modifierGroupsProvider((
-                orgId: widget.orgId,
-                includeInactive: false,
-              )),
-            )
-            .value ??
-        const <GroupOut>[];
+    final groupsQ = ref.watch(modifierGroupsProvider(_groupsKey));
+    final groups = groupsQ.value ?? const <GroupOut>[];
     final full = _editing
         ? ref.watch(studioMenuItemProvider(widget.item!.id)).value
         : null;
@@ -541,7 +536,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
     final priceLabel =
         '${t('common.price')} (${ref.watch(formatProvider).currencyLabel()})';
 
-    final category = Row(
+    final categoryRow = Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       spacing: Space.sm,
       children: [
@@ -576,6 +571,20 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
           ),
         ),
       ],
+    );
+    // `sm:grid-cols-2`: the first of two columns from 640 (the add-on
+    // dialog's row), the second cell empty.
+    final category = LayoutBuilder(
+      builder: (context, box) =>
+          box.maxWidth >= DashBreakpoints.sm - Space.xxl * 4
+          ? Row(
+              spacing: Space.md,
+              children: [
+                Expanded(child: categoryRow),
+                const Spacer(),
+              ],
+            )
+          : categoryRow,
     );
 
     final image = Column(
@@ -796,7 +805,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
               ],
             ),
           ),
-          divided(_addonsSection(t, addons, groups)),
+          divided(_addonsSection(t, addons, groups, groupsQ)),
         ],
       ),
       actions: [
@@ -816,6 +825,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
     Translator t,
     List<AddonItem> addons,
     List<GroupOut> groups,
+    AsyncValue<List<GroupOut>> groupsQ,
   ) {
     // A type's header: its shared group's name in the active language (the
     // web humanizes the raw type, English in Arabic too), else the type.
@@ -966,6 +976,28 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
             ],
           ),
         ),
+        if (_groupsMissing && !groupsQ.hasValue)
+          Row(
+            key: const ValueKey('addon-groups-missing'),
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: Text(
+                  t('menu.addonGroupsNotReady'),
+                  style: DashType.small.copyWith(color: c.errorText),
+                ),
+              ),
+              if (groupsQ.failedFirst)
+                DashButton(
+                  label: t('common.retry'),
+                  variant: DashButtonVariant.link,
+                  size: DashButtonSize.compact,
+                  loading: groupsQ.isLoading,
+                  onPressed: () =>
+                      ref.invalidate(modifierGroupsProvider(_groupsKey)),
+                ),
+            ],
+          ),
       ],
     );
   }

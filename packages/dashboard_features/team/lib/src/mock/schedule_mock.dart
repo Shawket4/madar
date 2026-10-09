@@ -1060,7 +1060,9 @@ class _Roster {
           _holiday(h),
       ],
       'warnings': _warnings(orgId, staff, from, to),
-      'limits_unconfirmed': true,
+      // The backend says true until a lawyer confirms the limits; a test
+      // sets `limits_confirmed` on the settings row to see the other words.
+      'limits_unconfirmed': settings(orgId)?['limits_confirmed'] != true,
       'date_sets': dateSets,
       'elsewhere': elsewhere,
     };

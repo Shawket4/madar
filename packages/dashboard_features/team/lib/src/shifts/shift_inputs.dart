@@ -413,7 +413,6 @@ class _DayChip extends StatelessWidget {
           height: DashMetrics.target,
           constraints: const BoxConstraints(minWidth: DashMetrics.target),
           padding: const EdgeInsets.symmetric(horizontal: Space.sm + 2),
-          alignment: Alignment.center,
           foregroundDecoration: dashFocusRing(
             context,
             s,
@@ -424,10 +423,15 @@ class _DayChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(Radii.xs),
             border: Border.all(color: on ? c.accent : c.input),
           ),
-          child: Text(
-            label,
-            style: DashType.bodyMedium.copyWith(
-              color: on ? c.textOnAccent : c.textSecondary,
+          // `widthFactor`: a centred label, yet the chip only as wide as it
+          // (a Container's own alignment would stretch it across the Wrap).
+          child: Center(
+            widthFactor: 1,
+            child: Text(
+              label,
+              style: DashType.bodyMedium.copyWith(
+                color: on ? c.textOnAccent : c.textSecondary,
+              ),
             ),
           ),
         ),

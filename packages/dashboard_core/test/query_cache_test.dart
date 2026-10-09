@@ -1,7 +1,8 @@
 // The web's React Query defaults on a Riverpod read (`ref.webCache()`): kept
 // after the page leaves, refetched in the background once stale, swept after
 // the gc time, cleared on sign-out; and the web's retry policy.
-import 'package:dashboard_api/dashboard_api.dart' show ApiException;
+import 'package:dashboard_api/dashboard_api.dart'
+    show ApiException, ApiRequest, ApiResponse, ApiTransport;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,6 +81,40 @@ void main() {
     expect(await visit('a'), 2);
   });
 
+  test('a refresh by hand refetches what is shown, fresh or not; never what '
+      'nobody shows', () async {
+    final shown = c.listen(read('a'), (_, _) {});
+    await c.read(read('a').future);
+    await visit('b');
+    expect(fetches, 2);
+    expect(await c.read(queryCacheProvider).refetchActive(), isNull);
+    expect(c.read(read('a')).value, 3);
+    expect(fetches, 3);
+    shown.close();
+  });
+
+  test('a refresh waits for the reads it set off, and names a failure', () async {
+    final server = _SlowServer();
+    final transport = c.read(queryCacheProvider).track(server);
+    final remote = FutureProvider.autoDispose<int>((ref) async {
+      ref.webCache();
+      await transport.send(const ApiRequest(method: 'GET', path: '/x'));
+      return server.answered;
+    });
+    final shown = c.listen(remote, (_, _) {});
+    expect(await c.read(remote.future), 1);
+
+    expect(await c.read(queryCacheProvider).refetchActive(), isNull);
+    expect(c.read(remote).value, 2);
+
+    server.fail = true;
+    final failure = await c.read(queryCacheProvider).refetchActive();
+    expect(failure, isA<ApiException>());
+    // What was shown stays.
+    expect(c.read(remote).value, 2);
+    shown.close();
+  });
+
   test('the web retry policy', () {
     ApiException e(int s) => ApiException(status: s, message: '');
     for (final s in [401, 403, 404, 422]) {
@@ -91,4 +126,21 @@ void main() {
     expect(webRetry(0, e(500)), const Duration(seconds: 1));
     expect(webRetry(1, e(500)), isNull);
   });
+}
+
+/// A server that answers after a moment, or fails.
+class _SlowServer implements ApiTransport {
+  int answered = 0;
+  bool fail = false;
+
+  @override
+  Future<ApiResponse> send(ApiRequest request) async {
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    if (fail) throw const ApiException(status: 500, message: 'down');
+    answered++;
+    return const ApiResponse(status: 200);
+  }
+
+  @override
+  Stream<String> stream(ApiRequest request) => const Stream.empty();
 }

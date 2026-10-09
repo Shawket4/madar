@@ -74,10 +74,15 @@ void main() {
     final h = await openAdd(tester);
     expect(surfaceText('Add employee'), findsWidgets);
     expect(surfaceText(h.t('dawam.kindHint_app')), findsOneWidget);
+    // `sm:max-w-md`: 448 wide, not the kit's 512.
+    expect(
+      tester.getSize(find.byType(AddEmployeeDialog)).width,
+      closeTo(448, 2), // less the frame's hairlines
+    );
   });
 
   testWidgets('TEAM-EMP-030/032 Make employee: a preset Madar user, no kind '
-      'choice, the user fixed', (tester) async {
+      'choice, the user fixed, their number filled', (tester) async {
     final h = await pumpEmployees(tester);
     final mostafa = mockUuid('user:mostafa-kamal');
     showAddEmployeeDialog(tester.element(page), userId: mostafa);
@@ -89,9 +94,11 @@ void main() {
       field<DashSelectField<String>>('Madar user'),
     );
     expect(select.enabled, isFalse);
+    expect(inSurface(find.text('+201110010101')), findsWidgets);
     await branch(h, 'Heliopolis');
     await h.tap(inSurface(find.widgetWithText(DashButton, 'Make employee')));
     expect(lastPost(h)['user_id'], mostafa);
+    expect(lastPost(h)['phone'], '201110010101');
     await h.expectToast('Employee added.');
   });
 
@@ -186,6 +193,10 @@ void main() {
       surfaceText('The staff app needs their WhatsApp number'),
       findsNothing,
     );
+    // The description stays under a problem (the web always shows it).
+    await h.enterText(phone, '12');
+    expect(surfaceText('"12" isn\'t a phone number'), findsOneWidget);
+    expect(surfaceText('Optional. Only for reaching them.'), findsOneWidget);
   });
 
   testWidgets('TEAM-EMP-035 branches: at least one; the only branch ticks '
@@ -226,6 +237,35 @@ void main() {
     expect(body['job_title'], 'Pastry chef');
     expect(body['hire_date'], '2026-10-20');
     expect(body['gender'], 'f');
+    await h.flushTimers();
+  });
+
+  testWidgets('TEAM-EMP-036 hire date: a year to jump to, and Clear empties '
+      'it (hire_date null)', (tester) async {
+    final h = await openAdd(tester);
+    await h.enterText(field<DashTextField>('Name'), 'Rania Adel');
+    await h.enterText(field<PhoneField>('WhatsApp number'), '01001234567');
+    await branch(h, 'Zamalek');
+    await h.tap(field<EmployeeDateField>('Hire date'));
+    expect(find.text('Clear').hitTestable(), findsNothing);
+    await h.tap(find.byType(DashSelect<int>));
+    await tester.scrollUntilVisible(
+      find.text('2019'),
+      100,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await h.tap(find.text('2019').last);
+    expect(find.text('October 2019').hitTestable(), findsOneWidget);
+    await h.tap(find.text('5').hitTestable().last);
+    expect(surfaceText('05 Oct 2019'), findsOneWidget);
+    await h.tap(field<EmployeeDateField>('Hire date'));
+    expect(find.text('October 2019').hitTestable(), findsOneWidget);
+    await h.tap(find.text('Clear').hitTestable());
+    expect(surfaceText('05 Oct 2019'), findsNothing);
+    await h.tap(addButton());
+    final body = lastPost(h);
+    expect(body.containsKey('hire_date'), isTrue);
+    expect(body['hire_date'], isNull);
     await h.flushTimers();
   });
 

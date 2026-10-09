@@ -339,6 +339,29 @@ void main() {
       expect(inSaveBar(h.t('menu.studio.unsavedN', count: 1)), findsOneWidget);
     });
 
+    testWidgets('MENU-STUDIO-012 opening another item (a linked copy) with '
+        'drafts pending replaces every draft', (tester) async {
+      final s = studioServer();
+      linkCopy(s.db, 'iced_spanish', 'spanish');
+      final h = await pumpStudio(tester, key: 'spanish', seeded: s);
+      await h.enterText(fieldWithText('Spanish Latte'), 'Spanish (draft)');
+      await h.tap(studioText(h.t('menu.studio.steps.addCustom')));
+      await h.tap(studioText(h.t('menu.studio.options.add')));
+      expect(inSaveBar(h.t('menu.studio.unsavedN', count: 3)), findsOneWidget);
+
+      await h.tap(studioText('Iced Spanish Latte'));
+      expect(h.location.path, '/menu/items/${item('iced_spanish')}');
+      expect(saveBar, findsNothing);
+      expect(fieldWithText('Iced Spanish Latte'), findsOneWidget);
+      expect(fieldWithText('Spanish (draft)'), findsNothing);
+      expect(find.byKey(const ValueKey('studio-option-0')), findsNothing);
+      expect(
+        studioText(h.t('menu.studio.unsaved')),
+        findsNothing,
+        reason: 'no section is dirty',
+      );
+    });
+
     testWidgets('MENU-STUDIO-013 no in-app guard: Back leaves with edits', (
       tester,
     ) async {

@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/src/authz/authz_providers.dart';
 import 'package:dashboard_core/src/data/offline.dart';
+import 'package:dashboard_core/src/data/query_cache.dart';
 import 'package:dashboard_core/src/providers.dart';
 import 'package:dashboard_core/src/scope/scope.dart';
 import 'package:dashboard_core/src/session/session.dart';
@@ -16,13 +17,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The transport every boot puts over the network one (the core's in real
 /// mode, the mock server's otherwise): the offline seam ([OfflineTransport],
-/// when [offlineStoreProvider] holds a store) inside the 401 funnel.
+/// when [offlineStoreProvider] holds a store) inside the 401 funnel, its
+/// reads counted for a manual refresh ([QueryCache.refetchActive]).
 ///
 /// ```dart
 /// transportProvider.overrideWith((ref) => dashTransport(ref, network)),
 /// ```
 ApiTransport dashTransport(Ref ref, ApiTransport network) {
   final store = ref.watch(offlineStoreProvider);
+  final cache = ref.read(queryCacheProvider);
   var inner = network;
   if (store != null) {
     final offline = OfflineTransport(
@@ -37,6 +40,8 @@ ApiTransport dashTransport(Ref ref, ApiTransport network) {
         .invalidations
         .listen((_) => offline.forgetRecent());
     ref.onDispose(sub.cancel);
+    // A refresh by hand reads everything live.
+    cache.onRefetch = offline.forgetRecent;
     // Back online: the shell's own reads built on saved data are read again
     // (a page's reads follow `webCache`).
     ref.listen(offlineProvider.select((s) => s.recoveries), (_, _) {
@@ -50,11 +55,13 @@ ApiTransport dashTransport(Ref ref, ApiTransport network) {
       ref.read(realtimeBusProvider).invalidate(const ['/']);
     });
   }
-  return SessionGuardTransport(
-    inner,
-    onUnauthorized: () =>
-        ref.read(sessionProvider.notifier).handleUnauthorized(),
-    signedIn: () => ref.read(currentSessionProvider) != null,
+  return cache.track(
+    SessionGuardTransport(
+      inner,
+      onUnauthorized: () =>
+          ref.read(sessionProvider.notifier).handleUnauthorized(),
+      signedIn: () => ref.read(currentSessionProvider) != null,
+    ),
   );
 }
 

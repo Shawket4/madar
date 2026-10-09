@@ -38,7 +38,7 @@ class StudioStepsSection extends ConsumerWidget {
     final q = ref.watch(stepPresetsProvider);
     final presets = q.value ?? const <RecipeStepPreset>[];
     final bySlug = {for (final p in presets) p.slug: p};
-    final settled = q.hasValue || q.hasError;
+    final settled = q.hasValue || q.failedFirst;
     final wide = MediaQuery.sizeOf(context).width >= StudioMetrics.sm;
 
     void set(int i, StepDraft s) =>
@@ -158,7 +158,7 @@ class StudioStepsSection extends ConsumerWidget {
             );
       return Container(
         key: ValueKey('studio-step-$i'),
-        padding: const EdgeInsets.all(Space.sm + 2),
+        padding: const EdgeInsets.all(Space.sm + DashMetrics.hair),
         decoration: BoxDecoration(
           color: c.card,
           borderRadius: BorderRadius.circular(Radii.control),
@@ -188,7 +188,7 @@ class StudioStepsSection extends ConsumerWidget {
                       textAlign: TextAlign.center,
                       style: DashType.monoStrong.copyWith(
                         color: c.textSecondary,
-                        fontSize: 14,
+                        fontSize: DashType.body.fontSize,
                       ),
                     ),
                   ),
@@ -232,6 +232,13 @@ class StudioStepsSection extends ConsumerWidget {
                 icon: 'plus',
                 variant: DashButtonVariant.outline,
                 size: DashButtonSize.compact,
+                // The picker reads the library and each tile's animation.
+                onIntent: () {
+                  ref.warm(stepPresetsProvider);
+                  for (final p in presets) {
+                    ref.warm(stepAnimationProvider(p.animationUrl));
+                  }
+                },
                 onPressed: () async {
                   final picked = await showStepPicker(context);
                   if (picked != null) onChanged([...steps, picked]);
@@ -285,12 +292,12 @@ class _StepPicker extends ConsumerWidget {
     );
 
     final Widget body;
-    if (!q.hasValue && !q.hasError) {
+    if (q.awaitingFirst) {
       body = grid([
         for (var i = 0; i < 6; i++)
           const DashSkeleton(height: Space.xxl * 3.5, radius: Radii.control),
       ]);
-    } else if (q.hasError && !q.hasValue) {
+    } else if (q.failedFirst) {
       body = DashErrorState(
         framed: false,
         message: errorMessage(q.error, t),
@@ -330,7 +337,7 @@ class _StepPicker extends ConsumerWidget {
                   ),
                 ),
                 child: Column(
-                  spacing: Space.xs + 2,
+                  spacing: Space.xs + DashMetrics.hair,
                   children: [
                     StepPreview(
                       url: p.animationUrl,
@@ -365,18 +372,25 @@ class _StepPicker extends ConsumerWidget {
       title: t('menu.studio.steps.pickTitle'),
       description: t('menu.studio.steps.pickDesc'),
       body: body,
+      // The web's `justify-between`: "Write your own" at the start, Close
+      // at the end.
       actions: [
-        DashButton(
-          label: t('menu.studio.steps.addCustom'),
-          icon: 'pencil',
-          variant: DashButtonVariant.ghost,
-          onPressed: () =>
-              Navigator.of(context).pop(const StepDraft.custom()),
-        ),
-        DashButton(
-          label: t('common.close'),
-          variant: DashButtonVariant.outline,
-          onPressed: () => Navigator.of(context).maybePop(),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            DashButton(
+              label: t('menu.studio.steps.addCustom'),
+              icon: 'pencil',
+              variant: DashButtonVariant.ghost,
+              onPressed: () =>
+                  Navigator.of(context).pop(const StepDraft.custom()),
+            ),
+            DashButton(
+              label: t('common.close'),
+              variant: DashButtonVariant.outline,
+              onPressed: () => Navigator.of(context).maybePop(),
+            ),
+          ],
         ),
       ],
     );

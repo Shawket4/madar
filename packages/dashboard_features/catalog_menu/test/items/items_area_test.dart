@@ -212,6 +212,19 @@ void main() {
     expect(callsOf(h, 'DELETE', '/menu-items/{id}'), isEmpty);
   });
 
+  testWidgets('MENU-AREA-011 Esc closes the confirm; nothing is deleted', (
+    tester,
+  ) async {
+    final h = await pumpItems(tester);
+    await openCardMenu(h, 'Cortado');
+    await pickMenu(h, 'Delete');
+    expect(find.byType(DashConfirmDialog), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+    expect(find.byType(DashConfirmDialog), findsNothing);
+    expect(callsOf(h, 'DELETE', '/menu-items/{id}'), isEmpty);
+  });
+
   testWidgets('MENU-AREA-012 toggles need ONE branch in scope', (tester) async {
     final h = await pumpItems(tester);
     expect(inPage(find.text('Available at this branch')), findsNothing);

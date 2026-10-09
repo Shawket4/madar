@@ -8,6 +8,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart'
     show GroupOut;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -114,6 +115,7 @@ class StudioModifiersSection extends ConsumerWidget {
                     icon: 'pencil',
                     variant: DashButtonVariant.ghost,
                     size: DashButtonSize.compact,
+                    onIntent: () => ref.prefetchRoute('/menu/groups'),
                     onPressed: () => context.go(
                       Uri(
                         path: '/menu/groups',
@@ -299,6 +301,10 @@ class StudioModifiersSection extends ConsumerWidget {
                 label: t('menu.groups.new'),
                 icon: 'plus',
                 variant: DashButtonVariant.outline,
+                // The editor's reads beyond what this page holds already.
+                onIntent: org == null
+                    ? null
+                    : () => ref.warm(ingredientCategoriesProvider(org)),
                 onPressed: org == null
                     ? null
                     : () async {

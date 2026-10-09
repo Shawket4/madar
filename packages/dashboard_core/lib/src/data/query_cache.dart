@@ -9,7 +9,10 @@
 /// switch (on the web it does, until stale: see the divergence log).
 library;
 
-import 'package:dashboard_api/dashboard_api.dart' show ApiException;
+import 'dart:async';
+
+import 'package:dashboard_api/dashboard_api.dart'
+    show ApiException, ApiRequest, ApiResponse, ApiTransport;
 import 'package:dashboard_core/src/data/offline.dart' show offlineProvider;
 import 'package:dashboard_core/src/scope/scope.dart' show orgIdProvider;
 import 'package:dashboard_core/src/session/session.dart';
@@ -43,6 +46,7 @@ extension WebQueryCache on Ref {
     final builtAt = now();
     final link = keepAlive();
     gc._kept.add(link);
+    gc._reads[link] = this;
     // A warmed read may never be watched: it starts idle.
     gc.idle(link, now);
     // A page opening on stale data refetches it (`refetchOnMount`); not
@@ -60,6 +64,7 @@ extension WebQueryCache on Ref {
     onDispose(() {
       gc.busy(link);
       gc._kept.remove(link);
+      gc._reads.remove(link);
     });
   }
 }
@@ -70,6 +75,53 @@ extension WebQueryCache on Ref {
 class QueryCache {
   final _kept = <KeepAliveLink>{};
   final _idle = <KeepAliveLink, DateTime>{};
+
+  /// Each read's current build, to fetch it again by hand.
+  final _reads = <KeepAliveLink, Ref>{};
+
+  /// Runs as [refetchActive] starts: the offline seam forgets the live
+  /// answers it would narrow, so everything comes from the server.
+  void Function()? onRefetch;
+
+  int _reading = 0;
+  Completer<void>? _quiet;
+  List<Object>? _failures;
+
+  /// The web's `refetchQueries({type: 'active'})`, by hand (pull to refresh,
+  /// Cmd/Ctrl+R, back online): every read a shown page watches is fetched
+  /// again, fresh or not, its data on screen meanwhile; a read nobody shows
+  /// is left alone. Resolves once the reads it set off (and any they chain)
+  /// have landed, with the first failure, or null.
+  Future<Object?> refetchActive() async {
+    final active = [
+      for (final r in _reads.values)
+        if (r.mounted && !r.isPaused) r,
+    ];
+    if (active.isEmpty) return null;
+    onRefetch?.call();
+    final failures = _failures = [];
+    try {
+      final container = active.first.container;
+      for (final r in active) {
+        r.invalidateSelf();
+      }
+      await container.pump();
+      // A read that awaits another starts its request a turn later.
+      do {
+        while (_reading > 0) {
+          await (_quiet ??= Completer<void>()).future;
+        }
+        await Future<void>.delayed(Duration.zero);
+      } while (_reading > 0);
+      return failures.firstOrNull;
+    } finally {
+      if (identical(_failures, failures)) _failures = null;
+    }
+  }
+
+  /// [inner] with its reads counted, so [refetchActive] knows when the
+  /// reads it set off have landed (the boot's transport, `dashTransport`).
+  ApiTransport track(ApiTransport inner) => _CountedReads(inner, this);
 
   /// Let every kept read go: an unwatched one is gone at once, a watched
   /// one when its page closes (a sign-out closes them all). Never reloaded
@@ -102,6 +154,33 @@ class QueryCache {
 }
 
 final queryCacheProvider = Provider<QueryCache>((ref) => QueryCache());
+
+class _CountedReads implements ApiTransport {
+  _CountedReads(this.inner, this.cache);
+
+  final ApiTransport inner;
+  final QueryCache cache;
+
+  @override
+  Future<ApiResponse> send(ApiRequest request) async {
+    if (request.method.toUpperCase() != 'GET') return inner.send(request);
+    cache._reading++;
+    try {
+      return await inner.send(request);
+    } on Object catch (e) {
+      cache._failures?.add(e);
+      rethrow;
+    } finally {
+      if (--cache._reading == 0) {
+        cache._quiet?.complete();
+        cache._quiet = null;
+      }
+    }
+  }
+
+  @override
+  Stream<String> stream(ApiRequest request) => inner.stream(request);
+}
 
 /// The web's retry policy (`queryRetry` / `queryRetryDelay`): never an auth or
 /// client refusal; a 429 up to three times (2 s, 4 s, 8 s); anything else once.

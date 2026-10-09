@@ -7,6 +7,7 @@ import 'package:dashboard_core/src/authz/authz_providers.dart';
 import 'package:dashboard_core/src/authz/gates.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/routes/route.dart';
+import 'package:dashboard_core/src/shell/prefetch.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -116,6 +117,7 @@ class DashNotFoundPage extends ConsumerWidget {
                 icon: 'house',
                 variant: DashButtonVariant.outline,
                 onPressed: () => context.go('/'),
+                onIntent: () => ref.prefetchRoute('/'),
               ),
             ),
           ),

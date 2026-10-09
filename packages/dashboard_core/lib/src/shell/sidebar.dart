@@ -428,6 +428,7 @@ class _SidebarBrand extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(Space.sm, Space.sm, Space.sm, 0),
       child: DashPressable(
         onTap: onTap,
+        onIntent: () => ref.prefetchRoute('/'),
         pressScale: false,
         semanticLabel: own ? brand!.name : t('app.name'),
         excludeChildSemantics: true,
