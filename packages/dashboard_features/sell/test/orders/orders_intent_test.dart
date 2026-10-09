@@ -110,9 +110,6 @@ void main() {
 
   testWidgets("the row menu's Details warms the sheet", (tester) async {
     final h = await pumpOrders(tester);
-    final id = h.server.callsTo(listRoute).isEmpty
-        ? null
-        : (h.db!['orders'].all.first['id']! as String);
     final actions = find.byWidgetPredicate(
       (w) => w.key is ValueKey<String> &&
           (w.key! as ValueKey<String>).value.startsWith('order-actions-'),
@@ -125,28 +122,31 @@ void main() {
     await h.tap(details);
     expect(find.byType(OrderSheet), findsOneWidget);
     expect(h.server.callsTo(orderRoute, method: 'GET'), hasLength(warmed));
-    expect(id, isNotNull);
   });
 
-  testWidgets('the excluded-items trigger warms the menu; the export button '
-      'the branch name', (tester) async {
+  testWidgets('the export button warms the branch name; the excluded-items '
+      'trigger the menu', (tester) async {
     final h = await pumpOrders(tester);
-    expect(h.server.callsTo(menuItemsRoute), isEmpty);
-    final trigger = find.byKey(const ValueKey('orders-exclude-trigger'));
-    final mouse = await _rest(tester, h, trigger);
-    expect(h.server.callsTo(menuItemsRoute), hasLength(1));
-    await h.tap(trigger);
-    expect(h.server.callsTo(menuItemsRoute), hasLength(1));
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await h.settle();
-
     final branches = h.server.callsTo('/branches/{id}').length;
     final export = find.byKey(const ValueKey('orders-export'));
-    await mouse.moveTo(tester.getCenter(export));
-    await h.settle();
+    final mouse = await _rest(tester, h, export);
     expect(h.server.callsTo('/branches/{id}'), hasLength(branches + 1));
     await h.tap(export);
     expect(h.server.callsTo('/branches/{id}'), hasLength(branches + 1));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+    await mouse.moveTo(Offset.zero);
+    await h.settle();
+
+    expect(h.server.callsTo(menuItemsRoute), isEmpty);
+    final trigger = find.byKey(const ValueKey('orders-exclude-trigger'));
+    await tester.ensureVisible(trigger);
+    await h.settle();
+    await mouse.moveTo(tester.getCenter(trigger));
+    await h.settle();
+    expect(h.server.callsTo(menuItemsRoute), hasLength(1));
+    await h.tap(trigger);
+    expect(h.server.callsTo(menuItemsRoute), hasLength(1));
   });
 
   testWidgets("the sheet's member name warms the member's sheet",

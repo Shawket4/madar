@@ -20,6 +20,7 @@ class OnbStepNavigator extends ConsumerWidget {
     required this.active,
     required this.canComplete,
     required this.onSelect,
+    this.onIntent,
     super.key,
   });
 
@@ -27,6 +28,9 @@ class OnbStepNavigator extends ConsumerWidget {
   final OnbStep active;
   final bool canComplete;
   final ValueChanged<OnbStep> onSelect;
+
+  /// A step is about to be picked: warm its panel's reads.
+  final ValueChanged<OnbStep>? onIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -70,6 +74,9 @@ class OnbStepNavigator extends ConsumerWidget {
                         active: step == active,
                         locked: step == OnbStep.goLive && !canComplete,
                         onTap: () => onSelect(step),
+                        onIntent: onIntent == null
+                            ? null
+                            : () => onIntent!(step),
                       ),
                   ],
                 ),
@@ -88,6 +95,7 @@ class _StepButton extends ConsumerWidget {
     required this.active,
     required this.locked,
     required this.onTap,
+    this.onIntent,
   });
 
   final OnbStep step;
@@ -95,6 +103,7 @@ class _StepButton extends ConsumerWidget {
   final bool active;
   final bool locked;
   final VoidCallback onTap;
+  final VoidCallback? onIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -127,6 +136,7 @@ class _StepButton extends ConsumerWidget {
       opacity: locked ? Opacities.disabled + 0.1 : 1,
       child: DashPressable(
         onTap: locked ? null : onTap,
+        onIntent: locked ? null : onIntent,
         enabled: !locked,
         selected: active,
         semanticLabel: [

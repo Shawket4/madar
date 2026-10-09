@@ -274,7 +274,7 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
     }
 
     final branches = ref.watch(branchesProvider);
-    final branchesLoading = branches.isLoading && !branches.hasValue;
+    final branchesLoading = branches.awaitingFirst;
     final branch = branches.value?.where((b) => b.id == branchId).firstOrNull;
     final phone = DashBreakpoints.isPhone(context);
 
@@ -394,14 +394,19 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
     );
   }
 
-  Widget _pager(int page, int count, ValueChanged<int> onChanged) =>
-      count > 1
+  Widget _pager(
+    int page,
+    int count,
+    ValueChanged<int> onChanged,
+    ValueChanged<int> onIntent,
+  ) => count > 1
       ? Padding(
           padding: const EdgeInsets.only(top: Space.lg),
           child: DashPagination(
             pageIndex: page,
             pageCount: count,
             onChanged: onChanged,
+            onIntent: onIntent,
           ),
         )
       : const SizedBox.shrink();
@@ -412,7 +417,9 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
     final key = _itemsKey(org);
     final q = ref.watch(menuCatalogProvider(key));
     if (q.value case final v?) _lastItems = v;
-    if (q.hasError && !q.hasValue) {
+    // The web's `isError`: a failed read replaces the rows shown, but never
+    // while Riverpod is still retrying.
+    if (q.hasError && !q.retrying) {
       return DashErrorState(
         title: t('menu.pricing.loadError'),
         message: errorMessage(q.error, t),
@@ -463,6 +470,11 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
           _itemsPage,
           data.totalPages,
           (p) => setState(() => _itemsPage = p),
+          (p) => ref.warm(
+            menuCatalogProvider(
+              pricingCatalogKey(org, key.search, p + 1),
+            ),
+          ),
         ),
       ],
     );
@@ -491,6 +503,11 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
       dirty: _anyDirty(_items[m.id]?.targets ?? const []),
     );
   }
+
+  /// Opening an item reads its studio: warmed on intent (closing reads
+  /// nothing).
+  VoidCallback? _studioWarmer(_ItemView r) =>
+      r.open ? null : () => ref.warm(menuStudioProvider(r.item.id));
 
   void _toggle(String id) => setState(() {
     if (!_open.remove(id)) _open.add(id);
@@ -557,6 +574,7 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
           open: r.open,
           dirty: r.dirty,
           onToggle: () => _toggle(r.item.id),
+          onIntent: _studioWarmer(r),
         ),
       ),
       [MatrixCell(width: rest, child: const SizedBox.shrink())],
@@ -574,7 +592,7 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
     final muted = DashType.body.copyWith(
       color: context.madarColors.textSecondary,
     );
-    if (sizes == null && studio.hasError) {
+    if (studio.hasError && !studio.retrying) {
       return [head, message(Text(t('menu.pricing.loadError'), style: muted))];
     }
     if (sizes == null) {
@@ -676,7 +694,7 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
     );
     if (!r.open || studio == null) {
       body = const SizedBox.shrink();
-    } else if (sizes == null && studio.hasError) {
+    } else if (studio.hasError && !studio.retrying) {
       body = note(t('menu.pricing.loadError'));
     } else if (sizes == null) {
       body = _topLine(
@@ -725,6 +743,7 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
             open: r.open,
             dirty: r.dirty,
             onToggle: () => _toggle(r.item.id),
+          onIntent: _studioWarmer(r),
           ),
           body,
         ],
@@ -847,7 +866,12 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
     // The channel reads gate the tab too (the web shows their cells as
     // inherited while they load or after they fail: MENU-PRC-032).
     final all = <AsyncValue<Object?>>[q, ...reads];
-    final failed = all.where((r) => r.hasError && !r.hasValue).toList();
+    // The add-on and branch reads replace the rows on a failure (the web's
+    // `isError`); a channel read gates only until its first answer.
+    final failed = [
+      for (final (i, r) in all.indexed)
+        if (i < 2 ? r.hasError && !r.retrying : r.failedFirst) r,
+    ];
     if (failed.isNotEmpty) {
       return DashErrorState(
         title: t('menu.pricing.loadError'),
@@ -953,6 +977,11 @@ class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
           _addonsPage,
           data.totalPages,
           (p) => setState(() => _addonsPage = p),
+          (p) => ref.warm(
+            pricingAddonCatalogProvider(
+              pricingAddonKey(org, key.search, p + 1),
+            ),
+          ),
         ),
       ],
     );

@@ -10,8 +10,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('pointing at Branches warms its list; opening it refetches '
-      'nothing', (tester) async {
+  testWidgets('pointing at Branches warms its list (the shell has it '
+      'already); opening it refetches nothing', (tester) async {
     final h = await DashHarness.pump(
       tester,
       areas: const [adminArea],
@@ -19,7 +19,9 @@ void main() {
       persona: Persona.owner,
     );
     List<MockCall> lists() => h.server.callsTo('/branches', method: 'GET');
-    final before = lists().length;
+    // The page reads the scope bar's own list (core's branchesProvider),
+    // which the shell has loaded already: warming it asks nothing more.
+    expect(lists(), hasLength(1));
 
     final row = find.descendant(
       of: find.byType(DashSidebar),
@@ -41,10 +43,10 @@ void main() {
     addTearDown(mouse.removePointer);
     await mouse.moveTo(tester.getCenter(row));
     await h.settle();
-    expect(lists().length, before + 1, reason: 'warmed on hover');
+    expect(lists(), hasLength(1), reason: 'already warm');
 
     await h.tap(row);
     expect(h.location.path, '/branches');
-    expect(lists().length, before + 1, reason: 'served from the cache');
+    expect(lists(), hasLength(1), reason: 'served from the cache');
   });
 }

@@ -12,6 +12,7 @@ import 'package:dashboard_api/dashboard_api.dart'
         SetParRequest,
         StockMovement;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -22,7 +23,8 @@ import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart';
 import '../shared/on_hand.dart';
-import 'ingredient_dialog.dart' show IngredientNumberField;
+import 'ingredient_dialog.dart'
+    show IngredientNumberField, warmIngredientDialog;
 import 'ingredients_data.dart';
 
 /// What the drawer hands back to the page when it closes for a dialog.
@@ -225,6 +227,7 @@ class _IngredientDrawerState extends ConsumerState<IngredientDrawer> {
           size: DashButtonSize.compact,
           onPressed: () =>
               Navigator.of(context).pop(IngredientDrawerAction.edit),
+          onIntent: () => warmIngredientDialog(ref, widget.orgId),
         ),
         if (branchId != null)
           DashButton(
@@ -246,6 +249,7 @@ class _IngredientDrawerState extends ConsumerState<IngredientDrawer> {
           variant: DashButtonVariant.outline,
           size: DashButtonSize.compact,
           onPressed: _viewRecipes,
+          onIntent: () => ref.prefetchRoute('/menu/recipes'),
         ),
       ],
     );

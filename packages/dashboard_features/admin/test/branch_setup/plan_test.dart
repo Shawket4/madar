@@ -91,7 +91,10 @@ void main() {
     test('ADM-BSU-043 removing a link drops every copy of it', () {
       final twice = plan.mapSections(
         (s) => s.id == hot.id
-            ? s.copyWith(screenIds: [screen.id, screen.id], printerIds: ['p', 'p'])
+            ? s.copyWith(
+                screenIds: [screen.id, screen.id],
+                printerIds: ['p', 'p'],
+              )
             : s,
       );
       var next = removeLink(

@@ -333,6 +333,7 @@ class PricingItemHead extends StatelessWidget {
     required this.open,
     required this.dirty,
     required this.onToggle,
+    this.onIntent,
     super.key,
   });
 
@@ -341,6 +342,9 @@ class PricingItemHead extends StatelessWidget {
   final bool open;
   final bool dirty;
   final VoidCallback onToggle;
+
+  /// About to be pressed: warm the item's studio read.
+  final VoidCallback? onIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -351,6 +355,7 @@ class PricingItemHead extends StatelessWidget {
         : t('menu.pricing.expandHint');
     return DashPressable(
       onTap: onToggle,
+      onIntent: onIntent,
       expanded: open,
       semanticLabel: '$name, $hint',
       excludeChildSemantics: true,

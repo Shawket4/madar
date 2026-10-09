@@ -114,6 +114,12 @@ class IngredientNumberInput extends StatelessWidget {
   );
 }
 
+/// Warms the dialog's own reads (categories, suppliers) on a press's intent.
+void warmIngredientDialog(WidgetRef ref, String orgId) {
+  ref.warm(ingredientCategoriesProvider(orgId));
+  ref.warm(inventorySuppliersProvider(orgId));
+}
+
 class IngredientDialog extends ConsumerStatefulWidget {
   const IngredientDialog({
     required this.orgId,

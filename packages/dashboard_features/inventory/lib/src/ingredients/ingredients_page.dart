@@ -205,6 +205,7 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage> {
           label: t('inventory.catalog.newItem'),
           icon: 'package-plus',
           onPressed: () => _openDialog(orgId),
+          onIntent: () => warmIngredientDialog(ref, orgId),
         ),
       ],
       filters: hasBranch
@@ -241,6 +242,15 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage> {
         errorText: catalog.errorText(t),
         onRetry: () => ref.invalidate(inventoryCatalogProvider(orgId)),
         onOpen: (it) => _openDrawer(orgId, branchId, it),
+        // The drawer's one read the page does not hold: the movements.
+        onIntent: branchId == null
+            ? null
+            : (it) => ref.warm(
+                ingredientMovementsProvider((
+                  branchId: branchId,
+                  ingredientId: it.id,
+                )),
+              ),
       ),
     );
   }
@@ -261,6 +271,7 @@ class IngredientsTable extends ConsumerWidget {
     required this.errorText,
     required this.onRetry,
     required this.onOpen,
+    this.onIntent,
     super.key,
   });
 
@@ -271,6 +282,7 @@ class IngredientsTable extends ConsumerWidget {
   final String? errorText;
   final VoidCallback onRetry;
   final ValueChanged<OrgIngredient> onOpen;
+  final ValueChanged<OrgIngredient>? onIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -286,6 +298,7 @@ class IngredientsTable extends ConsumerWidget {
       errorMessage: errorText,
       onRetry: onRetry,
       onRowTap: onOpen,
+      onRowIntent: onIntent,
       searchPlaceholder: t('inventory.catalog.search'),
       empty: DashEmptyState(icon: 'boxes', title: t('inventory.catalog.noItems')),
       columns: [

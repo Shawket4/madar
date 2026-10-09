@@ -20,16 +20,9 @@ Widget _dateField() => DashDateField(
   onChanged: (_) {},
 );
 
-/// The open popover card holding [inner].
+/// The open popover card holding [inner] (its closest Material).
 Rect _cardOf(WidgetTester tester, Finder inner) => tester.getRect(
-  find
-      .descendant(
-        of: find
-            .ancestor(of: inner, matching: find.byType(CustomSingleChildLayout))
-            .first,
-        matching: find.byType(Material),
-      )
-      .first,
+  find.ancestor(of: inner, matching: find.byType(Material)).first,
 );
 
 Rect _card(WidgetTester tester) => _cardOf(tester, find.byType(DashCalendar));
@@ -185,10 +178,14 @@ void main() {
   });
 
   group('menu', () {
-    testWidgets('the page scrolls under an open menu: its items still take '
-        'taps', (tester) async {
+    testWidgets('opened off screen, then scrolled into view: its items '
+        'take taps', (tester) async {
+      // The studio's "Copy from": a second menu opened from the first, its
+      // trigger above the fold until a tap's ensureVisible scrolls it back.
       final scroll = ScrollController();
+      final menu = DashPopoverController();
       addTearDown(scroll.dispose);
+      addTearDown(menu.dispose);
       String? picked;
       await pumpDashApp(
         tester,
@@ -199,6 +196,7 @@ void main() {
               children: [
                 const SizedBox(height: 400),
                 DashMenu(
+                  controller: menu,
                   items: [
                     for (final s in ['Regular', 'Large'])
                       DashMenuItem(label: s, onSelected: () => picked = s),
@@ -212,9 +210,10 @@ void main() {
           ),
         ),
       );
-      await tester.tap(find.text('Copy from'));
+      scroll.jumpTo(600);
       await tester.pumpAndSettle();
-      // As a test's ensureVisible does: the trigger leaves its first place.
+      menu.open();
+      await tester.pumpAndSettle();
       scroll.jumpTo(300);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Large'));

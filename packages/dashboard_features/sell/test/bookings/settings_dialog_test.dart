@@ -276,4 +276,21 @@ void main() {
       await h.expectToast('Changes saved');
     },
   );
+
+  testWidgets(
+    'SELL-BKG-073 a save refreshes the day even when the dialog closed mid-save',
+    (tester) async {
+      final s = bookingsServer();
+      final h = await _open(tester, s: s);
+      final gate = s.server.hold('PUT', settingsTemplate);
+      final days = h.server.callsTo(dayTemplate).length;
+      await h.tap(_k('settings-save'));
+      Navigator.of(tester.element(find.byType(BookingSettingsDialog))).pop();
+      await h.settle();
+      expect(find.byType(BookingSettingsDialog), findsNothing);
+      gate.release();
+      await h.settle();
+      expect(h.server.callsTo(dayTemplate).length, greaterThan(days));
+    },
+  );
 }

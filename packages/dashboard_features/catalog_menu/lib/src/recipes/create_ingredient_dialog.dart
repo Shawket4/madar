@@ -137,9 +137,8 @@ class _CreateIngredientDialogState
     final t = ref.watch(tProvider);
     final categoriesQ = ref.watch(ingredientCategoriesProvider(widget.orgId));
     final categories = categoriesQ.value ?? const <IngredientCategory>[];
-    final categoriesLoading =
-        categoriesQ.isLoading && !categoriesQ.hasValue && !categoriesQ.hasError;
-    final categoriesFailed = categoriesQ.hasError && !categoriesQ.hasValue;
+    final categoriesLoading = categoriesQ.awaitingFirst;
+    final categoriesFailed = categoriesQ.failedFirst;
     // The web's effect: once the categories land, an unset category becomes
     // `general` (else the first).
     _categoryId ??= defaultIngredientCategory(categories)?.id;

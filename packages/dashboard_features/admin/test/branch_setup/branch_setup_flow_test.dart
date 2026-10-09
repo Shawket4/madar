@@ -52,7 +52,12 @@ void main() {
     );
     expect(byKey('bb-error'), findsOneWidget);
     expect(
-      pageText(refusalText(h, MockResponse.denied('kitchen.stations.read'))),
+      pageText(
+        refusalText(
+          h,
+          MockResponse.forbidden('Permission denied: read kitchen_stations'),
+        ),
+      ),
       findsOneWidget,
     );
     expect(pageText('Retry'), findsOneWidget);
@@ -72,7 +77,9 @@ void main() {
     await h.settle();
     await h.tap(byKey('bb-remove'));
     await h.tap(byKey('bb-save'));
-    final denied = MockResponse.denied('kitchen.stations.edit');
+    final denied = MockResponse.forbidden(
+      'Permission denied: update kitchen_stations',
+    );
     b.server.fail('PUT', BranchPlanRoutes.plan, denied);
     await h.tap(byKey('bb-review-save'));
     await h.expectToast(refusalText(h, denied));

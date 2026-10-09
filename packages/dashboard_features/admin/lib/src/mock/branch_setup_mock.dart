@@ -402,19 +402,33 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
     return raw;
   }
 
+  // `check_permission(.., "kitchen_stations", action)`: the legacy cell's
+  // own sentence, not the capability one.
+  void allowed(MockRequest req, String action) {
+    final cap = switch (action) {
+      'update' => 'kitchen.stations.edit',
+      _ => 'kitchen.stations.$action',
+    };
+    if (!req.persona.can(cap)) {
+      req.fail(
+        MockResponse.forbidden('Permission denied: $action kitchen_stations'),
+      );
+    }
+  }
+
   MockResponse view(String branchId) =>
       MockResponse.ok(planView(db, branchId).toJson());
 
   server.on('GET', BranchPlanRoutes.plan, (req) {
     final branchId = branchParam(req);
-    req.requireCap('kitchen.stations.read');
+    allowed(req, 'read');
     branchAccess(req, branchId);
     return view(branchId);
   });
 
   server.on('GET', BranchPlanRoutes.versions, (req) {
     final branchId = branchParam(req);
-    req.requireCap('kitchen.stations.read');
+    allowed(req, 'read');
     branchAccess(req, branchId);
     final rows = t(BranchPlanTables.versions).where(
       (v) => v['branch_id'] == branchId,
@@ -431,10 +445,10 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
   });
 
   server.on('PUT', BranchPlanRoutes.plan, (req) {
-    req.requireCap('kitchen.stations.edit');
+    // The server's order: the JSON extractor (every UUID in it) runs before
+    // the handler, then the update right, the branch, the plan's checks.
     final body = req.bodyAs(SavePlanRequest.fromJson);
     final branchId = body.branchId;
-    branchAccess(req, branchId);
     final plan = fromWire(body.plan);
     final ids = [
       for (final d in plan.devices) d.id,
@@ -446,9 +460,11 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
     final bad = ids.where((id) => !_uuid.hasMatch(id)).firstOrNull;
     if (bad != null) {
       req.badRequest(
-        'Json deserialize error: UUID parsing failed: invalid character ($bad)',
+        'Json deserialize error: UUID parsing failed: invalid character',
       );
     }
+    allowed(req, 'update');
+    branchAccess(req, branchId);
     final problems = serverCheck(plan);
     if (problems.isNotEmpty) req.badRequest(problems.join('; '));
 
@@ -457,12 +473,12 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
     ).where((s) => s['branch_id'] == branchId && s['deleted_at'] == null);
     final planSections = {for (final s in plan.sections) s.id};
     if (plan.sections.any((s) => !stations.any((r) => r['id'] == s.id))) {
-      req.requireCap('kitchen.stations.create');
+      allowed(req, 'create');
     }
     if (stations.any(
       (r) => r['is_active'] == true && !planSections.contains(r['id']),
     )) {
-      req.requireCap('kitchen.stations.delete');
+      allowed(req, 'delete');
     }
 
     final branch = db['branches'].get(branchId);
@@ -540,7 +556,7 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
     _writePieces(db, orgId, branchId, plan);
     _writeSections(db, orgId, branchId, plan, now);
     _writeBranch(db, branch, plan);
-    final saved = toWire(plan).toJson();
+    final saved = body.plan.toJson();
     t(BranchPlanTables.versions).insert({
       'id': db.newId(BranchPlanTables.versions),
       'org_id': orgId,
@@ -636,18 +652,36 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
 /// takes the slot, leaving any slot it held. No version bump, no event, as
 /// on the server (ADM-BSU-060).
 void activateSlotCode(MockDb db, String code, String deviceId) {
+  final now = db.clock.now;
   final c = db[AdminTables.activationCodes].firstWhere(
-    (r) => r['code'] == code && r['used_at'] == null,
-  )!;
+    (r) =>
+        r['code'] == code &&
+        r['used_at'] == null &&
+        r['revoked_at'] == null &&
+        DateTime.parse(r['expires_at']! as String).isAfter(now),
+  );
+  if (c == null) throw StateError('ACTIVATION_CODE_INVALID');
+  final at = now.toIso8601String();
+  // ponytail: updates a tablet the db already has (every caller's); the
+  // server would also register a new install.
+  final d = db[AdminTables.devices].find(deviceId)!;
+  d
+    ..['branch_id'] = c['branch_id']
+    ..['kind'] = c['kind']
+    ..['label'] = c['label'] ?? d['label']
+    ..['retired_at'] = null
+    ..['last_seen_at'] = at;
   c
-    ..['used_at'] = db.nowIso
+    ..['used_at'] = at
     ..['used_by_device'] = deviceId;
   final slot = c['slot_id'];
   if (slot == null) return;
   for (final s in db[BranchPlanTables.slots].rows) {
     if (s['device_id'] == deviceId && s['id'] != slot) s['device_id'] = null;
   }
-  db[BranchPlanTables.slots].find('$slot')?['device_id'] = deviceId;
+  db[BranchPlanTables.slots].find('$slot')
+    ?..['device_id'] = deviceId
+    ..['updated_at'] = at;
 }
 
 void _seedHeliopolis(MockDb db) {
@@ -740,12 +774,14 @@ List<MockRow> _liveStations(MockDb db, String branchId) =>
             );
     });
 
-List<MockRow> _categories(MockDb db, String orgId) =>
+/// The org's categories in the menu's order: the live ones (the plan's
+/// list), or every one not deleted (what routes keep).
+List<MockRow> _categories(MockDb db, String orgId, {bool active = true}) =>
     db['categories'].where(
       (c) =>
           c['org_id'] == orgId &&
           c['deleted_at'] == null &&
-          c['is_active'] != false,
+          (!active || c['is_active'] != false),
     )..sort((a, b) {
       final da = a['display_order'] as int?, dbo = b['display_order'] as int?;
       if (da != dbo) {
@@ -760,7 +796,9 @@ List<MockRow> _categories(MockDb db, String orgId) =>
 
 /// Category ids per station, in the menu's order.
 Map<Object?, List<String>> _routes(MockDb db, String branchId, String orgId) {
-  final order = [for (final c in _categories(db, orgId)) c['id']];
+  final order = [
+    for (final c in _categories(db, orgId, active: false)) c['id'],
+  ];
   final rows =
       db[BranchPlanTables.categoryRoutes].where(
         (r) => r['branch_id'] == branchId && order.contains(r['category_id']),
@@ -803,7 +841,8 @@ BranchPlanView planView(MockDb db, String branchId) {
     'branch_id': branchId,
     'version': version,
     'saved': version > 0,
-    'plan': toWire(plan).toJson(),
+    // As read: a label or IP typed with spaces comes back with them.
+    'plan': plan.toJson(),
     'routing_mode': effectiveRoutingMode(db, branchId),
     'devices': [
       for (final d in _registered(db, branchId))
@@ -861,12 +900,14 @@ BuilderPlan _assemble(MockDb db, String branchId, MockRow b) {
       front += 1;
       (x, y) = (_colFront, (front - 1) * _row);
     }
-    final label = (d['label'] as String?)?.trim();
+    final label = d['label'] as String?;
     devices.add(
       BuilderDevice(
         id: _stableId(branchId, 'device:${d['id']}'),
         kind: kind,
-        name: label == null || label.isEmpty ? d['code']! as String : label,
+        name: label == null || label.trim().isEmpty
+            ? d['code']! as String
+            : label,
         receiptPrinterId: kind == 'kitchen' ? null : receiptId,
         deviceId: d['id']! as String,
         x: x,
@@ -893,8 +934,8 @@ BuilderPlan _assemble(MockDb db, String branchId, MockRow b) {
   final sections = <BuilderSection>[];
   for (final (i, s) in _liveStations(db, branchId).indexed) {
     final printerIds = <String>[];
-    final sip = (s['printer_ip'] as String?)?.trim();
-    if (sip != null && sip.isNotEmpty) {
+    final sip = s['printer_ip'] as String?;
+    if (sip != null && sip.trim().isNotEmpty) {
       final id = _stableId(branchId, 'station-printer:${s['id']}');
       out += 1;
       printers.add(
@@ -1259,9 +1300,10 @@ void _writeBranch(MockDb db, MockRow branch, BuilderPlan plan) {
     branch
       ..['printer_ip'] = receipt.ip?.trim()
       ..['printer_port'] = receipt.port ?? 9100
-      ..['printer_brand'] = receipt.brand ?? branch['printer_brand']
-      ..['updated_at'] = db.nowIso;
+      ..['printer_brand'] = receipt.brand ?? branch['printer_brand'];
   }
+  // The routing UPDATE runs on every save (the row's updated_at trigger).
+  branch['updated_at'] = db.nowIso;
 }
 
 /// The server's `check_plan`: every blocking problem, as its sentences.

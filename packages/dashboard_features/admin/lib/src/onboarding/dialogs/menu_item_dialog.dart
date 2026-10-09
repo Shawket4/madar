@@ -44,7 +44,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../shared/tax_rate.dart' show formatRate;
 import '../onboarding_data.dart';
-import '../org_identity_step.dart' show OnbImage, mimeOf;
+import '../org_identity_step.dart' show OnbImage, OnbUploadFailure, mimeOf;
 import 'category_dialog.dart';
 import 'menu_reads.dart';
 import 'menu_text.dart';
@@ -724,7 +724,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
           invalidate.catalog();
           return res.imageUrl;
         } on Object catch (e) {
-          throw _UploadFailure(errorMessage(e, t));
+          throw OnbUploadFailure(errorMessage(e, t));
         }
       },
       onRemove: has
@@ -738,15 +738,6 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
           : null,
     );
   }
-}
-
-class _UploadFailure implements Exception {
-  const _UploadFailure(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
 }
 
 /// Whether a price already contains the tax (`PriceTaxHint`): shown when

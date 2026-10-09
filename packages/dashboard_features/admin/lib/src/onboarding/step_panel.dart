@@ -15,6 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../branches/branch_dialog.dart';
+import '../branches/branches_data.dart' show branchTimezonesProvider;
+import '../orgs/orgs_providers.dart' show orgsListProvider;
 import '../users/user_dialog.dart';
 import 'dialogs/addon_dialog.dart';
 import 'dialogs/category_dialog.dart';
@@ -56,6 +58,12 @@ class OnbStepPanel extends ConsumerWidget {
 
   /// The panel's least height (`min-h-[28rem]`, inside the card's padding).
   static const double minHeight = 448;
+
+  /// The step [delta] away (Back / Continue's target, as the page clamps).
+  OnbStep _step(int delta) => OnbStep.values[(active.index + delta).clamp(
+    0,
+    OnbStep.values.length - 1,
+  )];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -121,12 +129,14 @@ class OnbStepPanel extends ConsumerWidget {
                     label: t('onboarding.back'),
                     icon: _arrowBack(context),
                     variant: DashButtonVariant.ghost,
+                    onIntent: () => warmOnbStep(ref, orgId, _step(-1)),
                     onPressed: isFirst ? null : onPrev,
                   ),
                   DashButton(
                     label: t('onboarding.continue'),
                     trailingIcon: DashIcon.arrowForward(context),
                     variant: DashButtonVariant.outline,
+                    onIntent: () => warmOnbStep(ref, orgId, _step(1)),
                     onPressed: onNext,
                   ),
                 ],
@@ -167,19 +177,27 @@ class _StepBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    Widget add(Future<Object?> Function(BuildContext context) open) =>
-        OnbAddViaDialog(
-          orgId: orgId,
-          step: active,
-          count: _count(active.key),
-          open: open,
-        );
+    Widget add(
+      Future<Object?> Function(BuildContext context) open, [
+      VoidCallback? warm,
+    ]) => OnbAddViaDialog(
+      orgId: orgId,
+      step: active,
+      count: _count(active.key),
+      open: open,
+      onIntent: warm,
+    );
+    final platform = ref.watch(currentSessionProvider)?.isPlatform ?? false;
     return switch (active) {
       OnbStep.orgProfile => OnbOrgIdentityStep(orgId: orgId, onNext: onNext),
-      OnbStep.branch => add((context) => showBranchDialog(context)),
+      OnbStep.branch => add(
+        (context) => showBranchDialog(context),
+        () => ref.warm(branchTimezonesProvider),
+      ),
       OnbStep.paymentMethods => add(showPaymentMethodDialog),
       OnbStep.ingredients => add(
         (context) => showCreateIngredientDialog(context, orgId: orgId),
+        () => ref.warm(ingredientCategoriesProvider(orgId)),
       ),
       OnbStep.categories => add(
         (context) => showCategoryDialog(context, orgId: orgId),
@@ -190,9 +208,14 @@ class _StepBody extends ConsumerWidget {
       ),
       OnbStep.addons => add(
         (context) => showAddonDialog(context, orgId: orgId),
+        () => ref.warm(modifierGroupsProvider(orgId)),
       ),
       OnbStep.recipes => _RecipesBody(orgId: orgId),
-      OnbStep.team => add((context) => showUserDialog(context)),
+      // A platform admin's new user picks the org.
+      OnbStep.team => add(
+        (context) => showUserDialog(context),
+        platform ? () => ref.warm(orgsListProvider) : null,
+      ),
       OnbStep.goLive => _GoLiveBody(
         canComplete: canComplete,
         finishing: finishing,
@@ -291,6 +314,7 @@ class OnbAddViaDialog extends ConsumerWidget {
     required this.step,
     required this.count,
     required this.open,
+    this.onIntent,
     super.key,
   });
 
@@ -298,6 +322,9 @@ class OnbAddViaDialog extends ConsumerWidget {
   final OnbStep step;
   final int count;
   final Future<Object?> Function(BuildContext context) open;
+
+  /// Warms what [open]'s editor reads.
+  final VoidCallback? onIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -321,6 +348,7 @@ class OnbAddViaDialog extends ConsumerWidget {
             variant: count > 0
                 ? DashButtonVariant.outline
                 : DashButtonVariant.primary,
+            onIntent: onIntent,
             onPressed: () async {
               // A create likely happened, whatever the editor answers.
               final refresh = onbRefreshers(context, orgId).checklist;
@@ -371,6 +399,7 @@ class _MenuItemsBody extends ConsumerWidget {
             variant: count > 0
                 ? DashButtonVariant.outline
                 : DashButtonVariant.primary,
+            onIntent: () => warmMenuItemDialog(ref, orgId),
             onPressed: categories.isEmpty
                 ? null
                 : () async {
@@ -460,6 +489,11 @@ class _RecipesBody extends ConsumerWidget {
                           label: t('$k.addFor'),
                           variant: DashButtonVariant.outline,
                           size: DashButtonSize.compact,
+                          onIntent: () => warmMenuItemDialog(
+                            ref,
+                            orgId,
+                            itemId: item.id,
+                          ),
                           onPressed: () async {
                             final refresh = onbRefreshers(
                               context,
@@ -593,6 +627,34 @@ class OnbDashedBorder extends CustomPainter {
   @override
   bool shouldRepaint(OnbDashedBorder old) =>
       old.color != color || old.radius != radius;
+}
+
+/// Warms what [step]'s panel reads when it shows (intent on a step in the
+/// navigator, Back or Continue).
+void warmOnbStep(WidgetRef ref, String orgId, OnbStep step) {
+  switch (step) {
+    case OnbStep.orgProfile:
+      ref.warm(onbOrgProvider(orgId));
+    case OnbStep.menuItems:
+      ref.warm(menuCategoriesProvider(orgId));
+    case OnbStep.recipes:
+      ref
+        ..warm(menuItemsProvider(orgId))
+        ..warm(menuCategoriesProvider(orgId));
+    default:
+      break;
+  }
+}
+
+/// Warms what the menu item editor reads on open (the item, when editing).
+void warmMenuItemDialog(WidgetRef ref, String orgId, {String? itemId}) {
+  ref
+    ..warm(menuCategoriesProvider(orgId))
+    ..warm(ingredientCatalogProvider(orgId))
+    ..warm(addonItemsProvider(orgId))
+    ..warm(modifierGroupsProvider(orgId))
+    ..warm(onbOrgProvider(orgId));
+  if (itemId != null) ref.warm(menuItemProvider(itemId));
 }
 
 /// A step read with no data yet: a skeleton line while it loads, its error

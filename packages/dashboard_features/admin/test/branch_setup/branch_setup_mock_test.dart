@@ -88,6 +88,63 @@ void main() {
     expect(view.devices, hasLength(5));
   });
 
+  test('ADM-BSU-004/005/069 a routed category switched off keeps its route: '
+      'in the plan, out of the list, through a save', () async {
+    final b = PlanBackend();
+    final hot = MockSeed.categoryId('hot');
+    b.db['categories'].find(hot)!['is_active'] = false;
+    final view = await b.api.branchPlan.getPlan(branchId: SeedIds.zamalek);
+    expect([for (final c in view.categories) c.id], isNot(contains(hot)));
+    final plan = fromWire(view.plan);
+    expect(plan.sections.first.categoryIds, contains(hot));
+    final out = await b.api.branchPlan.savePlan(
+      body: save(SeedIds.zamalek, 0, plan),
+    );
+    expect(fromWire(out.plan).sections.first.categoryIds, contains(hot));
+    expect(
+      b.db[BranchPlanTables.categoryRoutes].rows.where(
+        (r) => r['branch_id'] == SeedIds.zamalek && r['category_id'] == hot,
+      ),
+      hasLength(1),
+    );
+  });
+
+  test('ADM-BSU-005 a never-saved plan keeps a label as typed; every save '
+      'moves the branch\'s updated_at', () async {
+    final b = PlanBackend();
+    b.db[AdminTables.devices].find(
+      AdminSeed.deviceId('zamalek', 'T1'),
+    )!['label'] = ' Front till ';
+    final view = await b.api.branchPlan.getPlan(branchId: SeedIds.zamalek);
+    expect([
+      for (final d in fromWire(view.plan).devices) d.name,
+    ], contains(' Front till '));
+    final branch = b.db['branches'].get(SeedIds.zamalek);
+    branch['updated_at'] = '2020-01-01T00:00:00.000Z';
+    // No till prints receipts on a network printer: only the routing moves.
+    final bare = fromWire(
+      view.plan,
+    ).mapDevices((d) => d.copyWith(receiptPrinterId: () => null));
+    await b.api.branchPlan.savePlan(body: save(SeedIds.zamalek, 0, bare));
+    expect(branch['updated_at'], b.db.nowIso);
+  });
+
+  test('ADM-BSU-086 a body that does not parse answers 400 before the right '
+      'is asked', () async {
+    final owner = PlanBackend();
+    final view = await owner.api.branchPlan.getPlan(branchId: SeedIds.maadi);
+    final bad = fromWire(
+      view.plan,
+    ).mapDevices((d) => d.copyWith(deviceId: () => 'nope'));
+    final e = await refused(
+      PlanBackend(
+        persona: Persona.limited,
+      ).api.branchPlan.savePlan(body: save(SeedIds.maadi, 0, bad)),
+    );
+    expect(e.status, 400);
+    expect(e.message, contains('Json deserialize error: UUID parsing failed'));
+  });
+
   test('ADM-BSU-005 New Cairo is switched off: no chits; the retired iPad '
       'is left out at Maadi', () async {
     final b = PlanBackend();
@@ -314,17 +371,18 @@ void main() {
       limited.api.branchPlan.getPlan(branchId: SeedIds.maadi),
     );
     expect(e.status, 403);
-    expect(e.message, contains('kitchen.stations.read'));
+    expect(e.message, 'Forbidden: Permission denied: read kitchen_stations');
     e = await refused(
       limited.api.branchPlan.listVersions(branchId: SeedIds.maadi),
     );
     expect(e.status, 403);
+    expect(e.message, 'Forbidden: Permission denied: read kitchen_stations');
     e = await refused(
       limited.api.branchPlan.savePlan(
         body: save(SeedIds.maadi, 0, BuilderPlan.empty),
       ),
     );
-    expect(e.message, contains('kitchen.stations.edit'));
+    expect(e.message, 'Forbidden: Permission denied: update kitchen_stations');
     final manager = PlanBackend(persona: Persona.manager);
     e = await refused(
       manager.api.branchPlan.getPlan(branchId: SeedIds.heliopolis),
@@ -367,7 +425,26 @@ void main() {
     );
     expect((plain.kind.value, plain.label, plain.slotId), ('pos', null, null));
     final k2 = AdminSeed.deviceId('heliopolis', 'T1');
+    // A revoked or expired code fills nothing.
+    final row = b.codes.rows.firstWhere((c) => c['code'] == code.code);
+    row['revoked_at'] = b.db.nowIso;
+    expect(() => activateSlotCode(b.db, code.code, k2), throwsStateError);
+    row
+      ..['revoked_at'] = null
+      ..['expires_at'] = b.db.nowIso;
+    expect(() => activateSlotCode(b.db, code.code, k2), throwsStateError);
+    row['expires_at'] = b.db.clock.now
+        .add(const Duration(hours: 1))
+        .toIso8601String();
+    b.db[AdminTables.devices].find(k2)!['retired_at'] = b.db.nowIso;
     activateSlotCode(b.db, code.code, k2);
+    // The install takes the code's kind and name, back from retirement.
+    final tablet = b.db[AdminTables.devices].find(k2)!;
+    expect(
+      (tablet['kind'], tablet['label'], tablet['retired_at']),
+      ('kds', 'Kitchen screen', null),
+    );
+    expect(tablet['last_seen_at'], b.db.nowIso);
     final view = await b.api.branchPlan.getPlan(branchId: SeedIds.heliopolis);
     expect(view.version, 2);
     final plan = fromWire(view.plan);

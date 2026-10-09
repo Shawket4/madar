@@ -492,7 +492,9 @@ class _BranchSummary extends ConsumerWidget {
               child: GestureDetector(
                 key: const ValueKey('bb-till-chits-row'),
                 behavior: HitTestBehavior.opaque,
-                onTap: p.editable ? () => toggleChits(!plan.tillPrintsKitchen) : null,
+                onTap: p.editable
+                    ? () => toggleChits(!plan.tillPrintsKitchen)
+                    : null,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: Space.md,

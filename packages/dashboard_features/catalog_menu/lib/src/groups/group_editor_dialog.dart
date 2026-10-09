@@ -387,7 +387,7 @@ class _GroupEditorDialogState extends ConsumerState<GroupEditorDialog> {
     if (_draft == null || (!_touched && !identical(group, _base))) {
       final categories = categoriesQ.hasValue
           ? categoriesQ.requireValue
-          : (categoriesQ.hasError ? const <IngredientCategory>[] : null);
+          : (categoriesQ.failedFirst ? const <IngredientCategory>[] : null);
       final seeded = seedGroupDraft(group, categories);
       if (seeded != null) {
         _draft = seeded;
@@ -422,6 +422,9 @@ class _GroupEditorDialogState extends ConsumerState<GroupEditorDialog> {
                   ? liveUsedOn ?? widget.usedOn
                   : null,
               onManageItems: widget.onManageItems,
+              // "Manage" opens the usage dialog: its item list.
+              onManageIntent: () =>
+                  ref.warm(groupOrgItemsProvider(widget.orgId)),
               onEdit: _edit,
               onSubmit: _save,
               keyFor: _keyFor,
@@ -470,6 +473,7 @@ class _EditorBody extends ConsumerWidget {
     required this.itemSizeLabels,
     required this.usedOn,
     required this.onManageItems,
+    required this.onManageIntent,
     required this.onEdit,
     required this.onSubmit,
     required this.keyFor,
@@ -488,6 +492,7 @@ class _EditorBody extends ConsumerWidget {
   final List<String> itemSizeLabels;
   final int? usedOn;
   final VoidCallback? onManageItems;
+  final VoidCallback onManageIntent;
   final void Function(VoidCallback change) onEdit;
   final VoidCallback onSubmit;
   final GlobalKey Function(String path) keyFor;
@@ -780,6 +785,7 @@ class _EditorBody extends ConsumerWidget {
                       variant: DashButtonVariant.link,
                       size: DashButtonSize.compact,
                       onPressed: onManageItems,
+                      onIntent: onManageIntent,
                     ),
                 ],
               ),

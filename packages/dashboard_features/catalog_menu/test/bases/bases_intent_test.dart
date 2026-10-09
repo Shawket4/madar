@@ -55,7 +55,7 @@ void main() {
     expect(name(), 'Mine');
   });
 
-  testWidgets('MENU-PKG-005 a refresh that lands re-seeds the untouched rule '
+  testWidgets('MENU-PKG-009 a refresh that lands re-seeds the untouched rule '
       'dialog, never a touched one', (tester) async {
     final s = menuServer();
     final h = await pumpMenu(tester, path: packagingPath, seeded: s);

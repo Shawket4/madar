@@ -194,7 +194,7 @@ class _GroupUsageDialogState extends ConsumerState<GroupUsageDialog> {
         _picked.any((id) => !usedIds.contains(id));
 
     Widget list;
-    if (itemsQ.hasError && !itemsQ.hasValue) {
+    if (itemsQ.failedFirst) {
       list = DashErrorState(
         framed: false,
         title: t('common.loadFailed'),

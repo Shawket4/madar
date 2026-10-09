@@ -54,7 +54,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/ingredient_options.dart';
 import '../shared/menu_providers.dart'
-    show ingredientCatalogProvider, ingredientsById;
+    show
+        ingredientCatalogProvider,
+        ingredientCategoriesProvider,
+        ingredientsById;
 import '../shared/menu_text.dart';
 import 'create_ingredient_dialog.dart';
 import 'recipe_model.dart';
@@ -365,10 +368,10 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
     final options = ingredientOptions(widget.catalog, t);
     // The host's catalog is this read's value: its states are shown here.
     final catalogQ = ref.watch(ingredientCatalogProvider(widget.orgId));
-    final catalogFailed = catalogQ.hasError && !catalogQ.hasValue;
+    final catalogFailed = catalogQ.failedFirst;
     final pickerEmpty = catalogFailed
         ? t('recipes.builder.catalogFailed')
-        : catalogQ.isLoading && !catalogQ.hasValue
+        : catalogQ.awaitingFirst
         ? t('common.loading')
         : t('common.noResults');
     double? unitCostOf(String? id) =>
@@ -426,6 +429,9 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
               variant: DashButtonVariant.outline,
               size: DashButtonSize.compact,
               onPressed: _newIngredient,
+              // The dialog's category list.
+              onIntent: () =>
+                  ref.warm(ingredientCategoriesProvider(widget.orgId)),
             ),
           )
         : null;

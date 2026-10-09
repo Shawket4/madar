@@ -2,7 +2,7 @@
 // Members only switch and Load more warm the list they ask for, and in the
 // sheet Merge into… warms the dialog's suggestions and an order link the
 // order sheet; each press then asks the server nothing more.
-import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/gestures.dart';

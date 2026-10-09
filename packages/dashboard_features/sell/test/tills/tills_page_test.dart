@@ -373,9 +373,14 @@ void main() {
       find.descendant(of: badges, matching: find.text('See the other till')),
     );
     expect(h.location.queryParameters['report'], TillIds.helioMorning);
-    expect(h.server.callsTo(tillReport).map((c) => c.path), [
-      '/tills/${TillIds.helioMorning}/report',
-    ]);
+    // The finger going down on the row also warms the row's own report
+    // (its intent); only the other till's report is shown.
+    expect(
+      h.server
+          .callsTo(tillReport)
+          .where((c) => c.path == '/tills/${TillIds.helioMorning}/report'),
+      hasLength(1),
+    );
   });
 
   testWidgets('SELL-TIL-020 the mismatch badge counts disagreements', (

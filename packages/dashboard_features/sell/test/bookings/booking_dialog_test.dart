@@ -518,4 +518,31 @@ void main() {
     expect(_k('booking-slots-busy'), findsNothing);
     expect(inDialog(find.text('06:00 PM')), findsOneWidget);
   });
+
+  testWidgets(
+    'SELL-BKG-037 an untouched edit follows a fresh read; an edited one stays',
+    (tester) async {
+      final h = await _openEdit(tester, n: 4);
+      String party() => tester
+          .widget<EditableText>(
+            find.descendant(
+              of: _k('booking-party'),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .controller
+          .text;
+      final row = h.db![SellTables.bookings].find(heliBooking(4))!;
+      row['party_size'] = 5;
+      h.realtime.current!.emit('booking.changed', data: '{}');
+      await h.settle();
+      expect(party(), '5', reason: 're-seeded from the fresh day');
+      await h.enterText(_k('booking-name'), 'Edited');
+      row['party_size'] = 6;
+      h.realtime.current!.emit('booking.changed', data: '{}');
+      await h.settle();
+      expect(party(), '5', reason: 'an edit stops the re-seed');
+      expect(inDialog(find.text('Edited')), findsOneWidget);
+    },
+  );
 }
