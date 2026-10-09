@@ -68,8 +68,11 @@ extension WebQueryCache on Ref {
       listeners++;
       if (relisten) return;
       if (now().difference(builtAt) < staleTime) return;
+      // Only while still listened: Riverpod disposes an unlistened autoDispose
+      // read on invalidation, so a one-shot read (`read(p.future)`) would
+      // drop the cached data instead of refreshing it.
       Future.microtask(() {
-        if (mounted) invalidateSelf();
+        if (mounted && listeners > 0) invalidateSelf();
       });
     });
     onCancel(() {
@@ -219,15 +222,21 @@ class DashPrefetcher {
   final ProviderContainer _container;
 
   /// Start [provider] (a read using [WebQueryCache.webCache], with the exact
-  /// argument the page passes). A failure leaves nothing cached, so the page
-  /// fetches again when it opens.
+  /// argument the page passes): a fresh one is left as it is, a stale one is
+  /// read again in the background with its data kept meanwhile (the web's
+  /// `prefetchQuery`). A failure leaves nothing cached, so the page fetches
+  /// again when it opens.
   void call<T>(FutureProvider<T> provider) {
-    _container
-        .read(provider.future)
-        .then<void>(
-          (_) {},
-          onError: (Object _) => _container.invalidate(provider),
-        );
+    // Listened until it lands: the stale refetch starts a turn later and
+    // needs a listener to rebuild in place.
+    final sub = _container.listen(provider, (_, _) {});
+    Future.microtask(() => _container.read(provider.future)).then<void>(
+      (_) => sub.close(),
+      onError: (Object _) {
+        sub.close();
+        _container.invalidate(provider);
+      },
+    );
   }
 }
 

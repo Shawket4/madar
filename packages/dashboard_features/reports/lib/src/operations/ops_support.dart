@@ -7,7 +7,6 @@ import 'package:dashboard_api/dashboard_api.dart' show ApiException;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ── formatting ────────────────────────────────────────────────────────────
 
@@ -78,15 +77,4 @@ String opsErrorText(Object? e, Translator t) {
     }
   }
   return errorMessage(e, t);
-}
-
-/// Intent warming that leaves a cached read alone: the core's `ref.warm` on
-/// a cached read older than 30 s drops its figures, so the press would show
-/// a skeleton where the web keeps the old rows while it reads again.
-// ponytail: stand-in until DashPrefetcher keeps a stale read's value; then
-// plain `ref.warm`.
-extension OpsWarm on WidgetRef {
-  void warmCold<T>(FutureProvider<T> provider) {
-    if (!exists(provider)) warm(provider);
-  }
 }

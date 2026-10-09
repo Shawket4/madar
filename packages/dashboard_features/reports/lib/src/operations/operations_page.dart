@@ -20,7 +20,6 @@ import 'ops_analytics.dart';
 import 'ops_data.dart';
 import 'ops_export.dart';
 import 'ops_overview.dart';
-import 'ops_support.dart';
 import 'ops_tables.dart';
 
 /// The route's page (`DashRoute.builder`).
@@ -41,21 +40,21 @@ void opsWarmTab(WidgetRef ref, String tab) {
   switch (tab) {
     case 'overview':
       final ex = excludeItemsParam(ref.read(excludedItemsProvider(s.orgId)));
-      ref.warmCold(opsSalesProvider(s.opsSales(ex)));
+      ref.warm(opsSalesProvider(s.opsSales(ex)));
     case 'items':
-      ref.warmCold(opsItemsProvider(s.opsRange));
-      ref.warmCold(opsAddonsProvider(s.opsRange));
+      ref.warm(opsItemsProvider(s.opsRange));
+      ref.warm(opsAddonsProvider(s.opsRange));
     case 'tellers':
-      ref.warmCold(opsTellersProvider(s.opsRange));
+      ref.warm(opsTellersProvider(s.opsRange));
     case 'waiters':
-      ref.warmCold(opsWaitersProvider(s.opsRange));
+      ref.warm(opsWaitersProvider(s.opsRange));
     case 'branches':
-      if (s.orgId != null) ref.warmCold(opsBranchesProvider(s.opsOrgRange));
+      if (s.orgId != null) ref.warm(opsBranchesProvider(s.opsOrgRange));
     default:
       final locale = opsMetricsLocale(ref.read(localeProvider));
-      ref.warmCold(opsTablesProvider(s.opsTables(locale)));
+      ref.warm(opsTablesProvider(s.opsTables(locale)));
       final branchId = s.branchId;
-      if (branchId != null) ref.warmCold(opsFloorTablesProvider(branchId));
+      if (branchId != null) ref.warm(opsFloorTablesProvider(branchId));
   }
 }
 

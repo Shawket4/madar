@@ -16,6 +16,12 @@ void main() {
     ref.webCache();
     return ++fetches;
   });
+  // A read that answers a turn later, so its loading state shows.
+  final slow = FutureProvider.autoDispose<int>((ref) async {
+    ref.webCache();
+    await Future<void>.delayed(Duration.zero);
+    return ++fetches;
+  });
   // Another read, to drive a sweep.
   final other = FutureProvider.autoDispose<int>((ref) {
     ref.webCache();
@@ -74,6 +80,43 @@ void main() {
     // A real later mount still refetches.
     await Future<void>.delayed(Duration.zero);
     expect(await visit('a'), 2);
+  });
+
+  test('warming a stale read keeps its value: the page opening on it shows '
+      'the old data while it refetches (the web prefetchQuery)', () async {
+    final first = c.listen(slow, (_, _) {});
+    expect(await c.read(slow.future), 1);
+    first.close();
+    now = now.add(kQueryStaleTime);
+    DashPrefetcher(c)(slow);
+    await Future<void>.delayed(Duration.zero);
+    final seen = <AsyncValue<int>>[];
+    final page = c.listen(slow, (_, n) => seen.add(n), fireImmediately: true);
+    await c.read(slow.future);
+    await Future<void>.delayed(Duration.zero);
+    expect(seen.every((s) => s.hasValue), isTrue, reason: '$seen');
+    expect(seen.first.value, 1);
+    expect(page.read().value, 2);
+    expect(fetches, 2);
+    page.close();
+  });
+
+  test('a one-shot read of a stale read keeps it cached', () async {
+    expect(await visit('a'), 1);
+    now = now.add(kQueryStaleTime);
+    expect(await c.read(read('a').future), 1);
+    await Future<void>.delayed(Duration.zero);
+    expect(c.exists(read('a')), isTrue);
+    expect(c.read(read('a')).value, 1);
+  });
+
+  test('warming a fresh read makes no request', () async {
+    expect(await visit('a'), 1);
+    now = now.add(const Duration(seconds: 29));
+    DashPrefetcher(c)(read('a'));
+    await Future<void>.delayed(Duration.zero);
+    expect(await visit('a'), 1);
+    expect(fetches, 1);
   });
 
   test('each key is its own entry (the scope is the key)', () async {
