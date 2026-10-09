@@ -1,1 +1,5 @@
-{}
+{
+  "settings.pm.idPlaceholder": "e.g. visa_card",
+  "settings.pm.labelEnPlaceholder": "Visa Card",
+  "settings.pm.labelArPlaceholder": "فيزا"
+}
