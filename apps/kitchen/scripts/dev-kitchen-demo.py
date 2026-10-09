@@ -20,6 +20,7 @@ What it builds (idempotent — run it again any time):
              "Chef's special" has no category → default section KS-4
   tables     T1–T8
   cooks      kitchen-role staff "Chef Ahmed" / 246810 and "Chef Mona" / 357913
+  waiter     "Waiter Karim" / 112233, to fire orders from the POS app
   mode       kitchen_routing_mode = kds
   orders     a spread for every board state: fresh, amber (6 min), red
              (12 min), a second round on the same table, line notes, a
@@ -42,6 +43,7 @@ EMAIL = os.environ.get("MADAR_ADMIN_EMAIL", "admin@demo.madar")
 PASSWORD = os.environ.get("MADAR_ADMIN_PASSWORD", "Demo1234!")
 BRANCH_NAME = os.environ.get("MADAR_BRANCH")
 COOKS = [("Chef Ahmed", "246810"), ("Chef Mona", "357913")]
+WAITER = ("Waiter Karim", "112233")  # takes orders on the POS
 
 assert API.startswith(("http://localhost", "http://127.0.0.1")), f"refusing non-local API {API}"
 assert "localhost" in DB or "127.0.0.1" in DB, f"refusing non-local database {DB}"
@@ -170,6 +172,9 @@ for name, pin in COOKS:
     if not sql(f"SELECT 1 FROM users WHERE org_id = '{ORG}' AND name = '{q(name)}'"):
         call("POST", "/users", {"org_id": ORG, "name": name, "role": "kitchen", "pin": pin, "branch_ids": [BRANCH]}, token)
 print("cooks: " + ", ".join(f"{n} / {p}" for n, p in COOKS))
+if not sql(f"SELECT 1 FROM users WHERE org_id = '{ORG}' AND name = '{q(WAITER[0])}'"):
+    call("POST", "/users", {"org_id": ORG, "name": WAITER[0], "role": "waiter", "pin": WAITER[1], "branch_ids": [BRANCH]}, token)
+print(f"waiter (POS): {WAITER[0]} / {WAITER[1]}")
 
 # A spread of orders for every board state.
 red = fire([line("Mixed grill", 2), line("Tahini salad"), line("Mint lemonade", 3)], table="T4", notes="Birthday — drinks first")

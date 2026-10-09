@@ -9,7 +9,11 @@
     "ios": {
       "supportsTablet": true,
       "requireFullScreen": true,
-      "bundleIdentifier": "cloud.madar.kitchen"
+      "bundleIdentifier": "cloud.madar.kitchen",
+      "appleTeamId": "W4D7HW9L4Y",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Madar Kitchen talks to the Madar server and the POS tablets on your shop network."
+      }
     },
     "android": {
       "package": "cloud.madar.kitchen",
@@ -24,6 +28,8 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-font"]
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
