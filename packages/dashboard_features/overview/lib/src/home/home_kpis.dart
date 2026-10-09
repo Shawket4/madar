@@ -147,6 +147,7 @@ class HomeOpenTillsList extends ConsumerWidget {
                 style: DashType.small,
                 color: c.accent,
                 onTap: () => context.go('/tills'),
+                onIntent: () => ref.prefetchRoute('/tills'),
               ),
             ],
           ),

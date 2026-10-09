@@ -1373,7 +1373,7 @@ class _HistoryMenu extends ConsumerWidget {
             enabled: v.version != currentVersion,
             onTap: () => onPick(v),
           ),
-        if (q.isLoading)
+        if (q.awaitingFirst)
           _MenuRow(label: t('common.loading'), enabled: false, onTap: () {}),
       ],
     );

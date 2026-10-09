@@ -482,7 +482,7 @@ class TransfersTable extends ConsumerWidget {
               tone: transferTone(tr.status.value),
             ),
           ),
-          width: Space.xxl * 3 + Space.lg,
+          width: Space.xxl * 4 + Space.lg,
         ),
       ],
     );

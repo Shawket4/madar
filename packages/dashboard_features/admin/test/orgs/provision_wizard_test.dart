@@ -528,7 +528,8 @@ void main() {
     await _create(h);
     expect(h.server.callsTo('/orgs/provision').single.status, 409);
     expect(find.text('Step 1 of 3 · Business'), findsOneWidget);
-    final taken = shown(h, 
+    final taken = shown(
+      h,
       MockResponse.conflict("Slug 'sabah-coffee' is already taken"),
     );
     expect(find.text(taken), findsOneWidget);
@@ -546,9 +547,7 @@ void main() {
     await _create(h);
     expect(find.text('Step 3 of 3 · Owner'), findsOneWidget);
     expect(
-      find.text(
-        shown(h, MockResponse.conflict('Email already in use')),
-      ),
+      find.text(shown(h, MockResponse.conflict('Email already in use'))),
       findsOneWidget,
     );
     expect(find.text('New Organization'), findsOneWidget);

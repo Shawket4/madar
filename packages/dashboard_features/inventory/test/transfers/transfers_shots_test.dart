@@ -78,7 +78,7 @@ void main() {
       WidgetTester tester, {
       MockServer? server,
       MockDb? db,
-      String? branch = SeedIds.zamalek,
+      bool all = false,
     }) => pumpTransfers(
       tester,
       size: size,
@@ -86,7 +86,7 @@ void main() {
       dark: dark,
       server: server,
       db: db,
-      branch: branch,
+      branch: all ? null : SeedIds.zamalek,
     );
 
     testWidgets('loading, $tag', (tester) async {
@@ -247,7 +247,7 @@ void main() {
     });
 
     testWidgets('confirm, $tag', (tester) async {
-      final h = await open(tester, branch: null);
+      final h = await open(tester, all: true);
       await openRow(h, 'TR-7');
       await h.tap(inDrawer(byKey('transfer-step-dispatch')));
       await h.shot('transfers/dispatch-confirm');

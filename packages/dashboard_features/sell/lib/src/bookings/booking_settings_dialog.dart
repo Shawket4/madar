@@ -97,6 +97,8 @@ class _BookingSettingsDialogState extends ConsumerState<BookingSettingsDialog> {
     final s = _s;
     if (s == null) return;
     final t = ref.read(tProvider);
+    // Captured now: the refresh runs even if the dialog closes mid-save.
+    final bus = ref.read(realtimeBusProvider);
     setState(() => _busy = true);
     try {
       final body = BookingSettings.fromJson({
@@ -129,9 +131,9 @@ class _BookingSettingsDialogState extends ConsumerState<BookingSettingsDialog> {
               },
             ),
           );
+      bus.invalidate(SellInvalidate.bookings);
       if (!mounted) return;
       DashToast.success(context, t('common.savedChanges'));
-      sellInvalidateFromWidget(ref, SellInvalidate.bookings);
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (mounted) DashToast.error(context, bookingErrorText(e, t));

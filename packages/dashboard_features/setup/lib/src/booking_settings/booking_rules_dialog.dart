@@ -37,6 +37,9 @@ Future<void> showBookingRulesDialog(
 const double _timeBox = Space.xxl * 2 + Space.lg;
 const double _datePicker = Space.xxl * 5 + Space.xl;
 
+/// A blackout chip's remove glyph (the web's `size-3`).
+const double _removeIcon = 12;
+
 class BookingRulesDialog extends ConsumerStatefulWidget {
   const BookingRulesDialog({required this.branchId, super.key});
 
@@ -137,11 +140,12 @@ class _BookingRulesDialogState extends ConsumerState<BookingRulesDialog> {
             semanticLabel: text,
             keyboardType: TextInputType.number,
             inputFormatters: digits,
+            maxLength: 6,
             onChanged: (v) => _set(
               key,
               v.isEmpty
                   ? (bookingOptionalFields.contains(key) ? null : 0)
-                  : int.parse(v),
+                  : int.tryParse(v) ?? s![key],
             ),
           ),
         );
@@ -512,7 +516,7 @@ class _BlackoutChip extends StatelessWidget {
           DashIconButton(
             icon: 'x',
             semanticLabel: removeLabel,
-            iconSize: IconSize.xs - 2,
+            iconSize: _removeIcon,
             onPressed: onRemove,
           ),
         ],

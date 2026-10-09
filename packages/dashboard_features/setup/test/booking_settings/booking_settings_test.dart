@@ -466,6 +466,18 @@ void main() {
       expect(tester.widget<DashSwitch>(rulesKey('bkg-enabled')).value, isTrue);
     });
 
+    testWidgets('SET-BKG-016 a tap outside closes without saving', (
+      tester,
+    ) async {
+      final h = await pumpBookingRules(tester);
+      await openRules(h, 'Heliopolis');
+      await h.tap(rulesKey('bkg-enabled'));
+      await tester.tapAt(const Offset(8, 8));
+      await h.settle();
+      expect(find.byType(BookingRulesDialog), findsNothing);
+      expect(h.server.callsTo(bkgSettings, method: 'PUT'), isEmpty);
+    });
+
     testWidgets('SET-BKG-017 another branch opens on ITS rules, never the '
         'previous branch\'s draft', (tester) async {
       final m = bkgServer();
@@ -484,11 +496,15 @@ void main() {
       await h.expectToast('Changes saved');
     });
 
-    testWidgets('SET-BKG-018 672 wide from 640 px', (tester) async {
+    testWidgets('SET-BKG-018 672 wide from 640 px; at most 90% of the '
+        'viewport tall, its body scrolls', (tester) async {
       final h = await pumpBookingRules(tester);
       await openRules(h, 'Heliopolis');
-      final wide = tester.getSize(find.byType(BookingRulesDialog)).width;
-      expect(wide, lessThanOrEqualTo(672));
+      final dialog = tester.getSize(find.byType(BookingRulesDialog));
+      final view = tester.view.physicalSize / tester.view.devicePixelRatio;
+      expect(dialog.width, 672);
+      expect(dialog.height, lessThanOrEqualTo(view.height * 0.9));
+      expect(inRules(find.byType(Scrollable)), findsWidgets);
     });
 
     testWidgets('SET-BKG-018 phone: full width, one column', (tester) async {
@@ -537,6 +553,19 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('SET-BKG-019 (refusal) no bookings.edit: no Bookings row in '
+        'the settings rail', (tester) async {
+      Finder railText(String t) => find.descendant(
+        of: byKey('settings-rail'),
+        matching: find.text(t),
+      );
+      await pumpBookingRules(tester);
+      expect(railText('Bookings'), findsOneWidget);
+      await pumpBookingRules(tester, persona: Persona.limited);
+      expect(byKey('settings-rail'), findsOneWidget);
+      expect(railText('Bookings'), findsNothing);
     });
 
     testWidgets('SET-BKG-019 (refusal) a refused Save toasts and stays open', (

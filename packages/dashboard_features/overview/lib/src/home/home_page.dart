@@ -51,9 +51,6 @@ class HomePage extends ConsumerWidget {
         ? t('dashboard.greetingName', args: {'name': name})
         : t('dashboard.greeting');
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.lg;
-    final gap = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm
-        ? Space.lg
-        : Space.md;
     final trend = HomeRevenueTrendCard(scope: scope);
     final payments = HomePaymentMixCard(data: data);
     return DashPageScaffold(
@@ -67,7 +64,8 @@ class HomePage extends ConsumerWidget {
           HomeReveal(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: gap,
+              // OVW-HOME-045: the web's `space-y-4`, 16 at every width.
+              spacing: Space.lg,
               children: [
                 HomeKpiStrip(data: data),
                 if (scope.branchId != null)

@@ -434,7 +434,7 @@ class _RemoveButton extends StatelessWidget {
     key: const ValueKey('bb-remove'),
     label: label,
     icon: 'trash-2',
-    variant: DashButtonVariant.outline,
+    variant: DashButtonVariant.outlineDanger,
     expand: true,
     onPressed: onPressed,
   );
@@ -458,6 +458,11 @@ class _BranchSummary extends ConsumerWidget {
       for (final x in p.categories) x.id,
     ]);
     final fallback = plan.sections.firstWhereOrNull((s) => s.isDefault);
+    final chitsHint = plan.sections.isEmpty
+        ? t('builder.tillPrintsKitchenHint')
+        : t('builder.tillPrintsKitchenHintSections');
+    void toggleChits(bool v) =>
+        p.change((x) => x.copyWith(tillPrintsKitchen: v));
     return _Panel([
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -480,40 +485,52 @@ class _BranchSummary extends ConsumerWidget {
         _Group(
           label: t('builder.kitchenChits'),
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: Space.md,
-              children: [
-                DashSwitch(
-                  key: const ValueKey('bb-till-chits'),
-                  value: plan.tillPrintsKitchen,
-                  enabled: p.editable,
-                  semanticLabel: t('builder.tillPrintsKitchen'),
-                  onChanged: p.editable
-                      ? (v) => p.change((x) => x.copyWith(tillPrintsKitchen: v))
-                      : null,
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    spacing: 2,
-                    children: [
-                      Text(
-                        t('builder.tillPrintsKitchen'),
-                        style: DashType.bodyMedium.copyWith(
-                          color: c.textPrimary,
+            // The web's <label>: the words toggle too, and the hint is the
+            // switch's description.
+            MergeSemantics(
+              child: GestureDetector(
+                key: const ValueKey('bb-till-chits-row'),
+                behavior: HitTestBehavior.opaque,
+                onTap: p.editable ? () => toggleChits(!plan.tillPrintsKitchen) : null,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: Space.md,
+                  children: [
+                    DashSwitch(
+                      key: const ValueKey('bb-till-chits'),
+                      value: plan.tillPrintsKitchen,
+                      enabled: p.editable,
+                      semanticLabel: t('builder.tillPrintsKitchen'),
+                      onChanged: p.editable ? toggleChits : null,
+                    ),
+                    Expanded(
+                      child: Semantics(
+                        hint: chitsHint,
+                        child: ExcludeSemantics(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            spacing: 2,
+                            children: [
+                              Text(
+                                t('builder.tillPrintsKitchen'),
+                                style: DashType.bodyMedium.copyWith(
+                                  color: c.textPrimary,
+                                ),
+                              ),
+                              Text(
+                                chitsHint,
+                                style: DashType.small.copyWith(
+                                  color: c.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      Text(
-                        plan.sections.isEmpty
-                            ? t('builder.tillPrintsKitchenHint')
-                            : t('builder.tillPrintsKitchenHintSections'),
-                        style: DashType.small.copyWith(color: c.textSecondary),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ],
         ),
@@ -811,6 +828,8 @@ class _DeviceInspector extends ConsumerWidget {
               value: d.deviceId ?? _none,
               enabled: p.editable,
               expand: true,
+              // A current install the list no longer has shows blank, as the web's.
+              placeholder: '',
               semanticLabel: t('builder.assignDevice'),
               options: [
                 DashOption(value: _none, label: t('builder.noDevice')),

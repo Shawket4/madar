@@ -511,10 +511,14 @@ class _ReceiveTransferDialogState extends ConsumerState<ReceiveTransferDialog> {
       for (final l in tr.lines)
         () {
           final got = double.tryParse((_qty[l.id] ?? '').trim());
-          final ok = got != null && got.isFinite && got >= 0;
-          final over = ok && milli(got) > milli(l.qtySent);
-          final short = ok && milli(got) < milli(l.qtySent);
-          final needsNote = over && (_notes[l.id] ?? '').trim().isEmpty;
+          // The server's rule (`check_receive_line`), in thousandths.
+          final check = got == null || !got.isFinite
+              ? null
+              : checkReceiveLine(l.qtySent, got, _notes[l.id]);
+          final ok = check != null && check.refused != 'negative';
+          final needsNote = ok && check.refused == 'over_needs_note';
+          final over = needsNote || check?.arrival == 'over';
+          final short = check?.arrival == 'short';
           return (
             l: l,
             got: got,

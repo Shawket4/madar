@@ -207,18 +207,13 @@ Set<TransferAction> transferActions(
   StockTransfer t,
   Set<String> mine,
   bool Function(String cap, String at) can,
-) {
-  final status = t.status.value;
-  return {
-    for (final e in (_steps[status] ?? const {}).entries)
-      if (mine.contains(e.value ? t.sourceBranchId : t.destinationBranchId) &&
-          can(
-            transferStepCap(status, e.key),
-            e.value ? t.sourceBranchId : t.destinationBranchId,
-          ))
-        e.key,
-  };
-}
+) => {
+  for (final a in TransferAction.values)
+    if (transferStep(t.status.value, a) case final step?)
+      if (step.source ? t.sourceBranchId : t.destinationBranchId case final at
+          when mine.contains(at) && can(step.cap, at))
+        a,
+};
 
 /// A quantity in whole thousandths, as the server compares them
 /// (`madar_inventory::milli`).

@@ -65,6 +65,7 @@ Future<DashHarness> pumpBranches(
   bool dark = false,
   MockServer? server,
   MockDb? db,
+  Map<String, String>? prefs,
 }) => DashHarness.pump(
   tester,
   areas: const [branchesArea],
@@ -75,6 +76,7 @@ Future<DashHarness> pumpBranches(
   dark: dark,
   server: server,
   db: db,
+  prefs: prefs,
 );
 
 /// A seeded server with the core's and the Branches handlers, for a test

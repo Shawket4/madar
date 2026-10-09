@@ -484,7 +484,10 @@ void main() {
         for (final e in icons.evaluate()) {
           final box = e.renderObject! as RenderBox;
           final rect = box.localToGlobal(Offset.zero) & box.size;
-          expect(screen.contains(rect.bottomRight - const Offset(1, 1)), isTrue);
+          expect(
+            screen.contains(rect.bottomRight - const Offset(1, 1)),
+            isTrue,
+          );
           expect(screen.contains(rect.topLeft), isTrue);
         }
       }

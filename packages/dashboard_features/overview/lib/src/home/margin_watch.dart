@@ -237,6 +237,8 @@ class HomeMarginWatchCard extends ConsumerWidget {
               label: t('insights.watch.viewAll'),
               arrow: true,
               onTap: () => context.go('/reports/operations/profitability'),
+              onIntent: () =>
+                  ref.prefetchRoute('/reports/operations/profitability'),
             ),
           ),
         ],

@@ -1,10 +1,13 @@
 // `/branches` driven tests (ADM-BRA-001..019, 039): the list, its stats,
 // columns, search, export, delete and the `?edit` deep links, through the
 // real shell on the mock server.
+import 'dart:convert';
+
 import 'package:dashboard_admin/src/branches/branch_dialog.dart';
 import 'package:dashboard_admin/src/branches/branches_page.dart';
 import 'package:dashboard_api/dashboard_api.dart' show BranchKind;
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart' show ScopePrefKeys;
 import 'package:dashboard_core/shell.dart' show DashSidebar;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/services.dart';
@@ -265,7 +268,18 @@ void main() {
   testWidgets('ADM-BRA-009/012 branch.settings_changed asks for the list '
       'again and shows the new value', (tester) async {
     final s = branchesServer();
-    final h = await pumpBranches(tester, server: s.server, db: s.db);
+    // The realtime stream follows the picked branch.
+    final h = await pumpBranches(
+      tester,
+      server: s.server,
+      db: s.db,
+      prefs: {
+        ScopePrefKeys.branch: jsonEncode({
+          'org': SeedIds.sabahOrg,
+          'branch': SeedIds.maadi,
+        }),
+      },
+    );
     final before = _lists(h).length;
     branchRow(s.db, SeedIds.zamalek)['name'] = 'Zamalek Nile';
     h.realtime.current!.emit('branch.settings_changed', data: '{}');

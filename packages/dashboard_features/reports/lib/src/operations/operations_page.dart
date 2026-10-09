@@ -34,6 +34,30 @@ void prefetchOperations(DashPrefetcher warm, Scope s) {
   if (s.branchId != null) warm(opsSalesProvider(s.opsSales(null)));
 }
 
+/// Intent: warms what [tab]'s view reads when it mounts (its watches).
+void opsWarmTab(WidgetRef ref, String tab) {
+  final s = ref.read(currentScopeProvider);
+  switch (tab) {
+    case 'overview':
+      final ex = excludeItemsParam(ref.read(excludedItemsProvider(s.orgId)));
+      ref.warm(opsSalesProvider(s.opsSales(ex)));
+    case 'items':
+      ref.warm(opsItemsProvider(s.opsRange));
+      ref.warm(opsAddonsProvider(s.opsRange));
+    case 'tellers':
+      ref.warm(opsTellersProvider(s.opsRange));
+    case 'waiters':
+      ref.warm(opsWaitersProvider(s.opsRange));
+    case 'branches':
+      if (s.orgId != null) ref.warm(opsBranchesProvider(s.opsOrgRange));
+    default:
+      final locale = opsMetricsLocale(ref.read(localeProvider));
+      ref.warm(opsTablesProvider(s.opsTables(locale)));
+      final branchId = s.branchId;
+      if (branchId != null) ref.warm(opsFloorTablesProvider(branchId));
+  }
+}
+
 /// The tab strip, in the web's order (REP-OPS-003). Tabs are page state,
 /// not routes (REP-ALL-022); every tab shows to whoever sees the page.
 const List<DashRouteTab> operationsTabs = [
@@ -101,6 +125,7 @@ class _OperationsReportPageState extends ConsumerState<OperationsReportPage> {
       tabs: DashPageTabs<String>(
         value: _tab,
         onChanged: (v) => setState(() => _tab = v),
+        onIntent: (v) => opsWarmTab(ref, v),
         tabs: [
           for (final tab in operationsTabs)
             DashTab(value: tab.id, label: t(tab.labelKey)),

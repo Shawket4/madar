@@ -10,3 +10,4 @@
 | SET-LNK-023 | The public read retries once (`retry: 1`). | The app's retry policy (`webRetry`). | Per-read retry counts are not a provider option; kit-level. |
 | SET-LNK-017 | "Add your own link" shows Plus and Link2 glyphs before the label. | Plus only. | `DashButton` takes one leading glyph (kit). |
 | SET-LNK-014 | Up/down are 28 px icon buttons stacked. | 44 px targets stacked (the kit's `DashIconButton`), so each row is taller. | The 44 pt touch-target rule. |
+| SET-LNK-021 brand refresh | The save invalidates only the links-page and public-links reads; the Brand page's org read keeps the old social links until stale, although the save writes them. | The save also refreshes the Brand page's org read (`orgBrandKey`). Pinned in `SET-LNK-021 Save sends the page…`. | The save writes the org's social links, so Brand must not show the old ones. |

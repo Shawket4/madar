@@ -7,7 +7,7 @@ library;
 import 'dart:typed_data';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ApiFilePart, UpdateOrgRequest, UploadLogoMultipart;
+    show ApiException, ApiFilePart, UpdateOrgRequest, UploadLogoMultipart;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -209,11 +209,10 @@ class _OnbOrgIdentityStepState extends ConsumerState<OnbOrgIdentityStep> {
   }
 }
 
-/// A failed logo upload, worded for the person (shown under the picker).
-class OnbUploadFailure implements Exception {
-  const OnbUploadFailure(this.message);
-
-  final String message;
+/// A failed logo upload, worded for the person (shown under the picker). An
+/// [ApiException], because the kit words anything else as "unexpected".
+class OnbUploadFailure extends ApiException {
+  const OnbUploadFailure(String message) : super(status: 0, message: message);
 
   @override
   String toString() => message;
