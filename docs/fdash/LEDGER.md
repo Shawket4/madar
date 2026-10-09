@@ -152,3 +152,47 @@ BUILD QUEUE: inventory waste, transfers, inv_settings | team schedule, payroll, 
 AREA CHECKS: re-run verifier check 6 on discounts, payment_methods, users, ingredients, bases; sell: fold the 4 error-wording helpers into sell/shared; catalog_menu en/ar key count gap
 BUILT reports/staff_pool_bundles (40/40, 139 tests; builder ad8a7e67dc30ab01a) → VERIFY QUEUED; divergence file written by me. Smoke test fails to compile on loyalty_inventory_staff WIP. OWNER Q: Arabic size names in reports?
 INTEGRATION TODO (+spb): "open this order" hook in dashboard_core (reports can't depend on sell); same seam as operations
+
+## PENDING FINDINGS (verified after the stop; send to a fixer on restart)
+### catalog_offers/combos — NOT at parity (1 major, 3 minor), 56 rows verified, 101 tests pass
+1. MAJOR (OFFR-CMB-011/030/032, OFFR-ALL-011): combo names cut on tablet/phone (web never wraps cells, table scrolls; phone card lets the badge drop under the name). Fix in combos_page.dart: (a) name column minWidth 240 → ~300; (b) ComboNameCell on phone: Wrap(spacing: Space.xs + DashMetrics.hair, crossAxisAlignment: center) instead of Row (keep Row on desktop, 56 px rows); (c) English name's MadarClippedText textDirection: ltr so the "…" lands after the text in Arabic.
+2. minor (036): one frame of false "No combos yet" when an empty page past the end steps back (combos_page.dart:157-167, post-frame step). Compute steppingBack in build and pass loading: loading || steppingBack; test that the empty words never show after the refetch.
+3. minor (OFFR-ALL-015): add a test: addCombos(s.db, 30), Next, emit resync, assert last query page=['2'] and "Page 2 of 2".
+4. minor, CORE (OFFR-CMB-002): dashboard_core authz/gates.dart Restricted: frame the state as a card under the page title (web restricted.tsx:18-33 rounded-2xl border bg-card px-6 py-12) and use the page padding (32 not 24) → foundation sweep.
+BUILT inventory/today (38/38 TOD + 14 INV-ALL, 127 tests; builder a65d3dfe1fd7bdf43) → VERIFY QUEUED. INV-TOD-030 needs a full submit test from Today once the waste unit lands (waste dialog + mock are placeholders). Today drives purchasing's PO/Receive dialogs.
+KIT TODO (+tod): DashLedgerStrip 50 ms stagger; DashSectionHeader centre a 44 pt trailing control on the title
+### sell/orders — NOT at parity (1 blocker, 3 major, 5 minor), 109 rows verified, 141 tests pass (builder a893d3c60342c7650)
+1. BLOCKER (SELL-ORD-003, orders_page.dart:164-175, 300-303): filter changed then changed back restores the old page (`page = sig == _pageSig ? _page : 0`; _pageSig only set in onPageChanged). Fix: in build `if (sig != _pageSig) { _pageSig = sig; _page = 0; }`, page = _page; onPageChanged sets only _page. Extend the 003 test (orders_page_test.dart:157): page 2 → Completed → All statuses → expect page=1.
+2. MAJOR (020/021, orders_page.dart:490-514): customer/teller/waiter names cut at every width; give those columns flex: 2 and minWidth ≈ Space.xxl*4.
+3. MAJOR (038, order_sheet.dart:191): Void button must be red outline (web order-detail-sheet.tsx:163). Build a local outline-danger button (kit candidate DashButtonVariant.outlineDanger) and delete that divergence row.
+4. MAJOR, KIT (012/013): DashLedgerStrip tile with a 44 pt action is ~24 px taller than the others; Arabic phone label cut "الأصناف الـ…". Kit: equal-height tiles, or overlay the action hit area → foundation sweep.
+5. minor (076/089): export sheet's row estimate frozen at open (0 if opened during the first load). Pass OrdersKey and watch ordersListProvider(key).total.
+6. minor (076/077, export_sheet.dart:368-389): on phone, the estimate goes above the actions, with Cancel and Export side by side (order-export-dialog.tsx:280-289).
+7. minor, tests: 081 only checks the sheet opens; 010 must assert the export's till_id; 012 must assert the Items Sold figure and the red Voided tone; 016/017 must assert avg ticket and fees.
+8. minor, mock void handler: add the teller limited grant (own sale within 10 min), the closed-shift 403 and the refund 409 (MadarRust orders/handlers.rs:3859-3912, 3961-4008), plus a test for the 409.
+9. minor (052, order_sheet.dart:1325): Arabic phone "given free −30.00 ج.م" breaks; use   inside the money string.
+### reports/legal — AT PARITY (4 minor), 38 rows, 139 tests (builder a65285a70e84810fd)
+1. minor (024): Arabic detail line "Zamalek · 08 أكتوبر، 09:22 ص" splits the date around the Latin name. Wrap each part in U+2068…U+2069 in joinDetail (audit_cards.dart:195), log it, and add an Arabic test.
+2. minor (037): log the owner question "modules read failed → bare header, no error/Retry" in reports-legal.md.
+3. minor (001/ALL-002): pin the sidebar rule in legal_smoke_test.dart. The verifier's scratch test was copied to docs/fdash/pending/legal_nav_verify_test.dart; take its first case.
+4. nit: legalExportLogo = finExportLogo = exportLogoUrl (bundles). Move one copy to reports/shared → area check.
+### admin/onboarding — NOT at parity (1 blocker, 1 major, 4 minor), 31 rows, 103 tests (builder adb971684b0a754a8)
+1. BLOCKER (024, onboarding_page.dart _finish 64-89): "Open my café" can leave the owner stuck on the celebration. onboardingCompletedProvider keeps the old completed:false while it reloads, so the router (router.dart:169 sendsToOnboardingProvider) bounces "/" back to /onboarding if the read takes over 1.8 s or fails; the overlay blocks Skip. Fix: right after completeOnboarding returns (before the mounted check), call container.read(onboardingSkippedProvider.notifier).skip(); keep the invalidate. Test: hold GET status after the finale, tap, pump 1.8 s, expect "/". Correct the "ADM-ONB-024 gate cache" divergence row (the web seeds the cache synchronously, onboarding-page.tsx:73-89). Probe: docs/fdash/pending/onb_probe_test.dart.
+2. MAJOR (021/022, dialogs/menu_item_dialog.dart _seedFrom/_seeded): the item editor seeds sizes and add-ons once (the stale copy is saved by a replace-set). Re-seed _sizes and _allowed/_seededAllowed on each new item value until edited (web menu-item-dialog.tsx:170-186). Test: price 65→70 via invalidate shows 70, and an edit survives a second refresh. The same seed-once logic is in catalog_menu items/item_dialog.dart:150-193 (items fixer told) → the shared package takes the fixed version.
+3. minor (020): the person-editor test proves nothing (onboarding_steps_test.dart:527-539). Assert users.newTitle, fill, save, and assert the POST /users body, the count line and the checklist re-read.
+4. minor (018, dialogs/category_dialog.dart:117): clear _nameError in onEnChanged once the text is non-empty (react-hook-form re-validates on change).
+5. minor (010, step_panel.dart:58): minHeight = 448, not 448 - 2*Space.xl.
+6. minor, tests: 009 assert the done check and current marker; 012 assert multipart field `logo`; 023 hold POST complete and expect loading.
+### catalog_menu/recipes — AT PARITY (2 minor + 1 question), 23 rows, 87 tests (builder a71f90c6a9c5659f9)
+1. minor (005, recipe_builder.dart:540): the factor box should align to the start (number next to "×"); keep _endAlign for quantity.
+2. minor (022, create_ingredient_dialog.dart:93-96, recipe_builder.dart:301-303): Esc mid-save loses the toast and the new row. Add an onCreated callback called before the mounted check; test Esc with the POST held.
+3. OWNER Q (001): the builder re-seeds over edits when the saved rows change (= the web's form.reset). Apply "until edited" here? Log it as a question in catalog_menu-recipes.md.
+BUILT team/team_setup (38/39 SET + ALL 003/004/009/022/008/010, 126 tests; builder ac4803b8e98685735) → VERIFY QUEUED. Missing TEAM-SET-038: step 3 "New shift" waits on the shifts unit's dialog (one line in openSetupNewShift, setup_dialogs.dart). Step 2 wired to employees' dialogs.
+OWNER Q (set): "Use my location" needs a location package in the app (now it says it can't read it and the owner pastes a Maps link)
+AREA CHECK team: merge ladder pricing (setup_rules.dart vs rules' tierPiastres); shared/setup_data.dart wrappers lack webCache (possible skeleton flash on remount)
+KIT TODO (+set): time-range field + weekday picker; device location reader
+BUILT catalog_menu/items: pre-verify fixes done (re-seed until edited in item/category/add-on dialogs; hover warm-ups for card + own pager's Next; 221 tests) → VERIFY QUEUED (builder abaa32fbe66046da7). Analyze warning in shared/unsaved_bar.dart:29 (unnecessary_null_comparison) → area check.
+DONE sell/customers (all 8 fixed; 183 tests; floor+bookings 272 pass; shared/sheets.dart gained singleOrderSheet) → COMMIT WITH SELL AREA
+DONE catalog_menu/pricing (all 9 fixed; 102 tests; reads via menuStudioProvider/branchAddonOverridesProvider/menuCatalogProvider; fixed shared/unsaved_bar.dart scroll jump) → COMMIT WITH catalog_menu AREA
+OWNER Q (set): add geolocator to apps/dashboard for "Use my location" (asked 2026-10-09, unanswered)
+USAGE LIMIT reached 2026-10-09 while ~12 agents still ran (studio, financial, basira, loyalty_inventory_staff, purchasing, counts, attendance; operations fixer). Check their files and tests on restart.
