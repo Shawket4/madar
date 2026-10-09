@@ -18,12 +18,14 @@ import 'dart:math' as math;
 
 import 'package:dashboard_api/dashboard_api.dart' show Category, ComboSummary;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../combo_editor/combo_editor_providers.dart' show warmComboEditor;
 import '../shared/menu_options.dart';
 import '../shared/offers_cache.dart';
 import '../shared/offers_format.dart';
@@ -148,9 +150,12 @@ class _CombosListState extends ConsumerState<_CombosList> {
     String categoryName(String? id) => id == null ? '—' : (names[id] ?? '—');
 
     final page = list?.value;
-    // A skeleton only while there is nothing to show; a failure (kept while
-    // its Retry runs) replaces the rows it had (OFFR-ALL-012).
-    final error = list?.error;
+    // A skeleton only while there is nothing to show (the automatic retries
+    // included); a failure (kept while its Retry runs) replaces the rows it
+    // had (OFFR-ALL-012).
+    final error = list != null && list.hasError && !list.retrying
+        ? list.error
+        : null;
     // A delete that empties the last page steps back to the new last page
     // (OFFR-CMB-036); meanwhile it reads as loading, never as empty.
     final steppingBack =
@@ -166,14 +171,24 @@ class _CombosListState extends ConsumerState<_CombosList> {
         if (mounted && _page > last) setState(() => _page = last);
       });
     }
-    final loading =
-        steppingBack ||
-        (list != null && list.isLoading && !list.hasValue && error == null);
+    final loading = steppingBack || (list?.awaitingFirst ?? false);
+
+    // The page a filter option or the pager would show, with the rest kept.
+    void warmList({String? category, bool? active, int page = 1}) =>
+        ref.warm(
+          combosListProvider((
+            q: key.q,
+            categoryId: category,
+            isActive: active,
+            page: page,
+          )),
+        );
 
     Widget newCombo() => DashButton(
       label: t('combos.new'),
       icon: 'plus',
       onPressed: () => _open('new'),
+      onIntent: () => warmComboEditor(ref, 'new'),
     );
 
     return DashPageScaffold(
@@ -187,6 +202,7 @@ class _CombosListState extends ConsumerState<_CombosList> {
             variant: DashButtonVariant.ghost,
             size: DashButtonSize.compact,
             onPressed: () => context.go('/settings/combos'),
+            onIntent: () => ref.prefetchRoute('/settings/combos'),
           ),
         if (canEdit) newCombo(),
       ],
@@ -199,8 +215,10 @@ class _CombosListState extends ConsumerState<_CombosList> {
         ],
         category: _category,
         onCategory: (v) => _filter(() => _category = v),
+        onCategoryIntent: (v) => warmList(category: v, active: _active),
         active: _active,
         onActive: (v) => _filter(() => _active = v),
+        onActiveIntent: (v) => warmList(category: _category, active: v),
       ),
       body: DashDataTable<ComboSummary>(
         columns: _columns(t, f, categoryName),
@@ -209,7 +227,9 @@ class _CombosListState extends ConsumerState<_CombosList> {
         loading: loading,
         errorMessage: error == null ? null : errorMessage(error, t),
         onRetry: () => ref.invalidate(combosListProvider(key)),
+        retrying: list?.isLoading ?? false,
         onRowTap: (c) => _open(c.id),
+        onRowIntent: (c) => warmComboEditor(ref, c.id),
         rowSemanticLabel: (c) => c.name,
         rowActions: (context, c) => canEdit
             ? Row(
@@ -219,6 +239,7 @@ class _CombosListState extends ConsumerState<_CombosList> {
                     icon: 'pencil',
                     semanticLabel: t('common.edit'),
                     onPressed: () => _open(c.id),
+                    onIntent: () => warmComboEditor(ref, c.id),
                   ),
                   DashIconButton(
                     icon: 'trash-2',
@@ -234,6 +255,8 @@ class _CombosListState extends ConsumerState<_CombosList> {
         pageIndex: _page,
         pageCount: steppingBack ? 0 : page?.totalPages ?? 0,
         onPageChanged: (p) => setState(() => _page = p),
+        onPageIntent: (p) =>
+            warmList(category: _category, active: _active, page: p + 1),
         empty: DashEmptyState(
           icon: 'utensils-crossed',
           title: t(_filtered ? 'combos.emptyFiltered' : 'combos.empty'),
@@ -351,6 +374,8 @@ class _Filters extends ConsumerWidget {
     required this.onCategory,
     required this.active,
     required this.onActive,
+    required this.onCategoryIntent,
+    required this.onActiveIntent,
   });
 
   final String q;
@@ -360,6 +385,8 @@ class _Filters extends ConsumerWidget {
   final ValueChanged<String?> onCategory;
   final bool? active;
   final ValueChanged<bool?> onActive;
+  final ValueChanged<String?> onCategoryIntent;
+  final ValueChanged<bool?> onActiveIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -377,6 +404,7 @@ class _Filters extends ConsumerWidget {
         options: categories,
         value: category,
         onChanged: onCategory,
+        onOptionIntent: onCategoryIntent,
         minWidth: CombosMetrics.categorySelect,
       ),
       DashFilterSelect<bool>(
@@ -388,6 +416,7 @@ class _Filters extends ConsumerWidget {
         ],
         value: active,
         onChanged: onActive,
+        onOptionIntent: onActiveIntent,
         minWidth: CombosMetrics.statusSelect,
       ),
     ];

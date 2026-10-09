@@ -81,11 +81,12 @@ class _TillsReportPageState extends ConsumerState<TillsReportPage> {
     final scope = ref.watch(currentScopeProvider);
     final key = tillSessionsKey(scope);
     final q = ref.watch(tillSessionsProvider(key));
-    final error = q.hasError ? q.error : null;
+    // Riverpod's automatic retries keep the skeleton, never the error.
+    final error = q.hasError && !q.retrying ? q.error : null;
     final refused = isRangeRefused(error);
     final load = TillsLoad(
       rows: q.value ?? const <TillSessionRow>[],
-      loading: q.isLoading && !q.hasValue && !q.hasError,
+      loading: q.awaitingFirst,
       loaded: q.hasValue,
       error: error == null
           ? null

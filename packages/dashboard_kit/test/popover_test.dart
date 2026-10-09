@@ -185,6 +185,42 @@ void main() {
   });
 
   group('menu', () {
+    testWidgets('the page scrolls under an open menu: its items still take '
+        'taps', (tester) async {
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      String? picked;
+      await pumpDashApp(
+        tester,
+        Scaffold(
+          body: SingleChildScrollView(
+            controller: scroll,
+            child: Column(
+              children: [
+                const SizedBox(height: 400),
+                DashMenu(
+                  items: [
+                    for (final s in ['Regular', 'Large'])
+                      DashMenuItem(label: s, onSelected: () => picked = s),
+                  ],
+                  builder: (context, c) =>
+                      DashButton(label: 'Copy from', onPressed: c.toggle),
+                ),
+                const SizedBox(height: 1600),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Copy from'));
+      await tester.pumpAndSettle();
+      // As a test's ensureVisible does: the trigger leaves its first place.
+      scroll.jumpTo(300);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Large'));
+      expect(picked, 'Large');
+    });
+
     testWidgets('an item that opens a dialog: Escape closes the dialog', (
       tester,
     ) async {

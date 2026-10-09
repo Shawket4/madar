@@ -74,6 +74,8 @@ class _IngredientDrawerState extends ConsumerState<IngredientDrawer> {
     final t = ref.read(tProvider);
     final lo = parseNumberInput(_parMin);
     final hi = parseNumberInput(_parMax);
+    // Captured now: the lists refresh even if the drawer closes mid-save.
+    final bus = ref.read(realtimeBusProvider);
     setState(() => _savingPar = true);
     try {
       await ref
@@ -91,7 +93,7 @@ class _IngredientDrawerState extends ConsumerState<IngredientDrawer> {
               },
             ),
           );
-      invalidateInventory(ref);
+      bus.invalidate(inventoryPathFamilies);
       if (mounted) DashToast.success(context, t('common.savedChanges'));
     } on Object catch (e) {
       if (mounted) DashToast.error(context, errorMessage(e, t));
@@ -108,6 +110,7 @@ class _IngredientDrawerState extends ConsumerState<IngredientDrawer> {
     _counting = true;
     final t = ref.read(tProvider);
     final router = GoRouter.of(context);
+    final bus = ref.read(realtimeBusProvider);
     try {
       final open =
           ref
@@ -126,7 +129,7 @@ class _IngredientDrawerState extends ConsumerState<IngredientDrawer> {
                 explicitNulls: const {'note', 'category_id'},
               ),
             );
-        invalidateInventory(ref);
+        bus.invalidate(inventoryPathFamilies);
       }
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -447,7 +450,7 @@ class _History extends ConsumerWidget {
     final q = ref.watch(ingredientMovementsProvider(key));
     final rows = q.value ?? const <StockMovement>[];
     Widget body;
-    if (q.isLoading && !q.hasValue && !q.hasError) {
+    if (q.firstLoad) {
       body = Column(
         key: const ValueKey('ingredient-history-loading'),
         spacing: Space.md,
@@ -471,10 +474,11 @@ class _History extends ConsumerWidget {
             ),
         ],
       );
-    } else if (q.hasError && !q.isLoading) {
+    } else if (q.hasError && !q.retrying) {
       body = DashErrorState(
         key: const ValueKey('ingredient-history-error'),
         framed: false,
+        retrying: q.isLoading,
         title: t('inventory.movements.loadFailed'),
         retryLabel: t('common.retry'),
         onRetry: () => ref.invalidate(ingredientMovementsProvider(key)),

@@ -238,7 +238,7 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage> {
         loading: catalog.firstLoad,
         // Kept while Retry runs, as React Query keeps `error` (no false
         // "No ingredients yet" in between).
-        errorText: catalog.hasError ? errorMessage(catalog.error, t) : null,
+        errorText: catalog.errorText(t),
         onRetry: () => ref.invalidate(inventoryCatalogProvider(orgId)),
         onOpen: (it) => _openDrawer(orgId, branchId, it),
       ),

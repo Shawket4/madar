@@ -600,7 +600,7 @@ class OnbDashedBorder extends CustomPainter {
 /// an answer. The web shows its empty line in both cases (its `data ?? []`).
 Widget? _readState(Translator t, AsyncValue<Object?> q, VoidCallback retry) {
   if (q.hasValue) return null;
-  if (q.hasError) {
+  if (q.failedFirst) {
     return DashErrorState(
       framed: false,
       title: t('common.loadFailed'),

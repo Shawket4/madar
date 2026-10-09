@@ -151,6 +151,13 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
     );
   }
 
+  /// Intent on a control opening the dialog on [booking] (null: a new one).
+  void _warmDialog(BookingView? booking) {
+    final branchId = ref.read(sellBranchIdProvider);
+    if (branchId == null) return;
+    warmBookingDialog(ref, branchId: branchId, date: _date, booking: booking);
+  }
+
   /// Seat / complete / no-show / cancel: a toast, then bookings and the
   /// floor refetch; a failure toasts the server's words.
   Future<void> _act(String done, Future<Object?> Function() call) async {
@@ -354,12 +361,14 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
           variant: DashButtonVariant.outline,
           onPressed: () =>
               showBookingSettingsDialog(context, branchId: branchId),
+          onIntent: () => ref.warm(bookingSettingsProvider(branchId)),
         ),
         DashButton(
           key: const ValueKey('bookings-new'),
           label: t('bookings.new'),
           icon: 'plus',
           onPressed: () => _openDialog(null),
+          onIntent: () => _warmDialog(null),
         ),
       ],
       filters: _DayBar(
@@ -367,6 +376,8 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
         today: today,
         view: _view,
         onDate: (d) => setState(() => _date = d),
+        onDateIntent: (d) =>
+            ref.warm(bookingDayProvider((branchId: branchId, date: d))),
         onView: (v) => setState(() => _view = v),
       ),
       body: Column(
@@ -416,6 +427,7 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
                       variant: DashButtonVariant.outline,
                       size: DashButtonSize.compact,
                       onPressed: () => _openDialog(b),
+                      onIntent: () => _warmDialog(b),
                     ),
                 ],
               ),
@@ -430,6 +442,7 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
               onRetry: () => ref.invalidate(bookingDayProvider(dayKey)),
               onNew: () => _openDialog(null),
               onEdit: _openDialog,
+              onEditIntent: _warmDialog,
               onSeat: _seat,
               onComplete: _complete,
               onNoShow: _noShow,
@@ -447,6 +460,7 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
               window: dayWindow(settings, _date),
               now: _now,
               onOpen: _openDialog,
+              onOpenIntent: _warmDialog,
               onRetryTables: () =>
                   ref.invalidate(floorTablesProvider(branchId)),
               onRetryList: () => ref.invalidate(bookingDayProvider(dayKey)),
@@ -465,6 +479,7 @@ class _DayBar extends ConsumerWidget {
     required this.today,
     required this.view,
     required this.onDate,
+    required this.onDateIntent,
     required this.onView,
   });
 
@@ -472,6 +487,9 @@ class _DayBar extends ConsumerWidget {
   final String today;
   final String view;
   final ValueChanged<String> onDate;
+
+  /// About to move to that day: warm its list.
+  final ValueChanged<String> onDateIntent;
   final ValueChanged<String> onView;
 
   @override
@@ -493,6 +511,7 @@ class _DayBar extends ConsumerWidget {
               semanticLabel: t('common.previous'),
               variant: DashButtonVariant.outline,
               onPressed: () => onDate(addBookingDays(date, -1)),
+              onIntent: () => onDateIntent(addBookingDays(date, -1)),
             ),
             SizedBox(
               width: BookingMetrics.datePicker,
@@ -510,6 +529,7 @@ class _DayBar extends ConsumerWidget {
               semanticLabel: t('common.next'),
               variant: DashButtonVariant.outline,
               onPressed: () => onDate(addBookingDays(date, 1)),
+              onIntent: () => onDateIntent(addBookingDays(date, 1)),
             ),
             if (date != today)
               DashButton(
@@ -518,6 +538,7 @@ class _DayBar extends ConsumerWidget {
                 variant: DashButtonVariant.ghost,
                 size: DashButtonSize.compact,
                 onPressed: () => onDate(today),
+                onIntent: () => onDateIntent(today),
               ),
           ],
         ),
@@ -546,6 +567,7 @@ class _BookingsList extends ConsumerWidget {
     required this.onRetry,
     required this.onNew,
     required this.onEdit,
+    required this.onEditIntent,
     required this.onSeat,
     required this.onComplete,
     required this.onNoShow,
@@ -560,6 +582,9 @@ class _BookingsList extends ConsumerWidget {
   final VoidCallback onRetry;
   final VoidCallback onNew;
   final ValueChanged<BookingView> onEdit;
+
+  /// About to open the dialog on that booking (null: a new one).
+  final ValueChanged<BookingView?> onEditIntent;
   final ValueChanged<BookingView> onSeat;
   final ValueChanged<BookingView> onComplete;
   final ValueChanged<BookingView> onNoShow;
@@ -600,6 +625,9 @@ class _BookingsList extends ConsumerWidget {
           onRowTap: (b) {
             if (isActiveBooking(b.status)) onEdit(b);
           },
+          onRowIntent: (b) {
+            if (isActiveBooking(b.status)) onEditIntent(b);
+          },
           rowSemanticLabel: (b) => b.guestName,
           pageSize: 50,
           hideViewOptions: true,
@@ -612,6 +640,7 @@ class _BookingsList extends ConsumerWidget {
                     label: t('bookings.new'),
                     icon: 'plus',
                     onPressed: onNew,
+                    onIntent: () => onEditIntent(null),
                   ),
                 )
               : DashEmptyState(
@@ -621,6 +650,7 @@ class _BookingsList extends ConsumerWidget {
           rowActions: (context, b) => _RowMenu(
             booking: b,
             onEdit: onEdit,
+            onEditIntent: onEditIntent,
             onSeat: onSeat,
             onComplete: onComplete,
             onNoShow: onNoShow,
@@ -707,6 +737,7 @@ class _RowMenu extends ConsumerWidget {
   const _RowMenu({
     required this.booking,
     required this.onEdit,
+    required this.onEditIntent,
     required this.onSeat,
     required this.onComplete,
     required this.onNoShow,
@@ -715,6 +746,7 @@ class _RowMenu extends ConsumerWidget {
 
   final BookingView booking;
   final ValueChanged<BookingView> onEdit;
+  final ValueChanged<BookingView?> onEditIntent;
   final ValueChanged<BookingView> onSeat;
   final ValueChanged<BookingView> onComplete;
   final ValueChanged<BookingView> onNoShow;
@@ -732,6 +764,7 @@ class _RowMenu extends ConsumerWidget {
             label: t('common.edit'),
             icon: 'pencil',
             onSelected: () => onEdit(b),
+            onIntent: () => onEditIntent(b),
           ),
         if (b.status == 'confirmed')
           DashMenuItem(

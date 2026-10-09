@@ -233,19 +233,14 @@ class _DashPopoverState extends State<DashPopover> {
           link: _link,
           showWhenUnlinked: false,
           offset: Offset(dx, area.top - anchor.top),
-          child: SizedBox(
-            width: width,
-            height: area.height,
-            child: CustomSingleChildLayout(
-              delegate: _Placement(
-                top: anchor.top - area.top,
-                bottom: anchor.bottom - area.top,
-                above: above,
-                below: below,
-                margin: margin,
-              ),
-              child: card,
-            ),
+          child: _Placement(
+            size: Size(width, area.height),
+            top: anchor.top - area.top,
+            bottom: anchor.bottom - area.top,
+            above: above,
+            below: below,
+            margin: margin,
+            child: card,
           ),
         ),
       ],
@@ -255,16 +250,21 @@ class _DashPopoverState extends State<DashPopover> {
 
 /// Puts the card under the trigger when it fits, else over it when it fits
 /// there, else on the roomier side (where its capped height fits).
-class _Placement extends SingleChildLayoutDelegate {
+class _Placement extends SingleChildRenderObjectWidget {
   const _Placement({
+    required this.size,
     required this.top,
     required this.bottom,
     required this.above,
     required this.below,
     required this.margin,
+    super.child,
   });
 
-  /// The trigger's edges in this column's frame (the overlay's).
+  /// The column: the card's width, the overlay's height.
+  final Size size;
+
+  /// The trigger's edges in the column's frame (the overlay's).
   final double top;
   final double bottom;
   final double above;
@@ -272,23 +272,43 @@ class _Placement extends SingleChildLayoutDelegate {
   final double margin;
 
   @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
-      constraints.loosen();
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderPlacement(this);
 
   @override
-  Offset getPositionForChild(Size size, Size child) {
-    final h = child.height;
-    final up = h > below && (h <= above || above > below);
-    return Offset(0, up ? top - margin - h : bottom + margin);
+  void updateRenderObject(BuildContext context, _RenderPlacement r) =>
+      r.spec = this;
+}
+
+class _RenderPlacement extends RenderShiftedBox {
+  _RenderPlacement(this._spec) : super(null);
+
+  _Placement _spec;
+  set spec(_Placement v) {
+    _spec = v;
+    markNeedsLayout();
   }
 
   @override
-  bool shouldRelayout(_Placement old) =>
-      top != old.top ||
-      bottom != old.bottom ||
-      above != old.above ||
-      below != old.below ||
-      margin != old.margin;
+  void performLayout() {
+    size = constraints.constrain(_spec.size);
+    final card = child;
+    if (card == null) return;
+    card.layout(BoxConstraints.loose(_spec.size), parentUsesSize: true);
+    final h = card.size.height;
+    final up =
+        h > _spec.below && (h <= _spec.above || _spec.above > _spec.below);
+    (card.parentData! as BoxParentData).offset = Offset(
+      0,
+      up ? _spec.top - _spec.margin - h : _spec.bottom + _spec.margin,
+    );
+  }
+
+  // The card follows its trigger (a page scrolled under an open menu moves
+  // both), so it can sit outside this column: it takes taps wherever it is.
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+      hitTestChildren(result, position: position);
 }
 
 /// One row of a [DashMenu].

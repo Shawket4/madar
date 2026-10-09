@@ -1,7 +1,6 @@
 // Intent warming on Discounts: a row (or its pencil) warms the list the
 // dialog listens to, Export warms the brand it reads, so after the mouse
 // rests the press asks the server nothing more.
-import 'package:dashboard_core/testing.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 

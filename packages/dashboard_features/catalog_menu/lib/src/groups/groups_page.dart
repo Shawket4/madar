@@ -31,6 +31,8 @@ import 'group_editor_dialog.dart';
 import 'group_model.dart';
 import 'group_usage_dialog.dart';
 import 'groups_providers.dart';
+// The size labels' item read, warmed with the editor.
+import '../studio/studio_providers.dart' show studioMenuItemProvider;
 
 class GroupsPage extends ConsumerStatefulWidget {
   const GroupsPage({this.edit, super.key});
@@ -64,6 +66,19 @@ class _GroupsPageState extends ConsumerState<GroupsPage> {
     final container = ProviderScope.containerOf(context, listen: false);
     final key = _listKey(orgId);
     return () => container.invalidate(modifierGroupsProvider(key));
+  }
+
+  /// The editor's reads ([group] null = a new group), warmed on intent.
+  void _warmEditor(String orgId, GroupOut? group) {
+    ref
+      ..warm(ingredientCatalogProvider(orgId))
+      ..warm(modifierGroupsProvider((orgId: orgId, includeInactive: false)))
+      ..warm(ingredientCategoriesProvider(orgId));
+    if (group == null) return;
+    // Its size labels: each item the (listed) usage names.
+    for (final u in ref.read(groupUsageProvider(group.id)).value ?? const []) {
+      ref.warm(studioMenuItemProvider(u.itemId));
+    }
   }
 
   /// `navigate({search: {...prev, edit}, replace: true})`.
@@ -212,7 +227,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage> {
         : groups ?? const <GroupOut>[];
 
     final Widget body;
-    if (q.hasError && !q.hasValue) {
+    if (q.failedFirst) {
       body = DashErrorState(
         title: t('common.loadFailed'),
         message: errorMessage(q.error, t),
@@ -258,6 +273,8 @@ class _GroupsPageState extends ConsumerState<GroupsPage> {
                   onMoveUp: () => move(i, i - 1),
                   onMoveDown: () => move(i, i + 1),
                   onEdit: () => _setEdit(g.id),
+                  onEditIntent: () => _warmEditor(orgId, g),
+                  onManageIntent: () => ref.warm(groupOrgItemsProvider(orgId)),
                   onManage: () => showGroupUsageDialog(
                     context,
                     orgId: orgId,
@@ -282,6 +299,7 @@ class _GroupsPageState extends ConsumerState<GroupsPage> {
             icon: 'plus',
             size: DashButtonSize.compact,
             onPressed: () => _setEdit('new'),
+            onIntent: () => _warmEditor(orgId, null),
           ),
       ],
       body: body,
@@ -302,7 +320,9 @@ class _GroupRow extends ConsumerWidget {
     required this.onMoveUp,
     required this.onMoveDown,
     required this.onEdit,
+    required this.onEditIntent,
     required this.onManage,
+    required this.onManageIntent,
     required this.onDelete,
   });
 
@@ -314,7 +334,9 @@ class _GroupRow extends ConsumerWidget {
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback onEdit;
+  final VoidCallback onEditIntent;
   final VoidCallback onManage;
+  final VoidCallback onManageIntent;
   final VoidCallback onDelete;
 
   /// Below this the row wraps.
@@ -354,6 +376,7 @@ class _GroupRow extends ConsumerWidget {
 
     final name = DashPressable(
       onTap: onEdit,
+      onIntent: onEditIntent,
       semanticLabel: g.name,
       excludeChildSemantics: true,
       pressScale: false,
@@ -408,6 +431,7 @@ class _GroupRow extends ConsumerWidget {
       variant: DashButtonVariant.link,
       size: DashButtonSize.compact,
       onPressed: usedOn == null ? null : onManage,
+      onIntent: usedOn == null ? null : onManageIntent,
     );
 
     final actions = canEdit
@@ -428,6 +452,7 @@ class _GroupRow extends ConsumerWidget {
                 icon: 'pencil',
                 semanticLabel: t('common.edit'),
                 onPressed: onEdit,
+                onIntent: onEditIntent,
               ),
               DashIconButton(
                 icon: 'trash-2',

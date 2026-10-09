@@ -26,6 +26,7 @@ class BookingsTimeline extends ConsumerWidget {
     required this.window,
     required this.now,
     required this.onOpen,
+    required this.onOpenIntent,
     required this.onRetryTables,
     required this.onRetryList,
     super.key,
@@ -40,6 +41,9 @@ class BookingsTimeline extends ConsumerWidget {
   final DayWindow window;
   final DateTime now;
   final ValueChanged<BookingView> onOpen;
+
+  /// About to open that booking: warm the dialog's reads.
+  final ValueChanged<BookingView> onOpenIntent;
   final VoidCallback onRetryTables;
   final VoidCallback onRetryList;
 
@@ -230,6 +234,7 @@ class BookingsTimeline extends ConsumerWidget {
                                 '${fmt.fmtTime(b.startsAt)}–'
                                 '${fmt.fmtTime(b.endsAt)}',
                             onTap: () => onOpen(b),
+                            onIntent: () => onOpenIntent(b),
                           ),
                         );
                       }(),
@@ -282,12 +287,14 @@ class _Block extends StatelessWidget {
     required this.held,
     required this.tooltip,
     required this.onTap,
+    required this.onIntent,
   });
 
   final BookingView booking;
   final bool held;
   final String tooltip;
   final VoidCallback onTap;
+  final VoidCallback onIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -315,6 +322,7 @@ class _Block extends StatelessWidget {
       child: DashPressable(
         key: ValueKey('timeline-block-${booking.id}'),
         onTap: onTap,
+        onIntent: onIntent,
         semanticLabel: tooltip,
         excludeChildSemantics: true,
         pressScale: false,

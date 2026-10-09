@@ -4,7 +4,6 @@
 import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
 import 'package:dashboard_reports/src/legal/legal_words.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'legal_support.dart';

@@ -111,7 +111,11 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     final pct = readyPercent(status);
 
     Widget body;
-    if (query != null && query.hasError && _finished == null) {
+    // The web's `q.isError`: after the automatic retries, stale data or not.
+    if (query != null &&
+        query.hasError &&
+        !query.retrying &&
+        _finished == null) {
       body = _LoadError(
         onRetry: () => ref.invalidate(onbStatusProvider(orgId!)),
       );

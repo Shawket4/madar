@@ -1,12 +1,13 @@
 // Intent warming on Tills: resting the pointer on a control warms the read
 // its press makes, so the press asks the server nothing more.
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'tills_actions_test.dart' show ownHelioMorning;
 import 'tills_support.dart';
 
 /// Calls to [route] for till [id].
@@ -79,7 +80,11 @@ void main() {
     tester,
   ) async {
     final s = tillsServer();
-    ownHelioMorning(s.db);
+    // The owner's own open till: only then are Close till and Cash movement
+    // offered.
+    s.db['tills'].get(TillIds.helioMorning)
+      ..['teller_id'] = SeedIds.owner
+      ..['teller_name'] = 'Nour El-Sayed';
     final h = await pumpTills(tester, server: s.server, db: s.db);
     final mouse = await _mouse(tester);
     final id = TillIds.helioMorning;

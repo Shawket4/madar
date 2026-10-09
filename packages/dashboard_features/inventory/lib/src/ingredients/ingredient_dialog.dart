@@ -133,18 +133,46 @@ class IngredientDialog extends ConsumerStatefulWidget {
 }
 
 class _IngredientDialogState extends ConsumerState<IngredientDialog> {
-  late final OrgIngredient? _item = widget.item;
-  late String _name = _item?.name ?? '';
-  late String? _categoryId = _item?.categoryId;
+  late OrgIngredient? _item = widget.item;
+  late String _name;
+  late String? _categoryId;
   String _newCategory = '';
-  late String _unit = _item?.unit ?? 'g';
-  late String _cost = costFieldText(_item?.costPerUnit);
-  late String? _supplierId = _item?.supplierId;
-  late String _description = _item?.description ?? '';
-  late String _packUnit = _item?.packUnit ?? '';
-  late String _packSize = numberFieldText(_item?.packSize);
-  late String _yieldPct = numberFieldText(_item?.yieldPct);
-  late String _density = numberFieldText(_item?.densityGPerMl);
+  late String _unit;
+  late String _cost;
+  late String? _supplierId;
+  late String _description;
+  late String _packUnit;
+  late String _packSize;
+  late String _yieldPct;
+  late String _density;
+
+  /// Set by the person's first change: until then a fresher catalog row
+  /// fills the fields again (a background refresh lands).
+  bool _edited = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _seed(_item);
+  }
+
+  void _seed(OrgIngredient? it) {
+    _name = it?.name ?? '';
+    _categoryId = it?.categoryId;
+    _unit = it?.unit ?? 'g';
+    _cost = costFieldText(it?.costPerUnit);
+    _supplierId = it?.supplierId;
+    _description = it?.description ?? '';
+    _packUnit = it?.packUnit ?? '';
+    _packSize = numberFieldText(it?.packSize);
+    _yieldPct = numberFieldText(it?.yieldPct);
+    _density = numberFieldText(it?.densityGPerMl);
+  }
+
+  void _edit(VoidCallback change) => setState(() {
+    _edited = true;
+    change();
+  });
   bool _advanced = false;
   final Map<String, ({String min, String max})> _pars = {};
   bool _busy = false;
@@ -175,6 +203,8 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
     if (!_canSave) return;
     final t = ref.read(tProvider);
     final api = ref.read(apiProvider).inventory;
+    // Captured now: the lists refresh even if the dialog closes mid-save.
+    final bus = ref.read(realtimeBusProvider);
     // An untouched field keeps the stored figure exactly (INV-ING-020).
     final cost = _cost == costFieldText(_item?.costPerUnit)
         ? _item?.costPerUnit
@@ -291,14 +321,14 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
           );
         }
       }
-      invalidateInventory(ref);
+      bus.invalidate(inventoryPathFamilies);
       if (!mounted) return;
       DashToast.success(context, t('common.savedChanges'));
       Navigator.of(context).pop(true);
     } on Object catch (e) {
       // Something this Save created is real now: show it in the lists.
       if (_created != null || _createdCategory != null) {
-        invalidateInventory(ref);
+        bus.invalidate(inventoryPathFamilies);
       }
       if (!mounted) return;
       setState(() => _busy = false);
@@ -311,6 +341,17 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final orgId = widget.orgId;
+    if (_item != null) {
+      final fresh = ref
+          .watch(inventoryCatalogProvider(orgId))
+          .value
+          ?.where((i) => i.id == _item!.id)
+          .firstOrNull;
+      if (fresh != null && !_edited && !identical(fresh, _item)) {
+        _item = fresh;
+        _seed(fresh);
+      }
+    }
     final cats = ref.watch(ingredientCategoriesProvider(orgId)).value ?? [];
     final suppliers = ref.watch(inventorySuppliersProvider(orgId)).value ?? [];
     final category = _effectiveCategory(cats);
@@ -334,7 +375,7 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
           label: t('inventory.catalog.name'),
           value: _name,
           autofocus: true,
-          onChanged: (v) => setState(() => _name = v),
+          onChanged: (v) => _edit(() => _name = v),
         ),
         pair(
           Column(
@@ -355,7 +396,7 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
                     icon: 'plus',
                   ),
                 ],
-                onChanged: (v) => setState(() => _categoryId = v),
+                onChanged: (v) => _edit(() => _categoryId = v),
               ),
               if (_isNewCategory)
                 DashTextInput(
@@ -364,7 +405,7 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
                   placeholder: t('inventory.catalog.newCategoryName'),
                   semanticLabel: t('inventory.catalog.newCategoryName'),
                   autofocus: true,
-                  onChanged: (v) => setState(() => _newCategory = v),
+                  onChanged: (v) => _edit(() => _newCategory = v),
                 ),
             ],
           ),
@@ -377,7 +418,7 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
               for (final u in unitOptions)
                 DashOption(value: u, label: unitOptionLabel(t, u)),
             ],
-            onChanged: (v) => setState(() => _unit = v),
+            onChanged: (v) => _edit(() => _unit = v),
           ),
         ),
         if (_unitChanged)
@@ -400,7 +441,7 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
             key: const ValueKey('ingredient-cost'),
             label: t('inventory.catalog.standardCost'),
             value: _cost,
-            onChanged: (v) => setState(() => _cost = v),
+            onChanged: (v) => _edit(() => _cost = v),
           ),
           DashSelectField<String>(
             key: const ValueKey('ingredient-supplier'),
@@ -414,7 +455,7 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
               for (final s in activeSuppliers(suppliers))
                 DashOption(value: s.id, label: s.name),
             ],
-            onChanged: (v) => setState(() => _supplierId = v),
+            onChanged: (v) => _edit(() => _supplierId = v),
           ),
         ),
         _AdvancedToggle(
@@ -429,7 +470,7 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
             value: _description,
             minLines: 2,
             maxLines: 4,
-            onChanged: (v) => setState(() => _description = v),
+            onChanged: (v) => _edit(() => _description = v),
           ),
           pair(
             DashTextField(
@@ -437,13 +478,13 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
               label: t('inventory.catalog.packUnit'),
               placeholder: t('inventory.catalog.packUnitPlaceholder'),
               value: _packUnit,
-              onChanged: (v) => setState(() => _packUnit = v),
+              onChanged: (v) => _edit(() => _packUnit = v),
             ),
             IngredientNumberField(
               key: const ValueKey('ingredient-pack-size'),
               label: t('inventory.catalog.packSize'),
               value: _packSize,
-              onChanged: (v) => setState(() => _packSize = v),
+              onChanged: (v) => _edit(() => _packSize = v),
             ),
           ),
           pair(
@@ -452,13 +493,13 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
               label: t('inventory.catalog.yieldPct'),
               placeholder: '100',
               value: _yieldPct,
-              onChanged: (v) => setState(() => _yieldPct = v),
+              onChanged: (v) => _edit(() => _yieldPct = v),
             ),
             IngredientNumberField(
               key: const ValueKey('ingredient-density'),
               label: t('inventory.catalog.density'),
               value: _density,
-              onChanged: (v) => setState(() => _density = v),
+              onChanged: (v) => _edit(() => _density = v),
             ),
           ),
         ],
@@ -467,7 +508,7 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
             branches: widget.branches,
             unit: _unit,
             pars: _pars,
-            onChanged: (id, v) => setState(() => _pars[id] = v),
+            onChanged: (id, v) => _edit(() => _pars[id] = v),
           ),
       ],
     );
