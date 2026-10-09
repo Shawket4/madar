@@ -461,7 +461,8 @@ class TransfersTable extends ConsumerWidget {
             sourceWarehouse: tr.sourceKind == BranchKind.warehouse,
             destinationWarehouse: tr.destinationKind == BranchKind.warehouse,
           ),
-          minWidth: Space.xxl * 5,
+          // "New Cairo → Zamalek" on one line, as the web's sized column.
+          minWidth: Space.xxl * 5 + Space.md,
         ),
         DashColumn(
           id: 'items',
@@ -471,7 +472,7 @@ class TransfersTable extends ConsumerWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          minWidth: Space.xxl * 4 + Space.xl,
+          minWidth: Space.xxl * 4 + Space.lg,
         ),
         DashColumn(
           id: 'status',

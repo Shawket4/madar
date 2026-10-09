@@ -194,8 +194,8 @@ void main() {
     );
   });
 
-  testWidgets('INV-TRF-017 (ar) a stamp isolates the Latin name, so the '
-      'Arabic date never joins its run', (tester) async {
+  testWidgets('INV-TRF-017 (ar) (divergence) a stamp isolates the Latin '
+      'name, so the Arabic date never joins its run', (tester) async {
     final h = await pumpTransfers(tester, locale: 'ar');
     final f = h.container.read(formatProvider);
     await openRow(h, 'TR-6');

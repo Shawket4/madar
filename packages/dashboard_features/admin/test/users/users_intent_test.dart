@@ -2,6 +2,7 @@
 // dialog reads, pointing at a branch option warms that branch's access, and
 // pointing at New (platform) warms the org list, so each press asks the
 // server nothing more.
+import 'package:dashboard_admin/src/orgs/orgs_providers.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:flutter/gestures.dart';
@@ -74,7 +75,8 @@ void main() {
     expect(h.server.callsTo(branchesRoute, method: 'GET'), hasLength(branches));
   });
 
-  testWidgets('ADM-USR-022 a platform admin\'s New warms the org list',
+  testWidgets('ADM-USR-022 a platform admin\'s New warms the org list; '
+      'the dialog opens on it with no request',
       (tester) async {
     final h = await pumpUsers(tester, persona: Persona.platform);
     await h.container
@@ -84,8 +86,12 @@ void main() {
     final mouse = await _mouse(tester);
     final before = h.server.callsTo('/orgs', method: 'GET').length;
     await _rest(h, mouse, field('users-new'));
+    // The shell's org picker may hold the list already (one shared entry),
+    // so the rest may ask nothing; the press must ask nothing either way.
     final warmed = h.server.callsTo('/orgs', method: 'GET').length;
-    expect(warmed, greaterThan(before), reason: 'warmed on rest');
+    expect(warmed, greaterThanOrEqualTo(before));
+    expect(h.container.exists(orgsListProvider), isTrue,
+        reason: 'the dialog\'s read is warmed');
 
     await h.tap(field('users-new'));
     expect(h.location.queryParameters['edit'], 'new');

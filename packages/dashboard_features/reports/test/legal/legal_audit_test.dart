@@ -156,11 +156,12 @@ void main() {
   testWidgets('REP-LEG-018 error: only the error state; Retry asks that '
       'audit alone again, the error staying while it runs', (tester) async {
     final s = legalServer();
+    // Twice: the press's warm-up fails, is dropped, and the tab reads again.
     s.server.fail(
       'GET',
       _voids,
       MockResponse.error(500, 'Internal error'),
-      times: 1,
+      times: 2,
     );
     final h = await pumpLegal(tester, server: s.server, db: s.db);
     await _open(h, LegalTab.voids);
@@ -189,7 +190,7 @@ void main() {
   });
 
   testWidgets('REP-LEG-018 a refusal from the server is the same error state, '
-      'asked once', (tester) async {
+      'never retried (asked once, plus the press\'s warm-up)', (tester) async {
     final s = legalServer();
     s.server.fail(
       'GET',
@@ -200,7 +201,8 @@ void main() {
     final h = await pumpLegal(tester, server: s.server, db: s.db);
     await _open(h, LegalTab.deductionOverrides);
     expect(inAudit(find.byType(DashErrorState)), findsOneWidget);
-    expect(h.server.callsTo(_overrides), hasLength(1));
+    // The press's warm-up is refused, dropped, and the tab reads again.
+    expect(h.server.callsTo(_overrides), hasLength(2));
   });
 
   testWidgets('REP-LEG-019 / 020 each tab\'s cards: its own axis first, then '

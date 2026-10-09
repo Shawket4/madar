@@ -10,6 +10,8 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
+import 'package:dashboard_inventory/src/transfers/transfers_page.dart'
+    show TransferRoute;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -126,6 +128,26 @@ void main() {
       isNull,
     );
   });
+
+  for (final locale in ['en', 'ar']) {
+    testWidgets('INV-TRF-008 tablet ($locale): Direction stays on one line', (
+      tester,
+    ) async {
+      final h = await pumpTransfers(
+        tester,
+        size: DashSize.tablet,
+        locale: locale,
+        branch: SeedIds.zamalek,
+      );
+      final routes = inTable(find.byType(TransferRoute)).evaluate().toList();
+      expect(routes, hasLength(5));
+      final heights = {
+        for (final e in routes) tester.getSize(find.byWidget(e.widget)).height,
+      };
+      expect(heights, hasLength(1), reason: '$heights');
+      expect(h.locale, locale);
+    });
+  }
 
   testWidgets('INV-TRF-008 / INV-ALL-028 a warehouse side wears the '
       'Warehouse glyph; the arrow is mirrored in Arabic', (tester) async {
