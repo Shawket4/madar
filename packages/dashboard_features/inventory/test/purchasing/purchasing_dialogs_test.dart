@@ -612,6 +612,54 @@ void main() {
       expect(byKey('po-line-ingredient-1'), findsNothing);
     });
 
+    testWidgets('INV-PUR-027 / INV-PUR-036 / INV-PUR-063 opened before the '
+        'catalog lands: the lines take their unit and estimate when it does; '
+        'a total typed meanwhile is kept', (tester) async {
+      final s = purchasingServer();
+      final gate = s.server.hold('GET', PurT.catalog);
+      final h = await pumpPurchasing(
+        tester,
+        path: purchasingAt(SeedIds.zamalek),
+        server: s.server,
+        db: s.db,
+      );
+      await openTab(h, 'Reorder');
+      final groups = h.container
+          .read(reorderSuggestionsProvider(SeedIds.zamalek))
+          .requireValue;
+      num? costOf(String id) =>
+          s.db[InvTables.ingredients].find(id)!['cost_per_unit'] as num?;
+      final i = groups.indexWhere(
+        (g) => g.lines.length > 1 && costOf(g.lines[0].orgIngredientId) != null,
+      );
+      expect(i, isNot(-1), reason: 'a group of two lines, the first costed');
+      final g = groups[i];
+      await h.tap(byKey('reorder-create-$i'));
+      expect(
+        tester.widget<DashSelect<String>>(byKey('po-line-unit-0')).value,
+        isNull,
+      );
+      expect(inputText(tester, 'po-line-total-0'), '');
+      await h.enterText(byKey('po-line-total-1'), '12.34');
+
+      gate.release();
+      await h.settle();
+      for (var n = 0; n < 2; n++) {
+        expect(
+          tester.widget<DashSelect<String>>(byKey('po-line-unit-$n')).value,
+          g.lines[n].unit,
+        );
+      }
+      final cost = costOf(g.lines[0].orgIngredientId)!;
+      expect(
+        inputText(tester, 'po-line-total-0'),
+        ((cost * g.lines[0].suggestedQty + 0.5).floor() / 100).toStringAsFixed(
+          2,
+        ),
+      );
+      expect(inputText(tester, 'po-line-total-1'), '12.34');
+    });
+
     testWidgets('INV-PUR-063 a prefilled line whose ingredient is not in the '
         'catalog has no unit; Place order falls back to pcs', (tester) async {
       final s = purchasingServer();
@@ -1071,6 +1119,31 @@ void main() {
       expect(inReceive(find.text('No deliveries recorded yet.')), findsNothing);
       s.server.clearFailures();
       await h.tap(inReceive(find.text('Retry')));
+      expect(byKey('receipt-${InvIds.receipt('r-1039-a')}'), findsOneWidget);
+    });
+
+    testWidgets('INV-PUR-048 Retry while the read is out: the failure stays '
+        'up with its Retry spinning, never "No deliveries recorded yet."', (
+      tester,
+    ) async {
+      final s = purchasingServer();
+      final boom = MockResponse.error(500, 'Receipts are resting');
+      s.server.fail('GET', PurT.receipts, boom, times: null);
+      final h = await openReceive(tester, _po1039, server: s.server, db: s.db);
+      await receiveTab(h, 'Delivery history');
+      s.server.clearFailures();
+      final gate = s.server.hold('GET', PurT.receipts);
+      await retryHeld(h, inReceive(find.text('Retry')));
+      expect(inReceive(find.text(h.refusalWords(boom))), findsOneWidget);
+      expect(
+        tester
+            .widget<DashErrorState>(inReceive(find.byType(DashErrorState)))
+            .retrying,
+        isTrue,
+      );
+      expect(inReceive(find.text('No deliveries recorded yet.')), findsNothing);
+      gate.release();
+      await h.settle();
       expect(byKey('receipt-${InvIds.receipt('r-1039-a')}'), findsOneWidget);
     });
 

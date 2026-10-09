@@ -654,6 +654,22 @@ void main() {
       expect(h.server.callsTo(PurT.catalog).length, cat);
     });
 
+    testWidgets('INV-PUR-015 / INV-ALL-018 Retry while the read is out: the '
+        'failure stays up, never "No purchase orders yet"', (tester) async {
+      final s = purchasingServer();
+      final boom = MockResponse.error(500, 'The ledger is resting');
+      s.server.fail('GET', PurT.orders, boom, times: null);
+      final h = await pumpPurchasing(tester, server: s.server, db: s.db);
+      s.server.clearFailures();
+      final gate = s.server.hold('GET', PurT.orders);
+      await retryHeld(h, inPage(find.text('Retry')));
+      expect(inPage(find.text(h.refusalWords(boom))), findsOneWidget);
+      expect(inPage(find.text('No purchase orders yet')), findsNothing);
+      gate.release();
+      await h.settle();
+      expect(inOrders(find.text('PO-1042')), findsOneWidget);
+    });
+
     testWidgets('INV-PUR-015 / INV-ALL-018 empty: "No purchase orders yet", '
         'Export off; a status with no orders shows the same words', (
       tester,
@@ -872,6 +888,23 @@ void main() {
       await h.tap(inPage(find.text('Retry')));
       expect(inPage(find.text('No suppliers yet')), findsOneWidget);
     });
+
+    testWidgets('INV-PUR-021 suppliers Retry while the read is out: the '
+        'failure stays up, never "No suppliers yet"', (tester) async {
+      final s = purchasingServer();
+      final boom = MockResponse.error(500, 'Suppliers are resting');
+      s.server.fail('GET', PurT.suppliers, boom, times: null);
+      final h = await pumpPurchasing(tester, server: s.server, db: s.db);
+      await openTab(h, 'Suppliers');
+      s.server.clearFailures();
+      final gate = s.server.hold('GET', PurT.suppliers);
+      await retryHeld(h, inPage(find.text('Retry')));
+      expect(inPage(find.text(h.refusalWords(boom))), findsOneWidget);
+      expect(inPage(find.text('No suppliers yet')), findsNothing);
+      gate.release();
+      await h.settle();
+      expect(inSuppliers(find.text('Delta Dairy')), findsOneWidget);
+    });
   });
 
   group('reorder tab (INV-PUR-023…027)', () {
@@ -965,6 +998,33 @@ void main() {
       await h.tap(inPage(find.text('Retry')));
       expect(inPage(find.text('Create draft PO')), findsWidgets);
       expect(h.server.callsTo(PurT.orders).length, reads);
+    });
+
+    testWidgets('INV-PUR-023 Retry while the read is out: the failure stays '
+        'up with its Retry spinning, never "No items to reorder"', (
+      tester,
+    ) async {
+      final s = purchasingServer();
+      final boom = MockResponse.error(500, 'Suggestions are resting');
+      s.server.fail('GET', PurT.reorder, boom, times: null);
+      final h = await openReorder(tester, server: s.server, db: s.db);
+      s.server.clearFailures();
+      final gate = s.server.hold('GET', PurT.reorder);
+      await retryHeld(h, inPage(find.text('Retry')));
+      expect(
+        inPage(find.text("Couldn't load reorder suggestions")),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<DashErrorState>(inPage(find.byType(DashErrorState)))
+            .retrying,
+        isTrue,
+      );
+      expect(inPage(find.text('No items to reorder')), findsNothing);
+      gate.release();
+      await h.settle();
+      expect(inPage(find.text('Create draft PO')), findsWidgets);
     });
 
     testWidgets('INV-PUR-024 loading: a heading bar and a skeleton table', (

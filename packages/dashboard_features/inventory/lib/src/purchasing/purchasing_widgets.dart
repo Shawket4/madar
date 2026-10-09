@@ -39,12 +39,16 @@ class PurchasingTabStrip<T> extends StatelessWidget {
     required this.tabs,
     required this.value,
     required this.onChanged,
+    this.onIntent,
     super.key,
   });
 
   final List<PurchasingTab<T>> tabs;
   final T value;
   final ValueChanged<T> onChanged;
+
+  /// A tab is about to be picked ([DashIntent]): warm the read it makes.
+  final ValueChanged<T>? onIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +67,9 @@ class PurchasingTabStrip<T> extends StatelessWidget {
                 first: i == 0,
                 active: tabs[i].value == value,
                 onTap: () => onChanged(tabs[i].value),
+                onIntent: onIntent == null
+                    ? null
+                    : () => onIntent!(tabs[i].value),
               ),
           ],
         ),
@@ -77,18 +84,21 @@ class _TabButton<T> extends StatelessWidget {
     required this.first,
     required this.active,
     required this.onTap,
+    this.onIntent,
   });
 
   final PurchasingTab<T> tab;
   final bool first;
   final bool active;
   final VoidCallback onTap;
+  final VoidCallback? onIntent;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: tab.enabled ? onTap : null,
+      onIntent: tab.enabled ? onIntent : null,
       enabled: tab.enabled,
       selected: active,
       pressScale: false,

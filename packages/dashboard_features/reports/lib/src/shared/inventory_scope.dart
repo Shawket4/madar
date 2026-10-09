@@ -30,11 +30,15 @@ class InventoryScopeToggle extends ConsumerWidget {
   const InventoryScopeToggle({
     required this.value,
     required this.onChanged,
+    this.onIntent,
     super.key,
   });
 
   final InventoryScope value;
   final ValueChanged<InventoryScope> onChanged;
+
+  /// A segment is about to be pressed: warm the read it shows.
+  final ValueChanged<InventoryScope>? onIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,6 +46,7 @@ class InventoryScopeToggle extends ConsumerWidget {
     return DashSegmentedControl<InventoryScope>(
       value: value,
       onChanged: onChanged,
+      onIntent: onIntent,
       options: [
         DashOption(
           value: InventoryScope.branch,

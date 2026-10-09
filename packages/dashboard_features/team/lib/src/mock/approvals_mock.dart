@@ -72,6 +72,9 @@ void _assertOpen(MockRequest req, MockDb db, String org, String day) {
 }
 
 void registerApprovalsMocks(MockServer server, MockDb db) {
+  // The last decision on each open shift's claim (`staff_open_shift_claims`).
+  final lastClaim = <String, String>{};
+
   // ── swaps ─────────────────────────────────────────────────────────────
   server.on('GET', '/staff/swaps', (req) {
     req.requireCap('hr.schedule.edit');
@@ -122,7 +125,6 @@ void registerApprovalsMocks(MockServer server, MockDb db) {
     // is kept here.
     db[TeamTables.swaps].update(row['id']! as String, {
       'status': approve ? 'approved' : 'rejected',
-      'decided_by': req.persona.userId,
     });
     return MockResponse.empty();
   });
@@ -142,7 +144,7 @@ void registerApprovalsMocks(MockServer server, MockDb db) {
     }
     if (row['status'] != 'claimed' || row['claimed_by'] == null) {
       // `no_claim_waiting`: the last claim's decision, else nothing.
-      final last = row['_last_claim'] as String?;
+      final last = lastClaim[row['id']];
       if (last == 'approved' || last == 'declined') {
         req.requireBranch(branch!);
         _alreadyDecided(req, last!);
@@ -158,9 +160,8 @@ void registerApprovalsMocks(MockServer server, MockDb db) {
     if (approve) {
       db[TeamTables.openShifts].update(id, {
         'status': 'filled',
-        'decided_by': req.persona.userId,
-        '_last_claim': 'approved',
       });
+      lastClaim[id] = 'approved';
     } else {
       // The shift reopens; the claimer's declined claim stays theirs.
       db[TeamTables.openShifts].update(id, {
@@ -168,8 +169,8 @@ void registerApprovalsMocks(MockServer server, MockDb db) {
         'claimed_by': null,
         'claimed_by_name': null,
         'claimed_at': null,
-        '_last_claim': 'declined',
       });
+      lastClaim[id] = 'declined';
     }
     // ponytail: the labour-limit warnings of the claimer's new day
     // (`day_view(...).warnings`) are not computed; a test answers them.
@@ -217,7 +218,6 @@ void registerApprovalsMocks(MockServer server, MockDb db) {
           f['resolution'] == null) {
         db[TeamTables.flags].update(f['id']! as String, {
           'resolution': status,
-          'resolved_by': req.persona.userId,
           'resolved_at': db.nowIso,
         });
       }

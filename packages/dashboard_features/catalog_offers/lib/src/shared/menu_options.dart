@@ -103,13 +103,17 @@ class MenuOptions {
   }
 }
 
+/// The pick lists' own `staleTime` on the web (`use-menu-options.ts`).
+const Duration kPickListStaleTime = Duration(minutes: 5);
+
 /// `GET /menu-items?org_id=…&full=true`, raw `MenuItemFull`s. Refetches
 /// after `invalidateCombos` (which covers `/menu-items`) or a `resync`; kept
-/// and refreshed like a web query (`ref.webCache()`, keyed by the org).
+/// and refreshed like a web query (`ref.webCache()`, keyed by the org), fresh
+/// for [kPickListStaleTime].
 final offersMenuItemsProvider = FutureProvider.autoDispose<List<MenuItemFull>>((
   ref,
 ) async {
-  ref.webCache();
+  ref.webCache(staleTime: kPickListStaleTime);
   ref.watch(realtimeEpochProvider(OffersPaths.menuItems));
   final orgId = ref.watch(orgIdProvider);
   if (orgId == null) return const [];
@@ -141,11 +145,11 @@ final offersMenuItemsProvider = FutureProvider.autoDispose<List<MenuItemFull>>((
 });
 
 /// `GET /categories?org_id=…` (a web query: `ref.webCache()`, keyed by the
-/// org).
+/// org, fresh for [kPickListStaleTime]).
 final offersCategoriesProvider = FutureProvider.autoDispose<List<Category>>((
   ref,
 ) async {
-  ref.webCache();
+  ref.webCache(staleTime: kPickListStaleTime);
   ref.watch(realtimeEpochProvider(OffersPaths.categories));
   final orgId = ref.watch(orgIdProvider);
   if (orgId == null) return const [];

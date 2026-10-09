@@ -113,8 +113,12 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
         variant: DashButtonVariant.outline,
         size: DashButtonSize.compact,
         onPressed: () => _open(po),
+        onIntent: () => _warmOrder(po),
       ),
   ];
+
+  /// The read the receive dialog opens on.
+  void _warmOrder(PurchaseOrder po) => ref.warm(purchaseOrderProvider(po.id));
 
   /// Runs [action] once the menu has closed, so the dialog it opens keeps
   /// the focus (the menu hands focus back as it goes).
@@ -129,6 +133,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
       DashMenuItem(
         label: t('inventory.purchasing.viewOrder'),
         onSelected: () => _afterMenu(() => _open(po)),
+        onIntent: () => _warmOrder(po),
       ),
       // A partly received order cannot be cancelled (the server refuses):
       // the goods have to be reversed first.
@@ -273,7 +278,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
       columns: columns,
       rows: rows,
       rowKey: (po) => po.id,
-      loading: async.firstLoad,
+      loading: async.awaitingFirst,
       errorMessage: async.errorText(t),
       onRetry: () => ref.invalidate(purchaseOrdersProvider(widget.ordersKey)),
       empty: DashEmptyState(
@@ -281,6 +286,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
         title: t('inventory.purchasing.noOrders'),
       ),
       onRowTap: _open,
+      onRowIntent: _warmOrder,
       rowSemanticLabel: (po) => poReference(id: po.id, reference: po.reference),
       rowActions: (context, po) => Row(
         mainAxisSize: MainAxisSize.min,
@@ -300,6 +306,12 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
         ],
         value: widget.status,
         onChanged: widget.onStatus,
+        onOptionIntent: (s) => ref.warm(
+          purchaseOrdersProvider((
+            branchId: widget.ordersKey.branchId,
+            status: s == allPoStatuses ? null : s,
+          )),
+        ),
         semanticLabel: t('inventory.purchasing.status'),
         expand: false,
         width: Space.xxl * 5 + Space.lg,

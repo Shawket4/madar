@@ -15,6 +15,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../support.dart';
 
+import 'package:dashboard_setup/src/mock/loyalty_mock.dart';
+
 export 'package:dashboard_setup/src/mock/loyalty_mock.dart'
     show LoyaltyTables, loyaltySeedRewards;
 

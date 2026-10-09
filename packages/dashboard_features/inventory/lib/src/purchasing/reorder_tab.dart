@@ -11,7 +11,6 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/on_hand.dart';
 import 'purchase_order_dialog.dart';
@@ -76,14 +75,15 @@ class ReorderTab extends ConsumerWidget {
     final async = ref.watch(reorderSuggestionsProvider(branchId));
     final columns = _columns(t, f, context);
 
-    if (async.hasError && !async.isLoading) {
+    if (async.failedFirst) {
       // A section's error: its own title and Retry, no server line.
       return DashErrorState(
         title: t('inventory.purchasing.reorderFailed'),
         onRetry: () => ref.invalidate(reorderSuggestionsProvider(branchId)),
+        retrying: async.isLoading,
       );
     }
-    if (async.firstLoad) {
+    if (async.awaitingFirst) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,

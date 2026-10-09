@@ -1415,17 +1415,35 @@ void registerFinancialMocks(MockServer server, MockDb db) {
   });
 
   // ── users (who made each decision) ────────────────────────────────
+  // The admin area owns GET /users; this stand-in (same filter as its
+  // users_mock.dart) serves only when the reports area runs alone.
+  if (server.handles('GET', '/users')) return;
+  // A person's branches: admin's `user_branches` when loaded, else the
+  // seed's home branch.
+  List<Object?> branchesOf(String id) => db.hasTable('user_branches')
+      ? [
+          for (final r in db['user_branches'].rows)
+            if (r['user_id'] == id) r['branch_id'],
+        ]
+      : [db['users'].find(id)?['branch_id']];
   server.on('GET', '/users', (req) {
     req.requireCap('staff.users.read');
-    final orgId = req.persona.isPlatform ? req.q('org_id') : req.persona.orgId;
-    final scoped = req.persona.branchIds;
-    final rows = db['users'].where(
-      (u) =>
-          (orgId == null || u['org_id'] == orgId) &&
-          (scoped == null ||
-              u['id'] == req.persona.userId ||
-              scoped.contains(u['branch_id'])),
-    )..sort((a, b) => '${a['name']}'.compareTo('${b['name']}'));
+    final p = req.persona;
+    final orgId = p.isPlatform ? req.q('org_id') : p.orgId;
+    if (!p.isPlatform && orgId == null) {
+      req.fail(MockResponse.forbidden('No org assigned'));
+    }
+    final mine = branchesOf(p.userId).nonNulls.toSet();
+    final rows = db['users'].query(
+      filters: {'org_id': orgId},
+      where: (u) {
+        if (u['deleted_at'] != null) return false;
+        if (p.role != 'branch_manager') return true;
+        final id = u['id']! as String;
+        return id == p.userId || branchesOf(id).any(mine.contains);
+      },
+      sort: 'name',
+    );
     return MockResponse.ok(rows);
   });
 }

@@ -380,7 +380,8 @@ class StationPrinter extends StatelessWidget {
                 ],
               ],
             ),
-            maxLines: 1,
+            // Two lines on a phone card, where the address would be cut.
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: style,
           ),

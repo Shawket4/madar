@@ -10,6 +10,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -21,11 +22,6 @@ import 'fin_data.dart';
 import 'fin_export.dart';
 import 'fin_insights_tabs.dart';
 import 'fin_quadrant.dart';
-
-extension FinAsync<T> on AsyncValue<T> {
-  /// React Query's `isLoading`: nothing to show yet, nothing failed.
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}
 
 /// The page's own 288 px popovers (`w-72`).
 const double finPopoverWidth = 288;
@@ -74,6 +70,11 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
     }
   }
 
+  /// Where a flag's Fix goes.
+  static String _fixPath(MarginLedgerRow r, Signal s) => s.link == 'pricing'
+      ? '/menu/pricing'
+      : '/menu/items/${r.menuItemId}${s.link == 'studio_recipe' ? '?tab=recipe' : ''}';
+
   /// REP-FIN-030 Fix: record `acted` without waiting, then go fix it.
   void _fix(MarginLedgerRow r, Signal s, Scope scope) {
     final bus = ref.read(realtimeBusProvider);
@@ -81,10 +82,7 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
       _decision(r, s, 'acted', scope.branchId),
       scope.orgId!,
     ).then((_) => invalidateInsights(bus), onError: (Object _) {});
-    final to = s.link == 'pricing'
-        ? '/menu/pricing'
-        : '/menu/items/${r.menuItemId}${s.link == 'studio_recipe' ? '?tab=recipe' : ''}';
-    context.go(to);
+    context.go(_fixPath(r, s));
   }
 
   /// REP-FIN-031…033 Dismiss / Snooze: the server suppresses the flag.
@@ -120,7 +118,7 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
     final q = ref.watch(finLedgerProvider(key));
     final report = q.value;
     final totals = report?.totals;
-    final loading = q.firstLoad;
+    final loading = q.awaitingFirst;
     final gap = totals?.belowTargetGap ?? 0;
     final f = ref.watch(formatProvider);
 
@@ -188,6 +186,8 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
           key: const ValueKey('fin-basis'),
           value: _current,
           onChanged: (v) => setState(() => _current = v),
+          onIntent: (v) =>
+              ref.warm(finLedgerProvider(scope.finLedger(current: v))),
           options: [
             DashOption(
               value: false,
@@ -204,6 +204,19 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
         key: const ValueKey('fin-inner-tabs'),
         value: _tab,
         onChanged: (v) => setState(() => _tab = v),
+        onIntent: (v) {
+          if (v == 'repricing') {
+            ref.warm(finRepricingProvider(scope.scopeBranchId));
+          } else if (v == 'decisions') {
+            ref.warm(
+              finDecisionsProvider((
+                orgId: scope.orgId!,
+                branchId: scope.branchId,
+              )),
+            );
+            ref.warm(finUsersProvider(scope.orgId!));
+          }
+        },
         tabs: [
           DashTab(
             value: 'ledger',
@@ -277,9 +290,9 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
     final Widget body;
     if (_quadrant) {
       // REP-FIN-042: the WHOLE ledger, never the filtered rows.
-      if (q.firstLoad) {
+      if (q.awaitingFirst) {
         body = const DashSkeleton(height: finQuadrantHeight);
-      } else if (q.hasError) {
+      } else if (q.failedFirst) {
         body = DashErrorState(
           message: errorMessage(q.error, t),
           retrying: q.isLoading,
@@ -301,8 +314,8 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
         key: const ValueKey('fin-ledger'),
         rows: rows,
         rowKey: (r) => '${r.menuItemId}-${r.sizeLabel}',
-        loading: q.firstLoad,
-        errorMessage: q.hasError ? errorMessage(q.error, t) : null,
+        loading: q.awaitingFirst,
+        errorMessage: q.failedFirst ? errorMessage(q.error, t) : null,
         onRetry: retry,
         hideViewOptions: true,
         pageSize: 50,
@@ -503,6 +516,7 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
                       signal: s,
                       busy: _pending > 0,
                       onFix: () => _fix(r, s, scope),
+                      onFixIntent: () => ref.prefetchRoute(_fixPath(r, s)),
                       onDecide: (action) => _decide(r, s, action, scope),
                     ),
                 ],
@@ -547,9 +561,22 @@ class FinItemCell extends ConsumerWidget {
               'insights.class.tooltip',
               args: {'popularity': _jsNum(row.popularityPct ?? 0)},
             ),
-            builder: (context, s) => DashBadge(
-              t('insights.class.${row.class_}'),
-              tone: DashTone.neutral,
+            // Quiet chip; only Dog's words are muted (web CLASS_META).
+            builder: (context, s) => Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Space.sm,
+                vertical: DashMetrics.hair,
+              ),
+              decoration: BoxDecoration(
+                color: c.surfaceAlt,
+                borderRadius: BorderRadius.circular(Radii.pill),
+              ),
+              child: Text(
+                t('insights.class.${row.class_}'),
+                style: DashType.smallMedium.copyWith(
+                  color: row.class_ == 'dog' ? c.textSecondary : c.textPrimary,
+                ),
+              ),
             ),
           ),
         if (!row.onMenu) DashBadge(t('insights.profitability.offMenu')),
@@ -640,6 +667,7 @@ class FinFlagChip extends ConsumerWidget {
     required this.busy,
     required this.onFix,
     required this.onDecide,
+    this.onFixIntent,
     super.key,
   });
 
@@ -647,6 +675,9 @@ class FinFlagChip extends ConsumerWidget {
   final bool busy;
   final VoidCallback onFix;
   final Future<void> Function(String action) onDecide;
+
+  /// About to press Fix: warm the page it opens.
+  final VoidCallback? onFixIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -669,6 +700,7 @@ class FinFlagChip extends ConsumerWidget {
         signal: signal,
         busy: busy,
         onFix: onFix,
+        onFixIntent: onFixIntent,
         onDecide: (a) async {
           await onDecide(a);
           pc.close();
@@ -683,12 +715,14 @@ class _FlagCard extends ConsumerWidget {
     required this.signal,
     required this.busy,
     required this.onFix,
+    required this.onFixIntent,
     required this.onDecide,
   });
 
   final Signal signal;
   final bool busy;
   final VoidCallback onFix;
+  final VoidCallback? onFixIntent;
   final Future<void> Function(String action) onDecide;
 
   @override
@@ -716,6 +750,7 @@ class _FlagCard extends ConsumerWidget {
                 icon: 'wrench',
                 size: DashButtonSize.compact,
                 onPressed: busy ? null : onFix,
+                onIntent: onFixIntent,
               ),
               DashButton(
                 label: t('insights.actions.dismiss'),
@@ -766,6 +801,7 @@ class FinTargetEditor extends ConsumerWidget {
       anchor: (context, pc) => DashPressable(
         key: const ValueKey('fin-target-trigger'),
         onTap: pc.toggle,
+        onIntent: () => ref.warm(finTargetsProvider(orgId)),
         semanticLabel: text,
         excludeChildSemantics: true,
         pressScale: false,
@@ -821,13 +857,18 @@ class FinTargetForm extends ConsumerStatefulWidget {
 class _FinTargetFormState extends ConsumerState<FinTargetForm> {
   String _org = '';
   String _branch = '';
-  bool _seeded = false;
+
+  /// The targets the fields were last seeded from: a refetch re-seeds each
+  /// field the person has not typed in (target-editor.tsx:51-56).
+  MarginTargets? _seededFrom;
+  bool _orgEdited = false;
+  bool _branchEdited = false;
   bool _saving = false;
 
   void _seed(MarginTargets d) {
-    _seeded = true;
-    _org = d.orgDefaultPct == null ? '' : finPctString(d.orgDefaultPct!);
-    _branch = _initialBranch(d);
+    _seededFrom = d;
+    if (!_orgEdited) _org = _initialOrg(d);
+    if (!_branchEdited) _branch = _initialBranch(d);
   }
 
   String _initialBranch(MarginTargets? d) {
@@ -897,7 +938,7 @@ class _FinTargetFormState extends ConsumerState<FinTargetForm> {
     final c = context.madarColors;
     final q = ref.watch(finTargetsProvider(widget.orgId));
     final d = q.value;
-    if (d != null && !_seeded) _seed(d);
+    if (d != null && !identical(d, _seededFrom)) _seed(d);
     final builtin = finPctString(d?.builtinDefaultPct ?? 60);
     final valid = finPctValid(_org) && finPctValid(_branch);
     final canSave = valid && (_orgDirty(d) || _branchDirty(d)) && !_saving;
@@ -951,7 +992,7 @@ class _FinTargetFormState extends ConsumerState<FinTargetForm> {
               ),
             ],
           ),
-          if (q.firstLoad)
+          if (q.awaitingFirst)
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: Space.sm,
@@ -971,7 +1012,10 @@ class _FinTargetFormState extends ConsumerState<FinTargetForm> {
                   t('insights.target.orgDefault'),
                   _org,
                   builtin,
-                  (v) => setState(() => _org = v),
+                  (v) => setState(() {
+                    _org = v;
+                    _orgEdited = true;
+                  }),
                   const ValueKey('fin-target-org'),
                 ),
                 if (widget.branchId != null)
@@ -979,7 +1023,10 @@ class _FinTargetFormState extends ConsumerState<FinTargetForm> {
                     t('insights.target.branchOverride'),
                     _branch,
                     _org.isNotEmpty ? _org : builtin,
-                    (v) => setState(() => _branch = v),
+                    (v) => setState(() {
+                      _branch = v;
+                      _branchEdited = true;
+                    }),
                     const ValueKey('fin-target-branch'),
                   ),
               ],

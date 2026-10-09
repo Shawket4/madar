@@ -176,14 +176,20 @@ class _DealDialogState extends ConsumerState<DealDialog> {
       bus.invalidate(combosInvalidationPrefixes);
       _close();
     } on Object catch (e) {
-      // The deal was created but a branch call failed: the next Save updates
-      // it instead of creating a second one (the web creates another).
-      if (deal == null && saved != null && mounted) {
-        final created = saved;
-        setState(() {
-          _deal = created;
-          _seed = _fingerprint(created);
-        });
+      // The deal saved but a branch call failed: the list shows what the
+      // server now holds (the web refreshes nothing), and the dialog adopts
+      // the saved deal, so the next Save updates it instead of creating a
+      // second one (the web creates another) and the refetch of what this
+      // save wrote does not re-seed over what was typed.
+      if (saved != null) {
+        bus.invalidate(combosInvalidationPrefixes);
+        final adopted = saved;
+        if (mounted) {
+          setState(() {
+            _deal = adopted;
+            _seed = _fingerprint(adopted);
+          });
+        }
       }
       toast(DashToastKind.error, dealErrorText(e, t));
     } finally {
@@ -198,7 +204,7 @@ class _DealDialogState extends ConsumerState<DealDialog> {
     final menu = ref.watch(menuOptionsProvider);
     final id = _deal?.id;
     if (id != null) {
-      ref.listen(dealsProvider, (_, next) {
+      ref.listen(dealsViewProvider, (_, next) {
         final rows = next.value;
         if (rows == null || next.isLoading) return;
         final row = rows.firstWhereOrNull((d) => d.id == id);

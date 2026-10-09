@@ -455,4 +455,45 @@ void main() {
       expect(v.status, 403);
     });
   });
+
+  group('users (REP-FIN-050)', () {
+    Future<List<Object?>> names(MockServer server) async => [
+      for (final u in _list(
+        await _send(server, 'GET', '/users', query: const {}),
+      ))
+        u['name'],
+    ];
+
+    test('the stand-in lists the org\'s live people by name (admin\'s '
+        'filter); a manager sees himself and Zamalek\'s people', () async {
+      final s = finServer();
+      final gone = s.db['users'].rows.firstWhere(
+        (u) => u['org_id'] == SeedIds.sabahOrg && u['id'] != SeedIds.owner,
+      );
+      s.db['users'].put({...gone, 'deleted_at': '2026-10-01T00:00:00Z'});
+      final sabah = [
+        for (final u in s.db['users'].rows)
+          if (u['org_id'] == SeedIds.sabahOrg && u['id'] != gone['id'])
+            u['name'],
+      ]..sort((a, b) => '$a'.compareTo('$b'));
+      expect(await names(s.server), sabah);
+
+      final m = finServer(persona: Persona.manager);
+      final zamalek = [
+        for (final u in m.db['users'].rows)
+          if (u['branch_id'] == SeedIds.zamalek || u['id'] == SeedIds.manager)
+            u['name'],
+      ]..sort((a, b) => '$a'.compareTo('$b'));
+      expect(await names(m.server), zamalek);
+      expect(zamalek, contains('Karim Adel'));
+    });
+
+    test('an area that already serves GET /users keeps its handler', () async {
+      final db = MockDb.seeded();
+      final server = MockServer(persona: Persona.owner, clock: db.clock);
+      server.on('GET', '/users', (req) => MockResponse.ok(<Object?>[]));
+      registerFinancialMocks(server, db);
+      expect(await names(server), isEmpty);
+    });
+  });
 }

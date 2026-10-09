@@ -294,8 +294,9 @@ class FinChart extends StatelessWidget {
 }
 
 /// A chart card's body by state (REP-ALL-020): a 288 px skeleton while
-/// nothing is loaded, a frameless error with Retry (never drawn as
-/// empty), the page's empty words, or the chart.
+/// nothing is loaded, a frameless error with Retry and no server message
+/// (the web's `ChartError`; never drawn as empty), the page's empty words,
+/// or the chart.
 class FinChartBody extends StatelessWidget {
   const FinChartBody({
     required this.loading,
@@ -311,7 +312,7 @@ class FinChartBody extends StatelessWidget {
   });
 
   final bool loading;
-  final String? error;
+  final bool error;
   final bool retrying;
   final bool empty;
   final String emptyTitle;
@@ -325,14 +326,13 @@ class FinChartBody extends StatelessWidget {
     if (loading) {
       return const DashSkeleton(height: finChartHeight);
     }
-    if (error != null) {
+    if (error) {
       return SizedBox(
         height: finChartHeight,
         child: Center(
           child: DashErrorState(
             framed: false,
             title: errorTitle,
-            message: error,
             retrying: retrying,
             retryLabel: retryLabel,
             onRetry: onRetry,

@@ -234,6 +234,23 @@ class _PurchaseOrderDialogState extends ConsumerState<PurchaseOrderDialog> {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final org = ref.watch(orgIdProvider);
+    if (org != null) {
+      // The catalog landing (or refreshed) after the dialog opened: a line
+      // with no unit takes its stock unit, an untouched total its estimate.
+      ref.listen(inventoryCatalogProvider(org), (_, next) {
+        final list = next.value;
+        if (list == null || identical(list, _catalog)) return;
+        setState(() {
+          _catalog = list;
+          for (final l in _lines) {
+            if (l.purchaseUnit.isEmpty) {
+              l.purchaseUnit = _ingredient(l.ingredientId)?.unit ?? '';
+            }
+            _withEstimate(l);
+          }
+        });
+      });
+    }
     final suppliers = org == null
         ? const <Supplier>[]
         : ref.watch(inventorySuppliersProvider(org)).value ?? const [];

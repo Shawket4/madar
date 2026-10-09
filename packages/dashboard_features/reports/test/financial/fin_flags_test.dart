@@ -5,6 +5,8 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:dashboard_reports/src/financial/fin_data.dart'
+    show invalidateInsights;
 import 'package:dashboard_reports/src/financial/fin_profitability.dart';
 import 'package:dashboard_reports/src/mock/financial_mock.dart';
 import 'package:flutter/widgets.dart';
@@ -161,17 +163,23 @@ void main() {
       final s = finServer();
       final h = await pumpFin(t, server: s.server, db: s.db);
       final r = rowWith(h, 'below_target');
+      final sig = r.flags.firstWhere((f) => f.kind == 'below_target');
       final gate = s.server.hold('POST', decisionsRoute);
       await openFlag(h, r, 'below_target');
       await h.tap(find.widgetWithText(DashButton, 'Dismiss'));
       for (final b in ['Fix', 'Dismiss', 'Snooze']) {
         expect(button(t, b).onPressed, isNull, reason: b);
       }
-      expect(
-        (callsTo(h, decisionsRoute, method: 'POST').single.body!
-            as Map)['action'],
-        'dismissed',
-      );
+      final post = callsTo(h, decisionsRoute, method: 'POST').single;
+      expect(post.query['org_id'], [SeedIds.sabahOrg]);
+      expect(post.body, {
+        'action': 'dismissed',
+        'branch_id': null,
+        'detail': sig.params,
+        'menu_item_id': r.menuItemId,
+        'signal_kind': 'below_target',
+        'size_label': r.sizeLabel,
+      });
       final ledgers = callsTo(h, ledgerRoute).length;
       gate.release();
       await h.settle();
@@ -183,15 +191,21 @@ void main() {
     testWidgets('REP-FIN-032 Snooze records "snoozed" and silences the flag', (
       t,
     ) async {
-      final h = await pumpFin(t);
+      final h = await pumpFin(t, branchId: SeedIds.heliopolis);
       final r = rowWith(h, 'cost_spike');
+      final sig = r.flags.firstWhere((f) => f.kind == 'cost_spike');
       await openFlag(h, r, 'cost_spike');
       await h.tap(find.widgetWithText(DashButton, 'Snooze'));
-      expect(
-        (callsTo(h, decisionsRoute, method: 'POST').single.body!
-            as Map)['action'],
-        'snoozed',
-      );
+      final post = callsTo(h, decisionsRoute, method: 'POST').single;
+      expect(post.query['org_id'], [SeedIds.sabahOrg]);
+      expect(post.body, {
+        'action': 'snoozed',
+        'branch_id': SeedIds.heliopolis,
+        'detail': sig.params,
+        'menu_item_id': r.menuItemId,
+        'signal_kind': 'cost_spike',
+        'size_label': r.sizeLabel,
+      });
       expect(chipOf(r, 'cost_spike'), findsNothing);
     });
 
@@ -294,6 +308,54 @@ void main() {
       expect(button(t, 'Save').onPressed, isNull, reason: 'nothing changed');
     });
 
+    testWidgets('REP-FIN-037 (divergence) a refetch re-seeds every field not '
+        'typed in (Save stays off); a typed field keeps its words', (t) async {
+      final s = finServer();
+      final h = await pumpFin(
+        t,
+        server: s.server,
+        db: s.db,
+        branchId: SeedIds.zamalek,
+      );
+      await h.tap(trigger);
+      final org = find.byKey(const ValueKey('fin-target-org'));
+      final branch = find.byKey(const ValueKey('fin-target-branch'));
+      String shown(Finder f) => t.widget<DashTextInput>(f).value;
+      expect(shown(org), '68');
+      Future<void> orgTargetBecomes(num pct) async {
+        s.db[finTargetsTable].put({
+          'id': 'org:${SeedIds.sabahOrg}',
+          'org_id': SeedIds.sabahOrg,
+          'branch_id': null,
+          'target_pct': pct,
+        });
+        invalidateInsights(h.container.read(realtimeBusProvider));
+        await h.settle();
+      }
+
+      await orgTargetBecomes(71);
+      expect((shown(org), shown(branch)), ('71', '72'));
+      expect(
+        find.descendant(of: org, matching: find.text('71')),
+        findsOneWidget,
+        reason: 'the field\'s own text, not only its value',
+      );
+      expect(button(t, 'Save').onPressed, isNull, reason: 'nothing changed');
+
+      await h.enterText(branch, '80');
+      await orgTargetBecomes(73);
+      expect((shown(org), shown(branch)), ('73', '80'));
+      await h.tap(find.widgetWithText(DashButton, 'Save'));
+      expect(
+        [for (final p in callsTo(h, targetsRoute, method: 'PUT')) p.body],
+        [
+          {'branch_id': SeedIds.zamalek, 'target_pct': 80.0},
+        ],
+        reason: 'the untouched org field never sends a stale value',
+      );
+      await h.flushTimers();
+    });
+
     testWidgets('REP-FIN-039 with All branches only the org field shows', (
       t,
     ) async {
@@ -333,6 +395,13 @@ void main() {
       final ledgers = callsTo(h, ledgerRoute).length;
       await h.tap(find.widgetWithText(DashButton, 'Save'));
       final puts = callsTo(h, targetsRoute, method: 'PUT');
+      expect(
+        [for (final p in puts) p.query['org_id']],
+        [
+          [SeedIds.sabahOrg],
+          [SeedIds.sabahOrg],
+        ],
+      );
       expect(
         [for (final p in puts) p.body],
         [

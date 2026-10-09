@@ -242,6 +242,12 @@ class _PurchasingPageState extends ConsumerState<PurchasingPage> {
         ],
         value: view,
         onChanged: (v) => setState(() => _view = v),
+        // Orders and Suppliers are read already; Reorder only once opened.
+        onIntent: (v) {
+          if (v == PurchasingView.reorder && branchId != null) {
+            ref.warm(reorderSuggestionsProvider(branchId));
+          }
+        },
       ),
       body: switch (view) {
         PurchasingView.orders => PurchaseOrdersTab(

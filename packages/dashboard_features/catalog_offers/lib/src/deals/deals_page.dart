@@ -263,14 +263,16 @@ class _DealsPageState extends ConsumerState<DealsPage> {
     final canEdit = ref.watch(
       authzProvider.select((a) => a.can(Cap.menuDealsEdit)),
     );
-    final q = ref.watch(dealsProvider);
+    final q = ref.watch(dealsViewProvider);
     final menu = ref.watch(menuOptionsProvider);
 
     final deals = sortedDeals(q.value ?? const []);
-    // A failed read stays an error (with Retry) while its retry runs; a
-    // failed refetch replaces the rows it had (OFFR-ALL-012).
-    final loading = q.isLoading && !q.hasValue && !q.hasError;
-    final error = q.hasError ? q.error : null;
+    // The skeleton until the first answer (its automatic retry included);
+    // the error once the retries are spent, staying while Retry runs. A
+    // failed refetch replaces the rows it had too (OFFR-ALL-012), so the
+    // error is `failedFirst` widened to a read that had rows.
+    final loading = q.awaitingFirst;
+    final error = q.hasError && !q.retrying ? q.error : null;
 
     // Any change of the rows puts the table back on page 1.
     final seen = jsonEncode([for (final d in deals) d.toJson()]);

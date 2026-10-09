@@ -7,6 +7,7 @@ import 'package:dashboard_api/dashboard_api.dart' show ApiException, DealRule;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/menu_options.dart' show compareNames;
 import '../shared/offers_cache.dart';
 import 'deal_form.dart';
 
@@ -19,12 +20,19 @@ final dealsProvider = FutureProvider.autoDispose<List<DealRule>>((ref) {
   return ref.watch(apiProvider).menu.listDeals();
 });
 
-/// The list as the page shows it: by `sort`, then by name A→Z.
+/// [dealsProvider] as the page watches it and the open dialog listens to it.
+/// The dialog listens here, never to [dealsProvider] itself: a new listener
+/// there counts as a page mount (`ref.webCache()`) and would refetch a list
+/// older than 30 s, where the web's dialog adds no observer.
+final dealsViewProvider = Provider.autoDispose<AsyncValue<List<DealRule>>>(
+  (ref) => ref.watch(dealsProvider),
+);
+
+/// The list as the page shows it: by `sort`, then by name A→Z
+/// (`localeCompare`, as [compareNames] folds it).
 List<DealRule> sortedDeals(Iterable<DealRule> deals) => deals.sorted((a, b) {
   final s = a.sort.compareTo(b.sort);
-  if (s != 0) return s;
-  final n = compareAsciiLowerCase(a.name, b.name);
-  return n != 0 ? n : a.name.compareTo(b.name);
+  return s != 0 ? s : compareNames(a.name, b.name);
 });
 
 /// A failed deal write in words. A `DEAL_INVALID {field}` refusal names the

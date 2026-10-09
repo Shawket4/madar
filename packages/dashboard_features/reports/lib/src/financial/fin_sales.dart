@@ -2,7 +2,7 @@
 /// `RevenueTab` / `ChannelTab`, REP-FIN-054…064, 073).
 library;
 
-import 'package:dashboard_api/dashboard_api.dart' hide Column;
+import 'package:dashboard_api/dashboard_api.dart' hide Column, Transform;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -12,7 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/report_shared.dart';
 import 'fin_charts.dart';
 import 'fin_data.dart';
-import 'fin_profitability.dart' show FinAsync;
 
 /// The Revenue tab's granularities, in the control's order.
 const List<String> finGranularities = [
@@ -50,8 +49,18 @@ typedef FinPeak = ({
   int discount,
 });
 
-/// The web's lg (1024) breakpoint for the lower pair.
-const double _lg = 1024;
+/// Intent: warms the Revenue tab's read for [gran] (what the tab watches).
+void finWarmRevenue(WidgetRef ref, String gran) {
+  final s = ref.read(currentScopeProvider);
+  switch (gran) {
+    case 'peak_hours':
+      ref.warm(finPeakHoursProvider(s.finSales));
+    case 'peak_days':
+      ref.warm(finPeakDaysProvider(s.finSales));
+    default:
+      ref.warm(finSeriesProvider(s.finSeries(gran)));
+  }
+}
 
 class FinRevenueTab extends ConsumerWidget {
   const FinRevenueTab({required this.gran, required this.onGran, super.key});
@@ -177,8 +186,8 @@ class FinRevenueTab extends ConsumerWidget {
           key: key,
           title: titleText,
           child: FinChartBody(
-            loading: q.firstLoad,
-            error: q.hasError ? errorMessage(q.error, t) : null,
+            loading: q.awaitingFirst,
+            error: q.failedFirst,
             retrying: q.isLoading,
             empty: labels.isEmpty,
             emptyTitle: t('analytics.noData'),
@@ -272,6 +281,7 @@ class FinRevenueTab extends ConsumerWidget {
               key: const ValueKey('fin-granularity'),
               value: gran,
               onChanged: onGran,
+              onIntent: (g) => finWarmRevenue(ref, g),
               options: [
                 for (final g in finGranularities)
                   DashOption(value: g, label: t('analytics.granularity.$g')),
@@ -280,22 +290,25 @@ class FinRevenueTab extends ConsumerWidget {
           ),
         ),
         revenueCard,
-        LayoutBuilder(
-          builder: (context, box) => box.maxWidth >= _lg - Space.xxl * 4
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: Space.lg,
-                  children: [
-                    Expanded(child: ordersCard),
-                    Expanded(child: discountsCard),
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: Space.lg,
-                  children: [ordersCard, discountsCard],
-                ),
-        ),
+        // `lg:grid-cols-2` is a viewport query, staggered in (0.06 s).
+        if (MediaQuery.sizeOf(context).width >= DashBreakpoints.lg)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: Space.lg,
+            children: [
+              Expanded(child: FinReveal(child: ordersCard)),
+              Expanded(child: FinReveal(order: 1, child: discountsCard)),
+            ],
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.lg,
+            children: [
+              FinReveal(child: ordersCard),
+              FinReveal(order: 1, child: discountsCard),
+            ],
+          ),
       ],
     );
   }
@@ -324,7 +337,7 @@ class FinChannelTab extends ConsumerWidget {
     final q = ref.watch(finChannelsProvider(key));
     final rows = q.value ?? const <ChannelBreakdownRow>[];
     void retry() => ref.invalidate(finChannelsProvider(key));
-    final error = q.hasError ? errorMessage(q.error, t) : null;
+    final error = q.failedFirst ? errorMessage(q.error, t) : null;
     final empty = DashEmptyState(framed: false, title: t('analytics.noData'));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -334,8 +347,8 @@ class FinChannelTab extends ConsumerWidget {
           key: const ValueKey('fin-channel-chart-card'),
           title: t('analytics.revenueByChannel'),
           child: FinChartBody(
-            loading: q.firstLoad,
-            error: error,
+            loading: q.awaitingFirst,
+            error: q.failedFirst,
             retrying: q.isLoading,
             empty: rows.isEmpty,
             emptyTitle: t('analytics.noData'),
@@ -364,7 +377,7 @@ class FinChannelTab extends ConsumerWidget {
             pageSize: 50,
             rows: rows,
             rowKey: (r) => r.channel,
-            loading: q.firstLoad,
+            loading: q.awaitingFirst,
             errorMessage: error,
             onRetry: retry,
             empty: empty,
@@ -407,4 +420,68 @@ class FinChannelTab extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// The web's `fadeInUp` inside `staggerContainer(0.06)`: fades [child] up
+/// 6 px over 160 ms, [order] × 60 ms after it mounts; nothing moves under
+/// reduced motion (kit candidate: overview's `HomeReveal` is the same).
+class FinReveal extends StatefulWidget {
+  const FinReveal({required this.child, this.order = 0, super.key});
+
+  final Widget child;
+  final int order;
+
+  @override
+  State<FinReveal> createState() => _FinRevealState();
+}
+
+class _FinRevealState extends State<FinReveal>
+    with SingleTickerProviderStateMixin {
+  static const double _rise = Space.xs + DashMetrics.hair;
+
+  late final Duration _delay = Duration(milliseconds: 60 * widget.order);
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: DashMotion.fast + _delay,
+  );
+  late final Animation<double> _shown = CurvedAnimation(
+    parent: _c,
+    curve: Interval(
+      _delay.inMicroseconds / _c.duration!.inMicroseconds,
+      1,
+      curve: const Cubic(0.22, 1, 0.36, 1),
+    ),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (DashMotion.reduced(context)) {
+      _c.value = 1;
+    } else {
+      _c.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _shown,
+    child: AnimatedBuilder(
+      animation: _shown,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, _rise * (1 - _shown.value)),
+        child: child,
+      ),
+      child: widget.child,
+    ),
+  );
 }

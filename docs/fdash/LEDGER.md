@@ -240,3 +240,6 @@ INTENT HOOKS LANDED (foundation A): DashIntent (90 ms dwell, focus, touch-down);
 VERIFIED reports/staff_pool_bundles: NOT at parity (BLOCKER route caps left on → shell gate words + blank while loading; 2 minor) → builder ad8a7e67dc30ab01a fixing + intent wiring
 ECONNRESET wave: 8 resumed old agents dropped (financial, employees, deals, items, purchasing, studio, staff_pool_bundles fixers + basira verifier). LESSON: resuming agents with huge transcripts is fragile → findings now go to docs/fdash/pending/<area>-<unit>.md and FRESH fixer agents read them.
 FRESH FIXERS: financial aaa6b33c3b4172592, employees a427b50e730b3e595, deals a9a01d5aab2eb6667, items af1e6935db10371a6, purchasing a23bad1a6d522a21e, studio a9d53b99568a9b883, staff_pool_bundles a26edd5c6c5acb389; basira verifier relaunched a76460dc8e40e7d6f
+DONE inventory/purchasing (fixed; 162 tests; purchasing+today 289 pass). For Today: "Arriving → Receive" should warm purchaseOrderProvider(po.id) on intent (Today's files; intent sweep).
+DONE reports/financial (fixed; 199 tests; per-field re-seed). Touched shared reports inventory_scope.dart (optional intent param). KIT: FinReveal = HomeReveal → kit.
+API OUTAGE 2026-10-09 evening: every running agent died (ECONNRESET / no response / 408). Relaunching at ~10 concurrent.

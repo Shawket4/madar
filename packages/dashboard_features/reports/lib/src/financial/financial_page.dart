@@ -173,6 +173,7 @@ class _FinancialReportPageState extends ConsumerState<FinancialReportPage> {
         key: const ValueKey('fin-tabs'),
         value: tab,
         onChanged: (v) => setState(() => _picked = v),
+        onIntent: _warmTab,
         tabs: [
           for (final def in financialTabs)
             if (visible.contains(def.id))
@@ -186,11 +187,27 @@ class _FinancialReportPageState extends ConsumerState<FinancialReportPage> {
                 key: const ValueKey('fin-inv-scope'),
                 value: _inv,
                 onChanged: (v) => setState(() => _inv = v),
+                onIntent: (v) => finWarmInventory(ref, tab, v),
               ),
             )
           : null,
       body: KeyedSubtree(key: ValueKey('fin-tab-$tab'), child: body),
     );
+  }
+
+  /// Intent: warms what opening [tab] reads, with the page's state.
+  void _warmTab(String tab) {
+    final s = ref.read(currentScopeProvider);
+    switch (tab) {
+      case 'profitability':
+        if (s.orgId != null) ref.warm(finLedgerProvider(s.finLedger()));
+      case 'revenue':
+        finWarmRevenue(ref, _gran);
+      case 'channel':
+        ref.warm(finChannelsProvider(s.finSales));
+      default:
+        finWarmInventory(ref, tab, _inv);
+    }
   }
 
   Future<List<ExcelSheet<Object?>>> _channelSheets() => finChannelSheets(

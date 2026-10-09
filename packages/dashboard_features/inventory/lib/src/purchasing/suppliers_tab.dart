@@ -125,7 +125,7 @@ class SuppliersTab extends ConsumerWidget {
       ],
       rows: async.value ?? const [],
       rowKey: (s) => s.id,
-      loading: async.firstLoad,
+      loading: async.awaitingFirst,
       errorMessage: async.errorText(t),
       onRetry: () => ref.invalidate(inventorySuppliersProvider(orgId)),
       searchPlaceholder: t('common.search'),

@@ -869,19 +869,32 @@ void main() {
     });
 
     testWidgets('OFFR-DEA-046 (divergence) the deal saved but a branch call '
-        'failed: the next Save updates it, never creating a second', (
+        'failed: the list shows it, the dialog becomes "Edit deal" and the '
+        'next Save updates it, never creating a second', (
       tester,
     ) async {
       final s = dealsServer();
       final refusal = MockResponse.denied('menu.deals.edit');
       s.server.fail('PUT', branchRoute, refusal);
       final h = await pumpDeals(tester, path: _new, server: s.server, db: s.db);
+      final lists = callsTo(h, 'GET', listRoute).length;
       await fillNew(h);
       await choose(h, 'Maadi', 'Off here');
       await tapInDialog(h, 'Create deal');
       await h.expectToast(h.refusalWords(refusal));
       expect(dialog, findsOneWidget);
       expect(callsTo(h, 'POST', listRoute), hasLength(1));
+      expect(callsTo(h, 'GET', listRoute).length, lists + 1);
+      expect(inTable(find.text('Any 2 bites for 90')), findsOneWidget);
+      expect(inDialog(find.text('Edit deal')), findsOneWidget);
+      // What was typed stays (the refetch is what this save wrote).
+      expect(
+        find.descendant(
+          of: labelledSelect('Maadi'),
+          matching: find.text('Off here'),
+        ),
+        findsOneWidget,
+      );
       // The second press: a PUT of the deal just created, then the branch.
       await tapInDialog(h, 'Save');
       expect(callsTo(h, 'POST', listRoute), hasLength(1));
@@ -1010,7 +1023,8 @@ void main() {
     });
 
     testWidgets('OFFR-DEA-049 PUTs then DELETEs, one at a time; the first '
-        'failure stops the rest, keeps the dialog, refreshes nothing', (
+        'failure stops the rest and keeps the dialog; the saved deal is '
+        'refetched (divergence)', (
       tester,
     ) async {
       final s = dealsServer();
@@ -1032,7 +1046,15 @@ void main() {
       expect(callsTo(h, 'DELETE', branchRoute), isEmpty);
       await h.expectToast(h.refusalWords(boom));
       expect(dialog, findsOneWidget);
-      expect(callsTo(h, 'GET', listRoute).length, lists);
+      expect(callsTo(h, 'GET', listRoute).length, lists + 1);
+      expect(
+        find.descendant(
+          of: labelledSelect('Heliopolis'),
+          matching: find.text('Off here'),
+        ),
+        findsOneWidget,
+        reason: 'what was typed stays',
+      );
     });
   });
 

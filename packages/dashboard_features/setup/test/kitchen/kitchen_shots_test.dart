@@ -41,7 +41,7 @@ Future<void> _shootPage(DashHarness h, Finder page, String name) async {
   }
 }
 
-Finder _stations() => inStations(find.byType(DashDataTable).first).first;
+Finder _stations() => inStations(byKey('kitchen-stations-table'));
 
 Future<void> _perItem(DashHarness h) => h.tap(
   find.descendant(

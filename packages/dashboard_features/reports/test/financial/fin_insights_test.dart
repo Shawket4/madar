@@ -67,15 +67,22 @@ void main() {
     testWidgets('REP-FIN-046 a failure: "Couldn\'t load repricing '
         'suggestions" and Retry', (t) async {
       final s = finServer();
-      s.server.fail('GET', repricingRoute, MockResponse.error(500, 'boom'));
+      // Twice: the tab press's warm-up fails too (dropped, read again).
+      s.server.fail(
+        'GET',
+        repricingRoute,
+        MockResponse.error(500, 'boom'),
+        times: 2,
+      );
       final h = await pumpFin(t, server: s.server, db: s.db);
       await openInner(h, 'Repricing');
       expect(
         inRepricing(find.text("Couldn't load repricing suggestions")),
         findsOneWidget,
       );
+      final reads = callsTo(h, repricingRoute).length;
       await h.tap(inRepricing(find.text('Retry')));
-      expect(callsTo(h, repricingRoute), hasLength(2));
+      expect(callsTo(h, repricingRoute), hasLength(reads + 1));
       expect(inRepricing(find.text('Adjust prices')), findsOneWidget);
       await h.shot('financial/repricing-failed');
     });
@@ -320,12 +327,13 @@ void main() {
       expect(inDecisions(find.text('No decisions yet')), findsNothing);
       gate.release();
       await h.settle();
+      // A failure with nothing to show yet: a branch's log never read.
       s.server.fail(
         'GET',
         decisionsRoute,
         MockResponse.error(500, 'Log down.'),
       );
-      h.container.invalidate(finDecisionsProvider);
+      await h.container.read(scopeProvider.notifier).setBranch(SeedIds.zamalek);
       await h.settle();
       expect(
         inDecisions(
@@ -334,7 +342,11 @@ void main() {
         findsOneWidget,
       );
       await h.tap(inDecisions(find.text('Retry')));
-      expect(inDecisions(find.text('Measuring…')), findsWidgets);
+      expect(inDecisions(find.text('Retry')), findsNothing);
+      expect(inDecisions(find.text('No decisions yet')), findsNothing);
+      expect(callsTo(h, decisionsRoute).last.query['branch_id'], [
+        SeedIds.zamalek,
+      ]);
     });
 
     testWidgets('REP-FIN-053 empty: "No decisions yet" and how to start', (

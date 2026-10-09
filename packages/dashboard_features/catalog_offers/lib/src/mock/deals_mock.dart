@@ -22,6 +22,7 @@ library;
 import 'package:dashboard_api/mock.dart';
 
 import '../area_seed.dart';
+import '../shared/menu_options.dart' show compareNames;
 
 /// Every route this file answers, for the tests' coverage check.
 const List<(String, String)> dealsMockRoutes = [
@@ -158,7 +159,7 @@ String _org(MockRequest req) =>
 int _byListOrder(MockRow a, MockRow b) {
   final s = ((a['sort'] as num?) ?? 0).compareTo((b['sort'] as num?) ?? 0);
   if (s != 0) return s;
-  final n = (a['name']! as String).compareTo(b['name']! as String);
+  final n = compareNames(a['name']! as String, b['name']! as String);
   if (n != 0) return n;
   return (a['id']! as String).compareTo(b['id']! as String);
 }

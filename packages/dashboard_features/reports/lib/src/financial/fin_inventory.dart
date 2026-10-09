@@ -14,7 +14,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/report_shared.dart';
 import 'fin_data.dart';
-import 'fin_profitability.dart' show FinAsync;
 
 /// The valuation read for [inv] (null when it cannot run).
 AsyncValue<InventoryValuationReport>? finValuationOf(
@@ -62,6 +61,27 @@ AsyncValue<List<MaterialCostTrendRow>>? finTrendOf(
   );
 }
 
+/// Intent: warms what [tab] reads for [inv] (as the `fin*Of` reads above).
+void finWarmInventory(WidgetRef ref, String tab, InventoryScope inv) {
+  final s = ref.read(currentScopeProvider);
+  final branch = inv == InventoryScope.branch;
+  final id = branch ? s.branchId : s.orgId;
+  final org = s.orgId;
+  if (tab == 'valuation' && org != null) ref.warm(finCatalogProvider(org));
+  if (id == null) return;
+  final k = (id: id, from: s.from, to: s.to);
+  switch (tab) {
+    case 'valuation':
+      ref.warm(
+        branch ? finBranchValuationProvider(id) : finOrgValuationProvider(id),
+      );
+    case 'supplierSpend':
+      ref.warm(branch ? finBranchSpendProvider(k) : finOrgSpendProvider(k));
+    default:
+      ref.warm(branch ? finBranchTrendProvider(k) : finOrgTrendProvider(k));
+  }
+}
+
 /// REP-FIN-066/067 stock value now, and by catalog category.
 class FinValuationTab extends ConsumerWidget {
   const FinValuationTab({required this.inv, super.key});
@@ -77,7 +97,7 @@ class FinValuationTab extends ConsumerWidget {
     final q = finValuationOf(ref, scope, inv);
     final org = scope.orgId;
     final catalog = org == null ? null : ref.watch(finCatalogProvider(org));
-    if (q != null && q.hasError) {
+    if (q != null && q.failedFirst) {
       return DashErrorState(
         title: t('inventory.reports.valuationFailed'),
         retrying: q.isLoading,
@@ -88,7 +108,7 @@ class FinValuationTab extends ConsumerWidget {
       );
     }
     final data = q?.value;
-    final loading = q?.firstLoad ?? false;
+    final loading = q?.awaitingFirst ?? false;
     final unknown = data?.unknownCostCount ?? 0;
     final rows = finByCategory(
       data,
@@ -98,7 +118,7 @@ class FinValuationTab extends ConsumerWidget {
     final max = rows.fold<int>(0, (m, r) => r.$2 > m ? r.$2 : m);
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.lg;
     final Widget list;
-    if (loading || (catalog?.firstLoad ?? false)) {
+    if (loading || (catalog?.awaitingFirst ?? false)) {
       list = DashCard(
         key: const ValueKey('fin-by-category-loading'),
         child: Column(
@@ -222,8 +242,8 @@ class FinSpendTab extends ConsumerWidget {
     return InventoryReportTable(
       key: const ValueKey('fin-spend'),
       emptyTitle: t('inventory.reports.noDataPeriod'),
-      loading: q?.firstLoad ?? false,
-      error: q != null && q.hasError ? q.error : null,
+      loading: q?.awaitingFirst ?? false,
+      error: q != null && q.failedFirst ? q.error : null,
       onRetry: () => _retry(ref, scope, inv, spend: true),
       head: [
         ReportHead(t('inventory.reports.supplier')),
@@ -283,8 +303,10 @@ class FinTrendTab extends ConsumerWidget {
       key: const ValueKey('fin-trend'),
       rows: q?.value ?? const [],
       rowKey: (r) => r.orgIngredientId,
-      loading: q?.firstLoad ?? false,
-      errorMessage: q != null && q.hasError ? errorMessage(q.error, t) : null,
+      loading: q?.awaitingFirst ?? false,
+      errorMessage: q != null && q.failedFirst
+          ? errorMessage(q.error, t)
+          : null,
       onRetry: () => _retry(ref, scope, inv, spend: false),
       pageSize: 25,
       hideViewOptions: true,

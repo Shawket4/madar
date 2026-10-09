@@ -251,7 +251,9 @@ void main() {
     });
 
     testWidgets('OFFR-CED-003/ALL-005 the pick lists are kept like web '
-        'queries: fresh within 30 s, asked again after', (tester) async {
+        'queries: fresh for their own 5 minutes, asked again after', (
+      tester,
+    ) async {
       final h = await pumpEditor(tester, path: comboPath('coffee-cookie'));
       int items() => h.server.callsTo('/menu-items', method: 'GET').length;
       // The list in between asks for its own categories: count only what
@@ -260,11 +262,12 @@ void main() {
       expect((items(), cats()), (1, 1));
       await h.go('/menu/combos');
       var before = cats();
+      h.db!.clock.advance(const Duration(seconds: 31));
       await h.go(comboPath('kids-cocoa'));
       await debounce(h);
       expect((items(), cats()), (1, before));
       await h.go('/menu/combos');
-      h.db!.clock.advance(const Duration(seconds: 31));
+      h.db!.clock.advance(const Duration(minutes: 5));
       before = cats();
       await h.go(comboPath('coffee-cookie'));
       await debounce(h);

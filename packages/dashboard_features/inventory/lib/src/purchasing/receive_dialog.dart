@@ -58,6 +58,10 @@ class _ReceiveDialogState extends ConsumerState<ReceiveDialog> {
   _Tab _tab = _Tab.receive;
   bool _busy = false;
 
+  /// Delivery history was asked for afresh by its tab's intent and has not
+  /// been opened since.
+  bool _historyAsked = false;
+
   /// The order as last initialised from (React Query's structural sharing:
   /// a refetch with the same answer does not reset what was typed).
   String? _initFrom;
@@ -137,10 +141,21 @@ class _ReceiveDialogState extends ConsumerState<ReceiveDialog> {
     }
   }
 
+  /// The history is asked for afresh every time its tab opens: on intent,
+  /// so the press shows that answer, else on the press.
+  void _tabIntent(_Tab tab) {
+    if (tab != _Tab.history || _tab == _Tab.history || _historyAsked) return;
+    _historyAsked = true;
+    ref.invalidate(poReceiptsProvider(widget.purchaseOrderId));
+    ref.warm(poReceiptsProvider(widget.purchaseOrderId));
+  }
+
   void _openTab(_Tab tab) {
-    // The history is asked for every time its tab opens.
     if (tab == _Tab.history && _tab != _Tab.history) {
-      ref.invalidate(poReceiptsProvider(widget.purchaseOrderId));
+      if (!_historyAsked) {
+        ref.invalidate(poReceiptsProvider(widget.purchaseOrderId));
+      }
+      _historyAsked = false;
     }
     setState(() => _tab = tab);
   }
@@ -181,6 +196,7 @@ class _ReceiveDialogState extends ConsumerState<ReceiveDialog> {
               ],
               value: _tab,
               onChanged: _openTab,
+              onIntent: _tabIntent,
             ),
           ),
           if (_tab == _Tab.receive)
@@ -244,10 +260,11 @@ class _ReceiveLines extends ConsumerWidget {
     final phone = DashBreakpoints.isPhone(context);
     final po = async.value;
 
-    if (po == null && async.hasError && !async.isLoading) {
+    if (async.failedFirst) {
       return DashErrorState(
         message: errorMessage(async.error, t),
         onRetry: onRetry,
+        retrying: async.isLoading,
       );
     }
 
@@ -543,7 +560,7 @@ class _History extends ConsumerWidget {
     final c = context.madarColors;
     final phone = DashBreakpoints.isPhone(context);
     final async = ref.watch(poReceiptsProvider(purchaseOrderId));
-    if (async.firstLoad) {
+    if (async.awaitingFirst) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.md,
@@ -583,6 +600,7 @@ class _History extends ConsumerWidget {
       return DashErrorState(
         message: failed,
         onRetry: () => ref.invalidate(poReceiptsProvider(purchaseOrderId)),
+        retrying: async.isLoading,
       );
     }
     final receipts = async.value ?? const <GoodsReceipt>[];

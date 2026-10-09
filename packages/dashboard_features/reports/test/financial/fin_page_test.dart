@@ -260,6 +260,63 @@ void main() {
     expect(dy('fin-orders-card'), lessThan(dy('fin-discounts-card')));
   });
 
+  testWidgets('REP-FIN-073 the 1024 tablet is the web\'s lg viewport: the '
+      'pair sits side by side', (tester) async {
+    final h = await pumpFin(tester, size: DashSize.tablet);
+    await openTab(h, h.t('reports.financial.tabs.revenue'));
+    double dy(String k) => tester.getTopLeft(find.byKey(ValueKey(k))).dy;
+    expect(dy('fin-orders-card'), dy('fin-discounts-card'));
+  });
+
+  double shownOf(WidgetTester tester, String k) => tester
+      .widget<FadeTransition>(
+        find
+            .ancestor(
+              of: find.byKey(ValueKey(k)),
+              matching: find.byType(FadeTransition),
+            )
+            .first,
+      )
+      .opacity
+      .value;
+
+  /// Opens Revenue with one frame, no settling.
+  Future<void> openRevenueRaw(WidgetTester tester, DashHarness h) async {
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('fin-tabs')),
+        matching: find.text(h.t('reports.financial.tabs.revenue')),
+      ),
+    );
+    await tester.pump();
+  }
+
+  testWidgets('REP-FIN-073 the pair fades up in turn, 60 ms apart', (
+    tester,
+  ) async {
+    double shown(String k) => shownOf(tester, k);
+    final h = await pumpFin(tester, reducedMotion: false);
+    await openRevenueRaw(tester, h);
+    expect(shown('fin-orders-card'), lessThan(1));
+    await tester.pump(const Duration(milliseconds: 60));
+    final orders = shown('fin-orders-card');
+    final discounts = shown('fin-discounts-card');
+    expect(orders, greaterThan(0));
+    expect(discounts, lessThan(orders), reason: 'the second starts 60 ms on');
+    await h.settle();
+    expect(shown('fin-orders-card'), 1);
+    expect(shown('fin-discounts-card'), 1);
+  });
+
+  testWidgets('REP-FIN-073 under reduced motion the pair is simply there', (
+    tester,
+  ) async {
+    final h = await pumpFin(tester);
+    await openRevenueRaw(tester, h);
+    expect(shownOf(tester, 'fin-orders-card'), 1);
+    expect(shownOf(tester, 'fin-discounts-card'), 1);
+  });
+
   testWidgets('REP-FIN-074 Valuation ignores the period; Decisions ignore '
       'it too; Repricing asks with no params at all', (tester) async {
     final h = await pumpFin(tester);

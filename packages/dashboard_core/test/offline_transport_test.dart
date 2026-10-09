@@ -290,15 +290,14 @@ void main() {
         // ...until a later wide one.
         server.offline = false;
         host.clock = host.clock.add(const Duration(hours: 1));
+        final laterWideAt = host.clock;
         await t.send(_get(path, query: wide));
         await pumpEventQueue();
-        for (final k in store.keysWithPrefix('')) {
-          // ignore: avoid_print
-          print('DBG $k ${store.savedAt(k)}');
-        }
+        // Past 30 s, so the narrow one is not a fresh hit on the wide one.
+        host.clock = host.clock.add(const Duration(minutes: 1));
         server.offline = true;
         await t.send(_get(path, query: narrow));
-        expect(host.shown.last, host.clock);
+        expect(host.shown.last, laterWideAt);
       });
     });
   });

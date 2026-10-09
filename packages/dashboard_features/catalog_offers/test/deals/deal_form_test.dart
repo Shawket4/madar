@@ -256,6 +256,9 @@ void main() {
       _rule(sort: 0, name: 'alpha'),
     ]);
     expect([for (final r in rows) r.name], ['alpha', 'Zed', 'A', 'b']);
+    // `localeCompare` folds the alef forms: آيس sorts after اسبريسو.
+    final ar = sortedDeals([_rule(name: 'آيس لاتيه'), _rule(name: 'اسبريسو')]);
+    expect([for (final r in ar) r.name], ['اسبريسو', 'آيس لاتيه']);
   });
 
   test('wholeNumber reads a whole number the web\'s way', () {

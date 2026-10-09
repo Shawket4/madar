@@ -160,3 +160,12 @@ List<MockRow> sabahSuppliers(MockDb db) => db[InvTables.suppliers].query(
   filters: {'org_id': SeedIds.sabahOrg},
   sort: 'name',
 );
+
+/// Presses [retry] and draws ONE frame (the read is held by the caller):
+/// what shows while the retry is out.
+Future<void> retryHeld(DashHarness h, Finder retry) async {
+  await h.tester.ensureVisible(retry.first);
+  await h.tester.pump();
+  await h.tester.tap(retry.first);
+  await h.tester.pump();
+}

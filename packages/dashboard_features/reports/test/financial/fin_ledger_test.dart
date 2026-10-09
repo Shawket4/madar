@@ -319,6 +319,29 @@ void main() {
     expect(inLedger(find.text('one_size')), findsNothing);
   });
 
+  testWidgets('REP-FIN-017 the class chips are quiet pills; only Dog\'s '
+      'words are muted', (tester) async {
+    final h = await pumpFin(tester);
+    final c = tester.element(ledgerTable).madarColors;
+    for (final (klass, label, color) in [
+      ('star', 'Star', c.textPrimary),
+      ('dog', 'Dog', c.textSecondary),
+    ]) {
+      await pickClass(h, label);
+      final r = shownRows().first;
+      expect(r.class_, klass);
+      final chip = find.byKey(ValueKey('class-${r.menuItemId}-${r.sizeLabel}'));
+      final text = tester.widget<Text>(
+        find.descendant(of: chip, matching: find.text(label)),
+      );
+      expect(text.style!.color, color, reason: klass);
+      final pill = tester.widget<Container>(
+        find.descendant(of: chip, matching: find.byType(Container)).first,
+      );
+      expect((pill.decoration! as BoxDecoration).color, c.surfaceAlt);
+    }
+  });
+
   testWidgets('REP-FIN-018 the class chip is focusable and explains itself', (
     tester,
   ) async {

@@ -5,6 +5,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
@@ -108,7 +109,7 @@ class FinRepricingTab extends ConsumerWidget {
         ),
       ),
     ];
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.md,
@@ -131,7 +132,7 @@ class FinRepricingTab extends ConsumerWidget {
       );
     }
     final data = q.value;
-    if (q.hasError || data == null) {
+    if (q.failedFirst || data == null) {
       return DashErrorState(
         title: t('insights.repricing.error'),
         retrying: q.isLoading,
@@ -167,6 +168,7 @@ class FinRepricingTab extends ConsumerWidget {
               size: DashButtonSize.compact,
               variant: DashButtonVariant.outline,
               onPressed: () => context.go('/menu/pricing'),
+              onIntent: () => ref.prefetchRoute('/menu/pricing'),
             ),
           ],
         ),
@@ -227,8 +229,8 @@ class FinDecisionsTab extends ConsumerWidget {
       key: const ValueKey('fin-decisions'),
       rows: q.value ?? const [],
       rowKey: (r) => r.d.id,
-      loading: q.firstLoad,
-      errorMessage: q.hasError ? errorMessage(q.error, t) : null,
+      loading: q.awaitingFirst,
+      errorMessage: q.failedFirst ? errorMessage(q.error, t) : null,
       onRetry: () => ref.invalidate(finDecisionsProvider(key)),
       hideViewOptions: true,
       empty: DashEmptyState(

@@ -4,7 +4,6 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/financial/fin_data.dart';
-import 'package:dashboard_reports/src/financial/fin_inventory.dart';
 import 'package:dashboard_reports/src/mock/financial_mock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -131,12 +130,19 @@ void main() {
     testWidgets('REP-FIN-067 a failure replaces the KPIs and the list: '
         '"Couldn\'t load stock valuation" and Retry', (t) async {
       final s = finServer();
-      s.server.fail('GET', orgValuationRoute, MockResponse.error(500, 'boom'));
+      // Twice: the tab press's warm-up fails too (dropped, read again).
+      s.server.fail(
+        'GET',
+        orgValuationRoute,
+        MockResponse.error(500, 'boom'),
+        times: 2,
+      );
       final h = await openInv(t, _valuation, s: s);
       expect(pageText("Couldn't load stock valuation"), findsOneWidget);
       expect(find.byType(DashStatCard), findsNothing);
+      final reads = callsTo(h, orgValuationRoute).length;
       await h.tap(inPage(find.text('Retry')));
-      expect(callsTo(h, orgValuationRoute), hasLength(2));
+      expect(callsTo(h, orgValuationRoute), hasLength(reads + 1));
       expect(find.byKey(const ValueKey('fin-by-category')), findsOneWidget);
       await h.shot('financial/valuation-failed');
     });
@@ -191,9 +197,12 @@ void main() {
       expect(pageText(h.t('inventory.reports.noDataPeriod')), findsNothing);
       gate.release();
       await h.settle();
+      // A failure with nothing to show yet: a period never read.
       final boom = MockResponse.error(500, 'Purchasing is down.');
       s.server.fail('GET', orgSpendRoute, boom);
-      h.container.invalidate(finOrgSpendProvider);
+      await h.container
+          .read(scopeProvider.notifier)
+          .setPreset(ScopePreset.last7Days);
       await h.settle();
       expect(pageText(h.refusalWords(boom)), findsOneWidget);
       s.server.on('GET', orgSpendRoute, (req) => MockResponse.ok(<Object?>[]));
@@ -267,11 +276,16 @@ void main() {
       await h.settle();
       final boom = MockResponse.error(500, 'Trend unavailable.');
       s.server.fail('GET', orgTrendRoute, boom);
-      h.container.invalidate(finOrgTrendProvider);
+      await h.container
+          .read(scopeProvider.notifier)
+          .setPreset(ScopePreset.last7Days);
       await h.settle();
       expect(pageText(h.refusalWords(boom)), findsOneWidget);
+      final reads = callsTo(h, orgTrendRoute).length;
       await h.tap(inPage(find.text('Retry')));
-      expect(inPage(find.byType(FinWrapBadge)), findsWidgets);
+      expect(callsTo(h, orgTrendRoute), hasLength(reads + 1));
+      expect(pageText(h.refusalWords(boom)), findsNothing);
+      expect(inPage(find.text('Retry')), findsNothing);
     });
   });
 

@@ -6,6 +6,7 @@ import 'package:dashboard_catalog_offers/src/area_seed.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show DashSidebar;
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -702,6 +703,112 @@ void main() {
       await h.settle();
       expect(lists(h), hasLength(2));
       expect(callsTo(h, 'GET', '/menu-items').length, items + 1);
+    });
+
+    testWidgets('OFFR-ALL-006 a branch renamed elsewhere '
+        '(branch.settings_changed): the open dialog\'s branch row and "When" '
+        'read the new name', (tester) async {
+      final s = dealsServer();
+      s.db.table(OffersTables.deals).find(dealId('weekend-breakfast'))!['windows'] =
+          [
+            {
+              'id': mockUuid('w'),
+              'branch_id': SeedIds.zamalek,
+              'weekdays': 127,
+              'starts_at': null,
+              'ends_at': null,
+              'valid_from': '2026-10-01',
+              'valid_to': null,
+            },
+          ];
+      final h = await pumpDeals(
+        tester,
+        path: '$dealsPath?edit=${dealId('weekend-breakfast')}',
+        server: s.server,
+        db: s.db,
+        branch: SeedIds.maadi,
+      );
+      const when = 'Every day · 2026-10-01 to … · ';
+      Finder whenText(String branch) =>
+          inRow('Weekend breakfast pair for 330', find.text('$when$branch'));
+      expect(labelledSelect('Zamalek'), findsOneWidget);
+      expect(whenText('Zamalek'), findsOneWidget);
+      s.db['branches'].find(SeedIds.zamalek)!['name'] = 'Zamalek Riverside';
+      h.realtime.current!.emit('branch.settings_changed', data: '{}');
+      await h.settle();
+      expect(labelledSelect('Zamalek Riverside'), findsOneWidget);
+      expect(inDialog(find.text('Zamalek Riverside')), findsWidgets);
+      expect(inDialog(find.text('Zamalek')), findsNothing);
+      expect(whenText('Zamalek Riverside'), findsOneWidget);
+      expect(lists(h), hasLength(1), reason: 'the deals are not asked again');
+    });
+
+    testWidgets('OFFR-ALL-005 the pick lists stay fresh 5 minutes, the deals '
+        '30 s: back after a minute only the deals are asked again', (
+      tester,
+    ) async {
+      final h = await pumpDeals(tester);
+      (int, int, int) asked() => (
+        lists(h).length,
+        callsTo(h, 'GET', '/menu-items').length,
+        callsTo(h, 'GET', '/categories').length,
+      );
+      expect(asked(), (1, 1, 1));
+      await h.go('/elsewhere');
+      h.db!.clock.advance(const Duration(minutes: 1));
+      await h.go(dealsPath);
+      expect(asked(), (2, 1, 1));
+      await h.go('/elsewhere');
+      h.db!.clock.advance(const Duration(minutes: 4));
+      await h.go(dealsPath);
+      expect(asked(), (3, 2, 2));
+    });
+
+    testWidgets('intent: pointing at a row, its pencil, New deal or the pager '
+        'and pressing it asks nothing more (the dialog reads what the page '
+        'already holds; paging is in the client)', (tester) async {
+      final s = dealsServer();
+      addPromoDeals(s.db, 7);
+      final h = await pumpDeals(tester, server: s.server, db: s.db);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      int asked() => h.server.calls.where((c) => c.method == 'GET').length;
+      final before = asked();
+      // Older than the deals' 30 s: a press that added a reader would refetch.
+      h.db!.clock.advance(const Duration(seconds: 31));
+
+      Future<void> pointAndPress(Finder f) async {
+        await tester.ensureVisible(f);
+        await h.settle();
+        await mouse.moveTo(tester.getCenter(f));
+        await h.settle();
+        await h.tap(f);
+      }
+
+      Future<void> close() async {
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await h.settle();
+        expect(dialog, findsNothing);
+      }
+
+      await pointAndPress(rowOf('Juice trio for 270'));
+      expect(inDialog(find.text('Edit deal')), findsOneWidget);
+      expect(asked(), before, reason: 'a row');
+      await close();
+      await pointAndPress(
+        inRow('Any 2 pastries for 150', find.bySemanticsLabel('Edit')),
+      );
+      expect(dialog, findsOneWidget);
+      expect(asked(), before, reason: 'the pencil');
+      await close();
+      await pointAndPress(inPage(find.text('New deal')).first);
+      expect(inDialog(find.text('New deal')), findsOneWidget);
+      expect(asked(), before, reason: 'New deal');
+      await close();
+      await pointAndPress(inPage(find.bySemanticsLabel('Next')));
+      expect(inPage(find.text('Page 2 of 2')), findsOneWidget);
+      expect(asked(), before, reason: 'the pager');
     });
 
     testWidgets('OFFR-DEA-023 (divergence) the open deal leaves the list: '

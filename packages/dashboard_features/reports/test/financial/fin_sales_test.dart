@@ -260,26 +260,30 @@ void main() {
       await h.shot('financial/revenue-loaded');
     });
 
-    testWidgets('REP-FIN-063 one error for the three; Retry reads the active '
-        'query again', (t) async {
+    testWidgets('REP-FIN-063 one error for the three, the web\'s '
+        'ChartError: "Couldn\'t load this", no server words; Retry reads '
+        'the active query again', (t) async {
       final s = finServer();
       final boom = MockResponse.error(500, 'Sales are unavailable.');
-      s.server.fail('GET', peakDaysRoute, boom);
+      // Twice: the press's warm-up fails, is dropped, and the tab reads again.
+      s.server.fail('GET', peakDaysRoute, boom, times: 2);
       final h = await openRevenue(t, s: s, gran: 'peak_days');
       for (final k in [
         'fin-revenue-card',
         'fin-orders-card',
         'fin-discounts-card',
       ]) {
+        expect(inCard(k, find.text("Couldn't load this")), findsOneWidget);
         expect(
           inCard(k, find.text(h.refusalWords(boom))),
-          findsOneWidget,
+          findsNothing,
           reason: k,
         );
       }
       final series = callsTo(h, seriesRoute).length;
+      final peaks = callsTo(h, peakDaysRoute).length;
       await h.tap(inCard('fin-orders-card', find.text('Retry')));
-      expect(callsTo(h, peakDaysRoute), hasLength(2));
+      expect(callsTo(h, peakDaysRoute), hasLength(peaks + 1));
       expect(callsTo(h, seriesRoute), hasLength(series));
       expect(find.byType(FinChart), findsNWidgets(3));
     });
@@ -378,7 +382,8 @@ void main() {
       );
     });
 
-    testWidgets('REP-FIN-064 loading, error with Retry, empty', (t) async {
+    testWidgets('REP-FIN-064 loading, error with Retry (the table with the '
+        'server\'s words, the chart without), empty', (t) async {
       final s = finServer();
       final gate = s.server.hold('GET', channelRoute);
       final h = await openChannel(t, s: s);
@@ -389,11 +394,22 @@ void main() {
       expect(pageText('No data for this period'), findsNothing);
       gate.release();
       await h.settle();
+      // A failure with nothing to show yet: a period never read.
       final boom = MockResponse.error(500, 'Channels are down.');
       s.server.fail('GET', channelRoute, boom);
-      h.container.invalidate(finChannelsProvider);
+      await h.container
+          .read(scopeProvider.notifier)
+          .setPreset(ScopePreset.last7Days);
       await h.settle();
-      expect(pageText(h.refusalWords(boom)), findsNWidgets(2));
+      expect(
+        inCard('fin-channel-chart-card', find.text("Couldn't load this")),
+        findsOneWidget,
+      );
+      expect(
+        inCard('fin-channel-table-card', find.text(h.refusalWords(boom))),
+        findsOneWidget,
+      );
+      expect(pageText(h.refusalWords(boom)), findsOneWidget);
       await h.tap(inCard('fin-channel-chart-card', find.text('Retry')));
       expect(find.byType(FinChart), findsOneWidget);
       s.server.on('GET', channelRoute, (req) => MockResponse.ok(<Object?>[]));
