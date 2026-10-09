@@ -24,6 +24,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/menu_options.dart';
 import '../shared/offers_cache.dart';
 import '../shared/offers_format.dart';
 import '../shared/offers_page_gate.dart';
@@ -139,7 +140,7 @@ class _CombosListState extends ConsumerState<_CombosList> {
     final list = orgId == null ? null : ref.watch(combosListProvider(key));
     final cats = orgId == null
         ? const <Category>[]
-        : ref.watch(comboCategoriesProvider(orgId)).value ?? const [];
+        : ref.watch(offersCategoriesProvider).value ?? const [];
     final names = {
       for (final c in cats)
         c.id: translatedName(c.name, c.nameTranslations, lang),
@@ -150,21 +151,24 @@ class _CombosListState extends ConsumerState<_CombosList> {
     // A skeleton only while there is nothing to show; a failure (kept while
     // its Retry runs) replaces the rows it had (OFFR-ALL-012).
     final error = list?.error;
-    final loading =
-        list != null && list.isLoading && !list.hasValue && error == null;
-
-    // A delete that empties the last page steps back to the new last page.
-    if (page != null &&
+    // A delete that empties the last page steps back to the new last page
+    // (OFFR-CMB-036); meanwhile it reads as loading, never as empty.
+    final steppingBack =
+        page != null &&
         !list!.isLoading &&
         error == null &&
         page.data.isEmpty &&
         page.total > 0 &&
-        _page > 0) {
+        _page > 0;
+    if (steppingBack) {
       final last = math.max(0, page.totalPages - 1);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _page > last) setState(() => _page = last);
       });
     }
+    final loading =
+        steppingBack ||
+        (list != null && list.isLoading && !list.hasValue && error == null);
 
     Widget newCombo() => DashButton(
       label: t('combos.new'),
@@ -228,7 +232,7 @@ class _CombosListState extends ConsumerState<_CombosList> {
         rowActionsWidth: DashMetrics.target * 2 + Space.lg,
         pageSize: combosPerPage,
         pageIndex: _page,
-        pageCount: page?.totalPages ?? 0,
+        pageCount: steppingBack ? 0 : page?.totalPages ?? 0,
         onPageChanged: (p) => setState(() => _page = p),
         empty: DashEmptyState(
           icon: 'utensils-crossed',
@@ -253,7 +257,7 @@ class _CombosListState extends ConsumerState<_CombosList> {
       phone: DashPhoneRole.title,
       hideable: false,
       flex: 5,
-      minWidth: 240,
+      minWidth: 300,
     ),
     DashColumn<ComboSummary>(
       id: 'category',
@@ -431,6 +435,38 @@ class ComboNameCell extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final ar = arabicOf(combo.nameTranslations);
+    // The English name stays left to right: its "…" follows the text in
+    // Arabic too.
+    final name = MadarClippedText(
+      combo.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textDirection: TextDirection.ltr,
+      style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+    );
+    final badge = combo.isFixed ? DashBadge(t('combos.fixed')) : null;
+    // A phone card lets "Fixed" drop under a long name (the web's
+    // `flex-wrap`); a table row keeps one line. The gap is padding, not
+    // `spacing`, so IntrinsicWidth measures it.
+    final line = DashBreakpoints.isPhone(context)
+        ? Wrap(
+            runSpacing: DashMetrics.hair,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              name,
+              if (badge != null)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(
+                    start: Space.xs + DashMetrics.hair,
+                  ),
+                  child: badge,
+                ),
+            ],
+          )
+        : Row(
+            spacing: Space.xs + DashMetrics.hair,
+            children: [Flexible(child: name), ?badge],
+          );
     return Row(
       spacing: Space.md,
       children: [
@@ -441,22 +477,7 @@ class ComboNameCell extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  spacing: Space.xs + DashMetrics.hair,
-                  children: [
-                    Flexible(
-                      child: MadarClippedText(
-                        combo.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: DashType.bodyStrong.copyWith(
-                          color: c.textPrimary,
-                        ),
-                      ),
-                    ),
-                    if (combo.isFixed) DashBadge(t('combos.fixed')),
-                  ],
-                ),
+                line,
                 if (ar != null)
                   MadarClippedText(
                     ar,

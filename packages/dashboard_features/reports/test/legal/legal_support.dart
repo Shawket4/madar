@@ -190,3 +190,8 @@ Future<void> auditMenu(DashHarness h, String item) async {
   await h.tap(auditExport);
   await h.tap(find.text(item).last);
 }
+
+/// A muted detail line as shown: each part in its own first-strong isolate
+/// (U+2068…U+2069), joined by " · ".
+String detailLine(List<String> parts) =>
+    parts.map((p) => '\u2068$p\u2069').join(' · ');

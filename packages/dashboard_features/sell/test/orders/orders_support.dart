@@ -112,3 +112,14 @@ List<Map<String, Object?>> todaysOrders(MockDb db, String branchId) {
           (b['created_at']! as String).compareTo(a['created_at']! as String),
     );
 }
+
+/// Units sold on [orderId] (combo headers left out): what Items Sold counts.
+int soldUnits(MockDb db, String orderId) {
+  final own = db['order_details'].find(orderId)?['items'];
+  final lines = own is List
+      ? [for (final l in own) l as Map<String, Object?>]
+      : [for (final l in MockSeed.instance.orderItems(orderId)) l.toJson()];
+  return lines
+      .where((l) => l['line_kind'] != 'combo')
+      .fold<int>(0, (n, l) => n + (l['quantity']! as num).toInt());
+}

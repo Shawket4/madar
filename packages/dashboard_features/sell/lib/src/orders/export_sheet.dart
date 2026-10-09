@@ -20,25 +20,26 @@ const double ordersExportWidth = 512;
 Future<void> showOrdersExport(
   BuildContext context, {
   required OrdersExportFilters filters,
-  required int totalApprox,
+  required OrdersKey listKey,
 }) => showDashSidePanel<void>(
   context,
   width: ordersExportWidth,
   builder: (_) =>
-      OrdersExportSheet(filters: filters, totalApprox: totalApprox),
+      OrdersExportSheet(filters: filters, listKey: listKey),
 );
 
 class OrdersExportSheet extends ConsumerStatefulWidget {
   const OrdersExportSheet({
     required this.filters,
-    required this.totalApprox,
+    required this.listKey,
     super.key,
   });
 
   final OrdersExportFilters filters;
 
-  /// The list's total: the estimate ignores the preset (SELL-ORD-089).
-  final int totalApprox;
+  /// The list's read: its total is the estimate, live (it ignores the
+  /// preset, SELL-ORD-089).
+  final OrdersKey listKey;
 
   @override
   ConsumerState<OrdersExportSheet> createState() => _OrdersExportSheetState();
@@ -366,28 +367,72 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
         ),
         body: body,
         actions: [
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: Text(
-              t('ordersExport.rowEstimate', args: {'count': widget.totalApprox}),
-              style: DashType.small.copyWith(color: c.textSecondary),
+          _Footer(
+            estimate: t(
+              'ordersExport.rowEstimate',
+              args: {
+                'count':
+                    ref.watch(ordersListProvider(widget.listKey)).value?.total ??
+                    0,
+              },
             ),
-          ),
-          DashButton(
-            label: t('common.cancel'),
-            variant: DashButtonVariant.outline,
-            onPressed: _busy ? null : () => Navigator.of(context).maybePop(),
-          ),
-          DashButton(
-            key: const ValueKey('export-run'),
-            label: t('ordersExport.exportButton'),
-            loading: _busy,
-            onPressed: _grains.isEmpty || branchId == null
-                ? null
-                : () => _export(branchName, defaultName),
+            cancel: DashButton(
+              label: t('common.cancel'),
+              variant: DashButtonVariant.outline,
+              onPressed: _busy ? null : () => Navigator.of(context).maybePop(),
+            ),
+            run: DashButton(
+              key: const ValueKey('export-run'),
+              label: t('ordersExport.exportButton'),
+              loading: _busy,
+              onPressed: _grains.isEmpty || branchId == null
+                  ? null
+                  : () => _export(branchName, defaultName),
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The estimate and the two buttons (`order-export-dialog.tsx:280-289`):
+/// below `sm` the estimate on its own line above Cancel and Export side by
+/// side; from `sm` the estimate at the start, the buttons at the end.
+class _Footer extends StatelessWidget {
+  const _Footer({
+    required this.estimate,
+    required this.cancel,
+    required this.run,
+  });
+
+  final String estimate;
+  final Widget cancel;
+  final Widget run;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Text(
+      estimate,
+      style: DashType.small.copyWith(color: context.madarColors.textSecondary),
+    );
+    if (MediaQuery.sizeOf(context).width < DashBreakpoints.sm) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        spacing: Space.md,
+        children: [
+          text,
+          Row(
+            spacing: Space.sm,
+            children: [Expanded(child: cancel), Expanded(child: run)],
+          ),
+        ],
+      );
+    }
+    return Row(
+      spacing: Space.sm,
+      children: [Expanded(child: text), cancel, run],
     );
   }
 }

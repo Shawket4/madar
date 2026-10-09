@@ -214,10 +214,10 @@ void main() {
       h.allowUnmatched = true; // the editor is its own unit
       expect(callsTo(h, combosApi), hasLength(1));
       await h.tap(rowOf('Coffee & Cookie'));
-      final cats = callsTo(h, categoriesApi).length;
       await h.go(combosPath);
       expect(callsTo(h, combosApi), hasLength(1), reason: 'fresh');
-      expect(callsTo(h, categoriesApi), hasLength(cats), reason: 'fresh');
+      // One categories entry for the list and the editor, as on the web.
+      expect(callsTo(h, categoriesApi), hasLength(1), reason: 'shared');
       expect(shownNames(tester), _all);
 
       await h.tap(rowOf('Coffee & Cookie'));
@@ -277,7 +277,27 @@ void main() {
       expect(shownNames(tester), _all);
     });
 
-    testWidgets('OFFR-ALL-007 a combo delete invalidates every combos, '
+    testWidgets('OFFR-ALL-015 the combos list is paged by the server: a '
+        'refetch keeps its page', (tester) async {
+      final s = combosServer();
+      addCombos(s.db, 30);
+      final h = await pumpCombos(
+        tester,
+        seeded: s,
+        path: '$combosPath?branchId=${SeedIds.zamalek}',
+      );
+      await h.tap(inPage(find.bySemanticsLabel('Next')));
+      expect(pageText('Page 2 of 2'), findsOneWidget);
+      final asked = callsTo(h, combosApi).length;
+      h.realtime.current!.emit('resync', data: '{}');
+      await h.settle();
+      expect(callsTo(h, combosApi).length, greaterThan(asked));
+      expect(callsTo(h, combosApi).last.query['page'], ['2']);
+      expect(pageText('Page 2 of 2'), findsOneWidget);
+      expect(shownNames(tester), hasLength(11));
+    });
+
+        testWidgets('OFFR-ALL-007 a combo delete invalidates every combos, '
         'deals, combo settings, Bundles, menu-items and costing read', (
       tester,
     ) async {

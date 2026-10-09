@@ -150,6 +150,12 @@ void main() {
     final till = h0TillId();
     final h = await pumpOrders(tester, query: '?till=$till');
     expect(h.server.callsTo(listRoute).last.query['till_id'], [till]);
+    // The export reads the same till (no chip or label says so).
+    await h.tap(find.byKey(const ValueKey('orders-export')));
+    await h.tap(find.byKey(const ValueKey('export-run')));
+    expect(h.server.callsTo(exportRoute).single.query['till_id'], [till]);
+    await h.flushTimers();
+    await h.go('/orders');
     await h.go('/orders?shift_id=$till');
     expect(h.server.callsTo(listRoute).last.query['till_id'], [till]);
   });
@@ -172,9 +178,15 @@ void main() {
     expect(excludedCall.query['exclude_items'], [MockSeed.menuItemId('latte')]);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await h.settle();
-    // A status filter goes back to page 1.
+    // A status filter goes back to page 1 …
     await _pickFilter(h, 'orders-status', 'Completed');
     expect(h.server.callsTo(listRoute).last.query['page'], ['1']);
+    // … and changing it back does not bring page 2 back.
+    await _pickFilter(h, 'orders-status', 'All statuses');
+    expect(find.text(h.t('common.page', args: {'current': 1, 'total': pages})), findsOneWidget);
+    expect(find.text(h.t('common.page', args: {'current': 2, 'total': pages})), findsNothing);
+    final first = todaysOrders(h.db!, SeedIds.heliopolis).first;
+    expect(inTable(find.text(_ref(first))), findsOneWidget);
   });
 
   testWidgets('SELL-ORD-012 the KPI strip reads the list summary', (tester) async {
@@ -190,6 +202,30 @@ void main() {
     expect(inPage(find.text(fmt.fmtMoney(revenue))), findsWidgets);
     expect(inPage(find.text(fmt.fmtMoney(discounts))), findsWidgets);
     expect(inPage(find.text(fmt.fmtNumber(sold.length))), findsWidgets);
+    // Items Sold: every unit sold, combo headers left out.
+    final items = sold.fold<int>(0, (n, o) => n + soldUnits(h.db!, o['id']! as String));
+    final itemsTile = find.byKey(const ValueKey('line_items'));
+    expect(find.descendant(of: itemsTile, matching: find.text(fmt.fmtNumber(items))), findsOneWidget);
+    // Voided: one today, so the tile turns red.
+    final voided = rows.length - sold.length;
+    expect(voided, greaterThan(0));
+    final voidedTile = find.byKey(const ValueKey('voided'));
+    expect(find.descendant(of: voidedTile, matching: find.text(fmt.fmtNumber(voided))), findsOneWidget);
+    expect(tester.widget<DashStatCard>(voidedTile).tone, DashTone.danger);
+  });
+
+  testWidgets('SELL-ORD-012 no voided order: the Voided tile stays neutral', (
+    tester,
+  ) async {
+    final s = ordersServer();
+    s.db['orders'].removeWhere(
+      (o) => o['branch_id'] == SeedIds.newCairo && o['status'] == 'voided',
+    );
+    await pumpOrders(tester, branchId: SeedIds.newCairo, server: s.server, db: s.db);
+    expect(
+      tester.widget<DashStatCard>(find.byKey(const ValueKey('voided'))).tone,
+      DashTone.neutral,
+    );
   });
 
   testWidgets('SELL-ORD-013/014/015 the exclude control: lazy menu, search, '
@@ -280,6 +316,32 @@ void main() {
     final mallRevenue = delivered.fold<int>(0, (s, r) => s + (r['total']! as int));
     expect(find.descendant(of: mall, matching: find.text(fmt.fmtMoney(mallRevenue))), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Revenue share')), findsWidgets);
+    // The totals: revenue, delivered orders, average ticket, fees.
+    final all = h.db!['delivery_orders'].where(
+      (r) =>
+          r['branch_id'] == SeedIds.heliopolis &&
+          r['status'] == 'delivered' &&
+          !DateTime.parse(r['created_at']! as String).isBefore(DateTime.parse(scope.from)),
+    );
+    final revenue = all.fold<int>(0, (s, r) => s + (r['total']! as int));
+    final fees = all.fold<int>(0, (s, r) => s + (r['delivery_fee']! as int));
+    Finder tile(String key) => find.descendant(
+      of: find.byKey(const ValueKey('orders-delivery')),
+      matching: find.byKey(ValueKey(key)),
+    );
+    expect(find.descendant(of: tile('rev'), matching: find.text(fmt.fmtMoney(revenue))), findsOneWidget);
+    expect(find.descendant(of: tile('orders'), matching: find.text(fmt.fmtNumber(all.length))), findsOneWidget);
+    expect(
+      find.descendant(of: tile('avg'), matching: find.text(fmt.fmtMoney(revenue ~/ all.length))),
+      findsOneWidget,
+    );
+    expect(find.descendant(of: tile('fees'), matching: find.text(fmt.fmtMoney(fees))), findsOneWidget);
+    // Each card's own fees.
+    final mallFees = delivered.fold<int>(0, (s, r) => s + (r['delivery_fee']! as int));
+    expect(
+      find.descendant(of: mall, matching: find.textContaining(fmt.fmtMoney(mallFees), findRichText: true)),
+      findsOneWidget,
+    );
   });
 
   testWidgets('SELL-ORD-016 no delivered order: no delivery block', (tester) async {
@@ -505,11 +567,27 @@ void main() {
     expect(find.byType(OrderSheet), findsOneWidget);
   });
 
-  testWidgets('SELL-ORD-081/SELL-ALL-014 Export Excel opens the sheet; disabled '
-      'with nothing in scope', (tester) async {
+  testWidgets('SELL-ORD-081/SELL-ALL-014 Export Excel opens the sheet with the '
+      'page\'s filters', (tester) async {
     final h = await pumpOrders(tester);
+    await h.enterText(find.byKey(const ValueKey('orders-teller')), 'Far');
+    await tester.pump(const Duration(milliseconds: 400));
+    await h.settle();
+    await _pickFilter(h, 'orders-payment', 'Card');
+    final button = find.byKey(const ValueKey('orders-export'));
+    expect(tester.widget<DashExportButton>(button).enabled, isTrue);
     await h.tap(inPage(find.text('Export Excel')));
     expect(find.text('Export Orders'), findsOneWidget);
+    // Custom forces nothing: the snapshot and the call carry the page's.
+    await h.tap(find.byKey(const ValueKey('preset-custom')));
+    expect(find.descendant(of: find.byKey(const ValueKey('export-snapshot')), matching: find.text('Card')), findsOneWidget);
+    await h.tap(find.byKey(const ValueKey('export-run')));
+    final call = h.server.callsTo(exportRoute).single;
+    expect(call.query['teller_name'], ['Far']);
+    expect(call.query['payment_method'], ['card']);
+    expect(call.query['branch_id'], [SeedIds.heliopolis]);
+    await h.flushTimers();
+    expect(h.files.saved, hasLength(1));
   });
 
   testWidgets('SELL-ORD-086/SELL-ALL-006 till.* refetches the delivery block, '

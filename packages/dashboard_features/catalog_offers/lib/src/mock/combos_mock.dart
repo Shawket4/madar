@@ -9,6 +9,7 @@ library;
 
 import 'package:dashboard_api/mock.dart';
 
+import '../shared/menu_options.dart' show compareNames;
 import 'offers_rules.dart';
 
 final RegExp _uuid = RegExp(
@@ -54,6 +55,11 @@ void registerCombosMocks(MockServer server, MockDb db) {
             (isActive == null || (r['is_active'] ?? true) == isActive))
           r,
     ];
+    // `ORDER BY name, id` in the database's collation, not code-unit order.
+    rows.sort((a, b) {
+      final c = compareNames(a['name']! as String, b['name']! as String);
+      return c != 0 ? c : (a['id']! as String).compareTo(b['id']! as String);
+    });
     final page = pageOf(rows, req);
     return MockResponse.ok({
       ...page,

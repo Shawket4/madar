@@ -234,8 +234,12 @@ void main() {
       inCard(
         'Discounted sales',
         find.text(
-          '$branch · ${f.fmtDateTime('${newest['created_at']}')} · by $by · '
-          'approved by ${userName(s.db, 'nour')}',
+          detailLine([
+            '$branch',
+            f.fmtDateTime('${newest['created_at']}'),
+            'by $by',
+            'approved by ${userName(s.db, 'nour')}',
+          ]),
         ),
       ),
       findsOneWidget,
@@ -260,6 +264,28 @@ void main() {
       findsNWidgets(199),
     );
     expect(inCard('Discounted sales', find.text('10%')), findsNWidgets(199));
+    await h.shot('legal/discounts');
+  });
+
+  testWidgets('REP-LEG-024 (divergence) Arabic: each part of a detail line '
+      'in its own isolate, so a Latin branch name cannot split the date', (
+    tester,
+  ) async {
+    final h = await pumpLegal(tester, locale: 'ar');
+    await _open(h, LegalTab.discounts);
+    final entries = find.byType(DiscountEntriesCard);
+    final e = tester.widget<DiscountEntriesCard>(entries).entries.first;
+    expect(e.branchName, matches(RegExp('^[A-Za-z ]+\$')));
+    final f = fmtOf(h);
+    final line = detailLine([
+      e.branchName,
+      f.fmtDateTime(e.createdAt.toIso8601String()),
+      h.t('discounts.appliedBy', args: {'name': e.appliedByName}),
+    ]);
+    expect(
+      find.descendant(of: entries, matching: find.text(line)),
+      findsOneWidget,
+    );
     await h.shot('legal/discounts');
   });
 

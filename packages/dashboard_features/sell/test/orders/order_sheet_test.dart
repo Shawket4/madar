@@ -402,10 +402,10 @@ void main() {
       for (final e in inItems(find.byType(RichText)).evaluate())
         (e.widget as RichText).text.toPlainText(),
     ];
-    expect(addons, contains('+ Oat milk (${fmt.fmtMoney(2500)})'));
+    expect(addons, contains('+ Oat milk (${nbsp(fmt.fmtMoney(2500))})'));
     expect(
       addons,
-      contains('+ Extra shot (${fmt.fmtMoney(3000)}) given free ${fmt.fmtMoney(-3000)}'),
+      contains('+ Extra shot (${nbsp(fmt.fmtMoney(3000))}) given free ${nbsp(fmt.fmtMoney(-3000))}'),
     );
     expect(inItems(find.text('Less sugar')), findsOneWidget);
     expect(inItems(find.text('For Ali, end of shift')), findsOneWidget);

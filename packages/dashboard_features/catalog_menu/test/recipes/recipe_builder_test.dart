@@ -407,6 +407,14 @@ void main() {
       );
       await h.enterText(factor, '1,33a3');
       expect(qtyText(tester, factor), '1.333');
+      // The factor sits by its ×; a quantity by its unit.
+      TextAlign align(Finder f) => tester
+          .widget<EditableText>(
+            find.descendant(of: f, matching: find.byType(EditableText)),
+          )
+          .textAlign;
+      expect(align(factor), TextAlign.left);
+      expect(align(qtyBox(h, _blend, 'Large')), TextAlign.right);
       await h.tap(_inBuilder(find.text('Apply scaling')));
       expect(qtyText(tester, qtyBox(h, _blend, 'Large')), '23.994');
       expect(qtyText(tester, qtyBox(h, _milk, 'Large')), '239.94');
@@ -711,6 +719,28 @@ void main() {
       );
       expect(row?['category_slug'], 'general');
       expect(row?['cost_per_unit'], isNull);
+    });
+
+    testWidgets('MENU-RCP-022 closed (Esc) while saving: the ingredient '
+        'still joins the first size and "Changes saved" still shows', (
+      tester,
+    ) async {
+      final s = recipeServer();
+      final gate = s.server.hold('POST', _catalog);
+      final h = await open(tester, seeded: s);
+      await h.enterText(name(), 'Rose syrup');
+      await h.tap(_inDialog(find.text('Save')));
+      expect(save(tester).loading, isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await h.settle();
+      expect(find.byType(CreateIngredientDialog), findsNothing);
+      expect(ingredientPicker(h, 'Rose syrup'), findsNothing);
+      gate.release();
+      await h.settle();
+      expect(ingredientPicker(h, 'Rose syrup'), findsOneWidget);
+      expect(qtyText(tester, qtyBox(h, 'Rose syrup', 'One size')), '');
+      expect(find.text('Unsaved changes'), findsOneWidget);
+      await h.expectToast('Changes saved');
     });
 
     testWidgets('MENU-RCP-022 Cancel closes without writing', (tester) async {

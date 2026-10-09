@@ -178,4 +178,24 @@ void main() {
     await h.settle();
     await h.expectToast('Order voided');
   });
+
+  testWidgets('SELL-ORD-069 a refunded sale cannot be voided: the 409 words, '
+      'the dialog stays', (tester) async {
+    final s = ordersServer();
+    s.db['order_refunds'].insert({'order_id': _offline, 'amount': 4500}, timestamps: false);
+    final h = await pumpOrders(tester, server: s.server, db: s.db);
+    await _openVoid(h, _offline);
+    await h.tap(_submit);
+    expect(h.server.callsTo(voidRoute).single.status, 409);
+    await h.expectToast(
+      h.refusalWords(
+        MockResponse.conflict(
+          '4500 has already been refunded against this sale, so it cannot '
+          'be voided — refund the remainder instead.',
+        ),
+      ),
+    );
+    expect(_submit, findsOneWidget);
+    expect(s.db['orders'].find(_offline)!['status'], 'completed');
+  });
 }

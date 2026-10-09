@@ -28,10 +28,11 @@
 /// - [CleanRow]: a row that counts (a name and a quantity above zero); rows
 ///   that do not count are dropped silently.
 /// - [RemovedRow]: a saved row no longer kept (standalone `onSave` only).
-/// - `showCreateIngredientDialog(context, orgId:)` / `CreateIngredientDialog`
-///   (`create_ingredient_dialog.dart`): creates an org ingredient and resolves
-///   with it (null when cancelled); it refreshes the recipe reads itself
-///   (`invalidateRecipes`).
+/// - `showCreateIngredientDialog(context, orgId:, onCreated:)` /
+///   `CreateIngredientDialog` (`create_ingredient_dialog.dart`): creates an
+///   org ingredient; `onCreated` runs once it exists, even if the dialog was
+///   closed while saving, and the future resolves with it (null when closed
+///   first). It refreshes the recipe reads itself (`invalidateRecipes`).
 ///
 /// Wide (>= 760): a row is one line (ingredient, quantity + unit, line cost,
 /// remove), as on the web. Phone: the ingredient takes its own line and the
@@ -285,6 +286,11 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
       ? TextAlign.left
       : TextAlign.right;
 
+  /// The reading-direction start (the factor box: the figure by its ×).
+  TextAlign get _startAlign => Directionality.of(context) == TextDirection.rtl
+      ? TextAlign.right
+      : TextAlign.left;
+
   String get _baseSize => widget.sizes.isEmpty ? oneSize : widget.sizes.first;
 
   void _addRow(String size) => _set([
@@ -298,21 +304,28 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
     ),
   ]);
 
-  Future<void> _newIngredient() async {
-    final ing = await showCreateIngredientDialog(context, orgId: widget.orgId);
-    if (ing == null || !mounted) return;
-    _set([
-      ..._rows,
-      RecipeDraftRow(
-        id: _nextId(),
-        sizeLabel: _baseSize,
-        orgIngredientId: ing.id,
-        ingredientName: ing.name,
-        ingredientUnit: ing.unit,
-        quantity: '',
-      ),
-    ]);
-  }
+  /// The new ingredient joins the first size with no quantity, even when
+  /// the dialog was closed while it saved (the web's `onCreated`).
+  void _newIngredient() => unawaited(
+    showCreateIngredientDialog(
+      context,
+      orgId: widget.orgId,
+      onCreated: (ing) {
+        if (!mounted) return;
+        _set([
+          ..._rows,
+          RecipeDraftRow(
+            id: _nextId(),
+            sizeLabel: _baseSize,
+            orgIngredientId: ing.id,
+            ingredientName: ing.name,
+            ingredientUnit: ing.unit,
+            quantity: '',
+          ),
+        ]);
+      },
+    ),
+  );
 
   void _applyScaling() =>
       _set(scaleRecipeRows(_rows, widget.sizes, _factors, _nextId));
@@ -537,7 +550,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
             value: _factors[size] ?? '',
             placeholder: '1.5',
             semanticLabel: label,
-            textAlign: _endAlign,
+            textAlign: _startAlign,
             textDirection: TextDirection.ltr,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             leading: Text(

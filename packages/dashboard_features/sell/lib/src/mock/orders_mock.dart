@@ -4,7 +4,7 @@
 /// |---|---|---|
 /// | GET /orders | `orders::list_orders` | `orders.read`; a till or a branch the persona works; nil/absent = the org |
 /// | GET /orders/{order_id} | `orders::get_order` | `orders.read` + branch; 404 `Order not found` |
-/// | POST /orders/{order_id}/void | `orders::void_order` | `orders.void` + branch; 400 note for "other"; a voided order answers as it is |
+/// | POST /orders/{order_id}/void | `orders::void_order` | `orders.void` + branch; a teller only their own sale within 10 min and never on a closed shift; 400 note for "other"; 409 once refunded; a voided order answers as it is |
 /// | GET /orders/export | `orders::export_orders` | `orders.read`; the export throttle (`EXPORT_RATE_LIMITED`) |
 /// | GET /reports/branches/{branch_id}/delivery-sales | `reports::branch_delivery_sales` | `orders.read` |
 /// | GET /delivery-orders/{id} | `delivery::staff::get_delivery_order` | `delivery.orders.read` + branch |
@@ -49,6 +49,22 @@ abstract final class OrderTables {
 
   /// [DeliveryOrder] rows (shared with the overview's delivery card).
   static const String deliveryOrders = 'delivery_orders';
+
+  /// Refunds against orders (`order_refunds`): `{id, order_id, amount}`.
+  static const String refunds = 'order_refunds';
+}
+
+/// Minor units refunded against [orderId] (this unit's table, and the legal
+/// report's when the reports area seeded one).
+int refundedOn(MockDb db, String orderId) {
+  var total = 0;
+  for (final t in [OrderTables.refunds, 'legal_refunds']) {
+    if (!db.hasTable(t)) continue;
+    for (final r in db[t].rows) {
+      if (r['order_id'] == orderId) total += (r['amount'] as num?)?.toInt() ?? 0;
+    }
+  }
+  return total;
 }
 
 /// The stable ids of this unit's rows.
@@ -1187,7 +1203,27 @@ class _Handlers {
     req.requireCap('orders.void');
     final o = _order(req);
     final body = req.bodyAs(VoidOrderRequest.fromJson);
+    // A teller's grant is limited (`void_ask` + `decide`): their own sale,
+    // within ten minutes; past it the same refusal as no grant at all.
+    final teller = req.persona.roleKinds.contains('teller');
+    if (teller) {
+      final own = o['teller_id'] == req.persona.userId;
+      final age = req.now.difference(
+        DateTime.parse(o['created_at']! as String),
+      );
+      if (!own || age > const Duration(minutes: 10)) {
+        req.fail(MockResponse.denied('orders.void'));
+      }
+    }
     if (o['status'] == 'voided') return MockResponse.ok(o);
+    // A teller may not rewrite a settled (closed) shift.
+    if (teller && db['tills'].find(o['till_id']! as String)?['status'] != 'open') {
+      req.fail(
+        MockResponse.forbidden(
+          "This order's shift is closed — ask a manager to void it.",
+        ),
+      );
+    }
     // `VoidReason::read`: an older till's label reads as "other" with the
     // label kept as the note.
     const reasons = {'customer_request', 'wrong_order', 'quality_issue', 'other'};
@@ -1199,6 +1235,14 @@ class _Handlers {
         : typed;
     if (reason == 'other' && note == null) {
       req.badRequest("A note is required when void reason is 'other'");
+    }
+    // A sale that has given money back did happen (owner ruling 4).
+    final refunded = refundedOn(db, o['id']! as String);
+    if (refunded > 0) {
+      req.conflict(
+        '$refunded has already been refunded against this sale, so it cannot '
+        'be voided — refund the remainder instead.',
+      );
     }
     o
       ..['status'] = 'voided'

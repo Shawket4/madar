@@ -70,8 +70,10 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
           .read(apiProvider)
           .orgs
           .completeOnboarding(id: orgId);
-      // The shell's first-run gate asks again, so it lets them through on
-      // landing (the web seeds the same query synchronously).
+      // The gate must let them through on landing at once (the web seeds
+      // its query with this answer synchronously): this session is past it
+      // now, and the gate's own read asks again for the next one.
+      container.read(onboardingSkippedProvider.notifier).skip();
       container.invalidate(onboardingCompletedProvider);
       if (!mounted) return;
       setState(() {

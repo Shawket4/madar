@@ -11,6 +11,7 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -808,24 +809,36 @@ void main() {
     });
 
     testWidgets('OFFR-CMB-036 (divergence) deleting the only combo of the '
-        'last page steps back to the page before', (tester) async {
+        'last page steps back to the page before, never showing "empty"', (
+      tester,
+    ) async {
       final s = combosServer();
       addCombos(s.db, 20); // 26 combos: the last page holds one
       final h = await pumpCombos(tester, seeded: s);
       await h.tap(inPage(find.bySemanticsLabel('Next')));
       expect(shownNames(tester), [_suhoor]);
       await h.tap(rowButton(_suhoor, 'Delete'));
-      await h.tap(
+      // Frame by frame through the delete, the refetch and the step back.
+      await tester.tap(
         find.descendant(
           of: find.byType(DashConfirmDialog),
           matching: find.text('Delete'),
         ),
       );
+      for (var i = 0; i < 16; i++) {
+        await tester.runAsync(() async {
+          for (var j = 0; j < 5; j++) {
+            await Future<void>.delayed(Duration.zero);
+          }
+        });
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(pageText('No combos yet'), findsNothing, reason: 'frame $i');
+        expect(pageText('Page 2 of 1'), findsNothing, reason: 'frame $i');
+      }
       await h.expectToast('Combo deleted');
-      await h.settle();
       expect(lastQuery(h)['page'], ['1']);
       expect(shownNames(tester), hasLength(25));
-      expect(pageText('No combos yet'), findsNothing);
+      expect(inPage(find.byType(DashPagination)), findsNothing);
     });
 
     testWidgets('OFFR-CMB-037 categories failing: only "All categories", '
@@ -849,6 +862,48 @@ void main() {
         findsOneWidget,
       );
       expect(option('All categories'), findsOneWidget);
+    });
+  });
+
+  group('names are never cut', () {
+    /// The painted name of [name] (its English line).
+    RenderParagraph nameLine(WidgetTester tester, String name) =>
+        tester.renderObject<RenderParagraph>(inRow(name, find.text(name)));
+
+    testWidgets('OFFR-CMB-011 / -030 / OFFR-ALL-011 a phone card drops '
+        '"Fixed" under a long name instead of cutting it', (tester) async {
+      final s = combosServer();
+      OffersSeed.loadInto(s.db);
+      const long = "Kids' Cocoa, Cookie & Marshmallow Treat";
+      s.db.table(OffersTables.menuItems).find(comboId('kids-cocoa'))!['name'] =
+          long;
+      await pumpCombos(tester, seeded: s, size: DashSize.phone);
+      expect(nameLine(tester, long).didExceedMaxLines, isFalse);
+      final badge = tester.getTopLeft(inRow(long, find.text('Fixed')));
+      final text = tester.getTopLeft(inRow(long, find.text(long)));
+      expect(badge.dy, greaterThan(text.dy), reason: 'on the next line');
+      // A short name keeps "Fixed" on its line.
+      expect(
+        tester.getCenter(inRow(_cookie, find.text('Fixed'))).dy,
+        closeTo(tester.getCenter(inRow(_cookie, find.text(_cookie))).dy, 2),
+      );
+    });
+
+    testWidgets('OFFR-CMB-011 a tablet: the table scrolls sideways rather '
+        'than cut a name', (tester) async {
+      await pumpCombos(tester, size: DashSize.tablet);
+      for (final n in _all) {
+        expect(nameLine(tester, n).didExceedMaxLines, isFalse, reason: n);
+      }
+      expect(tester.getSize(rowOf(_kids)).height, 56);
+    });
+
+    testWidgets('OFFR-CMB-032 in Arabic the English name reads left to right', (
+      tester,
+    ) async {
+      await pumpCombos(tester, locale: 'ar', size: DashSize.phone);
+      expect(nameLine(tester, _kids).textDirection, TextDirection.ltr);
+      expect(nameLine(tester, _kids).didExceedMaxLines, isFalse);
     });
   });
 }

@@ -190,10 +190,15 @@ class BreakdownCard extends ConsumerWidget {
   }
 }
 
-/// The text of a muted detail line: the parts that are there, joined by
+/// The text of a muted detail line: the parts that are there, each in its
+/// own bidi isolate (U+2068…U+2069, so a Latin branch name in an Arabic
+/// line cannot split the date beside it: divergence REP-LEG-024), joined by
 /// " · ".
-String joinDetail(Iterable<String?> parts) =>
-    parts.whereType<String>().where((s) => s.isNotEmpty).join(' · ');
+String joinDetail(Iterable<String?> parts) => parts
+    .whereType<String>()
+    .where((s) => s.isNotEmpty)
+    .map((s) => '\u2068$s\u2069')
+    .join(' · ');
 
 /// The Discounts audit's per-sale list (REP-LEG-024): what kind, how much,
 /// who applied it, who approved it, and whether the server flagged it.

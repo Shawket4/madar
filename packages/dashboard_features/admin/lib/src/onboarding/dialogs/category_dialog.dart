@@ -114,7 +114,11 @@ class _CategoryDialogState extends ConsumerState<CategoryDialog> {
             en: _name,
             ar: _nameAr,
             enError: _nameError,
-            onEnChanged: (v) => setState(() => _name = v),
+            // react-hook-form re-validates on change once submitted.
+            onEnChanged: (v) => setState(() {
+              _name = v;
+              if (_nameError != null && v.isNotEmpty) _nameError = null;
+            }),
             onArChanged: (v) => setState(() => _nameAr = v),
           ),
           DashSwitchField(

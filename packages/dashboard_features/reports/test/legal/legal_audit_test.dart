@@ -413,8 +413,11 @@ void main() {
       inCard(
         'History',
         find.text(
-          '${f.fmtDateTime(first.at.toIso8601String())} · '
-          'by ${userName(s.db, 'nour')} · line of ${f.fmtDate('2026-10-06')}',
+          detailLine([
+            f.fmtDateTime(first.at.toIso8601String()),
+            'by ${userName(s.db, 'nour')}',
+            'line of ${f.fmtDate('2026-10-06')}',
+          ]),
         ),
       ),
       findsOneWidget,
@@ -448,6 +451,26 @@ void main() {
     );
     expect(inAudit(find.text('History')), findsNothing);
     expect(inAudit(find.text('Waiver undone')), findsNothing);
+    // REP-LEG-024 (divergence): the detail line's parts are isolated, so the
+    // Latin name cannot split the Arabic date beside it.
+    final cards = find.byType(HistoryCard);
+    final e = tester.widget<HistoryCard>(cards).events.first;
+    expect(
+      find.descendant(
+        of: cards,
+        matching: find.text(
+          detailLine([
+            f.fmtDateTime(e.at.toIso8601String()),
+            h.t('reports.legal.historyByName', args: {'name': e.actorName}),
+            h.t(
+              'reports.legal.historyLineOf',
+              args: {'date': f.fmtDate(e.effectiveDate!)},
+            ),
+          ]),
+        ),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('REP-LEG-026 audit to Excel: By type, By staff member and '

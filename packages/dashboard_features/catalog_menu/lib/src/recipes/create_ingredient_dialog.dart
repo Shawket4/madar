@@ -21,13 +21,20 @@ import '../shared/menu_queries.dart';
 import '../shared/menu_text.dart';
 
 /// Opens the dialog; resolves with the created ingredient, or null when
-/// cancelled.
+/// it was closed first. [onCreated] runs as soon as the server has created
+/// it, even when the dialog was closed (Esc) while the save ran, as the
+/// web's `onCreated` does.
 Future<OrgIngredient?> showCreateIngredientDialog(
   BuildContext context, {
   required String orgId,
+  ValueChanged<OrgIngredient>? onCreated,
 }) => showDashDialog<OrgIngredient>(
   context,
-  builder: (_) => CreateIngredientDialog(orgId: orgId),
+  builder: (_) => CreateIngredientDialog(
+    orgId: orgId,
+    onCreated: onCreated,
+    opener: context,
+  ),
 );
 
 /// The ingredient category a new ingredient starts in: the one whose slug is
@@ -49,9 +56,22 @@ double? ingredientCostPiastres(String text) {
 }
 
 class CreateIngredientDialog extends ConsumerStatefulWidget {
-  const CreateIngredientDialog({required this.orgId, super.key});
+  const CreateIngredientDialog({
+    required this.orgId,
+    this.onCreated,
+    this.opener,
+    super.key,
+  });
 
   final String orgId;
+
+  /// Runs once the ingredient exists, whether or not the dialog is still
+  /// open.
+  final ValueChanged<OrgIngredient>? onCreated;
+
+  /// What opened the dialog: its toasts show there once the dialog was
+  /// closed mid-save (the web's toasts are global).
+  final BuildContext? opener;
 
   @override
   ConsumerState<CreateIngredientDialog> createState() =>
@@ -75,6 +95,12 @@ class _CreateIngredientDialogState
     // Taken before the await: the refresh happens even if the dialog is gone.
     final invalidate = ref.menuInvalidate;
     final api = ref.read(apiProvider);
+    final onCreated = widget.onCreated;
+    BuildContext? toasts() => mounted
+        ? context
+        : (widget.opener?.mounted ?? false)
+        ? widget.opener
+        : null;
     setState(() => _busy = true);
     try {
       final created = await api.inventory.createCatalogItem(
@@ -91,13 +117,14 @@ class _CreateIngredientDialogState
         ),
       );
       invalidate.recipes();
-      if (!mounted) return;
-      DashToast.success(context, t('common.savedChanges'));
-      Navigator.of(context).pop(created);
+      onCreated?.call(created);
+      final at = toasts();
+      if (at != null) DashToast.success(at, t('common.savedChanges'));
+      if (mounted) Navigator.of(context).pop(created);
     } on Object catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      DashToast.error(context, errorMessage(e, t));
+      final at = toasts();
+      if (at != null) DashToast.error(at, errorMessage(e, t));
+      if (mounted) setState(() => _busy = false);
     }
   }
 

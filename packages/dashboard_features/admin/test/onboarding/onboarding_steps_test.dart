@@ -174,6 +174,10 @@ void main() {
       );
       final put = r.h.server.callsTo(logoRoute, method: 'PUT').single;
       expect(put.status, 200);
+      // Multipart, the file in the field `logo`.
+      expect(put.files.single.field, 'logo');
+      expect(put.files.single.filename, 'logo.png');
+      expect(put.files.single.contentType, 'image/png');
       expect(r.db['orgs'].get(sabah)['logo_url'], startsWith('data:image/png'));
       expect(
         r.h.server.callsTo(orgRoute, method: 'GET').length,
@@ -410,6 +414,9 @@ void main() {
         of: surface,
         matching: find.byType(EditableText),
       );
+      // Re-validated as it is typed (react-hook-form after a submit).
+      await r.h.enterText(fields.at(0), 'H');
+      expect(inSurface('This field is required'), findsNothing);
       await r.h.enterText(fields.at(0), 'Hot drinks');
       await r.h.enterText(fields.at(1), 'مشروبات ساخنة');
       await r.h.tap(buttonOf('Save', within: surface));
@@ -525,17 +532,42 @@ void main() {
     });
 
     testWidgets('ADM-ONB-020 team: Add a team member opens the person '
-        'editor; closing asks the checklist again', (tester) async {
+        'editor in create mode; saving one counts it', (tester) async {
       final r = await _fresh(tester);
       await _open(r.h, 'Invite your team');
-      expect(buttonOf('Add a team member'), findsOneWidget);
+      expect(inPage(r.h.t('onboarding.steps.team.empty')), findsOneWidget);
       final reads = statusReads(r.h.server);
       await r.h.tap(buttonOf('Add a team member'));
-      // The users unit's editor (when it is there): close it.
-      if (find.byType(DashSurface).evaluate().isNotEmpty) {
-        await r.h.tap(buttonOf('Cancel', within: surface));
-      }
+      expect(inSurface(r.h.t('users.newTitle')), findsOneWidget);
+      await r.h.enterText(field('user-name'), 'Omar Fathy');
+      await r.h.enterText(field('user-pin'), '482913');
+      await r.h.tap(field('user-submit'));
+      expect(lastBody(r.h.server, '/users'), {
+        'email': null,
+        'name': 'Omar Fathy',
+        'org_id': sabah,
+        'phone': null,
+        'pin': '482913',
+        'role': 'teller',
+      });
+      await r.h.expectToast(r.h.t('users.createdToast'));
+      expect(find.byType(DashSurface), findsNothing);
       expect(statusReads(r.h.server), greaterThan(reads));
+      expect(
+        inPage(r.h.t('onboarding.steps.team.added', args: {'count': 1})),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('ADM-ONB-020 team: closing the editor without saving '
+        'still asks the checklist again', (tester) async {
+      final r = await _fresh(tester);
+      await _open(r.h, 'Invite your team');
+      final reads = statusReads(r.h.server);
+      await r.h.tap(buttonOf('Add a team member'));
+      await r.h.tap(buttonOf('Cancel', within: surface));
+      expect(r.h.server.callsTo('/users', method: 'POST'), isEmpty);
+      expect(statusReads(r.h.server), reads + 1);
     });
 
     testWidgets('ADM-ONB-020 team: with a second person the count shows', (
@@ -862,6 +894,58 @@ void main() {
       );
       expect(inPage('مشروب 1'), findsOneWidget);
       expect(inPage('مشروب 9'), findsNothing);
+    });
+
+    testWidgets('ADM-ONB-022 (stale form) a refresh landing re-seeds the '
+        'item editor until a size is edited', (tester) async {
+      final r = await _fresh(
+        tester,
+        seed: (db) => addItem(db, addCategory(db)),
+      );
+      await _open(r.h, 'Recipes & costs');
+      await r.h.tap(buttonOf('Add recipe'));
+      String price() => tester
+          .widget<EditableText>(
+            find.descendant(
+              of: field('item-price'),
+              matching: find.byType(EditableText),
+            ),
+          )
+          .controller
+          .text;
+      expect(price(), '65');
+      final item = r.db[OnbTables.menuItems].rows.single;
+      void reprice(int piastres) {
+        for (final row in r.db[OnbTables.sizes].rows) {
+          if (row['menu_item_id'] == item['id']) {
+            row['price_override'] = piastres;
+          }
+        }
+      }
+
+      Future<void> refresh() async {
+        r.h.container.read(realtimeBusProvider).invalidate([
+          '/menu-items/${item['id']}',
+        ]);
+        await r.h.settle();
+      }
+
+      // Somebody else changes the price; the editor is untouched: it follows.
+      reprice(7000);
+      await refresh();
+      expect(price(), '70');
+      // Edited by hand: a later refresh keeps what was typed.
+      await r.h.enterText(field('item-price'), '72');
+      reprice(7500);
+      await refresh();
+      expect(price(), '72');
+      await r.h.tap(buttonOf('Save', within: surface));
+      expect(lastBody(r.h.server, '/menu-items/{id}/sizes', method: 'PUT'), {
+        'sizes': [
+          {'is_active': true, 'label': 'one_size', 'price': 7200, 'sort': 0},
+        ],
+      });
+      await r.h.flushTimers();
     });
 
     testWidgets('ADM-ONB-022 Add recipe edits the item: its sizes come '

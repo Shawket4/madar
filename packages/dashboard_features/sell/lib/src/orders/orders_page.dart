@@ -172,7 +172,13 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       _type,
       _channel,
     ].join('|');
-    final page = sig == _pageSig ? _page : 0;
+    // Another filter set is page 1 again; changing it back does not bring
+    // the old page back (the web resets on every change).
+    if (sig != _pageSig) {
+      _pageSig = sig;
+      _page = 0;
+    }
+    final page = _page;
     final OrdersKey key = (
       branchId: scope.branchId,
       from: scope.from,
@@ -299,7 +305,6 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       pageCount: q.hasError ? 0 : (data?.totalPages ?? 0),
       onPageChanged: (n) => setState(() {
         _page = n;
-        _pageSig = sig;
       }),
       rowSemanticLabel: (o) => orderDisplayRef(
         orderRef: o.orderRef,
@@ -397,7 +402,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           enabled: enabled,
           onExport: () => showOrdersExport(
             context,
-            totalApprox: data?.total ?? 0,
+            listKey: key,
             filters: OrdersExportFilters(
               branchId: scope.branchId,
               from: scope.from,
@@ -498,19 +503,25 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                 customerId: o.customerId,
                 control: control,
               ),
-        minWidth: Space.xxl * 3,
+        // Names read whole: the table scrolls sideways before it cuts them.
+        minWidth: Space.xxl * 4,
+        flex: 2,
       ),
       DashColumn<Order>(
         id: 'teller',
         label: t('tills.teller'),
         text: (o) => o.tellerName,
-        minWidth: Space.xxl * 2.5 + Space.sm,
+        // Names read whole: the table scrolls sideways before it cuts them.
+        minWidth: Space.xxl * 4,
+        flex: 2,
       ),
       DashColumn<Order>(
         id: 'waiter',
         label: t('tills.waiter'),
         text: (o) => (o.waiterName ?? '').isEmpty ? '—' : o.waiterName!,
-        minWidth: Space.xxl * 2.5,
+        // Names read whole: the table scrolls sideways before it cuts them.
+        minWidth: Space.xxl * 4,
+        flex: 2,
       ),
       DashColumn<Order>(
         id: 'status',

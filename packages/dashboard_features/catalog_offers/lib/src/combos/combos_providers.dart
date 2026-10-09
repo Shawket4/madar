@@ -1,9 +1,11 @@
-/// The combos list's reads (the web's `useCombos(params)` and
-/// `useListCategories({org_id})` in `features/combos/combos-page.tsx`), each
-/// keyed by exactly the arguments its request sends.
+/// The combos list's own read (the web's `useCombos(params)` in
+/// `features/combos/combos-page.tsx`), keyed by exactly the arguments its
+/// request sends. Its categories are the area's shared
+/// `offersCategoriesProvider` (the web's one `["/categories", {org_id}]`
+/// entry, which the editor and the deal dialog read too).
 library;
 
-import 'package:dashboard_api/dashboard_api.dart';
+import 'package:dashboard_api/dashboard_api.dart' show PaginatedCombos;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,13 +39,4 @@ final combosListProvider = FutureProvider.autoDispose
             page: k.page,
             perPage: combosPerPage,
           );
-    });
-
-/// C2 `GET /categories?org_id`: the Category filter's options and the
-/// Category column's names.
-final comboCategoriesProvider = FutureProvider.autoDispose
-    .family<List<Category>, String>((ref, orgId) {
-      ref.webCache();
-      ref.watch(realtimeEpochProvider(OffersPaths.categories));
-      return ref.watch(apiProvider).menu.listCategories(orgId: orgId);
     });

@@ -187,12 +187,10 @@ class OrderSheet extends ConsumerWidget {
             ),
           ),
           if (order != null && order.status == 'completed' && onVoid != null)
-            DashButton(
+            OutlineDangerButton(
               key: const ValueKey('order-sheet-void'),
               label: t('orders.void'),
               icon: 'ban',
-              variant: DashButtonVariant.outline,
-              size: DashButtonSize.compact,
               onPressed: () {
                 Navigator.of(context).maybePop();
                 onVoid!(order);
@@ -243,6 +241,63 @@ class OrderSheet extends ConsumerWidget {
     );
   }
 }
+
+/// A compact outline button in the danger colour (the web's `variant="outline"`
+/// with `text-destructive`, `hover:bg-destructive/10`). Kit candidate:
+/// `DashButtonVariant.outlineDanger`.
+class OutlineDangerButton extends StatelessWidget {
+  const OutlineDangerButton({
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    super.key,
+  });
+
+  final String label;
+  final String? icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.madarColors;
+    final radius = BorderRadius.circular(Radii.sm);
+    return DashPressable(
+      onTap: onPressed,
+      enabled: onPressed != null,
+      semanticLabel: label,
+      excludeChildSemantics: true,
+      builder: (context, s) => Container(
+        height: DashMetrics.control,
+        padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.md),
+        foregroundDecoration: dashFocusRing(context, s, radius),
+        decoration: BoxDecoration(
+          color: s.highlighted ? c.danger.withValues(alpha: 0.1) : c.card,
+          borderRadius: radius,
+          border: Border.all(color: c.input),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: Space.sm,
+          children: [
+            if (icon != null) DashIcon(icon!, color: c.danger),
+            Text(
+              label,
+              maxLines: 1,
+              style: DashType.meta.copyWith(
+                fontWeight: FontWeight.w500,
+                color: c.danger,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// [s] with no-break spaces: a figure and its currency never part at a
+/// line end ("−30.00 ج.م" stays whole in Arabic).
+String nbsp(String s) => s.replaceAll(' ', '\u00A0');
 
 /// "In-mall" / "Outside" (the order's own words for its channel).
 String channelLabel(Translator t, String channel) => channel == 'in_mall'
@@ -1321,12 +1376,12 @@ class _LineState extends ConsumerState<_Line> {
             TextSpan(
               // A pick the pool covered: its normal price and what came off.
               text:
-                  ' (${fmt.fmtMoney(addonNormalTotal(a))}) '
-                  '${t('orders.staffCompAddon', args: {'amount': fmt.fmtMoney(-comp)})}',
+                  ' (${nbsp(fmt.fmtMoney(addonNormalTotal(a)))}) '
+                  '${t('orders.staffCompAddon', args: {'amount': nbsp(fmt.fmtMoney(-comp))})}',
               style: muted,
             )
           else if (a.lineTotal > 0)
-            TextSpan(text: ' (${fmt.fmtMoney(a.lineTotal)})', style: muted),
+            TextSpan(text: ' (${nbsp(fmt.fmtMoney(a.lineTotal))})', style: muted),
         ],
       ),
     );

@@ -54,8 +54,8 @@ class OnbStepPanel extends ConsumerWidget {
   /// A skeleton count line (`py-3` text).
   static const double lineHeight = Space.xxl + Space.sm;
 
-  /// The panel's least height (`min-h-[28rem]`, less its padding).
-  static const double minHeight = 448 - Space.xl * 2;
+  /// The panel's least height (`min-h-[28rem]`, inside the card's padding).
+  static const double minHeight = 448;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

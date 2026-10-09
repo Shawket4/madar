@@ -145,7 +145,13 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
   List<CleanRow> _recipeRows = const [];
   Set<String> _allowed = {};
   String _seededAllowed = '';
-  bool _seeded = false;
+
+  /// The full item the sizes and picks were last seeded from.
+  MenuItemFull? _seededFrom;
+
+  /// The sizes or the add-on picks were changed by hand: a refresh landing
+  /// no longer re-seeds them.
+  bool _touched = false;
   String _addonSearch = '';
   DashPickedFile? _pendingImage;
   String? _pendingPreview;
@@ -154,12 +160,20 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
 
   bool get _editing => widget.item != null;
 
+  /// A hand edit of the sizes or the add-on picks.
+  void _edit(VoidCallback change) => setState(() {
+    _touched = true;
+    change();
+  });
+
   bool get _singlePrice => _sizes.length == 1 && _sizes.first.label == oneSize;
 
-  /// Seeds the sizes and the add-on picks once the full item lands (edit).
+  /// Seeds the sizes and the add-on picks from the full item (edit): when it
+  /// lands and again whenever a refresh brings a new answer, until they are
+  /// edited (the web's effect on `liveItem`).
   void _seedFrom(MenuItemFull live) {
-    if (_seeded) return;
-    _seeded = true;
+    if (_touched || identical(live, _seededFrom)) return;
+    _seededFrom = live;
     // `all_sizes` includes the synthetic `one_size` row of a simple item.
     final rows = live.allSizes ?? live.sizes;
     _sizes = [
@@ -516,7 +530,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
                   icon: 'plus',
                   variant: DashButtonVariant.outline,
                   size: DashButtonSize.compact,
-                  onPressed: () => setState(() {
+                  onPressed: () => _edit(() {
                     // Leaving one-price mode: the sentinel label becomes a
                     // real one the customer sees.
                     if (_singlePrice) _sizes.first.label = '';
@@ -543,7 +557,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
                     textDirection: TextDirection.ltr,
                     errorText: errors['sizes.0.price'],
                     onChanged: (v) =>
-                        setState(() => _sizes.first.price = cleanDecimal(v)),
+                        _edit(() => _sizes.first.price = cleanDecimal(v)),
                   ),
                   _PriceTaxHint(orgId: widget.orgId),
                   Padding(
@@ -576,7 +590,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
                             placeholder: 'Large',
                             value: s.label,
                             errorText: errors['sizes.$i.label'],
-                            onChanged: (v) => setState(() => s.label = v),
+                            onChanged: (v) => _edit(() => s.label = v),
                           ),
                         ),
                         Expanded(
@@ -590,7 +604,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
                             textDirection: TextDirection.ltr,
                             errorText: errors['sizes.$i.price'],
                             onChanged: (v) =>
-                                setState(() => s.price = cleanDecimal(v)),
+                                _edit(() => s.price = cleanDecimal(v)),
                           ),
                         ),
                         Padding(
@@ -602,7 +616,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
                             // The last size holds the item's price: it stays.
                             onPressed: _sizes.length <= 1
                                 ? null
-                                : () => setState(() => _sizes.removeAt(i)),
+                                : () => _edit(() => _sizes.removeAt(i)),
                           ),
                         ),
                       ],
@@ -629,7 +643,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
             allowed: _allowed,
             search: _addonSearch,
             onSearch: (v) => setState(() => _addonSearch = v),
-            onChanged: (next) => setState(() => _allowed = next),
+            onChanged: (next) => _edit(() => _allowed = next),
           ),
         ],
       ),

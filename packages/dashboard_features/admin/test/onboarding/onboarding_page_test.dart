@@ -5,6 +5,7 @@
 import 'package:dashboard_admin/src/onboarding/celebration.dart';
 import 'package:dashboard_admin/src/onboarding/dashboard_mirror.dart';
 import 'package:dashboard_admin/src/onboarding/step_navigator.dart';
+import 'package:dashboard_admin/src/onboarding/step_panel.dart';
 import 'dart:convert';
 
 import 'package:dashboard_admin/src/mock/onboarding_mock.dart';
@@ -20,6 +21,31 @@ import 'support.dart';
 
 Finder get _nav => find.byType(OnbStepNavigator);
 Finder get _mirror => find.byType(OnbDashboardMirror);
+
+/// The navigator's button for the step titled [title].
+DashPressable _stepButton(String title) =>
+    find
+            .ancestor(of: _inNav(title), matching: find.byType(DashPressable))
+            .evaluate()
+            .first
+            .widget
+        as DashPressable;
+
+/// The glyph the step titled [title] draws in its disc.
+String _glyph(String title) =>
+    (find
+                .descendant(
+                  of: find.ancestor(
+                    of: _inNav(title),
+                    matching: find.byType(DashPressable),
+                  ),
+                  matching: find.byType(DashIcon),
+                )
+                .evaluate()
+                .first
+                .widget
+            as DashIcon)
+        .name;
 
 Finder _inNav(String text) =>
     find.descendant(of: _nav, matching: find.text(text));
@@ -273,12 +299,21 @@ void main() {
       expect(_inNav('Optional'), findsNWidgets(5));
       // Categories are done: a check, no "added" line.
       expect(_inNav('2 added'), findsNothing);
+      expect(_glyph('Organize your menu'), 'check');
+      // Not done: the step's own glyph; the finale: a lock.
+      expect(_glyph('Stock your pantry'), 'sprout');
+      expect(_glyph('Open your café'), 'lock');
+      // The current step (the first unfinished one) is marked, only it.
+      expect(_stepButton('Name your café').selected, isTrue);
+      expect(_stepButton('Organize your menu').selected, isFalse);
       expect(
-        find.descendant(
-          of: _nav,
-          matching: find.bySemanticsLabel(RegExp('Organize your menu')),
-        ),
-        findsOneWidget,
+        tester
+            .widgetList<DashPressable>(
+              find.descendant(of: _nav, matching: find.byType(DashPressable)),
+            )
+            .where((p) => p.selected ?? false)
+            .length,
+        1,
       );
       // Go live is locked until the server allows it.
       final goLive = find.descendant(
@@ -296,6 +331,8 @@ void main() {
         ),
       );
       expect(inPage('Add an ingredient'), findsOneWidget);
+      expect(_stepButton('Stock your pantry').selected, isTrue);
+      expect(_stepButton('Name your café').selected, isFalse);
     });
 
     testWidgets('ADM-ONB-009 a step with some but not done shows N added', (
@@ -324,6 +361,11 @@ void main() {
           "dashboard and your customers' menu.",
         ),
         findsOneWidget,
+      );
+      // `min-h-[28rem]`: the panel never shrinks below 448.
+      expect(
+        tester.getSize(find.byType(OnbStepPanel)).height,
+        greaterThanOrEqualTo(448),
       );
       // The first step: Back is off.
       expect(button(tester, 'Back').onPressed, isNull);
@@ -442,6 +484,82 @@ void main() {
         findsOneWidget,
       );
       await tester.pump(const Duration(seconds: 3));
+      await h.settle();
+      expect(h.location.path, '/');
+    });
+
+    testWidgets('ADM-ONB-023 while it opens: the button spins and waits', (
+      tester,
+    ) async {
+      final s = onboardingServer();
+      readyCafe(s.db);
+      final h = await pumpOnboarding(tester, server: s.server, db: s.db);
+      h.allowUnmatched = true;
+      await h.tap(
+        find.descendant(
+          of: _nav,
+          matching: find.bySemanticsLabel(RegExp('Open your café')),
+        ),
+      );
+      final gate = s.server.hold('POST', completeRoute);
+      await h.tap(buttonOf('Open my café'));
+      expect(button(tester, 'Open my café').loading, isTrue);
+      expect(button(tester, 'Open my café').onPressed, isNull);
+      expect(find.byType(OnbCelebration), findsNothing);
+      gate.release();
+      await h.settle();
+      expect(find.byType(OnbCelebration), findsOneWidget);
+      await tester.pump(const Duration(seconds: 2));
+      await h.settle();
+    });
+
+    testWidgets('ADM-ONB-024 a slow gate read after Open my café never '
+        'sends the owner back: the dashboard after 1.8 s', (tester) async {
+      final s = onboardingServer();
+      readyCafe(s.db);
+      final h = await pumpOnboarding(tester, server: s.server, db: s.db);
+      h.allowUnmatched = true;
+      await h.tap(
+        find.descendant(
+          of: _nav,
+          matching: find.bySemanticsLabel(RegExp('Open your café')),
+        ),
+      );
+      // Every checklist read from here on hangs (the gate's included).
+      final gate = s.server.hold('GET', statusRoute);
+      await h.tap(buttonOf('Open my café'));
+      expect(find.byType(OnbCelebration), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 1800));
+      await h.settle();
+      expect(h.location.path, '/');
+      expect(find.byType(OnbCelebration), findsNothing);
+      gate.release();
+      await h.settle();
+      await tester.pump(const Duration(seconds: 2));
+      await h.settle();
+      expect(h.location.path, '/');
+    });
+
+    testWidgets('ADM-ONB-024 a failed gate read after Open my café: still '
+        'the dashboard', (tester) async {
+      final s = onboardingServer();
+      readyCafe(s.db);
+      final h = await pumpOnboarding(tester, server: s.server, db: s.db);
+      h.allowUnmatched = true;
+      await h.tap(
+        find.descendant(
+          of: _nav,
+          matching: find.bySemanticsLabel(RegExp('Open your café')),
+        ),
+      );
+      s.server.fail(
+        'GET',
+        statusRoute,
+        MockResponse.error(500, 'boom'),
+        times: null,
+      );
+      await h.tap(buttonOf('Open my café'));
+      await tester.pump(const Duration(milliseconds: 1800));
       await h.settle();
       expect(h.location.path, '/');
     });
