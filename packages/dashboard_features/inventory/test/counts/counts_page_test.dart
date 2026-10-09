@@ -6,6 +6,7 @@ import 'dart:async';
 import 'package:dashboard_api/dashboard_api.dart' show Stocktake;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/services.dart';
@@ -302,6 +303,21 @@ void main() {
       await h.tap(find.text('By').last);
       expect(inTable(find.text('BY')), findsNothing);
     });
+  });
+
+  testWidgets('INV-CNT-057 phone: each count is a card led by its start, '
+      '"View report" on the finalized ones', (tester) async {
+    final h = await pumpCounts(
+      tester,
+      branch: SeedIds.zamalek,
+      size: DashSize.phone,
+    );
+    expect(inTable(find.text('STARTED')), findsNothing);
+    expect(inTable(find.text('04 Oct, 10:50 PM')), findsOneWidget);
+    expect(inTable(find.text('View report')), findsWidgets);
+    expect(inPage(find.text('Columns')), findsNothing);
+    await h.tap(inTable(byKey('counts-report-$zamalekMilk')));
+    expect(report, findsOneWidget);
   });
 
   group('history states', () {

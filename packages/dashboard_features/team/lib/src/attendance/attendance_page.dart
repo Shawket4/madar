@@ -166,6 +166,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     listenStaffRefreshFailure(ref, context, attendanceListProvider(key));
     listenStaffRefreshFailure(ref, context, attendanceSummaryProvider(key));
     listenStaffRefreshFailure(ref, context, employeesListProvider(_everyone));
+    listenStaffRefreshFailure(ref, context, staffAttendanceSettingsProvider);
     ref.listen(attendanceListProvider(key), (_, next) {
       if (next.hasValue && !next.isLoading) {
         _loadedAt = ref.read(clockProvider)();
@@ -178,8 +179,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     final periodStartDay = day != null && day >= 1 && day <= 28 ? day : 1;
     // Each punch reads on its own branch's clock, also under All branches.
     final zones = {
-      for (final b in branches)
-        b.id: b.timezone.isEmpty ? null : b.timezone,
+      for (final b in branches) b.id: b.timezone.isEmpty ? null : b.timezone,
     };
 
     return DashPageScaffold(
@@ -225,7 +225,8 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
             columns: _columns(context, records, zones),
             rows: records,
             rowKey: (r) => r.id,
-            loading: recordsQ.isLoading && !recordsQ.hasValue && !recordsQ.hasError,
+            loading:
+                recordsQ.isLoading && !recordsQ.hasValue && !recordsQ.hasError,
             // A failed refresh replaces the rows (the web's table takes the
             // raw query error, TEAM-ALL-010); the cards keep their figures.
             errorMessage: recordsQ.hasError ? _err(recordsQ.error) : null,
@@ -305,7 +306,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         label: t('staff.name'),
         phone: DashPhoneRole.title,
         flex: 2,
-        minWidth: 128,
+        minWidth: 120,
         text: (r) => r.employeeName ?? '',
         cell: (context, r) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,7 +332,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         label: t('staff.date'),
         numeric: true,
         align: DashAlign.start,
-        minWidth: 128,
+        minWidth: 120,
         text: (r) => r.businessDate,
         cell: (context, r) => MadarClippedText(
           f.fmtDate(r.businessDate),
@@ -342,7 +343,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
       DashColumn(
         id: 'status',
         label: t('staff.attendanceStatus'),
-        minWidth: 120,
+        minWidth: 136,
         text: (r) => r.status,
         cell: (context, r) {
           final coverer = recordCoverer(records, r);
@@ -371,7 +372,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         numeric: true,
         align: DashAlign.start,
         flex: 2,
-        minWidth: 168,
+        minWidth: 160,
         searchable: false,
         cell: (context, r) => punch(r.checkInAt, r, [
           method(r.checkInMethod),
@@ -407,7 +408,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         numeric: true,
         align: DashAlign.start,
         flex: 2,
-        minWidth: 168,
+        minWidth: 160,
         searchable: false,
         cell: (context, r) => punch(r.checkOutAt, r, [
           if (r.checkOutMethod == 'auto')
@@ -420,7 +421,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         id: 'worked',
         label: t('staff.worked'),
         numeric: true,
-        minWidth: 88,
+        minWidth: 96,
         searchable: false,
         text: (r) => fmtMinutes(f, r.workedMinutes),
       ),
@@ -430,7 +431,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
         id: 'late',
         label: t('dawamOps.lateEarly'),
         numeric: true,
-        minWidth: 136,
+        minWidth: 128,
         searchable: false,
         cell: (context, r) {
           if (r.lateMinutes <= 0 && r.earlyLeaveMinutes <= 0) {
@@ -513,75 +514,86 @@ class _Filters extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm;
     return LayoutBuilder(
-      builder: (context, box) => Wrap(
-        spacing: Space.md,
-        runSpacing: Space.sm,
-        children: [
-          SizedBox(
-            width: box.maxWidth < AttendanceMetrics.range
-                ? box.maxWidth
-                : AttendanceMetrics.range,
-            child: DashDateRangeField(
-              from: dashParseYmd(from),
-              to: dashParseYmd(to),
-              today: dashParseYmd(teamTodayIsoOf(ref)),
-              quick: const [
-                DashQuickRange.thisWeek,
-                DashQuickRange.lastWeek,
-                DashQuickRange.thisPeriod,
-                DashQuickRange.lastPeriod,
-              ],
-              periodStartDay: periodStartDay,
-              fromLabel: t('staff.from'),
-              toLabel: t('staff.to'),
-              onChanged: (f, to) => onRange(
-                f == null ? from : dashYmd(f),
-                to == null ? this.to : dashYmd(to),
+      builder: (context, box) {
+        // Level with the date fields only when beside them (the web pads
+        // it at >= sm even once it has wrapped under them).
+        final beside =
+            wide &&
+            box.maxWidth >=
+                AttendanceMetrics.range +
+                    AttendanceMetrics.picker +
+                    AttendanceMetrics.status +
+                    Space.md * 2;
+        return Wrap(
+          spacing: Space.md,
+          runSpacing: Space.sm,
+          children: [
+            SizedBox(
+              width: box.maxWidth < AttendanceMetrics.range
+                  ? box.maxWidth
+                  : AttendanceMetrics.range,
+              child: DashDateRangeField(
+                from: dashParseYmd(from),
+                to: dashParseYmd(to),
+                today: dashParseYmd(teamTodayIsoOf(ref)),
+                quick: const [
+                  DashQuickRange.thisWeek,
+                  DashQuickRange.lastWeek,
+                  DashQuickRange.thisPeriod,
+                  DashQuickRange.lastPeriod,
+                ],
+                periodStartDay: periodStartDay,
+                fromLabel: t('staff.from'),
+                toLabel: t('staff.to'),
+                onChanged: (f, to) => onRange(
+                  f == null ? from : dashYmd(f),
+                  to == null ? this.to : dashYmd(to),
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(
-              top: wide ? AttendanceMetrics.labelRow : 0,
+            Padding(
+              padding: EdgeInsets.only(
+                top: beside ? AttendanceMetrics.labelRow : 0,
+              ),
+              child: Wrap(
+                spacing: Space.md,
+                runSpacing: Space.md,
+                children: [
+                  DashSelect<String>(
+                    semanticLabel: t('staff.employee'),
+                    sheetTitle: t('staff.employee'),
+                    width: AttendanceMetrics.picker,
+                    expand: false,
+                    searchable: true,
+                    searchPlaceholder: t('inputs.searchName'),
+                    emptyText: t('inputs.noOneMatches'),
+                    placeholder: t('inputs.pickEmployee'),
+                    active: person != null,
+                    value: person ?? _all,
+                    options: [
+                      DashOption(value: _all, label: t('dawamOps.everyone')),
+                      for (final e in employees)
+                        DashOption(value: e.id, label: e.name),
+                    ],
+                    onChanged: (v) => onPerson(v == _all ? null : v),
+                  ),
+                  DashFilterSelect<String>(
+                    label: t('staff.attendanceStatus'),
+                    allLabel: t('staff.allStatuses'),
+                    minWidth: AttendanceMetrics.status,
+                    value: status,
+                    options: [
+                      for (final s in attendanceStatuses)
+                        DashOption(value: s, label: attendanceStatusText(t, s)),
+                    ],
+                    onChanged: onStatus,
+                  ),
+                ],
+              ),
             ),
-            child: Wrap(
-              spacing: Space.md,
-              runSpacing: Space.md,
-              children: [
-                DashSelect<String>(
-                  semanticLabel: t('staff.employee'),
-                  sheetTitle: t('staff.employee'),
-                  width: AttendanceMetrics.picker,
-                  expand: false,
-                  searchable: true,
-                  searchPlaceholder: t('inputs.searchName'),
-                  emptyText: t('inputs.noOneMatches'),
-                  placeholder: t('inputs.pickEmployee'),
-                  active: person != null,
-                  value: person ?? _all,
-                  options: [
-                    DashOption(value: _all, label: t('dawamOps.everyone')),
-                    for (final e in employees)
-                      DashOption(value: e.id, label: e.name),
-                  ],
-                  onChanged: (v) => onPerson(v == _all ? null : v),
-                ),
-                DashFilterSelect<String>(
-                  label: t('staff.attendanceStatus'),
-                  allLabel: t('staff.allStatuses'),
-                  minWidth: AttendanceMetrics.status,
-                  value: status,
-                  options: [
-                    for (final s in attendanceStatuses)
-                      DashOption(value: s, label: attendanceStatusText(t, s)),
-                  ],
-                  onChanged: onStatus,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }
@@ -687,9 +699,7 @@ class _AttendanceWordsState extends ConsumerState<_AttendanceWords> {
                 spacing: Space.sm,
                 children: [
                   DashIcon('info', size: IconSize.sm, color: c.textSecondary),
-                  Flexible(
-                    child: Text(t('dawamOps.wordsTitle'), style: term),
-                  ),
+                  Flexible(child: Text(t('dawamOps.wordsTitle'), style: term)),
                 ],
               ),
             ),

@@ -176,8 +176,9 @@ DateTime _at(String zone, String day, String hhmm) {
   var early = 0, overtime = 0;
   if (end != null && outAt != null) {
     early = end.difference(outAt).inMinutes.clamp(0, 1 << 30);
-    overtime = (outAt.difference(end).inMinutes - n('overtime_threshold_minutes'))
-        .clamp(0, 1 << 30);
+    overtime =
+        (outAt.difference(end).inMinutes - n('overtime_threshold_minutes'))
+            .clamp(0, 1 << 30);
   }
   String status;
   if (outAt == null) {
@@ -237,7 +238,10 @@ void registerAttendanceMocks(MockServer server, MockDb db) {
     if (from != null && to != null) {
       _validateRange(req, from, to);
     } else if (!(from == null && to == null && pending)) {
-      req.badRequest('Pick a date range (from and to).', code: 'RANGE_REQUIRED');
+      req.badRequest(
+        'Pick a date range (from and to).',
+        code: 'RANGE_REQUIRED',
+      );
     }
     final scoped = req.persona.branchIds;
     final rows = [
@@ -390,7 +394,9 @@ void registerAttendanceMocks(MockServer server, MockDb db) {
     final start = shift == null
         ? null
         : _at(zone, day, shift['start_time']! as String);
-    var end = shift == null ? null : _at(zone, day, shift['end_time']! as String);
+    var end = shift == null
+        ? null
+        : _at(zone, day, shift['end_time']! as String);
     if (start != null && end != null && !end.isAfter(start)) {
       end = end.add(const Duration(days: 1));
     }

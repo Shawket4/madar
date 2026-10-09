@@ -99,14 +99,13 @@ String cairo(String date, String hhmm) {
 MockTable records(MockDb db) => db[TeamTables.attendance];
 
 /// Sabah's seeded records in the default window (the last 7 days).
-List<MockRow> windowRows(MockDb db, {String? branchId}) => records(db)
-    .where(
-      (r) =>
-          r['org_id'] == SeedIds.sabahOrg &&
-          (r['business_date']! as String).compareTo(day(-6)) >= 0 &&
-          (r['business_date']! as String).compareTo(day()) <= 0 &&
-          (branchId == null || r['branch_id'] == branchId),
-    );
+List<MockRow> windowRows(MockDb db, {String? branchId}) => records(db).where(
+  (r) =>
+      r['org_id'] == SeedIds.sabahOrg &&
+      (r['business_date']! as String).compareTo(day(-6)) >= 0 &&
+      (r['business_date']! as String).compareTo(day()) <= 0 &&
+      (branchId == null || r['branch_id'] == branchId),
+);
 
 /// A record row as the model writes it, for a test's own data.
 MockRow recordRow({
@@ -209,11 +208,20 @@ String refusal(DashHarness h, MockResponse r) => h
       '',
     );
 
-/// The page's own list calls (the Add dialog's look-ahead excluded).
+/// The page's own list calls (the export's re-read and the Add dialog's
+/// 40-day look-ahead excluded).
 List<MockCall> pageListCalls(DashHarness h) => h.server
     .callsTo(listT, method: 'GET')
-    .where((c) => c.headers['X-Madar-Export'] == null)
+    .where((c) => c.headers['X-Madar-Export'] == null && !isLookAhead(c))
     .toList();
+
+/// The Add dialog's read of a day and the 40 after it.
+bool isLookAhead(MockCall c) {
+  final from = c.query['from']?.first;
+  final to = c.query['to']?.first;
+  if (from == null || to == null || c.query.length != 2) return false;
+  return DateTime.parse(to).difference(DateTime.parse(from)).inDays == 40;
+}
 
 /// Shoots the page top to bottom: `<name>-1`, `<name>-2`, …
 Future<void> shootPage(DashHarness h, String name) async {

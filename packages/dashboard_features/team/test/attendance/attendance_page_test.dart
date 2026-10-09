@@ -4,15 +4,18 @@
 // loading, empty and error states. The dialogs are in
 // attendance_dialogs_test.dart, the export in attendance_export_test.dart.
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart' show DashFormat;
+import 'package:dashboard_core/dashboard_core.dart'
+    show DashFormat, orgIdProvider, transportProvider, webRetry;
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:dashboard_team/src/attendance/attendance_dialogs.dart';
+import 'package:dashboard_team/src/attendance/attendance_providers.dart';
 import 'package:dashboard_team/src/shared/team_format.dart';
 import 'package:flutter/material.dart' show Tooltip;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'attendance_support.dart';
@@ -26,9 +29,8 @@ Finder inCard(String label, Finder f) =>
     find.descendant(of: card(label), matching: f);
 
 /// The table row holding [text] (desktop: the row's `Row`).
-Finder rowOf(String text) => find
-    .ancestor(of: tableText(text).first, matching: find.byType(Row))
-    .first;
+Finder rowOf(String text) =>
+    find.ancestor(of: tableText(text).first, matching: find.byType(Row)).first;
 
 /// The date range field.
 Finder range(String s) => find.descendant(
@@ -163,14 +165,12 @@ void main() {
   });
 
   testWidgets('TEAM-ATT-003 quick ranges: this and last week (Saturday '
-      'first), this and last pay period from period_start_day', (
-    tester,
-  ) async {
+      'first), this and last pay period from period_start_day', (tester) async {
     final h = await pumpAttendance(
       tester,
-      edit: (db) => db['attendance_settings']
-          .firstWhere((r) => r['org_id'] == SeedIds.sabahOrg)!['period_start_day'] =
-          26,
+      edit: (db) => db['attendance_settings'].firstWhere(
+        (r) => r['org_id'] == SeedIds.sabahOrg,
+      )!['period_start_day'] = 26,
     );
     Future<void> pick(String name, String from, String to) async {
       await h.tap(pageText(name));
@@ -203,10 +203,13 @@ void main() {
   ) async {
     final h = await pumpAttendance(
       tester,
-      edit: (db) =>
-          db['employees'].find(emp('ziad'))!['employment_status'] = 'terminated',
+      edit: (db) => db['employees'].find(emp('ziad'))!['employment_status'] =
+          'terminated',
     );
-    expect(h.server.callsTo(employeesT).where((c) => c.query.isEmpty), hasLength(1));
+    expect(
+      h.server.callsTo(employeesT).where((c) => c.query.isEmpty),
+      hasLength(1),
+    );
     await h.tap(pageText('Everyone'));
     expect(find.text('Type a name'), findsOneWidget);
     final box = find.descendant(
@@ -273,14 +276,23 @@ void main() {
       0,
       (s, r) => s + (r['overtime_minutes']! as int),
     );
-    expect(inCard('Present days', find.text('${count('present')}')), findsOneWidget);
+    expect(
+      inCard('Present days', find.text('${count('present')}')),
+      findsOneWidget,
+    );
     expect(inCard('Late days', find.text('${count('late')}')), findsOneWidget);
-    expect(inCard('Absent days', find.text('${count('absent')}')), findsOneWidget);
-    expect(inCard('Overtime', find.text(fmtHours('en', overtime))), findsOneWidget);
+    expect(
+      inCard('Absent days', find.text('${count('absent')}')),
+      findsOneWidget,
+    );
+    expect(
+      inCard('Overtime', find.text(fmtHours('en', overtime))),
+      findsOneWidget,
+    );
     final tops = {
-      for (final e in card('Present days').evaluate().followedBy(
-        card('Overtime').evaluate(),
-      ))
+      for (final e in card(
+        'Present days',
+      ).evaluate().followedBy(card('Overtime').evaluate()))
         tester.getTopLeft(find.byWidget(e.widget)).dy,
     };
     expect(tops, hasLength(1));
@@ -293,17 +305,17 @@ void main() {
     final gate = s.server.hold('GET', summaryT);
     final h = await pumpAttendance(tester, s: s);
     expect(
-      tester.widgetList<DashStatCard>(inPage(find.byType(DashStatCard))).every(
-        (c) => c.loading,
-      ),
+      tester
+          .widgetList<DashStatCard>(inPage(find.byType(DashStatCard)))
+          .every((c) => c.loading),
       isTrue,
     );
     gate.release();
     await h.settle();
     expect(
-      tester.widgetList<DashStatCard>(inPage(find.byType(DashStatCard))).any(
-        (c) => c.loading,
-      ),
+      tester
+          .widgetList<DashStatCard>(inPage(find.byType(DashStatCard)))
+          .any((c) => c.loading),
       isFalse,
     );
   });
@@ -374,7 +386,10 @@ void main() {
     await h.enterText(inPage(find.byType(DashSearchInput)), 'mariam');
     await h.settle();
     expect(inRow('Mariam Fathy', find.text('Absent')), findsOneWidget);
-    expect(inRow('Mariam Fathy', find.text('Covered by Youssef Samir')), findsOneWidget);
+    expect(
+      inRow('Mariam Fathy', find.text('Covered by Youssef Samir')),
+      findsOneWidget,
+    );
     expect(tableText('Covered by Youssef Samir'), findsOneWidget);
     expect(tableText('Month closed'), findsNothing);
     // Last pay period (September) is paid: every row says its month closed.
@@ -432,7 +447,10 @@ void main() {
   ) async {
     await pumpAttendance(tester, edit: (db) => onlyRecords(db, cellRows()));
     expect(inRow('Omar Khaled', find.text('by a manager')), findsNWidgets(2));
-    expect(inRow('Omar Khaled', find.text('Forgot to clock out')), findsOneWidget);
+    expect(
+      inRow('Omar Khaled', find.text('Forgot to clock out')),
+      findsOneWidget,
+    );
     expect(inRow('Ali Hassan', find.text('till PIN')), findsOneWidget);
     expect(inRow('Hana Mostafa', find.text('corrected')), findsOneWidget);
     expect(inRow('Hana Mostafa', find.text('queued offline')), findsOneWidget);
@@ -504,7 +522,9 @@ void main() {
     expect(tableText('Laila Ehab'), findsNothing);
     // Export follows the loaded rows, not the searched ones.
     expect(
-      tester.widget<DashExportButton>(inPage(find.byType(DashExportButton))).enabled,
+      tester
+          .widget<DashExportButton>(inPage(find.byType(DashExportButton)))
+          .enabled,
       isTrue,
     );
   });
@@ -526,7 +546,11 @@ void main() {
   testWidgets('TEAM-ATT-020 error: the words and Retry, which asks only the '
       'records again', (tester) async {
     final s = attendanceServer();
-    s.server.fail('GET', listT, MockResponse.error(500, 'Database error: boom'));
+    s.server.fail(
+      'GET',
+      listT,
+      MockResponse.error(500, 'Database error: boom'),
+    );
     final h = await pumpAttendance(tester, s: s);
     expect(tableText(h.t('common.loadFailed')), findsOneWidget);
     expect(tableText('boom'), findsOneWidget);
@@ -542,14 +566,17 @@ void main() {
     expect(pageText('No attendance in this range'), findsOneWidget);
     expect(pageText(h.t('staff.noAttendanceHint')), findsOneWidget);
     expect(
-      tester.widget<DashExportButton>(inPage(find.byType(DashExportButton))).enabled,
+      tester
+          .widget<DashExportButton>(inPage(find.byType(DashExportButton)))
+          .enabled,
       isFalse,
     );
     expect(inCard('Present days', find.text('0')), findsOneWidget);
   });
 
-  testWidgets('TEAM-ATT-022/034 a reader gets neither Add record nor Correct',
-      (tester) async {
+  testWidgets('TEAM-ATT-022/034 a reader gets neither Add record nor Correct', (
+    tester,
+  ) async {
     final s = attendanceServer();
     answerAuthz(s.server, const ['hr.attendance.read']);
     await pumpAttendance(tester, s: s);
@@ -558,16 +585,18 @@ void main() {
     expect(correct, findsNothing);
   });
 
-  testWidgets('TEAM-ATT-022/034 hr.attendance.edit alone: Correct but not Add',
-      (tester) async {
-    final s = attendanceServer();
-    answerAuthz(s.server, const ['hr.attendance.read', 'hr.attendance.edit']);
-    final h = await pumpAttendance(tester, s: s);
-    expect(pageText('Add record'), findsNothing);
-    expect(correct, findsWidgets);
-    await h.tap(correct.first);
-    expect(find.byType(AttendanceCorrectDialog), findsOneWidget);
-  });
+  testWidgets(
+    'TEAM-ATT-022/034 hr.attendance.edit alone: Correct but not Add',
+    (tester) async {
+      final s = attendanceServer();
+      answerAuthz(s.server, const ['hr.attendance.read', 'hr.attendance.edit']);
+      final h = await pumpAttendance(tester, s: s);
+      expect(pageText('Add record'), findsNothing);
+      expect(correct, findsWidgets);
+      await h.tap(correct.first);
+      expect(find.byType(AttendanceCorrectDialog), findsOneWidget);
+    },
+  );
 
   testWidgets('TEAM-ATT-022 Add record opens the add dialog', (tester) async {
     final h = await pumpAttendance(tester);
@@ -638,7 +667,9 @@ void main() {
     tester,
   ) async {
     final s = attendanceServer(
-      edit: (db) => db['orgs'].update(SeedIds.sabahOrg, {'modules': ['pos']}),
+      edit: (db) => db['orgs'].update(SeedIds.sabahOrg, {
+        'modules': ['pos'],
+      }),
     );
     final h = await pumpAttendance(tester, s: s);
     expect(find.text(h.t('dawam.moduleOffTitle')), findsOneWidget);
@@ -697,7 +728,8 @@ void main() {
     tester,
   ) async {
     final h = await pumpAttendance(tester);
-    final present = '${windowRows(h.db!).where((r) => r['status'] == 'present').length}';
+    final present =
+        '${windowRows(h.db!).where((r) => r['status'] == 'present').length}';
     h.server.fail(
       'GET',
       listT,
@@ -756,7 +788,37 @@ void main() {
     await h.go('/staff/employees');
     await h.go(attendancePath);
     expect(pageText('All statuses'), findsOneWidget);
-    expect(inTable(find.widgetWithText(DashStatusPill, 'Present')), findsWidgets);
+    expect(
+      inTable(find.widgetWithText(DashStatusPill, 'Present')),
+      findsWidgets,
+    );
+  });
+
+  testWidgets('TEAM-ALL-023 the records read: a 403 once, a 500 twice, a '
+      '429 four times', (tester) async {
+    Future<int> asks(MockResponse answer) async {
+      final s = attendanceServer();
+      s.server.fail('GET', listT, answer, times: null);
+      final c = ProviderContainer(
+        retry: webRetry,
+        overrides: [
+          transportProvider.overrideWithValue(s.server),
+          orgIdProvider.overrideWithValue(SeedIds.sabahOrg),
+        ],
+      );
+      final key = attendanceWindow(day(-6), day());
+      final sub = c.listen(attendanceListProvider(key), (_, _) {});
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      sub.close();
+      c.dispose();
+      return s.server.callsTo(listT).length;
+    }
+
+    expect(await asks(MockResponse.denied('hr.attendance.read')), 1);
+    expect(await asks(MockResponse.error(500, 'boom')), 2);
+    expect(await asks(MockResponse.error(429, 'Slow down')), 4);
   });
 
   test('fmtMinutes reads like the web', () {

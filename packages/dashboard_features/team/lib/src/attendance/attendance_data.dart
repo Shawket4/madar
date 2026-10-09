@@ -90,6 +90,10 @@ DateTime? fromZonedInput(String local, String zone) {
   return wallClock(zone, p(1), p(2) - 1, p(3), p(4), p(5));
 }
 
+/// A punch the form can send: none, or a whole readable day and time (a
+/// time the field could not read reaches the form as typed).
+bool stampReadable(String v) => v.isEmpty || _local.hasMatch(v.trim());
+
 /// The day and the `HH:MM` of a `yyyy-MM-ddTHH:mm` value (`splitDateTime`).
 ({String date, String time}) splitDateTime(String? v) {
   final parts = (v ?? '').split('T');

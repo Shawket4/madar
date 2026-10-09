@@ -9,6 +9,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart' show Bidi;
 
 import '../shared/inventory_labels.dart';
 import 'counts_data.dart';
@@ -162,7 +163,9 @@ class CountTable extends StatelessWidget {
   }
 }
 
-/// A figure cell: mono, tabular, left-to-right.
+/// A figure cell: mono, tabular, isolated like the web's `<bdi>` (its
+/// first strong letter decides: money in Arabic reads right-to-left, a bare
+/// figure left-to-right).
 class CountFigure extends StatelessWidget {
   const CountFigure(this.text, {this.color, super.key});
 
@@ -172,7 +175,9 @@ class CountFigure extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(
     text,
-    textDirection: TextDirection.ltr,
+    textDirection: Bidi.startsWithRtl(text)
+        ? TextDirection.rtl
+        : TextDirection.ltr,
     maxLines: 1,
     style: DashType.mono.copyWith(
       color: color ?? context.madarColors.textPrimary,

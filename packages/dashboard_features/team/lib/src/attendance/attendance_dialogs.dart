@@ -93,6 +93,8 @@ class _AttendanceAddDialogState extends ConsumerState<AttendanceAddDialog> {
     if (!isYmd(_date)) 'date': t('staff.pickDate'),
     if (!outAfterIn(_in, _out)) 'out': t('staff.outBeforeIn'),
     if (_reason.trim().isEmpty) 'reason': t('staff.reasonRequired'),
+    // The time field says it; the form only refuses (never sends a blank).
+    if (!stampReadable(_in) || !stampReadable(_out)) 'time': '',
   };
 
   Future<void> _save(String? recordBranch, String tz) async {
@@ -153,7 +155,8 @@ class _AttendanceAddDialogState extends ConsumerState<AttendanceAddDialog> {
     final t = ref.watch(tProvider);
     final employees =
         ref.watch(staffActiveEmployeesProvider).value ?? const <Employee>[];
-    final shifts = ref.watch(staffWorkShiftsProvider).value ?? const <WorkShift>[];
+    final shifts =
+        ref.watch(staffWorkShiftsProvider).value ?? const <WorkShift>[];
     final branches = ref.watch(branchesProvider).value ?? const <Branch>[];
 
     // With every branch in scope, the record's branch is the person's: their
@@ -178,7 +181,9 @@ class _AttendanceAddDialogState extends ConsumerState<AttendanceAddDialog> {
     // or paid month closes the day too (months close in order).
     final validDate = isYmd(_date);
     final ahead = validDate
-        ? ref.watch(attendanceListProvider(attendanceWindow(_date, addDays(_date, 40))))
+        ? ref.watch(
+            attendanceListProvider(attendanceWindow(_date, addDays(_date, 40))),
+          )
         : null;
     final aheadRows = ahead?.value ?? const <AttendanceRecord>[];
     final monthClosed = aheadRows.any(
@@ -341,6 +346,8 @@ class _AttendanceCorrectDialogState
   Map<String, String> _problems(Translator t) => {
     if (!outAfterIn(_in, _out)) 'out': t('staff.outBeforeIn'),
     if (_reason.trim().isEmpty) 'reason': t('staff.reasonRequired'),
+    // The time field says it; the form only refuses (never sends a blank).
+    if (!stampReadable(_in) || !stampReadable(_out)) 'time': '',
   };
 
   void _edit(VoidCallback change) => setState(() {
@@ -368,7 +375,9 @@ class _AttendanceCorrectDialogState
             id: record.id,
             body: CorrectRecordRequest(
               // Untouched: kept by the server.
-              checkInAt: _in != initial.checkIn ? fromZonedInput(_in, tz) : null,
+              checkInAt: _in != initial.checkIn
+                  ? fromZonedInput(_in, tz)
+                  : null,
               checkOutAt: _out != initial.checkOut
                   ? fromZonedInput(_out, tz)
                   : null,
@@ -622,7 +631,10 @@ class _DashedNote extends StatelessWidget {
       painter: _DashedBorder(c.hairline),
       child: Padding(
         padding: const EdgeInsets.all(Space.md),
-        child: Text(text, style: DashType.body.copyWith(color: c.textSecondary)),
+        child: Text(
+          text,
+          style: DashType.body.copyWith(color: c.textSecondary),
+        ),
       ),
     );
   }

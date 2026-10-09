@@ -205,3 +205,4 @@ BUILT inventory/purchasing (73/73, 151 tests; builder a825f31bb69ed1efc) → VER
 BUILT reports/loyalty_inventory_staff (LOY 18 + INV 18 + STF 11 = 47/47, 157 tests; builder a57ad2839e3ff0715) → VERIFY QUEUED. Route caps removed on its 3 routes.
 INTEGRATION TODO (+lis): low-stock + waste-report mocks registered by both reports and inventory (inventory wins in the app) → pick one owner. Zamalek waiters lack a department in reports' mock (team seed: Front of house). The Dawam refresh button + failed-refresh toast are duplicated (reports StaffRefreshButton vs team) → kit.
 KIT (+lis): DashBarChart LTR + below-zero; percent bidi marks; DashProgressBar 8 px; DashBadge outline
+BUILT team/attendance (39/39 ATT + 17 ALL, 107 tests; team 317 pass; builder a10e5eddbe46c41d5) → VERIFY QUEUED. attendanceErrorText moved to team/shared. GET /staff/attendance list now 400s without from/to (RANGE_REQUIRED).

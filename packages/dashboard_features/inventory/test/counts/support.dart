@@ -131,10 +131,16 @@ Finder countInput(String key) =>
 Future<void> typeCount(DashHarness h, String key, String qty) =>
     h.enterText(countInput(key), qty);
 
-/// Picks [label] in the select keyed [key] (inside [scope]).
+/// The option [label] in the open select's list (popover or sheet).
+Finder option(String label) => find.descendant(
+  of: find.byWidgetPredicate((w) => w is DashOptionList),
+  matching: find.text(label),
+);
+
+/// Picks [label] in the select [select].
 Future<void> pick(DashHarness h, Finder select, String label) async {
   await h.tap(select);
-  await h.tap(find.text(label).last);
+  await h.tap(option(label).last);
 }
 
 /// Picks [label] in the searchable picker [select]: types it into the
@@ -145,7 +151,7 @@ Future<void> pickSearch(DashHarness h, Finder select, String label) async {
     find.byWidgetPredicate((w) => w is DashOptionList).last,
     label,
   );
-  await h.tap(find.text(label).last);
+  await h.tap(option(label).last);
 }
 
 /// The open count's item row of ingredient [key] in [db].

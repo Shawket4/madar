@@ -53,6 +53,9 @@ class _CountEditorState extends ConsumerState<CountEditor> {
   bool _finalizing = false;
 
   bool _hydrated = false;
+
+  /// The person changed a figure or a reason: polls stop re-seeding.
+  bool _edited = false;
   bool _dirty = false;
   Future<bool>? _inFlight;
   Timer? _debounce;
@@ -73,7 +76,12 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     final p = stocktakeProvider(widget.stocktakeId);
     ref.listenManual<AsyncValue<StocktakeFull>>(p, (_, next) {
       final d = next.value;
-      if (d != null && !_hydrated) setState(() => _hydrate(d));
+      if (d == null) return;
+      if (!_hydrated) {
+        setState(() => _hydrate(d));
+      } else if (!_edited) {
+        setState(() => _seed(d));
+      }
     });
     final now = ref.read(p).value;
     if (now != null) _hydrate(now);
@@ -82,10 +90,18 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     });
   }
 
-  /// The server's figures and reasons, ONCE: later polls never overwrite
-  /// what is typed (INV-CNT-026). It schedules one autosave, as the web's
-  /// does (INV-CNT-064).
+  /// The server's figures and reasons when the count first loads. It
+  /// schedules one autosave, as the web's does (INV-CNT-064).
   void _hydrate(StocktakeFull d) {
+    _seed(d);
+    _hydrated = true;
+    _changed();
+  }
+
+  /// Copies the server's figures and reasons. After the first load only
+  /// while nothing was edited here: a poll never overwrites what is typed
+  /// (INV-CNT-026), and never saves.
+  void _seed(StocktakeFull d) {
     _counts = {
       for (final it in d.items)
         if (it.countedQty != null)
@@ -96,8 +112,6 @@ class _CountEditorState extends ConsumerState<CountEditor> {
         if ((it.varianceReason ?? '').isNotEmpty)
           it.orgIngredientId: it.varianceReason!,
     };
-    _hydrated = true;
-    _changed();
   }
 
   /// A figure or a reason changed: save 1.2 s after the last change.
@@ -144,11 +158,13 @@ class _CountEditorState extends ConsumerState<CountEditor> {
   }
 
   void _setCount(String id, String v) {
+    _edited = true;
     setState(() => _counts = {..._counts, id: v});
     _changed();
   }
 
   void _setReason(String id, String v) {
+    _edited = true;
     setState(() => _reasons = {..._reasons, id: v});
     _changed();
   }
