@@ -175,8 +175,9 @@ LinksPageSettings _view(MockDb db, String orgId) {
 
 /// `validate_items`, returning the tidied list.
 List<MockRow> _validateItems(MockRequest req, MockDb db, Object? raw) {
-  if (raw is! List)
+  if (raw is! List) {
     req.badRequest('Json deserialize error: missing field `items`');
+  }
   final modules = <String>{};
   final ids = <String>{};
   var customs = 0;

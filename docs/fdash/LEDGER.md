@@ -322,3 +322,7 @@ FOLLOW-UPS: admin branches_mock.dart:73-92 must set kind ('branch' default); inv
 LAUNCHED: inventory/transfers REBUILD, admin/branches, admin/orgs, setup/combo_settings + booking_settings
 BUILT team/team_board (31/31 TEM + ALL rows, 121 tests) → VERIFY QUEUED. ALL TEAM UNITS BUILT. KIT: DashListRow trailing wrap; pill chip button.
 BUILT setup/staff_pool (22/22, 67 tests) → VERIFY QUEUED. OWNER Q / BACKEND: GET staff-pool settings returns the org's row labelled with the branch id, so 'follows the organisation' never shows and 'Follow the organisation' is offered with nothing to remove; backend fix: branch_id null or inherited flag.
+BUILT setup/links (26/26, 59 tests) → VERIFY QUEUED. OWNER Q: the links preview uses only the narrow public layout (wide layout not ported). KIT: sticky side column (now in settings shell + links), two-leading-icon button, compact up/down pair.
+VERIFIED inventory/inv_settings AT PARITY (minors) + team/requests NOT (major = kit DashPopover date overflow) → pending/inventory-inv_settings-team-requests.md; KIT BATCH 1 launched
+DONE setup/loyalty (findings 1/3/4; 2 via integration seam) + admin/roles (minors); sell member_section warehouse filter too. DONE setup/qr + integrations (blockers fixed; 162 tests). OWNER Q: QR GETs are get-or-create (create Shlink links) → should they be side-effect free?
+VERIFIED setup/brand_appearance + whatsapp AT PARITY (minors → pending/setup-brand-whatsapp.md; kit items sent to kit batch 1: DashTextInput hintTextDirection, DashSwitch dark off knob)

@@ -73,6 +73,17 @@ class _QrTableCodesState extends ConsumerState<QrTableCodes> {
     } on Object {
       if (mounted) DashToast.error(context, t('qr.tables.failed'));
     } finally {
+      // The cache only bridges hover to press: each card is drawn from the
+      // org's current brand, so the next press asks again.
+      for (final row in rows) {
+        container.invalidate(
+          qrTableCodeProvider((
+            branchId: branchId,
+            tableId: row.id,
+            caption: row.label,
+          )),
+        );
+      }
       if (mounted) setState(() => _busy = false);
     }
   }

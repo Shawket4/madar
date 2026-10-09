@@ -8,6 +8,7 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart' show Tooltip;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -351,7 +352,7 @@ void main() {
     );
     await add('Kitchen printer');
     final printer = planOf(tester).printers.last;
-    expect(printer.name, 'Kitchen printer 2');
+    expect(printer.name, 'Kitchen printer 3');
     expect(printer.connection, 'network');
     expect(printer.port, 9100);
     expect(printer.paperMm, 80);

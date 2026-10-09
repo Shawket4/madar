@@ -83,6 +83,7 @@ Future<DashHarness> pumpUsers(
   bool dark = false,
   MockServer? server,
   MockDb? db,
+  AreaOpeners openers = const AreaOpeners(),
 }) => DashHarness.pump(
   tester,
   areas: const [usersArea],
@@ -93,7 +94,18 @@ Future<DashHarness> pumpUsers(
   dark: dark,
   server: server,
   db: db,
+  overrides: [areaOpenersProvider.overrideWithValue(openers)],
 );
+
+/// The app's Add employee seam, recording each person it opens for and
+/// each warm.
+AreaOpeners makeEmployeeSeam(List<String> opened, {List<String>? warmed}) =>
+    AreaOpeners(
+      addEmployee: AddEmployeeOpener(
+        open: (context, {userId}) async => opened.add(userId ?? ''),
+        warm: (ref) => warmed?.add('warm'),
+      ),
+    );
 
 /// A seeded server with the core's and the Users handlers, for a test that
 /// changes the data or the answers before the page opens.

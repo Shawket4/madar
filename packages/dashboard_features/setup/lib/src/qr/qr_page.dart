@@ -59,11 +59,6 @@ class _QrPageState extends ConsumerState<QrPage> {
     return null;
   }
 
-  bool get _placeValid =>
-      _check(_place, QrPage.placeMax) == null &&
-      _check(_floor, QrPage.floorMax) == null &&
-      _check(_unit, QrPage.unitMax) == null;
-
   /// The read [kind] makes now, or null when the scope cannot make it.
   QrKey? _keyFor(QrKind kind) {
     final orgId = ref.read(orgIdProvider);
@@ -99,13 +94,16 @@ class _QrPageState extends ConsumerState<QrPage> {
         setState(() => _results[kind] = qr);
       }
     } on Object catch (e) {
-      container.invalidate(read);
       // Inline, not a toast: "bookings are switched off" is something to go
       // and fix, and it belongs beside the button that produced it.
       if (mounted && _keyFor(kind)?.id == key.id) {
         setState(() => _errors[kind] = errorMessage(e, t));
       }
     } finally {
+      // The cache only bridges hover to press: the server draws the card
+      // from the org's current brand on every request, so the next press
+      // asks again.
+      container.invalidate(read);
       if (mounted) setState(() => _busy = null);
     }
   }
@@ -116,8 +114,10 @@ class _QrPageState extends ConsumerState<QrPage> {
     }
   }
 
+  /// Never the in-mall card: its GET creates a permanent short link per
+  /// place, floor and unit, so a hover would mint links nobody asked for.
   void _warm(QrKind kind) {
-    if (kind == QrKind.branchOrderInMall && !_placeValid) return;
+    if (kind == QrKind.branchOrderInMall) return;
     final key = _keyFor(kind);
     if (key != null) ref.warm(qrCodeProvider(key));
   }

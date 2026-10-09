@@ -151,6 +151,7 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
   final ValueNotifier<bool> _saving = ValueNotifier(false);
   final DashPopoverController _historyMenu = DashPopoverController();
   final DashPopoverController _addMenu = DashPopoverController();
+  final FocusNode _pageFocus = FocusNode(debugLabel: 'branch-builder', skipTraversal: true);
   bool _editable = false;
   Set<String> _selection = const {};
   PlanLink? _selectedLink;
@@ -167,7 +168,6 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
   void initState() {
     super.initState();
     _draft.addListener(_onDraft);
-    HardwareKeyboard.instance.addHandler(_onKey);
     // "Seen 4 min ago" ages by the clock, not by a refetch.
     _ticker = Timer.periodic(const Duration(seconds: 60), (_) {
       if (mounted) setState(() => _now = ref.read(clockProvider)());
@@ -177,7 +177,7 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
   @override
   void dispose() {
     _ticker?.cancel();
-    HardwareKeyboard.instance.removeHandler(_onKey);
+    _pageFocus.dispose();
     _draft.dispose();
     _viewport.dispose();
     _saving.dispose();
@@ -444,17 +444,17 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
 
   /// The canvas's shortcuts, anywhere outside text fields, the inspector,
   /// dialogs and menus.
-  bool _onKey(KeyEvent e) {
-    if (e is KeyUpEvent || !mounted) return false;
+  KeyEventResult _onKey(FocusNode _, KeyEvent e) {
+    if (e is KeyUpEvent || !mounted) return KeyEventResult.ignored;
     final route = ModalRoute.of(context);
-    if (route != null && !route.isCurrent) return false;
+    if (route != null && !route.isCurrent) return KeyEventResult.ignored;
     final f = FocusManager.instance.primaryFocus?.context;
     if (f != null &&
         (f.widget is EditableText ||
             f.findAncestorWidgetOfExactType<EditableText>() != null ||
             InspectorScope.contains(f) ||
             f.findAncestorWidgetOfExactType<DashPopover>() != null)) {
-      return false;
+      return KeyEventResult.ignored;
     }
     final q = ref.read(branchPlanProvider(_branch));
     final view = q.value;
@@ -464,22 +464,22 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
     final repeat = e is KeyRepeatEvent;
     if (mod && k == LogicalKeyboardKey.keyE) {
       if (!repeat) setState(() => _editable = !_editable);
-      return true;
+      return KeyEventResult.handled;
     }
     if (mod && k == LogicalKeyboardKey.keyZ) {
       if (_editable) kb.isShiftPressed ? _draft.redo() : _draft.undo();
-      return true;
+      return KeyEventResult.handled;
     }
     if (mod && k == LogicalKeyboardKey.keyY) {
       if (_editable) _draft.redo();
-      return true;
+      return KeyEventResult.handled;
     }
     if (mod && k == LogicalKeyboardKey.keyS) {
       final blocking = checkPlan(_plan).where((p) => p.blocking).length;
       if (!repeat && view != null && _draft.dirty && blocking == 0) {
         unawaited(_openReview(view, _savedOf(view)));
       }
-      return true;
+      return KeyEventResult.handled;
     }
     final ch = e.character;
     if (ch == '+' ||
@@ -487,29 +487,28 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
         k == LogicalKeyboardKey.equal ||
         k == LogicalKeyboardKey.numpadAdd) {
       _viewport.zoomBy(kZoomStep);
-      return true;
+      return KeyEventResult.handled;
     }
     if (ch == '-' ||
         ch == '_' ||
         k == LogicalKeyboardKey.minus ||
         k == LogicalKeyboardKey.numpadSubtract) {
       _viewport.zoomBy(1 / kZoomStep);
-      return true;
+      return KeyEventResult.handled;
     }
     if (ch == '0' ||
         k == LogicalKeyboardKey.digit0 ||
         k == LogicalKeyboardKey.numpad0) {
       _frame();
-      return true;
+      return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.escape) {
       setState(() {
         _selection = const {};
         _selectedLink = null;
       });
-      return false;
+      return KeyEventResult.ignored;
     }
-    if (!_editable) return false;
     final delta = switch (k) {
       LogicalKeyboardKey.arrowLeft => const Offset(-1, 0),
       LogicalKeyboardKey.arrowRight => const Offset(1, 0),
@@ -517,7 +516,13 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
       LogicalKeyboardKey.arrowDown => const Offset(0, 1),
       _ => null,
     };
-    if (delta != null && _selection.isNotEmpty) {
+    // Arrows never move focus between cards here (no directional focus on
+    // the web); they nudge the selection while editing.
+    if (delta != null && (!_editable || _selection.isEmpty)) {
+      return KeyEventResult.handled;
+    }
+    if (!_editable) return KeyEventResult.ignored;
+    if (delta != null) {
       final step = kb.isShiftPressed ? 1.0 : 10.0;
       _draft.change(
         (p) => movePieces(p, {
@@ -526,13 +531,13 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
               b.key: (x: b.x + delta.dx * step, y: b.y + delta.dy * step),
         }),
       );
-      return true;
+      return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.delete || k == LogicalKeyboardKey.backspace) {
       _removeSelected();
-      return true;
+      return KeyEventResult.handled;
     }
-    return false;
+    return KeyEventResult.ignored;
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -748,7 +753,16 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
       }
       return Stack(
         children: [
-          Positioned.fill(child: main),
+          // A press on the canvas brings the keys back to the page.
+          Positioned.fill(
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (_) {
+                if (!_pageFocus.hasPrimaryFocus) _pageFocus.requestFocus();
+              },
+              child: main,
+            ),
+          ),
           if (!empty && q.hasValue)
             PositionedDirectional(
               start: Space.md,
@@ -899,7 +913,13 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
           )
         : null;
 
-    return DashPageScaffold(
+    // The canvas's shortcuts: anywhere in the page (the web listens on the
+    // window), the page holding focus from the start.
+    return Focus(
+      focusNode: _pageFocus,
+      autofocus: true,
+      onKeyEvent: _onKey,
+      child: DashPageScaffold(
       title: t('builder.title'),
       subtitle: t('builder.subtitle'),
       actions: [actions],
@@ -924,6 +944,7 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
               spacing: Space.lg,
               children: [?banner, card],
             ),
+      ),
     );
   }
 

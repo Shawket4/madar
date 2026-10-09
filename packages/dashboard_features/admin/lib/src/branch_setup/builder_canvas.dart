@@ -508,7 +508,11 @@ class _BuilderCanvasState extends State<BuilderCanvas> {
               onExit: (_) {
                 if (_hoverLink != null) setState(() => _hoverLink = null);
               },
-              child: Listener(
+              child: ClipRect(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                Listener(
                 behavior: HitTestBehavior.opaque,
                 onPointerDown: _down,
                 onPointerMove: _move,
@@ -562,7 +566,6 @@ class _BuilderCanvasState extends State<BuilderCanvas> {
                         for (final p in widget.pieces) _card(p),
                         if (widget.editable)
                           for (final p in widget.pieces) _port(p),
-                        if (selected != null) _pill(selected, boxes),
                         if (_hoverLink case final h?)
                           Positioned(
                             left: h.at.dx + Space.md,
@@ -582,6 +585,10 @@ class _BuilderCanvasState extends State<BuilderCanvas> {
           );
         },
       ),
+                if (selected != null) _pill(selected, boxes),
+                  ],
+                ),
+              ),
     );
   }
 

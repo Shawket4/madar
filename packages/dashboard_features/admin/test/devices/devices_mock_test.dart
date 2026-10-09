@@ -196,6 +196,50 @@ void main() {
       expect(pos.code, isNot(c.code));
     });
 
+    test('a slot\'s code: the slot decides the kind and lends its name; '
+        'stored and echoed; a slot of another branch is 404', () async {
+      final b = DevicesBackend();
+      final slot = mockUuid('branch-device-slot:test:zamalek:hot');
+      b.db['branch_device_slots'].insert({
+        'id': slot,
+        'branch_id': zamalek,
+        'kind': 'kitchen',
+        'name': 'Hot line screen',
+      }, timestamps: false);
+      final c = await b.api.devices.createCode(
+        body: CreateActivationCodeRequest(
+          branchId: zamalek,
+          slotId: slot,
+          kind: DeviceKind.pos,
+        ),
+      );
+      expect(c.slotId, slot);
+      expect(c.kind, DeviceKind.kds);
+      expect(c.label, 'Hot line screen');
+      expect(b.codes.find(c.id)!['slot_id'], slot);
+      final listed = await b.api.devices.listCodes(branchId: zamalek);
+      expect(listed.first.slotId, slot);
+      final named = await b.api.devices.createCode(
+        body: CreateActivationCodeRequest(
+          branchId: zamalek,
+          slotId: slot,
+          label: ' Pass ',
+        ),
+      );
+      expect(named.label, 'Pass');
+      final plain = await b.api.devices.createCode(
+        body: CreateActivationCodeRequest(branchId: zamalek),
+      );
+      expect(plain.slotId, isNull);
+      final gone = await refused(
+        b.api.devices.createCode(
+          body: CreateActivationCodeRequest(branchId: newCairo, slotId: slot),
+        ),
+      );
+      expect(gone.status, 404);
+      expect(gone.message, contains("That slot is not in this branch's plan"));
+    });
+
     test('withdraw: free → revoked; used is refused; unknown is 404', () async {
       final b = DevicesBackend();
       final free = mockUuid('activation-code:40721958');

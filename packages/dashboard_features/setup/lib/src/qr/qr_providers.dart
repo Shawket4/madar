@@ -3,9 +3,9 @@
 ///
 /// The web calls these imperatively (no React Query); here they are cached
 /// reads keyed by exactly the request's params, so a Generate button can be
-/// warmed on intent and a press answers from the cache. A failure is never
-/// kept (the caller invalidates it) and never retried: the next press asks
-/// again, as on the web.
+/// warmed on intent and a press answers from that warm read. The press then
+/// drops it (the server redraws the card from the current brand each time),
+/// and nothing is retried: the next press asks again, as on the web.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart' show BranchTable, QrResponse;

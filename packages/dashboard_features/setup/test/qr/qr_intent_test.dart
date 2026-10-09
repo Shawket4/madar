@@ -1,6 +1,7 @@
 // Intent warming on the QR page: resting on Generate warms that code, on
 // "Make codes" every table's code (one at a time), so the press asks the
-// server nothing more. An in-mall form that would not submit warms nothing.
+// server nothing more. The in-mall card is never warmed: its GET creates a
+// permanent short link per place.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter/gestures.dart';
@@ -35,9 +36,12 @@ void main() {
     await h.tap(generateOf(QrKind.orgOrder));
     expect(h.server.callsTo(QrRoutes.orgQr), hasLength(1));
     expect(resultOf(QrKind.orgOrder), findsOneWidget);
+    // The warm read is spent: a re-press (after a Brand edit) asks again.
+    await h.tap(generateOf(QrKind.orgOrder));
+    expect(h.server.callsTo(QrRoutes.orgQr), hasLength(2));
   });
 
-  testWidgets('the in-mall Generate warms only a form that would submit', (
+  testWidgets('the in-mall Generate warms nothing, even a valid form', (
     tester,
   ) async {
     final h = await pumpQr(tester, query: atBranch(SeedIds.heliopolis));
@@ -55,7 +59,7 @@ void main() {
     await h.enterText(field('qr-floor'), 'Ground Floor');
     await h.enterText(field('qr-unit'), 'Unit 42');
     await _rest(h, m, button);
-    expect(h.server.callsTo(QrRoutes.branchQr), hasLength(1));
+    expect(h.server.callsTo(QrRoutes.branchQr), isEmpty);
     await m.moveTo(Offset.zero);
     await h.tap(button);
     expect(h.server.callsTo(QrRoutes.branchQr), hasLength(1));
@@ -73,5 +77,8 @@ void main() {
     await h.tap(make);
     expect(h.server.callsTo(QrRoutes.tableQr), hasLength(10));
     expect(find.byKey(const ValueKey('qr-tables-sheet')), findsOneWidget);
+    // The warm read is spent: a re-press redraws every card.
+    await h.tap(make);
+    expect(h.server.callsTo(QrRoutes.tableQr), hasLength(20));
   });
 }

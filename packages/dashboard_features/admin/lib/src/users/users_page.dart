@@ -26,7 +26,6 @@ import '../shared/pick_org_state.dart';
 import '../shared/row_action.dart';
 import '../shared/url_params.dart';
 import 'branch_access_dialog.dart';
-import 'make_employee.dart';
 import 'person_access_sheet.dart';
 import 'user_dialog.dart';
 import 'users_data.dart';
@@ -173,10 +172,11 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       orgModulesProvider.select((m) => m.has(OrgModule.dawam)),
     );
     // "Make employee" (Phase A): offered where Dawam is on, to someone who
-    // may add staff, for accounts that are not employees yet.
-    final launcher = makeEmployeeLauncher;
+    // may add staff, for accounts that are not employees yet. The dialog is
+    // the team area's, which the app wires; unwired, no button.
+    final makeEmployee = ref.watch(areaOpenersProvider).addEmployee;
     final canMakeEmployee =
-        launcher != null && dawam && authz.can(Cap.hrStaffCreate);
+        makeEmployee != null && dawam && authz.can(Cap.hrStaffCreate);
     final linkable = canMakeEmployee
         ? ref.watch(linkableUsersProvider).value
         : null;
@@ -259,8 +259,9 @@ class _UsersPageState extends ConsumerState<UsersPage> {
             onAccess: (u) => context.setQueryParams({'access': u.id}),
             onBranches: (u) => context.setQueryParams({'branches': u.id}),
             onMakeEmployee: (u) async {
-              await launcher?.call(context, u.id);
+              await makeEmployee?.open(context, userId: u.id);
             },
+            onMakeEmployeeIntent: () => makeEmployee?.warm(ref),
             onDelete: _remove,
           ),
         ],
@@ -319,6 +320,7 @@ class _UsersTable extends ConsumerWidget {
     required this.onAccess,
     required this.onBranches,
     required this.onMakeEmployee,
+    required this.onMakeEmployeeIntent,
     required this.onDelete,
   });
 
@@ -334,6 +336,7 @@ class _UsersTable extends ConsumerWidget {
   final ValueChanged<UserPublic> onAccess;
   final ValueChanged<UserPublic> onBranches;
   final ValueChanged<UserPublic> onMakeEmployee;
+  final VoidCallback onMakeEmployeeIntent;
   final ValueChanged<UserPublic> onDelete;
 
   List<Widget> _actions(UserPublic u, Translator t) => [
@@ -350,10 +353,13 @@ class _UsersTable extends ConsumerWidget {
         onPressed: () => onBranches(u),
       ),
     if (canMakeEmployee(u))
-      AdminRowAction(
-        icon: 'briefcase-business',
-        label: t('dawam.makeEmployee'),
-        onPressed: () => onMakeEmployee(u),
+      DashIntent(
+        onIntent: onMakeEmployeeIntent,
+        child: AdminRowAction(
+          icon: 'briefcase-business',
+          label: t('dawam.makeEmployee'),
+          onPressed: () => onMakeEmployee(u),
+        ),
       ),
     if (canEdit)
       AdminRowAction(

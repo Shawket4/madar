@@ -197,6 +197,23 @@ void main() {
     expect(find.byKey(_sheet), findsNothing);
   });
 
+  testWidgets('SET-QR-021 (divergence) a run that lands after the branch '
+      'moved is dropped', (tester) async {
+    final m = setupMockServer();
+    final h = await pumpQr(
+      tester,
+      backend: m,
+      query: atBranch(SeedIds.heliopolis),
+    );
+    final gate = m.server.hold('GET', QrRoutes.tableQr);
+    await h.tap(find.byKey(_make));
+    await pickBranch(h, SeedIds.zamalek);
+    gate.release();
+    await h.settle();
+    expect(find.byKey(_sheet), findsNothing);
+    expect(find.text('Make 10 codes'), findsOneWidget);
+  });
+
   testWidgets('SET-QR-028 (divergence) a failed tables read shows the error '
       'with Retry, not "no tables"', (tester) async {
     final m = setupMockServer();

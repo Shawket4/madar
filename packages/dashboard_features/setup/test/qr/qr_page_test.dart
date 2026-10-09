@@ -309,12 +309,13 @@ void main() {
     expect(resultOf(QrKind.orgBooking), findsOneWidget);
 
     // A second press: the old code goes while the new one is made.
+    // It asks the server again: the card is redrawn from the current brand.
+    final asked = m.server.callsTo(QrRoutes.orgBooking).length;
     final again = m.server.hold('GET', QrRoutes.orgBooking);
-    // A cached answer would come back at once: drop it.
-    h.container.invalidate(qrCodeProvider);
     await tester.tap(generateOf(QrKind.orgBooking));
     await tester.pump();
     expect(resultOf(QrKind.orgBooking), findsNothing);
+    expect(m.server.callsTo(QrRoutes.orgBooking), hasLength(asked + 1));
     again.release();
     await h.settle();
     expect(resultOf(QrKind.orgBooking), findsOneWidget);

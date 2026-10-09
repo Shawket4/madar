@@ -1,11 +1,11 @@
 // The Users page (ADM-USR-001..019): tabs, nav, header, stats, columns,
 // search, table states, row actions, delete, export, New and deep links,
 // driven through the real shell on the mock server.
-import 'package:dashboard_admin/src/users/make_employee.dart';
 import 'package:dashboard_api/dashboard_api.dart' show MyAuthz;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/shell.dart' show DashSidebar;
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -315,22 +315,35 @@ void main() {
       tester,
     ) async {
       final opened = <String>[];
-      makeEmployeeLauncher = (context, id) async => opened.add(id);
-      addTearDown(() => makeEmployeeLauncher = null);
+      final warmed = <String>[];
       final s = usersServer();
       // Mariam is not an employee yet.
       s.db['employees'].removeWhere((e) => e['user_id'] == uid('mariam'));
-      final h = await pumpUsers(tester, server: s.server, db: s.db);
+      final h = await pumpUsers(
+        tester,
+        server: s.server,
+        db: s.db,
+        openers: makeEmployeeSeam(opened, warmed: warmed),
+      );
       expect(h.server.callsTo(linkableRoute), hasLength(1));
       expect(rowAction('Karim Adel', 'Make employee'), findsNothing);
+      // Intent warms the dialog's reads, then the press opens it.
+      await tester.ensureVisible(rowAction('Mariam Fathy', 'Make employee'));
+      await h.settle();
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(gesture.removePointer);
+      await gesture.addPointer(location: Offset.zero);
+      await gesture.moveTo(
+        tester.getCenter(rowAction('Mariam Fathy', 'Make employee')),
+      );
+      await h.settle();
+      expect(warmed, isNotEmpty);
       await h.tap(rowAction('Mariam Fathy', 'Make employee'));
       expect(opened, [uid('mariam')]);
     });
 
     testWidgets('ADM-USR-014 with the team dialog wired: no hr.staff.create, '
         'no linkable read and no button', (tester) async {
-      makeEmployeeLauncher = (context, id) async {};
-      addTearDown(() => makeEmployeeLauncher = null);
       final s = usersServer();
       s.db['employees'].removeWhere((e) => e['user_id'] == uid('mariam'));
       // The owner, minus "Add staff".
@@ -354,7 +367,12 @@ void main() {
           ),
         );
       });
-      final h = await pumpUsers(tester, server: s.server, db: s.db);
+      final h = await pumpUsers(
+        tester,
+        server: s.server,
+        db: s.db,
+        openers: makeEmployeeSeam([]),
+      );
       expect(onPage('Mariam Fathy'), findsOneWidget);
       expect(h.server.callsTo(linkableRoute), isEmpty);
       expect(find.bySemanticsLabel('Make employee'), findsNothing);
@@ -362,12 +380,15 @@ void main() {
 
     testWidgets('ADM-USR-014 with the team dialog wired: an org without Dawam, '
         'no linkable read and no button', (tester) async {
-      makeEmployeeLauncher = (context, id) async {};
-      addTearDown(() => makeEmployeeLauncher = null);
       final s = usersServer();
       s.db['employees'].removeWhere((e) => e['user_id'] == uid('mariam'));
       s.db['orgs'].update(SeedIds.sabahOrg, {'modules': ['pos']});
-      final h = await pumpUsers(tester, server: s.server, db: s.db);
+      final h = await pumpUsers(
+        tester,
+        server: s.server,
+        db: s.db,
+        openers: makeEmployeeSeam([]),
+      );
       expect(onPage('Mariam Fathy'), findsOneWidget);
       expect(h.server.callsTo(linkableRoute), isEmpty);
       expect(find.bySemanticsLabel('Make employee'), findsNothing);

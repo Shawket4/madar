@@ -7,10 +7,8 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart' show Space;
 import 'package:dashboard_setup/src/area_seed.dart';
 import 'package:dashboard_setup/src/links/links_page.dart';
-import 'package:dashboard_setup/src/links/links_preview.dart';
 import 'package:dashboard_setup/src/mock/links_mock.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support.dart';
@@ -100,7 +98,7 @@ void main() {
   testWidgets(
     'SET-LNK-004 the preview beside the form from 1280, under it below',
     (tester) async {
-      final h = await pumpLinks(tester);
+      await pumpLinks(tester);
       final form = tester.getRect(byKey('links-address'));
       final preview = tester.getRect(byKey('links-preview-0'));
       expect(preview.left, greaterThan(form.right));

@@ -40,7 +40,9 @@ final inventorySettingsProvider = FutureProvider.autoDispose
 List<IngredientCategory> sortedCategories(List<IngredientCategory> all) =>
     [...all]..sort((a, b) {
       final s = a.sortOrder.compareTo(b.sortOrder);
-      return s != 0 ? s : a.name.compareTo(b.name);
+      return s != 0
+          ? s
+          : a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
 /// A category row's height (`min-h-14`).
@@ -520,10 +522,17 @@ class _InventorySettingsPageState extends ConsumerState<InventorySettingsPage> {
                   mainAxisSize: MainAxisSize.min,
                   spacing: Space.sm,
                   children: [
+                    // The web's `<label>`: the word toggles the switch too.
                     ExcludeSemantics(
-                      child: Text(
-                        t('modeling.packaging.isPackaging'),
-                        style: meta,
+                      child: GestureDetector(
+                        key: ValueKey('inv-category-packaging-label-${cat.id}'),
+                        onTap: canAdjust
+                            ? () => _setPackaging(orgId, cat, !cat.isPackaging)
+                            : null,
+                        child: Text(
+                          t('modeling.packaging.isPackaging'),
+                          style: meta,
+                        ),
                       ),
                     ),
                     DashSwitch(
@@ -606,7 +615,16 @@ class _DeleteCategoryDialogState extends ConsumerState<DeleteCategoryDialog> {
   String? _reassignTo;
   bool _working = false;
 
-  bool get _inUse => widget.category.ingredientCount > 0;
+  /// The live row (a refresh can change its count), else the one opened.
+  IngredientCategory get _category =>
+      ref
+          .read(ingredientCategoriesProvider(widget.orgId))
+          .value
+          ?.where((c) => c.id == widget.category.id)
+          .firstOrNull ??
+      widget.category;
+
+  bool get _inUse => _category.ingredientCount > 0;
 
   Future<void> _remove() async {
     if (_inUse && _reassignTo == null) return;
@@ -636,12 +654,13 @@ class _DeleteCategoryDialogState extends ConsumerState<DeleteCategoryDialog> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
-    final cat = widget.category;
     // The page's own list (cached): the dialog asks nothing more.
+    final all =
+        ref.watch(ingredientCategoriesProvider(widget.orgId)).value ??
+        const <IngredientCategory>[];
+    final cat = _category;
     final others = [
-      for (final c in sortedCategories(
-        ref.watch(ingredientCategoriesProvider(widget.orgId)).value ?? const [],
-      ))
+      for (final c in sortedCategories(all))
         if (c.id != cat.id) c,
     ];
     final lead = _inUse

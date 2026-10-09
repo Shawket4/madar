@@ -3,7 +3,6 @@
 // presses make no read (Copy, Open, the editor's own controls, Save).
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';

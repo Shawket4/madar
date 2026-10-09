@@ -3,7 +3,6 @@
 // and phone-ar-light.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support.dart';
@@ -44,6 +43,15 @@ void main() {
       await h.shot('loading');
       gate.release();
       await h.settle();
+
+      await _scrollTo(h, byKey('links-preview-0'));
+      final frame = tester.getRect(byKey('links-preview-0'));
+      await h.tester.dragFrom(
+        frame.topCenter + const Offset(0, 120),
+        const Offset(0, -1600),
+      );
+      await h.settle();
+      await h.shot('preview-bottom');
 
       FakeClipboard(tester);
       await h.tap(byKey('links-qr'));
