@@ -110,6 +110,14 @@ void main() {
         'packages/dashboard_sell/assets/i18n/ar.json',
       ]);
       expect(languageOfAsset(DashArea.supplementAssets('sell').last), 'ar');
+      // A unit's own table: `<unit>.<lang>.json`.
+      expect(
+        languageOfAsset(
+          'packages/dashboard_offers/assets/i18n/discounts.ar.json',
+        ),
+        'ar',
+      );
+      expect(languageOfAsset('discounts.en.json'), 'en');
     });
 
     test(

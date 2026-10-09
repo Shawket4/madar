@@ -17,10 +17,17 @@ You are one of many agents porting the Madar web dashboard to Flutter, each owni
 - `packages/dashboard_features/<area>/lib/src/<unit>/**`
 - `packages/dashboard_features/<area>/test/<unit>/**`
 - `packages/dashboard_features/<area>/lib/src/mock/<unit>_mock.dart`
-- `packages/dashboard_features/<area>/assets/i18n/<unit>.en.json` and `<unit>.ar.json`
+- your supplement word tables, in your AREA's convention, which its `lib/dashboard_<area>.dart`
+  `i18nSupplements` list shows: sell and setup use a folder per unit
+  (`assets/i18n/<unit>/en.json` and `ar.json`, already declared); the other areas use
+  `assets/i18n/<unit>.en.json` and `<unit>.ar.json`
 - `docs/fdash/divergences/<area>-<unit>.md`
-- **Only your own `DashRoute` entries** in the area's `lib/src/routes.dart`, and your own line in
-  `lib/src/mock/register.dart` if it is missing. Other units edit the same files at the same
+- **Only your own `DashRoute` entries** in the area's `lib/src/routes.dart`, your own line in
+  `lib/src/mock/register.dart` if it is missing, and your own two lines in the area's
+  `lib/dashboard_<area>.dart` `i18nSupplements` list
+  (`'packages/dashboard_<area>/assets/i18n/<unit>.en.json'` and `.ar.json`), if they are missing.
+  The area's pubspec must list `assets/i18n/` (check it; don't add it twice). Without the
+  declaration your words never load. Other units edit the same files at the same
   time: re-read the file immediately before an edit, change only your lines, never reformat it.
 - The area's `lib/src/shared/` and `lib/src/area_seed.dart` are shared by its units: fix a bug
   there only if it blocks you, keep the public API, and say so in your report.

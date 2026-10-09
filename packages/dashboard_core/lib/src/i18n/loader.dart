@@ -43,7 +43,11 @@ Map<String, String> parseStringTable(String jsonText) =>
 /// The language an asset key is for: `.../i18n/ar.json` -> `ar`.
 String languageOfAsset(String assetKey) {
   final file = assetKey.split('/').last;
-  return file.endsWith('.json') ? file.substring(0, file.length - 5) : file;
+  final stem = file.endsWith('.json')
+      ? file.substring(0, file.length - 5)
+      : file;
+  // A unit's own table is `<unit>.<lang>.json` (`discounts.ar.json`).
+  return stem.split('.').last;
 }
 
 /// Loads the synced web tables plus every area supplement.
