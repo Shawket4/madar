@@ -324,6 +324,7 @@ void main() {
         bodyOf(h.server.callsTo(LoyaltyRoutes.adjust).single)['branch_id'],
         SeedIds.zamalek,
       );
+      await h.expectToast('Balance adjusted');
     });
 
     testWidgets('SET-LOY-070 validation: amount, overdraw, branch, reason',

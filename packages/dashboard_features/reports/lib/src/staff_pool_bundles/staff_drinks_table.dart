@@ -18,7 +18,7 @@ import 'package:intl/intl.dart' as intl;
 
 import '../shared/report_shared.dart';
 import 'staff_drink_money.dart';
-import 'staff_pool_providers.dart';
+import 'staff_drink_order_sheet.dart' show warmStaffDrinkOrder;
 
 /// "Latte · Large × 2": the size when sized, the quantity when more than one.
 String staffDrinkItemText(StaffDrink d) {
@@ -103,7 +103,7 @@ class StaffDrinksTable extends ConsumerWidget {
               _OrderLink(
                 label: t('staffPool.viewOrder'),
                 onTap: () => onOpenOrder!(orderId),
-                onIntent: () => ref.warm(staffDrinkOrderProvider(orderId)),
+                onIntent: () => warmStaffDrinkOrder(ref, orderId),
               ),
             ],
           );

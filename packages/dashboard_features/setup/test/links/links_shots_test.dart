@@ -18,12 +18,7 @@ void main() {
   for (final size in DashSize.values) {
     for (final (lang, dark) in [('en', false), ('ar', true)]) {
       testWidgets('default, ${size.name} $lang', (tester) async {
-        final h = await pumpLinks(
-          tester,
-          size: size,
-          locale: lang,
-          dark: dark,
-        );
+        final h = await pumpLinks(tester, size: size, locale: lang, dark: dark);
         await h.shot('default');
         for (final key in [
           'links-buttons',

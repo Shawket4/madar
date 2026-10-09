@@ -63,15 +63,32 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
     _pages = 1;
   });
 
+  /// The sell area's whole customer sheet when the app wires it (the web's
+  /// `CustomerDetailSheet`: it stays open after "Remove from loyalty
+  /// programme" for someone with `customers.view`); the local card in this
+  /// package's own tests.
   Future<void> _open(PersonRow r) async {
     setState(() => _openId = r.id);
-    await showMemberSheet(
-      context,
-      id: r.id,
-      name: r.name,
-      branchId: widget.branchId,
-    );
+    final seam = ref.read(areaOpenersProvider).customerSheet;
+    await (seam != null
+        ? seam.open(context, r.id, branchId: widget.branchId)
+        : showMemberSheet(
+            context,
+            id: r.id,
+            name: r.name,
+            branchId: widget.branchId,
+          ));
     if (mounted) setState(() => _openId = null);
+  }
+
+  /// What [_open] reads first (a row's intent).
+  void _warm(PersonRow r) {
+    final seam = ref.read(areaOpenersProvider).customerSheet;
+    if (seam != null) {
+      seam.warm(ref, r.id, branchId: widget.branchId);
+    } else {
+      ref.warm(loyaltyMemberProvider((id: r.id, branchId: widget.branchId)));
+    }
   }
 
   @override
@@ -312,9 +329,7 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
             ? ref.invalidate(memberCustomersProvider(_customersKey()))
             : ref.invalidate(loyaltyMembersProvider(_membersKey())),
         onRowTap: _open,
-        onRowIntent: (r) => ref.warm(
-          loyaltyMemberProvider((id: r.id, branchId: widget.branchId)),
-        ),
+        onRowIntent: _warm,
         selectedRowKey: _openId,
         hideViewOptions: true,
         toolbar: toolbar,

@@ -396,8 +396,7 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
                 label: t('links.editor.open'),
                 icon: 'external-link',
                 variant: DashButtonVariant.outline,
-                onPressed: () =>
-                    ref.read(linkOpenerProvider)(Uri.parse(url)),
+                onPressed: () => ref.read(linkOpenerProvider)(Uri.parse(url)),
               ),
             ],
           ),
@@ -673,8 +672,9 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
                               args: {'name': b.name},
                             ),
                             onChanged: (v) => _edit(
-                              () => _branches = [..._branches]
-                                ..[i] = b.copyWith(visible: v),
+                              () =>
+                                  _branches = [..._branches]
+                                    ..[i] = b.copyWith(visible: v),
                             ),
                           ),
                         ],
@@ -688,8 +688,9 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
                         enabled: b.visible,
                         invalid: linkUrlInvalid(b.mapsUrl),
                         onChanged: (v) => _edit(
-                          () => _branches = [..._branches]
-                            ..[i] = b.copyWith(mapsUrl: v),
+                          () =>
+                              _branches = [..._branches]
+                                ..[i] = b.copyWith(mapsUrl: v),
                         ),
                       ),
                     ],
@@ -807,7 +808,10 @@ class _SwitchRow extends StatelessWidget {
                 label,
                 style: DashType.bodyMedium.copyWith(color: c.textPrimary),
               ),
-              Text(hint, style: DashType.small.copyWith(color: c.textSecondary)),
+              Text(
+                hint,
+                style: DashType.small.copyWith(color: c.textSecondary),
+              ),
             ],
           ),
         ),

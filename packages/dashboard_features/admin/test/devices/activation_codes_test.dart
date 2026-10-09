@@ -94,7 +94,7 @@ void main() {
         final at =
             row['used_at'] ?? row['revoked_at'] ?? row['expires_at'];
         expect(
-          inCodes(find.text(fmt.fmtStamp(DateTime.parse('$at')))),
+          inCodes(textHas(fmt.fmtStamp(DateTime.parse('$at')))),
           findsOneWidget,
           reason: id,
         );

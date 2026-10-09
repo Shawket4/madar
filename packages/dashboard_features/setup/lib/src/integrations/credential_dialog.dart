@@ -115,79 +115,83 @@ class _CredentialDialogState extends ConsumerState<CredentialDialog> {
     ];
     final wide =
         DashSurfaceScope.maybeOf(context) != DashSurfaceMode.fullScreen;
-    return DashSurface(
-      title: t('integrations.newTitle'),
-      description: t('integrations.newHint'),
-      onClose: _busy ? () {} : null,
-      actions: [
-        DashButton(
-          label: t('common.cancel'),
-          variant: DashButtonVariant.outline,
-          onPressed: _busy ? null : () => Navigator.of(context).pop(),
-        ),
-        DashButton(
-          label: t('integrations.issue'),
-          onPressed: _busy ? null : _submit,
-        ),
-      ],
-      body: Form(
-        key: _form,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.lg,
-          children: [
-            DashTextField(
-              key: const ValueKey('integrations.label'),
-              label: t('integrations.label'),
-              placeholder: t('integrations.labelPlaceholder'),
-              description: t('integrations.labelHint'),
-              value: _name,
-              autofocus: wide,
-              onChanged: (v) => setState(() => _name = v),
-              onSubmitted: (_) => _submit(),
-              validator: (v) {
-                final s = v.trim();
-                if (s.isEmpty) return t('common.requiredField');
-                if (s.length > credentialLabelMax) {
-                  return t(
-                    'common.atMostChars',
-                    args: {'n': credentialLabelMax},
-                  );
-                }
-                return null;
-              },
-            ),
-            DashSelectField<String>(
-              key: const ValueKey('integrations.branch'),
-              label: t('integrations.branch'),
-              placeholder: t('integrations.branchPlaceholder'),
-              description: t('integrations.branchHint'),
-              value: _branchId,
-              options: [
-                for (final b in branches)
-                  DashOption(value: b.id, label: b.name),
-              ],
-              onChanged: (v) => setState(() => _branchId = v),
-              validator: (v) =>
-                  v == null ? t('integrations.branchRequired') : null,
-            ),
-            DashFormField<String>(
-              label: t('integrations.username'),
-              description: t('integrations.usernameHint'),
-              builder: (context, invalid) => Row(
-                spacing: Space.sm,
-                children: [
-                  Expanded(child: _ReadOnlyMono(_username)),
-                  DashIconButton(
-                    icon: 'refresh-cw',
-                    semanticLabel: t('integrations.regenerate'),
-                    variant: DashButtonVariant.outline,
-                    onPressed: () => setState(() => _suffix = _newSuffix()),
-                  ),
-                ],
+    // Closing mid-issue would lose the one-time secret: the POST lands and
+    // the pop that hands it to the handoff never runs (SET-INT-019).
+    return PopScope(
+      canPop: !_busy,
+      child: DashSurface(
+        title: t('integrations.newTitle'),
+        description: t('integrations.newHint'),
+        actions: [
+          DashButton(
+            label: t('common.cancel'),
+            variant: DashButtonVariant.outline,
+            onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          ),
+          DashButton(
+            label: t('integrations.issue'),
+            onPressed: _busy ? null : _submit,
+          ),
+        ],
+        body: Form(
+          key: _form,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.lg,
+            children: [
+              DashTextField(
+                key: const ValueKey('integrations.label'),
+                label: t('integrations.label'),
+                placeholder: t('integrations.labelPlaceholder'),
+                description: t('integrations.labelHint'),
+                value: _name,
+                autofocus: wide,
+                onChanged: (v) => setState(() => _name = v),
+                onSubmitted: (_) => _submit(),
+                validator: (v) {
+                  final s = v.trim();
+                  if (s.isEmpty) return t('common.requiredField');
+                  if (s.length > credentialLabelMax) {
+                    return t(
+                      'common.atMostChars',
+                      args: {'n': credentialLabelMax},
+                    );
+                  }
+                  return null;
+                },
               ),
-            ),
-          ],
+              DashSelectField<String>(
+                key: const ValueKey('integrations.branch'),
+                label: t('integrations.branch'),
+                placeholder: t('integrations.branchPlaceholder'),
+                description: t('integrations.branchHint'),
+                value: _branchId,
+                options: [
+                  for (final b in branches)
+                    DashOption(value: b.id, label: b.name),
+                ],
+                onChanged: (v) => setState(() => _branchId = v),
+                validator: (v) =>
+                    v == null ? t('integrations.branchRequired') : null,
+              ),
+              DashFormField<String>(
+                label: t('integrations.username'),
+                description: t('integrations.usernameHint'),
+                builder: (context, invalid) => Row(
+                  spacing: Space.sm,
+                  children: [
+                    Expanded(child: _ReadOnlyMono(_username)),
+                    DashIconButton(
+                      icon: 'refresh-cw',
+                      semanticLabel: t('integrations.regenerate'),
+                      variant: DashButtonVariant.outline,
+                      onPressed: () => setState(() => _suffix = _newSuffix()),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

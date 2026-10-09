@@ -1,13 +1,14 @@
 /// The sale a staff drink was rung on (REP-SPL-019), read-only, from the end
 /// side (full screen on a phone).
 ///
-/// The web opens the orders area's `OrderDetailSheet` here. The Flutter one
-/// (`dashboard_sell`'s `showOrderSheet`) is not a dependency of this package,
-/// so this is a local port of the parts of that sheet a staff-drink sale uses
-/// (`features/orders/order-detail-sheet.tsx`): the header, who and how it
-/// was paid, each line with its staff-drink breakdown, and the totals with
-/// the comp put back on one line and taken off under it. See the divergence
-/// log for what it leaves to the orders area.
+/// The web opens the orders area's `OrderDetailSheet` here, and so does the
+/// app: `dashboard_sell` is not a dependency of this package, so the sheet
+/// comes through dashboard_core's [areaOpenersProvider]. Unwired (this
+/// package's own tests) a local port of the parts of that sheet a
+/// staff-drink sale uses stands in (`features/orders/order-detail-sheet.tsx`):
+/// the header, who and how it was paid, each line with its staff-drink
+/// breakdown, and the totals with the comp put back on one line and taken
+/// off under it.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -22,15 +23,33 @@ import '../shared/report_shared.dart';
 import 'staff_pool_providers.dart';
 import 'unit_support.dart';
 
-/// Opens [orderId]'s sheet and resolves when it closes.
+/// Opens [orderId]'s sheet: the orders area's when the app wires it, else
+/// the local port (resolves when it closes).
 Future<void> showStaffDrinkOrderSheet(
   BuildContext context, {
   required String orderId,
-}) => showDashSidePanel<void>(
-  context,
-  width: StaffDrinkOrderSheet.width,
-  builder: (context) => StaffDrinkOrderSheet(orderId: orderId),
-);
+}) {
+  final seam = ProviderScope.containerOf(
+    context,
+    listen: false,
+  ).read(areaOpenersProvider).orderSheet;
+  if (seam != null) return seam.open(context, orderId);
+  return showDashSidePanel<void>(
+    context,
+    width: StaffDrinkOrderSheet.width,
+    builder: (context) => StaffDrinkOrderSheet(orderId: orderId),
+  );
+}
+
+/// Warms what [showStaffDrinkOrderSheet] reads first (intent).
+void warmStaffDrinkOrder(WidgetRef ref, String orderId) {
+  final seam = ref.read(areaOpenersProvider).orderSheet;
+  if (seam != null) {
+    seam.warm(ref, orderId);
+  } else {
+    ref.warm(staffDrinkOrderProvider(orderId));
+  }
+}
 
 /// The single-size label a combo part carries; never shown as a size.
 const String _oneSize = 'one_size';

@@ -8,6 +8,7 @@ import 'package:dashboard_setup/src/integrations/credential_dialog.dart';
 import 'package:dashboard_setup/src/integrations/credential_util.dart';
 import 'package:dashboard_setup/src/integrations/secure_random.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -114,6 +115,29 @@ void main() {
     expect(_in(find.text('Choose a branch')), findsOneWidget);
   });
 
+  testWidgets('SET-INT-017 an active warehouse is never offered', (
+    tester,
+  ) async {
+    final m = integrationsServer(persona: Persona.platform);
+    final branches = m.db['branches'];
+    branches.insert({
+      ...branches.get(SeedIds.zamalek),
+      'id': 'wh-main',
+      'name': 'Main Warehouse',
+      'code': 'WH',
+      'kind': 'warehouse',
+    }, timestamps: false);
+    final h = await _open(tester, backend: m);
+    final select = tester.widget<DashSelectField<String>>(_branch);
+    expect(
+      [for (final o in select.options) o.label],
+      isNot(contains('Main Warehouse')),
+    );
+    expect(select.options, hasLength(4));
+    await h.tap(_branch);
+    expect(top('Main Warehouse'), findsNothing);
+  });
+
   testWidgets('SET-INT-018 the username follows the label; Regenerate draws '
       'a new suffix', (tester) async {
     final h = await _open(tester);
@@ -211,6 +235,25 @@ void main() {
     gate.release();
     await h.settle();
     expect(_dialog, findsNothing);
+  });
+
+  testWidgets('SET-INT-019 Escape or the barrier mid-issue keeps the dialog, '
+      'so the secret still reaches the handoff', (tester) async {
+    final m = integrationsServer(persona: Persona.platform);
+    final h = await _open(tester, backend: m);
+    await _fill(h);
+    final gate = m.server.hold('POST', IntegrationsRoutes.create);
+    await h.tap(top('Issue credential'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+    expect(_dialog, findsOneWidget);
+    await tester.tapAt(const Offset(4, 4));
+    await h.settle();
+    expect(_dialog, findsOneWidget);
+    gate.release();
+    await h.settle();
+    expect(_dialog, findsNothing);
+    expect(top('Credentials for Rue — One Ninety'), findsOneWidget);
   });
 
   testWidgets('SET-INT-019 no secure random: the reason, nothing created', (

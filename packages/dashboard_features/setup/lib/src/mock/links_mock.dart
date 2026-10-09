@@ -117,8 +117,10 @@ MockRow _stored(MockDb db, String orgId) {
   };
 }
 
-List<MockRow> _activeBranches(MockDb db, String orgId) => db['branches']
-    .query(filters: {'org_id': orgId, 'is_active': true}, sort: 'name');
+List<MockRow> _activeBranches(MockDb db, String orgId) => db['branches'].query(
+  filters: {'org_id': orgId, 'is_active': true},
+  sort: 'name',
+);
 
 /// The org's programme mode while it runs (`loyalty_mode`).
 String? _loyaltyMode(MockDb db, String orgId) {
@@ -173,7 +175,8 @@ LinksPageSettings _view(MockDb db, String orgId) {
 
 /// `validate_items`, returning the tidied list.
 List<MockRow> _validateItems(MockRequest req, MockDb db, Object? raw) {
-  if (raw is! List) req.badRequest('Json deserialize error: missing field `items`');
+  if (raw is! List)
+    req.badRequest('Json deserialize error: missing field `items`');
   final modules = <String>{};
   final ids = <String>{};
   var customs = 0;
@@ -252,8 +255,7 @@ Map<String, Object?> _socials(MockRequest req, Object? links) {
 }
 
 /// Where a module opens: on the shop's own host, else the generic one.
-String _moduleHref(String? origin, String orgId, String kind) =>
-    origin != null
+String _moduleHref(String? origin, String orgId, String kind) => origin != null
     ? '$origin${SetupSeed.modulePaths[kind]}'
     : switch (kind) {
         'order' => '$_orderHost/order/$orgId',

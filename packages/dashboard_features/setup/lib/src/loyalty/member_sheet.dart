@@ -2,10 +2,11 @@
 /// what they hold, the actions (adjust, wallet, leave) and the ledger, as
 /// the web's `members/{member-section,adjust-dialog,leave-programme-dialog}`.
 ///
-/// The web opens the whole customer sheet here (the sell area's). This
-/// area cannot depend on that package, so this panel carries the loyalty
-/// half — the rows this unit owns — under the person's name and phone; the
-/// customer half waits for the integration seam (see the divergences file).
+/// The web opens the whole customer sheet here (the sell area's), and so does
+/// the app, through dashboard_core's [areaOpenersProvider]. This area cannot
+/// depend on that package, so when the seam is not wired (this package's own
+/// tests) this panel stands in with the loyalty half — the rows this unit
+/// owns — under the person's name and phone.
 library;
 
 import 'dart:async';
@@ -546,8 +547,9 @@ class LedgerList extends ConsumerWidget {
   }
 }
 
-/// "View order": closes the card and opens the order's deep link; warms the
-/// Orders page on intent.
+/// "View order": the orders area's sheet over the card when the app wires it
+/// (the web's `onOpenOrder`); otherwise the card closes and the order's deep
+/// link opens. Warms what it opens on intent.
 class _ViewOrder extends ConsumerWidget {
   const _ViewOrder({required this.orderId});
 
@@ -556,13 +558,20 @@ class _ViewOrder extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final label = ref.watch(tProvider)('loyalty.viewOrder');
+    final seam = ref.watch(areaOpenersProvider).orderSheet;
     return DashPressable(
       onTap: () {
+        if (seam != null) {
+          seam.open(context, orderId);
+          return;
+        }
         final router = GoRouter.of(context);
         Navigator.of(context).maybePop();
         router.go(LedgerList.orderLink(orderId));
       },
-      onIntent: () => ref.prefetchRoute('/orders'),
+      onIntent: () => seam != null
+          ? seam.warm(ref, orderId)
+          : ref.prefetchRoute('/orders'),
       semanticLabel: label,
       excludeChildSemantics: true,
       pressScale: false,

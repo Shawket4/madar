@@ -232,10 +232,7 @@ String linksHintOf(PublicLinksItem item, String? loyaltyMode, Translator t) {
   final ar = arabic ? (item.titleAr ?? '').trim() : '';
   final en = (item.titleEn ?? '').trim();
   final host = linksHostOf(item.href);
-  return (
-    title: ar.isNotEmpty ? ar : (en.isNotEmpty ? en : host),
-    hint: host,
-  );
+  return (title: ar.isNotEmpty ? ar : (en.isNotEmpty ? en : host), hint: host);
 }
 
 /// The page grounds the accent is checked against (`PAGE_GROUND`).
@@ -250,9 +247,7 @@ final RegExp _hex = RegExp(r'^#[0-9a-fA-F]{6}$');
 double _luminance(String hex) {
   double ch(int i) {
     final c = int.parse(hex.substring(1 + i * 2, 3 + i * 2), radix: 16) / 255;
-    return c <= 0.03928
-        ? c / 12.92
-        : pow((c + 0.055) / 1.055, 2.4).toDouble();
+    return c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4).toDouble();
   }
 
   return 0.2126 * ch(0) + 0.7152 * ch(1) + 0.0722 * ch(2);

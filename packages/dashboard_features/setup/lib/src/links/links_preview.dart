@@ -154,9 +154,7 @@ class _PublicPage extends ConsumerWidget {
 
     Widget column(Widget child) => Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: LinksPreviewMetrics.column,
-        ),
+        constraints: const BoxConstraints(maxWidth: LinksPreviewMetrics.column),
         child: child,
       ),
     );
@@ -233,7 +231,10 @@ class _PublicPage extends ConsumerWidget {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [Color.fromRGBO(0, 0, 0, 0.35), Color.fromRGBO(0, 0, 0, 0)],
+                          colors: [
+                            Color.fromRGBO(0, 0, 0, 0.35),
+                            Color.fromRGBO(0, 0, 0, 0),
+                          ],
                         ),
                       ),
                     ),
@@ -310,7 +311,11 @@ class _Controls extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         spacing: Space.sm,
-        children: [icon('share-2'), icon(dark ? 'sun' : 'moon'), icon('languages')],
+        children: [
+          icon('share-2'),
+          icon(dark ? 'sun' : 'moon'),
+          icon('languages'),
+        ],
       ),
     );
   }
@@ -536,7 +541,10 @@ class _Socials extends ConsumerWidget {
                         color: s.highlighted ? c.surfaceAlt : c.surface,
                         borderRadius: BorderRadius.circular(Radii.pill),
                         border: Border.all(color: c.border),
-                        boxShadow: elevationShadows(context, MadarElevation.card),
+                        boxShadow: elevationShadows(
+                          context,
+                          MadarElevation.card,
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -653,7 +661,9 @@ class _VisitUs extends ConsumerWidget {
                 vertical: Space.lg,
               ),
               decoration: i > 0
-                  ? BoxDecoration(border: Border(top: BorderSide(color: c.border)))
+                  ? BoxDecoration(
+                      border: Border(top: BorderSide(color: c.border)),
+                    )
                   : null,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -703,7 +713,9 @@ class _VisitUs extends ConsumerWidget {
                           action(
                             'phone',
                             t('links.visit.call'),
-                            Uri.parse('tel:${p.replaceAll(RegExp(r'[^\d+]'), '')}'),
+                            Uri.parse(
+                              'tel:${p.replaceAll(RegExp(r'[^\d+]'), '')}',
+                            ),
                           ),
                       ],
                     ),
@@ -726,11 +738,20 @@ class _Footer extends ConsumerWidget {
     final c = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
     final ink = dark ? c.chromeRaised : c.chrome;
-    final uri = madarSiteHref(ref.watch(localeProvider), 'dashboard', 'shop_page');
+    final uri = madarSiteHref(
+      ref.watch(localeProvider),
+      'dashboard',
+      'shop_page',
+    );
     return Padding(
-      padding: const EdgeInsets.only(top: Space.xxl * 1.5, bottom: Space.xxl + Space.sm),
+      padding: const EdgeInsets.only(
+        top: Space.xxl * 1.5,
+        bottom: Space.xxl + Space.sm,
+      ),
       child: DecoratedBox(
-        decoration: BoxDecoration(border: Border(top: BorderSide(color: c.border))),
+        decoration: BoxDecoration(
+          border: Border(top: BorderSide(color: c.border)),
+        ),
         child: Padding(
           padding: const EdgeInsets.only(top: Space.xxl),
           child: Column(
