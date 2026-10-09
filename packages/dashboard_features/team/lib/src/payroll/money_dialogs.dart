@@ -39,6 +39,15 @@ mixin _MoneyForm<W extends ConsumerStatefulWidget> on ConsumerState<W> {
   final formKey = GlobalKey<FormState>();
   bool busy = false;
 
+  /// A form seeded from cached data follows a background refresh until the
+  /// person changes a field.
+  bool edited = false;
+
+  void edit(VoidCallback change) => setState(() {
+    change();
+    edited = true;
+  });
+
   ReasonFor? get reasonFor => null;
   bool get monthForm => false;
 
@@ -93,13 +102,20 @@ mixin _MoneyForm<W extends ConsumerStatefulWidget> on ConsumerState<W> {
     return DashSurface(
       title: title,
       description: description,
-      body: Form(
-        key: formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          spacing: Space.md,
-          children: fields,
+      // Focusing a field starts an edit: a refresh never wipes a number
+      // typed but not settled yet (fields settle on blur).
+      body: Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onFocusChange: (focused) => edited = edited || focused,
+        child: Form(
+          key: formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            spacing: Space.md,
+            children: fields,
+          ),
         ),
       ),
       actions: [
@@ -718,9 +734,7 @@ class MarkPaidDialog extends ConsumerStatefulWidget {
 
 class _MarkPaidDialogState extends ConsumerState<MarkPaidDialog>
     with _MoneyForm {
-  late String _method = payMethods.contains(widget.person.payMethod)
-      ? widget.person.payMethod!
-      : 'cash';
+  String _method = 'cash';
 
   Future<void> _save() => submit(() async {
     await ref
@@ -738,14 +752,34 @@ class _MarkPaidDialogState extends ConsumerState<MarkPaidDialog>
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
-    final p = widget.person;
+    // The person as the page's reads have them NOW (a refresh may land
+    // while the dialog is open).
+    final s = ref.watch(payrollShownProvider);
+    final row = s.period?.id == widget.periodId
+        ? s.rows
+              .where((r) => r.employeeId == widget.person.employeeId)
+              .firstOrNull
+        : null;
+    final p = row == null
+        ? widget.person
+        : MarkPaidPerson(
+            employeeId: row.employeeId,
+            name: row.name,
+            payMethod: s.people[row.employeeId]?.payMethod,
+            net: row.netPiastres,
+          );
+    if (!edited) {
+      _method = payMethods.contains(p.payMethod) ? p.payMethod! : 'cash';
+    }
     final description = [
       if (p.net != null)
         t(
           'dawamOps.markPaidAmount',
           args: {'amount': f.fmtMoney(p.net), 'name': p.name},
         ),
-      widget.first ? t('dawamOps.markPaidFirst') : t('dawam.markPaidHint'),
+      (row == null ? widget.first : s.paidByHand == 0)
+          ? t('dawamOps.markPaidFirst')
+          : t('dawam.markPaidHint'),
     ].join(' ');
     return frame(
       title: t('dawam.markPaidTitle', args: {'name': p.name}),
@@ -755,7 +789,7 @@ class _MarkPaidDialogState extends ConsumerState<MarkPaidDialog>
       fields: [
         DashSegmentedControl<String>(
           value: _method,
-          onChanged: (v) => setState(() => _method = v),
+          onChanged: (v) => edit(() => _method = v),
           options: [
             for (final m in payMethods)
               DashOption(value: m, label: t('dawam.pay_$m')),
@@ -1015,7 +1049,7 @@ class OverrideDialog extends ConsumerStatefulWidget {
 
 class _OverrideDialogState extends ConsumerState<OverrideDialog>
     with _MoneyForm {
-  late int? _amount = widget.current;
+  int? _amount;
   String _reason = '';
 
   Future<void> _save() => submit(() async {
@@ -1035,6 +1069,17 @@ class _OverrideDialogState extends ConsumerState<OverrideDialog>
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
+    final f = ref.watch(formatProvider);
+    if (!edited) {
+      // The line's amount as the payslip has it NOW.
+      var current = widget.current;
+      for (final r in ref.watch(payrollShownProvider).rows) {
+        for (final l in payslipLines(r, f)) {
+          if (l.deductionId == widget.deductionId) current = -l.amount;
+        }
+      }
+      _amount = current;
+    }
     return frame(
       title: t('dawam.overrideTitle', args: {'line': widget.label}),
       description: t('dawam.overrideHint'),
@@ -1045,14 +1090,14 @@ class _OverrideDialogState extends ConsumerState<OverrideDialog>
           label: t('dawam.newAmount'),
           value: _amount,
           allowEmpty: true,
-          onChanged: (p) => setState(() => _amount = p),
+          onChanged: (p) => edit(() => _amount = p),
           validator: (p) =>
               p == null || p < 0 ? t('dawam.amountRequired') : null,
         ),
         _text(
           label: t('staff.reason'),
           value: _reason,
-          onChanged: (v) => setState(() => _reason = v),
+          onChanged: (v) => edit(() => _reason = v),
           validator: (v) => v.trim().isEmpty ? t('dawam.reasonRequired') : null,
         ),
       ],
@@ -1081,12 +1126,15 @@ class ReviewAdvanceDialog extends ConsumerStatefulWidget {
 
 class _ReviewAdvanceDialogState extends ConsumerState<ReviewAdvanceDialog>
     with _MoneyForm {
-  late int? _amount = widget.advance.amountPiastres;
-  late double? _installments = widget.advance.installments.toDouble();
+  int? _amount;
+  double? _installments;
   String _note = '';
 
+  /// The request as the Salary advances read has it NOW.
+  late SalaryAdvance _a = widget.advance;
+
   Future<void> _save() => submit(() async {
-    final a = widget.advance;
+    final a = _a;
     // Sent as approved: only what changed differs from the request.
     final amount = _amount!;
     final changed = amount != a.amountPiastres;
@@ -1112,11 +1160,15 @@ class _ReviewAdvanceDialogState extends ConsumerState<ReviewAdvanceDialog>
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
+    for (final x in ref.watch(payrollAdvancesProvider).value ?? const []) {
+      if (x.id == widget.advance.id) _a = x;
+    }
+    if (!edited) {
+      _amount = _a.amountPiastres;
+      _installments = _a.installments.toDouble();
+    }
     return frame(
-      title: t(
-        'dawam.reviewAdvance',
-        args: {'name': widget.advance.employeeName ?? ''},
-      ),
+      title: t('dawam.reviewAdvance', args: {'name': _a.employeeName ?? ''}),
       description: t('dawam.reviewAdvanceHint'),
       saveLabel: t('common.approve'),
       onSave: _save,
@@ -1125,7 +1177,7 @@ class _ReviewAdvanceDialogState extends ConsumerState<ReviewAdvanceDialog>
           label: t('dawam.amountEgp'),
           value: _amount,
           allowEmpty: true,
-          onChanged: (p) => setState(() => _amount = p),
+          onChanged: (p) => edit(() => _amount = p),
           validator: (p) =>
               p == null || p <= 0 ? t('dawam.amountRequired') : null,
         ),
@@ -1134,13 +1186,13 @@ class _ReviewAdvanceDialogState extends ConsumerState<ReviewAdvanceDialog>
           value: _installments,
           stepper: true,
           allowEmpty: true,
-          onChanged: (v) => setState(() => _installments = v),
+          onChanged: (v) => edit(() => _installments = v),
           validator: (v) => _installmentsProblem(t, v),
         ),
         _text(
           label: t('staff.note'),
           value: _note,
-          onChanged: (v) => setState(() => _note = v),
+          onChanged: (v) => edit(() => _note = v),
         ),
       ],
     );

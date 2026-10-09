@@ -48,6 +48,11 @@ class _LoyaltyPageState extends ConsumerState<LoyaltyPage> {
           ..warm(rewardItemsProvider(branchId))
           ..warm(loyaltySettingsProvider(branchId));
         if (orgId.isNotEmpty) ref.warm(loyaltyMenuProvider(orgId));
+        // The earning card mounts only for a stamps programme.
+        final settings = ref.read(loyaltySettingsProvider(branchId)).value;
+        if (settings != null && loyaltyModeOf(settings) == 'visits') {
+          ref.warm(earningItemsProvider(branchId));
+        }
       case LoyaltyTab.members:
         switch (membersSourceOf(access)) {
           case MembersSource.customers:

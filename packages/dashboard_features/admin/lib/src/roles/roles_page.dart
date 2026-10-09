@@ -52,7 +52,24 @@ class _RolesPageState extends ConsumerState<RolesPage> {
   /// The capability whose grant is being saved.
   String? _busy;
 
-  void _select(String? id) => context.setQueryParams({'role': id});
+  final _headerKey = GlobalKey();
+
+  void _select(String? id) {
+    context.setQueryParams({'role': id});
+    if (id == null || MediaQuery.sizeOf(context).width >= DashBreakpoints.lg) {
+      return;
+    }
+    // Stacked, the role opens under the list: bring its header into view.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _headerKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: DashMotion.of(ctx, DashMotion.base),
+        );
+      }
+    });
+  }
 
   /// `await refresh()`: the new list, a failed refetch kept quiet (the web's
   /// `invalidateQueries` never throws).
@@ -193,6 +210,7 @@ class _RolesPageState extends ConsumerState<RolesPage> {
             spacing: Space.lg,
             children: [
               _RoleHeader(
+                key: _headerKey,
                 role: selected,
                 canManage: canManage,
                 onRename: () => _openDialog(selected),
@@ -323,6 +341,7 @@ class _RolesList extends ConsumerWidget {
 /// owner holds everything), "Built in", Rename and Delete (ADM-ROL-009..011).
 class _RoleHeader extends ConsumerWidget {
   const _RoleHeader({
+    super.key,
     required this.role,
     required this.canManage,
     required this.onRename,

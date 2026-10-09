@@ -192,6 +192,34 @@ void main() {
       expect(mine.map((b) => b.name), ['Zamalek']);
     });
 
+    test('warehouses only when asked (b14f323 list rules)', () async {
+      final b = _boot();
+      b.db['branches'].insert({
+        ...b.db['branches'].get(SeedIds.maadi),
+        'id': 'warehouse-central',
+        'name': 'Central Store',
+        'kind': 'warehouse',
+      });
+      Future<List<String>> names({BranchKind? kind, bool? withWarehouses}) => b
+          .api
+          .branches
+          .listBranches(
+            orgId: SeedIds.sabahOrg,
+            kind: kind,
+            includeWarehouses: withWarehouses,
+          )
+          .then((l) => [for (final x in l) x.name]);
+      const shops = ['Heliopolis', 'Maadi', 'New Cairo', 'Zamalek'];
+      // No kind: selling branches only.
+      expect(await names(), shops);
+      expect(await names(withWarehouses: false), shops);
+      // include_warehouses adds them.
+      expect(await names(withWarehouses: true), ['Central Store', ...shops]);
+      // kind picks one kind, whatever include_warehouses says.
+      expect(await names(kind: BranchKind.warehouse), ['Central Store']);
+      expect(await names(kind: BranchKind.branch, withWarehouses: true), shops);
+    });
+
     test(
       'another org\'s branches are refused; one branch reads by id',
       () async {

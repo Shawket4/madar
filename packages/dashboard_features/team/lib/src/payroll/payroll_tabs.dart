@@ -10,6 +10,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/refresh_toast.dart';
 import '../shared/staff_query.dart';
 import '../shared/team_format.dart';
 import '../shared/team_util.dart';
@@ -17,7 +18,7 @@ import 'money_dialogs.dart';
 import 'money_errors.dart';
 import 'payroll_data.dart';
 import 'payroll_logic.dart';
-import 'payroll_page.dart' show PayrollMetrics, PayrollRefreshListener;
+import 'payroll_page.dart' show PayrollMetrics;
 
 /// A tab's list in its four states: error with Retry, skeleton, the web's
 /// empty state, the rows.
@@ -179,40 +180,38 @@ class _PayLinesTabState extends ConsumerState<PayLinesTab> {
     final owner = authz.can(Cap.hrPayrollRun);
     final today = teamTodayIsoOf(ref);
     final q = ref.watch(payrollAdjustmentsProvider);
-    return PayrollRefreshListener<List<Adjustment>>(
-      read: payrollAdjustmentsProvider,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.md,
-        children: [
-          if (canAdjust)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: DashButton(
-                label: t('dawam.addPayLine'),
-                icon: 'plus',
-                onPressed: () => showAdjustmentDialog(context),
-              ),
-            ),
-          _states<Adjustment>(
-            ref,
-            q,
-            errorKey: 'dawam.payLinesLoadError',
-            onRetry: () => ref.invalidate(payrollAdjustmentsProvider),
-            empty: DashEmptyState(
-              icon: 'receipt-text',
-              title: t('dawam.noPayLines'),
-              description: t('dawam.noPayLinesHint'),
-            ),
-            rows: (rows) => DashListCard(
-              children: [
-                for (final a in rows)
-                  _lineRow(context, t, f, a, today, owner, canAdjust),
-              ],
+    listenStaffRefreshFailure(ref, context, payrollAdjustmentsProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        if (canAdjust)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DashButton(
+              label: t('dawam.addPayLine'),
+              icon: 'plus',
+              onPressed: () => showAdjustmentDialog(context),
             ),
           ),
-        ],
-      ),
+        _states<Adjustment>(
+          ref,
+          q,
+          errorKey: 'dawam.payLinesLoadError',
+          onRetry: () => ref.invalidate(payrollAdjustmentsProvider),
+          empty: DashEmptyState(
+            icon: 'receipt-text',
+            title: t('dawam.noPayLines'),
+            description: t('dawam.noPayLinesHint'),
+          ),
+          rows: (rows) => DashListCard(
+            children: [
+              for (final a in rows)
+                _lineRow(context, t, f, a, today, owner, canAdjust),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -277,7 +276,10 @@ class _PayLinesTabState extends ConsumerState<PayLinesTab> {
             onPressed: () => _reject(a),
           ),
         ],
-        if (canAdjust && a.recurring && endsOn == null && a.status == 'approved')
+        if (canAdjust &&
+            a.recurring &&
+            endsOn == null &&
+            a.status == 'approved')
           DashButton(
             label: t('dawam.stop'),
             variant: DashButtonVariant.ghost,
@@ -308,78 +310,76 @@ class AdvancesTab extends ConsumerWidget {
     // The owner may pass the cap and sees its figures (D7).
     final mayPassCap = authz.canEverywhere(Cap.hrPayrollRun);
     final q = ref.watch(payrollAdvancesProvider);
-    return PayrollRefreshListener<List<SalaryAdvance>>(
-      read: payrollAdvancesProvider,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.md,
-        children: [
-          if (canAdvance)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: DashButton(
-                label: t('dawam.recordAdvance'),
-                icon: 'plus',
-                onPressed: () => showRecordAdvanceDialog(context),
-              ),
-            ),
-          _states<SalaryAdvance>(
-            ref,
-            q,
-            errorKey: 'dawam.advancesLoadError',
-            onRetry: () => ref.invalidate(payrollAdvancesProvider),
-            empty: DashEmptyState(
-              icon: 'hand-coins',
-              title: t('dawam.noAdvances'),
-              description: t('dawam.noAdvancesHint'),
-            ),
-            rows: (rows) => DashListCard(
-              children: [
-                for (final a in rows)
-                  _RichRow(
-                    key: ValueKey('advance-${a.id}'),
-                    title: a.employeeName ?? '—',
-                    meta: [
-                      t(
-                        'dawam.advanceMeta',
-                        count: a.installments,
-                        args: {'amount': f.fmtMoney(a.amountPiastres)},
-                      ),
-                      ?a.reason,
-                    ].where((s) => s.isNotEmpty).join(' · '),
-                    trailing: [
-                      if (a.status == 'pending' || a.status == 'approved')
-                        AdvanceCapNote(advance: a, mayPassCap: mayPassCap),
-                      if (a.status == 'approved')
-                        Text(
-                          t(
-                            'dawam.remaining',
-                            args: {'amount': f.fmtMoney(a.remainingPiastres)},
-                          ),
-                          style: DashType.mono.copyWith(
-                            color: context.madarColors.textSecondary,
-                          ),
-                        ),
-                      DashStatusPill(
-                        tone: requestStatusTone[a.status] ?? DashTone.neutral,
-                        small: true,
-                        label: t('staff.req_${a.status}', defaultValue: a.status),
-                      ),
-                      if (canAdvance && a.status == 'pending')
-                        DashButton(
-                          label: t('dawam.review'),
-                          variant: DashButtonVariant.outline,
-                          size: DashButtonSize.compact,
-                          onPressed: () =>
-                              showReviewAdvanceDialog(context, advance: a),
-                        ),
-                    ],
-                  ),
-              ],
+    listenStaffRefreshFailure(ref, context, payrollAdvancesProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        if (canAdvance)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DashButton(
+              label: t('dawam.recordAdvance'),
+              icon: 'plus',
+              onPressed: () => showRecordAdvanceDialog(context),
             ),
           ),
-        ],
-      ),
+        _states<SalaryAdvance>(
+          ref,
+          q,
+          errorKey: 'dawam.advancesLoadError',
+          onRetry: () => ref.invalidate(payrollAdvancesProvider),
+          empty: DashEmptyState(
+            icon: 'hand-coins',
+            title: t('dawam.noAdvances'),
+            description: t('dawam.noAdvancesHint'),
+          ),
+          rows: (rows) => DashListCard(
+            children: [
+              for (final a in rows)
+                _RichRow(
+                  key: ValueKey('advance-${a.id}'),
+                  title: a.employeeName ?? '—',
+                  meta: [
+                    t(
+                      'dawam.advanceMeta',
+                      count: a.installments,
+                      args: {'amount': f.fmtMoney(a.amountPiastres)},
+                    ),
+                    ?a.reason,
+                  ].where((s) => s.isNotEmpty).join(' · '),
+                  trailing: [
+                    if (a.status == 'pending' || a.status == 'approved')
+                      AdvanceCapNote(advance: a, mayPassCap: mayPassCap),
+                    if (a.status == 'approved')
+                      Text(
+                        t(
+                          'dawam.remaining',
+                          args: {'amount': f.fmtMoney(a.remainingPiastres)},
+                        ),
+                        style: DashType.mono.copyWith(
+                          color: context.madarColors.textSecondary,
+                        ),
+                      ),
+                    DashStatusPill(
+                      tone: requestStatusTone[a.status] ?? DashTone.neutral,
+                      small: true,
+                      label: t('staff.req_${a.status}', defaultValue: a.status),
+                    ),
+                    if (canAdvance && a.status == 'pending')
+                      DashButton(
+                        label: t('dawam.review'),
+                        variant: DashButtonVariant.outline,
+                        size: DashButtonSize.compact,
+                        onPressed: () =>
+                            showReviewAdvanceDialog(context, advance: a),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -400,68 +400,66 @@ class ExpensesTab extends ConsumerWidget {
     final branchId = ref.watch(scopeProvider.select((s) => s.branchId));
     final read = payrollExpensesProvider(branchId);
     final q = ref.watch(read);
-    return PayrollRefreshListener<List<ExpenseAdvance>>(
-      read: read,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.md,
-        children: [
-          if (canLog)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: DashButton(
-                label: t('dawam.logExpense'),
-                icon: 'plus',
-                // The dialog's branch list.
-                onIntent: () => ref.warm(branchesProvider),
-                onPressed: () => showExpenseAdvanceDialog(context),
-              ),
-            ),
-          Text(
-            t('dawam.expenseNever'),
-            style: DashType.small.copyWith(
-              color: context.madarColors.textSecondary,
+    listenStaffRefreshFailure(ref, context, read);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        if (canLog)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DashButton(
+              label: t('dawam.logExpense'),
+              icon: 'plus',
+              // The dialog's branch list.
+              onIntent: () => ref.warm(branchesProvider),
+              onPressed: () => showExpenseAdvanceDialog(context),
             ),
           ),
-          _states<ExpenseAdvance>(
-            ref,
-            q,
-            errorKey: 'dawam.expensesLoadError',
-            onRetry: () => ref.invalidate(read),
-            empty: DashEmptyState(
-              icon: 'wallet',
-              title: t('dawam.noExpenses'),
-              description: t('dawam.noExpensesHint'),
-            ),
-            rows: (rows) => DashListCard(
-              children: [
-                for (final x in rows)
-                  _RichRow(
-                    key: ValueKey('expense-${x.id}'),
-                    title: x.employeeName,
-                    meta: [
-                      x.purpose,
-                      f.fmtDate(x.givenOn),
-                      t('dawam.via_${x.via}', defaultValue: x.via),
-                      ?x.handedByName,
-                    ].where((s) => s.isNotEmpty).join(' · '),
-                    trailing: [
-                      _figure(context, f.fmtMoney(x.amountPiastres)),
-                      if (canCorrectTag && x.via == 'till')
-                        DashButton(
-                          label: t('dawam.correctTag'),
-                          variant: DashButtonVariant.ghost,
-                          size: DashButtonSize.compact,
-                          onPressed: () =>
-                              showCorrectExpenseTagDialog(context, expense: x),
-                        ),
-                    ],
-                  ),
-              ],
-            ),
+        Text(
+          t('dawam.expenseNever'),
+          style: DashType.small.copyWith(
+            color: context.madarColors.textSecondary,
           ),
-        ],
-      ),
+        ),
+        _states<ExpenseAdvance>(
+          ref,
+          q,
+          errorKey: 'dawam.expensesLoadError',
+          onRetry: () => ref.invalidate(read),
+          empty: DashEmptyState(
+            icon: 'wallet',
+            title: t('dawam.noExpenses'),
+            description: t('dawam.noExpensesHint'),
+          ),
+          rows: (rows) => DashListCard(
+            children: [
+              for (final x in rows)
+                _RichRow(
+                  key: ValueKey('expense-${x.id}'),
+                  title: x.employeeName,
+                  meta: [
+                    x.purpose,
+                    f.fmtDate(x.givenOn),
+                    t('dawam.via_${x.via}', defaultValue: x.via),
+                    ?x.handedByName,
+                  ].where((s) => s.isNotEmpty).join(' · '),
+                  trailing: [
+                    _figure(context, f.fmtMoney(x.amountPiastres)),
+                    if (canCorrectTag && x.via == 'till')
+                      DashButton(
+                        label: t('dawam.correctTag'),
+                        variant: DashButtonVariant.ghost,
+                        size: DashButtonSize.compact,
+                        onPressed: () =>
+                            showCorrectExpenseTagDialog(context, expense: x),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -470,6 +468,23 @@ class ExpensesTab extends ConsumerWidget {
 
 class HistoryTab extends ConsumerWidget {
   const HistoryTab({super.key});
+
+  /// A settled month's sheet; its read joins the page's Refresh spinner
+  /// while it is open.
+  Future<void> _openHistory(
+    BuildContext context,
+    WidgetRef ref,
+    PayrollPeriod p,
+  ) async {
+    ref.read(payrollViewProvider.notifier).showHistory(p.id);
+    await showDashSidePanel<void>(
+      context,
+      builder: (_) => HistorySheet(period: p),
+    );
+    if (context.mounted) {
+      ref.read(payrollViewProvider.notifier).showHistory(null);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -512,14 +527,13 @@ class HistoryTab extends ConsumerWidget {
               ),
               onIntent: () => unsettled
                   ? ref.warm(payrollOlderSlipsProvider(olderKey(p)))
-                  : ref.warm(payrollHistorySlipsProvider(p.id)),
+                  : ref.warm(
+                      payrollOlderSlipsProvider((id: p.id, draft: false)),
+                    ),
               // A month still to settle opens in the page with its actions.
               onTap: () => unsettled
                   ? ref.read(payrollViewProvider.notifier).openMonth(p.id)
-                  : showDashSidePanel<void>(
-                      context,
-                      builder: (_) => HistorySheet(period: p),
-                    ),
+                  : _openHistory(context, ref, p),
             );
           }(),
       ],
@@ -537,7 +551,8 @@ class HistorySheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
-    final read = payrollHistorySlipsProvider(period.id);
+    // The month's frozen payslips: the page's own read of the address.
+    final read = payrollOlderSlipsProvider((id: period.id, draft: false));
     final q = ref.watch(read);
     final people = ref.watch(payrollShownProvider).people;
     final Widget body;
@@ -554,7 +569,7 @@ class HistorySheet extends ConsumerWidget {
     } else {
       body = DashListCard(
         children: [
-          for (final s in q.value ?? const <Payslip>[])
+          for (final s in (q.value ?? const []).whereType<Payslip>())
             DashListRow(
               title:
                   (s.employeeName?.isNotEmpty ?? false
@@ -570,15 +585,13 @@ class HistorySheet extends ConsumerWidget {
         ],
       );
     }
-    return PayrollRefreshListener<List<Payslip>>(
-      read: read,
-      child: DashSurface(
-        title: period.name,
-        description: periodPhase(period.status) == PayPhase.open
-            ? t('dawam.neverApproved')
-            : t('dawam.frozenHint'),
-        body: body,
-      ),
+    listenStaffRefreshFailure(ref, context, read);
+    return DashSurface(
+      title: period.name,
+      description: periodPhase(period.status) == PayPhase.open
+          ? t('dawam.neverApproved')
+          : t('dawam.frozenHint'),
+      body: body,
     );
   }
 }

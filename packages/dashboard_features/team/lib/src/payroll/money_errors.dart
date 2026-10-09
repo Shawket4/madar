@@ -32,7 +32,9 @@ String dawamErrorMessage(
       'REASON_REQUIRED' when reasonFor != null =>
         'REASON_REQUIRED_${reasonFor.name}',
       'PERIOD_CLOSED' when monthForm =>
-        vars['paid'] == true ? 'PERIOD_CLOSED_paid_month' : 'PERIOD_CLOSED_month',
+        vars['paid'] == true
+            ? 'PERIOD_CLOSED_paid_month'
+            : 'PERIOD_CLOSED_month',
       'ADVANCE_OVER_CAP'
           when vars['more_egp'] == null && vars['over_cap'] == true =>
         'ADVANCE_OVER_CAP_owner',

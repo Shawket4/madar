@@ -12,7 +12,6 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:go_router/go_router.dart';
 
 import '../shared/page_gate.dart';
@@ -40,67 +39,6 @@ class PayrollPage extends ConsumerWidget {
     whoKey: 'dawam.payrollNoAccess',
     child: const _PayrollBody(),
   );
-}
-
-/// TEAM-ALL-022's failed-refresh toast for one read, subscribed once (a
-/// `ref.listen` in build re-subscribes every rebuild, and a new listener on
-/// a read older than 30 s refetches it).
-class PayrollRefreshListener<T> extends ConsumerStatefulWidget {
-  const PayrollRefreshListener({
-    required this.read,
-    required this.child,
-    super.key,
-  });
-
-  /// Null: the read is off.
-  final ProviderListenable<AsyncValue<T>>? read;
-  final Widget child;
-
-  @override
-  ConsumerState<PayrollRefreshListener<T>> createState() =>
-      _PayrollRefreshListenerState<T>();
-}
-
-class _PayrollRefreshListenerState<T>
-    extends ConsumerState<PayrollRefreshListener<T>> {
-  ProviderSubscription<AsyncValue<T>>? _sub;
-
-  void _listen() {
-    _sub?.close();
-    _sub = null;
-    final read = widget.read;
-    if (read == null) return;
-    _sub = ref.listenManual<AsyncValue<T>>(read, (prev, next) {
-      if (!next.hasError || !next.hasValue) return;
-      if (prev != null && prev.hasError && identical(prev.error, next.error)) {
-        return;
-      }
-      if (mounted) {
-        showStaffRefreshFailure(context, ref.read(tProvider), next.error);
-      }
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _listen();
-  }
-
-  @override
-  void didUpdateWidget(PayrollRefreshListener<T> old) {
-    super.didUpdateWidget(old);
-    if (old.read != widget.read) _listen();
-  }
-
-  @override
-  void dispose() {
-    _sub?.close();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
 }
 
 /// Fixed web heights (`Skeleton h-40` under a tab).
@@ -201,11 +139,10 @@ class _PayrollBodyState extends ConsumerState<_PayrollBody> {
     }
   }
 
-  void _openSlip(SlipRow r) =>
-      showDashSidePanel<void>(
-        context,
-        builder: (_) => PayslipSheet(employeeId: r.employeeId),
-      );
+  void _openSlip(SlipRow r) => showDashSidePanel<void>(
+    context,
+    builder: (_) => PayslipSheet(employeeId: r.employeeId),
+  );
 
   void _markPaid(PayrollShown s, SlipRow r) {
     final period = s.period;
@@ -234,16 +171,38 @@ class _PayrollBodyState extends ConsumerState<_PayrollBody> {
     final views = ref.read(payrollViewProvider.notifier);
     final period = s.period;
     final phase = s.phase;
+    ref.listen(payrollCurrentProvider, (_, next) {
+      if (next.hasValue && !next.isLoading) {
+        _loadedAt = ref.read(clockProvider)();
+      }
+    });
     if (s.currentRead.hasValue) _loadedAt ??= ref.read(clockProvider)();
     final olderRead = s.older == null
         ? null
         : payrollOlderSlipsProvider(olderKey(s.older!));
     final peopleRead = ref.watch(payrollPeopleProvider);
     final branchId = ref.watch(scopeProvider.select((x) => x.branchId));
+    // TEAM-ALL-022: a failed background refresh toasts (never a retry).
+    listenStaffRefreshFailure(ref, context, payrollCurrentProvider);
+    if (olderRead != null) listenStaffRefreshFailure(ref, context, olderRead);
+    listenStaffRefreshFailure(ref, context, payrollPeopleProvider);
+    // TEAM-ALL-008: the spinner covers every read on screen (the web's
+    // `useIsFetching` over the dawam keys): the active tab's list and an
+    // open History sheet's payslips too.
+    final historyId = view.historyId;
+    final tabRead = switch (view.tab) {
+      PayrollTab.lines => ref.watch(payrollAdjustmentsProvider),
+      PayrollTab.advances => ref.watch(payrollAdvancesProvider),
+      PayrollTab.expenses => ref.watch(payrollExpensesProvider(branchId)),
+      PayrollTab.history when historyId != null => ref.watch(
+        payrollOlderSlipsProvider((id: historyId, draft: false)),
+      ),
+      _ => null,
+    };
 
     final actions = <Widget>[
       DawamRefreshButton(
-        busy: anyFetching([s.currentRead, s.shownRead, peopleRead]),
+        busy: anyFetching([s.currentRead, s.shownRead, peopleRead, ?tabRead]),
       ),
       if (period != null)
         DashStatusPill(tone: phaseTone(phase), label: t(phaseKey(phase))),
@@ -369,28 +328,19 @@ class _PayrollBodyState extends ConsumerState<_PayrollBody> {
       ],
     );
 
-    return PayrollRefreshListener<CurrentPayroll?>(
-      read: payrollCurrentProvider,
-      child: PayrollRefreshListener<List<Object>>(
-        read: olderRead,
-        child: PayrollRefreshListener<List<Employee>?>(
-          read: payrollPeopleProvider,
-          child: DashPageScaffold(
-            title: t('dawam.payroll'),
-            subtitle: period != null
-                ? t(
-                    'dawam.periodLine',
-                    args: {
-                      'from': f.fmtDate(period.startDate),
-                      'to': f.fmtDate(period.endDate),
-                    },
-                  )
-                : t('dawam.payrollSubtitle'),
-            actions: actions,
-            body: body,
-          ),
-        ),
-      ),
+    return DashPageScaffold(
+      title: t('dawam.payroll'),
+      subtitle: period != null
+          ? t(
+              'dawam.periodLine',
+              args: {
+                'from': f.fmtDate(period.startDate),
+                'to': f.fmtDate(period.endDate),
+              },
+            )
+          : t('dawam.payrollSubtitle'),
+      actions: actions,
+      body: body,
     );
   }
 

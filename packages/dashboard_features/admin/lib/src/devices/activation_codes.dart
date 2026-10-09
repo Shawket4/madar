@@ -72,7 +72,6 @@ class ActivationCodesSection extends ConsumerWidget {
     final fmt = ref.watch(formatProvider);
     final c = context.madarColors;
     final q = ref.watch(activationCodesProvider(branchId));
-    final error = q.shownError;
     return Semantics(
       container: true,
       label: t('devices.activation.title'),
@@ -97,8 +96,8 @@ class ActivationCodesSection extends ConsumerWidget {
             key: const ValueKey('codes-table'),
             rows: q.value ?? const [],
             rowKey: (r) => r.id,
-            loading: q.firstLoad,
-            errorMessage: error == null ? null : devicesErrorText(error, t),
+            loading: q.awaitingFirst,
+            errorMessage: q.failedFirst ? devicesErrorText(q.error, t) : null,
             onRetry: () => ref.invalidate(activationCodesProvider(branchId)),
             hideViewOptions: true,
             pageSize: 10,

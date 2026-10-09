@@ -627,7 +627,7 @@ class _BuilderCanvasState extends State<BuilderCanvas> {
                   piece: p,
                   selected: isSelected,
                   ring: takes
-                      ? (_hoverKey == p.key ? _Ring.strong : _Ring.soft)
+                      ? (_hoverKey == p.key ? CardRing.strong : CardRing.soft)
                       : null,
                 ),
               ),
@@ -727,7 +727,7 @@ class _Chip extends StatelessWidget {
   }
 }
 
-enum _Ring { soft, strong }
+enum CardRing { soft, strong }
 
 /// One card, drawn at its world size (216 × 76; a section 104 tall) and
 /// scaled by the camera.
@@ -741,18 +741,18 @@ class BuilderCard extends StatelessWidget {
 
   final PieceView piece;
   final bool selected;
-  final _Ring? ring;
+  final CardRing? ring;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     final p = piece;
     final ringColor = switch (ring) {
-      _Ring.strong => c.accent,
-      _Ring.soft => c.ring,
+      CardRing.strong => c.accent,
+      CardRing.soft => c.ring,
       null => selected ? c.ring : null,
     };
-    final ringWidth = ring == _Ring.strong ? 3.0 : 2.0;
+    final ringWidth = ring == CardRing.strong ? 3.0 : 2.0;
     final problem = p.problem;
     final body = Container(
       padding: const EdgeInsets.symmetric(horizontal: Space.md),

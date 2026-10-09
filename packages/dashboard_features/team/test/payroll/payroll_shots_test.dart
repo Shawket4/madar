@@ -24,7 +24,10 @@ void main() {
     }
   }
 
-  for (final (size, lang) in [(DashSize.desktop, 'en'), (DashSize.phone, 'ar')]) {
+  for (final (size, lang) in [
+    (DashSize.desktop, 'en'),
+    (DashSize.phone, 'ar'),
+  ]) {
     final tag = '${size.name} $lang';
     Future<DashHarness> open(WidgetTester tester, {Srv? s}) =>
         pumpPayroll(tester, size: size, locale: lang, s: s);
@@ -63,7 +66,9 @@ void main() {
 
     testWidgets('approve confirm, $tag', (tester) async {
       final h = await open(tester);
-      await h.tap(inPage(find.widgetWithText(DashButton, h.t('dawam.approve'))));
+      await h.tap(
+        inPage(find.widgetWithText(DashButton, h.t('dawam.approve'))),
+      );
       await h.shot('payroll/approve-confirm');
     });
 
@@ -76,14 +81,18 @@ void main() {
     testWidgets('pay-line dialog, $tag', (tester) async {
       final h = await open(tester);
       await h.tap(pageText(h.t('dawam.payLines')));
-      await h.tap(inPage(find.widgetWithText(DashButton, h.t('dawam.addPayLine'))));
+      await h.tap(
+        inPage(find.widgetWithText(DashButton, h.t('dawam.addPayLine'))),
+      );
       await h.shot('payroll/pay-line');
     });
 
     testWidgets('mark paid dialog, $tag', (tester) async {
       final h = await open(tester);
       await approveMonth(h);
-      await h.tap(inPage(find.widgetWithText(DashButton, h.t('dawam.markPaid'))).first);
+      await h.tap(
+        inPage(find.widgetWithText(DashButton, h.t('dawam.markPaid'))).first,
+      );
       await h.shot('payroll/mark-paid');
     });
 
@@ -103,14 +112,18 @@ void main() {
     testWidgets('advance review and expense dialogs, $tag', (tester) async {
       final h = await open(tester);
       await h.tap(pageText(h.t('dawam.salaryAdvances')));
-      await h.tap(inPage(find.widgetWithText(DashButton, h.t('dawam.review'))).first);
+      await h.tap(
+        inPage(find.widgetWithText(DashButton, h.t('dawam.review'))).first,
+      );
       await h.shot('payroll/review-advance');
     });
 
     testWidgets('expense dialog, $tag', (tester) async {
       final h = await open(tester);
       await h.tap(pageText(h.t('dawam.expenseAdvances')));
-      await h.tap(inPage(find.widgetWithText(DashButton, h.t('dawam.logExpense'))));
+      await h.tap(
+        inPage(find.widgetWithText(DashButton, h.t('dawam.logExpense'))),
+      );
       await h.shot('payroll/log-expense');
     });
 

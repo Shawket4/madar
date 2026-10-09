@@ -160,12 +160,3 @@ String devicesErrorText(Object? error, Translator t) {
   }
   return errorMessage(error, t);
 }
-
-/// React Query's `isLoading`: the first load, nothing to show yet.
-extension DevicesAsync<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-
-  /// The failure to show: it stays up while a Retry is on its way, as the
-  /// web's table keeps its error state through a refetch.
-  Object? get shownError => hasError ? error : null;
-}

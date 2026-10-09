@@ -12,6 +12,7 @@ class BranchesApi {
   Future<List<Branch>> listBranches({
     required String orgId,
     BranchKind? kind,
+    bool? includeWarehouses,
   }) async {
     final response = await _transport.send(
       ApiRequest(
@@ -20,6 +21,8 @@ class BranchesApi {
         query: {
           'org_id': [queryValue(orgId)],
           if (kind != null) 'kind': [queryValue(kind)],
+          if (includeWarehouses != null)
+            'include_warehouses': [queryValue(includeWarehouses)],
         },
       ),
     );

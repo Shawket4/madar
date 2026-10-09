@@ -40,12 +40,16 @@ void main() {
     final s = h.server;
 
     expect(_count(s, LoyaltyRoutes.rewards), 0);
+    expect(_count(s, LoyaltyRoutes.earning), 0);
     await _rest(h, mouse, _tab('Rewards'));
     expect(_count(s, LoyaltyRoutes.rewards), 1);
     expect(_count(s, LoyaltyRoutes.menu), 1);
+    // The seeded programme collects stamps, so the earning card's read too.
+    expect(_count(s, LoyaltyRoutes.earning), 1);
     await h.tap(_tab('Rewards'));
     expect(_count(s, LoyaltyRoutes.rewards), 1);
     expect(_count(s, LoyaltyRoutes.menu), 1);
+    expect(_count(s, LoyaltyRoutes.earning), 1);
 
     expect(_count(s, LoyaltyRoutes.customers), 0);
     await _rest(h, mouse, _tab('Members'));

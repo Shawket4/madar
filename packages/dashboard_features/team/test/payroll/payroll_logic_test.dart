@@ -35,11 +35,32 @@ ApiException _coded(int status, String code, [Map<String, Object?>? vars]) =>
 
 void main() {
   test('TEAM-MNY-001 the first open month', () {
-    expect(firstOpenMonth(_period('draft', '2026-10-01', '2026-10-31'), '2026-10-08'), '2026-10');
-    expect(firstOpenMonth(_period('generated', '2026-10-01', '2026-10-31'), '2026-10-08'), '2026-11');
+    expect(
+      firstOpenMonth(
+        _period('draft', '2026-10-01', '2026-10-31'),
+        '2026-10-08',
+      ),
+      '2026-10',
+    );
+    expect(
+      firstOpenMonth(
+        _period('generated', '2026-10-01', '2026-10-31'),
+        '2026-10-08',
+      ),
+      '2026-11',
+    );
     // Across a year, and a window that ends mid-month.
-    expect(firstOpenMonth(_period('paid', '2026-12-01', '2026-12-31'), '2026-12-20'), '2027-01');
-    expect(firstOpenMonth(_period('generated', '2026-09-25', '2026-10-24'), '2026-10-08'), '2026-11');
+    expect(
+      firstOpenMonth(_period('paid', '2026-12-01', '2026-12-31'), '2026-12-20'),
+      '2027-01',
+    );
+    expect(
+      firstOpenMonth(
+        _period('generated', '2026-09-25', '2026-10-24'),
+        '2026-10-08',
+      ),
+      '2026-11',
+    );
     expect(firstOpenMonth(null, '2026-10-08'), '2026-10');
     expect(monthToDate('2026-11'), '2026-11-01');
   });
@@ -73,21 +94,27 @@ void main() {
     return jsonDecode(utf8.decode(r.bodyBytes));
   }
 
-  test('TEAM-PAY-010 an older server without `unsettled`: from history', () async {
-    final json = (await read(currentT, septemberUnpaid))! as Map<String, Object?>;
-    final fromServer = unsettledOf(CurrentPayroll.fromJson(json));
-    expect(fromServer.single.paidCount, 12);
-    json.remove('unsettled');
-    final u = unsettledOf(CurrentPayroll.fromJson(json));
-    expect(u.single.startsOn, '2026-09-01');
-    expect(u.single.paidCount, isNull);
-  });
+  test(
+    'TEAM-PAY-010 an older server without `unsettled`: from history',
+    () async {
+      final json =
+          (await read(currentT, septemberUnpaid))! as Map<String, Object?>;
+      final fromServer = unsettledOf(CurrentPayroll.fromJson(json));
+      expect(fromServer.single.paidCount, 12);
+      json.remove('unsettled');
+      final u = unsettledOf(CurrentPayroll.fromJson(json));
+      expect(u.single.startsOn, '2026-09-01');
+      expect(u.single.paidCount, isNull);
+    },
+  );
 
   test('TEAM-PAY-020/063 unpaid first, order kept; names fall back', () async {
-    final list = (await read(
-      '/staff/payroll/periods/${septemberId()}/payslips',
-      septemberUnpaid,
-    ))! as List<Object?>;
+    final list =
+        (await read(
+              '/staff/payroll/periods/${septemberId()}/payslips',
+              septemberUnpaid,
+            ))!
+            as List<Object?>;
     final slips = [
       for (final j in list) Payslip.fromJson(j! as Map<String, Object?>),
     ];
@@ -95,13 +122,19 @@ void main() {
     final out = unpaidFirst(rows);
     expect(out.take(3).every((r) => r.paidMethod == null), isTrue);
     expect(out.skip(3).every((r) => r.paidMethod != null), isTrue);
-    final paid = [for (final r in rows) if (r.paidMethod != null) r.employeeId];
+    final paid = [
+      for (final r in rows)
+        if (r.paidMethod != null) r.employeeId,
+    ];
     expect([for (final r in out.skip(3)) r.employeeId], paid);
     final unnamed = Payslip.fromJson({
       ...(list.first! as Map<String, Object?>),
       'employee_name': null,
     });
-    expect(SlipRow.frozen(unnamed, fallbackName: 'From the list').name, 'From the list');
+    expect(
+      SlipRow.frozen(unnamed, fallbackName: 'From the list').name,
+      'From the list',
+    );
     expect(SlipRow.frozen(unnamed).name, '—');
     // A run's own zero-net settlement is no payment by hand (TEAM-PAY-007).
     final none = Payslip.fromJson({
@@ -120,12 +153,18 @@ void main() {
         final f = h.container.read(formatProvider);
         String words(ApiException e, {ReasonFor? r, bool month = false}) =>
             dawamErrorMessage(e, t, f, reasonFor: r, monthForm: month);
-        expect(words(_coded(409, 'RULES_NOT_SET')), t('errors.codes.RULES_NOT_SET'));
+        expect(
+          words(_coded(409, 'RULES_NOT_SET')),
+          t('errors.codes.RULES_NOT_SET'),
+        );
         expect(
           words(_coded(400, 'REASON_REQUIRED'), r: ReasonFor.payLine),
           t('errors.codes.REASON_REQUIRED_payLine'),
         );
-        expect(words(_coded(400, 'REASON_REQUIRED')), t('errors.codes.REASON_REQUIRED'));
+        expect(
+          words(_coded(400, 'REASON_REQUIRED')),
+          t('errors.codes.REASON_REQUIRED'),
+        );
         expect(
           words(_coded(409, 'PERIOD_CLOSED', {'paid': true}), month: true),
           t('errors.codes.PERIOD_CLOSED_paid_month'),
@@ -139,7 +178,12 @@ void main() {
           t('errors.codes.ADVANCE_OVER_CAP_owner'),
         );
         expect(
-          words(_coded(409, 'ADVANCE_OVER_CAP', {'over_cap': true, 'more_egp': 900})),
+          words(
+            _coded(409, 'ADVANCE_OVER_CAP', {
+              'over_cap': true,
+              'more_egp': 900,
+            }),
+          ),
           t('errors.codes.ADVANCE_OVER_CAP', args: {'more_egp': 900}),
         );
         expect(

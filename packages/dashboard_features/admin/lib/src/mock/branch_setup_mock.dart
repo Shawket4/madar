@@ -563,7 +563,7 @@ void registerBranchSetupMocks(MockServer server, MockDb db) {
       req.badRequest('kind must be pos, kds or waiter');
     }
     final l = body.label?.trim();
-    final given = l == null || l.isEmpty ? slot?['name'] as String? : l;
+    final given = l == null || l.isEmpty ? (slot?['name'] as String?) : l;
     final label = given == null
         ? null
         : String.fromCharCodes(given.runes.take(120));

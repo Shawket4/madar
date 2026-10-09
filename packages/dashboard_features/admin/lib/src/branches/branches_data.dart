@@ -9,15 +9,18 @@ import 'package:dashboard_api/dashboard_api.dart'
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// `GET /branches?org_id=<org>` (listBranches): every branch of the org,
-/// inactive included, unpaginated. A `branch.settings_changed` nudge (or
-/// [invalidateBranches]) asks again, as the web's `/branches` prefix
-/// invalidation does.
+/// `GET /branches?org_id=<org>&include_warehouses=true` (listBranches): every
+/// branch and warehouse of the org, inactive included, unpaginated. A
+/// `branch.settings_changed` nudge (or [invalidateBranches]) asks again, as
+/// the web's `/branches` prefix invalidation does.
 final adminBranchesProvider = FutureProvider.autoDispose
     .family<List<Branch>, String>((ref, orgId) {
       ref.webCache();
       ref.watch(realtimeEpochProvider('/branches?org_id=$orgId'));
-      return ref.watch(apiProvider).branches.listBranches(orgId: orgId);
+      return ref
+          .watch(apiProvider)
+          .branches
+          .listBranches(orgId: orgId, includeWarehouses: true);
     });
 
 /// `GET /timezones` (listTimezones) for the timezone select.

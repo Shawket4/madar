@@ -296,6 +296,36 @@ void main() {
       expect(inDialog(find.text('Zamalek')), findsOneWidget);
     });
 
+    testWidgets('SET-LOY-069 a warehouse is never a choice and never counts '
+        'toward "more than one branch"', (tester) async {
+      final m = loyaltyServer();
+      final branches = m.db['branches'];
+      for (final r in [...branches.rows]) {
+        if (r['org_id'] == SeedIds.sabahOrg && r['id'] != SeedIds.zamalek) {
+          branches.update(r['id']! as String, {'is_active': false});
+        }
+      }
+      branches.insert({
+        ...branches.get(SeedIds.zamalek),
+        'id': 'wh-main',
+        'name': 'Main Warehouse',
+        'code': 'WH',
+        'kind': 'warehouse',
+      }, timestamps: false);
+      final h = await _openNada(tester, backend: m);
+      await h.tap(find.byKey(const ValueKey('member-adjust')));
+      // One selling branch left: it is the default, so no choice shows.
+      expect(inDialog(find.text('Pick a branch')), findsNothing);
+      expect(inDialog(find.text('Main Warehouse')), findsNothing);
+      await h.enterText(find.byKey(const ValueKey('adjust-amount')), '1');
+      await h.enterText(find.byKey(const ValueKey('adjust-reason')), 'Missed');
+      await h.tap(find.byKey(const ValueKey('adjust-confirm')));
+      expect(
+        bodyOf(h.server.callsTo(LoyaltyRoutes.adjust).single)['branch_id'],
+        SeedIds.zamalek,
+      );
+    });
+
     testWidgets('SET-LOY-070 validation: amount, overdraw, branch, reason',
         (tester) async {
       final h = await _openNada(tester);

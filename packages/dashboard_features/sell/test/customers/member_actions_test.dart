@@ -82,6 +82,27 @@ void main() {
       expect(find.byKey(_branch), findsNothing);
     });
 
+    testWidgets('SELL-CUS-044 an active warehouse is not a branch choice', (
+      tester,
+    ) async {
+      final s = customersServer();
+      final branches = s.db['branches'];
+      for (final b in branches.rows) {
+        if (b['id'] != SeedIds.heliopolis) b['is_active'] = false;
+      }
+      branches.insert({
+        ...branches.get(SeedIds.heliopolis),
+        'id': 'wh-main',
+        'name': 'Main Warehouse',
+        'code': 'WH',
+        'kind': 'warehouse',
+      }, timestamps: false);
+      final h = await pumpCustomers(tester, server: s.server, db: s.db);
+      await openAdjust(h);
+      expect(find.byKey(_branch), findsNothing);
+      expect(inDialog(find.text('Main Warehouse')), findsNothing);
+    });
+
     testWidgets('SELL-CUS-045 the rules', (tester) async {
       final h = await pumpCustomers(tester);
       await openAdjust(h);

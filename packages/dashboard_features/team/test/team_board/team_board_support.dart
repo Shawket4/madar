@@ -94,7 +94,8 @@ String get today => TeamSeed.today;
 
 String flagId(String key) => TeamSeedIds.flag(key);
 
-MockRow flagRow(MockDb db, String key) => db[TeamTables.flags].find(flagId(key))!;
+MockRow flagRow(MockDb db, String key) =>
+    db[TeamTables.flags].find(flagId(key))!;
 
 /// Adds a flag of [kind] for [employeeKey] at Zamalek (or [branchId]).
 MockRow addFlag(
@@ -132,7 +133,8 @@ Finder inBoard(Finder f) => find.descendant(of: board, matching: f);
 Finder boardText(String s) => inBoard(find.text(s));
 
 /// Text containing [s] (rich text too) on the board.
-Finder boardHas(String s) => inBoard(find.textContaining(s, findRichText: true));
+Finder boardHas(String s) =>
+    inBoard(find.textContaining(s, findRichText: true));
 
 /// The list row whose title is [title].
 Finder rowOf(String title) => find
@@ -143,9 +145,8 @@ Finder inRow(String title, Finder f) =>
     find.descendant(of: rowOf(title), matching: f);
 
 /// A button labelled [label] on the board.
-Finder boardButton(String label) => inBoard(
-  find.byWidgetPredicate((w) => w is DashButton && w.label == label),
-);
+Finder boardButton(String label) =>
+    inBoard(find.byWidgetPredicate((w) => w is DashButton && w.label == label));
 
 /// The open dialog (the last `DashSurface`).
 Finder surface() => find.byType(DashSurface).last;
@@ -170,7 +171,7 @@ bool enabled(WidgetTester tester, Finder button) =>
 /// Shoots the page top to bottom: `<name>-1`, `<name>-2`, …
 Future<void> shootPage(DashHarness h, String name) async {
   final scroll = find
-      .ancestor(of: board, matching: find.byType(Scrollable))
+      .descendant(of: board, matching: find.byType(Scrollable))
       .evaluate()
       .map((e) => (e as StatefulElement).state as ScrollableState)
       .where((s) => s.position.axis == Axis.vertical)

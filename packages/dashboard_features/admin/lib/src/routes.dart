@@ -16,6 +16,7 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import 'branch_setup/branch_setup_page.dart';
 import 'branches/branches_data.dart';
 import 'branches/branches_page.dart';
 import 'devices/devices_page.dart';
@@ -32,6 +33,9 @@ Widget _orgs(BuildContext context, GoRouterState state) => const OrgsPage();
 
 Widget _branches(BuildContext context, GoRouterState state) =>
     const BranchesPage();
+
+Widget _branchSetup(BuildContext context, GoRouterState state) =>
+    const BranchSetupPage();
 
 Widget _devices(BuildContext context, GoRouterState state) =>
     const DevicesPage();
@@ -63,10 +67,12 @@ const List<DashRoute> adminRoutes = [
     titleFallback: 'Branches',
     prefetch: _prefetchBranches,
   ),
-  // The branch builder (web `routes/_app/branch-setup.tsx`): a stub until its
-  // page lands (inventory ADM-BSU), so the nav row opens a placeholder.
+  // The branch builder (web `routes/_app/branch-setup.tsx`, ADM-BSU): no
+  // route guard; the nav shows it for `kitchen.stations.edit`. No
+  // `prefetchRoute` case on the web.
   DashRoute(
-    path: '/branch-setup',
+    path: BranchSetupPage.path,
+    builder: _branchSetup,
     titleKey: 'nav.branchSetup',
     titleFallback: 'Branch setup',
     module: OrgModule.pos,

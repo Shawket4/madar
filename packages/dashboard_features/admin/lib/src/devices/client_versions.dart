@@ -36,13 +36,12 @@ class ClientVersionsView extends ConsumerWidget {
     final key = (branchId: branchId, legacyOnly: legacyOnly, days: days);
     final q = ref.watch(clientVersionsProvider(key));
     final rows = q.value ?? const <ClientSeen>[];
-    final loading = q.firstLoad;
+    final loading = q.awaitingFirst;
     final legacy = rows.where((r) => r.lastLegacyAt != null).length;
     final versions = {
       for (final r in rows)
         if (r.appVersion != null && r.appVersion!.isNotEmpty) r.appVersion,
     }.length;
-    final error = q.shownError;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.xl,
@@ -77,12 +76,13 @@ class ClientVersionsView extends ConsumerWidget {
         ClientVersionsTable(
           rows: rows,
           loading: loading,
-          errorMessage: error == null ? null : devicesErrorText(error, t),
+          errorMessage: q.failedFirst ? devicesErrorText(q.error, t) : null,
           onRetry: () => ref.invalidate(clientVersionsProvider(key)),
           showBranch: branchId == null,
           days: days,
           legacyOnly: legacyOnly,
           toolbar: _Toolbar(
+            branchId: branchId,
             days: days,
             legacyOnly: legacyOnly,
             onDays: onDays,
@@ -97,12 +97,14 @@ class ClientVersionsView extends ConsumerWidget {
 /// The window select and the legacy-only switch.
 class _Toolbar extends ConsumerWidget {
   const _Toolbar({
+    required this.branchId,
     required this.days,
     required this.legacyOnly,
     required this.onDays,
     required this.onLegacyOnly,
   });
 
+  final String? branchId;
   final int days;
   final bool legacyOnly;
   final ValueChanged<int> onDays;
@@ -112,6 +114,13 @@ class _Toolbar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
+    void warm({required int days, required bool legacyOnly}) => ref.warm(
+      clientVersionsProvider((
+        branchId: branchId,
+        legacyOnly: legacyOnly,
+        days: days,
+      )),
+    );
     return Wrap(
       spacing: Space.sm,
       runSpacing: Space.sm,
@@ -131,11 +140,13 @@ class _Toolbar extends ConsumerWidget {
               ),
           ],
           onChanged: onDays,
+          onOptionIntent: (d) => warm(days: d, legacyOnly: legacyOnly),
         ),
         // The label wraps the switch: a tap anywhere on it toggles.
         DashPressable(
           key: const ValueKey('clients-legacy-only'),
           onTap: () => onLegacyOnly(!legacyOnly),
+          onIntent: () => warm(days: days, legacyOnly: !legacyOnly),
           isButton: false,
           checked: legacyOnly,
           semanticLabel: t('devices.clients.legacyOnly'),

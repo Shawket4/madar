@@ -7,23 +7,20 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../payroll/payroll_data.dart' show payrollAdvancesProvider;
+import '../requests/requests_providers.dart' show requestsListProvider;
 import '../shared/staff_query.dart';
 
-/// `listRequests({status: "pending"})`.
-final approvalsRequestsProvider =
-    FutureProvider.autoDispose<List<StaffRequest>>((ref) {
-      ref.webCache();
-      watchStaffPath(ref, '/staff/requests');
-      return ref.watch(apiProvider).staff.listRequests(status: 'pending');
-    });
+/// `listRequests({status: "pending"})`: the Requests page's read of the
+/// same key, one cache for both pages.
+final approvalsRequestsProvider = requestsListProvider((
+  status: 'pending',
+  kind: null,
+));
 
-/// `listAdvances({})`: every advance; the page keeps the pending ones.
-final approvalsAdvancesProvider =
-    FutureProvider.autoDispose<List<SalaryAdvance>>((ref) {
-      ref.webCache();
-      watchStaffPath(ref, '/staff/payroll/advances');
-      return ref.watch(apiProvider).staff.listAdvances();
-    });
+/// `listAdvances({})`: every advance (the page keeps the pending ones); the
+/// Payroll page's read of the same address.
+final approvalsAdvancesProvider = payrollAdvancesProvider;
 
 /// `listSwaps({status: "pending"})`.
 final approvalsSwapsProvider = FutureProvider.autoDispose<List<Swap>>((ref) {
@@ -69,9 +66,10 @@ const ({String? cover, String? overtime}) pendingOvertime = (
 );
 
 /// `listAdjustments({status: "pending"})`: pay lines over a manager's limit.
-final approvalsPayLinesProvider =
-    FutureProvider.autoDispose<List<Adjustment>>((ref) {
-      ref.webCache();
-      watchStaffPath(ref, '/staff/adjustments');
-      return ref.watch(apiProvider).staff.listAdjustments(status: 'pending');
-    });
+final approvalsPayLinesProvider = FutureProvider.autoDispose<List<Adjustment>>((
+  ref,
+) {
+  ref.webCache();
+  watchStaffPath(ref, '/staff/adjustments');
+  return ref.watch(apiProvider).staff.listAdjustments(status: 'pending');
+});

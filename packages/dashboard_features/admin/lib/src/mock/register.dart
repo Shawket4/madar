@@ -7,6 +7,7 @@ library;
 import 'package:dashboard_api/mock.dart';
 
 import '../area_seed.dart';
+import 'branch_setup_mock.dart';
 import 'branches_mock.dart';
 import 'devices_mock.dart';
 import 'onboarding_mock.dart';
@@ -24,4 +25,6 @@ void registerAdminMocks(MockServer server, MockDb db) {
   registerDevicesMocks(server, db);
   registerRolesMocks(server, db);
   registerReviewMocks(server, db);
+  // After the Devices mocks: it also answers a setup code made for a slot.
+  registerBranchSetupMocks(server, db);
 }

@@ -97,8 +97,7 @@ Finder pageText(String text) => inPage(find.text(text));
 
 /// The current month's period id (the mock opens it on first read).
 String currentPeriodId(MockDb db, [String org = 'sabah']) =>
-    db[TeamTables.payrollPeriods].rows
-        .firstWhere(
+    db[TeamTables.payrollPeriods].rows.firstWhere(
           (p) =>
               p['org_id'] == SeedIds.sabahOrg &&
               (p['start_date']! as String).startsWith('2026-10'),
@@ -106,8 +105,9 @@ String currentPeriodId(MockDb db, [String org = 'sabah']) =>
         as String;
 
 /// [f] inside the topmost dialog, sheet or side panel.
-Finder inTop(Finder f) =>
-    find.descendant(of: find.byType(DashSurface).last, matching: f).hitTestable();
+Finder inTop(Finder f) => find
+    .descendant(of: find.byType(DashSurface).last, matching: f)
+    .hitTestable();
 
 /// Text inside the topmost surface.
 Finder topText(String text) => inTop(find.text(text));
@@ -146,9 +146,12 @@ Future<void> approveMonth(DashHarness h) async {
 }
 
 /// The JSON body of the last [method] call to [template].
-Map<String, Object?> lastBody(DashHarness h, String template, [String? method]) =>
-    (h.server.callsTo(template, method: method).last.body! as Map)
-        .cast<String, Object?>();
+Map<String, Object?> lastBody(
+  DashHarness h,
+  String template, [
+  String? method,
+]) => (h.server.callsTo(template, method: method).last.body! as Map)
+    .cast<String, Object?>();
 
 /// Opens [name]'s payslip from the table.
 Future<void> openSlip(DashHarness h, String name) =>
@@ -189,7 +192,10 @@ void septemberUnpaid(MockDb db, {int unpaid = 3, String status = 'generated'}) {
   var n = 0;
   for (final s in db['payslips'].rows.toList()) {
     if (s['payroll_period_id'] != id || n >= unpaid) continue;
-    db['payslips'].update(s['id']! as String, {'paid_method': null, 'paid_at': null});
+    db['payslips'].update(s['id']! as String, {
+      'paid_method': null,
+      'paid_at': null,
+    });
     n++;
   }
 }
@@ -197,7 +203,10 @@ void septemberUnpaid(MockDb db, {int unpaid = 3, String status = 'generated'}) {
 /// Shoots the page top to bottom (`payroll/<name>-1`, `-2`, …, at most 4).
 Future<void> shootPage(DashHarness h, String name) async {
   final scroll = find
-      .descendant(of: find.byType(PayrollPage), matching: find.byType(Scrollable))
+      .descendant(
+        of: find.byType(PayrollPage),
+        matching: find.byType(Scrollable),
+      )
       .evaluate()
       .map((e) => (e as StatefulElement).state as ScrollableState)
       .where((s) => s.position.axis == Axis.vertical)
@@ -213,6 +222,9 @@ Future<void> shootPage(DashHarness h, String name) async {
     await h.settle(rounds: 2);
     await h.shot('payroll/$name-$i');
     if (y >= position.maxScrollExtent) break;
-    y = (y + position.viewportDimension * 0.85).clamp(0, position.maxScrollExtent);
+    y = (y + position.viewportDimension * 0.85).clamp(
+      0,
+      position.maxScrollExtent,
+    );
   }
 }

@@ -8,6 +8,8 @@ import 'package:design_system/design_system.dart' show SkeletonBlock;
 import 'package:dashboard_team/src/payroll/payroll_logic.dart' show SlipRow;
 import 'package:dashboard_team/src/payroll/payroll_steps.dart';
 import 'package:dashboard_team/src/payroll/payslip_sheet.dart';
+import 'package:dashboard_team/src/shared/staff_query.dart'
+    show staffRevisionsProvider;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'payroll_support.dart';
@@ -29,7 +31,12 @@ void main() {
       expect(pageText('Open'), findsOneWidget);
       expect(pageText('Live, changes with every punch'), findsOneWidget);
       expect(
-        inPage(find.textContaining(h.t('dawamOps.payNextApprove'), findRichText: true)),
+        inPage(
+          find.textContaining(
+            h.t('dawamOps.payNextApprove'),
+            findRichText: true,
+          ),
+        ),
         findsOneWidget,
       );
       final steps = find.byKey(PayrollSteps.currentStepKey);
@@ -49,7 +56,10 @@ void main() {
         expect(pageText(c), findsOneWidget, reason: c);
       }
       expect(pageText('Estimate'), findsWidgets);
-      expect(inPage(find.widgetWithText(DashButton, 'Mark paid')), findsNothing);
+      expect(
+        inPage(find.widgetWithText(DashButton, 'Mark paid')),
+        findsNothing,
+      );
       // Pay lists and the CSV wait for approval.
       expect(pageText('Pay lists (bank, wallet, cash)'), findsNothing);
       expect(pageText('CSV'), findsNothing);
@@ -97,7 +107,12 @@ void main() {
       expect(inPage(find.textContaining('Adham Reda.')), findsOneWidget);
       expect(pageText('Not set'), findsOneWidget);
       expect(
-        inPage(find.textContaining(h.t('dawamOps.payNextBlocked'), findRichText: true)),
+        inPage(
+          find.textContaining(
+            h.t('dawamOps.payNextBlocked'),
+            findRichText: true,
+          ),
+        ),
         findsOneWidget,
       );
       final approve = tester.widget<DashButton>(
@@ -128,13 +143,21 @@ void main() {
       );
       final before = h.server.callsTo(currentT).length;
       await confirm(h, 'Approve payroll');
-      expect(h.server.callsTo(generateT), hasLength(1));
+      expect(
+        h.server.callsTo(generateT).single.path,
+        '/staff/payroll/periods/${currentPeriodId(h.db!)}/generate',
+      );
       await h.expectToast('Payroll approved');
       expect(h.server.callsTo(currentT).length, before + 1);
       expect(pageText('Approved'), findsWidgets);
       expect(pageText('Paid 0 of 15'), findsOneWidget);
       expect(
-        inPage(find.textContaining(h.t('dawamOps.payNextPayFirst'), findRichText: true)),
+        inPage(
+          find.textContaining(
+            h.t('dawamOps.payNextPayFirst'),
+            findRichText: true,
+          ),
+        ),
         findsOneWidget,
       );
       expect(pageText(h.t('dawam.payLists')), findsOneWidget);
@@ -201,6 +224,33 @@ void main() {
     },
   );
 
+  testWidgets('TEAM-MNY-032 the method follows a refetch until picked; a '
+      'pick survives one', (tester) async {
+    final s = payrollServer();
+    final h = await pumpPayroll(tester, s: s);
+    await approveMonth(h);
+    await h.tap(inPage(find.widgetWithText(DashButton, 'Mark paid')).first);
+    String method() => tester
+        .widget<DashSegmentedControl<String>>(
+          inTop(find.byType(DashSegmentedControl<String>)),
+        )
+        .value;
+    final adham = SeedIds.employee('adham');
+    expect(method(), 'cash');
+    s.db['employees'].update(adham, {'pay_method': 'wallet'});
+    h.container.read(staffRevisionsProvider.notifier).invalidateEmployees();
+    await h.settle();
+    expect(method(), 'wallet');
+    await h.tap(inTop(find.text('Bank transfer')));
+    s.db['employees'].update(adham, {'pay_method': 'cash'});
+    h.container.read(staffRevisionsProvider.notifier).invalidateEmployees();
+    await h.settle();
+    expect(method(), 'bank');
+    await press(h, 'Mark paid');
+    expect(lastBody(h, paidT), {'method': 'bank'});
+    await h.flushTimers();
+  });
+
   testWidgets('TEAM-PAY-021 the second payment reads the later wording', (
     tester,
   ) async {
@@ -210,7 +260,10 @@ void main() {
     await press(h, 'Mark paid');
     await h.flushTimers();
     await h.tap(inPage(find.widgetWithText(DashButton, 'Mark paid')).first);
-    expect(inTop(find.textContaining(h.t('dawam.markPaidHint'))), findsOneWidget);
+    expect(
+      inTop(find.textContaining(h.t('dawam.markPaidHint'))),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -253,7 +306,10 @@ void main() {
         'Mobile wallets',
         'Cash envelopes',
       ]);
-      expect(h.files.saved.single.filename, startsWith('Madar-Payroll-Transfers-'));
+      expect(
+        h.files.saved.single.filename,
+        startsWith('Madar-Payroll-Transfers-'),
+      );
       await h.expectToast(h.t('excel.done', count: 15));
     },
   );
@@ -327,7 +383,9 @@ void main() {
         contains('/periods/${septemberId()}/'),
       );
       await h.flushTimers();
-      await h.tap(inPage(find.widgetWithText(DashButton, 'Back to this month')));
+      await h.tap(
+        inPage(find.widgetWithText(DashButton, 'Back to this month')),
+      );
       expect(pageText('01 Oct 2026 → 31 Oct 2026'), findsOneWidget);
     },
   );
@@ -346,7 +404,10 @@ void main() {
     );
     await h.tap(inPage(find.widgetWithText(DashButton, 'Open it')));
     expect(h.server.callsTo(previewT).single.path, contains(septemberId()));
-    expect(inPage(find.widgetWithText(DashButton, 'Approve payroll')), findsOneWidget);
+    expect(
+      inPage(find.widgetWithText(DashButton, 'Approve payroll')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('TEAM-PAY-010 no banner when every older month is paid', (
@@ -474,39 +535,40 @@ void main() {
     expect(sheet.width, DashSize.phone.size.width);
   });
 
-  testWidgets('TEAM-PAY-063 names come from the payslip, else the active list', (
-    tester,
-  ) async {
-    final s = payrollServer(edit: septemberUnpaid);
-    // A server whose payslips lost two names: Ali is still active, Adham
-    // left (no longer on the active list).
-    s.server.on('GET', payslipsT, (req) {
-      final out = <Map<String, Object?>>[];
-      for (final r in s.db['payslips'].rows) {
-        if (r['payroll_period_id'] != req.param('id')) continue;
-        final e = s.db['employees'].find(r['employee_id']! as String);
-        final unnamed = {SeedIds.employee('ali'), SeedIds.employee('adham')};
-        final name = unnamed.contains(r['employee_id']) ? null : e?['name'];
-        out.add({
-          for (final kv in r.entries)
-            if (!kv.key.startsWith('_')) kv.key: kv.value,
-          'employee_name': name,
-        });
-      }
-      return MockResponse.ok(out);
-    });
-    s.db['employees'].update(SeedIds.employee('adham'), {
-      'employment_status': 'terminated',
-    });
-    final h = await pumpPayroll(tester, s: s);
-    await h.tap(inPage(find.widgetWithText(DashButton, 'Open it')));
-    final table = tester.widget<DashDataTable<SlipRow>>(
-      inPage(find.byType(DashDataTable<SlipRow>)),
-    );
-    final names = {for (final r in table.rows) r.employeeId: r.name};
-    expect(names[SeedIds.employee('ali')], 'Ali Hassan');
-    expect(names[SeedIds.employee('adham')], '—');
-  });
+  testWidgets(
+    'TEAM-PAY-063 names come from the payslip, else the active list',
+    (tester) async {
+      final s = payrollServer(edit: septemberUnpaid);
+      // A server whose payslips lost two names: Ali is still active, Adham
+      // left (no longer on the active list).
+      s.server.on('GET', payslipsT, (req) {
+        final out = <Map<String, Object?>>[];
+        for (final r in s.db['payslips'].rows) {
+          if (r['payroll_period_id'] != req.param('id')) continue;
+          final e = s.db['employees'].find(r['employee_id']! as String);
+          final unnamed = {SeedIds.employee('ali'), SeedIds.employee('adham')};
+          final name = unnamed.contains(r['employee_id']) ? null : e?['name'];
+          out.add({
+            for (final kv in r.entries)
+              if (!kv.key.startsWith('_')) kv.key: kv.value,
+            'employee_name': name,
+          });
+        }
+        return MockResponse.ok(out);
+      });
+      s.db['employees'].update(SeedIds.employee('adham'), {
+        'employment_status': 'terminated',
+      });
+      final h = await pumpPayroll(tester, s: s);
+      await h.tap(inPage(find.widgetWithText(DashButton, 'Open it')));
+      final table = tester.widget<DashDataTable<SlipRow>>(
+        inPage(find.byType(DashDataTable<SlipRow>)),
+      );
+      final names = {for (final r in table.rows) r.employeeId: r.name};
+      expect(names[SeedIds.employee('ali')], 'Ali Hassan');
+      expect(names[SeedIds.employee('adham')], '—');
+    },
+  );
 
   testWidgets('TEAM-ALL-020 pages of 10; the Columns menu lists Name only', (
     tester,

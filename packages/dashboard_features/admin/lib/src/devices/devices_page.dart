@@ -92,6 +92,23 @@ class DevicesPage extends ConsumerWidget {
           ],
           onChanged: (v) =>
               update({'view': v == DevicesView.devices ? null : 'clients'}),
+          // The other view's first reads, with the keys it will watch.
+          onIntent: (v) {
+            if (v == DevicesView.clients) {
+              ref.warm(
+                clientVersionsProvider((
+                  branchId: branchId,
+                  legacyOnly: search.legacyOnly,
+                  days: search.effectiveDays,
+                )),
+              );
+            } else if (branchId != null) {
+              ref.warm(devicesListProvider(branchId));
+              if (ref.read(authzProvider).can(Cap.branchesEdit)) {
+                ref.warm(activationCodesProvider(branchId));
+              }
+            }
+          },
         ),
       ),
       body: body,

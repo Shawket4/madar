@@ -92,6 +92,9 @@ class _LimitsButtonState extends ConsumerState<LimitsButton> {
   Map<String, String> _draft = {};
   bool _own = false;
 
+  /// Set by the first edit after opening; until then a refreshed value re-seeds.
+  bool _touched = false;
+
   List<String> get _numeric => [
     for (final k in widget.meta.limits)
       if (k != 'own') k,
@@ -105,14 +108,23 @@ class _LimitsButtonState extends ConsumerState<LimitsButton> {
     super.dispose();
   }
 
+  void _seed() {
+    _draft = {
+      for (final k in _numeric) k: limitToDraft(k, limitValue(widget.value, k)),
+    };
+    _own = widget.value?.own == true;
+    _touched = false;
+  }
+
+  @override
+  void didUpdateWidget(LimitsButton old) {
+    super.didUpdateWidget(old);
+    // A background refresh lands while the popover is open and untouched.
+    if (_popover.isOpen && !_touched && widget.value != old.value) _seed();
+  }
+
   void _open() {
-    setState(() {
-      _draft = {
-        for (final k in _numeric)
-          k: limitToDraft(k, limitValue(widget.value, k)),
-      };
-      _own = widget.value?.own == true;
-    });
+    setState(_seed);
     _popover.open();
   }
 
@@ -171,7 +183,10 @@ class _LimitsButtonState extends ConsumerState<LimitsButton> {
                   DashSwitch(
                     value: _own,
                     semanticLabel: t('access.ownOnly'),
-                    onChanged: (v) => setState(() => _own = v),
+                    onChanged: (v) => setState(() {
+                      _own = v;
+                      _touched = true;
+                    }),
                   ),
                 ],
               ),
@@ -195,7 +210,10 @@ class _LimitsButtonState extends ConsumerState<LimitsButton> {
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp('[0-9.]')),
                     ],
-                    onChanged: (v) => setState(() => _draft[k] = v),
+                    onChanged: (v) => setState(() {
+                      _draft[k] = v;
+                      _touched = true;
+                    }),
                   ),
                 ],
               ),

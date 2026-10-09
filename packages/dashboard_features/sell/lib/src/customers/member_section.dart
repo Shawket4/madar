@@ -55,7 +55,7 @@ class MemberSection extends ConsumerWidget {
         : const <Branch>[];
     final active = [
       for (final b in branches)
-        if (b.isActive) b,
+        if (b.isActive && isSelling(b)) b,
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -117,7 +117,7 @@ class _MembersPaneState extends ConsumerState<MembersPane> {
     if (data != null) _previous = data;
     final failed = list.failedFirst;
     final rows = failed ? const <PersonRow>[] : (data ?? _previous ?? const []);
-    final loading = !failed && data == null && _previous == null;
+    final loading = list.awaitingFirst && _previous == null;
     final limit = _limit(source);
     final hasMore =
         rows.length >= limit &&

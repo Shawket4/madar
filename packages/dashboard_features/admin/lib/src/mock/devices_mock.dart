@@ -13,7 +13,10 @@
 /// - `GET /devices/activation-codes?branch_id=` (list_codes): branch access +
 ///   `branches.edit`; newest first; the state is computed from the stamps.
 /// - `POST /devices/activation-codes` (create_code, 201): the same gate; a
-///   fresh 8-digit code, free for 24 hours.
+///   fresh 8-digit code, free for 24 hours. With a `slot_id` (the branch
+///   builder) the slot must be in the branch's plan (404), it decides the
+///   kind (`kitchen` → `kds`) and lends its name when no label is given; the
+///   code keeps the slot and echoes it.
 /// - `POST /devices/activation-codes/{id}/revoke` (revoke_code):
 ///   `branches.edit`; 404 for an unknown code; a used code is refused (409
 ///   `ACTIVATION_CODE_USED`).
@@ -42,6 +45,10 @@ abstract final class DevicesRoutes {
 final RegExp _deviceCode = RegExp(r'^[A-Z0-9]{1,6}$');
 
 const Set<String> _kinds = {'pos', 'kds', 'waiter'};
+
+/// The branch builder's slots table (`branch_device_slots`, the branch_setup
+/// unit's `BranchPlanTables.slots`), read here as the server's SQL does.
+const String _slotsTable = 'branch_device_slots';
 
 void registerDevicesMocks(MockServer server, MockDb db) {
   MockTable devices() => db[AdminTables.devices];
@@ -202,14 +209,25 @@ void registerDevicesMocks(MockServer server, MockDb db) {
   server.on('POST', DevicesRoutes.codes, (req) {
     final body = req.bodyAs(CreateActivationCodeRequest.fromJson);
     codesGate(req, body.branchId);
-    final kind = body.kind?.value ?? 'pos';
+    final slotId = body.slotId;
+    MockRow? slot;
+    if (slotId != null) {
+      slot = db[_slotsTable].firstWhere(
+        (s) => s['id'] == slotId && s['branch_id'] == body.branchId,
+      );
+      if (slot == null) req.notFound("That slot is not in this branch's plan");
+    }
+    final kind = slot != null
+        ? (slot['kind'] == 'kitchen' ? 'kds' : '${slot['kind']}')
+        : body.kind?.value ?? 'pos';
     if (!_kinds.contains(kind)) {
       req.badRequest('kind must be pos, kds or waiter');
     }
     final l = body.label?.trim();
-    final label = l == null || l.isEmpty
+    final given = l == null || l.isEmpty ? slot?['name'] as String? : l;
+    final label = given == null
         ? null
-        : String.fromCharCodes(l.runes.take(120));
+        : String.fromCharCodes(given.runes.take(120));
     final now = req.now;
     // Eight digits, unique among the codes still free (the partial unique
     // index), deterministic per run.
@@ -237,6 +255,7 @@ void registerDevicesMocks(MockServer server, MockDb db) {
       'used_at': null,
       'used_by_device': null,
       'revoked_at': null,
+      'slot_id': slotId,
     }, timestamps: false);
     return MockResponse.created(codeOut(row, now));
   });

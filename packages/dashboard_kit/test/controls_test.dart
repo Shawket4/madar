@@ -376,6 +376,27 @@ void main() {
       expect(v, 'open');
     });
 
+    testWidgets('a group heading shows once above its options', (tester) async {
+      await pumpDashApp(
+        tester,
+        _host(
+          DashOptionList<String>(
+            isSelected: (_) => false,
+            onPick: (_) {},
+            options: const [
+              DashOption(value: 'a', label: 'Maadi'),
+              DashOption(value: 'w1', label: 'Central', group: 'Warehouses'),
+              DashOption(value: 'w2', label: 'East', group: 'Warehouses'),
+            ],
+          ),
+        ),
+      );
+      expect(find.text('Warehouses'), findsOneWidget);
+      final heading = tester.getTopLeft(find.text('Warehouses')).dy;
+      expect(heading, lessThan(tester.getTopLeft(find.text('Central')).dy));
+      expect(heading, greaterThan(tester.getTopLeft(find.text('Maadi')).dy));
+    });
+
     testWidgets('a multi-select toggles several and reads them back', (
       tester,
     ) async {

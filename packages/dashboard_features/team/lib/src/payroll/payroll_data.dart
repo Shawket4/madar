@@ -39,8 +39,8 @@ final payrollCurrentProvider = FutureProvider.autoDispose<CurrentPayroll?>((
 final payrollPeopleProvider = setupActiveEmployeesProvider;
 
 /// An older month's own read: its live preview while it is a draft
-/// (`GET …/preview`), else its frozen payslips (`GET …/payslips`).
-/// Each item is a [ComputedPayslip] or a [Payslip].
+/// (`GET …/preview`), else its frozen payslips (`GET …/payslips`, also the
+/// History sheet's read). Each item is a [ComputedPayslip] or a [Payslip].
 final payrollOlderSlipsProvider = FutureProvider.autoDispose
     .family<List<Object>, ({String id, bool draft})>((ref, key) async {
       ref.webCache();
@@ -51,14 +51,6 @@ final payrollOlderSlipsProvider = FutureProvider.autoDispose
       }
       watchStaffPath(ref, '/staff/payroll/periods/${key.id}/payslips');
       return api.listPayslips(id: key.id);
-    });
-
-/// A settled month's frozen payslips, for the History sheet.
-final payrollHistorySlipsProvider = FutureProvider.autoDispose
-    .family<List<Payslip>, String>((ref, id) async {
-      ref.webCache();
-      watchStaffPath(ref, '/staff/payroll/periods/$id/payslips');
-      return ref.watch(apiProvider).staff.listPayslips(id: id);
     });
 
 /// `GET /staff/adjustments` (the Bonuses & deductions tab).
@@ -98,12 +90,20 @@ enum PayrollTab { payslips, lines, advances, expenses, history }
 
 /// The page's own state, reset when the page is left (TEAM-ALL-021).
 class PayrollView {
-  const PayrollView({this.tab = PayrollTab.payslips, this.viewId});
+  const PayrollView({
+    this.tab = PayrollTab.payslips,
+    this.viewId,
+    this.historyId,
+  });
 
   final PayrollTab tab;
 
   /// An older month opened from its banner or History; null = this month.
   final String? viewId;
+
+  /// The settled month whose History sheet is open (the Refresh spinner
+  /// covers its read).
+  final String? historyId;
 }
 
 class PayrollViewNotifier extends Notifier<PayrollView> {
@@ -115,6 +115,10 @@ class PayrollViewNotifier extends Notifier<PayrollView> {
 
   /// Views an older month (null = back to this month) on the Payslips tab.
   void openMonth(String? id) => state = PayrollView(viewId: id);
+
+  /// The History sheet opened (an id) or closed (null).
+  void showHistory(String? id) =>
+      state = PayrollView(tab: state.tab, viewId: state.viewId, historyId: id);
 }
 
 final payrollViewProvider =

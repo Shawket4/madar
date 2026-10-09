@@ -265,7 +265,7 @@ class MemberSection extends ConsumerWidget {
     final branches = access.canAdjust
         ? [
             for (final b in ref.watch(branchesProvider).value ?? const <Branch>[])
-              if (b.isActive) b,
+              if (b.isActive && isSelling(b)) b,
           ]
         : const <Branch>[];
     final joined = t('loyalty.joinedOn', args: {'date': fmt.fmtDate(m.enrolledAt)});
@@ -612,7 +612,7 @@ class AdjustDialog extends ConsumerStatefulWidget {
 
   final MemberView member;
 
-  /// The org's active branches.
+  /// The org's active selling branches (warehouses never hold points).
   final List<Branch> branches;
   final String? defaultBranchId;
 

@@ -142,12 +142,13 @@ class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
         id: s.id,
         body: const DecidePay(approve: true),
       ),
-      PendingType.swap => _api
-          .decideSwap(
-            id: (s as Swap).id,
-            body: const DecideRoster(approve: true),
-          )
-          .then((_) => null),
+      PendingType.swap =>
+        _api
+            .decideSwap(
+              id: (s as Swap).id,
+              body: const DecideRoster(approve: true),
+            )
+            .then((_) => null),
       PendingType.claim => _api.decideClaim(
         id: (s as OpenShift).id,
         body: const DecideRoster(approve: true),
@@ -186,12 +187,13 @@ class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
         id: s.id,
         body: DecidePay(approve: false, reason: r),
       ),
-      PendingType.swap => _api
-          .decideSwap(
-            id: (s as Swap).id,
-            body: const DecideRoster(approve: false),
-          )
-          .then((_) => null),
+      PendingType.swap =>
+        _api
+            .decideSwap(
+              id: (s as Swap).id,
+              body: const DecideRoster(approve: false),
+            )
+            .then((_) => null),
       PendingType.claim => _api.decideClaim(
         id: (s as OpenShift).id,
         body: const DecideRoster(approve: false),
@@ -401,18 +403,27 @@ class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
       listenStaffRefreshFailure(ref, context, p);
       final provider = p as ProviderBase<Object?>;
       reads.add(provider);
-      if (labelKey != null) sections[labelKey] = _Section(labelKey, v, provider);
+      if (labelKey != null)
+        sections[labelKey] = _Section(labelKey, v, provider);
       return v;
     }
 
-    final requestsQ = read(can.requests, 'staff.requests', approvalsRequestsProvider);
+    final requestsQ = read(
+      can.requests,
+      'staff.requests',
+      approvalsRequestsProvider,
+    );
     // A manager's own requests are decided above them (RQ-5).
     final employeesQ = read(
       can.requests && userId != null,
       null,
       employeesListProvider(_everyone),
     );
-    final advancesQ = read(can.advances, 'dawam.salaryAdvances', approvalsAdvancesProvider);
+    final advancesQ = read(
+      can.advances,
+      'dawam.salaryAdvances',
+      approvalsAdvancesProvider,
+    );
     final swapsQ = read(can.roster, 'dawam.swap', approvalsSwapsProvider);
     final claimsQ = read(
       can.roster,
@@ -429,7 +440,11 @@ class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
       'dawam.overtime',
       approvalsAttendanceProvider(pendingOvertime),
     );
-    final payLinesQ = read(can.payLines, 'dawam.payLines', approvalsPayLinesProvider);
+    final payLinesQ = read(
+      can.payLines,
+      'dawam.payLines',
+      approvalsPayLinesProvider,
+    );
     _reads = reads;
     final all = [for (final s in sections.values) s.value];
     if (all.any((v) => v.hasValue)) _loadedAt ??= ref.read(clockProvider)();
@@ -546,7 +561,10 @@ class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
     return DashPageScaffold(
       title: t('dawam.approvals'),
       subtitle: t('dawam.approvalsSubtitle'),
-      actions: [DawamRefreshButton(busy: anyFetching(all))],
+      // The own-employees read spins it too (the web's `useIsFetching`).
+      actions: [
+        DawamRefreshButton(busy: anyFetching([...all, ?employeesQ])),
+      ],
       filters: Align(
         alignment: AlignmentDirectional.centerStart,
         child: DashSegmentedControl<ApprovalSection>(
@@ -813,7 +831,10 @@ class PendingRow extends ConsumerWidget {
         if (phone)
           Padding(
             padding: const EdgeInsets.only(top: Space.xs),
-            child: Align(alignment: AlignmentDirectional.centerEnd, child: actions),
+            child: Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: actions,
+            ),
           ),
       ],
     );

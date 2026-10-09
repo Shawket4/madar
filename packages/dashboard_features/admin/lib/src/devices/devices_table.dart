@@ -44,11 +44,10 @@ class DevicesSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final q = ref.watch(devicesListProvider(branchId));
-    final error = q.shownError;
     return DevicesTable(
       devices: q.value ?? const [],
-      loading: q.firstLoad,
-      errorMessage: error == null ? null : devicesErrorText(error, t),
+      loading: q.awaitingFirst,
+      errorMessage: q.failedFirst ? devicesErrorText(q.error, t) : null,
       onRetry: () => ref.invalidate(devicesListProvider(branchId)),
       onEdit: onEdit,
     );

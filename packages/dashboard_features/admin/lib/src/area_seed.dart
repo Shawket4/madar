@@ -99,6 +99,7 @@ abstract final class AdminSeed {
     Branch(
       id: gardenCity,
       orgId: layaliOrg,
+      kind: BranchKind.branch,
       name: 'Garden City',
       code: 'GC',
       address: '12 Kasr El Nil St, Garden City, Cairo',
@@ -113,6 +114,7 @@ abstract final class AdminSeed {
     Branch(
       id: smouha,
       orgId: qahwaOrg,
+      kind: BranchKind.branch,
       name: 'Smouha',
       code: 'SM',
       address: 'Victor Emmanuel Sq, Smouha, Alexandria',

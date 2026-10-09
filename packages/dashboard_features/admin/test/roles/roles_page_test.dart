@@ -4,6 +4,7 @@
 // is `role_dialog_test.dart`, the policy card `ask_manager_test.dart`.
 import 'package:dashboard_admin/src/mock/roles_mock.dart' show RolesSeed;
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart' show realtimeBusProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -555,6 +556,44 @@ void main() {
           }),
         ),
       );
+    });
+
+    testWidgets('ADM-ROL-016 an open, untouched popover re-seeds when a '
+        'refresh lands; once edited it keeps the typing', (tester) async {
+      final h = await pumpRoles(
+        tester,
+        path: '$rolesPath?role=${RolesSeed.seniorCashier}',
+      );
+      final roles = h.db!['roles'];
+      Future<void> refreshWith(int minor) async {
+        roles.update(RolesSeed.seniorCashier, {
+          'grants': [
+            for (final g in roles.find(RolesSeed.seniorCashier)!['grants']!
+                as List)
+              (g as Map)['capability'] == 'refunds.create'
+                  ? {
+                      ...g,
+                      'limits': {'max_amount': minor},
+                    }
+                  : g,
+          ],
+        });
+        h.container.read(realtimeBusProvider).invalidate(const ['/authz/roles']);
+        await h.settle();
+      }
+
+      final limits = find.byKey(const ValueKey('limits-refunds.create'));
+      await h.tap(find.descendant(of: limits, matching: find.text('Limited')));
+      final box = find.byWidgetPredicate(
+        (w) => w is DashTextInput && w.semanticLabel == 'Most per action (EGP)',
+      );
+      Finder reads(String v) => find.descendant(of: box, matching: find.text(v));
+      expect(reads('1000'), findsOneWidget);
+      await refreshWith(50000);
+      expect(reads('500'), findsOneWidget);
+      await h.enterText(box, '300');
+      await refreshWith(70000);
+      expect(reads('300'), findsOneWidget);
     });
 
     testWidgets('ADM-ROL-016 a capability without limits set reads "Limit"',

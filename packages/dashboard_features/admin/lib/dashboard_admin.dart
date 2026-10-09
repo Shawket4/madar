@@ -34,5 +34,7 @@ const DashArea adminArea = DashArea(
     'packages/dashboard_admin/assets/i18n/roles.ar.json',
     'packages/dashboard_admin/assets/i18n/review.en.json',
     'packages/dashboard_admin/assets/i18n/review.ar.json',
+    'packages/dashboard_admin/assets/i18n/branch_setup.en.json',
+    'packages/dashboard_admin/assets/i18n/branch_setup.ar.json',
   ],
 );

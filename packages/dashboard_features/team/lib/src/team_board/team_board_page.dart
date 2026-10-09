@@ -519,7 +519,12 @@ class _PresenceList extends ConsumerWidget {
                 ].join(' · '),
                 // The pill and the punch wrap under each other on a narrow
                 // row instead of squeezing the name out.
-                trailing: Flexible(child: trailing),
+                trailing: Flexible(
+                  child: Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: trailing,
+                  ),
+                ),
               );
             },
           ),

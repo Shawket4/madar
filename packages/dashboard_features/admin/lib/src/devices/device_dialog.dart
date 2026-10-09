@@ -52,6 +52,9 @@ class _DeviceDialogState extends ConsumerState<DeviceDialog> {
   late bool _retired = widget.device.retiredAt != null;
   bool _saving = false;
 
+  /// Changed since it opened: a background refresh no longer re-seeds it.
+  bool _edited = false;
+
   Future<void> _save() async {
     if (_saving) return;
     // zod: trim → uppercase → /^[A-Z0-9]{1,6}$/, shown under the field.
@@ -89,6 +92,21 @@ class _DeviceDialogState extends ConsumerState<DeviceDialog> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
+    // Seeded from the cached list: a refresh that lands re-seeds the fields
+    // until they are changed, so Save never writes back stale values.
+    final branchId = widget.device.branchId;
+    final fresh = branchId == null
+        ? null
+        : ref
+              .watch(devicesListProvider(branchId))
+              .value
+              ?.where((d) => d.id == widget.device.id)
+              .firstOrNull;
+    if (fresh != null && !_edited) {
+      _code = fresh.code;
+      _label = fresh.label ?? '';
+      _retired = fresh.retiredAt != null;
+    }
     return Form(
       key: _form,
       child: DashSurface(
@@ -106,7 +124,10 @@ class _DeviceDialogState extends ConsumerState<DeviceDialog> {
               maxLength: 6,
               autofocus: true,
               inputFormatters: [_Upper()],
-              onChanged: (v) => setState(() => _code = v),
+              onChanged: (v) => setState(() {
+                _code = v;
+                _edited = true;
+              }),
               onSubmitted: (_) => _save(),
               validator: (v) =>
                   deviceCodePattern.hasMatch(v.trim().toUpperCase())
@@ -117,13 +138,19 @@ class _DeviceDialogState extends ConsumerState<DeviceDialog> {
               key: const ValueKey('device-label'),
               label: t('devices.label'),
               value: _label,
-              onChanged: (v) => setState(() => _label = v),
+              onChanged: (v) => setState(() {
+                _label = v;
+                _edited = true;
+              }),
               onSubmitted: (_) => _save(),
             ),
             // The whole row is the switch's label: a tap anywhere toggles.
             DashPressable(
               key: const ValueKey('device-retired'),
-              onTap: () => setState(() => _retired = !_retired),
+              onTap: () => setState(() {
+                _retired = !_retired;
+                _edited = true;
+              }),
               isButton: false,
               checked: _retired,
               semanticLabel: t('devices.retired'),
@@ -167,7 +194,10 @@ class _DeviceDialogState extends ConsumerState<DeviceDialog> {
                     DashSwitch(
                       value: _retired,
                       semanticLabel: t('devices.retired'),
-                      onChanged: (v) => setState(() => _retired = v),
+                      onChanged: (v) => setState(() {
+                        _retired = v;
+                        _edited = true;
+                      }),
                     ),
                   ],
                 ),

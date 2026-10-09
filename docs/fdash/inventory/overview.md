@@ -143,7 +143,7 @@ are integer piastres.
 
 | id | behaviour | API call | gate | i18n keys | web source |
 |---|---|---|---|---|---|
-| OVW-HOME-045 | Rendered directly under the KPI strip ONLY when a branch is selected; absent on "All branches". | GET `/tills/branches/{branchId}/open` listOpenTills | server `till.read` + branch access | none | `features/tills/open-tills-card.tsx:13-17`; `dp:195` |
+| OVW-HOME-045 | (changed af50aa63) Rendered directly under the KPI strip ONLY when a branch is selected; absent on "All branches". Now a 16 px gap separates it from the KPI strip (the section stacks them with `space-y-4`); layout only. | GET `/tills/branches/{branchId}/open` listOpenTills | server `till.read` + branch access | none | `features/tills/open-tills-card.tsx:13-17`; `dp:195` |
 | OVW-HOME-046 | Loading: one skeleton block 96 px tall. | E6 | none | none | `open-tills-card.tsx:16` |
 | OVW-HOME-047 | Header row: wallet glyph, "Open tills", and the count of open tills. | E6 | none | `dashboard.openTills` "Open tills" | `open-tills-card.tsx:24-29` |
 | OVW-HOME-048 | "View all" link (top end of the card) opens `/tills`. It passes no search params, so the scope is DROPPED: `/tills` opens with "All branches" + "Last 30 days" and the stored branch resets (web quirk; see notes). | none | none | `common.viewAll` "View all" | `open-tills-card.tsx:30-32`; router-core `applyNext` (`!dest.search → {}`) |

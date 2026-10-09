@@ -299,6 +299,7 @@ void registerOrgsMocks(MockServer server, MockDb db) {
     final branch = Branch(
       id: db.newId('branches'),
       orgId: org.id,
+      kind: BranchKind.branch,
       name: branchName,
       address: opt(b.branch.address),
       phone: opt(b.branch.phone),

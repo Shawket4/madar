@@ -1,8 +1,12 @@
 // The payslip sheet (TEAM-PAY-030 … -037) and the money dialogs it opens
 // (TEAM-MNY-010/017 from a person's payslip, -034, -035, -038).
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart'
+    show formatProvider, tProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/area_seed.dart';
+import 'package:dashboard_team/src/payroll/payroll_data.dart';
+import 'package:dashboard_team/src/payroll/payroll_logic.dart';
 import 'package:dashboard_team/src/payroll/payslip_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,25 +81,29 @@ void main() {
     },
   );
 
-  testWidgets('TEAM-PAY-033 / TEAM-MNY-035 undo a waiver, never a second waiver', (
-    tester,
-  ) async {
-    final h = await pumpPayroll(tester);
-    await openSlip(h, 'Ali Hassan');
-    final waivable = sheetButton('Waive').evaluate().length;
-    await h.tap(sheetButton('Waive').first);
-    await type<DashTextField>(h, 'Reason', 'Bus strike');
-    await press(h, 'Waive');
-    await h.flushTimers();
-    expect(sheetButton('Waive'), findsNWidgets(waivable - 1));
-    await h.tap(sheetButton('Undo the waiver'));
-    expect(inTop(find.textContaining('Undo the waiver on "')), findsOneWidget);
-    await type<DashTextField>(h, 'Reason', 'Strike was the day after');
-    await press(h, 'Undo the waiver');
-    expect(lastBody(h, unwaiveT), {'reason': 'Strike was the day after'});
-    await h.expectToast('Waiver undone');
-    expect(sheetButton('Waive'), findsNWidgets(waivable));
-  });
+  testWidgets(
+    'TEAM-PAY-033 / TEAM-MNY-035 undo a waiver, never a second waiver',
+    (tester) async {
+      final h = await pumpPayroll(tester);
+      await openSlip(h, 'Ali Hassan');
+      final waivable = sheetButton('Waive').evaluate().length;
+      await h.tap(sheetButton('Waive').first);
+      await type<DashTextField>(h, 'Reason', 'Bus strike');
+      await press(h, 'Waive');
+      await h.flushTimers();
+      expect(sheetButton('Waive'), findsNWidgets(waivable - 1));
+      await h.tap(sheetButton('Undo the waiver'));
+      expect(
+        inTop(find.textContaining('Undo the waiver on "')),
+        findsOneWidget,
+      );
+      await type<DashTextField>(h, 'Reason', 'Strike was the day after');
+      await press(h, 'Undo the waiver');
+      expect(lastBody(h, unwaiveT), {'reason': 'Strike was the day after'});
+      await h.expectToast('Waiver undone');
+      expect(sheetButton('Waive'), findsNWidgets(waivable));
+    },
+  );
 
   testWidgets(
     'TEAM-PAY-032 / TEAM-MNY-038 override: prefilled figure, zero allowed',
@@ -108,10 +116,7 @@ void main() {
         of: field<DashMoneyField>('New amount (EGP)'),
         matching: find.byType(EditableText),
       );
-      expect(
-        tester.widget<EditableText>(box).controller.text,
-        isNotEmpty,
-      );
+      expect(tester.widget<EditableText>(box).controller.text, isNotEmpty);
       await h.enterText(field<DashMoneyField>('New amount (EGP)'), '0');
       await type<DashTextField>(h, 'Reason', 'Covered by the shift swap');
       await press(h, 'Override');
@@ -160,7 +165,9 @@ void main() {
     final h = await pumpPayroll(tester);
     await openSlip(h, 'Ali Hassan');
     await h.tap(inTop(find.widgetWithText(DashButton, 'Download PDF')));
-    await tester.runAsync(() => Future<void>.delayed(const Duration(seconds: 2)));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(seconds: 2)),
+    );
     await h.settle();
     final f = h.files.saved.single;
     expect(f.filename, 'payslip-2026-10-01-ali-hassan.pdf');
@@ -271,5 +278,27 @@ void main() {
     await press(h, 'Waive');
     await h.expectToast(h.t('errors.codes.PERIOD_CLOSED_paid'));
     expect(inTop(find.textContaining('Waive "')), findsOneWidget);
+  });
+
+  testWidgets('TEAM-PAY-032 / TEAM-MNY-034 Arabic: the waive dialog names the '
+      'line in Arabic, not the server\'s English line', (tester) async {
+    final h = await pumpPayroll(tester, locale: 'ar');
+    await openSlip(h, 'Ali Hassan');
+    final row = h.container
+        .read(payrollShownProvider)
+        .rows
+        .firstWhere((r) => r.name == 'Ali Hassan');
+    final l = payslipLines(
+      row,
+      h.container.read(formatProvider),
+    ).firstWhere((l) => l.deductionId != null);
+    final words = lineLabel(l, h.container.read(tProvider));
+    expect(words, isNot(l.label));
+    await h.tap(sheetButton(h.t('dawam.waive')).first);
+    expect(
+      topText(h.t('dawam.waiveTitle', args: {'line': words})),
+      findsOneWidget,
+    );
+    expect(inTop(find.textContaining(l.label)), findsNothing);
   });
 }

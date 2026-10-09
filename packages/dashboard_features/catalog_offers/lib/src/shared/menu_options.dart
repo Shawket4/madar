@@ -192,7 +192,11 @@ final menuOptionsProvider = Provider.autoDispose<MenuOptions>((ref) {
         (id: c.id, name: translatedName(c.name, c.nameTranslations, lang)),
     ],
     // The spec's `Branch` carries no translations: a branch reads its name.
-    branches: [for (final b in branches) (id: b.id, name: b.name)],
+    // A warehouse never sells (`use-menu-options.ts` `isSelling`).
+    branches: [
+      for (final b in branches)
+        if (isSelling(b)) (id: b.id, name: b.name),
+    ],
   );
 });
 

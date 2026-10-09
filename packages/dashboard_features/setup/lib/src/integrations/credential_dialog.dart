@@ -111,7 +111,7 @@ class _CredentialDialogState extends ConsumerState<CredentialDialog> {
     final t = ref.watch(tProvider);
     final branches = [
       for (final b in ref.watch(branchesProvider).value ?? const <Branch>[])
-        if (b.isActive) b,
+        if (b.isActive && isSelling(b)) b,
     ];
     final wide =
         DashSurfaceScope.maybeOf(context) != DashSurfaceMode.fullScreen;

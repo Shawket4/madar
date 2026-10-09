@@ -40,9 +40,11 @@ class CoreApi {
   /// `GET /orgs`.
   Future<List<Org>> listOrgs() => api.orgs.listOrgs();
 
-  /// `GET /branches?org_id=`.
+  /// `GET /branches?org_id=&include_warehouses=true`: selling branches AND
+  /// warehouses (the server leaves warehouses out unless asked); pages that
+  /// want selling branches only filter with `isSelling`.
   Future<List<Branch>> listBranches(String orgId) =>
-      api.branches.listBranches(orgId: orgId);
+      api.branches.listBranches(orgId: orgId, includeWarehouses: true);
 
   /// `GET /orgs/{id}/onboarding`: `completed`.
   Future<bool> getOnboardingCompleted(String orgId) async =>

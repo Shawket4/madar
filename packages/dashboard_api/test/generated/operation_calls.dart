@@ -627,11 +627,14 @@ final List<OperationCall> operationCalls = [
     'GET',
     '/branches',
     '/branches',
-    ['org_id', 'kind'],
+    ['org_id', 'kind', 'include_warehouses'],
     [],
     'json',
-    (api, s) =>
-        api.branches.listBranches(orgId: 'text', kind: BranchKind.values.first),
+    (api, s) => api.branches.listBranches(
+      orgId: 'text',
+      kind: BranchKind.values.first,
+      includeWarehouses: true,
+    ),
   ),
   OperationCall(
     'create_branch',
