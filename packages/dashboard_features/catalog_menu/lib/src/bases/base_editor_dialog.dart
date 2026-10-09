@@ -75,21 +75,32 @@ String _linesSig(List<WireLabelledLine> lines) => jsonEncode([
 ]);
 
 class _BaseEditorDialogState extends ConsumerState<BaseEditorDialog> {
-  late String _name = widget.base?.name ?? '';
-  late String _nameAr = widget.base?.nameAr ?? '';
-  late bool _active = widget.base?.isActive ?? true;
+  /// The base the form was seeded from: the list's newer copy replaces it
+  /// until the person edits (a background refresh never loses to old data).
+  late RecipeBaseOut? _base = widget.base;
+  late String _name;
+  late String _nameAr;
+  late bool _active;
   late List<GridBlock> _blocks;
   late String _pristine;
+  bool _touched = false;
   bool _submitted = false;
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
+    _seed();
+  }
+
+  void _seed() {
     final t = ref.read(tProvider);
+    _name = _base?.name ?? '';
+    _nameAr = _base?.nameAr ?? '';
+    _active = _base?.isActive ?? true;
     _blocks = toLabelBlocks(
       [
-        for (final l in widget.base?.lines ?? const <RecipeBaseLineOut>[])
+        for (final l in _base?.lines ?? const <RecipeBaseLineOut>[])
           (
             sizeLabel: l.sizeLabel,
             ingredientId: l.ingredientId,
@@ -102,6 +113,11 @@ class _BaseEditorDialogState extends ConsumerState<BaseEditorDialog> {
     );
     _pristine = _linesSig(fromLabelBlocks(_blocks));
   }
+
+  void _edit(VoidCallback change) => setState(() {
+    _touched = true;
+    change();
+  });
 
   String? _nameError(Translator t) =>
       _submitted && _name.trim().isEmpty ? t('common.requiredField') : null;
@@ -130,7 +146,7 @@ class _BaseEditorDialogState extends ConsumerState<BaseEditorDialog> {
     final container = ProviderScope.containerOf(context, listen: false);
     final invalidate = ref.menuInvalidate;
     try {
-      final base = widget.base;
+      final base = _base;
       final String message;
       if (base == null) {
         await api.createBase(
@@ -182,8 +198,19 @@ class _BaseEditorDialogState extends ConsumerState<BaseEditorDialog> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
-    final base = widget.base;
     final orgId = widget.orgId;
+    if (widget.base case final opened? when orgId != null) {
+      final live = ref
+          .watch(recipeBasesProvider(orgId))
+          .value
+          ?.where((b) => b.id == opened.id)
+          .firstOrNull;
+      if (live != null && !_touched && !identical(live, _base)) {
+        _base = live;
+        _seed();
+      }
+    }
+    final base = _base;
     final usage = base == null
         ? null
         : ref.watch(baseUsageProvider(base.id)).value;
@@ -209,28 +236,28 @@ class _BaseEditorDialogState extends ConsumerState<BaseEditorDialog> {
             en: _name,
             ar: _nameAr,
             enError: _nameError(t),
-            onEnChanged: (v) => setState(() => _name = v),
-            onArChanged: (v) => setState(() => _nameAr = v),
+            onEnChanged: (v) => _edit(() => _name = v),
+            onArChanged: (v) => _edit(() => _nameAr = v),
             onSubmitted: _save,
           ),
           ModelingSwitch(
             label: t('common.active'),
             value: _active,
-            onChanged: (v) => setState(() => _active = v),
+            onChanged: (v) => _edit(() => _active = v),
           ),
           LabelGridEditor(
             blocks: _blocks,
-            onChanged: (b) => setState(() => _blocks = b),
+            onChanged: (b) => _edit(() => _blocks = b),
             catalogById: ingredientsById(catalog),
             ingredientOptions: ingredientOptions(catalog, t),
             onAddColumn: (label) =>
-                setState(() => _blocks = addLabelColumn(_blocks, label)),
+                _edit(() => _blocks = addLabelColumn(_blocks, label)),
             removableKeys: {
               for (final b in _blocks)
                 if (b.key != allSizes) b.key,
             },
             onRemoveColumn: (key) =>
-                setState(() => _blocks = removeLabelColumn(_blocks, key)),
+                _edit(() => _blocks = removeLabelColumn(_blocks, key)),
             onSubmit: _save,
           ),
           if (usage != null && usage.sizes.isNotEmpty)

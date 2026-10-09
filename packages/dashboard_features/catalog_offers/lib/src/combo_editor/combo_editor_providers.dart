@@ -10,6 +10,7 @@ import 'package:dashboard_api/dashboard_api.dart'
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/menu_options.dart';
 import '../shared/offers_cache.dart';
 
 /// E1 `GET /combos/{id}` (the web's key `["/combos/{id}", {}]`).
@@ -21,6 +22,14 @@ final comboProvider = FutureProvider.autoDispose.family<Combo, String>((
   ref.watch(realtimeEpochProvider('${OffersPaths.combos}/$id'));
   return ref.watch(apiProvider).menu.getCombo(id: id);
 });
+
+/// What the editor at [id] reads on mount (`new` reads no combo), warmed
+/// from whatever opens it (a list row, its pencil, New combo).
+void warmComboEditor(WidgetRef ref, String id) {
+  if (id != 'new') ref.warm(comboProvider(id));
+  ref.warm(offersMenuItemsProvider);
+  ref.warm(offersCategoriesProvider);
+}
 
 /// The price check's request path (its epoch follows `invalidateCombos`).
 const String comboEconomicsPath = '${OffersPaths.combos}/economics';

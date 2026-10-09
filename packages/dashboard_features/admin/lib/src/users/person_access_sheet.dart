@@ -208,7 +208,7 @@ class _PersonAccessState extends ConsumerState<PersonAccessSheet> {
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm;
 
     final Widget body;
-    if (q.isLoading && !q.hasValue && !q.hasError) {
+    if (q.awaitingFirst) {
       body = Column(
         spacing: Space.sm,
         children: [
@@ -237,6 +237,9 @@ class _PersonAccessState extends ConsumerState<PersonAccessSheet> {
           DashOption(value: _all, label: t('access.allBranches')),
           for (final b in branches) DashOption(value: b.id, label: b.name),
         ],
+        onOptionIntent: (v) => ref.warm(
+          userAccessProvider((id: widget.user.id, branchId: v == _all ? null : v)),
+        ),
         onChanged: (v) => setState(() => _branch = v == _all ? null : v),
       );
       final reason = DashTextField(

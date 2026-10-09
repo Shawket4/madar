@@ -30,9 +30,9 @@ class HomeRevenueTrendCard extends ConsumerWidget {
     );
     final points = q.value ?? const <TimeseriesPoint>[];
     final Widget body;
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       body = const HomeSkeleton(height: HomeMetrics.chart);
-    } else if (q.hasError) {
+    } else if (q.hasError && !q.retrying) {
       body = HomeStateBox(
         height: HomeMetrics.chart,
         child: DashErrorState(

@@ -9,6 +9,7 @@ import 'package:dashboard_api/dashboard_api.dart' show PaginatedCombos;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/menu_options.dart';
 import '../shared/offers_cache.dart';
 
 /// Combos a page (`PER_PAGE`).
@@ -40,3 +41,13 @@ final combosListProvider = FutureProvider.autoDispose
             perPage: combosPerPage,
           );
     });
+
+/// The list as it opens (no search, no filter, page 1) and its categories,
+/// warmed from the editor's Back.
+void warmCombosList(WidgetRef ref) {
+  if (ref.read(orgIdProvider) == null) return;
+  ref.warm(
+    combosListProvider((q: null, categoryId: null, isActive: null, page: 1)),
+  );
+  ref.warm(offersCategoriesProvider);
+}

@@ -134,11 +134,13 @@ class HomeData {
   }
 
   bool get kpiLoading =>
-      branchPicked ? branchSales.firstLoad : comparison.firstLoad;
+      branchPicked ? branchSales.awaitingFirst : comparison.awaitingFirst;
 
   /// The payment mix's read failed (branch sales, or the comparison).
   bool get paymentsFailed =>
-      branchPicked ? branchSales.hasError : comparison.hasError;
+      branchPicked ? _failed(branchSales) : _failed(comparison);
+
+  static bool _failed(AsyncValue<Object?> q) => q.hasError && !q.retrying;
 
   List<HomePayment> get payments => paymentSlices(
     branchPicked

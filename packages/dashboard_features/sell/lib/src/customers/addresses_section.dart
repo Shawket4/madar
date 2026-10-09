@@ -26,7 +26,7 @@ class AddressesSection extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final q = ref.watch(customerAddressesProvider(customerId));
     final Widget body;
-    if (q.hasError && !q.hasValue) {
+    if (q.failedFirst) {
       body = InlineFailure(
         message: peopleErrorMessage(q.error, t),
         retrying: q.isLoading,

@@ -264,6 +264,9 @@ class OrdersExcludeItemsControl extends ConsumerWidget {
       anchor: (context, ctl) => DashPressable(
         key: const ValueKey('orders-exclude-trigger'),
         onTap: ctl.toggle,
+        onIntent: orgId == null
+            ? null
+            : () => ref.warm(ordersMenuItemsProvider(orgId!)),
         pressScale: false,
         tooltip: t('analytics.excludeItems'),
         semanticLabel: t('analytics.excludeItems'),
@@ -373,7 +376,7 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
               ? Padding(
                   padding: const EdgeInsets.all(Space.lg),
                   child: Text(
-                    menu.isLoading ? t('common.loading') : t('common.noResults'),
+                    menu.awaitingFirst ? t('common.loading') : t('common.noResults'),
                     textAlign: TextAlign.center,
                     style: DashType.body.copyWith(color: c.textSecondary),
                   ),

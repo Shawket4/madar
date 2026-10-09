@@ -17,12 +17,13 @@ Finder _shows(String key, String text) =>
 
 /// The options the open select lists.
 List<String> _listed(WidgetTester tester) => [
-  for (final e in find
-      .descendant(
-        of: find.byWidgetPredicate((w) => w is DashOptionList).last,
-        matching: find.byType(Text),
-      )
-      .evaluate())
+  for (final e
+      in find
+          .descendant(
+            of: find.byWidgetPredicate((w) => w is DashOptionList).last,
+            matching: find.byType(Text),
+          )
+          .evaluate())
     (e.widget as Text).data ?? '',
 ];
 
@@ -65,7 +66,10 @@ void main() {
     );
     expect(_shows('transfer-source', 'Zamalek'), findsOneWidget);
     expect(_shows('transfer-destination', '—'), findsOneWidget);
-    expect(_shows('transfer-ingredient-0', 'Pick an ingredient'), findsOneWidget);
+    expect(
+      _shows('transfer-ingredient-0', 'Pick an ingredient'),
+      findsOneWidget,
+    );
     expect(inDialog(byKey('transfer-ingredient-1')), findsNothing);
     expect(button(tester, 'transfer-save-draft').onPressed, isNull);
     expect(button(tester, 'transfer-send').onPressed, isNull);
@@ -166,9 +170,23 @@ void main() {
     expect(button(tester, 'transfer-send').onPressed, isNull);
     expect(button(tester, 'transfer-save-draft').onPressed, isNotNull);
     final hint = tester.widget<Text>(inDialog(byKey('transfer-on-hand-0')));
-    expect(hint.style!.color, isNot(equals(tester.widget<Text>(
-      inDialog(find.text('Stock leaves when you send it, and lands when the other side receives it.')),
-    ).style?.color)));
+    expect(
+      hint.style!.color,
+      isNot(
+        equals(
+          tester
+              .widget<Text>(
+                inDialog(
+                  find.text(
+                    'Stock leaves when you send it, and lands when the other side receives it.',
+                  ),
+                ),
+              )
+              .style
+              ?.color,
+        ),
+      ),
+    );
   });
 
   testWidgets('INV-TRF-029 lines: Add item, Remove (off with one line), a '
@@ -176,14 +194,25 @@ void main() {
     final h = await _open(tester, all: true);
     expect(button(tester, 'transfer-add-line').onPressed, isNull);
     await pick(h, 'transfer-source', 'Zamalek');
-    expect(tester.widget<DashIconButton>(inDialog(byKey('transfer-remove-0'))).onPressed, isNull);
+    expect(
+      tester
+          .widget<DashIconButton>(inDialog(byKey('transfer-remove-0')))
+          .onPressed,
+      isNull,
+    );
     await h.tap(inDialog(byKey('transfer-add-line')));
     expect(inDialog(byKey('transfer-ingredient-1')), findsOneWidget);
     await pickIngredient(h, 0, 'Vanilla Syrup');
     await pickIngredient(h, 1, 'Vanilla Syrup');
-    expect(inDialog(find.text('Each item can appear only once.')), findsOneWidget);
+    expect(
+      inDialog(find.text('Each item can appear only once.')),
+      findsOneWidget,
+    );
     await h.tap(inDialog(byKey('transfer-remove-1')));
-    expect(inDialog(find.text('Each item can appear only once.')), findsNothing);
+    expect(
+      inDialog(find.text('Each item can appear only once.')),
+      findsNothing,
+    );
     expect(inDialog(byKey('transfer-ingredient-1')), findsNothing);
   });
 
@@ -196,7 +225,12 @@ void main() {
     )) {
       r['on_hand'] = 0.0;
     }
-    final h = await _open(tester, server: s.server, db: s.db, branch: SeedIds.heliopolis);
+    final h = await _open(
+      tester,
+      server: s.server,
+      db: s.db,
+      branch: SeedIds.heliopolis,
+    );
     await h.tap(triggerIn(dialog, 'transfer-ingredient-0'));
     expect(
       find.text('This branch has nothing on hand to send. Count it first.'),
@@ -225,7 +259,10 @@ void main() {
     await pick(h, 'transfer-source', 'Maadi');
     expect(h.server.callsTo(catalogRoute), isNotEmpty);
     await h.tap(triggerIn(dialog, 'transfer-ingredient-0'));
-    expect(_listed(tester), containsAll(['Almond Milk', 'ml', 'Chai Spice Mix', 'g']));
+    expect(
+      _listed(tester),
+      containsAll(['Almond Milk', 'ml', 'Chai Spice Mix', 'g']),
+    );
     await h.enterText(
       find.byWidgetPredicate((w) => w is DashOptionList).last,
       'Oat',
@@ -249,7 +286,10 @@ void main() {
     expect(h.server.callsTo(createRoute).single.body, {
       'destination_branch_id': SeedIds.maadi,
       'lines': [
-        {'org_ingredient_id': InvIds.ingredient('vanilla-syrup'), 'quantity': 150},
+        {
+          'org_ingredient_id': InvIds.ingredient('vanilla-syrup'),
+          'quantity': 150,
+        },
       ],
       'note': 'For Friday',
       'request': false,
@@ -273,7 +313,10 @@ void main() {
     await h.tap(inDialog(byKey('transfer-send')));
     expect(h.server.callsTo(createRoute), hasLength(1));
     expect(h.server.callsTo(stepRoute('dispatch')), hasLength(1));
-    expect(h.server.callsTo(createRoute).single.body, containsPair('note', null));
+    expect(
+      h.server.callsTo(createRoute).single.body,
+      containsPair('note', null),
+    );
     await h.expectToast('Transfer sent');
     expect(onHand(s.db, SeedIds.zamalek, 'vanilla-syrup'), before - 100);
     expect(inDrawer(find.text('In transit')), findsWidgets);
@@ -294,11 +337,15 @@ void main() {
     );
     expect(
       inDialog(
-        find.text('You work at both locations, so send and receive in one step.'),
+        find.text(
+          'You work at both locations, so send and receive in one step.',
+        ),
       ),
       findsOneWidget,
     );
-    await h.tap(inDialog(find.text("It's already there: record it as received")));
+    await h.tap(
+      inDialog(find.text("It's already there: record it as received")),
+    );
     expect(inDialog(find.text('Send and receive')), findsOneWidget);
     await h.tap(inDialog(byKey('transfer-send')));
     expect(h.server.callsTo(stepRoute('receive')), hasLength(1));
@@ -349,14 +396,21 @@ void main() {
     await h.tap(inDialog(byKey('transfer-send')));
     await h.expectToast(h.refusalWords(boom));
     expect(dialog, findsOneWidget);
-    expect(h.server.callsTo(listRoute).length, greaterThan(lists),
-        reason: 'part of it went through');
     expect(
-      tester.widget<DashSegmentedControl<bool>>(inDialog(byKey('transfer-mode'))).enabled,
+      h.server.callsTo(listRoute).length,
+      greaterThan(lists),
+      reason: 'part of it went through',
+    );
+    expect(
+      tester
+          .widget<DashSegmentedControl<bool>>(inDialog(byKey('transfer-mode')))
+          .enabled,
       isFalse,
     );
     expect(
-      tester.widget<DashSelect<String>>(inDialog(byKey('transfer-source'))).enabled,
+      tester
+          .widget<DashSelect<String>>(inDialog(byKey('transfer-source')))
+          .enabled,
       isFalse,
     );
     await h.enterText(inDialog(byKey('transfer-qty-0')), '90');
@@ -375,19 +429,27 @@ void main() {
     expect(inDialog(find.text('Edit transfer')), findsOneWidget);
     expect(_shows('transfer-source', 'Maadi'), findsOneWidget);
     expect(
-      tester.widget<DashSelect<String>>(inDialog(byKey('transfer-destination'))).enabled,
+      tester
+          .widget<DashSelect<String>>(inDialog(byKey('transfer-destination')))
+          .enabled,
       isFalse,
     );
     expect(inDialog(byKey('transfer-mode')), findsNothing);
     expect(inDialog(byKey('transfer-save-draft')), findsNothing);
     expect(inDialog(find.text('Save')), findsOneWidget);
     expect(h.server.callsTo(catalogRoute), isNotEmpty);
-    expect(_shows('transfer-ingredient-0', 'House Blend Beans'), findsOneWidget);
+    expect(
+      _shows('transfer-ingredient-0', 'House Blend Beans'),
+      findsOneWidget,
+    );
     await h.enterText(inDialog(byKey('transfer-qty-1')), '1200');
     await h.tap(inDialog(byKey('transfer-save')));
     expect(h.server.callsTo(itemRoute).single.body, {
       'lines': [
-        {'org_ingredient_id': InvIds.ingredient('house-blend'), 'quantity': 1000},
+        {
+          'org_ingredient_id': InvIds.ingredient('house-blend'),
+          'quantity': 1000,
+        },
         {'org_ingredient_id': InvIds.ingredient('oat'), 'quantity': 1200},
       ],
       'note': 'Weekend rush: please send before Friday',
@@ -416,7 +478,10 @@ void main() {
     await h.tap(inDialog(byKey('transfer-send')));
     expect(h.server.callsTo(stepRoute('accept')).single.body, {
       'lines': [
-        {'org_ingredient_id': InvIds.ingredient('house-blend'), 'quantity': 1000},
+        {
+          'org_ingredient_id': InvIds.ingredient('house-blend'),
+          'quantity': 1000,
+        },
         {'org_ingredient_id': InvIds.ingredient('oat'), 'quantity': 1000},
       ],
     });

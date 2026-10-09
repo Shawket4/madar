@@ -76,10 +76,11 @@ void main() {
       final tr6 = all[1];
       expect(tr6.status, TransferStatus.requested);
       expect(tr6.requested!.byName, 'Karim Adel');
-      expect([for (final l in tr6.lines) l.ingredientName], [
-        'House Blend Beans',
-        'Oat Milk',
-      ], reason: 'lines by ingredient name');
+      expect(
+        [for (final l in tr6.lines) l.ingredientName],
+        ['House Blend Beans', 'Oat Milk'],
+        reason: 'lines by ingredient name',
+      );
       expect(all[0].dispatched, isNull);
       expect(all[4].cancelled!.at, DateTime.utc(2026, 10, 2, 13, 20));
     });
@@ -121,20 +122,23 @@ void main() {
         ),
         ['TR-6', 'TR-5'],
       );
-      expect(await api.listTransfers(branchId: allBranches, offset: 8), isEmpty);
+      expect(
+        await api.listTransfers(branchId: allBranches, offset: 8),
+        isEmpty,
+      );
     });
 
     test('refusals: no cap 403, another location 403, unknown 404', () async {
       expect(
-        _rig(persona: Persona.limited).api.listTransfers(
-          branchId: SeedIds.maadi,
-        ),
+        _rig(
+          persona: Persona.limited,
+        ).api.listTransfers(branchId: SeedIds.maadi),
         _refused(403),
       );
       expect(
-        _rig(persona: Persona.manager).api.listTransfers(
-          branchId: SeedIds.maadi,
-        ),
+        _rig(
+          persona: Persona.manager,
+        ).api.listTransfers(branchId: SeedIds.maadi),
         _refused(403),
       );
       expect(_rig().api.listTransfers(branchId: 'nowhere'), _refused(404));
@@ -158,10 +162,10 @@ void main() {
       expect(tr.requested, isNull);
       expect(tr.created.byName, 'Nour El-Sayed');
       expect(tr.note, 'For the weekend');
-      expect([for (final l in tr.lines) (l.ingredientName, l.qtySent)], [
-        ('Cocoa Powder', 50),
-        ('Vanilla Syrup', 200),
-      ]);
+      expect(
+        [for (final l in tr.lines) (l.ingredientName, l.qtySent)],
+        [('Cocoa Powder', 50), ('Vanilla Syrup', 200)],
+      );
       expect(onHand(r.db, SeedIds.zamalek, 'vanilla-syrup'), before);
     });
 
@@ -327,10 +331,10 @@ void main() {
       final outs = r.db[InvTables.movements].where(
         (m) => m['source_id'] == _id('t7'),
       );
-      expect([for (final m in outs) m['movement_type']], [
-        'transfer_out',
-        'transfer_out',
-      ]);
+      expect(
+        [for (final m in outs) m['movement_type']],
+        ['transfer_out', 'transfer_out'],
+      );
       expect(
         r.api.dispatchTransfer(id: _id('t7')),
         _refused(409, 'TRANSFER_STEP_NOT_OPEN'),
@@ -353,12 +357,16 @@ void main() {
       final r = _rig();
       final t = dispatchDraft(r.db);
       final lines = (t['lines']! as List).cast<MockRow>();
-      final cro = lines.firstWhere(
-        (l) => l['ingredient_name'] == 'Croissant Dough',
-      )['id']! as String;
-      final van = lines.firstWhere(
-        (l) => l['ingredient_name'] == 'Vanilla Syrup',
-      )['id']! as String;
+      final cro =
+          lines.firstWhere(
+                (l) => l['ingredient_name'] == 'Croissant Dough',
+              )['id']!
+              as String;
+      final van =
+          lines.firstWhere(
+                (l) => l['ingredient_name'] == 'Vanilla Syrup',
+              )['id']!
+              as String;
       Future<StockTransfer> receive(List<ReceiveTransferLine> l) =>
           r.api.receiveTransfer(
             id: _id('t7'),
@@ -389,7 +397,9 @@ void main() {
       ]);
       expect(got.status, TransferStatus.received);
       expect(got.received!.byName, 'Nour El-Sayed');
-      final c = got.lines.firstWhere((l) => l.ingredientName == 'Croissant Dough');
+      final c = got.lines.firstWhere(
+        (l) => l.ingredientName == 'Croissant Dough',
+      );
       expect(c.qtyReceived, 8);
       expect(c.note, 'Crushed');
       expect(onHand(r.db, SeedIds.heliopolis, 'croissant'), heli + 8);
@@ -432,31 +442,40 @@ void main() {
   });
 
   group('locations, differences, replenishment', () {
-    test('locations: every active location with its kind; create cap', () async {
-      final r = _rig(warehouse: true);
-      final rows = await r.api.transferLocations(orgId: SeedIds.sabahOrg);
-      expect([for (final l in rows) (l.name, l.kind)], [
-        ('Heliopolis', 'branch'),
-        ('Maadi', 'branch'),
-        ('New Cairo', 'branch'),
-        ('Zamalek', 'branch'),
-        ('Central Store', 'warehouse'),
-      ]);
-      expect(
-        _rig(persona: Persona.limited).api.transferLocations(
-          orgId: SeedIds.sabahOrg,
-        ),
-        _refused(403),
-      );
-    });
+    test(
+      'locations: every active location with its kind; create cap',
+      () async {
+        final r = _rig(warehouse: true);
+        final rows = await r.api.transferLocations(orgId: SeedIds.sabahOrg);
+        expect(
+          [for (final l in rows) (l.name, l.kind)],
+          [
+            ('Heliopolis', 'branch'),
+            ('Maadi', 'branch'),
+            ('New Cairo', 'branch'),
+            ('Zamalek', 'branch'),
+            ('Central Store', 'warehouse'),
+          ],
+        );
+        expect(
+          _rig(
+            persona: Persona.limited,
+          ).api.transferLocations(orgId: SeedIds.sabahOrg),
+          _refused(403),
+        );
+      },
+    );
 
     test('differences: received lines that differ, in the period, signed, '
         'valued at the line cost', () async {
       final r = _rig();
       final t = receiveShort(r.db);
-      final cost = ((t['lines']! as List).cast<MockRow>().firstWhere(
-        (l) => l['ingredient_name'] == 'Croissant Dough',
-      )['unit_cost']! as num).toDouble();
+      final cost =
+          ((t['lines']! as List).cast<MockRow>().firstWhere(
+                    (l) => l['ingredient_name'] == 'Croissant Dough',
+                  )['unit_cost']!
+                  as num)
+              .toDouble();
       final rows = await r.api.transferDifferences(
         orgId: SeedIds.sabahOrg,
         from: DateTime.utc(2026, 10, 1),
@@ -495,7 +514,10 @@ void main() {
       expect(oat.available, 12000);
       expect(oat.suggested, 6500);
       expect(
-        r.api.replenishment(warehouseId: SeedIds.maadi, branchId: SeedIds.zamalek),
+        r.api.replenishment(
+          warehouseId: SeedIds.maadi,
+          branchId: SeedIds.zamalek,
+        ),
         _says('Replenishment comes from a warehouse.'),
       );
       expect(

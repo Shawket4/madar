@@ -92,25 +92,38 @@ class RuleDialog extends ConsumerStatefulWidget {
 }
 
 class _RuleDialogState extends ConsumerState<RuleDialog> {
-  late String _name = widget.rule?.name ?? '';
-  late String _category = widget.rule?.matchCategoryId ?? _any;
-  late String _sizeLabel = widget.rule?.matchSizeLabel ?? '';
-  late String _item = widget.rule?.matchItemId ?? _any;
-  late bool _active = widget.rule?.isActive ?? true;
+  /// The rule the form was seeded from: the list's newer copy replaces it
+  /// until the person edits (a background refresh never loses to old data).
+  late PackagingRuleOut? _rule = widget.rule;
+  late String _name;
+  late String _category;
+  late String _sizeLabel;
+  late String _item;
+  late bool _active;
   late List<GridBlock> _blocks;
+  bool _touched = false;
   bool _submitted = false;
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
+    _seed();
+  }
+
+  void _seed() {
     final t = ref.read(tProvider);
+    _name = _rule?.name ?? '';
+    _category = _rule?.matchCategoryId ?? _any;
+    _sizeLabel = _rule?.matchSizeLabel ?? '';
+    _item = _rule?.matchItemId ?? _any;
+    _active = _rule?.isActive ?? true;
     _blocks = [
       GridBlock(
         key: _ruleCol,
         label: t('common.quantity'),
         lines: [
-          for (final l in widget.rule?.lines ?? const <PackagingRuleLineOut>[])
+          for (final l in _rule?.lines ?? const <PackagingRuleLineOut>[])
             GridLine(
               ingredientId: l.ingredientId,
               quantity: jsNumberText(jsNumber(l.quantity)),
@@ -120,6 +133,11 @@ class _RuleDialogState extends ConsumerState<RuleDialog> {
       ),
     ];
   }
+
+  void _edit(VoidCallback change) => setState(() {
+    _touched = true;
+    change();
+  });
 
   Future<void> _save() async {
     if (_busy) return;
@@ -147,7 +165,7 @@ class _RuleDialogState extends ConsumerState<RuleDialog> {
     final api = ref.read(apiProvider).menu;
     final invalidate = ref.menuInvalidate;
     try {
-      final rule = widget.rule;
+      final rule = _rule;
       if (rule != null) {
         await api.patchRule(
           id: rule.id,
@@ -189,6 +207,17 @@ class _RuleDialogState extends ConsumerState<RuleDialog> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final orgId = widget.orgId;
+    if (widget.rule case final opened? when orgId != null) {
+      final live = ref
+          .watch(packagingRulesProvider(orgId))
+          .value
+          ?.where((r) => r.id == opened.id)
+          .firstOrNull;
+      if (live != null && !_touched && !identical(live, _rule)) {
+        _rule = live;
+        _seed();
+      }
+    }
     final catalog = orgId == null
         ? const <OrgIngredient>[]
         : ref.watch(ingredientCatalogProvider(orgId)).value ??
@@ -206,13 +235,13 @@ class _RuleDialogState extends ConsumerState<RuleDialog> {
         searchable: true,
         searchPlaceholder: t('common.search'),
         emptyText: t('common.noResults'),
-        onChanged: (v) => setState(() => _category = v),
+        onChanged: (v) => _edit(() => _category = v),
       ),
       DashTextField(
         label: t('modeling.packaging.matchSize'),
         placeholder: t('modeling.packaging.any'),
         value: _sizeLabel,
-        onChanged: (v) => setState(() => _sizeLabel = v),
+        onChanged: (v) => _edit(() => _sizeLabel = v),
         onSubmitted: (_) => _save(),
       ),
       DashSelectField<String>(
@@ -222,7 +251,7 @@ class _RuleDialogState extends ConsumerState<RuleDialog> {
         searchable: true,
         searchPlaceholder: t('common.search'),
         emptyText: t('common.noResults'),
-        onChanged: (v) => setState(() => _item = v),
+        onChanged: (v) => _edit(() => _item = v),
       ),
     ];
 
@@ -241,7 +270,7 @@ class _RuleDialogState extends ConsumerState<RuleDialog> {
             errorText: _submitted && _name.trim().isEmpty
                 ? t('common.requiredField')
                 : null,
-            onChanged: (v) => setState(() => _name = v),
+            onChanged: (v) => _edit(() => _name = v),
             onSubmitted: (_) => _save(),
           ),
           if (MediaQuery.sizeOf(context).width >= DashBreakpoints.sm)
@@ -259,11 +288,11 @@ class _RuleDialogState extends ConsumerState<RuleDialog> {
           ModelingSwitch(
             label: t('common.active'),
             value: _active,
-            onChanged: (v) => setState(() => _active = v),
+            onChanged: (v) => _edit(() => _active = v),
           ),
           LabelGridEditor(
             blocks: _blocks,
-            onChanged: (b) => setState(() => _blocks = b),
+            onChanged: (b) => _edit(() => _blocks = b),
             catalogById: ingredientsById(catalog),
             ingredientOptions: ingredientOptions(catalog, t),
             onSubmit: _save,

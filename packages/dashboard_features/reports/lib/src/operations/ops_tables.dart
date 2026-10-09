@@ -120,7 +120,7 @@ List<String> opsSectionsOf(List<OpsTableRow> rows) =>
 
 /// Whether the request failed or any widget came back as an error.
 bool opsTablesFailed(AsyncValue<MetricsQueryResponse> q) =>
-    q.hasError ||
+    (q.hasError && !q.retrying) ||
     (q.value?.results.values.any((r) => r is WidgetOutcomeError) ?? false);
 
 // ── the tab ───────────────────────────────────────────────────────────────
@@ -149,6 +149,22 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
     builder: (_) => OpsTableSheet(row: row),
   );
 
+  /// Intent: warms the history the row's panel reads (the panel's lookup).
+  void _warm(OpsTableRow row) {
+    final s = ref.read(currentScopeProvider);
+    final branchId = s.branchId;
+    if (branchId == null) return;
+    final id = ref
+        .read(opsFloorTablesProvider(branchId))
+        .value
+        ?.where((ft) => ft.label == row.table)
+        .firstOrNull
+        ?.id;
+    if (id != null) {
+      ref.warm(opsTableHistoryProvider((id: id, from: s.from, to: s.to)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
@@ -162,7 +178,7 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
     final branchId = scope.branchId;
     if (branchId != null) ref.watch(opsFloorTablesProvider(branchId));
     final data = q.value;
-    final loading = q.firstLoad;
+    final loading = q.awaitingFirst;
     final failed = opsTablesFailed(q);
 
     final summaryRows = _rowsOf(data?.results['summary']);
@@ -346,6 +362,7 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
       empty: DashEmptyState(title: empty),
       searchPlaceholder: t('tablesInsights.search'),
       onRowTap: _open,
+      onRowIntent: _warm,
       rowSemanticLabel: (r) => r.table,
       columns: [
         DashColumn<OpsTableRow>(

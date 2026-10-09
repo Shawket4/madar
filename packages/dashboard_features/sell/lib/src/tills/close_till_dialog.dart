@@ -121,6 +121,7 @@ class _CloseTillDialogState extends ConsumerState<CloseTillDialog> {
     setState(() => _submitted = true);
     if (!_cashValid || _rows.any((r) => !r.valid)) return;
     final t = ref.read(tProvider);
+    final refresh = tillsInvalidator(ref);
     setState(() => _pending = true);
     try {
       final note = _cashNote.trim();
@@ -136,9 +137,9 @@ class _CloseTillDialogState extends ConsumerState<CloseTillDialog> {
               explicitNulls: note.isEmpty ? const {'cash_note'} : const {},
             ),
           );
+      refresh();
       if (!mounted) return;
       DashToast.success(context, t('tills.closedToast'));
-      invalidateTills(ref);
       Navigator.of(context).pop(res.lastTillWarning);
     } on Object catch (e) {
       if (!mounted) return;
@@ -156,10 +157,11 @@ class _CloseTillDialogState extends ConsumerState<CloseTillDialog> {
     if (data != null) {
       _syncRows(data);
       body = _form(context, t, data);
-    } else if (preview.hasError) {
+    } else if (preview.failedFirst) {
       body = DashErrorState(
         message: tillsErrorMessage(preview.error, t),
         onRetry: () => ref.invalidate(closePreviewProvider(widget.till.id)),
+        retrying: preview.isLoading,
         framed: false,
       );
     } else {

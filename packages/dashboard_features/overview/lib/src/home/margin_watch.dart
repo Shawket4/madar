@@ -7,6 +7,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show MarginLedgerRow, Signal;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
@@ -111,9 +112,9 @@ class HomeMarginWatchCard extends ConsumerWidget {
         data == null ||
         (data.top.isEmpty && data.bottom.isEmpty && totals?.revenue == 0);
     final Widget body;
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       body = const HomeSkeleton(height: HomeMetrics.block);
-    } else if (q.hasError) {
+    } else if (q.hasError && !q.retrying) {
       body = DashErrorState(
         framed: false,
         title: t('insights.watch.loadFailed'),

@@ -56,7 +56,7 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
     // figures (and so the open list) until the new count lands, where the
     // web drops to skeletons and closes the list (divergence REP-OPS-039).
     final prev = _shown;
-    if (current.firstLoad &&
+    if (current.awaitingFirst &&
         prev != null &&
         prev != key &&
         (prev.id, prev.from, prev.to) == (key.id, key.from, key.to)) {
@@ -66,8 +66,8 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
     if (current.hasValue) _shown = key;
     void retry() => ref.invalidate(opsSalesProvider(key));
     final d = q.value;
-    final loading = q.firstLoad;
-    final failed = q.hasError;
+    final loading = q.awaitingFirst;
+    final failed = q.hasError && !q.retrying;
     final aov = d != null && d.totalOrders > 0
         ? (d.totalRevenue / d.totalOrders).round()
         : 0;
@@ -375,6 +375,10 @@ class OpsExcludeItemsControl extends ConsumerWidget {
       anchor: (context, ctl) => DashPressable(
         key: const ValueKey('ops-exclude-trigger'),
         onTap: ctl.toggle,
+        // The list reads the menu when it opens.
+        onIntent: orgId == null
+            ? null
+            : () => ref.warm(opsMenuItemsProvider(orgId!)),
         pressScale: false,
         tooltip: t('analytics.excludeItems'),
         semanticLabel: t('analytics.excludeItems'),
@@ -442,6 +446,12 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
     final org = widget.orgId;
     final excluded = ref.watch(excludedItemsProvider(org));
     final notifier = ref.read(excludedItemsProvider(org).notifier);
+    // A pick (or Clear) reads the Overview's sales with the new list.
+    void warmSales(List<String> ids) => ref.warm(
+      opsSalesProvider(
+        ref.read(currentScopeProvider).opsSales(excludeItemsParam(ids)),
+      ),
+    );
     final AsyncValue<List<MenuItem>> menu = org == null
         ? const AsyncData(<MenuItem>[])
         : ref.watch(opsMenuItemsProvider(org));
@@ -511,6 +521,7 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
                       DashPressable(
                         key: ValueKey('ops-exclude-$id'),
                         onTap: () => notifier.toggle(id),
+                        onIntent: () => warmSales(toggledIds(excluded, id)),
                         pressScale: false,
                         selected: excluded.contains(id),
                         semanticLabel: label,
@@ -564,6 +575,7 @@ class _ExcludeListState extends ConsumerState<_ExcludeList> {
               size: DashButtonSize.compact,
               expand: true,
               onPressed: () => notifier.set(const []),
+              onIntent: () => warmSales(const []),
             ),
           ),
       ],

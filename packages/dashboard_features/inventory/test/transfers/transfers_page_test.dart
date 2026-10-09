@@ -11,7 +11,6 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
-import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,7 +21,9 @@ const _zamalek = ['TR-6', 'TR-5', 'TR-8', 'TR-3', 'TR-2'];
 /// The references the table shows, top to bottom.
 List<String> _refs(WidgetTester tester) {
   final found = <(double, String)>[];
-  for (final e in inTable(find.textContaining(RegExp(r'^TR-\d+$'))).evaluate()) {
+  for (final e in inTable(
+    find.textContaining(RegExp(r'^TR-\d+$')),
+  ).evaluate()) {
     final w = e.widget as Text;
     found.add((tester.getTopLeft(find.byWidget(w)).dy, w.data!));
   }
@@ -55,14 +56,20 @@ void main() {
       'Outgoing',
     ]) {
       expect(
-        find.descendant(
-          of: find.byType(DashSegmentedControl<String>).first,
-          matching: find.text(w),
-        ).evaluate().isNotEmpty ||
-            find.descendant(
-              of: find.byType(DashSegmentedControl<String?>),
-              matching: find.text(w),
-            ).evaluate().isNotEmpty,
+        find
+                .descendant(
+                  of: find.byType(DashSegmentedControl<String>).first,
+                  matching: find.text(w),
+                )
+                .evaluate()
+                .isNotEmpty ||
+            find
+                .descendant(
+                  of: find.byType(DashSegmentedControl<String?>),
+                  matching: find.text(w),
+                )
+                .evaluate()
+                .isNotEmpty,
         isTrue,
         reason: w,
       );
@@ -221,18 +228,21 @@ void main() {
     await h.expectToast('Exported 2 rows');
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Transfers');
-    expect([for (final c in sheet.columns) c.header], [
-      'Ref',
-      'Date',
-      'Status',
-      'From',
-      'To',
-      'Ingredient',
-      'Sent',
-      'Received',
-      'Unit',
-      'Note',
-    ]);
+    expect(
+      [for (final c in sheet.columns) c.header],
+      [
+        'Ref',
+        'Date',
+        'Status',
+        'From',
+        'To',
+        'Ingredient',
+        'Sent',
+        'Received',
+        'Unit',
+        'Note',
+      ],
+    );
     expect(sheet.rows.first.sublist(2), [
       'Requested',
       'Maadi',
@@ -359,9 +369,12 @@ void main() {
   ) async {
     final s = transfersServer();
     final t = receiveShort(s.db);
-    final cost = ((t['lines']! as List).cast<MockRow>().firstWhere(
-      (l) => l['ingredient_name'] == 'Croissant Dough',
-    )['unit_cost']! as num).toDouble();
+    final cost =
+        ((t['lines']! as List).cast<MockRow>().firstWhere(
+                  (l) => l['ingredient_name'] == 'Croissant Dough',
+                )['unit_cost']!
+                as num)
+            .toDouble();
     final h = await pumpTransfers(
       tester,
       server: s.server,
@@ -375,7 +388,10 @@ void main() {
       call.path,
       '/inventory/orgs/${SeedIds.sabahOrg}/transfer-differences',
     );
-    expect(DateTime.parse(call.query['from']!.single), DateTime.parse(scope.from));
+    expect(
+      DateTime.parse(call.query['from']!.single),
+      DateTime.parse(scope.from),
+    );
     expect(DateTime.parse(call.query['to']!.single), DateTime.parse(scope.to));
     final f = h.container.read(formatProvider);
     for (final c in [
@@ -462,10 +478,7 @@ void main() {
     expect(inTable(find.text('Columns')), findsNothing);
     await h.tap(inTable(find.text('TR-6')));
     expect(drawer, findsOneWidget);
-    expect(
-      tester.getSize(drawer).width,
-      closeTo(DashSize.phone.size.width, 1),
-    );
+    expect(tester.getSize(drawer).width, closeTo(DashSize.phone.size.width, 1));
   });
 
   testWidgets('INV-TRF-012 the Columns menu lists the five columns', (
@@ -543,7 +556,9 @@ void main() {
     );
     expect(inPage(byKey('transfers-replenish')), findsOneWidget);
     expect(inPage(find.text('Replenish a branch')), findsOneWidget);
-    final replenishX = tester.getCenter(inPage(byKey('transfers-replenish'))).dx;
+    final replenishX = tester
+        .getCenter(inPage(byKey('transfers-replenish')))
+        .dx;
     final newX = tester.getCenter(inPage(byKey('transfers-new'))).dx;
     expect(replenishX, lessThan(newX));
   });

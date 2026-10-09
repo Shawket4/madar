@@ -7,7 +7,6 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -75,7 +74,11 @@ void main() {
     final r = await _open(
       tester,
       before: (_, db) {
-        for (final id in [SeedIds.heliopolis, SeedIds.maadi, SeedIds.newCairo]) {
+        for (final id in [
+          SeedIds.heliopolis,
+          SeedIds.maadi,
+          SeedIds.newCairo,
+        ]) {
           db['branches'].get(id)['is_active'] = false;
         }
       },
@@ -87,10 +90,9 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(
-      r.h.server.callsTo(replenishRoute).single.query['branch_id'],
-      [SeedIds.zamalek],
-    );
+    expect(r.h.server.callsTo(replenishRoute).single.query['branch_id'], [
+      SeedIds.zamalek,
+    ]);
   });
 
   testWidgets('INV-TRF-039 a branch\'s low rows: level, at branch, coming, '
@@ -170,7 +172,9 @@ void main() {
       ),
       findsOneWidget,
     );
-    final boom = MockResponse.badRequest('Replenishment comes from a warehouse.');
+    final boom = MockResponse.badRequest(
+      'Replenishment comes from a warehouse.',
+    );
     r.server.fail('GET', replenishRoute, boom, times: null);
     await pick(r.h, 'replenish-branch', 'Maadi', scope: replenishDialog);
     expect(inReplenish(find.text(r.h.refusalWords(boom))), findsOneWidget);
@@ -191,9 +195,7 @@ void main() {
     );
     final n = rows.where((x) => x.suggested > 0).length;
     expect(
-      tester
-          .widget<DashButton>(inReplenish(byKey('replenish-review')))
-          .label,
+      tester.widget<DashButton>(inReplenish(byKey('replenish-review'))).label,
       'Review transfer ($n)',
     );
     await r.h.tap(inReplenish(byKey('replenish-review')));

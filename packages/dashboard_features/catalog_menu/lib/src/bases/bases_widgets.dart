@@ -40,6 +40,7 @@ class ModelingRow extends StatelessWidget {
     required this.inactiveLabel,
     this.truncateSubtitle = false,
     this.onEdit,
+    this.onEditIntent,
     this.onDelete,
     this.editLabel,
     this.deleteLabel,
@@ -56,6 +57,9 @@ class ModelingRow extends StatelessWidget {
 
   /// Null hides the row actions (no `menu.items.edit`).
   final VoidCallback? onEdit;
+
+  /// About to press Edit: warm the editor's reads.
+  final VoidCallback? onEditIntent;
   final VoidCallback? onDelete;
   final String? editLabel;
   final String? deleteLabel;
@@ -116,6 +120,7 @@ class ModelingRow extends StatelessWidget {
                 icon: 'pencil',
                 semanticLabel: editLabel ?? context.dashStrings.edit,
                 onPressed: onEdit,
+                onIntent: onEditIntent,
               ),
             if (onDelete != null)
               DashIconButton(

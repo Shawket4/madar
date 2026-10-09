@@ -20,7 +20,9 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../branches/branches_data.dart' show adminBranchesProvider;
 import '../orgs/org_errors.dart' show orgErrorWords;
+import '../orgs/orgs_providers.dart' show orgsListProvider;
 import '../shared/access_tabs.dart';
 import '../shared/pick_org_state.dart';
 import '../shared/row_action.dart';
@@ -82,9 +84,10 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       destructive: true,
     );
     if (!ok || !mounted) return;
+    final bus = ref.read(realtimeBusProvider);
     try {
       await ref.read(apiProvider).users.deleteUser(id: u.id);
-      invalidateUsers(ref);
+      invalidateUsers(bus);
       if (mounted) DashToast.success(context, t('users.deletedToast'));
     } on Object catch (e) {
       if (mounted) DashToast.error(context, orgErrorWords(e, t));
@@ -184,8 +187,9 @@ class _UsersPageState extends ConsumerState<UsersPage> {
 
     final list = ref.watch(usersListProvider(orgId));
     final users = list.value ?? const <UserPublic>[];
-    final loading = list.isLoading && !list.hasValue;
-    final error = !loading && list.hasError ? list.error : null;
+    final loading = list.awaitingFirst;
+    // The web's table shows `list.error` over stale rows too.
+    final error = list.hasError && !list.retrying ? list.error : null;
 
     _sync('edit', list.value, (u) => showUserDialog(context, user: u));
     _sync(
@@ -237,6 +241,10 @@ class _UsersPageState extends ConsumerState<UsersPage> {
           key: const ValueKey('users-new'),
           label: t('common.new'),
           icon: 'plus',
+          // A platform admin's new user picks the org: warm the org list.
+          onIntent: ref.watch(currentSessionProvider)?.isPlatform ?? false
+              ? () => ref.warm(orgsListProvider)
+              : null,
           onPressed: () => context.setQueryParams({'edit': 'new'}),
         ),
       ],
@@ -257,7 +265,21 @@ class _UsersPageState extends ConsumerState<UsersPage> {
                 canMakeEmployee && linkableIds.contains(u.id),
             onOpen: (u) => context.setQueryParams({'edit': u.id}),
             onAccess: (u) => context.setQueryParams({'access': u.id}),
+            onAccessIntent: (u) {
+              ref
+                ..warm(userAccessProvider((id: u.id, branchId: null)))
+                ..warm(accessRolesProvider);
+              if (u.orgId case final org?) {
+                ref.warm(adminBranchesProvider(org));
+              }
+            },
             onBranches: (u) => context.setQueryParams({'branches': u.id}),
+            onBranchesIntent: (u) {
+              ref.warm(userBranchesProvider(u.id));
+              if (u.orgId case final org? when org.isNotEmpty) {
+                ref.warm(adminBranchesProvider(org));
+              }
+            },
             onMakeEmployee: (u) async {
               await makeEmployee?.open(context, userId: u.id);
             },
@@ -318,7 +340,9 @@ class _UsersTable extends ConsumerWidget {
     required this.canMakeEmployee,
     required this.onOpen,
     required this.onAccess,
+    required this.onAccessIntent,
     required this.onBranches,
+    required this.onBranchesIntent,
     required this.onMakeEmployee,
     required this.onMakeEmployeeIntent,
     required this.onDelete,
@@ -334,23 +358,31 @@ class _UsersTable extends ConsumerWidget {
   final bool Function(UserPublic u) canMakeEmployee;
   final ValueChanged<UserPublic> onOpen;
   final ValueChanged<UserPublic> onAccess;
+  final ValueChanged<UserPublic> onAccessIntent;
   final ValueChanged<UserPublic> onBranches;
+  final ValueChanged<UserPublic> onBranchesIntent;
   final ValueChanged<UserPublic> onMakeEmployee;
   final VoidCallback onMakeEmployeeIntent;
   final ValueChanged<UserPublic> onDelete;
 
   List<Widget> _actions(UserPublic u, Translator t) => [
     if (canAccess)
-      AdminRowAction(
-        icon: 'shield',
-        label: t('users.permissions'),
-        onPressed: () => onAccess(u),
+      DashIntent(
+        onIntent: () => onAccessIntent(u),
+        child: AdminRowAction(
+          icon: 'shield',
+          label: t('users.permissions'),
+          onPressed: () => onAccess(u),
+        ),
       ),
     if (assignableRole(u.role))
-      AdminRowAction(
-        icon: 'git-branch',
-        label: t('users.assignBranches'),
-        onPressed: () => onBranches(u),
+      DashIntent(
+        onIntent: () => onBranchesIntent(u),
+        child: AdminRowAction(
+          icon: 'git-branch',
+          label: t('users.assignBranches'),
+          onPressed: () => onBranches(u),
+        ),
       ),
     if (canMakeEmployee(u))
       DashIntent(

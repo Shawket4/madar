@@ -72,9 +72,9 @@ final linkableUsersProvider = FutureProvider.autoDispose<List<LinkableUser>>((
 });
 
 /// The web's `invalidateUsers()`: every read whose key starts with `/users`
-/// (the list, every person's branch assignments).
-void invalidateUsers(WidgetRef ref) =>
-    ref.read(realtimeBusProvider).invalidate(const ['/users']);
+/// (the list, every person's branch assignments). Takes the bus read before
+/// the write's await, so a page closed mid-save still refreshes.
+void invalidateUsers(RealtimeBus bus) => bus.invalidate(const ['/users']);
 
 // ── rules the browser computes ─────────────────────────────────────────────
 

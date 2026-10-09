@@ -5,8 +5,6 @@
 /// (`data/api/errors.ts`, SELL-ALL-017) for every toast and inline error.
 library;
 
-import 'dart:async';
-
 import 'package:dashboard_api/dashboard_api.dart'
     show
         ApiException,
@@ -21,6 +19,7 @@ import 'package:dashboard_api/dashboard_api.dart'
         TillReportResponse,
         TillSpotView;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/invalidate.dart';
@@ -186,13 +185,12 @@ final closePreviewProvider = FutureProvider.autoDispose
     });
 
 /// `invalidateTills`: every `/tills…` and `/reports…` read (after an open,
-/// close, cash movement, force close or delete).
-void invalidateTills(WidgetRef ref) =>
-    sellInvalidateFromWidget(ref, SellInvalidate.tills);
-
-/// React Query's `isLoading`: the first load, nothing to show yet.
-extension TillsAsync<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
+/// close, cash movement, force close or delete). Take it before the save's
+/// `await` and call it after: the refresh then runs even when the dialog or
+/// page closed mid-save, as the web's query client does.
+VoidCallback tillsInvalidator(WidgetRef ref) {
+  final bus = ref.read(realtimeBusProvider);
+  return () => bus.invalidate(SellInvalidate.tills);
 }
 
 /// The kinds the backend's `AppError` writes before its sentence.
@@ -296,18 +294,14 @@ String discrepancyText(DashFormat fmt, int? d) => d == null
     ? fmt.fmtMoney(0)
     : fmt.fmtMoneySigned(d);
 
-/// Starts [tillId]'s report read so the panel opens on data (the web's
-/// `onRowPrefetch`); a failure leaves nothing cached.
-void prefetchTillReport(WidgetRef ref, String tillId) {
-  final p = tillReportProvider(tillId);
-  unawaited(
-    ref
-        .read(p.future)
-        .then<void>(
-          (_) {},
-          onError: (Object _) {
-            ref.invalidate(p);
-          },
-        ),
-  );
+/// Warms what [tillId]'s report panel reads on opening (the web's
+/// `onRowPrefetch`, plus the panel's other reads), so it opens on data.
+void warmTillReport(WidgetRef ref, String tillId) {
+  ref
+    ..warm(tillReportProvider(tillId))
+    ..warm(tillSummaryProvider(tillId))
+    ..warm(tillDeductionsProvider(tillId));
+  if (ref.read(authzStateProvider).can(Cap.tillRead)) {
+    ref.warm(tillSpotViewsProvider(tillId));
+  }
 }

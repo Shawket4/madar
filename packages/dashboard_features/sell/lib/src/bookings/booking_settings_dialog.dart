@@ -209,7 +209,7 @@ class _BookingSettingsDialogState extends ConsumerState<BookingSettingsDialog> {
     );
 
     Widget body;
-    if (s == null && q.hasError) {
+    if (s == null && q.failedFirst) {
       // Divergence SELL-BKG-079: the web stays on "Loading…" forever.
       body = DashErrorState(
         framed: false,

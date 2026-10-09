@@ -91,8 +91,3 @@ final legalAuditProvider = FutureProvider.autoDispose
         LegalTab.tax => throw ArgumentError('Tax is not an audit report'),
       };
     });
-
-/// React Query's `isLoading`: the first load, with nothing to show yet.
-extension LegalAsync<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}

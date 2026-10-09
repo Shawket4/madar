@@ -193,7 +193,7 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
       flex: 3,
       // The floors sit near the web's content widths, so the row actions
       // stay on screen at 1024 wide (ADM-ORG-019, 020).
-      minWidth: 180,
+      minWidth: 168,
     ),
     DashColumn<Org>(
       id: 'currency',
@@ -231,7 +231,8 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
       id: 'status',
       label: t('common.status'),
       searchable: false,
-      minWidth: 104,
+      // Fits the "Inactive" pill whole.
+      minWidth: 116,
       cell: (context, o) => o.isActive
           ? DashStatusPill(label: t('common.active'), tone: DashTone.success)
           : DashStatusPill(label: t('common.inactive')),

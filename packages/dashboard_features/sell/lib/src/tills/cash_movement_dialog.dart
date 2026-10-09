@@ -50,6 +50,7 @@ class _CashMovementDialogState extends ConsumerState<CashMovementDialog> {
     final v = _value;
     if (v == null || !_valid || _pending) return;
     final t = ref.read(tProvider);
+    final refresh = tillsInvalidator(ref);
     final sign = _direction == CashDirection.cashOut ? -1 : 1;
     setState(() => _pending = true);
     try {
@@ -63,9 +64,9 @@ class _CashMovementDialogState extends ConsumerState<CashMovementDialog> {
               note: _note.trim(),
             ),
           );
+      refresh();
       if (!mounted) return;
       DashToast.success(context, t('tills.cashRecorded'));
-      invalidateTills(ref);
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;

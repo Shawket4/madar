@@ -144,7 +144,8 @@ final orderOwnerProvider = FutureProvider.autoDispose
 /// ingredient deductions a snapshot left unpriced.
 final orderCatalogProvider = FutureProvider.autoDispose
     .family<List<OrgIngredient>, String>((ref, orgId) {
-      ref.webCache();
+      // `order-detail-sheet.tsx:77`: `staleTime: 5 * 60_000`.
+      ref.webCache(staleTime: const Duration(minutes: 5));
       ref.watch(realtimeEpochProvider('/inventory/orgs/$orgId/catalog'));
       return ref.watch(apiProvider).inventory.listCatalog(orgId: orgId);
     });
@@ -211,11 +212,6 @@ String? excludeItemsParam(List<String> ids) =>
     ids.isEmpty ? null : ids.join(',');
 
 // ── helpers ───────────────────────────────────────────────────────────────
-
-extension OrdersAsync<T> on AsyncValue<T> {
-  /// React Query's `isLoading`: loading with nothing to show yet.
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}
 
 /// Watches [provider] only when [enabled] (a web query's `enabled: false`
 /// asks nothing and is not loading).

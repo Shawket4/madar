@@ -5,6 +5,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show Till;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
@@ -87,9 +88,9 @@ class HomeOpenTillsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final q = ref.watch(homeOpenTillsProvider(branchId));
-    if (q.firstLoad) return const HomeSkeleton(height: HomeMetrics.tills);
+    if (q.awaitingFirst) return const HomeSkeleton(height: HomeMetrics.tills);
     return HomeOpenTillsList(
-      tills: q.hasError ? const [] : (q.value ?? const []),
+      tills: q.hasError && !q.retrying ? const [] : (q.value ?? const []),
     );
   }
 }

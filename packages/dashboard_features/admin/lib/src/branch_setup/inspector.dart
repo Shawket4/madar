@@ -13,6 +13,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../orgs/org_errors.dart' show orgErrorWords;
 import 'branch_setup_providers.dart';
 import 'builder_canvas.dart' show PresenceDot, PresenceTone;
 import 'plan.dart';
@@ -1411,7 +1412,7 @@ class _SectionInspector extends ConsumerWidget {
                         label: categoryName(cat, lang),
                         hint:
                             !s.categoryIds.contains(cat.id) &&
-                                owner[cat.id] != null
+                                (owner[cat.id] ?? '').isNotEmpty
                             ? t(
                                 'builder.inSection',
                                 args: {'name': owner[cat.id]},
@@ -1456,45 +1457,6 @@ class _SectionInspector extends ConsumerWidget {
   }
 }
 
-/// A failure in words, as the web's `getErrorMessage` picks them: a coded
-/// refusal the tables word; an uncoded 403 a missing right; else the
-/// server's sentence (kind prefix stripped), which an Arabic screen does not
-/// show in English (it reads the status's words instead).
-String builderErrorText(Object? error, Translator t) {
-  if (error is ApiException) {
-    final code = error.code;
-    if (code != null && t.exists('errors.codes.$code')) {
-      final details = error.details;
-      final vars = details is Map && details['vars'] is Map
-          ? Map<String, Object?>.from(details['vars']! as Map)
-          : null;
-      return t('errors.codes.$code', args: vars);
-    }
-    if (error.status == 429 && code == null) return t('errors.tooManyRequests');
-    if (error.status == 403 && code == null) return t('errors.unauthorized');
-    final said = error.message.replaceFirst(_serverKind, '').trim();
-    final arabicUi = t.lang.startsWith('ar');
-    if (said.isNotEmpty && !(arabicUi && !_arabicLetter.hasMatch(said))) {
-      return said;
-    }
-    switch (error.status) {
-      case 0:
-        return t('errors.networkError');
-      case 401:
-        return t('errors.sessionExpired');
-      case 404:
-        return t('errors.notFound');
-      case 409:
-        return t('errors.conflict');
-      case 400 || 422:
-        return t('errors.validation');
-    }
-    if (error.status >= 500) return t('errors.server');
-  }
-  return errorMessage(error, t);
-}
-
-final RegExp _serverKind = RegExp(
-  r'^(Unauthorized|Forbidden|Not found|Bad request|Conflict|Service unavailable|Database error): ',
-);
-final RegExp _arabicLetter = RegExp('[؀-ۿ]');
+/// A failure in words: the web's `getErrorMessage` ladder (ADM-APP-117),
+/// shared with the orgs and branches pages.
+String builderErrorText(Object? error, Translator t) => orgErrorWords(error, t);

@@ -69,7 +69,7 @@ class _BookingsSectionState extends ConsumerState<BookingsSection> {
     final c = context.madarColors;
     final q = ref.watch(customerBookingsProvider(_key));
     if (q.value != null) _previous = q.value;
-    final failed = q.hasError && !q.hasValue;
+    final failed = q.failedFirst;
     final rows = q.value ?? _previous;
     final branches = ref.watch(branchesProvider).value;
     String branchName(String id) {
@@ -168,6 +168,12 @@ class _BookingsSectionState extends ConsumerState<BookingsSection> {
               size: DashButtonSize.compact,
               loading: q.isLoading,
               onPressed: () => setState(() => _limit += customerBookingsPage),
+              onIntent: () => ref.warm(
+                customerBookingsProvider((
+                  id: widget.customerId,
+                  limit: _limit + customerBookingsPage,
+                )),
+              ),
             ),
         ],
       );

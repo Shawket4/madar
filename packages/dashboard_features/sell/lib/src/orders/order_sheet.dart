@@ -24,6 +24,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../customers/customer_sheet.dart';
 import '../shared/customer_link.dart';
 import '../shared/phone.dart';
+import '../shared/sheets.dart' show customerSheetOpener;
 import 'order_lines.dart';
 import 'orders_providers.dart';
 
@@ -402,6 +403,8 @@ class _OrderBody extends ConsumerWidget {
     final c = context.madarColors;
     final o = order;
     final voided = o.status == 'voided';
+    // What [openMember]'s sheet reads first, for this viewer's access.
+    void warmMember(String id) => customerSheetOpener.warm(ref, id);
     final rewards = orderRewards(o);
     final legs = o.paymentLegs;
     final delivery = o.delivery;
@@ -432,7 +435,11 @@ class _OrderBody extends ConsumerWidget {
             key: const ValueKey('order-sheet-member'),
             name: rewards.memberName!,
             customerId: rewards.memberId,
-            control: CustomerLinkControl(canOpen: true, open: openMember),
+            control: CustomerLinkControl(
+              canOpen: true,
+              open: openMember,
+              warm: warmMember,
+            ),
             style: DashType.bodyMedium,
           ),
         )
@@ -457,6 +464,7 @@ class _OrderBody extends ConsumerWidget {
             control: CustomerLinkControl(
               canOpen: canViewCustomers,
               open: openMember,
+              warm: warmMember,
             ),
             style: DashType.bodyMedium,
           ),

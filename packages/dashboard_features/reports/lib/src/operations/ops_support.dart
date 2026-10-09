@@ -7,7 +7,6 @@ import 'package:dashboard_api/dashboard_api.dart' show ApiException;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ── formatting ────────────────────────────────────────────────────────────
 
@@ -78,9 +77,4 @@ String opsErrorText(Object? e, Translator t) {
     }
   }
   return errorMessage(e, t);
-}
-
-/// React Query's `isLoading`: the first load, with nothing to show yet.
-extension OpsAsync<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
 }

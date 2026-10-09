@@ -209,7 +209,9 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     final q = watchIfOrders(ref, enabled, () => ordersListProvider(key));
     if (q.value != null) _shown = q.value;
     final data = q.value ?? (q.isLoading ? _shown : null);
-    final loading = q.isLoading && data == null && !q.hasError;
+    final loading = data == null && q.awaitingFirst;
+    // The web's table shows the error once React Query's retries are spent.
+    final failed = q.hasError && !q.retrying;
     final summary = data?.summary;
 
     final delivery = watchIfOrders(
@@ -283,7 +285,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
               ),
               OrdersDeliveryChannels(
                 data: deliveryData,
-                loading: delivery.firstLoad,
+                loading: delivery.awaitingFirst,
               ),
             ],
           )
@@ -295,7 +297,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       rows: data?.data ?? const [],
       rowKey: (o) => o.id,
       loading: loading,
-      errorMessage: q.hasError ? errorMessage(q.error, t) : null,
+      errorMessage: failed ? errorMessage(q.error, t) : null,
       onRetry: () => ref.invalidate(ordersListProvider(key)),
       empty: DashEmptyState(
         icon: 'receipt',
@@ -308,6 +310,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       rowActions: (context, o) => _RowActions(
         order: o,
         onDetails: () => _setOrder(o.id),
+        onDetailsIntent: () => _warmSheet(o),
         onVoid: () => _openVoid(
           o.id,
           orderPlainRef(orderRef: o.orderRef, orderNumber: o.orderNumber),
@@ -315,7 +318,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       ),
       pageSize: ordersPerPage,
       pageIndex: page,
-      pageCount: q.hasError ? 0 : (data?.totalPages ?? 0),
+      pageCount: failed ? 0 : (data?.totalPages ?? 0),
       onPageChanged: (n) => setState(() {
         _page = n;
       }),
@@ -329,6 +332,19 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
 
     DashOption<String> opt(String v, String label) =>
         DashOption(value: v, label: label);
+    // An option about to be picked warms the first page it will show.
+    void warmPick(void Function() pick) {
+      if (!enabled) return;
+      final (status, payment, type, channel) = (_status, _payment, _type, _channel);
+      pick();
+      final k = keyAt(1);
+      _status = status;
+      _payment = payment;
+      _type = type;
+      _channel = channel;
+      ref.warm(ordersListProvider(k));
+    }
+
     final filters = Wrap(
       spacing: Space.sm,
       runSpacing: Space.sm,
@@ -364,6 +380,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
             for (final s in orderStatuses) opt(s, t('orderStatus.$s')),
           ],
           onChanged: (v) => setState(() => _status = v),
+          onOptionIntent: (v) => warmPick(() => _status = v),
         ),
         DashFilterSelect<String>(
           key: const ValueKey('orders-payment'),
@@ -375,6 +392,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
             for (final m in orderPaymentMethods) opt(m, t('payments.$m')),
           ],
           onChanged: (v) => setState(() => _payment = v),
+          onOptionIntent: (v) => warmPick(() => _payment = v),
         ),
         DashFilterSelect<String>(
           key: const ValueKey('orders-type'),
@@ -387,6 +405,10 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
             opt('delivery', t('orders.delivery')),
           ],
           onChanged: (v) => setState(() {
+            _type = v;
+            if (v != 'delivery') _channel = null;
+          }),
+          onOptionIntent: (v) => warmPick(() {
             _type = v;
             if (v != 'delivery') _channel = null;
           }),
@@ -403,6 +425,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
               opt('outside', t('orders.deliveryOutside')),
             ],
             onChanged: (v) => setState(() => _channel = v),
+            onOptionIntent: (v) => warmPick(() => _channel = v),
           ),
       ],
     );
@@ -411,21 +434,27 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       title: t('nav.orders'),
       subtitle: t('orders.subtitle'),
       actions: [
-        DashExportButton(
-          key: const ValueKey('orders-export'),
-          enabled: enabled,
-          onExport: () => showOrdersExport(
-            context,
-            listKey: key,
-            filters: OrdersExportFilters(
-              branchId: scope.branchId,
-              from: scope.from,
-              to: scope.to,
-              status: _status,
-              payment: _payment,
-              teller: key.teller,
-              waiter: key.waiter,
-              till: widget.tillId,
+        // The export sheet's branch read (its name in the file).
+        DashIntent(
+          onIntent: scope.branchId == null || !enabled
+              ? null
+              : () => ref.warm(ordersExportBranchProvider(scope.branchId!)),
+          child: DashExportButton(
+            key: const ValueKey('orders-export'),
+            enabled: enabled,
+            onExport: () => showOrdersExport(
+              context,
+              listKey: key,
+              filters: OrdersExportFilters(
+                branchId: scope.branchId,
+                from: scope.from,
+                to: scope.to,
+                status: _status,
+                payment: _payment,
+                teller: key.teller,
+                waiter: key.waiter,
+                till: widget.tillId,
+              ),
             ),
           ),
         ),
@@ -617,11 +646,13 @@ class _RowActions extends ConsumerWidget {
   const _RowActions({
     required this.order,
     required this.onDetails,
+    required this.onDetailsIntent,
     required this.onVoid,
   });
 
   final Order order;
   final VoidCallback onDetails;
+  final VoidCallback onDetailsIntent;
   final VoidCallback onVoid;
 
   @override
@@ -629,7 +660,12 @@ class _RowActions extends ConsumerWidget {
     final t = ref.watch(tProvider);
     return DashMenu(
       items: [
-        DashMenuItem(label: t('common.details'), icon: 'eye', onSelected: onDetails),
+        DashMenuItem(
+          label: t('common.details'),
+          icon: 'eye',
+          onSelected: onDetails,
+          onIntent: onDetailsIntent,
+        ),
         if (order.status == 'completed')
           DashMenuItem(
             label: t('orders.void'),

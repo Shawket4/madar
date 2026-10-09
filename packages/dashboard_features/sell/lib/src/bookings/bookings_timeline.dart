@@ -50,15 +50,19 @@ class BookingsTimeline extends ConsumerWidget {
     final c = context.madarColors;
     // Divergence SELL-BKG-076: a loading or failed read is never drawn as
     // "no tables" or as an empty day.
-    if (tablesQ.firstLoad || listQ.firstLoad) {
+    if (tablesQ.awaitingFirst || listQ.awaitingFirst) {
       return const DashSkeleton(height: BookingMetrics.timelineRow * 4);
     }
-    final failed = tablesQ.hasError ? tablesQ : (listQ.hasError ? listQ : null);
+    // A failed refresh keeps the blocks drawn, as the web keeps its data.
+    final failed = tablesQ.failedFirst
+        ? tablesQ
+        : (listQ.failedFirst ? listQ : null);
     if (failed != null) {
       return DashErrorState(
         message: bookingErrorText(failed.error, t),
         retryLabel: t('common.retry'),
-        onRetry: tablesQ.hasError ? onRetryTables : onRetryList,
+        retrying: failed.isLoading,
+        onRetry: identical(failed, tablesQ) ? onRetryTables : onRetryList,
       );
     }
     final tables = activeTablesByLabel(tablesQ.value);

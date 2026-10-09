@@ -358,23 +358,34 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
 
   // ── Saving ──────────────────────────────────────────────────────────────
 
-  Future<void> _openReview(BranchPlanView view, BuilderPlan saved) async {
-    final openItems = {for (final c in view.openItems) c.sectionId: c.count};
+  Future<void> _openReview(BranchPlanView view) async {
+    final branch = _branch;
     await showDashDialog<void>(
       context,
       builder: (ctx) {
         _review = ctx;
-        return ListenableBuilder(
-          listenable: _draft,
-          builder: (context, _) => ReviewDialog(
-            before: saved,
-            after: _plan,
-            firstSave: !view.saved,
-            routingNow: view.routingMode,
-            openItems: openItems,
-            saving: _saving,
-            onConfirm: _save,
-          ),
+        // The web's dialog reads the live query: a refresh landing while it
+        // is open moves "before", the routing words and the open items too.
+        return Consumer(
+          builder: (context, ref, _) {
+            final live = ref.watch(branchPlanProvider(branch)).value ?? view;
+            final saved = _savedOf(live);
+            final openItems = {
+              for (final c in live.openItems) c.sectionId: c.count,
+            };
+            return ListenableBuilder(
+              listenable: _draft,
+              builder: (context, _) => ReviewDialog(
+                before: saved,
+                after: _plan,
+                firstSave: !live.saved,
+                routingNow: live.routingMode,
+                openItems: openItems,
+                saving: _saving,
+                onConfirm: _save,
+              ),
+            );
+          },
         );
       },
     );
@@ -481,7 +492,7 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
     if (mod && k == LogicalKeyboardKey.keyS) {
       final blocking = checkPlan(_plan).where((p) => p.blocking).length;
       if (!repeat && view != null && _draft.dirty && blocking == 0) {
-        unawaited(_openReview(view, _savedOf(view)));
+        unawaited(_openReview(view));
       }
       return KeyEventResult.handled;
     }
@@ -986,7 +997,7 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
       label: t('builder.saveEllipsis'),
       onPressed: blocking > 0 || _saving.value || view == null
           ? null
-          : () => _openReview(view, saved!),
+          : () => _openReview(view),
     );
     return Wrap(
       spacing: Space.xs,

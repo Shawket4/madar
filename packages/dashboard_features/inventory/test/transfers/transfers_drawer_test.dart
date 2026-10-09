@@ -4,7 +4,6 @@
 // a test says otherwise.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,7 +50,10 @@ void main() {
       findsOneWidget,
     );
     final route = inDrawer(byKey('transfer-drawer-route'));
-    expect(find.descendant(of: route, matching: find.text('Maadi')), findsOneWidget);
+    expect(
+      find.descendant(of: route, matching: find.text('Maadi')),
+      findsOneWidget,
+    );
     expect(
       find.descendant(of: route, matching: find.text('Zamalek')),
       findsOneWidget,
@@ -77,7 +79,10 @@ void main() {
     await h.tap(find.byTooltip('Close').last);
     await openRow(h, 'TR-7');
     final lines = inDrawer(byKey('transfer-lines'));
-    expect(find.descendant(of: lines, matching: find.text('Sent')), findsOneWidget);
+    expect(
+      find.descendant(of: lines, matching: find.text('Sent')),
+      findsOneWidget,
+    );
     expect(
       find.descendant(of: lines, matching: find.text('Received')),
       findsOneWidget,
@@ -95,9 +100,12 @@ void main() {
       'cost; over: "More arrived than was sent"', (tester) async {
     final s = transfersServer();
     final t = receiveShort(s.db);
-    final cost = ((t['lines']! as List).cast<MockRow>().firstWhere(
-      (l) => l['ingredient_name'] == 'Croissant Dough',
-    )['unit_cost']! as num).toDouble();
+    final cost =
+        ((t['lines']! as List).cast<MockRow>().firstWhere(
+                  (l) => l['ingredient_name'] == 'Croissant Dough',
+                )['unit_cost']!
+                as num)
+            .toDouble();
     final h = await pumpTransfers(tester, server: s.server, db: s.db);
     final f = h.container.read(formatProvider);
     await openRow(h, 'TR-7');
@@ -158,14 +166,18 @@ void main() {
     expect(inDrawer(byKey('transfer-stamp-created')), findsNothing);
     await h.tap(find.byTooltip('Close').last);
     await openRow(h, 'TR-5');
-    final at = 'Tarek Saber · ${f.fmtDateTime(DateTime.utc(2026, 10, 6, 8, 30))}';
+    final at =
+        'Tarek Saber · ${f.fmtDateTime(DateTime.utc(2026, 10, 6, 8, 30))}';
     for (final (key, label) in [
       ('created', 'Created'),
       ('sent', 'Sent'),
       ('received', 'Received'),
     ]) {
       final row = inDrawer(byKey('transfer-stamp-$key'));
-      expect(find.descendant(of: row, matching: find.text(label)), findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text(label)),
+        findsOneWidget,
+      );
       expect(find.descendant(of: row, matching: find.text(at)), findsOneWidget);
     }
     expect(inDrawer(byKey('transfer-stamp-cancelled')), findsNothing);
@@ -268,8 +280,10 @@ void main() {
     );
     final lists = h.server.callsTo(listRoute).length;
     await h.tap(find.text('Send now').last);
-    expect(h.server.callsTo(stepRoute('dispatch')).single.path,
-        '/inventory/transfers/${doc(s.db, 't7')['id']}/dispatch');
+    expect(
+      h.server.callsTo(stepRoute('dispatch')).single.path,
+      '/inventory/transfers/${doc(s.db, 't7')['id']}/dispatch',
+    );
     await h.expectToast('Transfer sent');
     expect(h.server.callsTo(listRoute).length, greaterThan(lists));
     expect(
@@ -359,9 +373,11 @@ void main() {
     final s = transfersServer();
     final t = dispatchDraft(s.db);
     final lines = (t['lines']! as List).cast<MockRow>();
-    final cro = lines.firstWhere(
-      (l) => l['ingredient_name'] == 'Croissant Dough',
-    )['id']! as String;
+    final cro =
+        lines.firstWhere(
+              (l) => l['ingredient_name'] == 'Croissant Dough',
+            )['id']!
+            as String;
     final h = await pumpTransfers(tester, server: s.server, db: s.db);
     await openRow(h, 'TR-7');
     await h.tap(inDrawer(byKey('transfer-step-receive')));
@@ -376,7 +392,13 @@ void main() {
     );
     expect(inReceive(find.text('Sent 10 pcs')), findsOneWidget);
     expect(inReceive(find.text('Sent 300 ml')), findsOneWidget);
-    expect(find.descendant(of: inReceive(byKey('receive-qty-$cro')), matching: find.text('10')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: inReceive(byKey('receive-qty-$cro')),
+        matching: find.text('10'),
+      ),
+      findsOneWidget,
+    );
     DashButton submit() => tester.widget(inReceive(byKey('receive-submit')));
     expect(submit().onPressed, isNotNull);
     await h.enterText(inReceive(byKey('receive-qty-$cro')), '7.5');
@@ -384,13 +406,19 @@ void main() {
     expect(inReceive(find.text('What happened? (optional)')), findsOneWidget);
     expect(submit().onPressed, isNotNull);
     await h.enterText(inReceive(byKey('receive-qty-$cro')), '10.001');
-    expect(inReceive(find.text('Why did more arrive? (required)')), findsOneWidget);
+    expect(
+      inReceive(find.text('Why did more arrive? (required)')),
+      findsOneWidget,
+    );
     expect(submit().onPressed, isNull);
     await h.enterText(inReceive(byKey('receive-note-$cro')), 'Baker added one');
     expect(submit().onPressed, isNotNull);
     await h.enterText(inReceive(byKey('receive-qty-$cro')), '10.0004');
-    expect(inReceive(byKey('receive-note-$cro')), findsNothing,
-        reason: 'the same in thousandths');
+    expect(
+      inReceive(byKey('receive-note-$cro')),
+      findsNothing,
+      reason: 'the same in thousandths',
+    );
     // Not a number: Receive is off.
     await h.enterText(inReceive(byKey('receive-qty-$cro')), '');
     expect(submit().onPressed, isNull);
@@ -405,9 +433,11 @@ void main() {
   ) async {
     final s = transfersServer();
     final t = dispatchDraft(s.db);
-    final cro = (t['lines']! as List).cast<MockRow>().firstWhere(
-      (l) => l['ingredient_name'] == 'Croissant Dough',
-    )['id']! as String;
+    final cro =
+        (t['lines']! as List).cast<MockRow>().firstWhere(
+              (l) => l['ingredient_name'] == 'Croissant Dough',
+            )['id']!
+            as String;
     final h = await pumpTransfers(tester, server: s.server, db: s.db);
     await openRow(h, 'TR-7');
     await h.tap(inDrawer(byKey('transfer-step-receive')));
@@ -431,10 +461,7 @@ void main() {
       'qty_received': 9,
       'note': 'One fell',
     });
-    expect(
-      sent.firstWhere((l) => l['line_id'] != cro)['note'],
-      isNull,
-    );
+    expect(sent.firstWhere((l) => l['line_id'] != cro)['note'], isNull);
     await h.expectToast('Transfer received');
     expect(receiveDialog, findsNothing);
     expect(
@@ -455,7 +482,8 @@ void main() {
     expect(inClose(find.text('Decline TR-6?')), findsOneWidget);
     expect(inClose(find.text('Zamalek sees your reason.')), findsOneWidget);
     expect(inClose(find.text('Reason')), findsOneWidget);
-    DashButton submit() => tester.widget(inClose(byKey('transfer-close-submit')));
+    DashButton submit() =>
+        tester.widget(inClose(byKey('transfer-close-submit')));
     expect(submit().onPressed, isNull);
     expect(submit().variant, DashButtonVariant.destructive);
     await h.enterText(inClose(byKey('transfer-close-reason')), '  ');

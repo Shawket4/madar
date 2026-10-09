@@ -41,7 +41,7 @@ class HomeDeliverySection extends ConsumerWidget {
           title: t('delivery.kpisTitle'),
           description: t('delivery.byChannel'),
         ),
-        if (q.hasError)
+        if (q.hasError && !q.retrying)
           DashErrorState(
             title: t('dashboard.deliveryFailed'),
             retryLabel: t('common.retry'),
@@ -49,7 +49,7 @@ class HomeDeliverySection extends ConsumerWidget {
                 ref.invalidate(homeDeliveryProvider(scope.scopeRange)),
           )
         else
-          HomeDeliveryKpis(data: q.value, loading: q.firstLoad),
+          HomeDeliveryKpis(data: q.value, loading: q.awaitingFirst),
       ],
     );
   }

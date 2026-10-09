@@ -295,7 +295,7 @@ class _MergeOptionsState extends ConsumerState<MergeOptions> {
       items = Padding(
         padding: const EdgeInsets.all(Space.lg),
         child: Text(
-          list.isLoading ? t('common.loading') : t('common.noResults'),
+          list.awaitingFirst ? t('common.loading') : t('common.noResults'),
           textAlign: TextAlign.center,
           style: DashType.body.copyWith(color: c.textSecondary),
         ),

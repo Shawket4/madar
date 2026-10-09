@@ -315,7 +315,9 @@ class _BranchesTable extends ConsumerWidget {
       rowSemanticLabel: (b) => b.name,
       searchPlaceholder: t('common.search'),
       empty: DashEmptyState(icon: 'git-branch', title: t('branches.empty')),
-      rowActionsWidth: DashMetrics.target * 2 + Space.lg,
+      // Two targets and a hair of air: the tablet table fits without
+      // scrolling sideways (the kit does not pin row actions).
+      rowActionsWidth: DashMetrics.target * 2 + Space.xs,
       rowActions: (context, b) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -370,7 +372,7 @@ class _BranchesTable extends ConsumerWidget {
           id: 'printer',
           label: t('branches.printer'),
           flex: 2,
-          minWidth: 170,
+          minWidth: 180,
           searchable: first?.printerBrand != null,
           text: (b) => b.printerBrand?.toJson() ?? '',
           cell: (context, b) {
@@ -464,19 +466,18 @@ class _NameCell extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
+              // The pill drops under the name when both don't fit, so a
+              // narrow column never hides the name behind it.
+              Wrap(
                 spacing: Space.sm,
+                runSpacing: Space.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Flexible(
-                    child: MadarClippedText(
-                      branch.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: DashType.bodyStrong.copyWith(
-                        color: c.textPrimary,
-                      ),
-                    ),
+                  MadarClippedText(
+                    branch.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DashType.bodyStrong.copyWith(color: c.textPrimary),
                   ),
                   if (warehouse)
                     DashStatusPill(

@@ -12,6 +12,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/sheets.dart' show warmOrderSheet;
 import 'adjust_dialog.dart';
 import 'customers_data.dart';
 import 'google_object_dialog.dart';
@@ -284,6 +285,7 @@ class LedgerList extends ConsumerWidget {
             icon: 'receipt',
             small: true,
             onTap: () => onOpenOrder(id),
+            onIntent: () => warmOrderSheet(ref, id),
           ),
       ],
     );

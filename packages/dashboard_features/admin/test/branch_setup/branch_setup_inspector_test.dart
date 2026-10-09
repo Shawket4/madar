@@ -6,6 +6,7 @@ import 'package:dashboard_admin/src/branch_setup/plan.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -547,6 +548,26 @@ void main() {
     expect(ins(h.t('builder.itemOverrides', count: 1)), findsOneWidget);
     await reach(h, byKey('bb-item-routing'));
     expect(h.location.path, '/settings/kitchen-routing');
+  });
+
+  testWidgets('ADM-BSU-070 the "Item routing" link warms its page while the '
+      'mouse rests; the press reads nothing more', (tester) async {
+    routingReads = 0;
+    final h = await pumpBuilder(tester, branchId: SeedIds.zamalek);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await h.tap(cardTitled('Kitchen'));
+    final link = byKey('bb-item-routing');
+    await tester.ensureVisible(link);
+    await h.settle();
+    expect(routingReads, 0);
+    await mouse.moveTo(tester.getCenter(link));
+    await h.settle();
+    expect(routingReads, 1, reason: 'resting on the link warms the page');
+    await h.tap(link);
+    expect(h.location.path, '/settings/kitchen-routing');
+    expect(routingReads, 1, reason: 'the page opened from the cache');
   });
 
   testWidgets('ADM-BSU-071 Remove from the plan ends every piece panel '

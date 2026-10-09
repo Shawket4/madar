@@ -174,9 +174,11 @@ class _DiscountsPageState extends ConsumerState<DiscountsPage> {
       destructive: true,
     );
     if (!ok || !mounted) return;
+    // Captured first: the list refreshes even if the page closes mid-delete.
+    final bus = ref.read(realtimeBusProvider);
     try {
       await ref.read(apiProvider).discounts.deleteDiscount(id: d.id);
-      invalidateDiscounts(ref);
+      bus.invalidate(const [OffersPaths.discounts]);
       _toast(DashToastKind.success, t('discounts.deletedToast'));
     } on Object catch (e) {
       _toast(DashToastKind.error, discountErrorText(e, t));
@@ -329,11 +331,12 @@ class _DiscountsPageState extends ConsumerState<DiscountsPage> {
     }
 
     final q = ref.watch(discountsProvider(orgId));
+    void warmList() => ref.warm(discountsProvider(orgId));
     final discounts = q.value ?? const <Discount>[];
-    final firstLoad = q.isLoading && !q.hasValue && !q.hasError;
-    final loading = q.isLoading && !q.hasValue;
-    // A failed refetch replaces the rows it had (OFFR-ALL-012).
-    final error = q.hasError && !q.isLoading ? q.error : null;
+    // The skeleton through the automatic retries; a failed refetch replaces
+    // the rows it had (OFFR-ALL-012), staying while Retry runs.
+    final loading = q.awaitingFirst;
+    final error = q.hasError && !q.retrying ? q.error : null;
 
     // Any change of the rows puts the table back on page 1.
     final seen = jsonEncode([for (final d in discounts) d.toJson()]);
@@ -357,7 +360,7 @@ class _DiscountsPageState extends ConsumerState<DiscountsPage> {
 
     final phone = DashBreakpoints.isPhone(context);
     final stats = _StatGrid(
-      loading: firstLoad,
+      loading: loading,
       cards: [
         (t('common.total'), discounts.length),
         (t('common.active'), discounts.where((d) => d.isActive).length),
@@ -398,7 +401,10 @@ class _DiscountsPageState extends ConsumerState<DiscountsPage> {
       loading: loading,
       errorMessage: error == null ? null : discountErrorText(error, t),
       onRetry: () => ref.invalidate(discountsProvider(orgId)),
+      retrying: q.isLoading,
       onRowTap: (d) => _setEdit(d.id),
+      // The dialog listens to the list: warm it so a stale one refetches now.
+      onRowIntent: (_) => warmList(),
       rowSemanticLabel: _name,
       toolbar: search,
       rowActions: (context, d) => Row(
@@ -408,6 +414,7 @@ class _DiscountsPageState extends ConsumerState<DiscountsPage> {
             icon: 'pencil',
             semanticLabel: t('common.edit'),
             onPressed: () => _setEdit(d.id),
+            onIntent: warmList,
           ),
           DashIconButton(
             icon: 'trash-2',
@@ -434,10 +441,14 @@ class _DiscountsPageState extends ConsumerState<DiscountsPage> {
       title: t('discounts.title'),
       subtitle: t('discounts.subtitle'),
       actions: [
-        DashExportButton(
-          onExport: () => _export(discounts),
-          loading: _exporting,
-          enabled: discounts.isNotEmpty,
+        DashIntent(
+          // The export reads the brand for its header logo.
+          onIntent: () => ref.warm(publicBrandProvider),
+          child: DashExportButton(
+            onExport: () => _export(discounts),
+            loading: _exporting,
+            enabled: discounts.isNotEmpty,
+          ),
         ),
         DashButton(
           label: t('discounts.new'),

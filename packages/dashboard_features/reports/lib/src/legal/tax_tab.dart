@@ -136,14 +136,14 @@ class _LegalTaxTabState extends ConsumerState<LegalTaxTab> {
     final AsyncValue<TaxReport?> q = widget.enabled && query != null
         ? ref.watch(legalTaxProvider(query))
         : const AsyncData<TaxReport?>(null);
-    if (q.hasError) {
+    if (q.hasError && !q.retrying) {
       // The error stays (its Retry spinning) while a retry runs.
       return DashErrorState(
         retrying: q.isLoading,
         onRetry: () => ref.invalidate(legalTaxProvider(query!)),
       );
     }
-    if (query == null || q.firstLoad) {
+    if (query == null || q.awaitingFirst) {
       return const DashSkeleton(
         width: double.infinity,
         height: 112,
@@ -182,7 +182,7 @@ class _LegalTaxTabState extends ConsumerState<LegalTaxTab> {
             ),
           ],
         ),
-        DashLedgerStrip(items: _kpis(t, d, q.firstLoad)),
+        DashLedgerStrip(items: _kpis(t, d, q.awaitingFirst)),
       ],
     );
   }

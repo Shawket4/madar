@@ -173,12 +173,7 @@ void main() {
       );
       await h.shot('transfers/warehouse');
       await h.tap(inPage(byKey('transfers-replenish')));
-      await pick(
-        h,
-        'replenish-branch',
-        'Zamalek',
-        scope: replenishDialog,
-      );
+      await pick(h, 'replenish-branch', 'Zamalek', scope: replenishDialog);
       await h.shot('transfers/replenish');
       await h.tap(inReplenish(byKey('replenish-review')));
       await h.shot('transfers/replenish-review');
@@ -215,9 +210,11 @@ void main() {
     testWidgets('steps, $tag', (tester) async {
       final s = transfersServer();
       final t = dispatchDraft(s.db);
-      final cro = (t['lines']! as List).cast<MockRow>().firstWhere(
-        (l) => l['ingredient_name'] == 'Croissant Dough',
-      )['id']! as String;
+      final cro =
+          (t['lines']! as List).cast<MockRow>().firstWhere(
+                (l) => l['ingredient_name'] == 'Croissant Dough',
+              )['id']!
+              as String;
       final h = await pumpTransfers(
         tester,
         size: size,

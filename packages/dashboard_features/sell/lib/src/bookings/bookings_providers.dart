@@ -73,11 +73,6 @@ List<FloorTable> activeTablesByLabel(List<FloorTable>? all) => [
     if (t.isActive) t,
 ]..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
 
-/// React Query's `isLoading`: loading with nothing to show yet.
-extension BookingQueryState<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}
-
 /// A read the web keeps `enabled: false` is not watched at all: nothing,
 /// not loading, no request.
 AsyncValue<T?> watchIf<T>(

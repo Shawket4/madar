@@ -155,11 +155,13 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
   /// floor refetch; a failure toasts the server's words.
   Future<void> _act(String done, Future<Object?> Function() call) async {
     final t = ref.read(tProvider);
+    // Captured now: the refresh runs even if the page closes mid-request.
+    final bus = ref.read(realtimeBusProvider);
     try {
       await call();
+      bus.invalidate(SellInvalidate.bookings);
       if (!mounted) return;
       DashToast.success(context, done);
-      sellInvalidateFromWidget(ref, SellInvalidate.bookings);
     } on Object catch (e) {
       if (mounted) DashToast.error(context, bookingErrorText(e, t));
     }
@@ -296,7 +298,7 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
     ];
     final today = serviceToday(ref.read(clockProvider)(), fmt.timezone);
     final width = MediaQuery.sizeOf(context).width;
-    final loading = listQ.firstLoad;
+    final loading = listQ.awaitingFirst;
     final settings = settingsQ.value;
 
     final stats = [
@@ -570,7 +572,8 @@ class _BookingsList extends ConsumerWidget {
     final c = context.madarColors;
     final link = customerSheetControl(context, ref);
     final rows = filterBookings(all, filter);
-    final error = listQ.firstLoad || !listQ.hasError ? null : listQ.error;
+    // The web's `error={listQ.error}`: set once the retries are spent.
+    final error = listQ.hasError && !listQ.retrying ? listQ.error : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
@@ -591,7 +594,7 @@ class _BookingsList extends ConsumerWidget {
           key: const ValueKey('bookings-table'),
           rows: rows,
           rowKey: (b) => b.id,
-          loading: listQ.firstLoad,
+          loading: listQ.awaitingFirst,
           errorMessage: error == null ? null : bookingErrorText(error, t),
           onRetry: onRetry,
           onRowTap: (b) {

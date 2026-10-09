@@ -10,6 +10,9 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'tills_data.dart';
 
 /// Open is success with a dot, closed neutral, force closed warning.
 class TillStatusBadge extends StatelessWidget {
@@ -63,15 +66,16 @@ class VerificationBadge extends StatelessWidget {
 
 /// "Opened while another till was open", and — when the other till is known
 /// and [onOpenOther] is given — an underlined "See the other till" that
-/// opens that till's report without opening the row under it.
-class FlagBadge extends StatelessWidget {
+/// opens that till's report without opening the row under it (pointing at
+/// it warms that report).
+class FlagBadge extends ConsumerWidget {
   const FlagBadge({required this.till, this.onOpenOther, super.key});
 
   final Till till;
   final ValueChanged<String>? onOpenOther;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (!till.openedWhileAnotherOpen) return const SizedBox.shrink();
     final other = till.otherTillId;
     final open = onOpenOther;
@@ -90,6 +94,7 @@ class FlagBadge extends StatelessWidget {
           _FlagLink(
             label: context.t('tills.flaggedLink'),
             onTap: () => open(other),
+            onIntent: () => warmTillReport(ref, other),
           ),
       ],
     );
@@ -97,16 +102,22 @@ class FlagBadge extends StatelessWidget {
 }
 
 class _FlagLink extends StatelessWidget {
-  const _FlagLink({required this.label, required this.onTap});
+  const _FlagLink({
+    required this.label,
+    required this.onTap,
+    required this.onIntent,
+  });
 
   final String label;
   final VoidCallback onTap;
+  final VoidCallback onIntent;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: onTap,
+      onIntent: onIntent,
       semanticLabel: label,
       excludeChildSemantics: true,
       pressScale: false,

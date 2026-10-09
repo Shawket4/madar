@@ -294,10 +294,12 @@ class ExcludedItems extends Notifier<List<String>> {
     }
   }
 
-  void toggle(String id) => set(
-    state.contains(id) ? [...state.where((x) => x != id)] : [...state, id],
-  );
+  void toggle(String id) => set(toggledIds(state, id));
 }
+
+/// [ids] with [id] taken out, or added at the end.
+List<String> toggledIds(List<String> ids, String id) =>
+    ids.contains(id) ? [...ids.where((x) => x != id)] : [...ids, id];
 
 final excludedItemsProvider = NotifierProvider.autoDispose
     .family<ExcludedItems, List<String>, String?>(ExcludedItems.new);

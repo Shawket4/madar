@@ -6,6 +6,7 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -311,6 +312,20 @@ void main() {
         tester.getTopLeft(rulesKey('bkg-min_party')).dy,
         tester.getTopLeft(rulesKey('bkg-max_party')).dy,
       );
+      // A pasted run of digits stops at six (no overflow on parse).
+      await h.enterText(rulesKey('bkg-max_party'), '1' * 24);
+      expect(
+        tester
+            .widget<EditableText>(
+              find.descendant(
+                of: rulesKey('bkg-max_party'),
+                matching: find.byType(EditableText),
+              ),
+            )
+            .controller
+            .text,
+        '111111',
+      );
       await h.enterText(rulesKey('bkg-lead_time_minutes'), '');
       await h.enterText(rulesKey('bkg-max_party'), '10');
       await h.enterText(rulesKey('bkg-auto_no_show_minutes'), '');
@@ -500,7 +515,16 @@ void main() {
         'viewport tall, its body scrolls', (tester) async {
       final h = await pumpBookingRules(tester);
       await openRules(h, 'Heliopolis');
-      final dialog = tester.getSize(find.byType(BookingRulesDialog));
+      // The surface (its hairline border included, like the web's
+      // border-box `sm:max-w-2xl`) is the nearest Container above the body.
+      final dialog = tester.getSize(
+        find
+            .ancestor(
+              of: find.byType(BookingRulesDialog),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
       final view = tester.view.physicalSize / tester.view.devicePixelRatio;
       expect(dialog.width, 672);
       expect(dialog.height, lessThanOrEqualTo(view.height * 0.9));
@@ -555,18 +579,20 @@ void main() {
       );
     });
 
-    testWidgets('SET-BKG-019 (refusal) no bookings.edit: no Bookings row in '
-        'the settings rail', (tester) async {
-      Finder railText(String t) => find.descendant(
-        of: byKey('settings-rail'),
-        matching: find.text(t),
-      );
-      await pumpBookingRules(tester);
-      expect(railText('Bookings'), findsOneWidget);
-      await pumpBookingRules(tester, persona: Persona.limited);
-      expect(byKey('settings-rail'), findsOneWidget);
-      expect(railText('Bookings'), findsNothing);
-    });
+    for (final (p, rows) in [(Persona.owner, 1), (Persona.limited, 0)]) {
+      testWidgets('SET-BKG-019 (refusal) ${p.name}: the settings rail lists '
+          'Bookings only with bookings.edit', (tester) async {
+        await pumpBookingRules(tester, persona: p);
+        expect(byKey('settings-rail'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: byKey('settings-rail'),
+            matching: find.text('Bookings'),
+          ),
+          findsNWidgets(rows),
+        );
+      });
+    }
 
     testWidgets('SET-BKG-019 (refusal) a refused Save toasts and stays open', (
       tester,

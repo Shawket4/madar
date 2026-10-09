@@ -440,7 +440,7 @@ class TransfersTable extends ConsumerWidget {
             ),
           ),
           phone: DashPhoneRole.title,
-          width: Space.xxl * 3,
+          width: Space.xxl * 2 + Space.lg,
         ),
         DashColumn(
           id: 'date',
@@ -460,7 +460,7 @@ class TransfersTable extends ConsumerWidget {
             sourceWarehouse: tr.sourceKind == BranchKind.warehouse,
             destinationWarehouse: tr.destinationKind == BranchKind.warehouse,
           ),
-          minWidth: Space.xxl * 6,
+          minWidth: Space.xxl * 5,
         ),
         DashColumn(
           id: 'items',
@@ -470,7 +470,7 @@ class TransfersTable extends ConsumerWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          minWidth: Space.xxl * 6,
+          minWidth: Space.xxl * 4 + Space.xl,
         ),
         DashColumn(
           id: 'status',
@@ -482,7 +482,7 @@ class TransfersTable extends ConsumerWidget {
               tone: transferTone(tr.status.value),
             ),
           ),
-          width: Space.xxl * 4 + Space.lg,
+          width: Space.xxl * 4 + Space.sm,
         ),
       ],
     );

@@ -191,7 +191,12 @@ Finder triggerIn(Finder scope, String key) => find.descendant(
 );
 
 /// Picks [label] in the select [key] inside [scope] (the dialog by default).
-Future<void> pick(DashHarness h, String key, String label, {Finder? scope}) async {
+Future<void> pick(
+  DashHarness h,
+  String key,
+  String label, {
+  Finder? scope,
+}) async {
   await h.tap(triggerIn(scope ?? dialog, key));
   await h.tap(option(label).last);
 }

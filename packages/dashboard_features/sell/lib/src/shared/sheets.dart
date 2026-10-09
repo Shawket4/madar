@@ -108,13 +108,14 @@ void _warmCustomer(WidgetRef ref, String customerId, {String? branchId}) {
 /// drinks and a loyalty card's ledger.
 const OrderSheetOpener orderSheetOpener = OrderSheetOpener(
   open: _openOrder,
-  warm: _warmOrder,
+  warm: warmOrderSheet,
 );
 
 Future<void> _openOrder(BuildContext context, String orderId) async =>
     singleOrderSheet(context)(orderId);
 
-void _warmOrder(WidgetRef ref, String orderId) {
+/// The order sheet's first reads: what an order link warms on intent.
+void warmOrderSheet(WidgetRef ref, String orderId) {
   ref.warm(orderDetailProvider(orderId));
   final orgId = ref.read(orgIdProvider);
   if (orgId != null) ref.warm(orderCatalogProvider(orgId));

@@ -23,9 +23,9 @@ class HomeBranchPerformanceCard extends ConsumerWidget {
     final q = data.comparison;
     final ranked = data.rankedBranches;
     final Widget body;
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       body = const HomeSkeleton(height: HomeMetrics.block);
-    } else if (q.hasError) {
+    } else if (q.hasError && !q.retrying) {
       body = DashErrorState(
         framed: false,
         title: t('dashboard.branchesFailed'),

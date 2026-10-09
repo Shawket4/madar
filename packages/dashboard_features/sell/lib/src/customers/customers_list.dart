@@ -50,16 +50,32 @@ class _CustomersListState extends ConsumerState<CustomersList> {
   /// (`placeholderData: keepPreviousData`).
   List<Customer>? _previous;
 
-  int get _limit => (customersPageSize * _pages).clamp(1, customersLimitMax);
+  int get _limit => _key.limit;
 
   bool get _filtered => _q.isNotEmpty || _onlyMembers || _source != null;
 
-  CustomersQuery get _key => (
+  CustomersQuery get _key => _keyAt(_onlyMembers, _source, _pages);
+
+  /// The read a filter or a "Load more" makes (a new filter starts the
+  /// window over): what their intent warms.
+  CustomersQuery _keyAt(bool onlyMembers, String? source, int pages) => (
     q: _q,
-    member: _onlyMembers ? true : null,
-    source: _source,
-    limit: _limit,
+    member: onlyMembers ? true : null,
+    source: source,
+    limit: (customersPageSize * pages).clamp(1, customersLimitMax),
   );
+
+  void _warmList(CustomersQuery key) =>
+      ref.warm(customersListProvider(key));
+
+  /// A row's sheet: the customer, and a member's card. The page opens the
+  /// sheet org-wide (no branch).
+  void _warmSheet(PersonRow r) {
+    ref.warm(customerDetailProvider(r.id));
+    if (r.isMember && ref.read(peopleAccessProvider).canViewMember) {
+      ref.warm(loyaltyMemberProvider((id: r.id, branchId: null)));
+    }
+  }
 
   /// A new search or filter starts the window over.
   void _reset(VoidCallback change) => setState(() {
@@ -85,7 +101,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
     if (data != null) _previous = data;
     // Failed with nothing for this window: the error (and its Retry) stays
     // up while the retry runs; never the empty state, never old rows.
-    final failed = list.hasError && !list.hasValue;
+    final failed = list.failedFirst;
     final shownData = failed ? null : data ?? _previous;
     final rows = [
       for (final r in shownData ?? const <Customer>[])
@@ -213,11 +229,13 @@ class _CustomersListState extends ConsumerState<CustomersList> {
           ],
           value: _source,
           onChanged: (v) => _reset(() => _source = v),
+          onOptionIntent: (v) => _warmList(_keyAt(_onlyMembers, v, 1)),
         ),
         _MembersOnlySwitch(
           value: _onlyMembers,
           label: t('customers.membersOnly'),
           onChanged: (v) => _reset(() => _onlyMembers = v),
+          onIntent: () => _warmList(_keyAt(!_onlyMembers, _source, 1)),
         ),
       ],
       actions: [
@@ -235,6 +253,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
         errorMessage: error,
         onRetry: () => ref.invalidate(customersListProvider(_key)),
         onRowTap: (r) => widget.onOpen(r.id),
+        onRowIntent: _warmSheet,
         selectedRowKey: widget.openId,
         hideViewOptions: true,
         toolbar: toolbar,
@@ -243,6 +262,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
           hasMore: hasMore,
           loading: list.isLoading,
           onLoadMore: () => setState(() => _pages++),
+          onIntent: () => _warmList(_keyAt(_onlyMembers, _source, _pages + 1)),
         ),
         rowActions: access.canInspectWallet
             ? (context, r) => r.isMember
@@ -417,15 +437,18 @@ class _MembersOnlySwitch extends StatelessWidget {
     required this.value,
     required this.label,
     required this.onChanged,
+    required this.onIntent,
   });
 
   final bool value;
   final String label;
   final ValueChanged<bool> onChanged;
+  final VoidCallback onIntent;
 
   @override
   Widget build(BuildContext context) => DashPressable(
     onTap: () => onChanged(!value),
+    onIntent: onIntent,
     isButton: false,
     checked: value,
     semanticLabel: label,

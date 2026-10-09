@@ -20,12 +20,14 @@ import 'dart:typed_data';
 import 'package:dashboard_api/dashboard_api.dart'
     show ApiException, ApiFilePart, Combo, UploadImageMultipart;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../combos/combos_providers.dart' show warmCombosList;
 import '../shared/menu_options.dart';
 import '../shared/offers_cache.dart';
 import '../shared/offers_page_gate.dart';
@@ -89,9 +91,6 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
   /// Save was pressed: from now on every change re-checks the form.
   bool _submitted = false;
   bool _saving = false;
-
-  /// The last load's failure, kept on screen through a retry.
-  Object? _loadError;
 
   /// The price check's body, 450 ms behind the form.
   Map<String, Object?>? _econBody;
@@ -263,17 +262,14 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
     if (!_isNew) {
       final q = ref.watch(comboProvider(widget.comboId));
       loaded = q.value;
-      // A retry after a failure keeps the error on screen, its button
-      // spinning, until the answer lands.
-      if (q.hasError) {
-        _loadError = q.error;
-      } else if (q.hasValue) {
-        _loadError = null;
-      }
-      if (q.isLoading && !q.hasValue && _loadError == null) {
+      // The web's `isError || !data`: a failed refresh replaces the form
+      // too; the error stays, its Retry spinning, until the answer lands.
+      final failed = q.hasError && !q.retrying;
+      if (q.awaitingFirst) {
         return DashPageScaffold(
           title: '',
           onBack: _goBack,
+          onBackIntent: () => warmCombosList(ref),
           subtitleWidget: const DashSkeleton(
             width: _titleSkeletonWidth,
             height: Space.xl + Space.xs,
@@ -288,13 +284,14 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
           ),
         );
       }
-      if (_loadError != null || loaded == null) {
+      if (failed || loaded == null) {
         return DashPageScaffold(
           title: t('combos.title'),
           onBack: _goBack,
+          onBackIntent: () => warmCombosList(ref),
           body: DashErrorState(
             title: t('combos.loadError'),
-            message: _loadError == null ? null : errorMessage(_loadError, t),
+            message: failed ? errorMessage(q.error, t) : null,
             retryLabel: t('common.retry'),
             retrying: q.isLoading,
             onRetry: () => ref.invalidate(comboProvider(widget.comboId)),
@@ -553,12 +550,12 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
           _LinkRow(
             label: t('combos.branches.pricing'),
             hint: t('combos.branches.pricingHint'),
-            onTap: () => context.go('/menu/pricing'),
+            to: '/menu/pricing',
           ),
           _LinkRow(
             label: t('combos.branches.channels'),
             hint: t('combos.branches.channelsHint'),
-            onTap: () => context.go('/settings/combos'),
+            to: '/settings/combos',
           ),
         ],
       ),
@@ -621,6 +618,7 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
       title: title,
       subtitleWidget: pills,
       onBack: _goBack,
+      onBackIntent: () => warmCombosList(ref),
       fillBody: wide,
       actions: [
         if (!_isNew && canEdit)
@@ -773,22 +771,21 @@ class _Boxed extends StatelessWidget {
 }
 
 /// A row that leads to another page: its name, a quiet line, an arrow.
-class _LinkRow extends StatelessWidget {
-  const _LinkRow({
-    required this.label,
-    required this.hint,
-    required this.onTap,
-  });
+class _LinkRow extends ConsumerWidget {
+  const _LinkRow({required this.label, required this.hint, required this.to});
 
   final String label;
   final String hint;
-  final VoidCallback onTap;
+
+  /// The page it opens, warmed on intent.
+  final String to;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = context.madarColors;
     return DashPressable(
-      onTap: onTap,
+      onTap: () => context.go(to),
+      onIntent: () => ref.prefetchRoute(to),
       semanticLabel: '$label, $hint',
       excludeChildSemantics: true,
       pressScale: false,

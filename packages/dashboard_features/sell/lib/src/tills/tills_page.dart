@@ -146,6 +146,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
       confirmLabel: t('tills.forceClose'),
     );
     if (!ok || !mounted) return;
+    final refresh = tillsInvalidator(ref);
     try {
       await ref
           .read(apiProvider)
@@ -154,7 +155,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
             tillId: till.id,
             body: const ForceCloseRequest(explicitNulls: {'reason'}),
           );
-      invalidateTills(ref);
+      refresh();
       if (mounted) DashToast.success(context, t('tills.forceClosed'));
     } on Object catch (e) {
       if (mounted) DashToast.error(context, tillsErrorMessage(e, t));
@@ -175,9 +176,10 @@ class _TillsPageState extends ConsumerState<TillsPage> {
       confirmLabel: t('common.delete'),
     );
     if (!ok || !mounted) return;
+    final refresh = tillsInvalidator(ref);
     try {
       await ref.read(apiProvider).tills.deleteTill(tillId: till.id);
-      invalidateTills(ref);
+      refresh();
       if (mounted) DashToast.success(context, t('tills.deleted'));
     } on Object catch (e) {
       if (mounted) DashToast.error(context, tillsErrorMessage(e, t));
@@ -254,6 +256,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
       DashMenuItem(
         label: t('tills.viewReport'),
         onSelected: () => _openReport(s.id),
+        onIntent: () => warmTillReport(ref, s.id),
       ),
       if (s.status.value == 'open' && s.id == pre?.openTill?.id) ...[
         DashMenuItem(
@@ -264,6 +267,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
         DashMenuItem(
           label: t('tills.closeTill'),
           onSelected: () => showCloseTillDialog(context, till: s),
+          onIntent: () => ref.warm(closePreviewProvider(s.id)),
         ),
       ],
       if (canForceClose && s.status.value == 'open')
@@ -292,7 +296,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
             openNow: openNow!,
             notice: notice!,
             rows: rows,
-            listLoading: list.firstLoad,
+            listLoading: list.awaitingFirst,
           ),
         if (branchId != null)
           OpenNowSection(
@@ -334,6 +338,14 @@ class _TillsPageState extends ConsumerState<TillsPage> {
         search: search,
         rows: rows,
         onChange: _setSearch,
+        onIntent: (patch) => ref.warm(
+          tillsListProvider(
+            _listKey(
+              scope,
+              TillsSearch.fromQuery(patchQuery(widget.query, patch)),
+            ),
+          ),
+        ),
       ),
       body: body,
     );

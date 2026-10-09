@@ -173,8 +173,3 @@ AsyncValue<T?> watchIf<T>(
   bool enabled,
   ProviderListenable<AsyncValue<T>> Function() provider,
 ) => enabled ? ref.watch(provider()) : AsyncData<T?>(null);
-
-/// React Query's `isLoading`: the first load, with nothing to show yet.
-extension HomeAsync<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}

@@ -42,7 +42,7 @@ class OpsTableSheet extends ConsumerWidget {
       body = Text(t('tablesInsights.pickBranch'), style: note);
     } else {
       final floor = ref.watch(opsFloorTablesProvider(branchId));
-      if (floor.firstLoad) {
+      if (floor.awaitingFirst) {
         body = const DashSkeleton(height: Space.xxl * 4);
       } else {
         // A failed lookup reads the same as a table that is gone: the web
@@ -84,7 +84,7 @@ class OpsTableHistory extends ConsumerWidget {
     final c = context.madarColors;
     final q = ref.watch(opsTableHistoryProvider((id: tableId, from: from, to: to)));
     final small = DashType.small.copyWith(color: c.textSecondary);
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       return const Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.sm,
@@ -95,7 +95,7 @@ class OpsTableHistory extends ConsumerWidget {
       );
     }
     final data = q.value;
-    if (q.hasError || data == null) {
+    if ((q.hasError && !q.retrying) || data == null) {
       return Text(t('floor.history.failed'), style: small);
     }
     if (data.sittings.isEmpty) {
@@ -340,9 +340,9 @@ class OpsCustomerSheet extends ConsumerWidget {
     final d = q.value;
     final customer = d?.customer;
     Widget body;
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       body = const DashSkeleton(height: Space.xxl * 8);
-    } else if (q.hasError || d == null || customer == null) {
+    } else if ((q.hasError && !q.retrying) || d == null || customer == null) {
       body = DashErrorState(
         title: t('customers.loadFailed'),
         message: q.hasError ? opsErrorText(q.error, t) : null,
@@ -603,9 +603,9 @@ class OpsOrderSheet extends ConsumerWidget {
     final q = ref.watch(_orderProvider(orderId));
     final o = q.value;
     Widget body;
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       body = const DashSkeleton(height: Space.xxl * 6);
-    } else if (q.hasError || o == null) {
+    } else if ((q.hasError && !q.retrying) || o == null) {
       body = DashErrorState(
         message: opsErrorText(q.error, t),
         retrying: q.isLoading,

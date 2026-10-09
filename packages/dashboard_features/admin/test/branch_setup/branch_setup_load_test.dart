@@ -51,7 +51,7 @@ void main() {
     expect(pieceOf(tester, cardTitled('Kitchen screen')).subtitle, 'Bar');
   });
 
-  testWidgets('ADM-BSU-006 (divergence) the printer names the server gives '
+  testWidgets('ADM-BSU-006/089 the printer names the server gives '
       'read in Arabic', (tester) async {
     final h = await pumpBuilder(
       tester,

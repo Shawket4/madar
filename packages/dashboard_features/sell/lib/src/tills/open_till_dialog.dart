@@ -57,6 +57,7 @@ class _OpenTillDialogState extends ConsumerState<OpenTillDialog> {
     final amount = _amount;
     if (amount == null || _pending) return;
     final t = ref.read(tProvider);
+    final refresh = tillsInvalidator(ref);
     setState(() => _pending = true);
     try {
       await ref
@@ -66,9 +67,9 @@ class _OpenTillDialogState extends ConsumerState<OpenTillDialog> {
             branchId: widget.branchId,
             body: OpenTillRequest(openingCash: egpToPiastres(amount)),
           );
+      refresh();
       if (!mounted) return;
       DashToast.success(context, t('tills.openedToast'));
-      invalidateTills(ref);
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;

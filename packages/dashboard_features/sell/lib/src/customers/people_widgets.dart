@@ -345,6 +345,7 @@ class LinkText extends StatelessWidget {
   const LinkText({
     required this.label,
     required this.onTap,
+    this.onIntent,
     this.mono = false,
     this.icon,
     this.small = false,
@@ -354,6 +355,9 @@ class LinkText extends StatelessWidget {
 
   final String label;
   final VoidCallback onTap;
+
+  /// Warms the read [onTap] makes ([DashIntent]).
+  final VoidCallback? onIntent;
   final bool mono;
   final String? icon;
   final bool small;
@@ -362,6 +366,7 @@ class LinkText extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DashPressable(
     onTap: onTap,
+    onIntent: onIntent,
     semanticLabel: label,
     excludeChildSemantics: true,
     pressScale: false,

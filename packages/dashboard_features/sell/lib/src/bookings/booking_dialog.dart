@@ -37,6 +37,44 @@ Future<void> showBookingDialog(
       BookingDialog(branchId: branchId, date: date, booking: booking),
 );
 
+/// The availability read [BookingDialog] makes as it opens on [b] (absent:
+/// a new booking on [date]).
+BookingAvailabilityKey bookingDialogOpenKey(
+  String branchId,
+  String date,
+  BookingView? b,
+  String tz,
+) => (
+  branchId: branchId,
+  date: b == null ? date : serviceDateOf(b.startsAt, tz),
+  partySize: b?.partySize ?? 2,
+  sectionId: b?.sectionId,
+  excludeBookingId: b?.id,
+);
+
+/// Intent: warms the reads the dialog makes as it opens, with their keys.
+void warmBookingDialog(
+  WidgetRef ref, {
+  required String branchId,
+  required String date,
+  BookingView? booking,
+}) {
+  ref
+    ..warm(bookingSettingsProvider(branchId))
+    ..warm(floorTablesProvider(branchId))
+    ..warm(floorSectionsProvider(branchId));
+  if (booking != null) {
+    ref.warm(bookingDayProvider((branchId: branchId, date: date)));
+  }
+  final k = bookingDialogOpenKey(
+    branchId,
+    date,
+    booking,
+    ref.read(formatProvider).timezone,
+  );
+  if (k.partySize > 0) ref.warm(bookingAvailabilityProvider(k));
+}
+
 class BookingDialog extends ConsumerStatefulWidget {
   const BookingDialog({
     required this.branchId,
@@ -55,29 +93,71 @@ class BookingDialog extends ConsumerStatefulWidget {
 
 class _BookingDialogState extends ConsumerState<BookingDialog> {
   final _form = GlobalKey<FormState>();
-  late final BookingView? _b = widget.booking;
   late final String _tz = ref.read(formatProvider).timezone;
-  late String _day = _b == null ? widget.date : serviceDateOf(_b.startsAt, _tz);
-  late String _party = '${_b?.partySize ?? 2}';
-  late DateTime? _startsAt = _b?.startsAt;
-  late String _customTime = _b == null ? '' : localHHMM(_b.startsAt, _tz);
-  late String _duration = _b == null
-      ? ''
-      : '${_b.endsAt.difference(_b.startsAt).inMinutes}';
-  late String? _sectionId = _b?.sectionId;
-  late bool _manualTables =
-      _b != null && (_b.needsTable || _b.tableIds.isNotEmpty);
-  late List<String> _tableIds = [...?_b?.tableIds];
-  late bool _force = _b != null;
+  BookingView? _b;
+  late String _day;
+  late String _party;
+  DateTime? _startsAt;
+  late String _customTime;
+  late String _duration;
+  String? _sectionId;
+  late bool _manualTables;
+  late List<String> _tableIds;
+  late bool _force;
   bool _sendConfirmation = true;
-  late final BookingGuestValues _guest0 = guestValuesOf(_b);
-  late String _name = _guest0.name;
-  late String _phone = _guest0.phone;
-  late String _notes = _guest0.notes;
+  late String _name;
+  late String _phone;
+  late String _notes;
   bool _busy = false;
   String? _error;
 
+  /// The values as seeded: while the form still equals them, a fresh read
+  /// of the booking re-seeds it.
+  late Object _seeded;
+
+  Object get _values => (
+    _day,
+    _party,
+    _startsAt,
+    _customTime,
+    _duration,
+    _sectionId,
+    _manualTables,
+    _tableIds.join(','),
+    _force,
+    _name,
+    _phone,
+    _notes,
+  );
+
   bool get _editing => _b != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _seed(widget.booking);
+  }
+
+  void _seed(BookingView? b) {
+    final k = bookingDialogOpenKey(widget.branchId, widget.date, b, _tz);
+    final guest = guestValuesOf(b);
+    _b = b;
+    _day = k.date;
+    _party = '${k.partySize}';
+    _startsAt = b?.startsAt;
+    _customTime = b == null ? '' : localHHMM(b.startsAt, _tz);
+    _duration = b == null
+        ? ''
+        : '${b.endsAt.difference(b.startsAt).inMinutes}';
+    _sectionId = k.sectionId;
+    _manualTables = b != null && (b.needsTable || b.tableIds.isNotEmpty);
+    _tableIds = [...?b?.tableIds];
+    _force = b != null;
+    _name = guest.name;
+    _phone = guest.phone;
+    _notes = guest.notes;
+    _seeded = _values;
+  }
 
   /// `Number(value)`: blank or not a number reads 0.
   int get _partyN => int.tryParse(_party) ?? 0;
@@ -111,6 +191,8 @@ class _BookingDialogState extends ConsumerState<BookingDialog> {
     if (_partyN <= 0) return setState(() => _error = t('bookings.errParty'));
     setState(() => _busy = true);
     final api = ref.read(apiProvider).bookings;
+    // Captured now: the refresh runs even if the dialog closes mid-save.
+    final bus = ref.read(realtimeBusProvider);
     final duration = _duration.isEmpty ? null : int.tryParse(_duration);
     final tableIds = _manualTables ? _tableIds : null;
     try {
@@ -159,12 +241,12 @@ class _BookingDialogState extends ConsumerState<BookingDialog> {
           ),
         );
       }
+      bus.invalidate(SellInvalidate.bookings);
       if (!mounted) return;
       DashToast.success(
         context,
         _editing ? t('bookings.updated') : t('bookings.created'),
       );
-      sellInvalidateFromWidget(ref, SellInvalidate.bookings);
       Navigator.of(context).pop();
     } on Object catch (e) {
       // The server's words on the dialog's own line, not a toast.
@@ -181,6 +263,20 @@ class _BookingDialogState extends ConsumerState<BookingDialog> {
     final c = context.madarColors;
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm;
     final settings = ref.watch(bookingSettingsProvider(widget.branchId)).value;
+    final editing = widget.booking;
+    if (editing != null) {
+      // The page's day refetched (a timer, an event): an untouched form
+      // follows the booking's newer values.
+      ref.listen(
+        bookingDayProvider((branchId: widget.branchId, date: widget.date)),
+        (_, next) {
+          final fresh = next.value?.where((x) => x.id == editing.id);
+          if (fresh == null || fresh.isEmpty) return;
+          if (_busy || _values != _seeded) return;
+          setState(() => _seed(fresh.first));
+        },
+      );
+    }
     final tables = activeTablesByLabel(
       ref.watch(floorTablesProvider(widget.branchId)).value,
     );
@@ -270,7 +366,7 @@ class _BookingDialogState extends ConsumerState<BookingDialog> {
               ),
           ],
         ),
-        if (slots.isEmpty && !availQ.firstLoad)
+        if (slots.isEmpty && !availQ.awaitingFirst)
           Text(t('bookings.noSlots'), style: muted)
         else
           BookingGrid(

@@ -88,6 +88,21 @@ void main() {
       expect(identical(addLink(plan, sec(hot.id), dev(till.id)), plan), isTrue);
     });
 
+    test('ADM-BSU-043 removing a link drops every copy of it', () {
+      final twice = plan.mapSections(
+        (s) => s.id == hot.id
+            ? s.copyWith(screenIds: [screen.id, screen.id], printerIds: ['p', 'p'])
+            : s,
+      );
+      var next = removeLink(
+        twice,
+        PlanLink(LinkKind.shows, sec(hot.id), dev(screen.id)),
+      );
+      next = removeLink(next, PlanLink(LinkKind.prints, sec(hot.id), prn('p')));
+      expect(next.sections.first.screenIds, isEmpty);
+      expect(next.sections.first.printerIds, isEmpty);
+    });
+
     test('ADM-BSU-042 adding twice is one link; a receipt link replaces the '
         'previous', () {
       final withPrinter = plan.copyWith(
@@ -251,7 +266,7 @@ void main() {
     });
   });
 
-  test('ADM-BSU-006 names the server gives read in the reader\'s words; '
+  test('ADM-BSU-006/089 names the server gives read in the reader\'s words; '
       'only the server\'s own names change', () {
     final base = planForSetup(Setup.tillPrinter, names, const [], seq());
     final kp = base.printers.firstWhere((p) => p.role == 'kitchen');

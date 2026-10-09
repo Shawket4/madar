@@ -351,3 +351,5 @@ DONE foundation absorb #3 (web b50febfe): tool/sync_web_vectors.py → dashboard
 VERIFIED admin/branch_setup NOT (3 major: History "Loading…" during refresh; Remove button not red; mock drops inactive-category routes) + 12 minor → pending/admin-branch_setup.md
 DONE setup/brand_appearance + whatsapp (minors fixed; 178 tests). The prefetch audit test needs a re-run once the transfers rebuild compiles.
 DONE admin/review + setup/staff_pool + links (minors fixed; review 57, setup 125)
+PEER: MadarRust bfe6b928 (PR #15): storefront combo choice_for only; openapi identical → no dashboard change. Peer's last backend merge tonight. Shared-rules plan at ~/Desktop/Madar/SHARED_RULES_PLAN.md (Step 1 maps our Dart ports to crate functions) — for after our branch lands.
+DONE admin/orgs (fixed; tablet actions visible; /orgs shares core orgsProvider). CORE TODO: orgsProvider + branchesProvider keep a fetch time and refetch stale on mount (webCache semantics) — careful with shell redirects. admin shared prefetch_test 'Branches warms its list' expects 2 calls, gets 1 after branches forwarded to core branchesProvider → branches fixer told.

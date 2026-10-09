@@ -15,6 +15,7 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,8 +30,23 @@ export 'package:dashboard_admin/src/mock/branch_setup_mock.dart'
 Widget _page(BuildContext context, GoRouterState state) =>
     const BranchSetupPage();
 
-Widget _routing(BuildContext context, GoRouterState state) =>
-    const SizedBox.shrink(key: ValueKey('kitchen-routing-page'));
+/// How many times the stand-in Item routing page's read ran: the link warms
+/// it on intent, so opening the page reads nothing more.
+int routingReads = 0;
+
+final _routingRead = FutureProvider.autoDispose<int>((ref) async {
+  ref.webCache();
+  return ++routingReads;
+});
+
+Widget _routing(BuildContext context, GoRouterState state) => Consumer(
+  builder: (context, ref, _) {
+    ref.watch(_routingRead);
+    return const SizedBox.shrink(key: ValueKey('kitchen-routing-page'));
+  },
+);
+
+void _warmRouting(DashPrefetcher warm, Scope scope) => warm(_routingRead);
 
 void _mocks(MockServer server, MockDb db) {
   loadAdminSeed(db);
@@ -49,7 +65,11 @@ const DashArea branchSetupArea = DashArea(
       module: OrgModule.pos,
     ),
     // Stands in for the setup area's page the "Item routing" link opens.
-    DashRoute(path: '/settings/kitchen-routing', builder: _routing),
+    DashRoute(
+      path: '/settings/kitchen-routing',
+      builder: _routing,
+      prefetch: _warmRouting,
+    ),
   ],
   registerMocks: _mocks,
   i18nSupplements: [

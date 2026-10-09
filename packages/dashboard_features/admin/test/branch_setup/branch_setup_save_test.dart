@@ -1,6 +1,7 @@
 // Branch setup: History, the review and the save, refusals, the leave guard
 // (ADM-BSU-023…025, 072…085).
 import 'package:dashboard_admin/src/area_seed.dart';
+import 'package:dashboard_admin/src/branch_setup/branch_setup_providers.dart';
 import 'package:dashboard_admin/src/branch_setup/builder_canvas.dart';
 import 'package:dashboard_admin/src/branch_setup/plan.dart';
 import 'package:dashboard_api/mock.dart';
@@ -233,6 +234,23 @@ void main() {
     expect(
       tester.widget<DashButton>(byKey('bb-review-save')).onPressed,
       isNull,
+    );
+  });
+
+  testWidgets('ADM-BSU-072/076 the review follows a refresh landing while it '
+      'is open: the items finish, the save opens', (tester) async {
+    final h = await pumpBuilder(tester, branchId: SeedIds.heliopolis);
+    await removeAndReview(h, 'Bar');
+    expect(byKey('bb-review-busy'), findsOneWidget);
+    for (final r in h.db[BranchPlanTables.ticketItems].rows) {
+      r['bumped_at'] = h.db.nowIso;
+    }
+    h.container.invalidate(branchPlanProvider(SeedIds.heliopolis));
+    await h.settle();
+    expect(byKey('bb-review-busy'), findsNothing);
+    expect(
+      tester.widget<DashButton>(byKey('bb-review-save')).onPressed,
+      isNotNull,
     );
   });
 

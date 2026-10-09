@@ -46,7 +46,7 @@ class TillsKpis extends ConsumerWidget {
           value: open,
           icon: 'clock',
           tone: open > 0 ? DashTone.success : DashTone.neutral,
-          loading: openNow.firstLoad,
+          loading: openNow.awaitingFirst,
         ),
         DashLedgerItem(
           key: 'bills',
@@ -54,7 +54,7 @@ class TillsKpis extends ConsumerWidget {
           value: bills,
           icon: 'receipt-text',
           hint: n != null && bills > 0 ? fmt.fmtMoney(n.openBillsAmount) : null,
-          loading: notice.firstLoad,
+          loading: notice.awaitingFirst,
         ),
         DashLedgerItem(
           key: 'old',
@@ -62,7 +62,7 @@ class TillsKpis extends ConsumerWidget {
           value: old,
           icon: 'alert-triangle',
           tone: old > 0 ? DashTone.warning : DashTone.neutral,
-          loading: notice.firstLoad,
+          loading: notice.awaitingFirst,
         ),
         DashLedgerItem(
           key: 'flagged',
@@ -100,13 +100,13 @@ class OpenNowSection extends ConsumerWidget {
     final n = notice;
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm;
     Widget content;
-    if (openNow.firstLoad) {
+    if (openNow.awaitingFirst) {
       content = const DashSkeleton(
         key: ValueKey('open-now-loading'),
         height: DashMetrics.listRow * 2,
         radius: Radii.card,
       );
-    } else if (openNow.hasError && !openNow.hasValue) {
+    } else if (openNow.failedFirst) {
       content = DashErrorState(
         key: const ValueKey('open-now-error'),
         message: tillsErrorMessage(openNow.error, t),
@@ -167,6 +167,7 @@ class OpenNowSection extends ConsumerWidget {
               value: wide ? null : fmt.fmtMoney(s.openingCash),
               numericValue: true,
               onTap: () => onOpen(s.id),
+              onIntent: () => warmTillReport(ref, s.id),
             ),
         ],
       );
@@ -286,12 +287,17 @@ class TillFilters extends ConsumerWidget {
     required this.search,
     required this.rows,
     required this.onChange,
+    this.onIntent,
     super.key,
   });
 
   final TillsSearch search;
   final List<Till> rows;
   final ValueChanged<Map<String, String?>> onChange;
+
+  /// A filter change is about to happen: warm the list under [onChange]'s
+  /// patch.
+  final ValueChanged<Map<String, String?>>? onIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -324,6 +330,9 @@ class TillFilters extends ConsumerWidget {
           ],
           value: search.status,
           onChanged: (v) => onChange({'status': v}),
+          onOptionIntent: onIntent == null
+              ? null
+              : (v) => onIntent!({'status': v}),
         ),
         DashFilterSelect<String>(
           key: const ValueKey('filter-teller'),
@@ -336,6 +345,9 @@ class TillFilters extends ConsumerWidget {
           ],
           value: search.teller,
           onChanged: (v) => onChange({'teller': v}),
+          onOptionIntent: onIntent == null
+              ? null
+              : (v) => onIntent!({'teller': v}),
         ),
         DashFilterSelect<String>(
           key: const ValueKey('filter-device'),
@@ -348,18 +360,31 @@ class TillFilters extends ConsumerWidget {
           ],
           value: search.device,
           onChanged: (v) => onChange({'device': v}),
+          onOptionIntent: onIntent == null
+              ? null
+              : (v) => onIntent!({'device': v}),
         ),
-        DashFilterToggle(
-          key: const ValueKey('filter-today'),
-          label: t('tills.filters.today'),
-          value: search.today,
-          onChanged: (v) => onChange({'today': v ? 'true' : null}),
+        DashIntent(
+          onIntent: onIntent == null
+              ? null
+              : () => onIntent!({'today': search.today ? null : 'true'}),
+          child: DashFilterToggle(
+            key: const ValueKey('filter-today'),
+            label: t('tills.filters.today'),
+            value: search.today,
+            onChanged: (v) => onChange({'today': v ? 'true' : null}),
+          ),
         ),
-        DashFilterToggle(
-          key: const ValueKey('filter-flagged'),
-          label: t('tills.filters.flagged'),
-          value: search.flagged,
-          onChanged: (v) => onChange({'flagged': v ? 'true' : null}),
+        DashIntent(
+          onIntent: onIntent == null
+              ? null
+              : () => onIntent!({'flagged': search.flagged ? null : 'true'}),
+          child: DashFilterToggle(
+            key: const ValueKey('filter-flagged'),
+            label: t('tills.filters.flagged'),
+            value: search.flagged,
+            onChanged: (v) => onChange({'flagged': v ? 'true' : null}),
+          ),
         ),
       ],
     );
@@ -392,12 +417,6 @@ class AllTillsSection extends ConsumerWidget {
     final c = context.madarColors;
     final muted = DashType.body.copyWith(color: c.textSecondary);
 
-    // Pointing at a row warms its report (`onRowPrefetch`).
-    Widget hover(Till s, Widget child) => MouseRegion(
-      onEnter: (_) => prefetchTillReport(ref, s.id),
-      child: child,
-    );
-
     final columns = <DashColumn<Till>>[
       DashColumn(
         id: 'teller',
@@ -406,9 +425,7 @@ class AllTillsSection extends ConsumerWidget {
         flex: 3,
         minWidth: 150,
         text: (s) => s.tellerName,
-        cell: (context, s) => hover(
-          s,
-          Column(
+        cell: (context, s) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -433,7 +450,6 @@ class AllTillsSection extends ConsumerWidget {
               ),
             ],
           ),
-        ),
       ),
       if (showBranch)
         DashColumn(
@@ -441,15 +457,12 @@ class AllTillsSection extends ConsumerWidget {
           label: t('tills.branch'),
           flex: 2,
           text: (s) => s.branchName ?? '—',
-          cell: (context, s) => hover(
-            s,
-            MadarClippedText(
+          cell: (context, s) => MadarClippedText(
               s.branchName ?? '—',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: DashType.body.copyWith(color: c.textPrimary),
             ),
-          ),
         ),
       DashColumn(
         id: 'device',
@@ -462,11 +475,9 @@ class AllTillsSection extends ConsumerWidget {
           final label = s.deviceLabel;
           if ((code == null || code.isEmpty) &&
               (label == null || label.isEmpty)) {
-            return hover(s, Text('—', style: muted));
+            return Text('—', style: muted);
           }
-          return hover(
-            s,
-            Text.rich(
+          return Text.rich(
               TextSpan(
                 children: [
                   if (code != null && code.isNotEmpty)
@@ -488,8 +499,7 @@ class AllTillsSection extends ConsumerWidget {
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-            ),
-          );
+            );
         },
       ),
       DashColumn(
@@ -498,16 +508,13 @@ class AllTillsSection extends ConsumerWidget {
         flex: 3,
         minWidth: 140,
         text: (s) => tillStatusLabel(t, s.status.value),
-        cell: (context, s) => hover(
-          s,
-          Wrap(
+        cell: (context, s) => Wrap(
             key: ValueKey('till-badges-${s.id}'),
             spacing: Space.xs + DashMetrics.hair,
             runSpacing: Space.xs,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: tillBadges(s, onOpenOther: onOpenReport),
           ),
-        ),
       ),
       DashColumn(
         id: 'opening',
@@ -515,15 +522,12 @@ class AllTillsSection extends ConsumerWidget {
         numeric: true,
         minWidth: 130,
         text: (s) => fmt.fmtMoney(s.openingCash),
-        cell: (context, s) => hover(
-          s,
-          Text(
+        cell: (context, s) => Text(
             dashFigure(fmt.fmtMoney(s.openingCash)),
             maxLines: 1,
             softWrap: false,
             style: DashType.mono.copyWith(fontSize: 14, color: c.textPrimary),
           ),
-        ),
       ),
       DashColumn(
         id: 'discrepancy',
@@ -534,9 +538,7 @@ class AllTillsSection extends ConsumerWidget {
         cell: (context, s) {
           final d = s.cashDiscrepancy;
           final strong = d != null && d != 0;
-          return hover(
-            s,
-            Text(
+          return Text(
               d == null ? '—' : dashFigure(discrepancyText(fmt, d)),
               key: ValueKey('discrepancy-${s.id}'),
               maxLines: 1,
@@ -550,8 +552,7 @@ class AllTillsSection extends ConsumerWidget {
                       fontSize: 14,
                       color: c.textSecondary,
                     ),
-            ),
-          );
+            );
         },
       ),
     ];
@@ -570,10 +571,14 @@ class AllTillsSection extends ConsumerWidget {
           columns: columns,
           rows: rows,
           rowKey: (s) => s.id,
-          loading: list.firstLoad,
-          errorMessage: list.hasError ? tillsErrorMessage(list.error, t) : null,
+          loading: list.awaitingFirst,
+          errorMessage: list.hasError && !list.retrying
+              ? tillsErrorMessage(list.error, t)
+              : null,
           onRetry: onRetry,
           onRowTap: (s) => onOpenReport(s.id),
+          // Pointing at a row warms its report (`onRowPrefetch`).
+          onRowIntent: (s) => warmTillReport(ref, s.id),
           rowSemanticLabel: (s) => s.tellerName,
           pageSize: 20,
           hideViewOptions: true,

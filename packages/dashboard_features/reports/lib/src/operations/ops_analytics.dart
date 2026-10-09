@@ -114,8 +114,10 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
             pageSize: 50,
             rows: items.value ?? const [],
             rowKey: (r) => r.itemId,
-            loading: items.firstLoad,
-            errorMessage: items.hasError ? opsErrorText(items.error, t) : null,
+            loading: items.awaitingFirst,
+            errorMessage: items.hasError && !items.retrying
+                ? opsErrorText(items.error, t)
+                : null,
             onRetry: () => ref.invalidate(opsItemsProvider(scope.opsRange)),
             empty: _noData(t),
             columns: [
@@ -152,8 +154,8 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
             hideViewOptions: true,
             rows: addons.value ?? const [],
             rowKey: (r) => r.addonItemId,
-            loading: addons.firstLoad,
-            errorMessage: addons.hasError
+            loading: addons.awaitingFirst,
+            errorMessage: addons.hasError && !addons.retrying
                 ? opsErrorText(addons.error, t)
                 : null,
             onRetry: () => ref.invalidate(opsAddonsProvider(scope.opsRange)),
@@ -204,8 +206,7 @@ class OpsTellersView extends ConsumerStatefulWidget {
   ConsumerState<OpsTellersView> createState() => _OpsTellersViewState();
 }
 
-class _OpsTellersViewState extends ConsumerState<OpsTellersView>
-    {
+class _OpsTellersViewState extends ConsumerState<OpsTellersView> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
@@ -225,8 +226,8 @@ class _OpsTellersViewState extends ConsumerState<OpsTellersView>
         DashChartCard(
           title: t('analytics.revenueByTeller'),
           child: OpsChartBody(
-            loading: q.firstLoad,
-            failed: q.hasError,
+            loading: q.awaitingFirst,
+            failed: q.hasError && !q.retrying,
             empty: top.isEmpty,
             emptyTitle: t('analytics.noData'),
             onRetry: retry,
@@ -250,8 +251,10 @@ class _OpsTellersViewState extends ConsumerState<OpsTellersView>
             pageSize: 50,
             rows: rows,
             rowKey: (r) => r.tellerId,
-            loading: q.firstLoad,
-            errorMessage: q.hasError ? opsErrorText(q.error, t) : null,
+            loading: q.awaitingFirst,
+            errorMessage: q.hasError && !q.retrying
+                ? opsErrorText(q.error, t)
+                : null,
             onRetry: retry,
             empty: _noData(t),
             columns: [
@@ -320,8 +323,7 @@ class OpsWaitersView extends ConsumerStatefulWidget {
   ConsumerState<OpsWaitersView> createState() => _OpsWaitersViewState();
 }
 
-class _OpsWaitersViewState extends ConsumerState<OpsWaitersView>
-    {
+class _OpsWaitersViewState extends ConsumerState<OpsWaitersView> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
@@ -339,7 +341,10 @@ class _OpsWaitersViewState extends ConsumerState<OpsWaitersView>
     // Hidden only on the first load and on a failure (React Query's
     // `isLoading`), so a background refresh never blinks it.
     final coverage =
-        !q.firstLoad && !q.hasError && report != null && report.totalOrders > 0
+        !q.awaitingFirst &&
+            !(q.hasError && !q.retrying) &&
+            report != null &&
+            report.totalOrders > 0
         ? Text(
             t(
               'analytics.waiterCoverage',
@@ -358,8 +363,8 @@ class _OpsWaitersViewState extends ConsumerState<OpsWaitersView>
         DashChartCard(
           title: t('analytics.revenueByWaiter'),
           child: OpsChartBody(
-            loading: q.firstLoad,
-            failed: q.hasError,
+            loading: q.awaitingFirst,
+            failed: q.hasError && !q.retrying,
             empty: top.isEmpty,
             emptyTitle: t('analytics.noData'),
             onRetry: retry,
@@ -384,8 +389,10 @@ class _OpsWaitersViewState extends ConsumerState<OpsWaitersView>
             pageSize: 50,
             rows: rows,
             rowKey: (r) => r.waiterId,
-            loading: q.firstLoad,
-            errorMessage: q.hasError ? opsErrorText(q.error, t) : null,
+            loading: q.awaitingFirst,
+            errorMessage: q.hasError && !q.retrying
+                ? opsErrorText(q.error, t)
+                : null,
             onRetry: retry,
             empty: _noData(t),
             columns: [
@@ -461,8 +468,7 @@ class OpsBranchesView extends ConsumerStatefulWidget {
   ConsumerState<OpsBranchesView> createState() => _OpsBranchesViewState();
 }
 
-class _OpsBranchesViewState extends ConsumerState<OpsBranchesView>
-    {
+class _OpsBranchesViewState extends ConsumerState<OpsBranchesView> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
@@ -487,8 +493,8 @@ class _OpsBranchesViewState extends ConsumerState<OpsBranchesView>
         DashChartCard(
           title: t('analytics.revenueByBranch'),
           child: OpsChartBody(
-            loading: q.firstLoad,
-            failed: q.hasError,
+            loading: q.awaitingFirst,
+            failed: q.hasError && !q.retrying,
             empty: chart.isEmpty,
             emptyTitle: t('analytics.noData'),
             onRetry: retry,
@@ -512,8 +518,10 @@ class _OpsBranchesViewState extends ConsumerState<OpsBranchesView>
             pageSize: 50,
             rows: rows,
             rowKey: (r) => r.branchId,
-            loading: q.firstLoad,
-            errorMessage: q.hasError ? opsErrorText(q.error, t) : null,
+            loading: q.awaitingFirst,
+            errorMessage: q.hasError && !q.retrying
+                ? opsErrorText(q.error, t)
+                : null,
             onRetry: retry,
             empty: _noData(t),
             columns: [

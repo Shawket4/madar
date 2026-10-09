@@ -47,7 +47,11 @@ class RecipeBasesPage extends ConsumerWidget {
       ref.watch(ingredientCatalogProvider(orgId));
       final provider = recipeBasesProvider(orgId);
       final bases = ref.watch(provider);
-      if (bases.hasError) {
+      // The web's `isLoading ? skeleton : isError ? error`: a failed refresh
+      // replaces the list, but never while Riverpod is still retrying.
+      if (bases.awaitingFirst) {
+        body = const ModelingSkeleton();
+      } else if (bases.hasError && !bases.retrying) {
         body = DashErrorState(
           title: t('modeling.bases.loadError'),
           message: errorMessage(bases.error, t),
@@ -76,6 +80,8 @@ class RecipeBasesPage extends ConsumerWidget {
                 onEdit: canEdit
                     ? () => showBaseEditor(context, orgId: orgId, base: b)
                     : null,
+                // The editor reads the base's usage (the catalog is up).
+                onEditIntent: () => ref.warm(baseUsageProvider(b.id)),
                 onDelete: canEdit ? () => _delete(context, ref, b) : null,
               ),
           ],

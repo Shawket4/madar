@@ -145,7 +145,7 @@ class _BookingRulesDialogState extends ConsumerState<BookingRulesDialog> {
               key,
               v.isEmpty
                   ? (bookingOptionalFields.contains(key) ? null : 0)
-                  : int.tryParse(v) ?? s![key],
+                  : int.tryParse(v) ?? s[key],
             ),
           ),
         );
@@ -370,24 +370,31 @@ class _BookingRulesDialogState extends ConsumerState<BookingRulesDialog> {
       );
     }
 
-    return DashSurface(
-      title: t('bookings.settingsTitle'),
-      description: t('bookings.settingsHint'),
-      actions: [
-        DashButton(
-          key: const ValueKey('bkg-cancel'),
-          label: t('common.cancel'),
-          variant: DashButtonVariant.outline,
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        DashButton(
-          key: const ValueKey('bkg-save'),
-          label: t('common.save'),
-          loading: _busy,
-          onPressed: s == null || _busy ? null : _save,
-        ),
-      ],
-      body: body,
+    // The web's `max-h-[90vh]` on the border box (the surface's 1 px
+    // hairline sits outside this body); the body scrolls inside it.
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.9 - 2,
+      ),
+      child: DashSurface(
+        title: t('bookings.settingsTitle'),
+        description: t('bookings.settingsHint'),
+        actions: [
+          DashButton(
+            key: const ValueKey('bkg-cancel'),
+            label: t('common.cancel'),
+            variant: DashButtonVariant.outline,
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          DashButton(
+            key: const ValueKey('bkg-save'),
+            label: t('common.save'),
+            loading: _busy,
+            onPressed: s == null || _busy ? null : _save,
+          ),
+        ],
+        body: body,
+      ),
     );
   }
 }

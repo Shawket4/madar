@@ -21,6 +21,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/sheets.dart' show warmOrderSheet;
 import 'addresses_section.dart';
 import 'bookings_section.dart';
 import 'customer_dialog.dart';
@@ -165,15 +166,13 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
         : card?.value != null;
 
     final Widget body;
-    if (primary != null && primary.hasError && !primary.hasValue) {
+    if (primary != null && primary.failedFirst) {
       // Stays up, its Retry spinning, while the retry runs.
       body = DashEmptyState(
         title: access.canViewCustomers
             ? t('customers.loadFailed')
             : t('loyalty.memberLoadFailed'),
-        description: primary.hasError
-            ? peopleErrorMessage(primary.error, t)
-            : null,
+        description: peopleErrorMessage(primary.error, t),
         action: DashButton(
           label: t('common.retry'),
           variant: DashButtonVariant.outline,
@@ -220,6 +219,8 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
                       variant: DashButtonVariant.outline,
                       size: DashButtonSize.compact,
                       onPressed: () => _merge(customer),
+                      // The dialog's 20 suggestions.
+                      onIntent: () => ref.warm(mergePickProvider('')),
                     ),
                   if (canErase)
                     _DestructiveOutline(
@@ -247,9 +248,9 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
                     if (!access.canViewCustomers) _close();
                   },
                 ),
-                AsyncValue(:final error?) => DashEmptyState(
+                _ when card.failedFirst => DashEmptyState(
                   title: t('loyalty.memberLoadFailed'),
-                  description: peopleErrorMessage(error, t),
+                  description: peopleErrorMessage(card.error, t),
                   action: DashButton(
                     label: t('common.retry'),
                     variant: DashButtonVariant.outline,
@@ -533,6 +534,7 @@ class _RecentOrders extends ConsumerWidget {
                           label: ref8(o),
                           mono: true,
                           onTap: () => onOpenOrder(o.id),
+                          onIntent: () => warmOrderSheet(ref, o.id),
                         ),
                       ),
                       Text(
@@ -629,6 +631,7 @@ class _RecentOrders extends ConsumerWidget {
                             label: ref8(o),
                             mono: true,
                             onTap: () => onOpenOrder(o.id),
+                            onIntent: () => warmOrderSheet(ref, o.id),
                           ),
                         ),
                         cell(Text(o.branchName ?? '—', style: body)),

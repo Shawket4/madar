@@ -107,7 +107,9 @@ class _PackagingRulesPageState extends ConsumerState<PackagingRulesPage> {
       ref.watch(ingredientCatalogProvider(orgId));
       final provider = packagingRulesProvider(orgId);
       final rules = ref.watch(provider);
-      if (rules.hasError) {
+      if (rules.awaitingFirst) {
+        list = const ModelingSkeleton();
+      } else if (rules.hasError && !rules.retrying) {
         list = DashErrorState(
           title: t('modeling.packaging.loadError'),
           message: errorMessage(rules.error, t),

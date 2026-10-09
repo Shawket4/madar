@@ -205,7 +205,7 @@ class _GoogleObjectDialogState extends ConsumerState<GoogleObjectDialog> {
             if (value.object case final o?) _JsonBlock(json: o),
           ],
         ),
-        AsyncValue(:final error?) => errorLine(peopleErrorMessage(error, t)),
+        _ when q.failedFirst => errorLine(peopleErrorMessage(q.error, t)),
         _ => const DashSkeleton(height: Space.xxl * 6),
       },
     ];

@@ -85,7 +85,7 @@ class _LegalAuditTabState extends ConsumerState<LegalAuditTab> {
     final AsyncValue<AuditReport?> q = widget.enabled && key != null
         ? ref.watch(legalAuditProvider(key))
         : const AsyncData<AuditReport?>(null);
-    if (q.hasError) {
+    if (q.hasError && !q.retrying) {
       // The error stays (its Retry spinning) while a retry runs.
       return DashErrorState(
         retrying: q.isLoading,
@@ -93,7 +93,7 @@ class _LegalAuditTabState extends ConsumerState<LegalAuditTab> {
       );
     }
     final d = q.value;
-    final loading = q.firstLoad;
+    final loading = q.awaitingFirst;
     final amount = tab.amount;
     final history = d?.history ?? const <DeductionOverrideEvent>[];
     final empty = auditIsEmpty(d);

@@ -601,12 +601,12 @@ BuilderPlan addLink(BuilderPlan plan, PieceRef from, PieceRef to) {
 BuilderPlan removeLink(BuilderPlan plan, PlanLink link) => switch (link.kind) {
   LinkKind.shows => plan.mapSections(
     (s) => s.id == link.from.id
-        ? s.copyWith(screenIds: [...s.screenIds]..remove(link.to.id))
+        ? s.copyWith(screenIds: [...s.screenIds]..removeWhere((x) => x == link.to.id))
         : s,
   ),
   LinkKind.prints => plan.mapSections(
     (s) => s.id == link.from.id
-        ? s.copyWith(printerIds: [...s.printerIds]..remove(link.to.id))
+        ? s.copyWith(printerIds: [...s.printerIds]..removeWhere((x) => x == link.to.id))
         : s,
   ),
   LinkKind.receipt => plan.mapDevices(

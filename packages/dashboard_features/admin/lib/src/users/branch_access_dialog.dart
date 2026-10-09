@@ -90,8 +90,7 @@ class _BranchAccessState extends ConsumerState<BranchAccessDialog> {
     final assignedQ = ref.watch(userBranchesProvider(widget.user.id));
     final branches = branchesQ?.value ?? const <Branch>[];
     final assigned = {for (final a in assignedQ.value ?? const []) a.branchId};
-    bool first(AsyncValue<Object?>? q) =>
-        q != null && q.isLoading && !q.hasValue && !q.hasError;
+    bool first(AsyncValue<Object?>? q) => q != null && q.awaitingFirst;
     final loading = first(branchesQ) || first(assignedQ);
 
     final Widget body;

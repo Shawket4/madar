@@ -124,10 +124,11 @@ class TillReportView extends ConsumerWidget {
     final summary = ref.watch(tillSummaryProvider(tillId));
     final data = report.value;
     Widget body;
-    if (report.hasError && data == null) {
+    if (report.failedFirst) {
       body = DashErrorState(
         title: t('tills.report.loadError'),
         onRetry: () => ref.invalidate(tillReportProvider(tillId)),
+        retrying: report.isLoading,
       );
     } else if (data == null) {
       body = Column(
@@ -837,7 +838,7 @@ class TillSpotViews extends ConsumerWidget {
     final c = context.madarColors;
     final q = ref.watch(tillSpotViewsProvider(tillId));
     final views = q.value;
-    if (views == null && q.hasError) {
+    if (q.failedFirst) {
       return Semantics(
         liveRegion: true,
         child: Text(
@@ -981,7 +982,7 @@ class TillDeductions extends ConsumerWidget {
     final c = context.madarColors;
     final q = ref.watch(tillDeductionsProvider(tillId));
     final rows = q.value;
-    if (rows == null && q.hasError) {
+    if (q.failedFirst) {
       return Semantics(
         liveRegion: true,
         child: Text(

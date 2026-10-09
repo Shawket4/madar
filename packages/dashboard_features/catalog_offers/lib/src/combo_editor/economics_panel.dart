@@ -83,7 +83,7 @@ class ComboPriceCheck extends ConsumerWidget {
       body = _Muted(t('combos.econ.needsInput'));
     } else {
       final q = ref.watch(comboEconomicsProvider(key));
-      if (q.isLoading && !q.hasValue && !q.hasError) {
+      if (q.awaitingFirst) {
         body = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: Space.sm,
