@@ -3,6 +3,7 @@
 // across cards).
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart' show inZone;
 import 'package:dashboard_overview/src/mock/home_figures.dart';
 import 'package:dashboard_overview/src/mock/home_seed.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -94,6 +95,45 @@ void main() {
       expect((e as ApiException).status, 403);
     },
   );
+
+  test('the trend buckets in the scope\'s zone: the branch\'s, else the '
+      'org\'s', () async {
+    db['branches'].update(SeedIds.zamalek, {'timezone': 'America/New_York'});
+    final rows = ordersIn(db, [SeedIds.zamalek], from: from, to: to);
+    final trend = await api.reports.branchSalesTimeseries(
+      branchId: SeedIds.zamalek,
+      from: from,
+      to: to,
+      granularity: 'hourly',
+    );
+    String hourIn(String zone, DateTime utc) {
+      final w = inZone(utc, zone);
+      String two(int v) => v.toString().padLeft(2, '0');
+      return '${w.year}-${two(w.month)}-${two(w.day)}T${two(w.hour)}:00:00';
+    }
+
+    final ny = {
+      for (final o in rows) hourIn('America/New_York', createdAtOf(o)),
+    };
+    expect(trend.map((p) => p.period).toSet(), ny);
+    expect(trend.fold(0, (s, p) => s + p.revenue), SalesTotals(rows).revenue);
+    // All branches: the org's zone (Cairo for Sabah).
+    final all = await api.reports.branchSalesTimeseries(
+      branchId: nilBranchId,
+      from: from,
+      to: to,
+      granularity: 'hourly',
+    );
+    final every = ordersIn(
+      db,
+      [SeedIds.heliopolis, SeedIds.maadi, SeedIds.newCairo, SeedIds.zamalek],
+      from: from,
+      to: to,
+    );
+    expect(all.map((p) => p.period).toSet(), {
+      for (final o in every) hourIn('Africa/Cairo', createdAtOf(o)),
+    });
+  });
 
   test('all branches rolls up only the caller\'s branches', () async {
     server.persona = Persona.manager;

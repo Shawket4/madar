@@ -29,6 +29,9 @@ apart from running tests and writing screenshots.
    arguments. Prefetch: if the web has a prefetch case for the path, the route warms the page's
    exact first reads.
 5. Is every logged divergence a real web bug (or a platform limit), not a shortcut?
+6. Every form seeded from cached data re-seeds when a background refresh lands, until edited (else
+   a stale copy is saved over newer data). Every save refreshes even if the dialog closed
+   mid-request. No load or retry flashes an empty state.
 
 ## Run and look
 Run the unit's tests through `python3 tool/fdash_test.py <package dir> test/<unit>` with

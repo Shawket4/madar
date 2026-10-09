@@ -72,7 +72,7 @@ class HomeDeliveryKpis extends ConsumerWidget {
       if (ch.revenue > maxRev) maxRev = ch.revenue;
     }
     final cards = loading
-        ? [for (var i = 0; i < 2; i++) const _ChannelSkeleton()]
+        ? [for (var i = 0; i < 2; i++) const HomeChannelSkeleton()]
         : [
             for (final ch in channels)
               _ChannelCard(
@@ -159,8 +159,8 @@ class HomeDeliveryKpis extends ConsumerWidget {
   }
 }
 
-class _ChannelSkeleton extends StatelessWidget {
-  const _ChannelSkeleton();
+class HomeChannelSkeleton extends StatelessWidget {
+  const HomeChannelSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) => const DashCard(

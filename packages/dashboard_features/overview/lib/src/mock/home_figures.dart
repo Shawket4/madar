@@ -11,6 +11,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart' show inZone;
 
 import 'home_seed.dart';
 
@@ -242,10 +243,27 @@ BranchSalesReport branchSalesReport({
 
 String _two(int v) => v.toString().padLeft(2, '0');
 
+/// The scope's zone (`scope_tz_name`): the branch's own, else its org's,
+/// else Cairo; for the all-branches id, the org's.
+String scopeZone(MockDb db, String branchId, String? orgId) {
+  String? zone(MockRow? r) {
+    final z = r?['timezone'];
+    return z is String && z.isNotEmpty ? z : null;
+  }
+
+  final branch = branchId == nilBranchId ? null : db['branches'].find(branchId);
+  final org = db['orgs'].find('${branch?['org_id'] ?? orgId}');
+  return zone(branch) ?? zone(org) ?? 'Africa/Cairo';
+}
+
 /// The bucket an instant falls in, as the backend writes it: a naive
-/// wall-clock string in the scope's zone (`YYYY-MM-DDTHH:MM:SS`).
-String periodOf(DateTime utc, String granularity) {
-  final w = MockClock.wall(utc);
+/// wall-clock string in the scope's [zone] (`YYYY-MM-DDTHH:MM:SS`).
+String periodOf(
+  DateTime utc,
+  String granularity, [
+  String zone = 'Africa/Cairo',
+]) {
+  final w = inZone(utc, zone);
   final day = '${w.year}-${_two(w.month)}-${_two(w.day)}';
   return switch (granularity) {
     'hourly' => '${day}T${_two(w.hour)}:00:00',
@@ -258,11 +276,14 @@ String periodOf(DateTime utc, String granularity) {
 /// orders, oldest first.
 List<TimeseriesPoint> salesTimeseries(
   List<MockRow> orders,
-  String granularity,
-) {
+  String granularity, [
+  String zone = 'Africa/Cairo',
+]) {
   final buckets = <String, List<MockRow>>{};
   for (final o in orders) {
-    buckets.putIfAbsent(periodOf(createdAtOf(o), granularity), () => []).add(o);
+    buckets
+        .putIfAbsent(periodOf(createdAtOf(o), granularity, zone), () => [])
+        .add(o);
   }
   final keys = buckets.keys.toList()..sort();
   return [

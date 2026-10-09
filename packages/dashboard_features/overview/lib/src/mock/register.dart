@@ -119,12 +119,14 @@ void registerOverviewMocks(MockServer server, MockDb db) {
   // E2 — the trend (`branch_sales_timeseries`).
   server.on('GET', '/reports/branches/{branchId}/sales/timeseries', (req) {
     req.requireCap('orders.read');
-    final ids = reportBranches(req, db, req.param('branchId'));
+    final id = req.param('branchId');
+    final ids = reportBranches(req, db, id);
     final g = req.q('granularity') ?? 'daily';
     return MockResponse.ok(
       salesTimeseries(
         ordersIn(db, ids, from: req.qDateTime('from'), to: req.qDateTime('to')),
         g == 'hourly' || g == 'monthly' ? g : 'daily',
+        scopeZone(db, id, req.orgId),
       ),
     );
   });

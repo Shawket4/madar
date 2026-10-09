@@ -14,6 +14,8 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
+import 'package:dashboard_overview/src/home/delivery.dart';
+import 'package:dashboard_overview/src/home/keep_building.dart';
 import 'package:dashboard_overview/src/home/home_charts.dart';
 import 'package:dashboard_overview/src/home/home_data.dart';
 import 'package:dashboard_overview/src/home/home_parts.dart';
@@ -656,6 +658,7 @@ void main() {
       final gate = s.server.hold('GET', _delivery);
       final h = await pumpHome(tester, server: s.server, db: s.db);
       expect(kpi(tester, 'Delivery revenue').loading, isTrue);
+      expect(inHome(find.byType(HomeChannelSkeleton)), findsNWidgets(2));
       expect(homeText('Outside delivery'), findsNothing);
       gate.release();
       await h.settle();
@@ -760,19 +763,63 @@ void main() {
       expect(fades.every((f) => f.opacity.value == 1), isTrue);
     });
 
-    testWidgets('OVW-HOME-110 Arabic: right to left, Western digits', (
-      tester,
-    ) async {
-      final h = await pumpHome(tester, locale: 'ar');
-      expect(
-        Directionality.of(tester.element(find.byType(DashLineChart))),
-        TextDirection.rtl,
-      );
-      final fmt = h.container.read(formatProvider);
-      final t = SalesTotals(orders(h, _sabah));
-      expect(fmt.fmtMoney(t.revenue), contains('ج.م'));
-      expect(homeText('اتجاه الإيرادات'), findsOneWidget);
-    });
+    for (final (lang, arrow) in [('en', 'arrow-right'), ('ar', 'arrow-left')]) {
+      testWidgets('OVW-HOME-110 $lang: direction, Western digits, arrows '
+          'toward the end', (tester) async {
+        final h = await pumpHome(tester, locale: lang);
+        final rtl = lang == 'ar';
+        expect(
+          Directionality.of(tester.element(find.byType(DashLineChart))),
+          rtl ? TextDirection.rtl : TextDirection.ltr,
+        );
+        final fmt = h.container.read(formatProvider);
+        final t = SalesTotals(orders(h, _sabah));
+        // The figure on screen: Western digits, the currency after it in
+        // Arabic, the number isolated left to right.
+        final label = rtl ? 'الإيرادات' : 'Revenue';
+        final shown = tester
+            .widget<Text>(
+              find.descendant(
+                of: find.descendant(
+                  of: find.byWidgetPredicate(
+                    (w) => w is DashStatCard && w.label == label,
+                  ),
+                  matching: find.byType(DashAnimatedNumber),
+                ),
+                matching: find.byType(Text),
+              ),
+            )
+            .data!;
+        expect(shown, fmt.fmtMoney(t.revenue));
+        expect(shown, matches(RegExp('[0-9]')));
+        expect(shown, isNot(matches(RegExp('[٠-٩]'))));
+        if (rtl) {
+          expect(shown, startsWith('\u2066'));
+          expect(shown, endsWith('ج.م'));
+          expect(homeText('اتجاه الإيرادات'), findsOneWidget);
+        }
+        // Arrows point toward the end of the line.
+        final cta = tester.widget<DashButton>(
+          find.descendant(
+            of: find.byType(HomeKeepBuildingCard),
+            matching: find.byType(DashButton),
+          ),
+        );
+        expect(cta.trailingIcon, arrow);
+        final link = find.ancestor(
+          of: homeText(rtl ? 'ربحية القائمة' : 'Menu profitability'),
+          matching: find.byType(HomeLink),
+        );
+        expect(
+          tester
+              .widget<DashIcon>(
+                find.descendant(of: link, matching: find.byType(DashIcon)),
+              )
+              .name,
+          arrow,
+        );
+      });
+    }
 
     testWidgets('OVW-HOME-112 switching language asks nothing again', (
       tester,

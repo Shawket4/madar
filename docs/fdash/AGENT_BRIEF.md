@@ -57,7 +57,17 @@ missing or broken, build a local one in your unit and list it under kit candidat
   Arabic.
 - Numbers, money and dates formatted like `format.ts`.
 - Reads use `ref.webCache()`, keyed by exactly the arguments the request uses.
-- Mutations invalidate exactly what the web invalidates. Realtime events refresh what the web's do.
+- Mutations invalidate exactly what the web invalidates, ALWAYS: capture the invalidator (or
+  `realtimeBusProvider`) before the `await` and invalidate unconditionally after it. The web's
+  query client refetches even after the dialog or page closes mid-save, so never put the
+  invalidation behind `if (mounted)`. Realtime events refresh what the web's do.
+- A form seeded from cached data (an edit dialog, a settings form) re-seeds when a background
+  refresh lands, until the person has edited it. A read opened on data older than 30 s refetches
+  in the background (`ref.webCache()`), and a form that copied the old value once would save it
+  over newer data.
+- Loading vs error vs empty: show a skeleton while there is no data (`isLoading && !hasValue`),
+  an error with Retry when it failed with no data (also while that retry runs), and the web's
+  empty state only for a real empty answer. Never flash "no results" during a load or retry.
 - If `MadarDashboard/src/lib/route-prefetch.ts` has a case for your path, set `prefetch:` on your
   route, warming the page's exact first-mount reads, and add a hover test: the page opens without
   a second request. `dashboard_admin/test/shared/prefetch_test.dart` is the pattern.

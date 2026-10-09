@@ -112,26 +112,36 @@ class HomeOpenTillsList extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // `justify-between`: the title group takes the free space, the link
+          // sits at the end edge.
           Row(
             spacing: Space.sm,
             children: [
-              DashIcon('wallet', color: c.textSecondary),
-              Flexible(
-                child: MadarClippedText(
-                  t('dashboard.openTills'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+              Expanded(
+                child: Row(
+                  spacing: Space.sm,
+                  children: [
+                    DashIcon('wallet', color: c.textSecondary),
+                    Flexible(
+                      child: MadarClippedText(
+                        t('dashboard.openTills'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DashType.bodyMedium.copyWith(
+                          color: c.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      fmt.fmtNumber(tills.length),
+                      style: DashType.body.copyWith(
+                        color: c.textSecondary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                fmt.fmtNumber(tills.length),
-                style: DashType.body.copyWith(
-                  color: c.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-              const Spacer(),
               HomeLink(
                 label: t('common.viewAll'),
                 style: DashType.small,
@@ -150,7 +160,7 @@ class HomeOpenTillsList extends ConsumerWidget {
             )
           else
             for (final (i, till) in tills.indexed) ...[
-              if (i > 0) Container(height: 1, color: c.hairline),
+              if (i > 0) const MadarHairline(),
               _TillRow(till: till),
             ],
         ],

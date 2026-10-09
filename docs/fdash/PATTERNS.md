@@ -5,22 +5,30 @@ Every excerpt below is real code from it unless marked otherwise. SPEC.md wins o
 
 ## 1. Package layout
 
+Per `AGENT_BRIEF.md` (a unit = a page or a few pages of one area; you own only your unit's files):
+
 ```
-lib/dashboard_<area>.dart        DashArea (shell-owned stub: key, routes, registerMocks, supplements)
-lib/src/routes.dart              DashRoute list (path, caps, module, titleKey, prefetch)
-lib/src/<page>/<page>_page.dart  route widget + page widget (layouts, states)
-lib/src/<page>/<page>_providers.dart  one autoDispose read per endpoint, keyed by its params
-lib/src/<page>/<page>_data.dart  what the web computes in the browser, as pure functions
-lib/src/mock/register.dart       handlers for every endpoint the area calls
-lib/src/mock/<area>_seed.dart    area data on top of the shared seed's ids (SeedIds, seedMenu…)
-assets/i18n/{en,ar}.json         supplement: keys missing from the web's files only
+lib/dashboard_<area>.dart        DashArea (shell's stub; you add only your two i18nSupplements lines)
+lib/src/routes.dart              DashRoute list (shell's stub; you add only your own entries)
+lib/src/<unit>/<page>_page.dart  route widget + page widget (layouts, states)
+lib/src/<unit>/<page>_providers.dart  one autoDispose read per endpoint + its key builders
+lib/src/<unit>/<page>_data.dart  what the web computes in the browser, as pure functions
+lib/src/mock/register.dart       shell's stub calling each unit's registrar (add your line only)
+lib/src/mock/<unit>_mock.dart    your handlers, and your data on top of the shared seed's ids
+lib/src/shared/, area_seed.dart  shared by the area's units (fix only what blocks you)
+assets/i18n/<unit>.{en,ar}.json  supplement: keys missing from the web's files (sell/setup:
+                                 assets/i18n/<unit>/{en,ar}.json)
 test/flutter_test_config.dart    hitTestWarningShouldBeFatal = true (copy it)
-test/support.dart                pump helper + a seeded server you can edit before pumping
-test/<page>_test.dart            driven tests, one per inventory row, row id in the name
-test/<page>_mock_test.dart       the handlers' figures against hand-computed ones
-test/<page>_shots_test.dart      the screenshot matrix
-test/home_frame_test.dart        (overview) layout, motion, keyboard, theme, prefetch, retry recipes
+test/<unit>/support.dart         pump helper + a seeded server you can edit before pumping
+test/<unit>/<page>_test.dart     driven tests, one per inventory row, row id in the name
+test/<unit>/<page>_mock_test.dart  the handlers' figures against hand-computed ones
+test/<unit>/<page>_shots_test.dart the screenshot matrix
 ```
+
+The overview predates the brief and is one unit, so its files sit flat (`lib/src/home/`,
+`lib/src/mock/home_figures.dart` + `home_seed.dart`, `test/home_*_test.dart`); the content is the
+pattern, the paths above are where yours go. `home_frame_test.dart` holds the layout, motion,
+keyboard, theme, prefetch and retry recipes.
 
 ## 2. Route
 
@@ -61,11 +69,15 @@ void _prefetchHome(DashPrefetcher warm, Scope s) {
 if (q.firstLoad) {
   body = const HomeSkeleton(height: HomeMetrics.chart);           // web: Skeleton h-64
 } else if (q.hasError) {
-  body = DashErrorState(framed: false, title: t('dashboard.trendFailed'),
-      retryLabel: t('common.retry'),
-      onRetry: () => ref.invalidate(homeTimeseriesProvider(scope.series)));  // only its own read
+  body = HomeStateBox(                                            // web: ErrorState className="h-64"
+    height: HomeMetrics.chart,
+    child: DashErrorState(framed: false, title: t('dashboard.trendFailed'),
+        retryLabel: t('common.retry'),
+        onRetry: () => ref.invalidate(homeTimeseriesProvider(scope.series))),  // only its own read
+  );
 } else if (points.isEmpty) {
-  body = DashEmptyState(framed: false, title: t('dashboard.noSalesPeriod'));
+  body = HomeStateBox(height: HomeMetrics.chart,
+      child: DashEmptyState(framed: false, title: t('dashboard.noSalesPeriod')));
 } else { /* data */ }
 ```
 
@@ -104,35 +116,44 @@ final homeBranchSalesProvider = FutureProvider.autoDispose
 ```
 
 - The family argument IS the cache key: a record of exactly the params the request sends
-  (`typedef HomeRange = ({String id, String from, String to})`), built by one getter on `Scope`
-  (`scope.branchRange`, `scope.scopeRange`, `scope.orgRange`, `scope.series`). Not the whole
-  `Scope` (its preset or zone would split one web key into several), never a fresh object per
-  build. One key builder, used by the page, the Retry button, the prefetch and the tests.
+  (`typedef HomeRange = ({String id, String from, String to})`). Build it in ONE place in your own
+  providers file: the overview declares `extension HomeKeys on Scope` in `home_providers.dart`
+  (`scope.branchRange`, `scope.scopeRange`, `scope.orgRange`, `scope.series`); the page, the Retry
+  button, the prefetch and the tests all use it. Not the whole `Scope` (its preset or zone would
+  split one web key into several), never a fresh object per build.
 - `realtimeEpochProvider(<the request path>)` makes the read refetch when a realtime event or a
   mutation invalidates a prefix of it (`till.*` → `/tills`, `/reports`; `resync` → everything). The
   web's prefix rules live in dashboard_core; you only pass the real path.
 - Never call the API from `build` or `initState`; never cache in widget state.
 
-## 5. Mutations (the overview has none; pattern from `dashboard_admin` branches)
+## 5. Mutations (the overview has none; shape per `AGENT_BRIEF.md`)
 
 ```dart
-try {
-  await ref.read(apiProvider).branches.deleteBranch(id: b.id);
-  invalidateBranches(ref);            // = the web's onSuccess invalidations, nothing more
+Future<void> _remove(Branch b) async {
+  final t = ref.read(tProvider);
+  final api = ref.read(apiProvider);
+  final bus = ref.read(realtimeBusProvider);        // capture BEFORE the await:
+  final container = ProviderScope.containerOf(context, listen: false); // the page may close mid-save
+  try {
+    await api.branches.deleteBranch(id: b.id);
+  } on Object catch (e) {
+    if (mounted) DashToast.error(context, branchErrorText(e, t));   // never a silent failure
+    return;
+  }
+  bus.invalidate(const ['/branches']);              // web: invalidateQueries({queryKey: ['/branches']})
+  container.invalidate(branchesProvider);           // core reads not keyed by a path
   if (mounted) DashToast.success(context, t('branches.deletedToast'));
-} on Object catch (e) {
-  if (mounted) DashToast.error(context, branchErrorText(e, t));   // never a silent failure
-}
-
-void invalidateBranches(WidgetRef ref) {            // web: invalidateQueries({queryKey: ['/branches']})
-  ref.read(realtimeBusProvider).invalidate(const ['/branches']);   // every read under that prefix
-  ref.invalidate(branchesProvider);                 // core reads not keyed by a path
 }
 ```
 
-Read the web's `onSuccess` and list its keys; invalidate those prefixes and only those. A form's
-Save shows its busy state, keeps the dialog open on failure with the server's words, and closes
-on success.
+- Invalidate exactly the web's `onSuccess` keys (read them; prefixes via the bus, other reads by
+  provider) and ALWAYS: unconditionally after the await, never behind `if (mounted)`. Only the
+  toast and closing the dialog wait on `mounted`.
+- A form's Save shows its busy state, stays open on failure with the server's words, closes on
+  success.
+- A form seeded from cached data (an edit dialog, a settings form) re-seeds when a background
+  refresh lands, until the person has edited it (a copy taken once would save stale data over
+  newer).
 
 ## 6. Mock handlers and the area seed
 
@@ -143,7 +164,8 @@ server.on('GET', '/reports/branches/{branchId}/sales', (req) {
   final ids = reportBranches(req, db, id);           // requireBranch / 404 / nil = caller's branches
   final from = req.qDateTime('from'), to = req.qDateTime('to');
   return MockResponse.ok(branchSalesReport(branchId: id, branchName: _branchLabel(db, id),
-      orders: ordersIn(db, ids, from: from, to: to), from: from, to: to));
+      orders: ordersIn(db, ids, from: from, to: to), from: from, to: to,
+      topLimit: req.qInt('limit') ?? 10));            // the backend's own default
 });
 ```
 
@@ -152,11 +174,13 @@ server.on('GET', '/reports/branches/{branchId}/sales', (req) {
   validation (`req.unprocessable(msg, code:)` for a coded 422, `req.badRequest`, `req.conflict`), its
   sort and its paging (`pageOf(req, rows)` → `{data, total, page, per_page, total_pages}`).
 - State is real: a create inserts into `db['<table>']` and the next list shows it.
+- Times are bucketed in the zone the backend uses (`scopeZone`: the branch's, else the org's, else
+  Cairo), not the mock clock's Cairo.
 - Compute figures from the shared seed's rows, as the backend does, in pure functions
   (`home_figures.dart`), so cards agree with each other and with other areas' pages (the KPI revenue
   = the sum of branch rows = the payment mix total = the trend's periods). Pin that in
   `<page>_mock_test.dart` with hand-computed expectations.
-- Area data goes in `lib/src/mock/<area>_seed.dart`, keyed by the shared seed's ids
+- Unit data goes in `lib/src/mock/<unit>_mock.dart` (area-wide data in `area_seed.dart`), keyed by the shared seed's ids
   (`SeedIds.maadi`, `MockSeed.menuItemId('latte')`), realistic, no lorem ipsum.
 
 ## 7. Driven tests

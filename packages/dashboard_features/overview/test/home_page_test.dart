@@ -8,7 +8,10 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:design_system/design_system.dart';
+import 'package:dashboard_overview/src/home/home_kpis.dart';
 import 'package:dashboard_overview/src/home/home_page.dart';
+import 'package:dashboard_overview/src/home/home_parts.dart';
 import 'package:dashboard_overview/src/mock/home_figures.dart';
 import 'package:dashboard_overview/src/mock/register.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -603,6 +606,18 @@ void main() {
         (t) => t['branch_id'] == SeedIds.maadi && t['status'] == 'open',
       );
       expect(homeText('Open tills'), findsOneWidget);
+      final count = h.db!['tills'].rows
+          .where(
+            (t) => t['branch_id'] == SeedIds.maadi && t['status'] == 'open',
+          )
+          .length;
+      expect(
+        find.descendant(
+          of: find.byType(HomeOpenTillsCard),
+          matching: find.text('$count'),
+        ),
+        findsOneWidget,
+      );
       expect(
         homeHas(open['teller_name']! as String, findRichText: true),
         findsOneWidget,
@@ -625,9 +640,64 @@ void main() {
         path: '/?branchId=${SeedIds.maadi}',
       );
       expect(homeText('Open tills'), findsNothing);
+      final block = find.descendant(
+        of: find.byType(HomeOpenTillsCard),
+        matching: find.byType(HomeSkeleton),
+      );
+      expect(block, findsOneWidget);
+      expect(tester.getSize(block).height, 96);
       gate.release();
       await h.settle();
       expect(homeText('Open tills'), findsOneWidget);
+    });
+
+    for (final lang in ['en', 'ar']) {
+      testWidgets('OVW-HOME-047/048 View all sits at the card\'s end edge '
+          '($lang)', (tester) async {
+        await pumpHome(
+          tester,
+          locale: lang,
+          path: '/?branchId=${SeedIds.maadi}',
+        );
+        final card = tester.getRect(
+          find.descendant(
+            of: find.byType(HomeOpenTillsCard),
+            matching: find.byType(DashCard),
+          ),
+        );
+        final link = tester.getRect(
+          find.descendant(
+            of: find.byType(HomeOpenTillsCard),
+            matching: find.byType(HomeLink),
+          ),
+        );
+        if (lang == 'ar') {
+          expect(link.left, closeTo(card.left + Space.lg, 1));
+        } else {
+          expect(link.right, closeTo(card.right - Space.lg, 1));
+        }
+        expect(link.center.dy, lessThan(card.top + Space.xxl + Space.sm));
+      });
+    }
+
+    testWidgets('OVW-HOME-049 none open: "No open till" and 0', (tester) async {
+      final s = homeServer();
+      s.server.on('GET', _tills, (req) => MockResponse.ok(const []));
+      await pumpHome(
+        tester,
+        server: s.server,
+        db: s.db,
+        path: '/?branchId=${SeedIds.maadi}',
+      );
+      final card = find.byType(HomeOpenTillsCard);
+      expect(
+        find.descendant(of: card, matching: find.text('No open till')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: card, matching: find.text('0')),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
@@ -642,26 +712,32 @@ void main() {
       },
     );
 
-    testWidgets(
-      'OVW-HOME-049/054 none open, or the read failed: "No open till"',
-      (tester) async {
-        final s = homeServer();
-        s.server.fail(
-          'GET',
-          _tills,
-          MockResponse.denied('till.read'),
-          times: null,
-        );
-        await pumpHome(
-          tester,
-          server: s.server,
-          db: s.db,
-          path: '/?branchId=${SeedIds.maadi}',
-        );
-        expect(homeText('No open till'), findsOneWidget);
-        expect(homeText('Retry'), findsNothing);
-      },
-    );
+    testWidgets('OVW-HOME-054 a refused read reads like none open', (
+      tester,
+    ) async {
+      final s = homeServer();
+      s.server.fail(
+        'GET',
+        _tills,
+        MockResponse.denied('till.read'),
+        times: null,
+      );
+      await pumpHome(
+        tester,
+        server: s.server,
+        db: s.db,
+        path: '/?branchId=${SeedIds.maadi}',
+      );
+      expect(homeText('No open till'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(HomeOpenTillsCard),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+      expect(homeText('Retry'), findsNothing);
+    });
 
     testWidgets('OVW-HOME-051/052 verification and flag pills', (tester) async {
       final s = homeServer();
