@@ -200,11 +200,13 @@ class DashHarness {
     // boot does.
     await tester.runAsync(() => container.read(sessionProvider.future));
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: DashApp(
-          localizationsDelegates: dashTestLocalizationsDelegates,
-          reducedMotion: reducedMotion,
+      _CrashPanels(
+        child: UncontrolledProviderScope(
+          container: container,
+          child: DashApp(
+            localizationsDelegates: dashTestLocalizationsDelegates,
+            reducedMotion: reducedMotion,
+          ),
         ),
       ),
     );
@@ -387,4 +389,34 @@ class DashHarness {
       visit(v);
     }
   }
+}
+
+/// The app's [ErrorWidget.builder] while the app is up, as the app's boot
+/// sets it. Restored when the tree goes: flutter_test fails a test that
+/// leaves it changed, and checks before any tear-down runs.
+class _CrashPanels extends StatefulWidget {
+  const _CrashPanels({required this.child});
+  final Widget child;
+
+  @override
+  State<_CrashPanels> createState() => _CrashPanelsState();
+}
+
+class _CrashPanelsState extends State<_CrashPanels> {
+  final _previous = ErrorWidget.builder;
+
+  @override
+  void initState() {
+    super.initState();
+    ErrorWidget.builder = dashErrorWidget;
+  }
+
+  @override
+  void dispose() {
+    ErrorWidget.builder = _previous;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

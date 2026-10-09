@@ -15,6 +15,8 @@ bool get mockMode => _mockFlag == '1' || _mockFlag == 'true';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // A page that fails to build shows the crash panel, never a red box.
+  ErrorWidget.builder = dashErrorWidget;
   try {
     // Boot BEFORE runApp so the container (and the restored session) is in
     // place when the router first decides where to go.

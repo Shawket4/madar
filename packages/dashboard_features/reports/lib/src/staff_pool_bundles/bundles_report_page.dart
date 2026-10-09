@@ -78,9 +78,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
     // A row with an unknown cost makes the total cost a floor, not a figure:
     // no margin, as on the rows (REP-BUN-006).
     final marginText =
-        totals != null &&
-            totals.revenue > 0 &&
-            !rows.any((r) => r.costMissing)
+        totals != null && totals.revenue > 0 && !rows.any((r) => r.costMissing)
         ? fmtRateWire(f, (totals.revenue - totals.cost) / totals.revenue)
         : '—';
 
@@ -269,10 +267,8 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
     showDashDialog<void>(
       context,
       width: BundlesMixDialog.width,
-      builder: (context) => BundlesMixDialog(
-        name: name,
-        query: _mixQuery(row, query),
-      ),
+      builder: (context) =>
+          BundlesMixDialog(name: name, query: _mixQuery(row, query)),
     );
   }
 

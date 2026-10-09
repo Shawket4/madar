@@ -51,6 +51,7 @@ class DashSelectTrigger extends StatelessWidget {
     this.onIntent,
     this.placeholder = false,
     this.invalid = false,
+    this.warning = false,
     this.enabled = true,
     this.leadingIcon,
     this.chevron = 'chevron-down',
@@ -71,6 +72,9 @@ class DashSelectTrigger extends StatelessWidget {
   /// The label is a placeholder (muted).
   final bool placeholder;
   final bool invalid;
+
+  /// A soft warning edge and a warning-tinted glyph (a past date).
+  final bool warning;
   final bool enabled;
   final String? leadingIcon;
   final String chevron;
@@ -101,6 +105,7 @@ class DashSelectTrigger extends StatelessWidget {
           child: DashFieldShell(
             enabled: enabled,
             invalid: invalid,
+            warning: warning,
             focused: s.focused,
             shrinkWrap: !expand && width == null,
             leading: leadingIcon == null
@@ -108,7 +113,9 @@ class DashSelectTrigger extends StatelessWidget {
                 : DashIcon(
                     leadingIcon!,
                     size: IconSize.sm,
-                    color: c.textSecondary,
+                    color: warning
+                        ? DashTone.warning.foreground(c)
+                        : c.textSecondary,
                   ),
             trailing: DashIcon(
               chevron,
@@ -523,6 +530,9 @@ class _DashSelectState<T> extends State<DashSelect<T>> {
       width: widget.searchable
           ? DashMetrics.popover
           : DashMetrics.menu - Space.xxl,
+      // A plain list stops at 256 and scrolls (the web's `max-h-64`); a
+      // searchable one keeps room for its search box.
+      maxHeight: widget.searchable ? 360 : 256,
       anchor: (context, c) => trigger(c.toggle),
       content: (context, c) => DashOptionList<T>(
         options: widget.options,

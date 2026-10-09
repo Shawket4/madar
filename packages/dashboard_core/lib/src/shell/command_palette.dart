@@ -270,39 +270,38 @@ class _PaletteState extends ConsumerState<DashCommandPalette> {
   }
 
   Widget _input(Translator t, List<PaletteItem> flat) => DashTextInput(
-            value: _query,
-            autofocus: true,
-            leadingIcon: 'search',
-            placeholder: t('common.searchPlaceholder', defaultValue: 'Search…'),
-            semanticLabel: t('common.search', defaultValue: 'Search…'),
-            textInputAction: TextInputAction.go,
-            onChanged: (v) => setState(() {
-              _query = v;
-              _cursor = 0;
-            }),
-            onSubmitted: (_) {
-              if (flat.isNotEmpty) _open(flat[_cursor].to);
-            },
-            onKeyEvent: (node, event) {
-              if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
-                return KeyEventResult.ignored;
-              }
-              if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-                _move(1, flat.length);
-                return KeyEventResult.handled;
-              }
-              if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                _move(-1, flat.length);
-                return KeyEventResult.handled;
-              }
-              if (event.logicalKey == LogicalKeyboardKey.enter &&
-                  flat.isNotEmpty) {
-                _open(flat[_cursor].to);
-                return KeyEventResult.handled;
-              }
-              return KeyEventResult.ignored;
-            },
-          );
+    value: _query,
+    autofocus: true,
+    leadingIcon: 'search',
+    placeholder: t('common.searchPlaceholder', defaultValue: 'Search…'),
+    semanticLabel: t('common.search', defaultValue: 'Search…'),
+    textInputAction: TextInputAction.go,
+    onChanged: (v) => setState(() {
+      _query = v;
+      _cursor = 0;
+    }),
+    onSubmitted: (_) {
+      if (flat.isNotEmpty) _open(flat[_cursor].to);
+    },
+    onKeyEvent: (node, event) {
+      if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+        return KeyEventResult.ignored;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        _move(1, flat.length);
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        _move(-1, flat.length);
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.enter && flat.isNotEmpty) {
+        _open(flat[_cursor].to);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    },
+  );
 }
 
 class _PaletteRow extends StatelessWidget {

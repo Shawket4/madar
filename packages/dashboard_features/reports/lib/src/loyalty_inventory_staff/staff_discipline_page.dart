@@ -271,7 +271,11 @@ class DisciplineRowTile extends ConsumerWidget {
             child: Row(
               spacing: Space.sm + DashMetrics.hair,
               children: [
-                DashBadge('#${row.rankInDepartment}', outline: true, mono: true),
+                DashBadge(
+                  '#${row.rankInDepartment}',
+                  outline: true,
+                  mono: true,
+                ),
                 Flexible(
                   child: MadarClippedText(
                     row.employeeName,

@@ -52,10 +52,7 @@ void main() {
       final h = await pumpOps(tester);
       await openTab(h, 'Items');
       final call = h.server.callsTo(itemsRoute).single;
-      expect(
-        call.path,
-        '/reports/branches/$allBranchesId/items-combined',
-      );
+      expect(call.path, '/reports/branches/$allBranchesId/items-combined');
       expect(call.query['limit'], ['50']);
       _expectRange(h, call);
       final t = _table<CombinedItemSalesRow>(tester, 'ops-items-table');
@@ -67,14 +64,12 @@ void main() {
       expect(t.hideViewOptions, isTrue);
       expect(t.framed, isFalse);
       final want = opsCombinedItems(_orders(h, SeedIds.sabahBranches));
-      expect([for (final r in t.rows) r.itemId], [
-        for (final r in want) r.itemId,
-      ]);
-      expect(t.rows.first.totalQty, want.first.totalQty);
       expect(
-        inPage(find.text(want.first.itemName)),
-        findsOneWidget,
+        [for (final r in t.rows) r.itemId],
+        [for (final r in want) r.itemId],
       );
+      expect(t.rows.first.totalQty, want.first.totalQty);
+      expect(inPage(find.text(want.first.itemName)), findsOneWidget);
       expect(pageText(h.t('analytics.tabs.items')), findsWidgets);
       await h.shot('operations/items');
     });
@@ -142,7 +137,10 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.descendant(of: items, matching: find.text('No data for this period')),
+        find.descendant(
+          of: items,
+          matching: find.text('No data for this period'),
+        ),
         findsNothing,
       );
       gate.release();
@@ -161,14 +159,18 @@ void main() {
       final h = await pumpOps(tester, server: s.server, db: s.db);
       final gate = s.server.hold('GET', itemsRoute);
       await openTab(h, 'Items');
-      expect(_table<CombinedItemSalesRow>(tester, 'ops-items-table').loading,
-          isTrue);
+      expect(
+        _table<CombinedItemSalesRow>(tester, 'ops-items-table').loading,
+        isTrue,
+      );
       gate.release();
       await h.settle();
-      await h.container.read(scopeProvider.notifier).setCustomRange(
-        '2026-01-01T00:00:00.000Z',
-        '2026-01-02T00:00:00.000Z',
-      );
+      await h.container
+          .read(scopeProvider.notifier)
+          .setCustomRange(
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-02T00:00:00.000Z',
+          );
       await h.settle();
       expect(pageText('No data for this period'), findsNWidgets(2));
     });
@@ -197,9 +199,9 @@ void main() {
       final chart = tester.widget<OpsHBarChart>(
         inPage(find.byKey(const ValueKey('ops-tellers-chart'))),
       );
-      final top = ([...want]..sort((a, b) => b.revenue.compareTo(a.revenue)))
-          .take(10)
-          .toList();
+      final top = ([
+        ...want,
+      ]..sort((a, b) => b.revenue.compareTo(a.revenue))).take(10).toList();
       expect(chart.labels, [for (final r in top) r.tellerName]);
       expect(chart.values, [for (final r in top) r.revenue.toDouble()]);
       expect(OpsHBarChart.nameAxis, 110);
@@ -280,10 +282,12 @@ void main() {
       expect(_table<TellerStats>(tester, 'ops-tellers-table').loading, isTrue);
       gate.release();
       await h.settle();
-      await h.container.read(scopeProvider.notifier).setCustomRange(
-        '2026-01-01T00:00:00.000Z',
-        '2026-01-02T00:00:00.000Z',
-      );
+      await h.container
+          .read(scopeProvider.notifier)
+          .setCustomRange(
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-02T00:00:00.000Z',
+          );
       await h.settle();
       expect(pageText('No data for this period'), findsNWidgets(2));
     });
@@ -306,8 +310,9 @@ void main() {
       await h.shot('operations/waiters');
     });
 
-    testWidgets('REP-OPS-052 / 053 Waiter Details and the coverage caption',
-        (tester) async {
+    testWidgets('REP-OPS-052 / 053 Waiter Details and the coverage caption', (
+      tester,
+    ) async {
       final h = await pumpOps(tester);
       await openTab(h, 'Waiters');
       expect(_headers<WaiterStats>(tester, 'ops-waiters-table'), [
@@ -385,10 +390,12 @@ void main() {
       await h.settle();
       expect(inPage(textHas('orders came through waiters')), findsNothing);
       s.server.clearFailures();
-      await h.container.read(scopeProvider.notifier).setCustomRange(
-        '2026-01-01T00:00:00.000Z',
-        '2026-01-02T00:00:00.000Z',
-      );
+      await h.container
+          .read(scopeProvider.notifier)
+          .setCustomRange(
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-02T00:00:00.000Z',
+          );
       await h.settle();
       expect(inPage(textHas('orders came through waiters')), findsNothing);
       expect(pageText('No data for this period'), findsNWidgets(2));
@@ -396,8 +403,9 @@ void main() {
   });
 
   group('Branches', () {
-    testWidgets('REP-OPS-054 Revenue by Branch: every branch, largest first',
-        (tester) async {
+    testWidgets('REP-OPS-054 Revenue by Branch: every branch, largest first', (
+      tester,
+    ) async {
       final h = await pumpOps(tester);
       await openTab(h, 'Branches');
       final call = h.server.callsTo(comparisonRoute).single;

@@ -123,128 +123,149 @@ class _SignInState extends ConsumerState<DashSignInPage> {
                 horizontal: Space.lg,
                 vertical: Space.xxl + Space.sm,
               ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: SignInMetrics.form),
-                child: Form(
-                  key: _form,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Column(
-                        crossAxisAlignment: align,
+              child: _FadeUp(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: SignInMetrics.form,
+                  ),
+                  child: AutofillGroup(
+                    child: Form(
+                      key: _form,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const ShellWordmark(height: SignInMetrics.wordmark),
-                          const SizedBox(height: Space.xl),
-                          Semantics(
-                            header: true,
-                            child: Text(
-                              t('auth.welcome', defaultValue: 'Welcome back'),
-                              textAlign: textAlign,
-                              style: MadarType.h2.copyWith(
-                                color: c.textPrimary,
+                          Column(
+                            crossAxisAlignment: align,
+                            children: [
+                              const ShellWordmark(
+                                height: SignInMetrics.wordmark,
+                              ),
+                              const SizedBox(height: Space.xl),
+                              Semantics(
+                                header: true,
+                                child: Text(
+                                  t(
+                                    'auth.welcome',
+                                    defaultValue: 'Welcome back',
+                                  ),
+                                  textAlign: textAlign,
+                                  style: MadarType.h2.copyWith(
+                                    color: c.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: Space.xs),
+                              Text(
+                                t(
+                                  'auth.signInSubtitle',
+                                  defaultValue:
+                                      'Sign in to your account to continue',
+                                ),
+                                textAlign: textAlign,
+                                style: DashType.body.copyWith(
+                                  color: c.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: Space.xxl),
+                          DashTextField(
+                            key: const ValueKey('signin-email'),
+                            value: _email,
+                            onChanged: (v) => setState(() => _email = v),
+                            label: t(
+                              'auth.email',
+                              defaultValue: 'Email address',
+                            ),
+                            placeholder: t(
+                              'auth.emailPlaceholder',
+                              defaultValue: 'you@madar.com',
+                            ),
+                            keyboardType: TextInputType.emailAddress,
+                            autofillHints: const [AutofillHints.email],
+                            // Enter here signs in, as the web's form does.
+                            onSubmitted: (_) => _submit(),
+                            validator: (v) {
+                              if (v.isEmpty) {
+                                return t(
+                                  'common.requiredField',
+                                  defaultValue: 'This field is required',
+                                );
+                              }
+                              if (!_emailPattern.hasMatch(v)) {
+                                return t(
+                                  'auth.errors.invalidEmail',
+                                  defaultValue: 'Enter a valid email',
+                                );
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: Space.lg),
+                          DashFormField<String>(
+                            label: t('auth.password', defaultValue: 'Password'),
+                            value: _password,
+                            validator: (v) => v.isEmpty
+                                ? t(
+                                    'common.requiredField',
+                                    defaultValue: 'This field is required',
+                                  )
+                                : null,
+                            builder: (context, invalid) => DashTextInput(
+                              key: const ValueKey('signin-password'),
+                              value: _password,
+                              obscure: !_showPw,
+                              invalid: invalid,
+                              autofillHints: const [AutofillHints.password],
+                              placeholder: '••••••••',
+                              semanticLabel: t(
+                                'auth.password',
+                                defaultValue: 'Password',
+                              ),
+                              onChanged: (v) => setState(() => _password = v),
+                              onSubmitted: (_) => _submit(),
+                              trailing: DashIconButton(
+                                icon: _showPw ? 'eye-off' : 'eye',
+                                semanticLabel: _showPw
+                                    ? t(
+                                        'auth.hidePassword',
+                                        defaultValue: 'Hide password',
+                                      )
+                                    : t(
+                                        'auth.showPassword',
+                                        defaultValue: 'Show password',
+                                      ),
+                                color: c.textSecondary,
+                                onPressed: () =>
+                                    setState(() => _showPw = !_showPw),
                               ),
                             ),
                           ),
-                          const SizedBox(height: Space.xs),
-                          Text(
-                            t(
-                              'auth.signInSubtitle',
-                              defaultValue:
-                                  'Sign in to your account to continue',
-                            ),
-                            textAlign: textAlign,
-                            style: DashType.body.copyWith(
-                              color: c.textSecondary,
-                            ),
+                          const SizedBox(height: Space.xl),
+                          DashButton(
+                            key: const ValueKey('signin-submit'),
+                            label: t('auth.signIn', defaultValue: 'Sign in'),
+                            icon: 'log-in',
+                            loading: _busy,
+                            expand: true,
+                            onPressed: _submit,
                           ),
+                          if (!wide) ...[
+                            const SizedBox(height: Space.xxl),
+                            Text(
+                              copyrightLine(ref),
+                              textAlign: TextAlign.center,
+                              style: DashType.small.copyWith(
+                                color: c.textMuted,
+                              ),
+                            ),
+                          ],
+                          SizedBox(height: wide ? Space.xxl : Space.xs),
+                          const DashLegalLinks(),
                         ],
                       ),
-                      const SizedBox(height: Space.xxl),
-                      DashTextField(
-                        key: const ValueKey('signin-email'),
-                        value: _email,
-                        onChanged: (v) => setState(() => _email = v),
-                        label: t('auth.email', defaultValue: 'Email address'),
-                        placeholder: t(
-                          'auth.emailPlaceholder',
-                          defaultValue: 'you@madar.com',
-                        ),
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (v) {
-                          if (v.isEmpty) {
-                            return t(
-                              'common.requiredField',
-                              defaultValue: 'This field is required',
-                            );
-                          }
-                          if (!_emailPattern.hasMatch(v)) {
-                            return t(
-                              'auth.errors.invalidEmail',
-                              defaultValue: 'Enter a valid email',
-                            );
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: Space.lg),
-                      DashFormField<String>(
-                        label: t('auth.password', defaultValue: 'Password'),
-                        value: _password,
-                        validator: (v) => v.isEmpty
-                            ? t(
-                                'common.requiredField',
-                                defaultValue: 'This field is required',
-                              )
-                            : null,
-                        builder: (context, invalid) => DashTextInput(
-                          key: const ValueKey('signin-password'),
-                          value: _password,
-                          obscure: !_showPw,
-                          invalid: invalid,
-                          placeholder: '••••••••',
-                          semanticLabel: t(
-                            'auth.password',
-                            defaultValue: 'Password',
-                          ),
-                          onChanged: (v) => setState(() => _password = v),
-                          onSubmitted: (_) => _submit(),
-                          trailing: DashIconButton(
-                            icon: _showPw ? 'eye-off' : 'eye',
-                            semanticLabel: _showPw
-                                ? t(
-                                    'auth.hidePassword',
-                                    defaultValue: 'Hide password',
-                                  )
-                                : t(
-                                    'auth.showPassword',
-                                    defaultValue: 'Show password',
-                                  ),
-                            color: c.textSecondary,
-                            onPressed: () => setState(() => _showPw = !_showPw),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: Space.xl),
-                      DashButton(
-                        key: const ValueKey('signin-submit'),
-                        label: t('auth.signIn', defaultValue: 'Sign in'),
-                        icon: 'log-in',
-                        loading: _busy,
-                        expand: true,
-                        onPressed: _submit,
-                      ),
-                      if (!wide) ...[
-                        const SizedBox(height: Space.xxl),
-                        Text(
-                          copyrightLine(ref),
-                          textAlign: TextAlign.center,
-                          style: DashType.small.copyWith(color: c.textMuted),
-                        ),
-                      ],
-                      SizedBox(height: wide ? Space.xxl : Space.xs),
-                      const DashLegalLinks(),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -265,6 +286,28 @@ class _SignInState extends ConsumerState<DashSignInPage> {
       ),
     );
   }
+}
+
+/// The form fades up on entry (the web's `fadeInUp`); still under reduced
+/// motion.
+class _FadeUp extends StatelessWidget {
+  const _FadeUp({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: DashMotion.of(context, DashMotion.fast),
+    curve: DashMotion.ease,
+    builder: (context, v, child) => Opacity(
+      opacity: v,
+      child: Transform.translate(
+        offset: Offset(0, (1 - v) * (Space.xs + DashMetrics.hair)),
+        child: child,
+      ),
+    ),
+    child: child,
+  );
 }
 
 /// The brand panel: the chrome's ink in both themes, set apart by a

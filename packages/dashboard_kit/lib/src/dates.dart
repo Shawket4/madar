@@ -257,7 +257,9 @@ class DashMonthBar extends StatelessWidget {
 
 /// A single day (the web's `DatePicker` / `DateField`): a trigger with a
 /// calendar glyph, a month calendar in a popover (a sheet on a phone),
-/// Today in the footer. [warnPast] allows a past day but says so.
+/// Today in the footer. [warnPast] allows a past day but says so (a warning
+/// edge and glyph on the trigger, and a line under it). [onCleared] adds
+/// Clear once a day is set; [yearLabel] adds a year to jump to.
 class DashDateField extends StatefulWidget {
   const DashDateField({
     required this.value,
@@ -272,6 +274,8 @@ class DashDateField extends StatefulWidget {
     this.invalid = false,
     this.enabled = true,
     this.onIntent,
+    this.onCleared,
+    this.yearLabel,
     super.key,
   });
 
@@ -279,6 +283,14 @@ class DashDateField extends StatefulWidget {
   final ValueChanged<DateTime> onChanged;
   final String? placeholder;
   final String? semanticLabel;
+
+  /// Set: a Clear button in the footer while a day is chosen (the native
+  /// date input can be emptied); it runs this.
+  final VoidCallback? onCleared;
+
+  /// Set: a year select beside the month bar, named this (a day decades
+  /// back, as a hire date, without paging month by month).
+  final String? yearLabel;
 
   /// The field is about to be pressed ([DashIntent]): warm the read a new
   /// day makes (the list for the day shown, a neighbour). Never a write.
@@ -302,9 +314,11 @@ class _DashDateFieldState extends State<DashDateField> {
 
   DateTime get _today => dashDay(widget.today ?? DateTime.now());
 
-  Widget _panel(BuildContext context, void Function(DateTime) apply) {
+  /// [done] gets the day picked, or null for Clear.
+  Widget _panel(BuildContext context, void Function(DateTime?) done) {
     final c = context.madarColors;
     final t = context.dashStrings;
+    final y = _today.year;
     return StatefulBuilder(
       // Scrolls when the popover is capped to a short window.
       builder: (context, inner) => SingleChildScrollView(
@@ -313,9 +327,33 @@ class _DashDateFieldState extends State<DashDateField> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DashMonthBar(
-              month: _month,
-              onChanged: (m) => inner(() => _month = m),
+            Row(
+              spacing: Space.sm,
+              children: [
+                Expanded(
+                  child: DashMonthBar(
+                    month: _month,
+                    onChanged: (m) => inner(() => _month = m),
+                  ),
+                ),
+                if (widget.yearLabel != null)
+                  DashSelect<int>(
+                    expand: false,
+                    semanticLabel: widget.yearLabel,
+                    sheetTitle: widget.yearLabel,
+                    value: _month.year,
+                    options: [
+                      for (
+                        var i = math.max(y + 5, _month.year);
+                        i >= math.min(y - 60, _month.year);
+                        i--
+                      )
+                        DashOption(value: i, label: '$i'),
+                    ],
+                    onChanged: (v) =>
+                        inner(() => _month = DateTime(v, _month.month)),
+                  ),
+              ],
             ),
             const SizedBox(height: Space.sm),
             DashCalendar(
@@ -324,7 +362,7 @@ class _DashDateFieldState extends State<DashDateField> {
               selected: widget.value == null ? null : dashDay(widget.value!),
               disableFuture: widget.disableFuture,
               disablePast: widget.disablePast,
-              onPick: apply,
+              onPick: done,
             ),
             const SizedBox(height: Space.md),
             Container(
@@ -338,17 +376,28 @@ class _DashDateFieldState extends State<DashDateField> {
                     label: t.today,
                     variant: DashButtonVariant.ghost,
                     size: DashButtonSize.compact,
-                    onPressed: () => apply(_today),
+                    onPressed: () => done(_today),
                   ),
-                  const Spacer(),
-                  Text(
-                    widget.value == null
-                        ? t.clickDay
-                        : context.dashFormats.date(widget.value),
-                    style: DashType.smallMedium.copyWith(
-                      color: widget.value == null
-                          ? c.textSecondary
-                          : c.textPrimary,
+                  if (widget.onCleared != null && widget.value != null)
+                    DashButton(
+                      label: t.clear,
+                      variant: DashButtonVariant.ghost,
+                      size: DashButtonSize.compact,
+                      onPressed: () => done(null),
+                    ),
+                  Expanded(
+                    child: MadarClippedText(
+                      widget.value == null
+                          ? t.clickDay
+                          : context.dashFormats.date(widget.value),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: DashType.smallMedium.copyWith(
+                        color: widget.value == null
+                            ? c.textSecondary
+                            : c.textPrimary,
+                      ),
                     ),
                   ),
                 ],
@@ -377,6 +426,7 @@ class _DashDateFieldState extends State<DashDateField> {
       leadingIcon: 'calendar',
       chevron: 'chevron-down',
       invalid: widget.invalid,
+      warning: pastSelected,
       enabled: widget.enabled,
       semanticLabel: widget.semanticLabel,
       onIntent: widget.onIntent,
@@ -385,6 +435,8 @@ class _DashDateFieldState extends State<DashDateField> {
         onTap();
       },
     );
+    void done(DateTime? d) =>
+        d == null ? widget.onCleared?.call() : widget.onChanged(d);
     final phone = DashBreakpoints.isPhone(context);
     final field = phone
         ? trigger(
@@ -393,17 +445,20 @@ class _DashDateFieldState extends State<DashDateField> {
               title: widget.semanticLabel ?? t.pickDate,
               builder: (sheet) => _panel(sheet, (d) {
                 Navigator.of(sheet).pop();
-                widget.onChanged(d);
+                done(d);
               }),
             ),
           )
         : DashPopover(
-            width: DashMetrics.popover + Space.xxl,
+            // Wider with Clear, so the footer keeps the day whole.
+            width:
+                DashMetrics.popover +
+                Space.xxl * (widget.onCleared == null ? 1 : 2),
             maxHeight: 440,
             anchor: (context, ctl) => trigger(ctl.toggle),
             content: (context, ctl) => _panel(context, (d) {
               ctl.close();
-              widget.onChanged(d);
+              done(d);
             }),
           );
     if (!pastSelected) return field;

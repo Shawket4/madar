@@ -169,6 +169,9 @@ class BranchRealtime {
 
   int _attempt = 0;
   bool _stopped = false;
+
+  /// Bumped by every [stop]: a loop from before it sees that and ends.
+  int _run = 0;
   Timer? _timer;
   StreamSubscription<RealtimeFrame>? _sub;
   String? _lastId;
@@ -181,17 +184,38 @@ class BranchRealtime {
 
   bool get isStopped => _stopped;
 
-  void start() => unawaited(_connect());
+  void start() => unawaited(_connect(_run));
 
-  Future<void> _connect() async {
-    if (_stopped) return;
+  int _holders = 0;
+
+  /// A frame shows live updates: connected while at least one holds it
+  /// (connecting again after a [stop]).
+  void hold() {
+    _holders++;
+    if (!_stopped) return;
+    _stopped = false;
+    _attempt = 0;
+    start();
+  }
+
+  /// The frame went: the last one out stops it.
+  void release() {
+    _holders--;
+    if (_holders <= 0) {
+      _holders = 0;
+      stop();
+    }
+  }
+
+  Future<void> _connect(int run) async {
+    if (run != _run) return;
     try {
       final stream = await gateway.connect(
         branchId: branchId,
         topics: topics,
         lastEventId: _lastId,
       );
-      if (_stopped) return;
+      if (run != _run) return;
       _attempt = 0;
       final done = Completer<void>();
       _sub = stream.listen(
@@ -211,18 +235,19 @@ class BranchRealtime {
     } on Object {
       // Fall through to the retry; a stopped stream is not an error.
     }
-    if (_stopped) return;
+    if (run != _run) return;
     final wait =
         realtimeRetryDelays[_attempt < realtimeRetryDelays.length
             ? _attempt
             : realtimeRetryDelays.length - 1];
     _attempt += 1;
-    _timer = Timer(wait, () => unawaited(_connect()));
+    _timer = Timer(wait, () => unawaited(_connect(run)));
   }
 
   /// Closes the connection and stops reconnecting.
   void stop() {
     _stopped = true;
+    _run++;
     _timer?.cancel();
     unawaited(_sub?.cancel());
   }

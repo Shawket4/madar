@@ -257,7 +257,8 @@ class FinDecisionsTab extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
                 style: DashType.bodyMedium.copyWith(color: c.textPrimary),
               ),
-              if (r.sizeLabel != 'one_size') DashBadge(r.sizeLabel, outline: true),
+              if (r.sizeLabel != 'one_size')
+                DashBadge(r.sizeLabel, outline: true),
             ],
           ),
         ),

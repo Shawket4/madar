@@ -186,6 +186,7 @@ class DashTextField extends StatelessWidget {
     this.leadingIcon,
     this.inputFormatters,
     this.onSubmitted,
+    this.autofillHints,
     super.key,
   });
 
@@ -207,6 +208,9 @@ class DashTextField extends StatelessWidget {
   final String? leadingIcon;
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onSubmitted;
+
+  /// See [DashTextInput.autofillHints].
+  final Iterable<String>? autofillHints;
 
   @override
   Widget build(BuildContext context) => DashFormField<String>(
@@ -232,6 +236,7 @@ class DashTextField extends StatelessWidget {
       leadingIcon: leadingIcon,
       inputFormatters: inputFormatters,
       onSubmitted: onSubmitted,
+      autofillHints: autofillHints,
     ),
   );
 }
@@ -317,10 +322,12 @@ int _decimalsOf(num step) {
 }
 
 /// The kit's number (the web's `NumberField`): typed in Latin or Arabic
-/// digits, stepped with −/+ or ↑/↓, or set by a preset chip. A number out of
-/// range, or one it cannot read, is refused out loud and handed on as typed
-/// (NaN when unreadable) — the field never quietly clamps or keeps the last
-/// good number.
+/// digits, stepped with −/+ or ↑/↓, or set by a preset chip. Every keystroke
+/// hands the number on, so a Save pressed without leaving the field saves
+/// what is typed; the text is tidied (and a problem said) when the field is
+/// left or Enter is pressed. A number out of range, or one it cannot read,
+/// is refused out loud and handed on as typed (NaN when unreadable) — the
+/// field never quietly clamps or keeps the last good number.
 class DashNumberInput extends StatefulWidget {
   const DashNumberInput({
     required this.value,
@@ -344,6 +351,7 @@ class DashNumberInput extends StatefulWidget {
     this.center = false,
     this.semanticLabel,
     this.onSubmitted,
+    this.grouped = true,
     super.key,
   });
 
@@ -353,6 +361,9 @@ class DashNumberInput extends StatefulWidget {
   /// Enter: the typed number is settled (as [onChanged] gets it), then this
   /// runs with it — a form's submit.
   final ValueChanged<double?>? onSubmitted;
+
+  /// Off: no thousands separators (a port reads `9100`, not `9,100`).
+  final bool grouped;
   final double min;
   final double? max;
   final double step;
@@ -402,7 +413,14 @@ class _DashNumberInputState extends State<DashNumberInput> {
     final same =
         v == _emitted ||
         (v != null && _emitted != null && v.isNaN && _emitted!.isNaN);
-    if (!same) {
+    // While typing, a value that is not a number is the caller's echo of
+    // what the draft hands on (money maps NaN to null): keep the draft. A
+    // different number is a reset from outside.
+    final typing =
+        _focus.hasFocus &&
+        _draft != null &&
+        (v == null || !v.isFinite || v == _parse(_draft!).$1);
+    if (!same && !typing) {
       _emitted = v;
       _draft = null;
       _problem = null;
@@ -438,35 +456,37 @@ class _DashNumberInputState extends State<DashNumberInput> {
 
   String _range(DashKitStrings t, DashKitFormats f) {
     final u = widget.unitWord == null ? '' : ' ${widget.unitWord}';
+    // Isolated: "-5" in an Arabic sentence would read "5-".
+    String fig(double n) => dashFigure(f.figure(n));
     return widget.max != null
-        ? t.between(f.figure(widget.min), f.figure(widget.max!), u)
-        : t.atLeast(f.figure(widget.min), u);
+        ? t.between(fig(widget.min), fig(widget.max!), u)
+        : t.atLeast(fig(widget.min), u);
+  }
+
+  /// What [raw] hands on, and the problem to say when it is refused: null
+  /// when empty and allowed, NaN when empty or unreadable, the number
+  /// (rounded) otherwise, out of range or not.
+  (double?, String?) _parse(String raw) {
+    final t = context.dashStrings;
+    final text = raw.trim();
+    if (text.isEmpty) {
+      return widget.allowEmpty ? (null, null) : (double.nan, t.needsValue);
+    }
+    final n = dashParseNumber(text);
+    if (n == null) return (double.nan, t.notANumber(text));
+    final out = n < widget.min || (widget.max != null && n > widget.max!);
+    return (_roundTo(n, _places), out ? _range(t, context.dashFormats) : null);
   }
 
   void _settle() {
     final d = _draft;
     if (d == null) return;
-    final t = context.dashStrings;
-    final f = context.dashFormats;
-    final text = d.trim();
-    if (text.isEmpty) {
-      if (widget.allowEmpty) {
-        _accept(null);
-      } else {
-        _refuse(t.needsValue, double.nan);
-      }
-      return;
+    final (n, problem) = _parse(d);
+    if (problem == null) {
+      _accept(n);
+    } else {
+      _refuse(problem, n!);
     }
-    final n = dashParseNumber(text);
-    if (n == null) {
-      _refuse(t.notANumber(text), double.nan);
-      return;
-    }
-    if (n < widget.min || (widget.max != null && n > widget.max!)) {
-      _refuse(_range(t, f), _roundTo(n, _places));
-      return;
-    }
-    _accept(_roundTo(n, _places));
   }
 
   void _bump(int dir) {
@@ -482,15 +502,15 @@ class _DashNumberInputState extends State<DashNumberInput> {
     final c = context.madarColors;
     final t = context.dashStrings;
     final f = context.dashFormats;
+    final figure = _has
+        ? f.figure(
+            widget.value!,
+            minDecimals: math.min(widget.minDecimals, _places),
+            maxDecimals: _places,
+          )
+        : '';
     final shown =
-        _draft ??
-        (_has
-            ? f.figure(
-                widget.value!,
-                minDecimals: math.min(widget.minDecimals, _places),
-                maxDecimals: _places,
-              )
-            : '');
+        _draft ?? (widget.grouped ? figure : figure.replaceAll(',', ''));
     Widget stepBtn(String icon, String label, bool can, int dir) =>
         DashPressable(
           onTap: widget.enabled && can ? () => _bump(dir) : null,
@@ -531,10 +551,13 @@ class _DashNumberInputState extends State<DashNumberInput> {
         signed: widget.min < 0,
       ),
       selectAllOnFocus: true,
-      onChanged: (v) => setState(() {
-        _draft = v;
-        _problem = null;
-      }),
+      onChanged: (v) {
+        setState(() {
+          _draft = v;
+          _problem = null;
+        });
+        _emit(_parse(v).$1);
+      },
       onSubmitted: (_) {
         _settle();
         widget.onSubmitted?.call(_emitted);
@@ -604,7 +627,7 @@ class _DashNumberInputState extends State<DashNumberInput> {
             children: [
               for (final p in widget.presets)
                 DashChoiceChip(
-                  label: widget.presetLabel?.call(p) ?? f.figure(p),
+                  label: widget.presetLabel?.call(p) ?? dashFigure(f.figure(p)),
                   selected: widget.value == p,
                   enabled: widget.enabled,
                   onTap: () => _accept(p),
@@ -650,6 +673,7 @@ class DashNumberField extends StatelessWidget {
     this.unitWord,
     this.enabled = true,
     this.onSubmitted,
+    this.grouped = true,
     super.key,
   });
 
@@ -659,6 +683,9 @@ class DashNumberField extends StatelessWidget {
   final String? description;
   final String? errorText;
   final DashValidator<double?>? validator;
+
+  /// See [DashNumberInput.grouped].
+  final bool grouped;
   final double min;
   final double? max;
   final double step;
@@ -698,6 +725,7 @@ class DashNumberField extends StatelessWidget {
       enabled: enabled,
       semanticLabel: label,
       onSubmitted: onSubmitted,
+      grouped: grouped,
     ),
   );
 }
@@ -719,12 +747,17 @@ class DashMoneyField extends StatelessWidget {
     this.stepper = false,
     this.allowEmpty = false,
     this.enabled = true,
+    this.onSubmitted,
     super.key,
   });
 
   /// Minor units (piastres), or null.
   final int? value;
   final ValueChanged<int?> onChanged;
+
+  /// Enter submits, with the settled amount in minor units
+  /// ([DashNumberInput.onSubmitted]).
+  final ValueChanged<int?>? onSubmitted;
   final String? label;
   final String? description;
   final String? errorText;
@@ -741,6 +774,8 @@ class DashMoneyField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cur = context.dashFormats.currencyLabel;
+    int? minor(double? major) =>
+        major == null || major.isNaN ? null : (major * 100).round();
     return DashFormField<int?>(
       label: label,
       errorText: errorText,
@@ -748,9 +783,10 @@ class DashMoneyField extends StatelessWidget {
       value: value,
       builder: (context, invalid) => DashNumberInput(
         value: value == null ? null : value! / 100,
-        onChanged: (major) => onChanged(
-          major == null ? null : (major.isNaN ? null : (major * 100).round()),
-        ),
+        onChanged: (major) => onChanged(minor(major)),
+        onSubmitted: onSubmitted == null
+            ? null
+            : (major) => onSubmitted!(minor(major)),
         min: min / 100,
         max: max == null ? null : max! / 100,
         step: stepMajor,
@@ -992,7 +1028,8 @@ class DashSwitchField extends StatelessWidget {
   }
 }
 
-/// A checkbox with its words beside it; the words toggle it too.
+/// A checkbox with its words beside it; the words toggle it too. Given no
+/// fixed width (a [Wrap], a [Row]) it is as wide as its words.
 class DashCheckboxField extends StatelessWidget {
   const DashCheckboxField({
     required this.value,
@@ -1016,60 +1053,64 @@ class DashCheckboxField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
-    return DashFormField<bool>(
-      errorText: errorText,
-      validator: validator,
-      value: value,
-      builder: (context, invalid) => DashPressable(
-        onTap: enabled ? () => onChanged(!value) : null,
-        enabled: enabled,
-        isButton: false,
-        checked: value,
-        semanticLabel: label,
-        excludeChildSemantics: true,
-        pressScale: false,
-        builder: (context, s) => Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            IgnorePointer(
-              child: SizedBox(
-                width: DashMetrics.checkbox + Space.md,
-                child: DashCheckbox(
-                  value: value,
-                  onChanged: (_) {},
-                  semanticLabel: label,
-                  invalid: invalid,
-                  enabled: enabled,
-                  alignStart: true,
+    // Sized by its words where the width is loose or unbounded (the row's
+    // Expanded and the form's stretch need a width); a tight width wins.
+    return IntrinsicWidth(
+      child: DashFormField<bool>(
+        errorText: errorText,
+        validator: validator,
+        value: value,
+        builder: (context, invalid) => DashPressable(
+          onTap: enabled ? () => onChanged(!value) : null,
+          enabled: enabled,
+          isButton: false,
+          checked: value,
+          semanticLabel: label,
+          excludeChildSemantics: true,
+          pressScale: false,
+          builder: (context, s) => Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              IgnorePointer(
+                child: SizedBox(
+                  width: DashMetrics.checkbox + Space.md,
+                  child: DashCheckbox(
+                    value: value,
+                    onChanged: (_) {},
+                    semanticLabel: label,
+                    invalid: invalid,
+                    enabled: enabled,
+                    alignStart: true,
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  top: Space.md - DashMetrics.hair,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: DashMetrics.hair,
-                  children: [
-                    Text(
-                      label,
-                      style: DashType.bodyMedium.copyWith(
-                        color: enabled ? c.textPrimary : c.disabledText,
-                      ),
-                    ),
-                    if (description != null)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    top: Space.md - DashMetrics.hair,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: DashMetrics.hair,
+                    children: [
                       Text(
-                        description!,
-                        style: DashType.body.copyWith(color: c.textSecondary),
+                        label,
+                        style: DashType.bodyMedium.copyWith(
+                          color: enabled ? c.textPrimary : c.disabledText,
+                        ),
                       ),
-                  ],
+                      if (description != null)
+                        Text(
+                          description!,
+                          style: DashType.body.copyWith(color: c.textSecondary),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1306,11 +1347,17 @@ class DashDateFormField extends StatelessWidget {
     this.disablePast = false,
     this.warnPast = false,
     this.enabled = true,
+    this.onCleared,
+    this.yearLabel,
     super.key,
   });
 
   final DateTime? value;
   final ValueChanged<DateTime> onChanged;
+
+  /// See [DashDateField.onCleared] and [DashDateField.yearLabel].
+  final VoidCallback? onCleared;
+  final String? yearLabel;
   final String? label;
   final String? description;
   final String? errorText;
@@ -1340,6 +1387,8 @@ class DashDateFormField extends StatelessWidget {
       warnPast: warnPast,
       invalid: invalid,
       enabled: enabled,
+      onCleared: onCleared,
+      yearLabel: yearLabel,
     ),
   );
 }
@@ -1358,9 +1407,12 @@ class DashTimeFormField extends StatelessWidget {
     this.step = 15,
     this.enabled = true,
     this.describeOption,
+    this.onSubmitted,
     super.key,
   });
 
+  /// See [DashTimeField.onSubmitted].
+  final VoidCallback? onSubmitted;
   final String? value;
   final ValueChanged<String> onChanged;
   final String? label;
@@ -1390,6 +1442,7 @@ class DashTimeFormField extends StatelessWidget {
       invalid: invalid,
       enabled: enabled,
       describeOption: describeOption,
+      onSubmitted: onSubmitted,
     ),
   );
 }
@@ -1448,9 +1501,160 @@ class DashTimezoneSelect extends StatelessWidget {
   }
 }
 
+// ── phone ──────────────────────────────────────────────────────────────
+
+/// The canonical phone (the web's `canonicalPhone`, madar-shared's
+/// `phone_vectors.json`): E.164 digits without the `+` (`201001234567`),
+/// from however it was typed (`010…`, `+20 10…`, `0020…`, Arabic digits);
+/// null when it is not a phone. Never change the rule here alone.
+String? dashCanonicalPhone(String? raw) {
+  if (raw == null || raw.runes.length > 32) return null;
+  var d = DashTime.latinDigits(raw).replaceAll(RegExp('[^0-9]'), '');
+  if (d.startsWith('00')) {
+    d = d.substring(2);
+  } else if (d.startsWith('20')) {
+    // Already country-coded.
+  } else if (d.startsWith('0')) {
+    d = '20${d.substring(1)}';
+  } else if (d.length == 10 && d.startsWith('1')) {
+    d = '20$d';
+  }
+  if (d.length < 10 || d.length > 15) return null;
+  // An Egyptian mobile is exactly 12 digits; landlines are untouched.
+  if (RegExp('^201[0125]').hasMatch(d) && d.length != 12) return null;
+  return d;
+}
+
+/// Why a typed phone fails (the web's `phoneProblem`): `short`, `long`,
+/// `prefix` or `bad`; null when it is fine or empty.
+String? dashPhoneProblem(String raw) {
+  final text = raw.trim();
+  if (text.isEmpty || dashCanonicalPhone(text) != null) return null;
+  final digits = DashTime.latinDigits(text).replaceAll(RegExp(r'\D'), '');
+  final national = digits.replaceFirst(RegExp('^(00)?20'), '0');
+  if (!national.startsWith('01')) return 'bad';
+  if (!RegExp('^01[0125]').hasMatch(national)) return 'prefix';
+  return national.length < 11 ? 'short' : 'long';
+}
+
+/// A phone for reading (`formatPhoneDisplay`): `+20 100 123 4567` for an
+/// Egyptian mobile, `+<digits>` otherwise; a non-phone as given. Always left
+/// to right: isolate it inside Arabic text.
+String dashFormatPhoneDisplay(String? phone) {
+  if (phone == null || phone.isEmpty) return '';
+  final c = dashCanonicalPhone(phone);
+  if (c == null) return phone;
+  final m = RegExp(r'^20(1\d{2})(\d{3})(\d{4})$').firstMatch(c);
+  return m == null ? '+$c' : '+20 ${m[1]} ${m[2]} ${m[3]}';
+}
+
+/// A phone number, Egyptian-first (the web's `PhoneField`): typed as
+/// digits on the phone keypad, always left to right (Arabic too), read back
+/// with its country code (`+20 100 123 4567`) and a tick once it is a real
+/// number, and what is wrong (too short, not a mobile prefix) is said after
+/// the field is left, not while typing. [value] stays as typed: send
+/// [dashCanonicalPhone] of it. A form error ([errorText]) wins over the
+/// field's own words.
+class DashPhoneField extends StatefulWidget {
+  const DashPhoneField({
+    required this.value,
+    required this.onChanged,
+    this.label,
+    this.placeholder,
+    this.description,
+    this.errorText,
+    this.validator,
+    this.enabled = true,
+    this.onSubmitted,
+    super.key,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+  final String? label;
+
+  /// Defaults to `010 1234 5678`.
+  final String? placeholder;
+  final String? description;
+  final String? errorText;
+  final DashValidator<String>? validator;
+  final bool enabled;
+
+  /// Enter: the form's submit.
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  State<DashPhoneField> createState() => _DashPhoneFieldState();
+}
+
+class _DashPhoneFieldState extends State<DashPhoneField> {
+  bool _touched = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.dashStrings;
+    final c = context.madarColors;
+    final canonical = dashCanonicalPhone(widget.value);
+    final own = switch (_touched ? dashPhoneProblem(widget.value) : null) {
+      'short' => t.phoneShort,
+      'long' => t.phoneLong,
+      'prefix' => t.phonePrefix,
+      'bad' => t.phoneBad,
+      _ => null,
+    };
+    return DashFormField<String>(
+      label: widget.label,
+      description: widget.description,
+      errorText: widget.errorText ?? own,
+      validator: widget.validator,
+      value: widget.value,
+      builder: (context, invalid) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        spacing: Space.xs,
+        children: [
+          DashTextInput(
+            value: widget.value,
+            semanticLabel: widget.label,
+            placeholder: widget.placeholder ?? '010 1234 5678',
+            keyboardType: TextInputType.phone,
+            textDirection: TextDirection.ltr,
+            autofillHints: const [AutofillHints.telephoneNumber],
+            invalid: invalid,
+            enabled: widget.enabled,
+            onSubmitted: widget.onSubmitted,
+            trailing: canonical == null
+                ? null
+                : DashIcon('check', size: IconSize.sm, color: c.success),
+            onFocusChange: (focused) {
+              if (!focused && !_touched) setState(() => _touched = true);
+            },
+            onChanged: (v) {
+              if (_touched && dashCanonicalPhone(v) != null) {
+                setState(() => _touched = false);
+              }
+              widget.onChanged(v);
+            },
+          ),
+          if (!invalid && canonical != null)
+            Text(
+              dashFormatPhoneDisplay(canonical),
+              textDirection: TextDirection.ltr,
+              textAlign: Directionality.of(context) == TextDirection.rtl
+                  ? TextAlign.right
+                  : TextAlign.left,
+              style: DashType.small.copyWith(color: c.textSecondary),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Paired English + Arabic inputs for a translatable field (the web's
-/// `BilingualField`): side by side from 640 wide, stacked below; the Arabic
-/// one types right-to-left whatever the page's language.
+/// `BilingualField`): side by side on a window 640 or wider (the web's
+/// `sm:grid-cols-2`, by the screen, not the field), stacked below; the
+/// Arabic one types right-to-left whatever the page's language.
 class DashBilingualField extends StatelessWidget {
   const DashBilingualField({
     required this.label,
@@ -1464,9 +1668,12 @@ class DashBilingualField extends StatelessWidget {
     this.enValidator,
     this.arValidator,
     this.enabled = true,
+    this.onSubmitted,
     super.key,
   });
 
+  /// Enter in either (single-line) input: the form's submit.
+  final VoidCallback? onSubmitted;
   final String label;
   final String en;
   final String ar;
@@ -1507,6 +1714,7 @@ class DashBilingualField extends StatelessWidget {
             validator: val,
             textDirection: dir,
             enabled: enabled,
+            onSubmitted: onSubmitted == null ? null : (_) => onSubmitted!(),
           );
     final enF = field(
       label,
@@ -1524,23 +1732,20 @@ class DashBilingualField extends StatelessWidget {
       arValidator,
       TextDirection.rtl,
     );
-    return LayoutBuilder(
-      builder: (context, constraints) =>
-          constraints.maxWidth >= DashBreakpoints.sm - Space.xxl * 4
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: Space.md,
-              children: [
-                Expanded(child: enF),
-                Expanded(child: arF),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.md,
-              children: [enF, arF],
-            ),
-    );
+    return MediaQuery.sizeOf(context).width >= DashBreakpoints.sm
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: Space.md,
+            children: [
+              Expanded(child: enF),
+              Expanded(child: arF),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: Space.md,
+            children: [enF, arF],
+          );
   }
 }
 

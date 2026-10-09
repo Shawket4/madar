@@ -78,6 +78,17 @@ const Map<String, String> _enTable = <String, String>{
   "inputs.lastWeek": "Last week",
   "inputs.from": "From",
   "inputs.to": "To",
+  "inputs.phoneShort":
+      "Too short: an Egyptian mobile is 11 digits, like 010 1234 5678.",
+  "inputs.phoneLong":
+      "Too long: an Egyptian mobile is 11 digits, like 010 1234 5678.",
+  "inputs.phonePrefix": "Egyptian mobiles start 010, 011, 012 or 015.",
+  "inputs.phoneBad": "Not a phone number. Type it like 010 1234 5678.",
+  "inputs.sameTime": "It can't start and end at the same time.",
+  "inputs.endsNextDay": "Ends the next day",
+  "inputs.nextDayShort": "next day",
+  "inputs.longOvernight": "That's {{length}}, overnight.",
+  "inputs.didYouMean": "End at {{time}} instead",
   "uploader.choose": "Choose Image",
   "uploader.uploading": "Uploading...",
   "uploader.replace": "Replace",
@@ -175,6 +186,18 @@ const Map<String, String> _arTable = <String, String>{
   "inputs.lastWeek": "الأسبوع الماضي",
   "inputs.from": "من",
   "inputs.to": "إلى",
+  "inputs.phoneShort":
+      "الرقم قصير: رقم المحمول المصري 11 رقمًا، مثل 010 1234 5678.",
+  "inputs.phoneLong":
+      "الرقم طويل: رقم المحمول المصري 11 رقمًا، مثل 010 1234 5678.",
+  "inputs.phonePrefix":
+      "تبدأ أرقام المحمول المصرية بـ 010 أو 011 أو 012 أو 015.",
+  "inputs.phoneBad": "هذا ليس رقم هاتف. اكتبه مثل 010 1234 5678.",
+  "inputs.sameTime": "لا يمكن أن يبدأ وينتهي في الوقت نفسه.",
+  "inputs.endsNextDay": "ينتهي في اليوم التالي",
+  "inputs.nextDayShort": "اليوم التالي",
+  "inputs.longOvernight": "المدة {{length}} وتمتد إلى الليلة التالية.",
+  "inputs.didYouMean": "الانتهاء في {{time}} بدلًا من ذلك",
   "uploader.choose": "اختر صورة",
   "uploader.uploading": "جاري الرفع...",
   "uploader.replace": "استبدال",

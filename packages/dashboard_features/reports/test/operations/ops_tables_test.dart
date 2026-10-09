@@ -42,10 +42,10 @@ num _kpi(WidgetTester tester, String key) => tester
     .value;
 
 Finder get _table => inPage(find.byKey(const ValueKey('ops-tables-table')));
-Finder get _byTable => inPage(find.byKey(const ValueKey('ops-revenue-by-table')));
+Finder get _byTable =>
+    inPage(find.byKey(const ValueKey('ops-revenue-by-table')));
 Finder get _busiest => inPage(find.byKey(const ValueKey('ops-busiest-hours')));
-Finder get _section =>
-    inPage(find.byKey(const ValueKey('ops-section-filter')));
+Finder get _section => inPage(find.byKey(const ValueKey('ops-section-filter')));
 Finder get _sheet => find.byType(OpsTableSheet);
 
 List<OpsTableRow> _rows(WidgetTester tester) =>
@@ -56,14 +56,11 @@ Finder get _names =>
 
 /// The ledger's table cells shown on the current page (first column).
 List<String> _shownTables(WidgetTester tester) => [
-  for (final e in _names.evaluate())
-    (e.widget as MadarClippedText).data ?? '',
+  for (final e in _names.evaluate()) (e.widget as MadarClippedText).data ?? '',
 ];
 
 Future<void> _openRow(DashHarness h, String label) async {
-  await h.tap(
-    find.descendant(of: _names, matching: find.text(label)).first,
-  );
+  await h.tap(find.descendant(of: _names, matching: find.text(label)).first);
 }
 
 void main() {
@@ -107,14 +104,12 @@ void main() {
       expect(widgets['byHour']!.limit, 24);
       final raw = calls.single.body! as Map;
       expect(raw.containsKey('branch_id'), isFalse);
-      expect(
-        calls.single.headers['X-Branch-Id'],
-        anyOf(isNull, allBranchesId),
-      );
+      expect(calls.single.headers['X-Branch-Id'], anyOf(isNull, allBranchesId));
     });
 
-    testWidgets('a branch picked: section + table, the branch in the header',
-        (tester) async {
+    testWidgets('a branch picked: section + table, the branch in the header', (
+      tester,
+    ) async {
       final h = await pumpOps(tester, branchId: SeedIds.maadi);
       final call = h.server.callsTo(metricsRoute, method: 'POST').single;
       expect(call.headers['X-Branch-Id'], SeedIds.maadi);
@@ -233,8 +228,9 @@ void main() {
     expect(_table, findsOneWidget);
   });
 
-  testWidgets('REP-OPS-010…015 / 069 the six KPIs: figures, hints, icons',
-      (tester) async {
+  testWidgets('REP-OPS-010…015 / 069 the six KPIs: figures, hints, icons', (
+    tester,
+  ) async {
     final h = await pumpOps(tester);
     final m = _summary(h, SeedIds.sabahBranches);
     expect(m['turns'], greaterThan(0));
@@ -265,22 +261,21 @@ void main() {
     final cards = tester.widgetList<DashStatCard>(
       inPage(find.byType(DashStatCard)),
     );
-    expect([for (final c in cards) c.icon], [
-      'rotate-ccw',
-      'users',
-      'coins',
-      'armchair',
-      'user-round',
-      'clock',
-    ]);
-    expect([for (final c in cards) c.label], [
-      'Turns',
-      'Covers',
-      'Table revenue',
-      'Revenue per table',
-      'Revenue per cover',
-      'Average stay',
-    ]);
+    expect(
+      [for (final c in cards) c.icon],
+      ['rotate-ccw', 'users', 'coins', 'armchair', 'user-round', 'clock'],
+    );
+    expect(
+      [for (final c in cards) c.label],
+      [
+        'Turns',
+        'Covers',
+        'Table revenue',
+        'Revenue per table',
+        'Revenue per cover',
+        'Average stay',
+      ],
+    );
     expect(cards.every((c) => c.tone == DashTone.neutral), isTrue);
     expect(cards.every((c) => c.dense), isTrue);
   });
@@ -308,10 +303,8 @@ void main() {
   });
 
   test('REP-OPS-016 sections sort as localeCompare does', () {
-    OpsTableRow row(String section) => OpsTableRow.fromWire({
-      'section': section,
-      'table': 'T1',
-    });
+    OpsTableRow row(String section) =>
+        OpsTableRow.fromWire({'section': section, 'table': 'T1'});
     expect(
       opsSectionsOf([
         row('terrace'),
@@ -404,11 +397,10 @@ void main() {
       final h = await pumpOps(tester, branchId: SeedIds.heliopolis);
       expect(_section, findsOneWidget);
       final select = tester.widget<DashSelect<String>>(_section);
-      expect([for (final o in select.options) o.label], [
-        'All sections',
-        'Main hall',
-        'Terrace',
-      ]);
+      expect(
+        [for (final o in select.options) o.label],
+        ['All sections', 'Main hall', 'Terrace'],
+      );
       expect(select.semanticLabel, 'Section');
       final all = _rows(tester);
       final kpiTurns = _kpi(tester, 'turns');
@@ -441,10 +433,7 @@ void main() {
           .read(scopeProvider.notifier)
           .setBranch(SeedIds.heliopolis);
       await h.settle();
-      expect(
-        tester.widget<DashSelect<String>>(_section).value,
-        'Terrace',
-      );
+      expect(tester.widget<DashSelect<String>>(_section).value, 'Terrace');
     });
   });
 
@@ -490,10 +479,10 @@ void main() {
       'label, money tooltip', (tester) async {
     final h = await pumpOps(tester);
     final rows = _rows(tester);
-    final top = ([...rows]
-          ..sort((a, b) => b.tableRevenue.compareTo(a.tableRevenue)))
-        .take(12)
-        .toList();
+    final top =
+        ([...rows]..sort((a, b) => b.tableRevenue.compareTo(a.tableRevenue)))
+            .take(12)
+            .toList();
     final chart = tester.widget<OpsBarChart>(_byTable);
     expect(chart.labels, [for (final r in top) r.table]);
     expect(chart.values, [for (final r in top) r.tableRevenue.toDouble()]);
@@ -509,17 +498,20 @@ void main() {
       'the server\'s order, turns first', (tester) async {
     final h = await pumpOps(tester);
     final table = tester.widget<DashDataTable<OpsTableRow>>(_table);
-    expect([for (final c in table.columns) c.label], [
-      'Table',
-      'Section',
-      'Branch',
-      'Turns',
-      'Turns / day',
-      'Covers',
-      'Table revenue',
-      'Revenue per cover',
-      'Average stay',
-    ]);
+    expect(
+      [for (final c in table.columns) c.label],
+      [
+        'Table',
+        'Section',
+        'Branch',
+        'Turns',
+        'Turns / day',
+        'Covers',
+        'Table revenue',
+        'Revenue per cover',
+        'Average stay',
+      ],
+    );
     final turns = [for (final r in table.rows) r.turns];
     expect(turns, [...turns]..sort((a, b) => b.compareTo(a)));
     // One row's cells as the web prints them.
@@ -538,7 +530,10 @@ void main() {
       findsWidgets,
     );
     expect(
-      find.descendant(of: _table, matching: find.text(fmtDwell(r.avgDwellMinutes))),
+      find.descendant(
+        of: _table,
+        matching: find.text(fmtDwell(r.avgDwellMinutes)),
+      ),
       findsWidgets,
     );
     expect(table.columns.first.phone, DashPhoneRole.title);
@@ -546,14 +541,10 @@ void main() {
     await h.settle();
     // "No section" for a table outside any section.
     expect(_rows(tester).any((x) => x.section == 'No section'), isTrue);
-    expect(
-      [
-        for (final c
-            in tester.widget<DashDataTable<OpsTableRow>>(_table).columns)
-          c.label,
-      ],
-      isNot(contains('Branch')),
-    );
+    expect([
+      for (final c in tester.widget<DashDataTable<OpsTableRow>>(_table).columns)
+        c.label,
+    ], isNot(contains('Branch')));
   });
 
   testWidgets('REP-OPS-020 / REP-ALL-015 search: over every column\'s raw '
@@ -564,7 +555,9 @@ void main() {
       'Search tables',
     );
     // Page 2 first.
-    await h.tap(find.descendant(of: _table, matching: find.bySemanticsLabel('Next')));
+    await h.tap(
+      find.descendant(of: _table, matching: find.bySemanticsLabel('Next')),
+    );
     expect(
       find.descendant(of: _table, matching: textHas('Page 2 of')),
       findsOneWidget,
@@ -586,7 +579,10 @@ void main() {
     await h.enterText(search, 'EGP');
     expect(_shownTables(tester), isEmpty);
     expect(
-      find.descendant(of: _table, matching: find.text('No table sales in this period')),
+      find.descendant(
+        of: _table,
+        matching: find.text('No table sales in this period'),
+      ),
       findsOneWidget,
     );
     final r = _rows(tester).first;
@@ -605,7 +601,9 @@ void main() {
       find.descendant(of: _table, matching: find.text('Page 1 of $pages')),
       findsOneWidget,
     );
-    await h.tap(find.descendant(of: _table, matching: find.bySemanticsLabel('Next')));
+    await h.tap(
+      find.descendant(of: _table, matching: find.bySemanticsLabel('Next')),
+    );
     expect(
       find.descendant(of: _table, matching: find.text('Page 2 of $pages')),
       findsOneWidget,
@@ -633,21 +631,27 @@ void main() {
 
   testWidgets('REP-ALL-016 phone: no Columns menu', (tester) async {
     await pumpOps(tester, size: DashSize.phone);
-    expect(find.descendant(of: _table, matching: find.text('Columns')), findsNothing);
+    expect(
+      find.descendant(of: _table, matching: find.text('Columns')),
+      findsNothing,
+    );
   });
 
-  testWidgets('REP-OPS-022 no table sales: the empty words everywhere',
-      (tester) async {
+  testWidgets('REP-OPS-022 no table sales: the empty words everywhere', (
+    tester,
+  ) async {
     final h = await pumpOps(tester);
-    await h.container.read(scopeProvider.notifier).setCustomRange(
-      '2026-01-01T00:00:00.000Z',
-      '2026-01-02T00:00:00.000Z',
-    );
+    await h.container
+        .read(scopeProvider.notifier)
+        .setCustomRange('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
     await h.settle();
     expect(pageText('No table sales in this period'), findsNWidgets(3));
     expect(_kpi(tester, 'turns'), 0);
     expect(
-      find.descendant(of: find.byKey(const ValueKey('dwell')), matching: find.text('—')),
+      find.descendant(
+        of: find.byKey(const ValueKey('dwell')),
+        matching: find.text('—'),
+      ),
       findsOneWidget,
     );
     await h.shot('operations/tables-empty');
@@ -695,8 +699,17 @@ void main() {
         ),
         findsOneWidget,
       );
-      for (final w in ['Takings', 'Average bill', 'Average stay', 'Turns a day', 'Bills']) {
-        expect(find.descendant(of: _sheet, matching: find.text(w)), findsOneWidget);
+      for (final w in [
+        'Takings',
+        'Average bill',
+        'Average stay',
+        'Turns a day',
+        'Bills',
+      ]) {
+        expect(
+          find.descendant(of: _sheet, matching: find.text(w)),
+          findsOneWidget,
+        );
       }
       final turns = fmtNum(
         f,
@@ -763,14 +776,23 @@ void main() {
         branchId: SeedIds.heliopolis,
       );
       await _openRow(h, 'T1');
-      expect(find.descendant(of: _sheet, matching: find.text('Voided')), findsOneWidget);
-      expect(find.descendant(of: _sheet, matching: find.text('T-HEL-1')), findsOneWidget);
+      expect(
+        find.descendant(of: _sheet, matching: find.text('Voided')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: _sheet, matching: find.text('T-HEL-1')),
+        findsOneWidget,
+      );
       expect(
         find.descendant(of: _sheet, matching: textHas('3 covers')),
         findsOneWidget,
       );
       // No customer and no ref: "—"; under a minute: "—".
-      expect(find.descendant(of: _sheet, matching: find.text('—')), findsWidgets);
+      expect(
+        find.descendant(of: _sheet, matching: find.text('—')),
+        findsWidgets,
+      );
       expect(
         find.descendant(of: _sheet, matching: find.text(dashFigure('0.0'))),
         findsOneWidget,
@@ -821,7 +843,10 @@ void main() {
       );
       historyGate.release();
       await h.settle();
-      expect(find.descendant(of: _sheet, matching: find.text('Bills')), findsOneWidget);
+      expect(
+        find.descendant(of: _sheet, matching: find.text('Bills')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('REP-OPS-026 a table no longer on the plan', (tester) async {
@@ -865,7 +890,10 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.descendant(of: _sheet, matching: find.text('Retry')), findsNothing);
+      expect(
+        find.descendant(of: _sheet, matching: find.text('Retry')),
+        findsNothing,
+      );
     });
 
     testWidgets('REP-OPS-028 the history failed', (tester) async {
@@ -944,7 +972,10 @@ void main() {
       expect(link, findsOneWidget);
       await h.tap(link);
       expect(find.byType(OpsCustomerSheet), findsOneWidget);
-      expect(h.server.callsTo('/customers/{id}').single.path, '/customers/${customer.id}');
+      expect(
+        h.server.callsTo('/customers/{id}').single.path,
+        '/customers/${customer.id}',
+      );
       await h.shot('operations/customer');
       final order = find.descendant(
         of: find.byType(OpsCustomerSheet),
@@ -958,7 +989,10 @@ void main() {
       expect(_sheet, findsOneWidget);
       expect(h.server.callsTo('/orders/{order_id}'), hasLength(1));
       expect(
-        find.descendant(of: find.byType(OpsOrderSheet), matching: find.text('Total')),
+        find.descendant(
+          of: find.byType(OpsOrderSheet),
+          matching: find.text('Total'),
+        ),
         findsWidgets,
       );
       await h.shot('operations/order');
@@ -987,7 +1021,10 @@ void main() {
       );
       final sheet = find.byType(OpsCustomerSheet);
       expect(
-        find.descendant(of: sheet, matching: find.text("Couldn't load this customer")),
+        find.descendant(
+          of: sheet,
+          matching: find.text("Couldn't load this customer"),
+        ),
         findsOneWidget,
       );
       expect(
@@ -1007,8 +1044,10 @@ void main() {
       );
       gate.release();
       await h.settle();
-      expect(find.descendant(of: sheet, matching: find.byType(DashErrorState)),
-          findsNothing);
+      expect(
+        find.descendant(of: sheet, matching: find.byType(DashErrorState)),
+        findsNothing,
+      );
       // An order that cannot be read.
       final orderRefusal = MockResponse.error(500, 'The order read failed');
       s.server.fail('GET', '/orders/{order_id}', orderRefusal, times: null);
@@ -1024,8 +1063,9 @@ void main() {
       );
     });
 
-    testWidgets('REP-OPS-032 without customers.view the name is plain text',
-        (tester) async {
+    testWidgets('REP-OPS-032 without customers.view the name is plain text', (
+      tester,
+    ) async {
       final s = opsServer();
       authzWithout(s.server, Persona.owner, {Cap.customersView});
       final h = await pumpOps(
@@ -1116,7 +1156,10 @@ void main() {
       final table = tester.widget<DashDataTable<OpsTableRow>>(_table);
       expect(table.columns.first.phone, DashPhoneRole.title);
       expect(
-        find.descendant(of: _table, matching: find.text(h.t('tablesInsights.covers'))),
+        find.descendant(
+          of: _table,
+          matching: find.text(h.t('tablesInsights.covers')),
+        ),
         findsWidgets,
       );
       await h.shot('operations/tables-phone');

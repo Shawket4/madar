@@ -329,8 +329,7 @@ class _OpsHBarChartState extends State<OpsHBarChart> {
     final c = context.madarColors;
     final textDir = Directionality.of(context);
     final style = _axisStyle(context);
-    final maxX =
-        opsNiceStep(widget.values.fold<double>(0, math.max)) * 4;
+    final maxX = opsNiceStep(widget.values.fold<double>(0, math.max)) * 4;
     const axisHeight = Space.xl;
     const gap = Space.sm;
     final reduced = DashMotion.reduced(context);
@@ -348,19 +347,22 @@ class _OpsHBarChartState extends State<OpsHBarChart> {
             final rowH = (widget.height - axisHeight) / n;
             // Ticks that would touch are skipped (every other, then the
             // ends), as Recharts thins its axis.
-            final widest = [
-              for (var k = 0; k <= 4; k++)
-                dashFigure(widget.formatAxis(maxX * k / 4)),
-            ].map((l) {
-              final tp = TextPainter(
-                text: TextSpan(text: l, style: style),
-                textDirection: textDir,
-                maxLines: 1,
-              )..layout();
-              final w = tp.width;
-              tp.dispose();
-              return w;
-            }).fold<double>(0, math.max);
+            final widest =
+                [
+                      for (var k = 0; k <= 4; k++)
+                        dashFigure(widget.formatAxis(maxX * k / 4)),
+                    ]
+                    .map((l) {
+                      final tp = TextPainter(
+                        text: TextSpan(text: l, style: style),
+                        textDirection: textDir,
+                        maxLines: 1,
+                      )..layout();
+                      final w = tp.width;
+                      tp.dispose();
+                      return w;
+                    })
+                    .fold<double>(0, math.max);
             final tickStep = plotW / 4 >= widest + Space.sm
                 ? 1
                 : plotW / 2 >= widest + Space.sm
@@ -455,11 +457,12 @@ class _OpsHBarChartState extends State<OpsHBarChart> {
                           for (var k = 0; k <= 4; k += tickStep)
                             Positioned(
                               // Centred on its tick, kept inside the card.
-                              left: (OpsHBarChart.nameAxis +
-                                      gap +
-                                      plotW * k / 4 -
-                                      Space.xxl)
-                                  .clamp(0, box.maxWidth - Space.xxl * 2),
+                              left:
+                                  (OpsHBarChart.nameAxis +
+                                          gap +
+                                          plotW * k / 4 -
+                                          Space.xxl)
+                                      .clamp(0, box.maxWidth - Space.xxl * 2),
                               width: Space.xxl * 2,
                               bottom: 0,
                               child: Text(

@@ -344,7 +344,10 @@ class HistoryCard extends ConsumerWidget {
                             color: c.textPrimary,
                           ),
                         ),
-                        DashBadge(historyActionText(t, e.action), outline: true),
+                        DashBadge(
+                          historyActionText(t, e.action),
+                          outline: true,
+                        ),
                       ],
                     ),
                     Text(

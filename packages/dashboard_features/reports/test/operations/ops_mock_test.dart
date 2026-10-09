@@ -65,7 +65,10 @@ void main() {
     test('the totals are the seed\'s sold set: revenue, orders, voids, tax, '
         'methods, line items', () async {
       final s = opsServer();
-      final res = await _get(s.server, '/reports/branches/$allBranchesId/sales');
+      final res = await _get(
+        s.server,
+        '/reports/branches/$allBranchesId/sales',
+      );
       expect(res.status, 200);
       final r = BranchSalesReport.fromJson(
         (_json(res)! as Map).cast<String, Object?>(),
@@ -73,7 +76,10 @@ void main() {
       final orders = _seedOrders(s.db, SeedIds.sabahBranches);
       final sold = orders.where(_sold).toList();
       expect(r.totalOrders, sold.length);
-      expect(r.voidedOrders, orders.where((o) => o['status'] == 'voided').length);
+      expect(
+        r.voidedOrders,
+        orders.where((o) => o['status'] == 'voided').length,
+      );
       expect(r.totalRevenue, _sum(sold, 'total_amount'));
       expect(r.totalTax, _sum(sold, 'tax_amount'));
       final methods = (r.revenueByMethod as Map).values.fold<num>(
@@ -122,39 +128,53 @@ void main() {
       expect(all.totalRevenue, total);
     });
 
-    test('exclude_items narrows only the line-item count; a bad id is a 400',
-        () async {
-      final s = opsServer();
-      final latte = MockSeed.menuItemId('latte');
-      final base = (_json(await _get(
-        s.server,
-        '/reports/branches/$allBranchesId/sales',
-      ))! as Map);
-      final ex = (_json(await _get(
-        s.server,
-        '/reports/branches/$allBranchesId/sales',
-        query: _range({'exclude_items': latte}),
-      ))! as Map);
-      expect(ex['total_revenue'], base['total_revenue']);
-      expect(ex['total_orders'], base['total_orders']);
-      expect(ex['total_line_items'], lessThan(base['total_line_items'] as num));
-      final bad = await _refused(
-        _get(
-          s.server,
-          '/reports/branches/$allBranchesId/sales',
-          query: _range({'exclude_items': 'latte'}),
-        ),
-      );
-      expect(bad.status, 400);
-    });
+    test(
+      'exclude_items narrows only the line-item count; a bad id is a 400',
+      () async {
+        final s = opsServer();
+        final latte = MockSeed.menuItemId('latte');
+        final base =
+            (_json(
+                  await _get(
+                    s.server,
+                    '/reports/branches/$allBranchesId/sales',
+                  ),
+                )!
+                as Map);
+        final ex =
+            (_json(
+                  await _get(
+                    s.server,
+                    '/reports/branches/$allBranchesId/sales',
+                    query: _range({'exclude_items': latte}),
+                  ),
+                )!
+                as Map);
+        expect(ex['total_revenue'], base['total_revenue']);
+        expect(ex['total_orders'], base['total_orders']);
+        expect(
+          ex['total_line_items'],
+          lessThan(base['total_line_items'] as num),
+        );
+        final bad = await _refused(
+          _get(
+            s.server,
+            '/reports/branches/$allBranchesId/sales',
+            query: _range({'exclude_items': 'latte'}),
+          ),
+        );
+        expect(bad.status, 400);
+      },
+    );
 
     test('a manager: the sentinel is their branch; another branch is '
         'refused', () async {
       final s = opsServer(persona: Persona.manager);
-      final r = (_json(await _get(
-        s.server,
-        '/reports/branches/$allBranchesId/sales',
-      ))! as Map);
+      final r =
+          (_json(
+                await _get(s.server, '/reports/branches/$allBranchesId/sales'),
+              )!
+              as Map);
       expect(
         r['total_revenue'],
         _sum(_seedOrders(s.db, [SeedIds.zamalek]).where(_sold), 'total_amount'),
@@ -165,94 +185,115 @@ void main() {
       expect(other.status, 403);
     });
 
-    test('refusals by persona: another org\'s branch is refused, a deleted '
-        'branch is not found; the sentinel covers only the org in scope',
-        () async {
-      // Every seeded persona holds orders.read, so that gate cannot be
-      // driven by one; these are the refusals the personas do reach.
-      final s = opsServer(persona: Persona.dawamOnly);
-      final other = await _refused(
-        _get(s.server, '/reports/branches/${SeedIds.zamalek}/sales'),
-      );
-      // The backend's order (authz/scope.rs): another org's branch is a 403.
-      expect(other.status, 403);
-      final mine = (_json(await _get(
-        s.server,
-        '/reports/branches/$allBranchesId/sales',
-      ))! as Map);
-      expect(mine['total_orders'], 0);
-      final comparison = await _refused(
-        _get(s.server, '/reports/orgs/${SeedIds.sabahOrg}/comparison'),
-      );
-      expect(comparison.status, 403);
-      final o = opsServer();
-      o.db['branches'].update(SeedIds.maadi, {
-        'deleted_at': o.db.nowIso,
-      });
-      final gone = await _refused(
-        _get(o.server, '/reports/branches/${SeedIds.maadi}/tellers'),
-      );
-      expect(gone.status, 404);
-      final all = (_json(await _get(
-        o.server,
-        '/reports/branches/$allBranchesId/sales',
-      ))! as Map);
-      expect(
-        all['total_revenue'],
-        _sum(
-          _seedOrders(o.db, [
-            SeedIds.heliopolis,
-            SeedIds.newCairo,
-            SeedIds.zamalek,
-          ]).where(_sold),
-          'total_amount',
-        ),
-      );
-    });
+    test(
+      'refusals by persona: another org\'s branch is refused, a deleted '
+      'branch is not found; the sentinel covers only the org in scope',
+      () async {
+        // Every seeded persona holds orders.read, so that gate cannot be
+        // driven by one; these are the refusals the personas do reach.
+        final s = opsServer(persona: Persona.dawamOnly);
+        final other = await _refused(
+          _get(s.server, '/reports/branches/${SeedIds.zamalek}/sales'),
+        );
+        // The backend's order (authz/scope.rs): another org's branch is a 403.
+        expect(other.status, 403);
+        final mine =
+            (_json(
+                  await _get(
+                    s.server,
+                    '/reports/branches/$allBranchesId/sales',
+                  ),
+                )!
+                as Map);
+        expect(mine['total_orders'], 0);
+        final comparison = await _refused(
+          _get(s.server, '/reports/orgs/${SeedIds.sabahOrg}/comparison'),
+        );
+        expect(comparison.status, 403);
+        final o = opsServer();
+        o.db['branches'].update(SeedIds.maadi, {'deleted_at': o.db.nowIso});
+        final gone = await _refused(
+          _get(o.server, '/reports/branches/${SeedIds.maadi}/tellers'),
+        );
+        expect(gone.status, 404);
+        final all =
+            (_json(
+                  await _get(
+                    o.server,
+                    '/reports/branches/$allBranchesId/sales',
+                  ),
+                )!
+                as Map);
+        expect(
+          all['total_revenue'],
+          _sum(
+            _seedOrders(o.db, [
+              SeedIds.heliopolis,
+              SeedIds.newCairo,
+              SeedIds.zamalek,
+            ]).where(_sold),
+            'total_amount',
+          ),
+        );
+      },
+    );
 
-    test('refusals by persona: a teller without the floor or ticket reads',
-        () async {
-      final l = opsServer(persona: Persona.limited);
-      final floor = await _refused(
-        _get(
-          l.server,
-          '/floor/tables',
-          query: {
-            'branch_id': [SeedIds.maadi],
-          },
-        ),
-      );
-      expect(floor.status, 403);
-      final t1 = opsTables.firstWhere(
-        (t) => t.branchKey == 'maadi' && t.label == 'T1',
-      );
-      final history = await _refused(
-        _get(l.server, '/floor/tables/${t1.id}/history'),
-      );
-      expect(history.status, 403);
-    });
+    test(
+      'refusals by persona: a teller without the floor or ticket reads',
+      () async {
+        final l = opsServer(persona: Persona.limited);
+        final floor = await _refused(
+          _get(
+            l.server,
+            '/floor/tables',
+            query: {
+              'branch_id': [SeedIds.maadi],
+            },
+          ),
+        );
+        expect(floor.status, 403);
+        final t1 = opsTables.firstWhere(
+          (t) => t.branchKey == 'maadi' && t.label == 'T1',
+        );
+        final history = await _refused(
+          _get(l.server, '/floor/tables/${t1.id}/history'),
+        );
+        expect(history.status, 403);
+      },
+    );
   });
 
   group('the analytics reads (REP-OPS-047…055, 066)', () {
     test('tellers add up to the revenue; waiters are a subset', () async {
       final s = opsServer();
       final sold = _seedOrders(s.db, SeedIds.sabahBranches).where(_sold);
-      final tellers = (_json(await _get(
-        s.server,
-        '/reports/branches/$allBranchesId/tellers',
-      ))! as List);
+      final tellers =
+          (_json(
+                await _get(
+                  s.server,
+                  '/reports/branches/$allBranchesId/tellers',
+                ),
+              )!
+              as List);
       expect(
         tellers.fold<num>(0, (a, t) => a + ((t as Map)['revenue'] as num)),
         _sum(sold, 'total_amount'),
       );
       final w = WaiterStatsReport.fromJson(
-        (_json(await _get(
-          s.server,
-          '/reports/branches/$allBranchesId/waiters',
-        ))! as Map).cast<String, Object?>(),
+        (_json(
+                  await _get(
+                    s.server,
+                    '/reports/branches/$allBranchesId/waiters',
+                  ),
+                )!
+                as Map)
+            .cast<String, Object?>(),
       );
       expect(w.totalOrders, sold.length);
-      expect(w.attributedOrders, w.waiters.fold<int>(0, (a, x) => a + x.orders));
+      expect(
+        w.attributedOrders,
+        w.waiters.fold<int>(0, (a, x) => a + x.orders),
+      );
       expect(w.attributedOrders, lessThan(w.totalOrders));
       // Only dine-in orders carry a waiter.
       final dineIn = sold.where((o) => o['order_type'] == 'dine_in').length;
@@ -261,18 +302,26 @@ void main() {
 
     test('items-combined: most sold first; add-ons with revenue', () async {
       final s = opsServer();
-      final items = (_json(await _get(
-        s.server,
-        '/reports/branches/$allBranchesId/items-combined',
-        query: _range({'limit': '50'}),
-      ))! as List);
+      final items =
+          (_json(
+                await _get(
+                  s.server,
+                  '/reports/branches/$allBranchesId/items-combined',
+                  query: _range({'limit': '50'}),
+                ),
+              )!
+              as List);
       final qty = [for (final i in items) (i as Map)['total_qty'] as num];
       expect(qty, [...qty]..sort((a, b) => b.compareTo(a)));
-      final addons = (_json(await _get(
-        s.server,
-        '/reports/branches/$allBranchesId/addons',
-        query: _range({'limit': '20'}),
-      ))! as List);
+      final addons =
+          (_json(
+                await _get(
+                  s.server,
+                  '/reports/branches/$allBranchesId/addons',
+                  query: _range({'limit': '20'}),
+                ),
+              )!
+              as List);
       expect(addons, isNotEmpty);
       expect(((addons.first as Map)['revenue'] as num), greaterThan(0));
     });
@@ -281,10 +330,14 @@ void main() {
         'is refused', () async {
       final s = opsServer(persona: Persona.manager);
       final r = OrgComparisonReport.fromJson(
-        (_json(await _get(
-          s.server,
-          '/reports/orgs/${SeedIds.sabahOrg}/comparison',
-        ))! as Map).cast<String, Object?>(),
+        (_json(
+                  await _get(
+                    s.server,
+                    '/reports/orgs/${SeedIds.sabahOrg}/comparison',
+                  ),
+                )!
+                as Map)
+            .cast<String, Object?>(),
       );
       expect(r.branches, hasLength(4));
       final all = _seedOrders(s.db, SeedIds.sabahBranches).where(_sold);
@@ -360,8 +413,8 @@ void main() {
     );
 
     Map<String, Object?> summary(Object? body) =>
-        ((((body! as Map)['results'] as Map)['s'] as Map)['rows'] as List)
-            .first as Map<String, Object?>;
+        ((((body! as Map)['results'] as Map)['s'] as Map)['rows'] as List).first
+            as Map<String, Object?>;
 
     test('turns = the settled dine-in bills at a table; revenue their '
         'totals; every dine-in order sat at a table', () async {
@@ -383,9 +436,10 @@ void main() {
       ]);
       expect(r.status, 200);
       final m = summary(_json(r));
-      final dineIn = _seedOrders(s.db, SeedIds.sabahBranches)
-          .where((o) => _sold(o) && o['order_type'] == 'dine_in')
-          .toList();
+      final dineIn = _seedOrders(
+        s.db,
+        SeedIds.sabahBranches,
+      ).where((o) => _sold(o) && o['order_type'] == 'dine_in').toList();
       expect(m['turns'], dineIn.length);
       expect(m['table_revenue'], _sum(dineIn, 'total_amount'));
       expect(
@@ -398,34 +452,34 @@ void main() {
       }
     });
 
-    test('the branch comes from X-Branch-Id; a manager sees only theirs',
-        () async {
-      final s = opsServer();
-      final spec = [
-        {
-          'key': 's',
-          'spec': {
-            'dataset': 'tables',
-            'measures': ['turns'],
+    test(
+      'the branch comes from X-Branch-Id; a manager sees only theirs',
+      () async {
+        final s = opsServer();
+        final spec = [
+          {
+            'key': 's',
+            'spec': {
+              'dataset': 'tables',
+              'measures': ['turns'],
+            },
           },
-        },
-      ];
-      final one = summary(_json(await query(
-        s.server,
-        spec,
-        branch: SeedIds.maadi,
-      )));
-      final maadi = _seedOrders(s.db, [SeedIds.maadi])
-          .where((o) => _sold(o) && o['order_type'] == 'dine_in')
-          .length;
-      expect(one['turns'], maadi);
-      final m = opsServer(persona: Persona.manager);
-      final mine = summary(_json(await query(m.server, spec)));
-      final zamalek = _seedOrders(m.db, [SeedIds.zamalek])
-          .where((o) => _sold(o) && o['order_type'] == 'dine_in')
-          .length;
-      expect(mine['turns'], zamalek);
-    });
+        ];
+        final one = summary(
+          _json(await query(s.server, spec, branch: SeedIds.maadi)),
+        );
+        final maadi = _seedOrders(s.db, [
+          SeedIds.maadi,
+        ]).where((o) => _sold(o) && o['order_type'] == 'dine_in').length;
+        expect(one['turns'], maadi);
+        final m = opsServer(persona: Persona.manager);
+        final mine = summary(_json(await query(m.server, spec)));
+        final zamalek = _seedOrders(m.db, [
+          SeedIds.zamalek,
+        ]).where((o) => _sold(o) && o['order_type'] == 'dine_in').length;
+        expect(mine['turns'], zamalek);
+      },
+    );
 
     test('a widget that cannot run fails inside the 200; no widgets is a 400; '
         'reports.read is required', () async {
@@ -532,11 +586,15 @@ void main() {
         );
         if (t.retired != null) continue;
         final h = TableHistory.fromJson(
-          (_json(await _get(
-            s.server,
-            '/floor/tables/${t.id}/history',
-            query: _range(),
-          ))! as Map).cast<String, Object?>(),
+          (_json(
+                    await _get(
+                      s.server,
+                      '/floor/tables/${t.id}/history',
+                      query: _range(),
+                    ),
+                  )!
+                  as Map)
+              .cast<String, Object?>(),
         );
         expect(h.settledCount, r['turns'], reason: '${t.branchKey} ${t.label}');
         expect(h.totalMinor, r['table_revenue']);
@@ -550,20 +608,25 @@ void main() {
     for (final b in SeedIds.sabahBranches) {
       final listed = [
         for (final t
-            in _json(await _get(
-                  s.server,
-                  '/floor/tables',
-                  query: {
-                    'branch_id': [b],
-                  },
-                ))!
+            in _json(
+                  await _get(
+                    s.server,
+                    '/floor/tables',
+                    query: {
+                      'branch_id': [b],
+                    },
+                  ),
+                )!
                 as List)
           (t as Map)['id'],
       ]..sort();
-      expect(listed, [
-        for (final t in seedFloorTables)
-          if (t.branchId == b && t.retired == null) t.id,
-      ]..sort());
+      expect(
+        listed,
+        [
+          for (final t in seedFloorTables)
+            if (t.branchId == b && t.retired == null) t.id,
+        ]..sort(),
+      );
     }
   });
 
@@ -583,8 +646,9 @@ void main() {
       expect(labels, isNot(contains('T10')));
       expect(labels, contains('Bar 1'));
       expect(
-        (await _refused(_get(s.server, '/floor/tables', query: const {})))
-            .status,
+        (await _refused(
+          _get(s.server, '/floor/tables', query: const {}),
+        )).status,
         400,
       );
       final l = opsServer(persona: Persona.limited);
@@ -614,18 +678,16 @@ void main() {
       );
       final settled = r.sittings.where((x) => x.totalAmount != null).toList();
       expect(r.settledCount, settled.length);
-      expect(
-        r.totalMinor,
-        settled.fold<int>(0, (a, x) => a + x.totalAmount!),
-      );
+      expect(r.totalMinor, settled.fold<int>(0, (a, x) => a + x.totalAmount!));
       expect(r.averageBillMinor, r.totalMinor ~/ settled.length);
       expect(r.sittings.any((x) => x.status == 'open'), isTrue);
       final t10 = opsTables.firstWhere(
         (t) => t.branchKey == 'zamalek' && t.label == 'T10',
       );
       expect(
-        (await _refused(_get(s.server, '/floor/tables/${t10.id}/history')))
-            .status,
+        (await _refused(
+          _get(s.server, '/floor/tables/${t10.id}/history'),
+        )).status,
         404,
       );
     });

@@ -33,9 +33,8 @@ Future<void> _restThenPress(
   expect(reads(), 1, reason: '${reason ?? ''} pressed: from the cache');
 }
 
-Finder _tab(DashHarness h, String id) => inPage(
-  find.text(h.t('reports.operations.tabs.$id')),
-);
+Finder _tab(DashHarness h, String id) =>
+    inPage(find.text(h.t('reports.operations.tabs.$id')));
 
 int _sales(DashHarness h, String? exclude) => [
   for (final c in callsTo(h, salesRoute))
@@ -81,9 +80,7 @@ void main() {
     );
   });
 
-  testWidgets('a Tables row warms the history its panel reads', (
-    tester,
-  ) async {
+  testWidgets('a Tables row warms the history its panel reads', (tester) async {
     final h = await pumpOps(tester, branchId: SeedIds.heliopolis);
     final name = find
         .descendant(

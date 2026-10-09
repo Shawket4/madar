@@ -1,6 +1,6 @@
 /// What the frame draws around and instead of a page: the gates a page sits
-/// behind ([DashRouteHost]), the page-not-found page, and the placeholder an
-/// area's page shows until its port lands.
+/// behind ([DashRouteHost]), the page-not-found page, the crash panel, and
+/// the placeholder an area's page shows until its port lands.
 library;
 
 import 'package:dashboard_core/src/authz/authz_providers.dart';
@@ -76,9 +76,7 @@ class _PageGate extends ConsumerWidget {
     if (!route.platformOnly && caps.isEmpty) return child;
     final a = ref.watch(authzProvider);
     if (!a.ready) {
-      return a.error == null
-          ? const SizedBox.shrink()
-          : const AuthzLoadError();
+      return a.error == null ? const SizedBox.shrink() : const AuthzLoadError();
     }
     final allowed = route.platformOnly ? a.platform : a.canAny(caps);
     return allowed ? child : Restricted(title: title);
@@ -134,6 +132,50 @@ class DashPlaceholderPage extends ConsumerWidget {
         icon: 'layers',
         title: t('shell.pendingTitle'),
         description: t('shell.pendingBody'),
+      ),
+    );
+  }
+}
+
+/// [ErrorWidget.builder] for the app (set at boot and by the test harness):
+/// a widget that fails to build shows [DashCrashPanel] in its place.
+Widget dashErrorWidget(FlutterErrorDetails details) =>
+    DashCrashPanel(details: details);
+
+/// The crash panel (`app-error-boundary.tsx`): a warning, what happened, and
+/// Try again, which builds the page again. It fits whatever space the failed
+/// widget had.
+class DashCrashPanel extends StatelessWidget {
+  const DashCrashPanel({required this.details, super.key});
+
+  final FlutterErrorDetails details;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = DashI18n.maybeOf(context);
+    // Above the app's words and theme: Flutter's own error box.
+    if (t == null) return ErrorWidget(details.exception);
+    final router = GoRouter.maybeOf(context);
+    return ClipRect(
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: SizedBox(
+            width: DashMetrics.proseWide,
+            child: DashEmptyState(
+              icon: 'alert-triangle',
+              title: t('errors.boundaryTitle'),
+              description: t('errors.boundaryDescription'),
+              action: router == null
+                  ? null
+                  : DashButton(
+                      label: t('errors.boundaryRetry'),
+                      variant: DashButtonVariant.outline,
+                      onPressed: router.refresh,
+                    ),
+            ),
+          ),
+        ),
       ),
     );
   }

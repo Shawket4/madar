@@ -252,7 +252,8 @@ class OpsSeed {
       out.add(
         OpsSitting(
           ticketId: mockUuid('open-ticket:$b:$label'),
-          ticketRef: 'T-$code-${today.substring(2).replaceAll('-', '')}-'
+          ticketRef:
+              'T-$code-${today.substring(2).replaceAll('-', '')}-'
               '${label.replaceAll(' ', '')}',
           table: table,
           seatedAt: opened,

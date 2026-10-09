@@ -46,7 +46,12 @@ typedef OpsRange = ({String id, String from, String to});
 typedef OpsSalesKey = ({String id, String from, String to, String? exclude});
 
 /// The Tables read's key (`["metrics","tables",branchId,from,to,locale]`).
-typedef OpsTablesKey = ({String? branchId, String from, String to, String locale});
+typedef OpsTablesKey = ({
+  String? branchId,
+  String from,
+  String to,
+  String locale,
+});
 
 /// A table history's key.
 typedef OpsHistoryKey = ({String id, String from, String to});

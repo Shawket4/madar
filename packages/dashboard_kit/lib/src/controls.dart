@@ -17,6 +17,7 @@ class DashFieldShell extends StatelessWidget {
     required this.child,
     this.focused = false,
     this.invalid = false,
+    this.warning = false,
     this.enabled = true,
     this.hovered = false,
     this.leading,
@@ -33,6 +34,9 @@ class DashFieldShell extends StatelessWidget {
   final bool shrinkWrap;
   final bool focused;
   final bool invalid;
+
+  /// A soft warning edge (the web's `border-warning/60`: a past date).
+  final bool warning;
   final bool enabled;
   final bool hovered;
   final Widget? leading;
@@ -47,6 +51,8 @@ class DashFieldShell extends StatelessWidget {
     final c = context.madarColors;
     final edge = invalid
         ? c.danger
+        : warning
+        ? c.warning.withValues(alpha: 0.6)
         : focused
         ? Color.lerp(c.input, c.textPrimary, 0.5)!
         : c.input;
@@ -123,12 +129,17 @@ class DashTextInput extends StatefulWidget {
     this.textInputAction,
     this.clearable = false,
     this.selectAllOnFocus = false,
+    this.autofillHints,
     super.key,
   });
 
   final String value;
   final ValueChanged<String> onChanged;
   final String? placeholder;
+
+  /// What the platform may fill in ([AutofillHints]: the web's
+  /// `autoComplete`).
+  final Iterable<String>? autofillHints;
 
   /// The accessible name when there is no visible label.
   final String? semanticLabel;
@@ -285,6 +296,7 @@ class _DashTextInputState extends State<DashTextInput> {
             maxLength: widget.maxLength,
             maxLengthEnforcement: MaxLengthEnforcement.enforced,
             inputFormatters: widget.inputFormatters,
+            autofillHints: widget.autofillHints,
             style: style,
             cursorColor: c.textPrimary,
             cursorWidth: 1.5,
@@ -312,9 +324,9 @@ class _DashTextInputState extends State<DashTextInput> {
 }
 
 /// The search box over a list (the web's `SearchInput`): a magnifier, the
-/// text, an × to clear. With [debounce] it holds [onChanged] until typing
-/// pauses (the web's `useListSearch`: 300 ms, trimmed) and reports the
-/// trimmed query; without, it reports every keystroke.
+/// text, an × to clear, Esc clears too. With [debounce] it holds [onChanged]
+/// until typing pauses (the web's `useListSearch`: 300 ms); without, it
+/// reports every keystroke. Either way the query it reports is trimmed.
 class DashSearchInput extends StatefulWidget {
   const DashSearchInput({
     required this.value,
@@ -371,7 +383,7 @@ class _DashSearchInputState extends State<DashSearchInput> {
     setState(() => _text = v);
     final d = widget.debounce;
     if (d == null) {
-      widget.onChanged(v);
+      widget.onChanged(v.trim());
       return;
     }
     _timer?.cancel();
@@ -396,6 +408,17 @@ class _DashSearchInputState extends State<DashSearchInput> {
       clearable: true,
       autofocus: widget.autofocus,
       textInputAction: TextInputAction.search,
+      // Esc empties a search with text in it (the browser's `type=search`);
+      // an empty one lets Esc through to close the dialog around it.
+      onKeyEvent: (node, e) {
+        if (e is! KeyDownEvent ||
+            e.logicalKey != LogicalKeyboardKey.escape ||
+            _text.isEmpty) {
+          return KeyEventResult.ignored;
+        }
+        _changed('');
+        return KeyEventResult.handled;
+      },
     );
     return widget.width == null
         ? field

@@ -2,6 +2,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'buttons.dart';
 import 'controls.dart';
 import 'foundation/l10n.dart';
 import 'foundation/popover.dart';
@@ -40,6 +41,48 @@ abstract final class DashTime {
   static String hhmmOf(int minutes) {
     final m = ((minutes % 1440) + 1440) % 1440;
     return '${_pad(m ~/ 60)}:${_pad(m % 60)}';
+  }
+
+  /// Minutes from [start] to [end] (the web's `spanMinutes`): 0 when equal,
+  /// an end before the start runs into the next day; null when either is
+  /// unread.
+  static int? spanMinutes(String? start, String? end) {
+    final a = minutesOf(start);
+    final b = minutesOf(end);
+    if (a == null || b == null) return null;
+    return b >= a ? b - a : b + 1440 - a;
+  }
+
+  /// [start] → [end] finishes on the next day (`endsNextDay`).
+  static bool endsNextDay(String? start, String? end) {
+    final a = minutesOf(start);
+    final b = minutesOf(end);
+    return a != null && b != null && b < a;
+  }
+
+  /// "9 to 5" typed as 09:00 → 05:00 is a 20-hour overnight: when an
+  /// overnight is longer than 14 h and the end twelve hours later makes a
+  /// same-day range, that end (`suggestEnd`).
+  static String? suggestEnd(String? start, String? end) {
+    final a = minutesOf(start);
+    final b = minutesOf(end);
+    if (a == null || b == null || b >= a || b + 1440 - a <= 14 * 60) {
+      return null;
+    }
+    final alt = b + 12 * 60;
+    return alt < 1440 && alt > a ? hhmmOf(alt) : null;
+  }
+
+  /// A length of time (`formatSpan`): `8 h 30 min`, `45 min`, `9 h`.
+  static String formatSpan(num minutes, {bool arabic = false}) {
+    final total = minutes.round() < 0 ? 0 : minutes.round();
+    final h = total ~/ 60;
+    final m = total % 60;
+    final hh = arabic ? 'س' : 'h';
+    final mm = arabic ? 'د' : 'min';
+    if (h == 0) return '$m $mm';
+    if (m == 0) return '$h $hh';
+    return '$h $hh $m $mm';
   }
 
   static final _am = RegExp(r'^(a|am|ص|صباحا|صباحًا|صباح)$');
@@ -133,8 +176,14 @@ class DashTimeField extends StatefulWidget {
     this.enabled = true,
     this.anchorMinutes,
     this.describeOption,
+    this.onSubmitted,
     super.key,
   });
+
+  /// Enter with nothing typed and the list closed: the form's submit (the
+  /// web's input leaves that Enter to its form). Enter after typing settles
+  /// the time instead.
+  final VoidCallback? onSubmitted;
 
   /// `HH:MM` (seconds tolerated) or `''`.
   final String? value;
@@ -279,8 +328,10 @@ class _DashTimeFieldState extends State<DashTimeField> {
                 if (!_popover.isOpen) _open();
               },
               onSubmitted: (_) {
+                final submit = _draft == null && !_popover.isOpen;
                 _settle();
                 _popover.close();
+                if (submit) widget.onSubmitted?.call();
               },
               onKeyEvent: (node, e) {
                 if (e is KeyDownEvent &&
@@ -391,6 +442,239 @@ class _DashTimeFieldState extends State<DashTimeField> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// A start and an end time (the web's `TimeRangeField`) with the length
+/// always in view. An end at or before the start runs past midnight (a
+/// "next day" pill, never an error); equal ends are the one refusal; the
+/// "9 to 5" slip (an implausibly long overnight that moving the end by
+/// twelve hours makes a same-day range) offers a one-tap fix.
+class DashTimeRangeField extends StatelessWidget {
+  const DashTimeRangeField({
+    required this.start,
+    required this.end,
+    required this.onChanged,
+    required this.startLabel,
+    required this.endLabel,
+    this.groupLabel,
+    this.enabled = true,
+    this.optional = false,
+    this.hideLabels = false,
+    this.error,
+    this.startKey,
+    this.endKey,
+    super.key,
+  });
+
+  /// `HH:MM`, `''`, or text the field could not read.
+  final String start;
+  final String end;
+  final void Function(String start, String end) onChanged;
+  final String startLabel;
+  final String endLabel;
+
+  /// Names the pair for a screen reader (`aria-label`).
+  final String? groupLabel;
+  final bool enabled;
+
+  /// Both ends may be left empty (an × clears each).
+  final bool optional;
+
+  /// The row names the pair itself (a weekday): the labels only speak.
+  final bool hideLabels;
+
+  /// The form's message under the range.
+  final String? error;
+  final Key? startKey;
+  final Key? endKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.dashStrings;
+    final f = context.dashFormats;
+    final c = context.madarColors;
+    String span(int m) => DashTime.formatSpan(m, arabic: f.arabic);
+    final length = DashTime.spanMinutes(start, end);
+    final same = length == 0;
+    final suggestion = DashTime.suggestEnd(start, end);
+    final startMin = DashTime.minutesOf(start);
+    final invalid = error != null || same;
+
+    String? describeEnd(String hhmm) {
+      final s = DashTime.spanMinutes(start, hhmm);
+      if (s == null || s == 0) return null;
+      return DashTime.endsNextDay(start, hhmm)
+          ? '${span(s)} · ${t.nextDayShort}'
+          : span(s);
+    }
+
+    String spoken(String label) =>
+        hideLabels && groupLabel != null ? '$groupLabel: $label' : label;
+
+    Widget labelled(String label, Widget field) => hideLabels
+        ? field
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            spacing: Space.xs + DashMetrics.hair,
+            children: [
+              Text(
+                label,
+                style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+              ),
+              field,
+            ],
+          );
+
+    Widget? summary;
+    if (same) {
+      if (error == null) {
+        summary = Text(
+          t.sameTime,
+          style: DashType.small.copyWith(color: c.errorText),
+        );
+      }
+    } else if (length != null) {
+      final info = DashTone.info.foreground(c);
+      summary = Wrap(
+        spacing: Space.sm,
+        runSpacing: Space.xs,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            span(length),
+            style: DashType.smallMedium.copyWith(color: c.textPrimary),
+          ),
+          if (DashTime.endsNextDay(start, end))
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Space.sm,
+                vertical: DashMetrics.hair,
+              ),
+              decoration: BoxDecoration(
+                color: DashTone.info.wash(c),
+                borderRadius: BorderRadius.circular(Radii.pill),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: Space.xs,
+                children: [
+                  DashIcon('moon-star', size: IconSize.xs - 2, color: info),
+                  Text(
+                    t.endsNextDay,
+                    style: DashType.smallMedium.copyWith(color: info),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    }
+
+    return Semantics(
+      container: true,
+      label: groupLabel,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        spacing: Space.xs + DashMetrics.hair,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: labelled(
+                  startLabel,
+                  DashTimeField(
+                    key: startKey,
+                    value: start,
+                    onChanged: (v) => onChanged(v, end),
+                    enabled: enabled,
+                    clearable: optional,
+                    invalid: invalid,
+                    semanticLabel: spoken(startLabel),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: Space.md),
+                child: DashIcon(
+                  DashIcon.arrowForward(context),
+                  size: IconSize.sm,
+                  color: c.textSecondary,
+                ),
+              ),
+              Expanded(
+                child: labelled(
+                  endLabel,
+                  DashTimeField(
+                    key: endKey,
+                    value: end,
+                    onChanged: (v) => onChanged(start, v),
+                    enabled: enabled,
+                    clearable: optional,
+                    invalid: invalid,
+                    semanticLabel: spoken(endLabel),
+                    describeOption: startMin == null ? null : describeEnd,
+                    anchorMinutes: startMin == null ? null : startMin + 8 * 60,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: Space.lg + Space.xs),
+            child: Semantics(
+              liveRegion: true,
+              child: Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: summary ?? const SizedBox.shrink(),
+              ),
+            ),
+          ),
+          if (suggestion != null && enabled)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Space.sm + DashMetrics.hair,
+                vertical: Space.xs + DashMetrics.hair,
+              ),
+              decoration: BoxDecoration(
+                color: DashTone.warning.wash(c),
+                borderRadius: BorderRadius.circular(Radii.xs),
+              ),
+              child: Wrap(
+                spacing: Space.sm,
+                runSpacing: Space.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    t.longOvernight(span(length ?? 0)),
+                    style: DashType.small.copyWith(
+                      color: DashTone.warning.foreground(c),
+                    ),
+                  ),
+                  DashButton(
+                    label: t.didYouMean(f.time(suggestion)),
+                    variant: DashButtonVariant.outline,
+                    size: DashButtonSize.compact,
+                    onPressed: () => onChanged(start, suggestion),
+                  ),
+                ],
+              ),
+            ),
+          if (error != null)
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                error!,
+                style: DashType.body.copyWith(color: c.errorText),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

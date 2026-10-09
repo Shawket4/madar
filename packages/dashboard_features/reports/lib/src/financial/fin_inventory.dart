@@ -306,9 +306,7 @@ class FinTrendTab extends ConsumerWidget {
       rowKey: (r) => r.orgIngredientId,
       loading: q?.awaitingFirst ?? false,
       retrying: q?.isLoading ?? false,
-      errorMessage: q != null && q.failed
-          ? errorMessage(q.error, t)
-          : null,
+      errorMessage: q != null && q.failed ? errorMessage(q.error, t) : null,
       onRetry: () => _retry(ref, scope, inv, spend: false),
       pageSize: 25,
       hideViewOptions: true,
@@ -407,4 +405,3 @@ String _switch(Translator t, DashFormat f, MaterialCostTrendRow r) => t(
     'cost': f.fmtMoney(r.cheaperCost ?? 0),
   },
 );
-

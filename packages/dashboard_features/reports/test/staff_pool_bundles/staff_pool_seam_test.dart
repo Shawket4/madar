@@ -50,12 +50,14 @@ void main() {
         ),
       ),
     );
-    final id = StaffPoolMock.drinksIn(
-      h.db!,
-      SeedIds.heliopolis,
-      defaultTo,
-      defaultTo,
-    ).first['order_id']! as String;
+    final id =
+        StaffPoolMock.drinksIn(
+              h.db!,
+              SeedIds.heliopolis,
+              defaultTo,
+              defaultTo,
+            ).first['order_id']!
+            as String;
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
     addTearDown(mouse.removePointer);

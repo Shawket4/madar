@@ -186,7 +186,9 @@ void main() {
         '/reports/orgs/${SeedIds.sabahOrg}/low-stock',
         '/reports/branches/$z/waste-report',
       ]) {
-        expect((await _get(server, path, _range)).$2, ['inventory'], reason: path);
+        expect((await _get(server, path, _range)).$2, [
+          'inventory',
+        ], reason: path);
       }
       final (_, consumption) = await _get(
         server,

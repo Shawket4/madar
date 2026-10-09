@@ -126,6 +126,16 @@ class DashKitStrings {
   String get lastWeek => _('inputs.lastWeek');
   String get rangeFrom => _('inputs.from');
   String get rangeTo => _('inputs.to');
+  String get phoneShort => _('inputs.phoneShort');
+  String get phoneLong => _('inputs.phoneLong');
+  String get phonePrefix => _('inputs.phonePrefix');
+  String get phoneBad => _('inputs.phoneBad');
+  String get sameTime => _('inputs.sameTime');
+  String get endsNextDay => _('inputs.endsNextDay');
+  String get nextDayShort => _('inputs.nextDayShort');
+  String longOvernight(String length) =>
+      _('inputs.longOvernight', {'length': length});
+  String didYouMean(String time) => _('inputs.didYouMean', {'time': time});
 
   // ── uploader.* ───────────────────────────────────────────────────────
   String get uploadChoose => _('uploader.choose');

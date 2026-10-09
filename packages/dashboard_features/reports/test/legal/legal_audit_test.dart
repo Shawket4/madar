@@ -156,12 +156,13 @@ void main() {
   testWidgets('REP-LEG-018 error: only the error state; Retry asks that '
       'audit alone again, the error staying while it runs', (tester) async {
     final s = legalServer();
-    // Twice: the press's warm-up fails, is dropped, and the tab reads again.
+    // Every read fails (the press's warm-up, dropped, and the tab's own),
+    // however the two interleave, until the Retry.
     s.server.fail(
       'GET',
       _voids,
       MockResponse.error(500, 'Internal error'),
-      times: 2,
+      times: null,
     );
     final h = await pumpLegal(tester, server: s.server, db: s.db);
     await _open(h, LegalTab.voids);
@@ -170,6 +171,7 @@ void main() {
     expect(auditExport, findsNothing);
     expect(inAudit(find.byType(DashStatCard)), findsNothing);
     await h.shot('legal/audit-error');
+    s.server.clearFailures();
     final before = legalCalls(h).length;
     final gate = s.server.hold('GET', _voids);
     await tester.tap(inAudit(find.text('Retry')));
@@ -201,8 +203,13 @@ void main() {
     final h = await pumpLegal(tester, server: s.server, db: s.db);
     await _open(h, LegalTab.deductionOverrides);
     expect(inAudit(find.byType(DashErrorState)), findsOneWidget);
-    // The press's warm-up is refused, dropped, and the tab reads again.
-    expect(h.server.callsTo(_overrides), hasLength(2));
+    // The press's warm-up is refused, dropped, and the tab reads again; then
+    // nothing more, however long the error stays up.
+    final asked = h.server.callsTo(_overrides).length;
+    expect(asked, inInclusiveRange(1, 2));
+    await tester.pump(const Duration(seconds: 30));
+    await h.settle();
+    expect(h.server.callsTo(_overrides), hasLength(asked));
   });
 
   testWidgets('REP-LEG-019 / 020 each tab\'s cards: its own axis first, then '
@@ -398,7 +405,10 @@ void main() {
     ]);
     // Badges.
     expect(
-      find.descendant(of: card, matching: find.byWidgetPredicate((w) => w is DashBadge && w.outline)),
+      find.descendant(
+        of: card,
+        matching: find.byWidgetPredicate((w) => w is DashBadge && w.outline),
+      ),
       findsNWidgets(7),
     );
     expect(inCard('History', find.text('Waiver undone')), findsOneWidget);

@@ -158,6 +158,9 @@ abstract final class DashBreakpoints {
   /// The web's `sm` (640): two-column grids, header actions beside the title.
   static const double sm = 640;
 
+  /// The web's `md` (768, its `useIsMobile`): concise figures below it.
+  static const double md = 768;
+
   /// The web's `lg` (1024): four-up stat strips, wider gutters.
   static const double lg = 1024;
 
@@ -297,4 +300,44 @@ abstract final class DashMotion {
   /// [d], or zero under reduced motion.
   static Duration of(BuildContext context, Duration d) =>
       reduced(context) ? Duration.zero : d;
+}
+
+/// Fades [child] in once, after [delay], rising [rise] px as it does (the
+/// web's `fadeIn` / `listItem`, 160 ms); shown at once under reduced motion.
+/// Its semantics stay on while it is faint.
+class DashEntrance extends StatelessWidget {
+  const DashEntrance({
+    required this.child,
+    this.delay = Duration.zero,
+    this.rise = 0,
+    super.key,
+  });
+  final Widget child;
+  final Duration delay;
+  final double rise;
+
+  @override
+  Widget build(BuildContext context) {
+    if (DashMotion.reduced(context)) return child;
+    final total = DashMotion.fast + delay;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: total,
+      // The delay as a flat start: no timer to outlive the widget.
+      curve: Interval(
+        delay.inMicroseconds / total.inMicroseconds,
+        1,
+        curve: DashMotion.ease,
+      ),
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        alwaysIncludeSemantics: true,
+        child: Transform.translate(
+          offset: Offset(0, rise * (1 - t)),
+          child: child,
+        ),
+      ),
+      child: child,
+    );
+  }
 }

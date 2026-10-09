@@ -13,20 +13,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support.dart';
 
 List<String> _tabLabels() => [
-  for (final e in find
-      .descendant(
-        of: find.byType(DashPageTabs<String>),
-        matching: find.byType(Text),
-      )
-      .evaluate())
+  for (final e
+      in find
+          .descendant(
+            of: find.byType(DashPageTabs<String>),
+            matching: find.byType(Text),
+          )
+          .evaluate())
     (e.widget as Text).data ?? '',
 ];
 
 Finder get _export => inPage(find.byType(DashExportButton));
 
-int _reads(DashHarness h) => [
-  for (final r in opsReads) ...h.server.callsTo(r),
-].length;
+int _reads(DashHarness h) =>
+    [for (final r in opsReads) ...h.server.callsTo(r)].length;
 
 void main() {
   testWidgets('REP-OPS-001 / REP-ALL-005 without orders.read: Restricted '
@@ -294,10 +294,7 @@ void main() {
     final select = inPage(find.byKey(const ValueKey('ops-section-filter')));
     expect(select, findsOneWidget);
     await pickOption(h, select, 'Terrace');
-    expect(
-      tester.widget<DashSelect<String>>(select).value,
-      'Terrace',
-    );
+    expect(tester.widget<DashSelect<String>>(select).value, 'Terrace');
     await openTab(h, 'Overview');
     await openTab(h, 'Tables');
     expect(
@@ -346,10 +343,7 @@ void main() {
       await hoverOperations(h, tester);
       final warmed = h.server.callsTo(salesRoute);
       expect(warmed, hasLength(1), reason: 'warmed on hover');
-      expect(
-        warmed.single.path,
-        '/reports/branches/${SeedIds.zamalek}/sales',
-      );
+      expect(warmed.single.path, '/reports/branches/${SeedIds.zamalek}/sales');
       expect(warmed.single.query.keys.toSet(), {'from', 'to'});
 
       final row = find.descendant(
@@ -381,9 +375,7 @@ void main() {
       await openTab(h, 'Overview');
       final calls = h.server.callsTo(salesRoute);
       expect(calls, hasLength(2));
-      expect(calls.last.query['exclude_items'], [
-        MockSeed.menuItemId('latte'),
-      ]);
+      expect(calls.last.query['exclude_items'], [MockSeed.menuItemId('latte')]);
     });
 
     testWidgets('with All branches nothing is warmed', (tester) async {

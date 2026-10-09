@@ -82,7 +82,9 @@ class OpsTableHistory extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
-    final q = ref.watch(opsTableHistoryProvider((id: tableId, from: from, to: to)));
+    final q = ref.watch(
+      opsTableHistoryProvider((id: tableId, from: from, to: to)),
+    );
     final small = DashType.small.copyWith(color: c.textSecondary);
     if (q.awaitingFirst) {
       return const Column(

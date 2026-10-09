@@ -116,9 +116,7 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
             rowKey: (r) => r.itemId,
             loading: items.awaitingFirst,
             retrying: items.isLoading,
-            errorMessage: items.failed
-                ? opsErrorText(items.error, t)
-                : null,
+            errorMessage: items.failed ? opsErrorText(items.error, t) : null,
             onRetry: () => ref.invalidate(opsItemsProvider(scope.opsRange)),
             empty: _noData(t),
             columns: [
@@ -157,9 +155,7 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
             rowKey: (r) => r.addonItemId,
             loading: addons.awaitingFirst,
             retrying: addons.isLoading,
-            errorMessage: addons.failed
-                ? opsErrorText(addons.error, t)
-                : null,
+            errorMessage: addons.failed ? opsErrorText(addons.error, t) : null,
             onRetry: () => ref.invalidate(opsAddonsProvider(scope.opsRange)),
             empty: _noData(t),
             columns: [
@@ -255,9 +251,7 @@ class _OpsTellersViewState extends ConsumerState<OpsTellersView> {
             rowKey: (r) => r.tellerId,
             loading: q.awaitingFirst,
             retrying: q.isLoading,
-            errorMessage: q.failed
-                ? opsErrorText(q.error, t)
-                : null,
+            errorMessage: q.failed ? opsErrorText(q.error, t) : null,
             onRetry: retry,
             empty: _noData(t),
             columns: [
@@ -394,9 +388,7 @@ class _OpsWaitersViewState extends ConsumerState<OpsWaitersView> {
             rowKey: (r) => r.waiterId,
             loading: q.awaitingFirst,
             retrying: q.isLoading,
-            errorMessage: q.failed
-                ? opsErrorText(q.error, t)
-                : null,
+            errorMessage: q.failed ? opsErrorText(q.error, t) : null,
             onRetry: retry,
             empty: _noData(t),
             columns: [
@@ -524,9 +516,7 @@ class _OpsBranchesViewState extends ConsumerState<OpsBranchesView> {
             rowKey: (r) => r.branchId,
             loading: q.awaitingFirst,
             retrying: q.isLoading,
-            errorMessage: q.failed
-                ? opsErrorText(q.error, t)
-                : null,
+            errorMessage: q.failed ? opsErrorText(q.error, t) : null,
             onRetry: retry,
             empty: _noData(t),
             columns: [

@@ -72,23 +72,28 @@ void main() {
     _expectExportRead(addons.last);
     final spec = h.exports.built.single;
     expect([for (final s in spec.sheets) s.name], ['Items', 'Addon Sales']);
-    expect([for (final c in spec.sheets[0].columns) c.header], [
-      'Name',
-      'Total sold',
-    ]);
+    expect(
+      [for (final c in spec.sheets[0].columns) c.header],
+      ['Name', 'Total sold'],
+    );
     expect(spec.sheets[0].columns[0].width, 32);
-    expect([for (final c in spec.sheets[1].columns) c.header], [
-      'Name',
-      'sold',
-      'Revenue',
-    ]);
+    expect(
+      [for (final c in spec.sheets[1].columns) c.header],
+      ['Name', 'sold', 'Revenue'],
+    );
     // The period as the meta line, then "Generated: …".
     expect(spec.sheets[0].subtitle, startsWith('Last 30 days'));
     expect(spec.sheets[0].subtitle, contains('Generated: '));
     // The totals row: TOTALS, then SUM.
     expect(spec.sheets[0].totalsRow!.first, 'TOTALS');
-    expect((spec.sheets[0].totalsRow![1]! as ExcelFormula).formula, startsWith('SUM(B'));
-    expect((spec.sheets[1].totalsRow![2]! as ExcelFormula).formula, startsWith('SUM(C'));
+    expect(
+      (spec.sheets[0].totalsRow![1]! as ExcelFormula).formula,
+      startsWith('SUM(B'),
+    );
+    expect(
+      (spec.sheets[1].totalsRow![2]! as ExcelFormula).formula,
+      startsWith('SUM(C'),
+    );
     // Money in pounds.
     final want = opsAddonSales(h.db!, _orders(h, SeedIds.sabahBranches));
     expect(spec.sheets[1].rows.first[2], want.first.revenue / 100);
@@ -129,14 +134,10 @@ void main() {
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Teller Details');
     expect(sheet.title, 'Teller Details');
-    expect([for (final c in sheet.columns) c.header], [
-      'Role',
-      'Orders',
-      'Revenue',
-      'AOV',
-      'Order voided',
-      'Tills',
-    ]);
+    expect(
+      [for (final c in sheet.columns) c.header],
+      ['Role', 'Orders', 'Revenue', 'AOV', 'Order voided', 'Tills'],
+    );
     // Totals on Orders, Revenue, voided, Tills; not AOV.
     final totals = sheet.totalsRow!;
     expect(totals[0], 'TOTALS');
@@ -144,13 +145,16 @@ void main() {
       expect(totals[i], isA<ExcelFormula>(), reason: '$i');
     }
     expect(totals[3], '');
-    expect(h.files.saved.single.filename,
-        'Madar-Analytics-tellers-${_stamp(h)}.xlsx');
+    expect(
+      h.files.saved.single.filename,
+      'Madar-Analytics-tellers-${_stamp(h)}.xlsx',
+    );
     await h.flushTimers();
   });
 
-  testWidgets('REP-OPS-059 Waiters: the coverage subtitle with raw numbers',
-      (tester) async {
+  testWidgets('REP-OPS-059 Waiters: the coverage subtitle with raw numbers', (
+    tester,
+  ) async {
     final h = await pumpOps(tester);
     await openTab(h, 'Waiters');
     await _menu(h, 'Export Excel');
@@ -165,17 +169,22 @@ void main() {
         'waiters',
       ),
     );
-    expect([for (final c in sheet.columns) c.header], [
-      'Waiter',
-      'Orders',
-      'Revenue',
-      'AOV',
-      'Items Sold',
-      'Items / Order',
-      'Order voided',
-    ]);
-    expect(h.files.saved.single.filename,
-        'Madar-Analytics-waiters-${_stamp(h)}.xlsx');
+    expect(
+      [for (final c in sheet.columns) c.header],
+      [
+        'Waiter',
+        'Orders',
+        'Revenue',
+        'AOV',
+        'Items Sold',
+        'Items / Order',
+        'Order voided',
+      ],
+    );
+    expect(
+      h.files.saved.single.filename,
+      'Madar-Analytics-waiters-${_stamp(h)}.xlsx',
+    );
     await h.flushTimers();
   });
 
@@ -187,19 +196,18 @@ void main() {
     _expectExportRead(h.server.callsTo(comparisonRoute).last);
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Branch Details');
-    expect([for (final c in sheet.columns) c.header], [
-      'Branches',
-      'Orders',
-      'Revenue',
-      'AOV',
-      'Void Rate',
-    ]);
+    expect(
+      [for (final c in sheet.columns) c.header],
+      ['Branches', 'Orders', 'Revenue', 'AOV', 'Void Rate'],
+    );
     expect(sheet.columns[4].numFmt, '0.0%');
     final rate = sheet.rows.first[4]! as num;
     expect(rate, lessThan(1));
     expect(sheet.rows, hasLength(4));
-    expect(h.files.saved.single.filename,
-        'Madar-Analytics-branches-${_stamp(h)}.xlsx');
+    expect(
+      h.files.saved.single.filename,
+      'Madar-Analytics-branches-${_stamp(h)}.xlsx',
+    );
     await h.flushTimers();
   });
 
@@ -263,10 +271,9 @@ void main() {
   testWidgets('REP-ALL-013 nothing to export: "Nothing to export", no file '
       '(Excel and CSV)', (tester) async {
     final h = await pumpOps(tester);
-    await h.container.read(scopeProvider.notifier).setCustomRange(
-      '2026-01-01T00:00:00.000Z',
-      '2026-01-02T00:00:00.000Z',
-    );
+    await h.container
+        .read(scopeProvider.notifier)
+        .setCustomRange('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
     await h.settle();
     await openTab(h, 'Tellers');
     await _menu(h, 'Export Excel');

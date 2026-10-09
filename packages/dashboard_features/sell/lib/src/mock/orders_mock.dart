@@ -61,8 +61,9 @@ int refundedOn(MockDb db, String orderId) {
   for (final t in [OrderTables.refunds, 'legal_refunds']) {
     if (!db.hasTable(t)) continue;
     for (final r in db[t].rows) {
-      if (r['order_id'] == orderId)
+      if (r['order_id'] == orderId) {
         total += (r['amount'] as num?)?.toInt() ?? 0;
+      }
     }
   }
   return total;
@@ -1200,8 +1201,9 @@ class _Handlers {
       for (final p in rawExclude.split(',')) {
         final s = p.trim();
         if (s.isEmpty) continue;
-        if (!_uuid.hasMatch(s))
+        if (!_uuid.hasMatch(s)) {
           req.badRequest('Invalid uuid in exclude_items: $s');
+        }
         exclude.add(s.toLowerCase());
       }
     }
@@ -1461,8 +1463,9 @@ class _Handlers {
   MockResponse menuItems(MockRequest req) {
     req.requireCap('menu.items.read');
     final org = req.q('org_id');
-    if (org == null)
+    if (org == null) {
       req.badRequest('Query deserialize error: missing field `org_id`');
+    }
     req.requireSameOrg(org);
     return MockResponse.ok(
       db['menu_items'].query(filters: {'org_id': org}, sort: 'name'),

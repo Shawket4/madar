@@ -14,9 +14,13 @@ Future<DashHarness> pumpShell(
   String locale = 'en',
   bool dark = false,
   Map<String, String>? prefs,
+  MockServer? server,
+  MockDb? db,
 }) => DashHarness.pump(
   tester,
   areas: dashboardAreas,
+  server: server,
+  db: db,
   path: path,
   persona: persona,
   size: size,

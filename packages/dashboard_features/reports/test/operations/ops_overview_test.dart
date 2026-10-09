@@ -114,35 +114,33 @@ void main() {
     final cards = tester.widgetList<DashStatCard>(
       inPage(find.byType(DashStatCard)),
     );
-    expect([for (final c in cards) c.label], [
-      'Revenue',
-      'Tax',
-      'Orders',
-      'Items Sold',
-      'Avg Order',
-      'Order voided',
-    ]);
-    expect([for (final c in cards) c.icon], [
-      'coins',
-      'percent',
-      'receipt',
-      'shopping-basket',
-      'trending-up',
-      'ban',
-    ]);
-    expect([for (final c in cards) c.tone], [
-      DashTone.neutral,
-      DashTone.info,
-      DashTone.accent,
-      DashTone.info,
-      DashTone.info,
-      DashTone.warning,
-    ]);
+    expect(
+      [for (final c in cards) c.label],
+      ['Revenue', 'Tax', 'Orders', 'Items Sold', 'Avg Order', 'Order voided'],
+    );
+    expect(
+      [for (final c in cards) c.icon],
+      ['coins', 'percent', 'receipt', 'shopping-basket', 'trending-up', 'ban'],
+    );
+    expect(
+      [for (final c in cards) c.tone],
+      [
+        DashTone.neutral,
+        DashTone.info,
+        DashTone.accent,
+        DashTone.info,
+        DashTone.info,
+        DashTone.warning,
+      ],
+    );
     // REP-ALL-023: six cards are dense.
     expect(cards.every((c) => c.dense), isTrue);
     // Items Sold carries the exclude control; no hint while none excluded.
     expect(
-      find.descendant(of: find.byKey(const ValueKey('line_items')), matching: _trigger),
+      find.descendant(
+        of: find.byKey(const ValueKey('line_items')),
+        matching: _trigger,
+      ),
       findsOneWidget,
     );
     expect(pageText('1 item excluded'), findsNothing);
@@ -150,10 +148,9 @@ void main() {
 
   testWidgets('REP-OPS-041 no orders: Avg Order is 0', (tester) async {
     final h = await _overview(tester);
-    await h.container.read(scopeProvider.notifier).setCustomRange(
-      '2026-01-01T00:00:00.000Z',
-      '2026-01-02T00:00:00.000Z',
-    );
+    await h.container
+        .read(scopeProvider.notifier)
+        .setCustomRange('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
     await h.settle();
     expect(_kpi(tester, 'orders'), 0);
     expect(_kpi(tester, 'aov'), 0);
@@ -174,10 +171,7 @@ void main() {
       expect(menu.query['org_id'], [SeedIds.sabahOrg]);
       expect(find.text(h.t('analytics.excludeScopeNote')), findsOneWidget);
       expect(find.text('Excluded from Items Sold'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('ops-exclude-search')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('ops-exclude-search')), findsOneWidget);
       // The first items of the menu, by name.
       expect(
         find.byWidgetPredicate(
@@ -213,10 +207,10 @@ void main() {
         find.descendant(of: _trigger, matching: find.text('2')),
         findsOneWidget,
       );
-      expect(
-        h.prefs.getJson(excludedItemsPrefKey(SeedIds.sabahOrg)),
-        [latte, mocha],
-      );
+      expect(h.prefs.getJson(excludedItemsPrefKey(SeedIds.sabahOrg)), [
+        latte,
+        mocha,
+      ]);
       // Only Items Sold moves (REP-OPS-039's note).
       final d = _expected(h, SeedIds.sabahBranches, exclude: {latte, mocha});
       expect(_kpi(tester, 'line_items'), d.totalLineItems);
@@ -286,8 +280,9 @@ void main() {
       expect(find.text('Loading…'), findsNothing);
     });
 
-    testWidgets('REP-OPS-064 Arabic names in Arabic; the search matches them',
-        (tester) async {
+    testWidgets('REP-OPS-064 Arabic names in Arabic; the search matches them', (
+      tester,
+    ) async {
       final h = await _overview(tester, locale: 'ar', size: DashSize.phone);
       await h.tap(_trigger);
       final latte = seedMenuItem('latte')!;
@@ -314,8 +309,10 @@ void main() {
           excludedItemsPrefKey('another-org'): _excludedPref(['x', 'y']),
         },
       );
-      expect(excludedItemsPrefKey(SeedIds.sabahOrg),
-          'madar.excluded-line-items.${SeedIds.sabahOrg}');
+      expect(
+        excludedItemsPrefKey(SeedIds.sabahOrg),
+        'madar.excluded-line-items.${SeedIds.sabahOrg}',
+      );
       expect(pageText('1 item excluded'), findsOneWidget);
       final icon = tester.widget<DashIcon>(
         find.descendant(of: _trigger, matching: find.byType(DashIcon)),
@@ -345,24 +342,30 @@ void main() {
       'first, payment colours, a legend with words and money', (tester) async {
     final h = await _overview(tester);
     final d = _expected(h, SeedIds.sabahBranches);
-    final methods = (d.revenueByMethod as Map).entries
-        .where((e) => (e.value as num) > 0)
-        .toList()
-      ..sort((a, b) => (b.value as num).compareTo(a.value as num));
+    final methods =
+        (d.revenueByMethod as Map).entries
+            .where((e) => (e.value as num) > 0)
+            .toList()
+          ..sort((a, b) => (b.value as num).compareTo(a.value as num));
     final donut = tester.widget<DashDonutChart>(
       inPage(find.byKey(const ValueKey('ops-payment-donut'))),
     );
-    expect([for (final s in donut.slices) s.value], [
-      for (final e in methods) (e.value as num).toDouble(),
-    ]);
-    expect([for (final s in donut.slices) s.label], [
-      for (final e in methods) h.t('payments.${e.key}'),
-    ]);
+    expect(
+      [for (final s in donut.slices) s.value],
+      [for (final e in methods) (e.value as num).toDouble()],
+    );
+    expect(
+      [for (final s in donut.slices) s.label],
+      [for (final e in methods) h.t('payments.${e.key}')],
+    );
     final f = h.container.read(formatProvider);
     final card = chartCard('Revenue by Payment Method');
     for (final e in methods) {
       expect(
-        find.descendant(of: card, matching: find.text(h.t('payments.${e.key}'))),
+        find.descendant(
+          of: card,
+          matching: find.text(h.t('payments.${e.key}')),
+        ),
         findsOneWidget,
       );
       expect(
@@ -374,10 +377,7 @@ void main() {
       );
     }
     // Colour is never the only signal; and slices sum to Revenue.
-    expect(
-      donut.slices.fold<double>(0, (a, s) => a + s.value),
-      d.totalRevenue,
-    );
+    expect(donut.slices.fold<double>(0, (a, s) => a + s.value), d.totalRevenue);
     expect(donut.formatValue!(1250), f.fmtMoney(1250));
   });
 
@@ -385,16 +385,13 @@ void main() {
       'label, compact money axis', (tester) async {
     final h = await _overview(tester);
     final d = _expected(h, SeedIds.sabahBranches);
-    final cats = [...d.byCategory]..sort((a, b) => b.revenue.compareTo(a.revenue));
+    final cats = [...d.byCategory]
+      ..sort((a, b) => b.revenue.compareTo(a.revenue));
     final chart = tester.widget<OpsBarChart>(
       inPage(find.byKey(const ValueKey('ops-by-category'))),
     );
-    expect(chart.labels, [
-      for (final c in cats.take(10)) c.categoryName,
-    ]);
-    expect(chart.values, [
-      for (final c in cats.take(10)) c.revenue.toDouble(),
-    ]);
+    expect(chart.labels, [for (final c in cats.take(10)) c.categoryName]);
+    expect(chart.values, [for (final c in cats.take(10)) c.revenue.toDouble()]);
     final f = h.container.read(formatProvider);
     expect(chart.formatAxis(150000), f.fmtMoneyCompact(150000));
     expect(chart.tooltip(0), 'Revenue: ${f.fmtMoney(cats.first.revenue)}');
@@ -421,7 +418,9 @@ void main() {
     expect(
       find.descendant(
         of: card,
-        matching: find.text('${dashFigure(fmtNum(f, top.first.quantitySold))} sold'),
+        matching: find.text(
+          '${dashFigure(fmtNum(f, top.first.quantitySold))} sold',
+        ),
       ),
       findsWidgets,
     );
@@ -440,10 +439,7 @@ void main() {
     final chart = tester.widget<OpsBarChart>(
       inPage(find.byKey(const ValueKey('ops-by-category'))),
     );
-    expect(
-      chart.labels.first,
-      matches(RegExp(r'[؀-ۿ]')),
-    );
+    expect(chart.labels.first, matches(RegExp(r'[؀-ۿ]')));
     // REP-ALL-020: the plot reads left to right in Arabic.
     expect(
       tester
@@ -586,7 +582,14 @@ void main() {
         '${size.name}', (tester) async {
       await _overview(tester, size: size);
       final tops = {
-        for (final k in ['revenue', 'tax', 'orders', 'line_items', 'aov', 'voided'])
+        for (final k in [
+          'revenue',
+          'tax',
+          'orders',
+          'line_items',
+          'aov',
+          'voided',
+        ])
           tester.getRect(find.byKey(ValueKey(k))).top,
       };
       expect(tops, hasLength(rows));
@@ -614,7 +617,10 @@ void main() {
     final f = h.container.read(formatProvider);
     final exact = f.fmtMoney(big);
     final card = find.byKey(const ValueKey('revenue'));
-    final press = find.descendant(of: card, matching: find.byType(DashPressable));
+    final press = find.descendant(
+      of: card,
+      matching: find.byType(DashPressable),
+    );
     expect(press, findsOneWidget);
     expect(
       tester.widget<DashPressable>(press).semanticLabel,

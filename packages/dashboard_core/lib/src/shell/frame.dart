@@ -12,6 +12,7 @@ library;
 
 import 'package:dashboard_core/src/authz/gates.dart' show errorMessage;
 import 'package:dashboard_core/src/data/query_cache.dart';
+import 'package:dashboard_core/src/gateways/realtime.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/providers.dart';
 import 'package:dashboard_core/src/scope/period.dart';
@@ -300,9 +301,7 @@ class _PageWithFootState extends State<_PageWithFoot> {
     // Showing the foot takes its height from the page, which then has that
     // much more to scroll: it hides only past that, or it would flicker.
     final footHeight = _foot.currentContext?.size?.height ?? 0;
-    final shown = _shown
-        ? m.extentAfter <= footHeight + 1
-        : m.extentAfter < 1;
+    final shown = _shown ? m.extentAfter <= footHeight + 1 : m.extentAfter < 1;
     if (shown != _shown) setState(() => _shown = shown);
     return false;
   }
@@ -363,15 +362,35 @@ class _SidebarEdgeState extends ConsumerState<_SidebarEdge> {
 }
 
 /// Holds the selected branch's realtime connection while the frame is up
-/// (`useBranchRealtime`, mounted once so navigating never reconnects).
-class _LiveUpdates extends ConsumerWidget {
+/// (`useBranchRealtime`, mounted once so navigating never reconnects); a
+/// page outside the frame (the onboarding) has none.
+class _LiveUpdates extends ConsumerStatefulWidget {
   const _LiveUpdates();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(branchRealtimeProvider);
-    return const SizedBox.shrink();
+  ConsumerState<_LiveUpdates> createState() => _LiveUpdatesState();
+}
+
+class _LiveUpdatesState extends ConsumerState<_LiveUpdates> {
+  BranchRealtime? _rt;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(branchRealtimeProvider, (_, rt) {
+      _rt?.release();
+      _rt = rt?..hold();
+    }, fireImmediately: true);
   }
+
+  @override
+  void dispose() {
+    _rt?.release();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 /// The phone's bottom bar: Home, Orders and Reports as this person may open

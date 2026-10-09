@@ -114,10 +114,8 @@ Finder kpiValue(String label, String value) => find.descendant(
 );
 
 /// The chart card titled [title].
-Finder chartCard(String title) => find.ancestor(
-  of: find.text(title),
-  matching: find.byType(DashChartCard),
-);
+Finder chartCard(String title) =>
+    find.ancestor(of: find.text(title), matching: find.byType(DashChartCard));
 
 /// Text widgets containing [s] (spans included).
 Finder textHas(String s) => find.textContaining(s, findRichText: true);

@@ -167,7 +167,9 @@ void main() {
     final server = MockServer(persona: Persona.owner, clock: db.clock);
     registerAppMocks(server, db);
     // Mariam is not an employee yet.
-    final mariam = db['users'].rows.firstWhere((u) => u['name'] == 'Mariam Fathy');
+    final mariam = db['users'].rows.firstWhere(
+      (u) => u['name'] == 'Mariam Fathy',
+    );
     db['employees'].removeWhere((e) => e['user_id'] == mariam['id']);
     final h = await DashHarness.pump(
       tester,
@@ -179,10 +181,12 @@ void main() {
       overrides: [areaOpenersProvider.overrideWithValue(dashboardOpeners)],
     );
     final action = find.descendant(
-      of: find.ancestor(
-        of: find.text('Mariam Fathy'),
-        matching: find.byType(DashPressable),
-      ).first,
+      of: find
+          .ancestor(
+            of: find.text('Mariam Fathy'),
+            matching: find.byType(DashPressable),
+          )
+          .first,
       matching: find.bySemanticsLabel('Make employee'),
     );
     expect(action, findsOneWidget);
@@ -196,10 +200,7 @@ void main() {
     await h.tap(action);
     final dialog = _type('AddEmployeeDialog');
     expect(dialog, findsOneWidget);
-    expect(
-      (tester.widget(dialog) as dynamic).userId,
-      mariam['id'],
-    );
+    expect((tester.widget(dialog) as dynamic).userId, mariam['id']);
     expect(
       h.server.callsTo('/staff/employees/linkable'),
       hasLength(reads + 1),

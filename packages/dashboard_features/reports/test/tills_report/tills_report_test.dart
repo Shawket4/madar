@@ -568,7 +568,11 @@ void main() {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
       expect(
-        inCell('till_3', 'closed_at', find.byWidgetPredicate((w) => w is DashBadge && w.outline)),
+        inCell(
+          'till_3',
+          'closed_at',
+          find.byWidgetPredicate((w) => w is DashBadge && w.outline),
+        ),
         findsOneWidget,
       );
       expect(cellText(tester, 'till_3', 'closed_at'), 'Open');
@@ -587,7 +591,11 @@ void main() {
       );
       // A closed till carries no badge.
       expect(
-        inCell('till_1', 'closed_at', find.byWidgetPredicate((w) => w is DashBadge && w.outline)),
+        inCell(
+          'till_1',
+          'closed_at',
+          find.byWidgetPredicate((w) => w is DashBadge && w.outline),
+        ),
         findsNothing,
       );
       await h.shot('sessions');

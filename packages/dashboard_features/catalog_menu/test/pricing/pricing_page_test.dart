@@ -1008,9 +1008,7 @@ void main() {
     });
 
     testWidgets('MENU-PRC-032 (divergence) the channel reads gate the add-ons '
-        'tab: skeleton while one loads, the error when one fails', (
-      tester,
-    ) async {
+        'tab: a skeleton while one loads', (tester) async {
       final s = pricingServer();
       final gate = s.server.hold('GET', channelAddonT);
       final h = await pumpPricing(tester, seeded: s);
@@ -1020,7 +1018,10 @@ void main() {
       gate.release();
       await h.settle();
       expect(controlOf(tester, _almond, 'in_mall').draft.available, isFalse);
+    });
 
+    testWidgets('MENU-PRC-032 (divergence) a failed channel read: the error '
+        'and Retry on the add-ons tab', (tester) async {
       final s2 = pricingServer();
       final down = MockResponse.error(500, 'Channel store down');
       s2.server.fail('GET', channelAddonT, down);

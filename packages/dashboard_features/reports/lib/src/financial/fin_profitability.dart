@@ -556,7 +556,8 @@ class FinItemCell extends ConsumerWidget {
             style: DashType.bodyMedium.copyWith(color: c.textPrimary),
           ),
         ),
-        if (row.sizeLabel != 'one_size') DashBadge(row.sizeLabel, outline: true),
+        if (row.sizeLabel != 'one_size')
+          DashBadge(row.sizeLabel, outline: true),
         if (row.class_ != null && finClasses.contains(row.class_))
           DashPressable(
             key: ValueKey('class-${row.menuItemId}-${row.sizeLabel}'),

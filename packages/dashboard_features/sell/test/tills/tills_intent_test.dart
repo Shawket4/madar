@@ -64,6 +64,8 @@ void main() {
     await h.settle();
 
     // The table's link on the second till opens the first one's report.
+    // A fresh tree: the second app must not reuse the first one's scope.
+    await tester.pumpWidget(const SizedBox());
     final h2 = await pumpTills(tester);
     final link = find.descendant(
       of: find.byKey(ValueKey('till-badges-${TillIds.helioSecond}')),

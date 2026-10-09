@@ -15,13 +15,13 @@ void main() {
   for (final size in DashSize.values) {
     for (final (lang, dark) in _modes) {
       final tag = '${size.name} $lang ${dark ? 'dark' : 'light'}';
-      testWidgets('frame, $tag', (tester) async {
+      testWidgets('ADM-APP-023 ADM-APP-026: frame, $tag', (tester) async {
         final h = await pumpShell(tester, size: size, locale: lang, dark: dark);
         await h.shot('frame/home');
         await h.go('/reports/staff-pool');
         await h.shot('frame/nested-active');
       });
-      testWidgets('sign-in, $tag', (tester) async {
+      testWidgets('ADM-APP-003: sign-in, $tag', (tester) async {
         final h = await pumpShell(
           tester,
           persona: null,
@@ -54,9 +54,7 @@ void main() {
       final h = await pumpShell(tester, size: size, locale: lang);
       final t = h.t;
       // The palette.
-      await h.tap(
-        labelled(phone ? t('shell.searchPages') : t('common.search')).first,
-      );
+      await h.tap(labelled(t('common.search')).first);
       await h.shot('open/palette');
       await h.tap(labelled(t('common.close')).last);
       // The user menu.

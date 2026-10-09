@@ -40,7 +40,10 @@ Future<void> shootPage(DashHarness h, String name) async {
   }
 }
 
-const _states = [(DashSize.desktop, 'en', false), (DashSize.phone, 'ar', false)];
+const _states = [
+  (DashSize.desktop, 'en', false),
+  (DashSize.phone, 'ar', false),
+];
 
 void main() {
   for (final size in DashSize.values) {
@@ -152,10 +155,12 @@ void main() {
 
     testWidgets('empty, $tag', (tester) async {
       final h = await pumpOps(tester, size: size, locale: lang, dark: dark);
-      await h.container.read(scopeProvider.notifier).setCustomRange(
-        '2026-01-01T00:00:00.000Z',
-        '2026-01-02T00:00:00.000Z',
-      );
+      await h.container
+          .read(scopeProvider.notifier)
+          .setCustomRange(
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-02T00:00:00.000Z',
+          );
       await h.settle();
       await shootPage(h, 'empty');
       await openTab(h, h.t('reports.operations.tabs.overview'));

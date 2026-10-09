@@ -131,8 +131,9 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     _sheet = id;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      if (previous != null)
+      if (previous != null) {
         await Navigator.of(context, rootNavigator: true).maybePop();
+      }
       if (id == null || !mounted || _sheet != id) return;
       await showOrderSheet(
         context,
@@ -162,8 +163,9 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
 
   void _openVoid(String id, String ref) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted)
+      if (mounted) {
         showVoidDialog(context, orderId: id, ref: ref, draft: _voidDraft);
+      }
     });
   }
 

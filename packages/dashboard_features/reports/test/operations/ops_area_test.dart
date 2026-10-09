@@ -43,9 +43,10 @@ Future<List<String>> _leaves(DashHarness h) async {
 
 /// The sidebar's words, top to bottom.
 List<String> _sidebarWords() => [
-  for (final e in find
-      .descendant(of: find.byType(DashSidebar), matching: find.byType(Text))
-      .evaluate())
+  for (final e
+      in find
+          .descendant(of: find.byType(DashSidebar), matching: find.byType(Text))
+          .evaluate())
     (e.widget as Text).data ?? '',
 ];
 
@@ -54,8 +55,10 @@ void main() {
       'Operations is the active one', (tester) async {
     final h = await pumpOps(tester);
     final leaves = await _leaves(h);
-    expect([for (final p in leaves) if (p.startsWith('/reports/')) p],
-        _reportPaths);
+    expect([
+      for (final p in leaves)
+        if (p.startsWith('/reports/')) p,
+    ], _reportPaths);
     final words = _sidebarWords();
     expect(words, contains(h.t('nav.reports')));
     for (final k in ['nav.reportsStaffPool', 'nav.reportsBundles']) {
@@ -75,8 +78,9 @@ void main() {
   });
 
   testWidgets('REP-ALL-002 / 003 leaf gates: without till.read.branch no '
-      'Tills (plain till.read is not enough); without reports.read no Basira',
-      (tester) async {
+      'Tills (plain till.read is not enough); without reports.read no Basira', (
+    tester,
+  ) async {
     final s = opsServer();
     authzWithout(s.server, Persona.owner, {
       Cap.tillReadBranch,
@@ -127,10 +131,7 @@ void main() {
     tester,
   ) async {
     final s = opsServer();
-    authzWithout(s.server, Persona.limited, {
-      Cap.ordersRead,
-      Cap.reportsRead,
-    });
+    authzWithout(s.server, Persona.limited, {Cap.ordersRead, Cap.reportsRead});
     final h = await pumpOps(
       tester,
       persona: Persona.limited,
@@ -168,7 +169,10 @@ void main() {
     await openTab(h, 'Overview');
     expect(h.server.callsTo(salesRoute), hasLength(1));
     // invalidateTills: every `/tills*` and `/reports*` key.
-    h.container.read(realtimeBusProvider).invalidate(const ['/tills', '/reports']);
+    h.container.read(realtimeBusProvider).invalidate(const [
+      '/tills',
+      '/reports',
+    ]);
     await h.settle();
     expect(h.server.callsTo(salesRoute), hasLength(2));
     await openTab(h, 'Tables');
@@ -185,9 +189,11 @@ void main() {
     await openTab(h, 'Overview');
     await h.tap(inPage(find.byKey(const ValueKey('ops-exclude-trigger'))));
     expect(h.server.callsTo(menuRoute), hasLength(1));
-    h.container
-        .read(realtimeBusProvider)
-        .invalidate(const ['/customers', '/loyalty/', '/stocktakes']);
+    h.container.read(realtimeBusProvider).invalidate(const [
+      '/customers',
+      '/loyalty/',
+      '/stocktakes',
+    ]);
     await h.settle();
     expect(h.server.callsTo(salesRoute), hasLength(1));
     expect(h.server.callsTo(menuRoute), hasLength(1));
