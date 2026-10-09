@@ -69,6 +69,7 @@ class _BookingSettingsPageState extends ConsumerState<BookingSettingsPage> {
           spacing: Space.md,
           children: [
             Wrap(
+              key: const ValueKey('bkg-row'),
               spacing: Space.md,
               runSpacing: Space.md,
               crossAxisAlignment: WrapCrossAlignment.center,

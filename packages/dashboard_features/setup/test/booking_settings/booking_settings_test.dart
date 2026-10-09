@@ -64,7 +64,7 @@ void main() {
 
     testWidgets('SET-BKG-002 phone: the select is full width', (tester) async {
       await pumpBookingRules(tester, size: DashSize.phone);
-      final line = tester.getSize(inPane(find.byType(Wrap))).width;
+      final line = tester.getSize(byKey('bkg-row')).width;
       expect(tester.getSize(byKey('bkg-branch')).width, line);
     });
 
@@ -146,6 +146,8 @@ void main() {
       final h = await pumpBookingRules(tester, backend: m);
       await openRules(h, 'Maadi');
       expect(rulesKey('bkg-failed'), findsOneWidget);
+      debugPrint('WORDS ${h.refusalWords(boom)}');
+      debugPrint('TEXTS ${[for (final e in inRules(find.byType(Text)).evaluate()) (e.widget as Text).data]}');
       expect(inRules(find.text(h.refusalWords(boom))), findsOneWidget);
       expect(rulesSave(tester).onPressed, isNull);
       await h.tap(inRules(find.text('Retry')));
