@@ -1,1 +1,3 @@
-{}
+{
+  "discounts.valueStep": "Enter a value in steps of 0.5 (for example 12 or 12.5)."
+}
