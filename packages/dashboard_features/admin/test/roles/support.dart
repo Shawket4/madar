@@ -40,12 +40,10 @@ Widget _link(BuildContext context, GoRouterState state) => Center(
   child: PrefetchOnIntent(
     to: rolesPath,
     child: GestureDetector(
+      key: const ValueKey('roles-link'),
+      behavior: HitTestBehavior.opaque,
       onTap: () => GoRouter.of(context).go(rolesPath),
-      child: const SizedBox(
-        key: ValueKey('roles-link'),
-        width: 200,
-        height: 60,
-      ),
+      child: const SizedBox(width: 200, height: 60),
     ),
   ),
 );

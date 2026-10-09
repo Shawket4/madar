@@ -1,1 +1,5 @@
-{}
+{
+  "loyalty.walletApple": "Apple Wallet",
+  "loyalty.walletApns": "إشعارات Apple (التحديثات)",
+  "loyalty.walletGoogle": "Google Wallet"
+}

@@ -228,13 +228,15 @@ void main() {
       'says so with Retry, not "no stock on record"', (tester) async {
     final s = wasteServer();
     final boom = MockResponse.error(500, 'Stock is unavailable');
-    s.server.fail('GET', stockRoute, boom);
+    // Every try fails (the button's intent warm included).
+    s.server.fail('GET', stockRoute, boom, times: null);
     final h = await openFromLog(tester, server: s.server, db: s.db);
     expect(inDialog(find.text(h.refusalWords(boom))), findsOneWidget);
     expect(
       inDialog(find.text('This branch has no stock on record yet.')),
       findsNothing,
     );
+    s.server.clearFailures();
     await h.tap(inDialog(byKey('waste-stock-retry')));
     expect(inDialog(find.text(h.refusalWords(boom))), findsNothing);
     await pickSearch(h, ingredientPicker, 'Matcha Powder');

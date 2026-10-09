@@ -179,9 +179,9 @@ class _WastePageState extends ConsumerState<WastePage> {
     final table = WasteTable(
       rows: rows,
       allBranches: scope.isAllBranches,
-      loading: log.firstLoad,
+      loading: log.awaitingFirst,
       // Kept while Retry runs (no false "No waste recorded" in between).
-      errorText: log.hasError ? errorMessage(log.error, t) : null,
+      errorText: log.failedFirst ? errorMessage(log.error, t) : null,
       onRetry: () => ref.invalidate(todayWasteProvider(logKey)),
     );
     final reasons = WasteByReason(range: scope.wasteRange);
@@ -200,6 +200,8 @@ class _WastePageState extends ConsumerState<WastePage> {
             key: const ValueKey('waste-record'),
             label: t('inventory.waste.record'),
             icon: 'trash-2',
+            // The dialog's read: the branch's stock.
+            onIntent: () => ref.warm(branchStockProvider(branchId)),
             onPressed: () => showRecordWasteDialog(context, branchId: branchId),
           ),
       ],
@@ -293,7 +295,7 @@ class WasteTable extends ConsumerWidget {
           },
           numeric: true,
           align: DashAlign.start,
-          minWidth: Space.xxl * 5,
+          width: Space.xxl * 5 + Space.lg,
         ),
         if (allBranches)
           DashColumn(
@@ -301,7 +303,7 @@ class WasteTable extends ConsumerWidget {
             label: t('inventory.waste.branch'),
             text: (m) => m.branchName ?? '',
             cell: (context, m) => lines(m.branchName ?? '—', const []),
-            minWidth: Space.xxl * 4,
+            minWidth: Space.xxl * 3 + Space.lg,
           ),
         DashColumn(
           id: 'ingredient_name',
@@ -324,7 +326,7 @@ class WasteTable extends ConsumerWidget {
             style: DashType.bodyMedium.copyWith(color: c.textPrimary),
           ),
           phone: DashPhoneRole.title,
-          minWidth: Space.xxl * 5,
+          minWidth: Space.xxl * 4 + Space.lg,
         ),
         DashColumn(
           id: 'quantity',
@@ -333,7 +335,7 @@ class WasteTable extends ConsumerWidget {
           text: (m) => jsNumberString(m.quantity),
           cell: (context, m) => Text(qtyWithUnit(f, m.quantity.abs(), m.unit)),
           numeric: true,
-          width: Space.xxl * 4,
+          width: Space.xxl * 3 + Space.sm,
         ),
         DashColumn(
           id: 'reason',
@@ -343,7 +345,7 @@ class WasteTable extends ConsumerWidget {
             m.reason == null ? '—' : wasteReasonLabel(t, m.reason!),
             const [],
           ),
-          minWidth: Space.xxl * 4,
+          minWidth: Space.xxl * 3,
         ),
         DashColumn(
           id: 'created_by_name',
@@ -356,7 +358,7 @@ class WasteTable extends ConsumerWidget {
                 args: {'name': m.approvedByName},
               ),
           ]),
-          minWidth: Space.xxl * 4,
+          minWidth: Space.xxl * 3 + Space.xl,
         ),
         DashColumn(
           id: 'source',
@@ -391,7 +393,7 @@ class WasteTable extends ConsumerWidget {
               ],
             );
           },
-          minWidth: Space.xxl * 4,
+          minWidth: Space.xxl * 3 + Space.sm,
         ),
       ],
     );
@@ -441,13 +443,13 @@ class WasteByReason extends ConsumerWidget {
     final c = context.madarColors;
     final q = ref.watch(wasteReportProvider(range));
     final Widget body;
-    if (q.hasError) {
+    if (q.failedFirst) {
       body = DashErrorState(
         title: t('inventory.waste.reportFailed'),
         retrying: q.isLoading,
         onRetry: () => ref.invalidate(wasteReportProvider(range)),
       );
-    } else if (q.firstLoad) {
+    } else if (q.awaitingFirst) {
       body = DashCard(
         key: const ValueKey('waste-reasons-loading'),
         padding: const EdgeInsets.all(Space.card),

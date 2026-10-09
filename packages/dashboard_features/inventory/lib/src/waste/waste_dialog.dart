@@ -12,6 +12,7 @@ library;
 import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart' show CreateWasteRequest;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -113,9 +114,9 @@ class _RecordWasteDialogState extends ConsumerState<RecordWasteDialog> {
         quantity != null &&
         quantity > 0 &&
         !exceeds;
-    final failed = stock.hasError && !stock.hasValue;
+    final failed = stock.failedFirst;
     final nothingCounted =
-        !failed && !stock.firstLoad && rows.every((s) => !s.hasActivity);
+        !failed && !stock.awaitingFirst && rows.every((s) => !s.hasActivity);
 
     Widget callout(DashTone tone, String text, Widget action) => Container(
       padding: const EdgeInsetsDirectional.symmetric(
@@ -167,6 +168,7 @@ class _RecordWasteDialogState extends ConsumerState<RecordWasteDialog> {
                 label: t('inventory.waste.countFirstLink'),
                 variant: DashButtonVariant.link,
                 size: DashButtonSize.compact,
+                onIntent: () => ref.prefetchRoute('/inventory/counts'),
                 onPressed: _countFirst,
               ),
             ),

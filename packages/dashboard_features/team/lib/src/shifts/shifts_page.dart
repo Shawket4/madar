@@ -28,7 +28,7 @@ import 'shift_form.dart';
 import 'shifts_providers.dart';
 
 /// First-strong isolate (the web's `<bdi>`).
-String _bdi(String s) => '⁨$s⁩';
+String _bdi(String s) => '\u2068$s\u2069';
 
 class WorkShiftsPage extends ConsumerStatefulWidget {
   const WorkShiftsPage({super.key});
@@ -132,7 +132,7 @@ class _WorkShiftsPageState extends ConsumerState<WorkShiftsPage> {
     });
 
     final shifts = q.value ?? const <WorkShift>[];
-    final firstLoad = q.isLoading && !q.hasValue;
+    final firstLoad = q.awaitingFirst;
     final newButton = DashButton(
       key: const ValueKey('shifts-new'),
       label: t('staff.newShift'),
@@ -146,7 +146,7 @@ class _WorkShiftsPageState extends ConsumerState<WorkShiftsPage> {
         key: ValueKey('shifts-loading'),
         children: [_SkeletonRow(), _SkeletonRow(), _SkeletonRow()],
       );
-    } else if (failedEmpty(q)) {
+    } else if (q.failedFirst) {
       list = DashErrorState(
         key: const ValueKey('shifts-error'),
         title: t('staff.shiftsLoadError'),
@@ -203,7 +203,7 @@ class _WorkShiftsPageState extends ConsumerState<WorkShiftsPage> {
             children: [
               DashSectionHeader(
                 title: t('staff.shiftsSection'),
-                count: firstLoad || failedEmpty(q) ? null : shifts.length,
+                count: firstLoad || q.failedFirst ? null : shifts.length,
               ),
               list,
             ],
@@ -257,7 +257,36 @@ class _ShiftRow extends ConsumerWidget {
       ),
       if (ownTimes > 0) t('staff.ownTimesOn', args: {'n': ownTimes}),
     ].join(' · ');
-    return DashListRow(
+    final pills = [
+      if (s.overPresenceCap ?? false)
+        DashStatusPill(
+          label: t('staff.overCapShort'),
+          tone: DashTone.warning,
+          icon: 'triangle-alert',
+        ),
+      if (!s.isActive) DashStatusPill(label: t('staff.inactive')),
+    ];
+    final actions = [
+      if (onEdit != null)
+        DashIconButton(
+          key: ValueKey('shift-edit-${s.id}'),
+          icon: 'pencil',
+          semanticLabel: t('common.edit'),
+          onPressed: onEdit,
+        ),
+      if (onDelete != null)
+        DashIconButton(
+          key: ValueKey('shift-delete-${s.id}'),
+          icon: 'trash-2',
+          semanticLabel: t('staff.deleteShift'),
+          color: c.danger,
+          onPressed: onDelete,
+        ),
+    ];
+    // A phone has no room for the pills beside the actions: they sit on
+    // their own line under the title.
+    final phone = DashBreakpoints.isPhone(context);
+    final row = DashListRow(
       title: s.name,
       icon: s.crossesMidnight ? 'moon' : 'clock',
       meta: meta,
@@ -265,31 +294,27 @@ class _ShiftRow extends ConsumerWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: Space.xs,
-        children: [
-          if (s.overPresenceCap ?? false)
-            DashStatusPill(
-              label: t('staff.overCapShort'),
-              tone: DashTone.warning,
-              icon: 'triangle-alert',
-            ),
-          if (!s.isActive) DashStatusPill(label: t('staff.inactive')),
-          if (onEdit != null)
-            DashIconButton(
-              key: ValueKey('shift-edit-${s.id}'),
-              icon: 'pencil',
-              semanticLabel: t('common.edit'),
-              onPressed: onEdit,
-            ),
-          if (onDelete != null)
-            DashIconButton(
-              key: ValueKey('shift-delete-${s.id}'),
-              icon: 'trash-2',
-              semanticLabel: t('staff.deleteShift'),
-              color: c.danger,
-              onPressed: onDelete,
-            ),
-        ],
+        children: [if (!phone) ...pills, ...actions],
       ),
+    );
+    if (!phone || pills.isEmpty) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row,
+        Padding(
+          padding: const EdgeInsetsDirectional.only(
+            start: Space.lg + Space.xxl + Space.xs + Space.md,
+            end: Space.lg,
+            bottom: Space.sm + DashMetrics.hair,
+          ),
+          child: Wrap(
+            spacing: Space.xs,
+            runSpacing: Space.xs,
+            children: pills,
+          ),
+        ),
+      ],
     );
   }
 }

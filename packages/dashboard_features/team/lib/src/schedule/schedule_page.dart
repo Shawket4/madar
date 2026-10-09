@@ -10,8 +10,10 @@
 /// typed per hour; the owner sees who works the nights.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart';
+import 'package:dashboard_api/dashboard_api.dart'
+    show Branch, DecideSuggestion, HolidayDecision, HolidayView, OpenShift, PostOpenShift, PublishWeek, RosterView, Suggestion, WorkShiftBrief;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -120,6 +122,32 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
       )
       ..invalidate(scheduleFairnessProvider(monthOf(_week)))
       ..invalidate(scheduleFairnessAuditsProvider);
+  }
+
+  /// Warms what showing [week] at [branch] reads (a week stepper's intent).
+  void _warmWeek(String branch, String week) {
+    final authz = ref.read(authzProvider);
+    ref.warm(
+      scheduleRosterProvider((
+        branchId: branch,
+        from: week,
+        to: addDays(week, 6),
+      )),
+    );
+    if (authz.can(Cap.hrScheduleEdit)) {
+      ref.warm(
+        scheduleSuggestionsProvider((branchId: branch, weekStart: week)),
+      );
+    }
+    if (authz.can(Cap.hrRosterSettings)) {
+      ref.warm(scheduleFairnessProvider(monthOf(week)));
+    }
+  }
+
+  /// Warms what picking [branch] reads (the branch select's intent).
+  void _warmBranch(String branch) {
+    _warmWeek(branch, _week);
+    ref.warm(scheduleRosterProvider(_upcomingKey(branch)));
   }
 
   String _err(Object? e) =>
@@ -320,6 +348,9 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
               ? DashButtonVariant.secondary
               : DashButtonVariant.outline,
           semanticLabel: t('dawam.coverageTitle'),
+          onIntent: _showCoverage || branch == null
+              ? null
+              : () => ref.warm(scheduleCoverageProvider(branch)),
           onPressed: () => setState(() => _showCoverage = !_showCoverage),
           key: const Key('schedule-coverage-toggle'),
         ),
@@ -335,13 +366,14 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
               for (final b in branches!)
                 DashOption(value: b.id, label: b.name),
             ],
+            onOptionIntent: _warmBranch,
             onChanged: (v) => setState(() => _picked = v),
           ),
         ),
     ];
 
     Widget main;
-    if (branch == null && failedEmpty(branchesQ)) {
+    if (branch == null && branchesQ.failedFirst) {
       // With no branch the roster never loads: say why (H2-D2).
       main = DashErrorState(
         title: t('dawam.branchesLoadError'),
@@ -355,7 +387,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
         icon: 'calendar-check',
         title: t('dawam.noBranchYet'),
       );
-    } else if (failedEmpty(rosterQ)) {
+    } else if (rosterQ.failedFirst) {
       main = DashErrorState(
         title: t('staff.rosterLoadError'),
         message: _err(rosterQ.error),
@@ -378,6 +410,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
           label: t('dawamOps.openEmployees'),
           variant: DashButtonVariant.outline,
           size: DashButtonSize.compact,
+          onIntent: () => ref.prefetchRoute('/staff/employees'),
           onPressed: () => context.go('/staff/employees'),
         ),
       );
@@ -423,6 +456,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
               week: _week,
               today: today,
               onWeek: (w) => setState(() => _week = w),
+              onWeekIntent: (w) => _warmWeek(branch, w),
               published: published,
               canPublish: canPublish,
               publishing: _busy == 'publish',
@@ -444,6 +478,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
                         baseline: TextBaseline.alphabetic,
                         child: _Link(
                           label: t('dawamOps.editPattern'),
+                          onIntent: () => ref.prefetchRoute('/staff/shifts'),
                           onTap: () => context.go('/staff/shifts'),
                         ),
                       ),
@@ -454,7 +489,10 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
               ),
             ),
           if (view != null && view.staff.isNotEmpty && index.templates.isEmpty)
-            _NoBlocksBanner(onOpen: () => context.go('/staff/shifts')),
+            _NoBlocksBanner(
+              onOpen: () => context.go('/staff/shifts'),
+              onIntent: () => ref.prefetchRoute('/staff/shifts'),
+            ),
           if (canEdit && _showCoverage && branch != null)
             CoverageCard(branchId: branch),
           if (view != null && view.warnings.isNotEmpty)
@@ -519,16 +557,18 @@ class _Note extends StatelessWidget {
 
 /// An underlined in-text link (`font-medium text-foreground underline`).
 class _Link extends StatelessWidget {
-  const _Link({required this.label, required this.onTap});
+  const _Link({required this.label, required this.onTap, this.onIntent});
 
   final String label;
   final VoidCallback onTap;
+  final VoidCallback? onIntent;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: onTap,
+      onIntent: onIntent,
       semanticLabel: label,
       excludeChildSemantics: true,
       pressScale: false,
@@ -545,9 +585,10 @@ class _Link extends StatelessWidget {
 
 /// No work shifts for this branch yet (TEAM-SCH-012).
 class _NoBlocksBanner extends ConsumerWidget {
-  const _NoBlocksBanner({required this.onOpen});
+  const _NoBlocksBanner({required this.onOpen, required this.onIntent});
 
   final VoidCallback onOpen;
+  final VoidCallback onIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -587,6 +628,7 @@ class _NoBlocksBanner extends ConsumerWidget {
               label: t('dawamOps.openWorkShifts'),
               variant: DashButtonVariant.outline,
               size: DashButtonSize.compact,
+              onIntent: onIntent,
               onPressed: onOpen,
             ),
           ],
@@ -716,7 +758,7 @@ class _Suggestions extends ConsumerWidget {
     final c = context.madarColors;
     final list = q.value ?? const <Suggestion>[];
     Widget body;
-    if (failedEmpty(q)) {
+    if (q.failedFirst) {
       // A failed read is not "nothing to suggest" (H2-D1).
       body = DashErrorState(
         title: t('dawam.suggestionsLoadError'),
@@ -725,7 +767,7 @@ class _Suggestions extends ConsumerWidget {
         retrying: q.isLoading,
         onRetry: onRetry,
       );
-    } else if (q.isLoading && !q.hasValue) {
+    } else if (q.awaitingFirst || !q.hasValue) {
       body = const DashSkeleton(
         height: _suggestionsSkeleton,
         radius: Radii.card,

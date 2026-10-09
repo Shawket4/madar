@@ -219,6 +219,8 @@ class _RolesPageState extends ConsumerState<RolesPage> {
             key: const ValueKey('roles-new'),
             label: t('access.newRole'),
             icon: 'plus',
+            // The dialog's read ("Start from"): the page's own list.
+            onIntent: () => ref.warm(accessRolesProvider),
             onPressed: _openDialog,
           ),
       ],
@@ -262,7 +264,18 @@ class _RolesList extends ConsumerWidget {
     final q = this.q;
     final roles = q?.value;
     final Widget child;
-    if (q == null || (q.isLoading && roles == null && !q.hasError)) {
+    if (q != null && q.failedFirst) {
+      child = Padding(
+        padding: const EdgeInsets.symmetric(vertical: Space.xl),
+        child: DashErrorState(
+          framed: false,
+          title: t('access.rolesLoadError'),
+          retryLabel: t('common.retry'),
+          retrying: q.isLoading,
+          onRetry: onRetry,
+        ),
+      );
+    } else if (q == null || q.awaitingFirst || roles == null) {
       // Also while permissions load: the web shows "No roles yet" then (see
       // the divergence log).
       child = Padding(
@@ -274,17 +287,6 @@ class _RolesList extends ConsumerWidget {
             for (var i = 0; i < 5; i++)
               const DashSkeleton(height: DashMetrics.control),
           ],
-        ),
-      );
-    } else if (roles == null) {
-      child = Padding(
-        padding: const EdgeInsets.symmetric(vertical: Space.xl),
-        child: DashErrorState(
-          framed: false,
-          title: t('access.rolesLoadError'),
-          retryLabel: t('common.retry'),
-          retrying: q.isLoading,
-          onRetry: onRetry,
         ),
       );
     } else if (roles.isEmpty) {
@@ -386,6 +388,7 @@ class _RoleHeader extends ConsumerWidget {
                   icon: 'pencil',
                   variant: DashButtonVariant.outline,
                   size: DashButtonSize.compact,
+                  onIntent: () => ref.warm(accessRolesProvider),
                   onPressed: onRename,
                 ),
               if (canManage && !role.isSystem)

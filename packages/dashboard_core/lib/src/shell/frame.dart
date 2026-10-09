@@ -15,6 +15,7 @@ import 'package:dashboard_core/src/scope/scope.dart';
 import 'package:dashboard_core/src/shell/command_palette.dart';
 import 'package:dashboard_core/src/shell/footer.dart';
 import 'package:dashboard_core/src/shell/header.dart';
+import 'package:dashboard_core/src/shell/offline_banner.dart';
 import 'package:dashboard_core/src/shell/prefetch.dart';
 import 'package:dashboard_core/src/shell/shell_nav.dart';
 import 'package:dashboard_core/src/shell/shell_prefs.dart';
@@ -135,6 +136,7 @@ class _DashShellState extends ConsumerState<DashShell> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     DashHeader(paperContext: context),
+                    const DashOfflineBanner(),
                     Expanded(child: _PageSlot(child: widget.child)),
                     const SafeArea(top: false, child: DashFooter()),
                   ],
@@ -167,6 +169,7 @@ class _DashShellState extends ConsumerState<DashShell> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           DashPhoneBar(paperContext: context),
+          const DashOfflineBanner(),
           Expanded(child: _PageSlot(child: widget.child)),
         ],
       ),

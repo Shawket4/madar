@@ -10,6 +10,7 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart' show ApiException;
+import 'package:dashboard_core/src/data/offline.dart' show offlineProvider;
 import 'package:dashboard_core/src/scope/scope.dart' show orgIdProvider;
 import 'package:dashboard_core/src/session/session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +36,8 @@ extension WebQueryCache on Ref {
   /// [staleTime] is the query's own `staleTime` where the web sets one.
   void webCache({Duration staleTime = kQueryStaleTime}) {
     watch(orgIdProvider);
+    // Back online after data came from disk: read again.
+    watch(offlineProvider.select((s) => s.recoveries));
     final now = read(clockProvider);
     final gc = read(queryCacheProvider);
     final builtAt = now();

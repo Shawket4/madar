@@ -166,7 +166,7 @@ void main() {
       expect(fieldText(tester, 'dlv-in-mall-fee'), '15');
       expect(fieldText(tester, 'dlv-in-mall-open'), '10:00 AM');
       expect(fieldText(tester, 'dlv-in-mall-close'), '10:00 PM');
-      expect(fieldText(tester, 'dlv-distance'), '8000');
+      expect(fieldText(tester, 'dlv-distance'), '8,000');
       expect(fieldText(tester, 'dlv-prep'), '20');
       expect(fieldText(tester, 'dlv-pickup-fee'), '0');
     });
@@ -235,7 +235,7 @@ void main() {
       ]) {
         expect(inKey(card, find.text(w)), findsOneWidget, reason: w);
       }
-      expect(fieldText(tester, 'dlv-distance'), '6000');
+      expect(fieldText(tester, 'dlv-distance'), '6,000');
       expect(fieldText(tester, 'dlv-outside-open'), '08:00 AM');
     });
 
@@ -657,11 +657,12 @@ void main() {
         'server\'s values', (tester) async {
       final m = setupMockServer();
       final h = await pumpDelivery(tester, query: _helio, backend: m);
-      await typeIn(h, 'dlv-in-mall-fee', '');
       await _toggle(h, 'dlv-in-mall');
       await typeIn(h, 'dlv-in-mall-fee', '7.5');
       await _save(h);
       await h.flushTimers();
+      expect(fieldText(tester, 'dlv-in-mall-fee'), '7.5');
+      expect(_row(m.db, SeedIds.heliopolis)['in_mall_fee'], 750);
       // Another device changes the row; the form follows again.
       _row(m.db, SeedIds.heliopolis)['in_mall_fee'] = 900;
       h.container.read(realtimeBusProvider).invalidate(const [

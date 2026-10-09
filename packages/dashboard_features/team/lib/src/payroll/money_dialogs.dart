@@ -50,9 +50,12 @@ mixin _MoneyForm<W extends ConsumerStatefulWidget> on ConsumerState<W> {
     if (busy) return;
     if (!(formKey.currentState?.validate() ?? false)) return;
     setState(() => busy = true);
+    // Captured first: the web's query client refetches even when the dialog
+    // is gone by the time the answer lands.
+    final revisions = ref.read(staffRevisionsProvider.notifier);
     try {
       await send();
-      ref.read(staffRevisionsProvider.notifier).invalidateStaff();
+      revisions.invalidateStaff();
       if (mounted) Navigator.of(context).pop(true);
     } on Object catch (e) {
       if (mounted) {
@@ -272,19 +275,13 @@ class _AdjustmentDialogState extends ConsumerState<AdjustmentDialog>
   bool get monthForm => true;
 
   /// The first open month, from the payroll run when this person may read
-  /// it; the form follows it until the month is touched.
-  String _openMonth() {
-    final canRead = ref.watch(payrollCanReadProvider);
-    final period = canRead
-        ? ref.watch(payrollCurrentProvider).value?.period
-        : null;
-    return firstOpenMonth(period, teamTodayIsoOf(ref));
-  }
+  /// it; the form follows it until the month is touched (set in build).
+  String _openMonth = '';
 
   bool get _percent => _kind == 'bonus' && _by == 'percent';
 
   Future<void> _save() => submit(() async {
-    final month = _month ?? _openMonth();
+    final month = _month ?? _openMonth;
     final line = await ref
         .read(apiProvider)
         .staff
@@ -311,7 +308,11 @@ class _AdjustmentDialogState extends ConsumerState<AdjustmentDialog>
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
-    final month = _month ?? _openMonth();
+    final period = ref.watch(payrollCanReadProvider)
+        ? ref.watch(payrollCurrentProvider).value?.period
+        : null;
+    _openMonth = firstOpenMonth(period, teamTodayIsoOf(ref));
+    final month = _month ?? _openMonth;
     final percent = _percent;
     return frame(
       title: t('dawam.addPayLine'),

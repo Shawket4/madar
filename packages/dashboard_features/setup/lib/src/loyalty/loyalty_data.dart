@@ -12,6 +12,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart' show TextDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The query-key paths (the web's Orval keys start with the path).
@@ -663,17 +664,6 @@ final loyaltyMembersProvider = FutureProvider.autoDispose
           );
     });
 
-/// `GET /loyalty/analytics[?branch_id]`.
-final loyaltyAnalyticsProvider = FutureProvider.autoDispose
-    .family<LoyaltyAnalytics, String?>((ref, branchId) {
-      ref.webCache();
-      ref.watch(realtimeEpochProvider(LoyaltyPaths.analytics));
-      return ref
-          .watch(apiProvider)
-          .loyalty
-          .getLoyaltyAnalytics(branchId: branchId);
-    });
-
 /// The arguments of [loyaltyMemberProvider].
 typedef MemberKey = ({String id, String? branchId});
 
@@ -721,4 +711,55 @@ class _HeaderTransport implements ApiTransport {
 
   @override
   Stream<String> stream(ApiRequest request) => inner.stream(_with(request));
+}
+
+// ── Phones (`lib/phone.ts`, the sell area's copy of the one rule) ─────────
+
+final RegExp _nonDigits = RegExp('[^0-9]');
+final RegExp _egMobilePrefix = RegExp(r'^201[0125]');
+final RegExp _egMobileGroups = RegExp(r'^20(1\d{2})(\d{3})(\d{4})$');
+
+/// A phone for reading: `+20 100 123 4567` for an Egyptian mobile,
+/// `+<digits>` for another number, anything else as given. Always LTR.
+String formatPhoneDisplay(String? phone) {
+  if (phone == null || phone.isEmpty) return '';
+  if (phone.runes.length > 32) return phone;
+  final ascii = String.fromCharCodes(
+    phone.runes.map(
+      (r) => r >= 0x0660 && r <= 0x0669
+          ? 0x30 + r - 0x0660
+          : (r >= 0x06F0 && r <= 0x06F9 ? 0x30 + r - 0x06F0 : r),
+    ),
+  );
+  var d = ascii.replaceAll(_nonDigits, '');
+  if (d.startsWith('00')) {
+    d = d.substring(2);
+  } else if (d.startsWith('20')) {
+    // Already country-coded.
+  } else if (d.startsWith('0')) {
+    d = '20${d.substring(1)}';
+  } else if (d.length == 10 && d.startsWith('1')) {
+    d = '20$d';
+  }
+  if (d.length < 10 || d.length > 15) return phone;
+  if (_egMobilePrefix.hasMatch(d) && d.length != 12) return phone;
+  final m = _egMobileGroups.firstMatch(d);
+  return m != null ? '+20 ${m[1]} ${m[2]} ${m[3]}' : '+$d';
+}
+
+/// `dir="auto"`: the direction of the first strong character.
+TextDirection? autoDirection(String s) {
+  for (final r in s.runes) {
+    if ((r >= 0x0590 && r <= 0x08FF) ||
+        (r >= 0xFB1D && r <= 0xFDFF) ||
+        (r >= 0xFE70 && r <= 0xFEFF)) {
+      return TextDirection.rtl;
+    }
+    if ((r >= 0x41 && r <= 0x5A) ||
+        (r >= 0x61 && r <= 0x7A) ||
+        (r >= 0xC0 && r <= 0x24F)) {
+      return TextDirection.ltr;
+    }
+  }
+  return null;
 }

@@ -13,6 +13,7 @@ export 'src/shell/command_palette.dart';
 export 'src/shell/footer.dart';
 export 'src/shell/frame.dart';
 export 'src/shell/header.dart';
+export 'src/shell/offline_banner.dart';
 export 'src/shell/pages.dart';
 export 'src/shell/prefetch.dart';
 export 'src/shell/router.dart';

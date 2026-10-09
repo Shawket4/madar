@@ -250,11 +250,13 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
     final categories = categoriesQ?.value ?? const <Category>[];
     final ready = routing.active.isNotEmpty;
 
-    bool failed(AsyncValue<Object?>? q) =>
-        q != null && q.hasError && !q.hasValue;
-    final failedQ = [stationsQ, categoriesQ, routesQ].where(failed).firstOrNull;
-    bool firstLoad(AsyncValue<Object?>? q) =>
-        q != null && q.isLoading && !q.hasValue;
+    // The web's `stationsQ.error ?? categoriesQ.error ?? routesQ.error`.
+    final failedQ = [
+      stationsQ,
+      categoriesQ,
+      routesQ,
+    ].where((q) => q?.failedFirst ?? false).firstOrNull;
+    bool firstLoad(AsyncValue<Object?>? q) => q?.awaitingFirst ?? false;
 
     final catalogKey = orgId == null
         ? null
@@ -321,8 +323,7 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
                 ),
               ),
           ],
-        ),
-      );
+        );
       }
     } else {
       body = _itemsView(
@@ -362,6 +363,12 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
                 DashSegmentedControl<KitchenRoutingTab>(
                   value: _tab,
                   onChanged: (v) => setState(() => _tab = v),
+                  // "Per item" reads the catalogue page it opens on.
+                  onIntent: (v) {
+                    if (v == KitchenRoutingTab.items && catalogKey != null) {
+                      ref.warm(kitchenCatalogProvider(catalogKey));
+                    }
+                  },
                   options: [
                     DashOption(
                       value: KitchenRoutingTab.categories,
@@ -403,7 +410,7 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
     required KitchenCatalogKey? catalogKey,
     required double selectWidth,
   }) {
-    final failed = catalogQ != null && catalogQ.hasError && !catalogQ.hasValue;
+    final failed = catalogQ?.failedFirst ?? false;
     // `keepPreviousData`: the last page stays while the next one loads.
     final shown = failed ? null : catalogQ?.value ?? _lastCatalog;
     final loading = !failed && shown == null && catalogQ != null;
@@ -414,7 +421,7 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
       list = DashErrorState(
         key: const ValueKey('routing-items-error'),
         title: t('kitchen.itemsLoadFailed'),
-        message: errorMessage(catalogQ.error, t),
+        message: errorMessage(catalogQ!.error, t),
         retrying: catalogQ.isLoading,
         onRetry: () => ref.invalidate(kitchenCatalogProvider(catalogKey!)),
       );
@@ -464,6 +471,13 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
             pageIndex: _page,
             pageCount: pageCount,
             onChanged: (p) => setState(() => _page = p),
+            onIntent: (p) => ref.warm(
+              kitchenCatalogProvider((
+                orgId: catalogKey!.orgId,
+                search: catalogKey.search,
+                page: p + 1,
+              )),
+            ),
           ),
       ],
     );

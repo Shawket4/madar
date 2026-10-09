@@ -62,14 +62,6 @@ void invalidateBranchSettings(RealtimeBus bus) =>
 void invalidateZones(RealtimeBus bus) =>
     bus.invalidate(const [DeliveryPaths.zones]);
 
-/// React Query's `isLoading`: the first load, nothing to show yet.
-extension DeliveryAsync<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-
-  /// Failed with nothing to show (also while its Retry runs).
-  bool get failed => hasError && !hasValue;
-}
-
 /// `getTranslatedName`: the Arabic name in an Arabic UI when there is one,
 /// else the name.
 String translatedName(

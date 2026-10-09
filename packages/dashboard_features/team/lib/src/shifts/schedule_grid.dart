@@ -137,10 +137,10 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
     final rosterQ = ref.watch(shiftsRosterProvider);
     listenStaffRefreshFailure(ref, context, staffActiveEmployeesProvider);
     listenStaffRefreshFailure(ref, context, shiftsRosterProvider);
-    bool firstLoad(AsyncValue<Object?> q) => q.isLoading && !q.hasValue;
-
     final Widget content;
-    if (firstLoad(employeesQ) || firstLoad(rosterQ) || widget.shiftsLoading) {
+    if (employeesQ.awaitingFirst ||
+        rosterQ.awaitingFirst ||
+        widget.shiftsLoading) {
       content = Padding(
         key: const ValueKey('roster-loading'),
         padding: const EdgeInsets.all(Space.lg),
@@ -152,7 +152,7 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
           ],
         ),
       );
-    } else if (failedEmpty(employeesQ) || failedEmpty(rosterQ)) {
+    } else if (employeesQ.failedFirst || rosterQ.failedFirst) {
       content = DashErrorState(
         key: const ValueKey('roster-error'),
         framed: false,

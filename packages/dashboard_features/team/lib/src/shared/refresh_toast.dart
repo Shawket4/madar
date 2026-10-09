@@ -13,6 +13,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
+import 'attendance_errors.dart';
+
 /// Listens to [read] (call from a page's `build`) and toasts a failed
 /// background refresh.
 void listenStaffRefreshFailure<T>(
@@ -51,5 +53,10 @@ void showStaffRefreshFailure(
   if (prev != null && now.difference(prev.$2) < DashToast.duration) {
     prev.$1.dismiss();
   }
-  _shown[id] = (DashToast.error(context, errorMessage(error, t)), now);
+  // The web's `getErrorMessage`: an uncoded 429 reads "Too many requests
+  // just now…" in the person's language, never the server's English.
+  final f = ProviderScope.containerOf(context, listen: false).read(
+    formatProvider,
+  );
+  _shown[id] = (DashToast.error(context, attendanceErrorText(error, t, f)), now);
 }

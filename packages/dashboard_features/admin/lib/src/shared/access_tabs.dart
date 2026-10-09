@@ -6,6 +6,7 @@
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,6 +43,10 @@ class AccessSectionTabs extends ConsumerWidget {
       onNavigate: (path) {
         if (path == uri.path) return;
         GoRouter.of(context).go(scopedLocation(path, uri));
+      },
+      // A tab about to be pressed warms its page.
+      onIntent: (path) {
+        if (path != uri.path) ref.prefetchRoute(path);
       },
     );
   }

@@ -74,10 +74,8 @@ class _KitchenStationsPageState extends ConsumerState<KitchenStationsPage> {
       );
     }
     final list = ref.watch(kitchenStationsProvider(branchId));
-    // A Retry after a failure is a load again (skeleton), never a flash of
-    // the empty state.
-    final loading = list.isLoading && !list.hasValue;
-    final error = !loading && list.hasError ? list.error : null;
+    final loading = list.awaitingFirst;
+    final error = list.failedFirst ? list.error : null;
     final newStation = DashButton(
       key: const ValueKey('kitchen-new-station'),
       label: t('kitchen.newStation'),
@@ -160,7 +158,7 @@ class _RoutingModeBarState extends ConsumerState<RoutingModeBar> {
             key: const ValueKey('kitchen-effective'),
             label:
                 '${t('kitchen.effective')}: '
-                '${t('kitchen.mode.$effective', defaultValue: effective)}',
+                '${t.exists('kitchen.mode.$effective') ? t('kitchen.mode.$effective') : effective}',
             tone: DashTone.info,
           );
     final select = DashSelect<String>(

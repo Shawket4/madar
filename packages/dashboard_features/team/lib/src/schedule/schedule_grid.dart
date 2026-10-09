@@ -4,7 +4,8 @@
 /// days scroll sideways (a phone sees about three days at once).
 library;
 
-import 'package:dashboard_api/dashboard_api.dart';
+import 'package:dashboard_api/dashboard_api.dart'
+    show ElsewhereShift, LabourWarning, OpenShift, RosterPerson, RosterShift, RosterView, WorkShiftBrief;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -14,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/team_format.dart';
 import '../shared/week.dart';
 import 'schedule_data.dart';
+import 'schedule_providers.dart';
 
 abstract final class ScheduleMetrics {
   /// The name column (`max-w-[12rem]`); narrower on a phone.
@@ -270,19 +272,26 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
           child: child,
         );
 
-        Widget row(Widget name, List<Widget> cells) => IntrinsicHeight(
-          child: Row(
-            // The opposite direction with the children reversed: the name
-            // still sits at the start, and is painted over the days.
-            textDirection: rtl ? TextDirection.ltr : TextDirection.rtl,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final cell in cells.reversed)
-                SizedBox(width: dayW, child: cell),
-              SizedBox(width: nameW, child: pinned(name)),
-            ],
-          ),
-        );
+        // One table: a row is as tall as its tallest day; the name cell
+        // fills it. Laid out in the opposite direction with the children
+        // reversed, so the name still sits at the start and is painted (and
+        // hit) over the days it is pinned above.
+        TableRow row(Widget name, List<Widget> cells, {bool header = false}) =>
+            TableRow(
+              decoration: BoxDecoration(
+                border: Border(
+                  top: header ? BorderSide.none : edge,
+                  bottom: header ? edge : BorderSide.none,
+                ),
+              ),
+              children: [
+                ...cells.reversed,
+                TableCell(
+                  verticalAlignment: TableCellVerticalAlignment.fill,
+                  child: pinned(name),
+                ),
+              ],
+            );
 
         Widget nameBox(Widget child, {bool header = false}) => Container(
           padding: EdgeInsetsDirectional.symmetric(
@@ -291,11 +300,7 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
           ),
           decoration: BoxDecoration(
             color: c.card,
-            border: BorderDirectional(
-              top: header ? BorderSide.none : edge,
-              bottom: header ? edge : BorderSide.none,
-              end: edge,
-            ),
+            border: BorderDirectional(end: edge),
           ),
           alignment: AlignmentDirectional.centerStart,
           child: child,
@@ -318,6 +323,7 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
                 todayLabel: t('dawamOps.today'),
               ),
           ],
+          header: true,
         );
 
         final people = [
@@ -329,7 +335,7 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
                   _DayCell(
                     person: p,
                     date: d,
-                    today: d == w.today,
+                    minHeight: _NameCell.heightOf(p),
                     branchId: w.branchId,
                     branchNames: w.branchNames,
                     shifts: w.index.shiftsOf(p.employeeId, d),
@@ -367,11 +373,29 @@ class _ScheduleGridState extends ConsumerState<ScheduleGrid> {
           ],
         );
 
+        final todayAt = w.days.indexOf(w.today);
         final table = SizedBox(
           width: width,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [header, ...people, open],
+          child: Stack(
+            children: [
+              // Today's column, under the cells (`bg-primary/[0.04]`).
+              if (todayAt >= 0)
+                PositionedDirectional(
+                  top: 0,
+                  bottom: 0,
+                  start: nameW + todayAt * dayW,
+                  width: dayW,
+                  child: ColoredBox(color: c.accent.withValues(alpha: 0.04)),
+                ),
+              Table(
+                textDirection: rtl ? TextDirection.ltr : TextDirection.rtl,
+                columnWidths: {
+                  for (var i = 0; i < 7; i++) i: FixedColumnWidth(dayW),
+                  7: FixedColumnWidth(nameW),
+                },
+                children: [header, ...people, open],
+              ),
+            ],
           ),
         );
 
@@ -429,8 +453,7 @@ class _HeaderCell extends StatelessWidget {
           vertical: Space.sm + 2,
         ),
         decoration: BoxDecoration(
-          color: today ? c.accent.withValues(alpha: 0.06) : null,
-          border: Border(bottom: BorderSide(color: c.hairline)),
+          color: today ? c.accent.withValues(alpha: 0.02) : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -459,6 +482,15 @@ class _HeaderCell extends StatelessWidget {
 
 class _NameCell extends ConsumerWidget {
   const _NameCell({required this.person, required this.onPrefs});
+
+  /// The row's least height: the padding, the name beside its 44 pt
+  /// preferences button, and the preferences line when there is one.
+  static double heightOf(RosterPerson p) =>
+      (Space.xs + 2) * 2 +
+      DashMetrics.target +
+      (p.prefTime != null || p.cantWorkDays.isNotEmpty || p.prefsSetBy == 'manager'
+          ? Space.lg + 2
+          : 0);
 
   final RosterPerson person;
   final VoidCallback onPrefs;
@@ -496,6 +528,8 @@ class _NameCell extends ConsumerWidget {
               icon: 'sliders-horizontal',
               iconSize: IconSize.xs,
               semanticLabel: t('dawam.prefsOf', args: {'name': p.name}),
+              onIntent: () =>
+                  ref.warm(schedulePreferenceLogProvider(p.employeeId)),
               onPressed: onPrefs,
             ),
           ],
@@ -516,7 +550,7 @@ class _DayCell extends ConsumerWidget {
   const _DayCell({
     required this.person,
     required this.date,
-    required this.today,
+    required this.minHeight,
     required this.branchId,
     required this.branchNames,
     required this.shifts,
@@ -529,7 +563,9 @@ class _DayCell extends ConsumerWidget {
 
   final RosterPerson person;
   final String date;
-  final bool today;
+
+  /// At least the name cell's height (the row's least height).
+  final double minHeight;
 
   /// The board's branch: a shift elsewhere says where.
   final String branchId;
@@ -649,7 +685,7 @@ class _DayCell extends ConsumerWidget {
     ];
 
     final content = ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: ScheduleMetrics.cell),
+      constraints: BoxConstraints(minHeight: minHeight - Space.xs * 4),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         spacing: DashMetrics.hair,
@@ -657,12 +693,8 @@ class _DayCell extends ConsumerWidget {
       ),
     );
 
-    final cell = Container(
+    final cell = Padding(
       padding: const EdgeInsets.all(Space.xs),
-      decoration: BoxDecoration(
-        color: today ? c.accent.withValues(alpha: 0.04) : null,
-        border: Border(top: BorderSide(color: c.hairline)),
-      ),
       child: editable
           ? DashPressable(
               onTap: onOpen,
@@ -725,11 +757,8 @@ class _OpenShiftsCell extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final weekday = weekdayOf(date);
-    return Container(
+    return Padding(
       padding: const EdgeInsets.all(Space.xs),
-      decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: c.hairline)),
-      ),
       child: Column(
         spacing: Space.xs,
         children: [

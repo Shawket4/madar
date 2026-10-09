@@ -70,7 +70,16 @@ class _AskManagerCardState extends ConsumerState<AskManagerCard> {
     };
 
     final Widget body;
-    if (q.isLoading && !q.hasValue && !q.hasError) {
+    if (q.failedFirst) {
+      // The web shows every row "Hidden" (see the divergence log).
+      body = DashErrorState(
+        framed: false,
+        message: orgErrorWords(q.error, t),
+        retryLabel: t('common.retry'),
+        retrying: q.isLoading,
+        onRetry: () => ref.invalidate(rolesPolicyProvider),
+      );
+    } else if (q.awaitingFirst || !q.hasValue) {
       body = Padding(
         padding: const EdgeInsets.all(Space.lg),
         child: Column(
@@ -80,15 +89,6 @@ class _AskManagerCardState extends ConsumerState<AskManagerCard> {
               const DashSkeleton(height: DashMetrics.control),
           ],
         ),
-      );
-    } else if (!q.hasValue) {
-      // The web shows every row "Hidden" (see the divergence log).
-      body = DashErrorState(
-        framed: false,
-        message: orgErrorWords(q.error, t),
-        retryLabel: t('common.retry'),
-        retrying: q.isLoading,
-        onRetry: () => ref.invalidate(rolesPolicyProvider),
       );
     } else {
       body = Column(

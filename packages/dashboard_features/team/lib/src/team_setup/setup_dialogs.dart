@@ -7,6 +7,8 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shifts/shift_dialog.dart';
+
 /// Step 3 "New shift": a new block; "Every branch" only with the right at
 /// every branch, else the block starts at the first branch.
 Future<void> openSetupNewShift(
@@ -14,4 +16,8 @@ Future<void> openSetupNewShift(
   WidgetRef ref, {
   required List<Branch> branches,
   required bool wholeBusiness,
-}) async {}
+}) => showShiftDialog(
+  context,
+  branches: branches,
+  wholeBusiness: wholeBusiness,
+);

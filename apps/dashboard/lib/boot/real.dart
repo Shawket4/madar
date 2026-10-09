@@ -17,6 +17,7 @@ import '../areas.dart';
 import '../data/core_transport.dart';
 import '../data/core_xlsx.dart';
 import '../real/files.dart';
+import '../real/offline_files.dart';
 import '../real/outside.dart';
 import '../real/preferences.dart';
 import '../real/session.dart';
@@ -42,6 +43,10 @@ Future<ProviderContainer> bootReal() async {
     File('${dir.path}${sep}madar_dashboard_prefs.json'),
   );
   final strings = await loadDashStrings(areas: dashboardAreas);
+  // Every GET answer, for a relaunch with no network (wiped on sign-out).
+  final offline = await OfflineStore.open(
+    DirectoryBlobs(Directory('${dir.path}${sep}offline_cache')),
+  );
   final lang =
       prefs.getString(languagePrefKey) ??
       (Platform.localeName.toLowerCase().startsWith('ar') ? 'ar' : 'en');
@@ -77,14 +82,8 @@ Future<ProviderContainer> bootReal() async {
       sessionGatewayProvider.overrideWithValue(
         CoreSessionGateway(core.bridge, transport),
       ),
-      transportProvider.overrideWith(
-        (ref) => SessionGuardTransport(
-          transport,
-          onUnauthorized: () =>
-              ref.read(sessionProvider.notifier).handleUnauthorized(),
-          signedIn: () => ref.read(currentSessionProvider) != null,
-        ),
-      ),
+      offlineStoreProvider.overrideWithValue(offline),
+      transportProvider.overrideWith((ref) => dashTransport(ref, transport)),
       realtimeGatewayProvider.overrideWithValue(CoreRealtimeGateway(transport)),
       exportGatewayProvider.overrideWithValue(
         const CoreExportGateway(logo: exportLogo),

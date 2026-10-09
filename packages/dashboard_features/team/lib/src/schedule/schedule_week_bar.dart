@@ -23,6 +23,7 @@ class ScheduleWeekBar extends ConsumerWidget {
     required this.week,
     required this.today,
     required this.onWeek,
+    required this.onWeekIntent,
     required this.published,
     required this.canPublish,
     required this.publishing,
@@ -35,6 +36,9 @@ class ScheduleWeekBar extends ConsumerWidget {
   final String week;
   final String today;
   final ValueChanged<String> onWeek;
+
+  /// About to show [week]: warm its reads.
+  final ValueChanged<String> onWeekIntent;
   final bool published;
   final bool canPublish;
   final bool publishing;
@@ -85,6 +89,7 @@ class ScheduleWeekBar extends ConsumerWidget {
             icon: DashIcon.backward(context),
             semanticLabel: t('dawam.prevWeek'),
             variant: DashButtonVariant.outline,
+            onIntent: () => onWeekIntent(addDays(week, -7)),
             onPressed: () => onWeek(addDays(week, -7)),
           ),
           ConstrainedBox(
@@ -109,6 +114,7 @@ class ScheduleWeekBar extends ConsumerWidget {
             icon: DashIcon.forward(context),
             semanticLabel: t('dawam.nextWeek'),
             variant: DashButtonVariant.outline,
+            onIntent: () => onWeekIntent(addDays(week, 7)),
             onPressed: () => onWeek(addDays(week, 7)),
           ),
         ],
@@ -177,6 +183,7 @@ class ScheduleWeekBar extends ConsumerWidget {
                         label: t('dawamOps.backToThisWeek'),
                         variant: DashButtonVariant.ghost,
                         size: DashButtonSize.compact,
+                        onIntent: () => onWeekIntent(weekStartOf(today)),
                         onPressed: () => onWeek(weekStartOf(today)),
                       ),
                     // Any week, however far ahead: one pick, not N clicks.

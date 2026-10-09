@@ -10,7 +10,8 @@
 /// open (new times) shows the refreshed day.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart';
+import 'package:dashboard_api/dashboard_api.dart'
+    show Branch, DayBlock, DayView, LabourWarning, MoveShiftRequest, MoveView, PutDayRequest, PutTimesRequest, RosterPerson, RosterShift, WorkShiftBrief;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';

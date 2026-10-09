@@ -66,13 +66,13 @@ Future<ProviderContainer> bootMock() async {
       stringsProvider.overrideWithValue(strings),
       preferencesProvider.overrideWithValue(prefs),
       sessionGatewayProvider.overrideWithValue(session),
+      // In memory: mock mode derives narrower ranges like real mode, and
+      // keeps nothing on disk.
+      offlineStoreProvider.overrideWithValue(
+        await OfflineStore.open(MemoryBlobs()),
+      ),
       transportProvider.overrideWith(
-        (ref) => SessionGuardTransport(
-          session.transport,
-          onUnauthorized: () =>
-              ref.read(sessionProvider.notifier).handleUnauthorized(),
-          signedIn: () => ref.read(currentSessionProvider) != null,
-        ),
+        (ref) => dashTransport(ref, session.transport),
       ),
       clockProvider.overrideWithValue(() => db.clock.now),
       realtimeGatewayProvider.overrideWithValue(

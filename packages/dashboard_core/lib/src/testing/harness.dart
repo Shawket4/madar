@@ -99,6 +99,9 @@ class DashHarness {
   ///   [locale] and [dark]).
   /// - [shotArea]: the screenshot folder (the single area's key, else
   ///   `shell`).
+  /// - [offlineStore]: save every GET answer there and answer from it when
+  ///   the network is down (`server.offline`); pass the same store to a
+  ///   second pump to relaunch. Without it nothing is saved.
   static Future<DashHarness> pump(
     WidgetTester tester, {
     List<DashArea> areas = const [],
@@ -113,6 +116,7 @@ class DashHarness {
     Map<String, String>? prefs,
     bool reducedMotion = true,
     String? shotArea,
+    OfflineStore? offlineStore,
   }) async {
     await tester.runAsync(loadDashFonts);
     final cacheKey = areas.map((a) => a.key).join(',');
@@ -152,13 +156,9 @@ class DashHarness {
         initialLocaleProvider.overrideWithValue(locale),
         preferencesProvider.overrideWithValue(memory),
         sessionGatewayProvider.overrideWithValue(session),
+        offlineStoreProvider.overrideWithValue(offlineStore),
         transportProvider.overrideWith(
-          (ref) => SessionGuardTransport(
-            session.transport,
-            onUnauthorized: () =>
-                ref.read(sessionProvider.notifier).handleUnauthorized(),
-            signedIn: () => ref.read(currentSessionProvider) != null,
-          ),
+          (ref) => dashTransport(ref, session.transport),
         ),
         clockProvider.overrideWithValue(() => mockClock.now),
         fileGatewayProvider.overrideWith((ref) => h.files),

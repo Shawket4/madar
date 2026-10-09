@@ -84,7 +84,25 @@ class MockSessionGateway implements SessionGateway {
     if (p == null) return null;
     server.persona = p;
     _token = p.token;
-    return _api.me(token: p.token);
+    try {
+      return await _api.me(token: p.token);
+    } on ApiException catch (e) {
+      if (e.status != 0) rethrow;
+      // No network: the kept session as it is, the way the core restores
+      // its stored snapshot without asking the server.
+      return SessionInfo(
+        user: SessionUser(
+          id: p.userId,
+          name: p.displayName,
+          role: p.role,
+          email: p.email,
+          orgId: p.orgId,
+          branchId: p.homeBranchId,
+        ),
+        token: p.token,
+        taxRate: MockSeed.taxRate,
+      );
+    }
   }
 
   @override

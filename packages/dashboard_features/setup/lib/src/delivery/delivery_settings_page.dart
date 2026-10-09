@@ -174,7 +174,7 @@ class _DeliverySettingsFormState extends ConsumerState<DeliverySettingsForm> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final q = ref.watch(deliverySettingsProvider(widget.branchId));
-    if (q.failed) {
+    if (q.failedFirst) {
       return DashErrorState(
         title: t('delivery.settingsLoadFailed'),
         message: errorMessage(q.error, t),

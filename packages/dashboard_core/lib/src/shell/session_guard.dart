@@ -7,6 +7,56 @@ library;
 import 'dart:async';
 
 import 'package:dashboard_api/dashboard_api.dart';
+import 'package:dashboard_core/src/authz/authz_providers.dart';
+import 'package:dashboard_core/src/data/offline.dart';
+import 'package:dashboard_core/src/providers.dart';
+import 'package:dashboard_core/src/scope/scope.dart';
+import 'package:dashboard_core/src/session/session.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// The transport every boot puts over the network one (the core's in real
+/// mode, the mock server's otherwise): the offline seam ([OfflineTransport],
+/// when [offlineStoreProvider] holds a store) inside the 401 funnel.
+///
+/// ```dart
+/// transportProvider.overrideWith((ref) => dashTransport(ref, network)),
+/// ```
+ApiTransport dashTransport(Ref ref, ApiTransport network) {
+  final store = ref.watch(offlineStoreProvider);
+  var inner = network;
+  if (store != null) {
+    final offline = OfflineTransport(
+      network,
+      store: store,
+      host: RefOfflineHost(ref),
+    );
+    inner = offline;
+    // A realtime nudge: what was read live may have changed.
+    final sub = ref
+        .read(realtimeBusProvider)
+        .invalidations
+        .listen((_) => offline.forgetRecent());
+    ref.onDispose(sub.cancel);
+    // Back online: the shell's own reads built on saved data are read again
+    // (a page's reads follow `webCache`).
+    ref.listen(offlineProvider.select((s) => s.recoveries), (_, _) {
+      ref
+        ..invalidate(branchesProvider)
+        ..invalidate(currentOrgProvider)
+        ..invalidate(orgsProvider)
+        ..invalidate(orgModulesQueryProvider)
+        ..invalidate(onboardingCompletedProvider);
+      unawaited(ref.read(authzProvider.notifier).refresh());
+      ref.read(realtimeBusProvider).invalidate(const ['/']);
+    });
+  }
+  return SessionGuardTransport(
+    inner,
+    onUnauthorized: () =>
+        ref.read(sessionProvider.notifier).handleUnauthorized(),
+    signedIn: () => ref.read(currentSessionProvider) != null,
+  );
+}
 
 /// Wraps [inner]; calls [onUnauthorized] for a 401 the session should end on.
 class SessionGuardTransport implements ApiTransport {

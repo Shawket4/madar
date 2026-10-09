@@ -33,6 +33,9 @@ class _DeliveryZonesPageState extends ConsumerState<DeliveryZonesPage> {
     zones: ref.read(deliveryZonesProvider(branchId)).value ?? const [],
   );
 
+  /// The dialog reads the branch's zones (its defaults, its refreshes).
+  void _warm(String branchId) => ref.warm(deliveryZonesProvider(branchId));
+
   Future<void> _remove(String branchId, DeliveryZone z) async {
     final t = ref.read(tProvider);
     final ok = await showDashConfirm(
@@ -70,6 +73,7 @@ class _DeliveryZonesPageState extends ConsumerState<DeliveryZonesPage> {
             key: const ValueKey('dzn-new'),
             label: t('delivery.newZone'),
             icon: 'plus',
+            onIntent: () => _warm(branchId),
             onPressed: () => _open(branchId, null),
           ),
       ],
@@ -87,11 +91,12 @@ class _DeliveryZonesPageState extends ConsumerState<DeliveryZonesPage> {
       key: const ValueKey('dzn-table'),
       rows: numberZones(q.value ?? const []),
       rowKey: (z) => z.zone.id,
-      loading: q.firstLoad,
-      errorMessage: q.failed ? errorMessage(q.error, t) : null,
+      loading: q.awaitingFirst,
+      errorMessage: q.failedFirst ? errorMessage(q.error, t) : null,
       onRetry: () => ref.invalidate(deliveryZonesProvider(branchId)),
       hideViewOptions: true,
       onRowTap: (z) => _open(branchId, z.zone),
+      onRowIntent: (_) => _warm(branchId),
       rowSemanticLabel: (z) => zoneLabel(t, z.number),
       rowActionsWidth: DashMetrics.target * 2 + Space.sm,
       rowActions: (context, z) => Row(
@@ -101,6 +106,7 @@ class _DeliveryZonesPageState extends ConsumerState<DeliveryZonesPage> {
             key: ValueKey('dzn-edit-${z.zone.id}'),
             icon: 'pencil',
             semanticLabel: t('common.edit'),
+            onIntent: () => _warm(branchId),
             onPressed: () => _open(branchId, z.zone),
           ),
           DashIconButton(
@@ -120,6 +126,7 @@ class _DeliveryZonesPageState extends ConsumerState<DeliveryZonesPage> {
           key: const ValueKey('dzn-empty-new'),
           label: t('delivery.newZone'),
           icon: 'plus',
+          onIntent: () => _warm(branchId),
           onPressed: () => _open(branchId, null),
         ),
       ),

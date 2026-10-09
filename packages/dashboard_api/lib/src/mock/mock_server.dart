@@ -458,6 +458,17 @@ class MockServer implements ApiTransport {
   /// Added before every answer (zero by default).
   Duration latency;
 
+  /// The network is down: every call fails as the core fails one that never
+  /// reached the server (status 0, code `offline`), unrecorded, since the
+  /// server never saw it.
+  bool offline = false;
+
+  static const ApiException _offline = ApiException(
+    status: 0,
+    code: 'offline',
+    message: "You're offline. Check the connection and try again.",
+  );
+
   /// Who is signed in. Sign-in (`POST /auth/login`) switches it.
   Persona persona;
 
@@ -624,6 +635,7 @@ class MockServer implements ApiTransport {
 
   @override
   Future<ApiResponse> send(ApiRequest request) async {
+    if (offline) throw _offline;
     final method = request.method.toUpperCase();
     final hit = _find(method, request.path);
     final call = _record(request, hit);
@@ -689,6 +701,7 @@ class MockServer implements ApiTransport {
 
   @override
   Stream<String> stream(ApiRequest request) {
+    if (offline) return Stream<String>.error(_offline);
     final method = request.method.toUpperCase();
     final hit = _find(method, request.path);
     final call = _record(request, hit);

@@ -37,6 +37,10 @@ const Map<String, Map<String, String>> shellSupplement = {
         "It hasn't reached the app yet. Until it does, open it on the web dashboard.",
     // While the person's permissions load, and when they could not.
     'shell.accessLoadError': "Couldn't load what you're allowed to do here.",
+    // Offline: data saved on this device is on screen; a write cannot go.
+    'shell.offlineBanner':
+        "You're offline. Showing data saved at {{time}}; it may be out of date.",
+    'shell.offlineCantSave': "You're offline, so this can't be saved.",
   },
   'ar': {
     'nav.showMoreCount_zero': 'لا مزيد',
@@ -57,6 +61,9 @@ const Map<String, Map<String, String>> shellSupplement = {
     'shell.pendingBody':
         'لم تصل إلى التطبيق بعد. إلى أن تصل، افتحها من لوحة التحكم على الويب.',
     'shell.accessLoadError': 'تعذّر تحميل ما يُسمح لك به هنا.',
+    'shell.offlineBanner':
+        'أنت غير متصل بالإنترنت. تُعرض بيانات محفوظة في {{time}}، وقد لا تكون محدّثة.',
+    'shell.offlineCantSave': 'أنت غير متصل بالإنترنت، لذا لا يمكن حفظ هذا.',
   },
 };
 

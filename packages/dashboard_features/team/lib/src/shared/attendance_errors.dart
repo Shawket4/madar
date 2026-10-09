@@ -50,6 +50,12 @@ const Map<String, String> _periodStatusKeys = {
   'closed': 'dawam.phase_closed',
 };
 
+/// Codes whose `status` picks the sentence rather than filling it in.
+const Map<String?, List<String>> _statusVariants = {
+  'CANCEL_REASON_REQUIRED': ['approved'],
+  'OPEN_SHIFT_CLOSED': ['filled', 'cancelled'],
+};
+
 /// The refusal's `vars`, as sent.
 Map<String, Object?> _rawVars(ApiException e) {
   final d = e.details;
@@ -120,15 +126,23 @@ String attendanceErrorText(Object? error, Translator t, DashFormat f) {
         ? _shiftFieldKeys[vars['field']]
         : null;
     if (shiftField != null) vars['field'] = t(shiftField);
-    final key = code == 'PERIOD_CLOSED' && vars['paid'] == true
-        ? 'PERIOD_CLOSED_paid'
-        // Refusals that name who or what, when the server sends the figures.
-        : (code == 'ALREADY_ROSTERED' || code == 'SHIFT_DAYS_IN_USE') &&
-              vars['name'] is String
-        ? '${code}_named'
-        : code == 'SHIFTS_OVERLAP' && vars['a'] is String
-        ? 'SHIFTS_OVERLAP_named'
-        : code;
+    final variant =
+        raw['status'] is String &&
+            (_statusVariants[code]?.contains(raw['status']) ?? false)
+        ? '${code}_${raw['status']}'
+        : null;
+    final key =
+        variant ??
+        (code == 'PERIOD_CLOSED' && vars['paid'] == true
+            ? 'PERIOD_CLOSED_paid'
+            // Refusals that name who or what, when the server sends the
+            // figures.
+            : (code == 'ALREADY_ROSTERED' || code == 'SHIFT_DAYS_IN_USE') &&
+                  vars['name'] is String
+            ? '${code}_named'
+            : code == 'SHIFTS_OVERLAP' && vars['a'] is String
+            ? 'SHIFTS_OVERLAP_named'
+            : code);
     if (key != null && t.exists('errors.codes.$key')) {
       return t('errors.codes.$key', args: vars);
     }

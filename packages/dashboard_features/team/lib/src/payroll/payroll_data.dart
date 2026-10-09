@@ -98,48 +98,33 @@ enum PayrollTab { payslips, lines, advances, expenses, history }
 
 /// The page's own state, reset when the page is left (TEAM-ALL-021).
 class PayrollView {
-  const PayrollView({
-    this.tab = PayrollTab.payslips,
-    this.viewId,
-    this.personId,
-  });
+  const PayrollView({this.tab = PayrollTab.payslips, this.viewId});
 
   final PayrollTab tab;
 
   /// An older month opened from its banner or History; null = this month.
   final String? viewId;
-
-  /// The person whose payslip sheet is open.
-  final String? personId;
-
-  PayrollView copyWith({
-    PayrollTab? tab,
-    String? Function()? viewId,
-    String? Function()? personId,
-  }) => PayrollView(
-    tab: tab ?? this.tab,
-    viewId: viewId != null ? viewId() : this.viewId,
-    personId: personId != null ? personId() : this.personId,
-  );
 }
 
 class PayrollViewNotifier extends Notifier<PayrollView> {
   @override
   PayrollView build() => const PayrollView();
 
-  void setTab(PayrollTab tab) => state = state.copyWith(tab: tab);
+  void setTab(PayrollTab tab) =>
+      state = PayrollView(tab: tab, viewId: state.viewId);
 
   /// Views an older month (null = back to this month) on the Payslips tab.
-  void openMonth(String? id) =>
-      state = state.copyWith(viewId: () => id, tab: PayrollTab.payslips);
-
-  void openPerson(String? id) => state = state.copyWith(personId: () => id);
+  void openMonth(String? id) => state = PayrollView(viewId: id);
 }
 
 final payrollViewProvider =
     NotifierProvider.autoDispose<PayrollViewNotifier, PayrollView>(
       PayrollViewNotifier.new,
     );
+
+/// An older month's own read key (its preview while a draft).
+({String id, bool draft}) olderKey(PayrollPeriod p) =>
+    (id: p.id, draft: p.status == 'draft');
 
 // ── what the page shows ────────────────────────────────────────────────
 
@@ -187,7 +172,8 @@ class PayrollShown {
   /// Payslips paid by a person (a `none` mark by the run doesn't count).
   final int paidByHand;
 
-  bool get loading => shownRead.isLoading && !shownRead.hasValue;
+  /// The skeleton: the shown read has nothing yet.
+  bool get loading => shownRead.awaitingFirst;
 }
 
 final payrollShownProvider = Provider.autoDispose<PayrollShown>((ref) {
@@ -197,17 +183,14 @@ final payrollShownProvider = Provider.autoDispose<PayrollShown>((ref) {
   final view = ref.watch(payrollViewProvider);
   final unsettled = unsettledOf(cur);
   final older = olderPeriod(cur, view.viewId, unsettled, f);
-  final olderRead = older == null
+  final canRead = ref.watch(payrollCanReadProvider);
+  final olderRead = older == null || !canRead
       ? null
-      : ref.watch(
-          payrollOlderSlipsProvider((
-            id: older.id,
-            draft: older.status == 'draft',
-          )),
-        );
+      : ref.watch(payrollOlderSlipsProvider(olderKey(older)));
   final period = older ?? cur?.period;
   final phase = periodPhase(period?.status);
-  final peopleList = ref.watch(payrollPeopleProvider).value ?? const [];
+  final peopleList =
+      (canRead ? ref.watch(payrollPeopleProvider).value : null) ?? const [];
   final people = {for (final e in peopleList) e.id: e};
   String? nameOf(String id) => people[id]?.name;
 
