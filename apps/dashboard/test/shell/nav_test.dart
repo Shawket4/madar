@@ -4,6 +4,7 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:madar_dashboard/areas.dart';
@@ -214,6 +215,53 @@ void main() {
       await h.tap(labelled('Menu'));
       expect(h.container.read(sidebarCollapsedProvider), isFalse);
       expect(text('Choice groups'), findsOneWidget);
+    });
+
+    testWidgets('a deep link brings its row into sight', (tester) async {
+      ScrollPosition sidebarScroll() => tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(DashSidebar),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      await pumpShell(tester, path: '/settings/staff-pool');
+      final box = tester.getRect(find.byType(DashSidebar));
+      expect(sidebarScroll().pixels, greaterThan(0));
+      final row = tester.getRect(navText('Staff drinks').first);
+      expect(row.bottom, lessThanOrEqualTo(box.bottom));
+      expect(row.top, greaterThanOrEqualTo(box.top));
+    });
+
+    testWidgets('a row in view stays put when it is opened', (tester) async {
+      ScrollPosition sidebarScroll() => tester
+          .state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(DashSidebar),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          )
+          .position;
+      final h = await pumpShell(tester);
+      expect(sidebarScroll().pixels, 0);
+      // A leaf drawn whole in the lower half: centring it would scroll.
+      final box = tester.getRect(find.byType(DashSidebar));
+      final leaf = navLeaves().firstWhere((l) {
+        final f = navText(l.fallback);
+        if (f.evaluate().length != 1) return false;
+        final r = tester.getRect(f);
+        return r.center.dy > box.center.dy && r.bottom < box.bottom;
+      });
+      // A real tap (the harness's tap scrolls its target to the top first).
+      await tester.tap(navText(leaf.fallback));
+      await h.settle();
+      expect(h.location.path, leaf.to);
+      expect(sidebarScroll().pixels, 0);
     });
 
     testWidgets('the rail is restored from preferences', (tester) async {

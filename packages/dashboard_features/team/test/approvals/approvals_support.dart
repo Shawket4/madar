@@ -5,6 +5,7 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/dashboard_team.dart';
+import 'package:dashboard_team/src/approvals/approvals_data.dart';
 import 'package:dashboard_team/src/approvals/approvals_page.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:flutter/widgets.dart';
@@ -315,6 +316,31 @@ Finder approveIn(String text) => inRow(
 Finder rejectIn(String text) => inRow(
   text,
   find.byWidgetPredicate(
+    (w) =>
+        (w is DashButton && w.icon == 'x') ||
+        (w is DashIconButton && w.icon == 'x'),
+  ),
+);
+
+/// The [index]th row of [type] (newest first).
+Finder rowOfType(PendingType type, {int index = 0}) => find
+    .byWidgetPredicate((w) => w is PendingRow && w.item.type == type)
+    .at(index);
+
+/// The item a row shows.
+Pending itemOf(WidgetTester tester, Finder row) =>
+    tester.widget<PendingRow>(row).item;
+
+/// [row]'s Approve button.
+Finder approveOf(Finder row) => find.descendant(
+  of: row,
+  matching: find.byWidgetPredicate((w) => w is DashButton && w.icon == 'check'),
+);
+
+/// [row]'s Reject control.
+Finder rejectOf(Finder row) => find.descendant(
+  of: row,
+  matching: find.byWidgetPredicate(
     (w) =>
         (w is DashButton && w.icon == 'x') ||
         (w is DashIconButton && w.icon == 'x'),

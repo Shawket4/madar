@@ -45,14 +45,15 @@ ApiTransport dashTransport(Ref ref, ApiTransport network) {
     // Back online: the shell's own reads built on saved data are read again
     // (a page's reads follow `webCache`).
     ref.listen(offlineProvider.select((s) => s.recoveries), (_, _) {
-      ref
+      // Through the container: these are built on this transport.
+      ref.container
         ..invalidate(branchesProvider)
         ..invalidate(currentOrgProvider)
         ..invalidate(orgsProvider)
         ..invalidate(orgModulesQueryProvider)
         ..invalidate(onboardingCompletedProvider);
-      unawaited(ref.read(authzProvider.notifier).refresh());
-      ref.read(realtimeBusProvider).invalidate(const ['/']);
+      unawaited(ref.container.read(authzProvider.notifier).refresh());
+      ref.container.read(realtimeBusProvider).invalidate(const ['/']);
     });
   }
   return cache.track(

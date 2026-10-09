@@ -43,9 +43,7 @@ Map<String, List<String>> _range(_Days days, RangeKind kind) {
   return switch (kind) {
     RangeKind.instant => {
       'from': [dayBoundaryISO(_zone, a.year, a.month - 1, a.day)],
-      'to': [
-        dayBoundaryISO(_zone, b.year, b.month - 1, b.day, endOfDay: true),
-      ],
+      'to': [dayBoundaryISO(_zone, b.year, b.month - 1, b.day, endOfDay: true)],
     },
     RangeKind.date => {
       'from': [_ymd(a)],
@@ -113,7 +111,9 @@ void main() {
         ties ? unorderedEquals(answer! as List) : equals(answer),
         reason: '$path ${_range(sub, d.kind)}',
       );
-      if (answer is List ? answer.isNotEmpty : (answer! as Map)['drinks'] != 0) {
+      if (answer is List
+          ? answer.isNotEmpty
+          : (answer! as Map)['drinks'] != 0) {
         filled++;
       }
     }
@@ -122,16 +122,19 @@ void main() {
 
   final branch = SeedIds.heliopolis;
 
-  test('sales timeseries, daily and hourly, a branch and every branch', () async {
-    for (final id in [branch, allBranchesId]) {
-      for (final g in ['daily', 'hourly']) {
-        final filled = await exact('/reports/branches/$id/sales/timeseries', {
-          'granularity': [g],
-        });
-        expect(filled, greaterThan(5), reason: '$id $g');
+  test(
+    'sales timeseries, daily and hourly, a branch and every branch',
+    () async {
+      for (final id in [branch, allBranchesId]) {
+        for (final g in ['daily', 'hourly']) {
+          final filled = await exact('/reports/branches/$id/sales/timeseries', {
+            'granularity': [g],
+          });
+          expect(filled, greaterThan(5), reason: '$id $g');
+        }
       }
-    }
-  });
+    },
+  );
 
   test('monthly points are never derived', () {
     final d = deriverFor('/reports/branches/$branch/sales/timeseries')!;

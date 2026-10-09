@@ -58,7 +58,7 @@ const List<Duration> realtimeRetryDelays = [
 ];
 
 /// Topics the dashboard consumes; the server intersects with permissions.
-const String realtimeTopics = 'floor,tickets,bookings,delivery,tills';
+const String realtimeTopics = 'floor,tickets,bookings,delivery,tills,kitchen';
 
 /// Which data an event makes stale, as API path prefixes
 /// (`invalidationsFor`). `resync` -> `/`: everything.
@@ -79,6 +79,7 @@ List<String> invalidationsFor(String event) {
     return ['/payment-methods'];
   }
   if (event == 'branch.settings_changed') return ['/branches'];
+  if (event == 'branch.plan_changed') return ['/branch-plan', '/kitchen'];
   return [];
 }
 

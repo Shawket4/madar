@@ -2,10 +2,11 @@
 // team area on a seeded mock server, edited per test before pumping.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
+import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/dashboard_team.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:dashboard_team/src/payroll/payroll_page.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const String payrollPath = '/staff/payroll';
@@ -102,3 +103,82 @@ String currentPeriodId(MockDb db, [String org = 'sabah']) =>
               (p['start_date']! as String).startsWith('2026-10'),
         )['id']!
         as String;
+
+/// [f] inside the topmost dialog, sheet or side panel.
+Finder inTop(Finder f) =>
+    find.descendant(of: find.byType(DashSurface).last, matching: f).hitTestable();
+
+/// Text inside the topmost surface.
+Finder topText(String text) => inTop(find.text(text));
+
+/// A form field of type [T] labelled [label] in the topmost surface.
+Finder field<T>(String label) => find
+    .descendant(
+      of: find.byType(DashSurface).last,
+      matching: find.widgetWithText(T, label),
+    )
+    .first;
+
+/// Types [text] into the field of type [T] labelled [label].
+Future<void> type<T>(DashHarness h, String label, String text) =>
+    h.enterText(field<T>(label), text);
+
+/// Taps the topmost surface's button saying [label].
+Future<void> press(DashHarness h, String label) =>
+    h.tap(inTop(find.widgetWithText(DashButton, label)));
+
+/// The confirm dialog's button saying [label].
+Future<void> confirm(DashHarness h, String label) => h.tap(
+  find
+      .descendant(
+        of: find.byType(DashConfirmDialog),
+        matching: find.widgetWithText(DashButton, label),
+      )
+      .hitTestable(),
+);
+
+/// Approves this month through the page (TEAM-PAY-006).
+Future<void> approveMonth(DashHarness h) async {
+  await h.tap(inPage(find.widgetWithText(DashButton, 'Approve payroll')));
+  await confirm(h, 'Approve payroll');
+  await h.flushTimers();
+}
+
+/// The JSON body of the last [method] call to [template].
+Map<String, Object?> lastBody(DashHarness h, String template, [String? method]) =>
+    (h.server.callsTo(template, method: method).last.body! as Map)
+        .cast<String, Object?>();
+
+/// Opens [name]'s payslip from the table.
+Future<void> openSlip(DashHarness h, String name) =>
+    h.tap(inPage(find.text(name)));
+
+/// Leaves the app and comes back (a focus refetch).
+Future<void> background(WidgetTester tester, DashHarness h) async {
+  for (final s in [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(s);
+  }
+  await h.settle();
+}
+
+/// September's period id.
+String septemberId() => TeamSeedIds.period('sabah', '2026-09');
+
+/// September approved with [unpaid] people still to pay.
+void septemberUnpaid(MockDb db, {int unpaid = 3, String status = 'generated'}) {
+  final id = septemberId();
+  db[TeamTables.payrollPeriods].update(id, {'status': status});
+  var n = 0;
+  for (final s in db['payslips'].rows.toList()) {
+    if (s['payroll_period_id'] != id || n >= unpaid) continue;
+    db['payslips'].update(s['id']! as String, {'paid_method': null, 'paid_at': null});
+    n++;
+  }
+}

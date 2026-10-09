@@ -78,7 +78,14 @@ class _DashSidebarState extends ConsumerState<DashSidebar> {
       // the next build tries again.
       if (!mounted || ctx == null || _revealed == path) return;
       _revealed = path;
-      Scrollable.ensureVisible(ctx, alignment: 0.5);
+      // "nearest" (the web's scrollIntoView): a row in view stays put, one
+      // out of sight comes in at the nearer edge.
+      for (final policy in [
+        ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+      ]) {
+        Scrollable.ensureVisible(ctx, alignmentPolicy: policy);
+      }
     });
   }
 

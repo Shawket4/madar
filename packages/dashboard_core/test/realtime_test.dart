@@ -64,8 +64,12 @@ void main() {
         '/payment-methods',
       ]);
       expect(invalidationsFor('branch.settings_changed'), ['/branches']);
+      expect(invalidationsFor('branch.plan_changed'), [
+        '/branch-plan',
+        '/kitchen',
+      ]);
       expect(invalidationsFor('transfer.requested'), ['/floor']);
-      expect(realtimeTopics, 'floor,tickets,bookings,delivery,tills');
+      expect(realtimeTopics, 'floor,tickets,bookings,delivery,tills,kitchen');
     });
   });
 

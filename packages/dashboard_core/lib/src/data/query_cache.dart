@@ -49,10 +49,24 @@ extension WebQueryCache on Ref {
     gc._reads[link] = this;
     // A warmed read may never be watched: it starts idle.
     gc.idle(link, now);
+    // flutter_riverpod closes a widget's `ref.listen` subscriptions before
+    // each build and adds them back during it, while its `ref.watch` stays:
+    // a listener added in the same turn as a removal, with the read still
+    // watched, is that rebuild re-listening, not a new mount.
+    var listeners = 0;
+    var removedThisTurn = false;
+    onRemoveListener(() {
+      listeners--;
+      removedThisTurn = true;
+      scheduleMicrotask(() => removedThisTurn = false);
+    });
     // A page opening on stale data refetches it (`refetchOnMount`); not
     // inside the listener's own build, on the next turn.
     onAddListener(() {
       gc.busy(link);
+      final relisten = removedThisTurn && listeners > 0;
+      listeners++;
+      if (relisten) return;
       if (now().difference(builtAt) < staleTime) return;
       Future.microtask(() {
         if (mounted) invalidateSelf();

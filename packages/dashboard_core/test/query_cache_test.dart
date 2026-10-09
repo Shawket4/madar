@@ -56,6 +56,26 @@ void main() {
     expect(fetches, 2);
   });
 
+  test('a rebuild re-listening (close, then listen again in the same turn) '
+      'is not a new mount: no refetch, even when stale', () async {
+    // The page watches the read and listens to it.
+    final watch = c.listen(read('a'), (_, _) {});
+    var sub = c.listen(read('a'), (_, _) {});
+    await c.read(read('a').future);
+    now = now.add(kQueryStaleTime);
+    // flutter_riverpod's rebuild: old `ref.listen` closed, new one added,
+    // the watch kept.
+    sub.close();
+    sub = c.listen(read('a'), (_, _) {});
+    await Future<void>.delayed(Duration.zero);
+    expect(fetches, 1);
+    sub.close();
+    watch.close();
+    // A real later mount still refetches.
+    await Future<void>.delayed(Duration.zero);
+    expect(await visit('a'), 2);
+  });
+
   test('each key is its own entry (the scope is the key)', () async {
     await visit('a');
     await visit('b');

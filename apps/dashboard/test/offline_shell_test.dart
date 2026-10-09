@@ -9,7 +9,7 @@ import 'package:dashboard_overview/dashboard_overview.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _welcome = 'Welcome back, Nour El-Sayed';
-const _sales = '/reports/branches/{branchId}/sales';
+const _comparison = '/reports/orgs/{orgId}/comparison';
 
 final Finder _banner = find.textContaining("You're offline. Showing data");
 
@@ -62,11 +62,11 @@ void main() {
     // The network is back; the next answer from the server clears the
     // banner and reads again what was built on saved data.
     s.server.offline = false;
-    final before = s.server.callsTo(_sales).length;
+    final before = s.server.callsTo(_comparison).length;
     h.container.invalidate(branchesProvider);
     await h.settle();
     expect(_banner, findsNothing);
-    expect(s.server.callsTo(_sales).length, greaterThan(before));
+    expect(s.server.callsTo(_comparison).length, greaterThan(before));
   });
 
   for (final locale in ['en', 'ar']) {
@@ -90,7 +90,10 @@ void main() {
         findsOneWidget,
       );
       if (locale == 'en') expect(find.text(_welcome), findsOneWidget);
-      expect(find.text(locale == 'en' ? 'Retry' : 'إعادة المحاولة'), findsNothing);
+      expect(
+        find.text(locale == 'en' ? 'Retry' : 'إعادة المحاولة'),
+        findsNothing,
+      );
     });
   }
 
