@@ -114,7 +114,8 @@ void main() {
         locale: lang,
         dark: dark,
       );
-      expect(find.text(h.t('errors.unauthorized')), findsOneWidget);
+      // The shell's Restricted page (the route is platform-only).
+      expect(find.text(h.t('common.restrictedTitle')), findsOneWidget);
       await h.shot('orgs/refused');
     });
 

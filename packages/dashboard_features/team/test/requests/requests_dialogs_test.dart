@@ -8,6 +8,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/approvals/approvals_dialogs.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:dashboard_team/src/requests/requests_dialogs.dart';
+import 'package:dashboard_team/src/shared/staff_query.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -149,6 +150,76 @@ void main() {
       'status': 'approved',
       'is_paid': false,
       'note': 'Only this once',
+    });
+    await h.flushTimers();
+  });
+
+  testWidgets('TEAM-REQ-020 the dialog is the web\'s sm:max-w-md (448)', (
+    tester,
+  ) async {
+    final h = await pumpRequests(tester);
+    await h.tap(approveIn(_salma));
+    expect(tester.getSize(find.byType(ApproveWithPayDialog)).width, 448);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+  });
+
+  testWidgets('TEAM-REQ-020 closed mid-save: the list still reads again once '
+      'the PATCH lands', (tester) async {
+    final s = requestsServer();
+    final gate = s.server.hold('PATCH', decideT);
+    final h = await pumpRequests(tester, s: s);
+    await h.tap(approveIn(_salma));
+    await h.tap(inSurface(find.widgetWithText(DashButton, 'Approve')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await h.settle();
+    expect(find.byType(ApproveWithPayDialog), findsNothing);
+    final lists = gets(h);
+    gate.release();
+    await h.settle();
+    expect(patches(h), 1);
+    expect(gets(h), lists + 1);
+    expect(pageHas(_salma), findsNothing);
+  });
+
+  testWidgets('TEAM-REQ-020 a refresh that changes paid_default moves the '
+      'switch until the approver touches it', (tester) async {
+    final s = requestsServer(
+      edit: (db) => db[TeamTables.requests].insert(
+        requestRow(
+          id: 'rq-x',
+          employeeKey: 'laila',
+          kind: 'excuse',
+          onDate: day(2),
+          fromTime: '12:00:00',
+          toTime: '13:00:00',
+          reason: 'Bank errand',
+          paidDefault: false,
+        ),
+      ),
+    );
+    final h = await pumpRequests(tester, s: s);
+    bool paid() =>
+        tester.widget<DashSwitch>(inSurface(find.byType(DashSwitch))).value;
+    Future<void> refresh() async {
+      h.container.read(staffRevisionsProvider.notifier).invalidateStaff();
+      await h.settle();
+    }
+
+    await h.tap(approveIn('Bank errand'));
+    expect(paid(), isFalse);
+    s.db[TeamTables.requests].update('rq-x', {'paid_default': true});
+    await refresh();
+    expect(paid(), isTrue, reason: 'untouched: follows the server');
+    await h.tap(inSurface(find.byType(DashSwitch)));
+    expect(paid(), isFalse);
+    await refresh();
+    expect(paid(), isFalse, reason: 'touched: the approver\'s choice stays');
+    await h.tap(inSurface(find.widgetWithText(DashButton, 'Approve')));
+    expect(lastBody(h, decideT), {
+      'status': 'approved',
+      'is_paid': false,
+      'note': null,
     });
     await h.flushTimers();
   });

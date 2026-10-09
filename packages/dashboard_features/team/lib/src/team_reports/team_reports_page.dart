@@ -436,6 +436,7 @@ class _PayrollTab extends ConsumerWidget {
         'period',
         t('dawam.period'),
         (r) => '${f.fmtDate(r.startDate)} – ${f.fmtDate(r.endDate)}',
+        minWidth: 220,
       ),
       ReportCol('people', t('dawam.people'), (r) => r.people, numeric: true),
       ReportCol('base', t('dawam.salary'), (r) => r.basePiastres, money: true),
@@ -444,6 +445,7 @@ class _PayrollTab extends ConsumerWidget {
         t('dawam.rOtTime'),
         (r) => fmtHours(lang, r.overtimeMinutes),
         numeric: true,
+        minWidth: 160,
       ),
       ReportCol(
         'ot',
@@ -743,6 +745,7 @@ class ReportTable<R> extends ConsumerWidget {
                 id: c.id,
                 label: c.header,
                 numeric: c.money || c.numeric,
+                minWidth: c.minWidth ?? (c.money ? 160 : 120),
                 text: (r) {
                   final v = c.value(r);
                   return c.money ? f.fmtMoney(v as num) : '$v';

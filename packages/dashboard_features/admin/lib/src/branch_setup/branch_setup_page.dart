@@ -544,10 +544,21 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
 
   BuilderPlan _savedOf(BranchPlanView view) {
     final t = ref.read(tProvider);
-    return localizeServerNames(
+    final plan = localizeServerNames(
       fromWire(view.plan),
       t('builder.kind.receiptPrinter'),
       (section) => t('builder.names.sectionPrinter', args: {'section': section}),
+    );
+    // A slot still naming a device retired since shows "Not set up"; it is
+    // let go here too, or every save would be refused (web bug ADM-BSU-084).
+    final live = {for (final d in view.devices) d.id};
+    if (plan.devices.every((d) => d.deviceId == null || live.contains(d.deviceId))) {
+      return plan;
+    }
+    return plan.mapDevices(
+      (d) => d.deviceId == null || live.contains(d.deviceId)
+          ? d
+          : d.copyWith(deviceId: () => null),
     );
   }
 

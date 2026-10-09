@@ -1,14 +1,15 @@
-/// Transfers (`/inventory/transfers`, the INV-TRF rows; web
-/// `src/features/inventory/transfers-page.tsx`): stock moved between the
-/// org's branches, for the scoped branch (or rolled up with All branches),
-/// filtered by direction.
-///
-/// No control is gated by capability (INV-TRF-025): the server refuses.
-/// New transfer needs a picked branch and two active branches.
+/// Transfers (`/inventory/transfers`, INV-TRF-001…012, INV-ALL-027/028; web
+/// `transfers-page.tsx` at af50aa63): the transfer documents touching the
+/// scoped location (or every location the person works at), by status and
+/// direction, and the org's received differences. A row opens the transfer
+/// drawer; "New transfer" and, at a warehouse, "Replenish a branch" open the
+/// transfer and replenish dialogs.
 library;
 
+import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart'
-    show CloseTransferRequest, StockTransfer, UpdateTransferRequest;
+    show Branch, BranchKind, StockTransfer, StockTransferLine,
+        TransferDifferenceRow, TransferLineInput;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -18,12 +19,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_export.dart';
 import '../shared/inventory_labels.dart';
+import 'replenish_dialog.dart';
 import 'transfer_dialog.dart';
+import 'transfer_drawer.dart';
 import 'transfers_data.dart';
 
-/// "Tarek" or "—" for a row without a name.
-String _by(StockTransfer tr) =>
-    tr.initiatedByName.isEmpty ? '—' : tr.initiatedByName;
+/// The page's own view of the org (INV-TRF-002): the active locations this
+/// person works at (warehouses included on Inventory), none without an org.
+List<Branch> transferBranches(WidgetRef ref) =>
+    ref.watch(orgIdProvider) == null
+    ? const []
+    : ref.watch(activeBranchesProvider) ?? const [];
 
 class TransfersPage extends ConsumerStatefulWidget {
   const TransfersPage({super.key});
@@ -33,12 +39,16 @@ class TransfersPage extends ConsumerStatefulWidget {
 }
 
 class _TransfersPageState extends ConsumerState<TransfersPage> {
-  /// The direction filter (null = "All transfers"); per visit, as the web.
+  /// The status tab and the direction (null = both ways); per visit.
+  String _tab = 'all';
   String? _dir;
   bool _exporting = false;
 
-  /// INV-TRF-005: the whole list (same scope and direction), walked, as
-  /// `Madar-Transfers-<date>.xlsx`.
+  TransfersKey _key(Scope s, {String? tab, String? dir}) =>
+      s.transfersKey(direction: dir ?? _dir, status: tabStatus(tab ?? _tab));
+
+  /// INV-TRF-007: every page of the list (same scope, direction and status),
+  /// one row per line, as `Madar-Transfers-<date>.xlsx`.
   Future<void> _export(TransfersKey key) async {
     final t = ref.read(tProvider);
     final transport = ref.read(transportProvider);
@@ -57,18 +67,25 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
   }
 
   ExcelConfig _config(Translator t, List<StockTransfer> rows) {
+    final flat = [
+      for (final tr in rows)
+        for (final l in tr.lines) (tr: tr, l: l),
+    ];
     ExcelColumn<Object?> col(
       String header,
-      Object? Function(StockTransfer tr) value,
+      Object? Function(StockTransfer tr, StockTransferLine l) value,
       ExcelColumnType type,
       double width,
     ) => ExcelColumn<Object?>(
       header: header,
-      accessor: (r) => value(r! as StockTransfer),
+      accessor: (r) {
+        final row = r! as ({StockTransfer tr, StockTransferLine l});
+        return value(row.tr, row.l);
+      },
       type: type,
       width: width,
     );
-    const text = ExcelColumnType.text;
+    const text = ExcelColumnType.text, number = ExcelColumnType.number;
     return ExcelConfig(
       filename: 'Madar-Transfers',
       logoUrl: inventoryExportLogo(ref),
@@ -76,101 +93,142 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         ExcelSheet<Object?>(
           name: t('inventory.transfers.title'),
           title: t('inventory.transfers.title'),
-          rows: rows,
+          rows: flat,
           columns: [
             col(
-              t('common.date'),
-              (tr) => tr.initiatedAt,
-              ExcelColumnType.dateTime,
-              20,
-            ),
-            col(
-              t('inventory.transfers.ingredient'),
-              (tr) => tr.ingredientName,
-              text,
-              28,
-            ),
-            col(
-              t('inventory.transfers.quantity'),
-              (tr) => tr.quantity,
-              ExcelColumnType.number,
-              12,
-            ),
-            col(
-              t('inventory.catalog.unit'),
-              (tr) => fmtUnit(tr.unit),
+              t('inventory.transfers.reference'),
+              (tr, _) => tr.reference,
               text,
               10,
             ),
             col(
+              t('common.date'),
+              (tr, _) => tr.created.at,
+              ExcelColumnType.dateTime,
+              20,
+            ),
+            col(
+              t('common.status'),
+              (tr, _) => transferStatusLabel(t, tr.status.value),
+              text,
+              12,
+            ),
+            col(
               t('inventory.transfers.from'),
-              (tr) => tr.sourceBranchName,
+              (tr, _) => tr.sourceBranchName,
               text,
               22,
             ),
             col(
               t('inventory.transfers.to'),
-              (tr) => tr.destinationBranchName,
+              (tr, _) => tr.destinationBranchName,
               text,
               22,
             ),
-            col(t('inventory.transfers.by'), _by, text, 18),
-            col(t('inventory.transfers.note'), (tr) => tr.note ?? '', text, 30),
+            col(
+              t('inventory.transfers.ingredient'),
+              (_, l) => l.ingredientName,
+              text,
+              26,
+            ),
+            col(t('inventory.transfers.sent'), (_, l) => l.qtySent, number, 10),
+            col(
+              t('inventory.transfers.received'),
+              (_, l) => l.qtyReceived,
+              number,
+              10,
+            ),
+            col(
+              t('inventory.catalog.unit'),
+              (_, l) => fmtUnit(l.unit),
+              text,
+              8,
+            ),
+            col(
+              t('inventory.transfers.note'),
+              (tr, _) => tr.note ?? '',
+              text,
+              30,
+            ),
           ],
         ),
       ],
     );
   }
 
-  /// INV-TRF-009: confirm, DELETE, invalidate inventory, "Done".
-  Future<void> _reverse(StockTransfer tr) async {
-    final t = ref.read(tProvider);
-    final ok = await showDashConfirm(
+  /// INV-TRF-009: the drawer on [tr], kept open after a step moves it out
+  /// of the current tab.
+  void _open(StockTransfer tr) =>
+      showTransferDrawer(context, transfer: tr, listKey: _key(ref.read(currentScopeProvider)));
+
+  /// INV-TRF-003/040: the transfer dialog in send mode from "here"; its
+  /// result opens in the drawer.
+  Future<void> _newTransfer(
+    Branch? here, {
+    String? dest,
+    List<TransferLineInput>? lines,
+  }) async {
+    final tr = await showTransferDialog(
       context,
-      title: t(
-        'inventory.transfers.reverseConfirmTitle',
-        args: {'name': tr.ingredientName},
-      ),
-      description: t('inventory.transfers.reverseConsequence'),
-      confirmLabel: t('inventory.transfers.reverseTitle'),
-      destructive: true,
+      defaultSourceId: here?.id,
+      defaultDestinationId: dest,
+      prefillLines: lines,
     );
-    if (!ok || !mounted) return;
-    final api = ref.read(apiProvider).inventory;
-    // Captured now: the list refreshes even if the page closes mid-call.
-    final bus = ref.read(realtimeBusProvider);
-    try {
-      await api.cancelStockTransfer(
-        id: tr.id,
-        body: const CloseTransferRequest(),
-      );
-    } on Object catch (e) {
-      if (mounted) DashToast.error(context, errorMessage(e, t));
-      return;
-    }
-    bus.invalidate(inventoryPathFamilies);
-    if (mounted) DashToast.success(context, t('common.done'));
+    if (tr != null && mounted) _open(tr);
   }
 
-  /// Runs [action] once the menu has closed, so the dialog it opens keeps
-  /// the focus.
-  void _afterMenu(VoidCallback action) =>
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) action();
-      });
+  /// INV-TRF-004/040: the replenish dialog; its picked lines open the
+  /// transfer dialog from the warehouse.
+  Future<void> _replenish(Branch here, List<({String id, String name})> to) async {
+    final pick = await showReplenishDialog(
+      context,
+      warehouse: here,
+      branches: to,
+    );
+    if (pick != null && mounted) {
+      await _newTransfer(here, dest: pick.dest, lines: pick.lines);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final scope = ref.watch(currentScopeProvider);
-    final branchId = scope.branchId;
-    final key = scope.transfersKey(_dir);
-    final list = ref.watch(transfersProvider(key));
-    final rows = list.value ?? const <StockTransfer>[];
-    // Read only with an org (INV-ALL-027); inactive ones never count.
-    final active = scope.orgId == null
-        ? const []
-        : ref.watch(activeBranchesProvider) ?? const [];
+    final orgId = scope.orgId;
+    final active = transferBranches(ref);
+    final here = active.firstWhereOrNull((b) => b.id == scope.branchId);
+    final canCreate = ref.watch(
+      authzProvider.select((a) => a.can(Cap.inventoryTransfersCreate)),
+    );
+    // Only with the cap (INV-TRF-041): someone who cannot send never asks.
+    final locations = orgId != null && canCreate
+        ? ref.watch(transferLocationsProvider(orgId)).value
+        : null;
+    final selling = [
+      for (final l in locations ?? const [])
+        if (l.kind == 'branch') (id: l.id, name: l.name),
+    ];
+    final canCreateHere =
+        here != null &&
+        (ref.watch(authzAtProvider(here.id)).value ?? Authz.none).can(
+          Cap.inventoryTransfersCreate,
+        );
+    final diffTab = _tab == 'differences';
+    final key = _key(scope);
+    final list = diffTab ? null : ref.watch(transfersProvider(key));
+    final dkey = scope.differencesKey;
+    final diffs = diffTab && dkey != null
+        ? ref.watch(transferDifferencesProvider(dkey))
+        : null;
+    final rows = list?.value ?? const <StockTransfer>[];
+
+    /// The dialog's first reads in send mode from "here".
+    void warmNew() {
+      if (here == null) return;
+      ref
+        ..warm(branchStockProvider(here.id))
+        ..warm(authzAtProvider(here.id));
+    }
 
     return DashPageScaffold(
       title: t('inventory.transfers.title'),
@@ -178,61 +236,160 @@ class _TransfersPageState extends ConsumerState<TransfersPage> {
         DashExportButton(
           key: const ValueKey('transfers-export'),
           loading: _exporting,
-          enabled: rows.isNotEmpty,
+          enabled: !diffTab && rows.isNotEmpty,
           onExport: () => _export(key),
         ),
-        if (branchId != null)
+        if (here != null &&
+            here.kind == BranchKind.warehouse &&
+            canCreateHere &&
+            selling.isNotEmpty)
+          DashButton(
+            key: const ValueKey('transfers-replenish'),
+            label: t('inventory.transfers.replenish'),
+            // ponytail: the kit has no package-search glyph; `package` stands in.
+            icon: 'package',
+            variant: DashButtonVariant.outline,
+            onIntent: selling.length == 1
+                ? () => ref.warm(
+                    replenishmentProvider((
+                      warehouseId: here.id,
+                      branchId: selling.single.id,
+                    )),
+                  )
+                : null,
+            onPressed: () => _replenish(here, selling),
+          ),
+        if (canCreate)
           DashButton(
             key: const ValueKey('transfers-new'),
             label: t('inventory.transfers.create'),
             icon: 'plus-circle',
-            // The dialog's read: the picked branch's stock.
-            onIntent: () => ref.warm(branchStockProvider(branchId)),
-            onPressed: active.length < 2
-                ? null
-                : () => showTransferDialog(context, sourceId: branchId),
+            onIntent: warmNew,
+            onPressed: () => _newTransfer(here),
           ),
       ],
-      filters: DashSegmentedControl<String?>(
-        key: const ValueKey('transfers-direction'),
-        value: _dir,
-        semanticLabel: t('inventory.transfers.direction'),
-        options: [
-          for (final d in transferDirections)
-            DashOption(value: d, label: t('inventory.transfers.${d ?? 'all'}')),
-        ],
-        onIntent: (d) => ref.warm(transfersProvider(scope.transfersKey(d))),
-        onChanged: (d) => setState(() => _dir = d),
-      ),
-      body: TransfersTable(
-        rows: rows,
-        loading: list.awaitingFirst,
-        // Kept while Retry runs (no false "No transfers found" in between).
-        errorText: list.failedFirst ? errorMessage(list.error, t) : null,
-        onRetry: () => ref.invalidate(transfersProvider(key)),
-        onEditNote: (tr) => _afterMenu(
-          () => showDashDialog<void>(
-            context,
-            builder: (_) => TransferNoteDialog(transfer: tr, listKey: key),
+      filters: Wrap(
+        spacing: Space.sm,
+        runSpacing: Space.sm,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          DashSegmentedControl<String>(
+            key: const ValueKey('transfers-status'),
+            value: _tab,
+            semanticLabel: t('common.status'),
+            options: [
+              for (final s in transferTabs)
+                DashOption(
+                  value: s,
+                  label: switch (s) {
+                    'all' => t('inventory.transfers.all'),
+                    'differences' => t('inventory.transfers.differences'),
+                    _ => transferStatusLabel(t, s),
+                  },
+                ),
+            ],
+            onIntent: (s) {
+              if (s != 'differences') {
+                ref.warm(transfersProvider(_key(scope, tab: s)));
+              } else if (dkey != null) {
+                ref.warm(transferDifferencesProvider(dkey));
+              }
+            },
+            onChanged: (s) => setState(() => _tab = s),
           ),
-        ),
-        onReverse: (tr) => _afterMenu(() => _reverse(tr)),
+          if (!diffTab)
+            DashSegmentedControl<String?>(
+              key: const ValueKey('transfers-direction'),
+              value: _dir,
+              semanticLabel: t('inventory.transfers.direction'),
+              options: [
+                for (final d in transferDirections)
+                  DashOption(
+                    value: d,
+                    label: t('inventory.transfers.${d ?? 'bothWays'}'),
+                  ),
+              ],
+              onIntent: (d) => ref.warm(
+                transfersProvider(
+                  scope.transfersKey(direction: d, status: tabStatus(_tab)),
+                ),
+              ),
+              onChanged: (d) => setState(() => _dir = d),
+            ),
+        ],
       ),
+      body: diffTab
+          ? DifferencesTable(
+              rows: diffs?.value ?? const [],
+              loading: diffs?.awaitingFirst ?? false,
+              errorText: diffs != null && diffs.failedFirst
+                  ? errorMessage(diffs.error, t)
+                  : null,
+              retrying: diffs?.isLoading ?? false,
+              onRetry: () => ref.invalidate(transferDifferencesProvider(dkey!)),
+            )
+          : TransfersTable(
+              rows: rows,
+              loading: list!.awaitingFirst,
+              // Kept while Retry runs (no false "No transfers found" between).
+              errorText: list.failedFirst ? errorMessage(list.error, t) : null,
+              onRetry: () => ref.invalidate(transfersProvider(key)),
+              onOpen: _open,
+              onIntent: (tr) => warmDrawer(ref, tr),
+            ),
     );
   }
 }
 
-/// The list (INV-TRF-006/007/010/011/024): Date, Ingredient, Quantity,
-/// Direction, By; 10 a page; no search, no row click; ⋯ Edit note /
-/// Reverse transfer. Below 760 each row is a card led by the ingredient.
+/// A route "<source> → <destination>", a Warehouse glyph before a warehouse
+/// side when [kinds], the arrow mirrored in RTL.
+class TransferRoute extends StatelessWidget {
+  const TransferRoute({
+    required this.source,
+    required this.destination,
+    this.sourceWarehouse = false,
+    this.destinationWarehouse = false,
+    this.style,
+    super.key,
+  });
+
+  final String source;
+  final String destination;
+  final bool sourceWarehouse;
+  final bool destinationWarehouse;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.madarColors;
+    Widget glyph(String name) =>
+        DashIcon(name, size: IconSize.xs, color: c.textMuted);
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: Space.xs,
+      runSpacing: Space.xxs,
+      children: [
+        if (sourceWarehouse) glyph('warehouse'),
+        Text(source, style: style),
+        glyph(DashIcon.arrowForward(context)),
+        if (destinationWarehouse) glyph('warehouse'),
+        Text(destination, style: style),
+      ],
+    );
+  }
+}
+
+/// The list (INV-TRF-008/010/012): Ref, Date, Direction, Items, Status; 10
+/// a page; a row opens the drawer. Below 760 each row is a card led by the
+/// reference.
 class TransfersTable extends ConsumerWidget {
   const TransfersTable({
     required this.rows,
     required this.loading,
     required this.errorText,
     required this.onRetry,
-    required this.onEditNote,
-    required this.onReverse,
+    required this.onOpen,
+    required this.onIntent,
     super.key,
   });
 
@@ -240,20 +397,14 @@ class TransfersTable extends ConsumerWidget {
   final bool loading;
   final String? errorText;
   final VoidCallback onRetry;
-  final ValueChanged<StockTransfer> onEditNote;
-  final ValueChanged<StockTransfer> onReverse;
+  final ValueChanged<StockTransfer> onOpen;
+  final ValueChanged<StockTransfer> onIntent;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
-    Widget one(String s, {TextStyle? style}) => MadarClippedText(
-      s,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: style,
-    );
     return DashDataTable<StockTransfer>(
       key: const ValueKey('transfers-table'),
       rows: rows,
@@ -261,174 +412,165 @@ class TransfersTable extends ConsumerWidget {
       loading: loading,
       errorMessage: errorText,
       onRetry: onRetry,
+      onRowTap: onOpen,
+      onRowIntent: onIntent,
       empty: DashEmptyState(
         icon: 'arrow-left-right',
         title: t('inventory.transfers.noTransfers'),
       ),
       columns: [
         DashColumn(
-          id: 'initiated_at',
+          id: 'reference',
+          label: t('inventory.transfers.reference'),
+          cell: (context, tr) => Text(
+            tr.reference,
+            style: DashType.mono.copyWith(
+              color: c.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          phone: DashPhoneRole.title,
+          width: Space.xxl * 3,
+        ),
+        DashColumn(
+          id: 'date',
           label: t('common.date'),
-          cell: (context, tr) => one(f.fmtDateTime(tr.initiatedAt)),
+          cell: (context, tr) => Text(f.fmtDateTime(transferWhen(tr))),
           numeric: true,
           align: DashAlign.start,
           // "30 Sept, 12:15 PM" uncut, as the web's nowrap cell.
           width: Space.xxl * 6,
         ),
         DashColumn(
-          id: 'ingredient_name',
-          label: t('inventory.transfers.ingredient'),
-          cell: (context, tr) => one(
-            tr.ingredientName,
-            style: DashType.bodyMedium.copyWith(color: c.textPrimary),
-          ),
-          phone: DashPhoneRole.title,
-          // The web's cells never wrap; a narrow table scrolls instead.
-          minWidth: Space.xxl * 6,
-        ),
-        DashColumn(
-          id: 'quantity',
-          label: t('inventory.transfers.quantity'),
-          cell: (context, tr) => Text(qtyWithUnit(f, tr.quantity, tr.unit)),
-          numeric: true,
-          width: Space.xxl * 3 + Space.sm,
-        ),
-        DashColumn(
           id: 'route',
           label: t('inventory.transfers.direction'),
-          // Names wrap rather than cut, as the web's flex cell.
-          cell: (context, tr) => Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: Space.xs,
-            children: [
-              Text(tr.sourceBranchName),
-              DashIcon(
-                DashIcon.arrowForward(context),
-                size: IconSize.xs,
-                color: c.textMuted,
-              ),
-              Text(tr.destinationBranchName),
-            ],
+          cell: (context, tr) => TransferRoute(
+            source: tr.sourceBranchName,
+            destination: tr.destinationBranchName,
+            sourceWarehouse: tr.sourceKind == BranchKind.warehouse,
+            destinationWarehouse: tr.destinationKind == BranchKind.warehouse,
           ),
           minWidth: Space.xxl * 6,
         ),
         DashColumn(
-          id: 'initiated_by_name',
-          label: t('inventory.transfers.by'),
-          cell: (context, tr) => one(_by(tr)),
-          minWidth: Space.xxl * 4 + Space.lg,
+          id: 'items',
+          label: t('inventory.transfers.items'),
+          cell: (context, tr) => MadarClippedText(
+            lineSummary(f, tr),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          minWidth: Space.xxl * 6,
+        ),
+        DashColumn(
+          id: 'status',
+          label: t('common.status'),
+          cell: (context, tr) => Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: DashStatusPill(
+              label: transferStatusLabel(t, tr.status.value),
+              tone: transferTone(tr.status.value),
+            ),
+          ),
+          width: Space.xxl * 3 + Space.lg,
         ),
       ],
-      rowActions: (context, tr) => DashMenu(
-        key: ValueKey('transfer-menu-${tr.id}'),
-        items: [
-          DashMenuItem(
-            label: t('inventory.transfers.editNote'),
-            onSelected: () => onEditNote(tr),
-          ),
-          DashMenuItem(
-            label: t('inventory.transfers.reverseTitle'),
-            icon: 'rotate-ccw',
-            destructive: true,
-            onSelected: () => onReverse(tr),
-          ),
-        ],
-        builder: (context, ctl) => DashIconButton(
-          icon: 'more-horizontal',
-          semanticLabel: t('common.moreActions'),
-          onPressed: ctl.toggle,
-        ),
-      ),
     );
   }
 }
 
-/// Edit note (INV-TRF-008/027): the row's note as the draft (re-taken from a
-/// background refresh until the person types); Save sends it trimmed (blank
-/// → null), invalidates inventory, toasts and closes.
-class TransferNoteDialog extends ConsumerStatefulWidget {
-  const TransferNoteDialog({
-    required this.transfer,
-    required this.listKey,
+/// The Differences tab (INV-TRF-011): received lines that differ from what
+/// was sent; no row click.
+class DifferencesTable extends ConsumerWidget {
+  const DifferencesTable({
+    required this.rows,
+    required this.loading,
+    required this.errorText,
+    required this.retrying,
+    required this.onRetry,
     super.key,
   });
 
-  final StockTransfer transfer;
-
-  /// The list the row came from.
-  final TransfersKey listKey;
-
-  @override
-  ConsumerState<TransferNoteDialog> createState() => _TransferNoteDialogState();
-}
-
-class _TransferNoteDialogState extends ConsumerState<TransferNoteDialog> {
-  late String _draft = widget.transfer.note ?? '';
-  bool _edited = false;
-  bool _busy = false;
-
-  Future<void> _save() async {
-    final t = ref.read(tProvider);
-    final api = ref.read(apiProvider).inventory;
-    final bus = ref.read(realtimeBusProvider);
-    final note = _draft.trim();
-    setState(() => _busy = true);
-    try {
-      await api.updateTransfer(
-        id: widget.transfer.id,
-        body: UpdateTransferRequest(
-          note: note.isEmpty ? null : note,
-          explicitNulls: note.isEmpty ? const {'note'} : const {},
-        ),
-      );
-    } on Object catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      DashToast.error(context, errorMessage(e, t));
-      return;
-    }
-    bus.invalidate(inventoryPathFamilies);
-    if (!mounted) return;
-    DashToast.success(context, t('common.savedChanges'));
-    Navigator.of(context).pop();
-  }
+  final List<TransferDifferenceRow> rows;
+  final bool loading;
+  final String? errorText;
+  final bool retrying;
+  final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
-    ref.listen(transfersProvider(widget.listKey), (_, next) {
-      final id = widget.transfer.id;
-      final row = next.value?.where((r) => r.id == id).firstOrNull;
-      if (!_edited && row != null) setState(() => _draft = row.note ?? '');
-    });
-    return DashSurface(
-      title: t('inventory.transfers.editNote'),
-      body: DashFormField<String>(
-        label: t('inventory.transfers.note'),
-        builder: (context, _) => DashTextInput(
-          key: const ValueKey('transfer-note-draft'),
-          value: _draft,
-          semanticLabel: t('inventory.transfers.note'),
-          minLines: 3,
-          maxLines: 6,
-          onChanged: (v) => setState(() {
-            _draft = v;
-            _edited = true;
-          }),
-        ),
+    final f = ref.watch(formatProvider);
+    final c = context.madarColors;
+    return DashDataTable<TransferDifferenceRow>(
+      key: const ValueKey('transfers-differences'),
+      rows: rows,
+      rowKey: (r) => '${r.transferId}:${r.orgIngredientId}',
+      loading: loading,
+      errorMessage: errorText,
+      onRetry: onRetry,
+      empty: DashEmptyState(
+        icon: 'arrow-left-right',
+        title: t('inventory.transfers.noDifferences'),
+        description: t('inventory.transfers.noDifferencesHint'),
       ),
-      actions: [
-        DashButton(
-          key: const ValueKey('transfer-note-cancel'),
-          label: t('common.cancel'),
-          variant: DashButtonVariant.outline,
-          onPressed: () => Navigator.of(context).pop(),
+      columns: [
+        DashColumn(
+          id: 'reference',
+          label: t('inventory.transfers.reference'),
+          cell: (context, r) => Text(
+            r.reference,
+            style: DashType.mono.copyWith(color: c.textPrimary),
+          ),
+          phone: DashPhoneRole.title,
+          width: Space.xxl * 3,
         ),
-        DashButton(
-          key: const ValueKey('transfer-note-save'),
-          label: t('common.save'),
-          loading: _busy,
-          onPressed: _save,
+        DashColumn(
+          id: 'received_at',
+          label: t('inventory.transfers.received'),
+          cell: (context, r) => Text(f.fmtDateTime(r.receivedAt)),
+          numeric: true,
+          align: DashAlign.start,
+          width: Space.xxl * 6,
+        ),
+        DashColumn(
+          id: 'route',
+          label: t('inventory.transfers.direction'),
+          cell: (context, r) => TransferRoute(
+            source: r.sourceBranchName,
+            destination: r.destinationBranchName,
+          ),
+          minWidth: Space.xxl * 6,
+        ),
+        DashColumn(
+          id: 'ingredient_name',
+          label: t('inventory.transfers.ingredient'),
+          cell: (context, r) => Text(r.ingredientName),
+          minWidth: Space.xxl * 5,
+        ),
+        DashColumn(
+          id: 'difference',
+          label: t('inventory.transfers.difference'),
+          cell: (context, r) => Text(
+            '${r.difference > 0 ? '+' : ''}'
+            '${qtyWithUnit(f, r.difference, r.unit)}',
+          ),
+          numeric: true,
+          width: Space.xxl * 4,
+        ),
+        DashColumn(
+          id: 'value_difference',
+          label: t('inventory.transfers.value'),
+          cell: (context, r) =>
+              Text(f.fmtMoney(r.valueDifference, signed: true)),
+          numeric: true,
+          width: Space.xxl * 4,
+        ),
+        DashColumn(
+          id: 'note',
+          label: t('inventory.transfers.note'),
+          cell: (context, r) => Text(r.note ?? '—'),
+          minWidth: Space.xxl * 5,
         ),
       ],
     );

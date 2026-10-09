@@ -12,6 +12,7 @@ class ReportCol<R> {
     this.value, {
     this.money = false,
     this.numeric = false,
+    this.minWidth,
   });
 
   final String id;
@@ -21,6 +22,10 @@ class ReportCol<R> {
   /// Piastres: shown as money, exported in pounds.
   final bool money;
   final bool numeric;
+
+  /// The table column's floor before it scrolls sideways (TEAM-RPT-031);
+  /// null → 160 for money, the kit's 120 otherwise.
+  final double? minWidth;
 }
 
 /// JavaScript's `String(n)`: 1200 → "1200", 12.5 → "12.5" (never "1200.0").

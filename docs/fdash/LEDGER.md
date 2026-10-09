@@ -329,3 +329,5 @@ VERIFIED setup/brand_appearance + whatsapp AT PARITY (minors → pending/setup-b
 VERIFIED team/rules NOT (major: skeleton during retry) → pending/team-rules.md
 CORE FIX (me): Arabic durations now RTL-isolated (core fmtElapsedMs/fmtDuration + team fmtHours); web-vector test carries the deliberate exception; core 167 pass. VERIFIED team/team_reports NOT (2 major) + team_board AT PARITY + admin/review + setup/staff_pool AT PARITY (minors) → pending files
 PENDING (launch when a slot frees): pending/admin-review-setup-staff_pool.md
+VERIFIED setup/links NOT (major = kit hintTextDirection, in kit batch 1) + minors → appended to pending/admin-review-setup-staff_pool.md
+BUILT admin/devices (29/29, 111 tests) → VERIFY QUEUED. INTEGRATION: two POST /devices/activation-codes handlers (devices_mock + branch_setup_mock) → keep one; org_errors.dart (orgs) imported by devices+review → move to admin/shared; devices mock hard-codes branch_device_slots table name.

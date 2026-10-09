@@ -455,6 +455,32 @@ void main() {
       );
     });
 
+    testWidgets('SET-SHL-014 booking.*, branch.settings_changed and resync '
+        'refresh what they name', (tester) async {
+      final h = await pumpBrand(tester, path: '/settings/bookings$_helio');
+      // The Bookings pane's read is `/bookings/settings` (the web's key).
+      int bookings() =>
+          h.container.read(realtimeEpochProvider('/bookings/settings'));
+      final b = bookings();
+      h.realtime.current!.emit('booking.created', data: '{}');
+      await h.settle();
+      expect(bookings(), b + 1);
+
+      // QR reads /branches (the header's list and the branch's tables).
+      await h.go('/settings/qr$_helio');
+      int branches() => h.server.callsTo('/branches', method: 'GET').length;
+      final br = branches();
+      h.realtime.current!.emit('branch.settings_changed', data: '{}');
+      await h.settle();
+      expect(branches(), br + 1);
+
+      final bk = bookings();
+      h.realtime.current!.emit('resync', data: '{}');
+      await h.settle();
+      expect(branches(), br + 2, reason: 'resync refreshes every read');
+      expect(bookings(), bk + 1);
+    });
+
     testWidgets('SET-SHL-019 on "All branches" no stream, nothing live', (
       tester,
     ) async {

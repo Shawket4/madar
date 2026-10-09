@@ -10,6 +10,7 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_setup/src/combo_settings/combo_settings_data.dart';
 import 'package:dashboard_setup/src/combo_settings/combo_settings_page.dart';
+import 'package:dashboard_setup/src/mock/combo_settings_mock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,6 +18,8 @@ import '../support.dart';
 
 export 'package:dashboard_setup/src/combo_settings/combo_settings_data.dart';
 export 'package:dashboard_setup/src/mock/combo_settings_mock.dart';
+
+export '../support.dart' show pumpSetup;
 
 const String cmbPath = '/settings/combos';
 const String cmbSettings = '/settings/combos';

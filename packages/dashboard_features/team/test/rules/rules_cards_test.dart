@@ -173,10 +173,10 @@ void main() {
     await typeIn(h, RulesDawamKeys.nightStart, '09:00');
     await typeIn(h, RulesDawamKeys.nightEnd, '05:00');
     expect(pageText(same), findsNothing);
-    final fix = h.t('inputs.didYouMean', args: {'time': '5:00 PM'});
+    final fix = h.t('inputs.didYouMean', args: {'time': '05:00 PM'});
     expect(pageText(fix), findsOneWidget);
     await h.tap(pageText(fix));
-    expect(shown(tester, RulesDawamKeys.nightEnd), '17:00');
+    expect(shown(tester, RulesDawamKeys.nightEnd), '05:00 PM');
     expect(pageText(fix), findsNothing);
   });
 

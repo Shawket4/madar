@@ -675,9 +675,14 @@ void main() {
   });
 
   testWidgets('TEAM-REQ-024 an older server names no days: the mission\'s '
-      'attendance is read first', (tester) async {
-    final h = await pumpRequests(tester);
+      'attendance is read first, and a worked day warns', (tester) async {
+    final h = await pumpRequests(
+      tester,
+      edit: (db) => checkedIn(db, 'tarek', day()),
+    );
     final tarek = requestOf(tester, 'Choosing next month');
+    expect(tarek.workedDates, isNull);
+    expect(tarek.onDate, day());
     await h.tap(approveIn('Choosing next month'));
     final read = h.server.callsTo(attendanceT).last.query;
     expect(read, {
@@ -685,10 +690,37 @@ void main() {
       'from': [tarek.onDate],
       'to': [tarek.endDate ?? tarek.onDate],
     });
-    if (confirmCard().evaluate().isNotEmpty) {
-      await h.tap(inConfirm(find.text('Approve')));
-    }
+    expect(
+      inConfirm(
+        find.text(
+          h.t('staff.missionOverPunchesTitle', args: {'name': tarek.employeeName}),
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(inConfirm(find.textContaining(_d(h, day()))), findsOneWidget);
+    expect(patches(h), 0);
+    await h.tap(inConfirm(find.text('Approve')));
     expect(lastBody(h, decideT), {'status': 'approved'});
+    await h.flushTimers();
+  });
+
+  testWidgets('TEAM-REQ-024 the mission\'s days can\'t be read: it approves '
+      'without asking', (tester) async {
+    final s = requestsServer(edit: (db) => checkedIn(db, 'tarek', day()));
+    s.server.fail(
+      'GET',
+      attendanceT,
+      MockResponse.error(500, 'boom'),
+      times: null,
+    );
+    final h = await pumpRequests(tester, s: s);
+    final tarek = requestOf(tester, 'Choosing next month');
+    await h.tap(approveIn('Choosing next month'));
+    expect(h.server.callsTo(attendanceT), isNotEmpty);
+    expect(confirmCard(), findsNothing);
+    expect(lastBody(h, decideT), {'status': 'approved'});
+    expect(lastDecidePath(h), '/staff/requests/${tarek.id}/decision');
     await h.flushTimers();
   });
 

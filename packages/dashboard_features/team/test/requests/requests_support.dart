@@ -172,6 +172,23 @@ Map<String, Object?> lastBody(DashHarness h, String t, [String m = 'PATCH']) =>
 
 int patches(DashHarness h) => h.server.callsTo(decideT, method: 'PATCH').length;
 
+/// Gives employee [key] a check-in on [date] (their record that day, else a
+/// copy of another of theirs).
+void checkedIn(MockDb db, String key, String date) {
+  final t = db[TeamTables.attendance];
+  final id = emp(key);
+  final same = t.firstWhere(
+    (r) => r['employee_id'] == id && r['business_date'] == date,
+  );
+  t.put({
+    ...?same ?? t.firstWhere((r) => r['employee_id'] == id),
+    'id': same?['id'] ?? TeamSeedIds.attendance(id, date),
+    'employee_id': id,
+    'business_date': date,
+    'check_in_at': '${date}T07:00:00Z',
+  });
+}
+
 /// The path of the last decision PATCH.
 String lastDecidePath(DashHarness h) =>
     h.server.callsTo(decideT, method: 'PATCH').last.path;
