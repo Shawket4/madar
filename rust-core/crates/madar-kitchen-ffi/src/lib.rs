@@ -417,4 +417,81 @@ impl KitchenCore {
     pub fn set_locale(&self, locale: String) {
         self.core.set_locale(locale);
     }
+
+    // ── LAN (spec LN-1..5) ──────────────────────────────────────────────────
+    // The core's LAN relay: fires from a POS on the same network reach this
+    // board with no internet, and bumps go back the same way. The LAN is a
+    // delivery path only — every bump is still outbox-first and synced later.
+
+    /// Start the relay for the signed-in branch. Idempotent. The LAN key comes
+    /// only to a registered device, so the first start registers this screen
+    /// (online) and fetches it; the host's retry covers a start made offline.
+    pub async fn lan_start(&self) -> Result<(), KitchenError> {
+        let core = self.core.clone();
+        on_rt(async move {
+            if core.lan_start().await.is_ok() {
+                return Ok(());
+            }
+            core.register_kitchen_screen().await.map_err(|e| human(&core, &e))?;
+            core.lan_start().await.map_err(|e| human(&core, &e))
+        })
+        .await?
+    }
+
+    pub fn lan_stop(&self) {
+        self.core.lan_stop();
+    }
+
+    pub fn lan_status(&self) -> LanStatus {
+        let s = self.core.lan_status();
+        LanStatus { running: s.running, peer_count: s.peer_count, last_error: s.last_error }
+    }
+
+    /// What to advertise over the system's Bonjour (`_madar._tcp`); `None`
+    /// while the relay is down. iOS blocks the core's own multicast discovery
+    /// without a restricted entitlement, so the host advertises and browses.
+    pub fn lan_advert(&self) -> Option<LanAdvert> {
+        self.core.lan_advert().map(|a| LanAdvert {
+            device_id: a.device_id,
+            branch_id: a.branch_id,
+            role: a.role,
+            station_id: a.station_id,
+            device_code: a.device_code,
+            tcp_port: a.tcp_port,
+        })
+    }
+
+    /// A peer the host's Bonjour resolved. The core filters by branch and
+    /// skips this device; re-note live peers every few seconds (12 s TTL).
+    #[allow(clippy::too_many_arguments)]
+    pub fn lan_note_peer(
+        &self,
+        device_id: String,
+        branch_id: String,
+        host: String,
+        port: u16,
+        role: String,
+        station_id: Option<String>,
+        device_code: Option<String>,
+    ) -> bool {
+        self.core.lan_note_peer(device_id, branch_id, host, port, role, station_id, device_code)
+    }
+}
+
+#[derive(uniffi::Record)]
+pub struct LanStatus {
+    pub running: bool,
+    /// Live discovered peers + manual hubs.
+    pub peer_count: u32,
+    pub last_error: Option<String>,
+}
+
+#[derive(uniffi::Record)]
+pub struct LanAdvert {
+    pub device_id: String,
+    pub branch_id: String,
+    pub role: String,
+    pub station_id: Option<String>,
+    pub device_code: Option<String>,
+    pub tcp_port: u16,
 }

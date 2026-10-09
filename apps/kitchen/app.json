@@ -12,7 +12,10 @@
       "bundleIdentifier": "cloud.madar.kitchen",
       "appleTeamId": "W4D7HW9L4Y",
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "Madar Kitchen talks to the Madar server and the POS tablets on your shop network."
+        "NSLocalNetworkUsageDescription": "Madar Kitchen talks to the Madar server and the POS tablets on your shop network.",
+        "NSBonjourServices": [
+          "_madar._tcp"
+        ]
       }
     },
     "android": {
@@ -23,7 +26,12 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_MULTICAST_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

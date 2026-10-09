@@ -3629,6 +3629,41 @@ impl MadarCore {
 }
 
 impl MadarCore {
+    /// A kitchen screen joins its branch's LAN: register this install as the
+    /// branch's `kds` device (the kitchen account may), then fetch the org's
+    /// offline-auth bundle. The LAN key rides that bundle, and the server gives
+    /// it only to a registered device or someone who works a till — a cook does
+    /// neither, so without this a kitchen screen never hears a LAN fire.
+    pub async fn register_kitchen_screen(&self) -> Result<(), CoreError> {
+        use madar_api::apis::{devices_api, orgs_api};
+        use madar_api::models;
+        let session = self.current_session().ok_or_else(|| CoreError::Unauthenticated {
+            detail: "sign in before registering the screen".into(),
+        })?;
+        let (org_id, _) = self.org_branch()?;
+        let branch_id = self.session_branch_id()?;
+        let bad = |field: &str| CoreError::Validation { field: field.into(), detail: "not a uuid".into() };
+        let id = uuid::Uuid::parse_str(&self.lan_device_id()).map_err(|_| bad("device_id"))?;
+        let branch = uuid::Uuid::parse_str(&branch_id).map_err(|_| bad("branch_id"))?;
+        let code = format!("K{}", &id.simple().to_string()[..5]).to_uppercase();
+        let mut request = models::RegisterDeviceRequest::new(branch, code, id, models::DeviceKind::Kds);
+        request.platform = Some(Some(std::env::consts::OS.to_string()));
+        request.app_version = Some(Some(net::app_version(self.config.app_version.as_deref())));
+        let config = self.api.config();
+        ledger_ops::within(devices_api::register_device(
+            &config,
+            devices_api::RegisterDeviceParams { register_device_request: request },
+        ))
+        .await?;
+        let bundle = ledger_ops::within(orgs_api::offline_auth_bundle(
+            &config,
+            orgs_api::OfflineAuthBundleParams { id: org_id },
+        ))
+        .await?;
+        session::cache_bundle(&self.store, &bundle, &session);
+        Ok(())
+    }
+
     async fn lan_start_inner(&self) -> Result<(), CoreError> {
         if self.lan.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
             return Ok(());

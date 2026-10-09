@@ -20,3 +20,16 @@ madar-core = { path = "../madar-core" }
 uniffi = { version = "=0.31", features = ["tokio"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 serde_json = "1"
+
+[features]
+# The live-backend suite (tests/lan_offline.rs): a plain `cargo test` skips it.
+backend-tests = []
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }
+tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }
+uuid = "1"
+
+[[test]]
+name = "lan_offline"
+required-features = ["backend-tests"]

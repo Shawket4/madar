@@ -1,7 +1,8 @@
 import { create } from "zustand";
 
 import type { ColorScheme } from "@/theme/tokens";
-import { backend, KitchenFailure } from "./backend";
+import { backend, KitchenFailure, type LanStatus } from "./backend";
+import type { LanBonjour } from "@/lib/lan-bonjour";
 import type { Branch, DeviceMode, DeviceState, KitchenLine, KitchenPart, Section, Ticket } from "./types";
 import { toParts } from "@/features/board/logic";
 
@@ -24,6 +25,8 @@ interface KitchenState {
   /** Expo hand-offs (EX-4). Device-local: the server has no hand-off yet. */
   handedOff: Record<string, true>;
   connected: boolean;
+  /** The LAN relay (LN-1..5): running, and how many peers it can reach. */
+  lan: LanStatus;
   /** The last refused or failed action, shown in a banner until dismissed. */
   error: string | null;
   theme: ColorScheme;
@@ -50,7 +53,33 @@ interface KitchenState {
 
 const say = (e: unknown) => (e instanceof KitchenFailure || e instanceof Error ? e.message : String(e));
 
+/** Native Bonjour for the relay; none on web or in the mock. */
+let bonjour: LanBonjour | null = null;
+let lastLanTry = 0;
+const LAN_RETRY_MS = 30_000;
+
 export const useKitchen = create<KitchenState>((set, get) => {
+  /** Start the LAN relay and its Bonjour discovery; retried by refresh until it runs. */
+  const startLan = async () => {
+    lastLanTry = Date.now();
+    try {
+      await backend().lanStart();
+      if (!backend().mock) {
+        bonjour ??= new (require("@/lib/lan-bonjour").LanBonjour)(backend());
+        await bonjour!.ensure();
+      }
+    } catch {
+      // No LAN key yet (never signed in online here) or no network: the next refresh retries.
+    }
+    set({ lan: backend().lanStatus() });
+  };
+
+  const stopLan = () => {
+    bonjour?.stop();
+    backend().lanStop();
+    set({ lan: { running: false, peerCount: 0 } });
+  };
+
   const readState = () => set({ device: backend().state() });
 
   const defaultSection = () => get().sections.find((s) => s.isDefault)?.id ?? get().sections[0]?.id;
@@ -79,6 +108,7 @@ export const useKitchen = create<KitchenState>((set, get) => {
       // Offline at boot: the poll still reads local rows, and the core reconnects.
     }
     void backend().syncNow().catch(() => {});
+    void startLan();
     await get().refresh();
   };
 
@@ -105,6 +135,7 @@ export const useKitchen = create<KitchenState>((set, get) => {
     finishedAt: {},
     handedOff: {},
     connected: true,
+    lan: { running: false, peerCount: 0 },
     error: null,
     theme: "dark",
     lang: "ar",
@@ -130,6 +161,10 @@ export const useKitchen = create<KitchenState>((set, get) => {
       readState();
       if (get().device.route === "sections") return loadSections();
       if (get().device.route !== "board") return;
+      const lan = backend().lanStatus();
+      set({ lan });
+      if (!lan.running && Date.now() - lastLanTry > LAN_RETRY_MS) void startLan();
+      else if (lan.running) void bonjour?.ensure();
       try {
         reparts(await backend().tickets());
       } catch (e) {
@@ -151,6 +186,7 @@ export const useKitchen = create<KitchenState>((set, get) => {
     },
 
     signOut() {
+      stopLan();
       backend().stopRealtime();
       backend().signOut();
       set({ settingsOpen: false, tickets: [], parts: [] });
@@ -165,6 +201,7 @@ export const useKitchen = create<KitchenState>((set, get) => {
     },
 
     changeSections() {
+      stopLan();
       backend().stopRealtime();
       backend().clearSections();
       set({ settingsOpen: false });
@@ -173,6 +210,7 @@ export const useKitchen = create<KitchenState>((set, get) => {
 
     resetDevice() {
       try {
+        stopLan();
         backend().resetDevice();
         set({ settingsOpen: false, tickets: [], parts: [], sections: [] });
         readState();

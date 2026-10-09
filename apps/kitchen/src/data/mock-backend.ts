@@ -220,5 +220,11 @@ export function mockBackend(): Backend & { tools: MockTools } {
     setLocale(locale) {
       ar = locale.startsWith("ar");
     },
+    // The mock's network switch stands in for the LAN: "LAN only" has a peer.
+    async lanStart() {},
+    lanStop() {},
+    lanStatus: () => ({ running: !!user, peerCount: tools.net === "lan" ? 1 : 0 }),
+    lanAdvert: () => undefined,
+    lanNotePeer: () => false,
   };
 }

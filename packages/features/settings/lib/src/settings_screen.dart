@@ -1,6 +1,6 @@
 /// Settings — reached from the name sheet. Language and theme are one tap
 /// each (they used to be three, deep in a rail footer); the rest is a list
-/// of rows that open their own sheet: Printer, Station, Device, Diagnostics,
+/// of rows that open their own sheet: Printer, Device, Diagnostics,
 /// Legal. Sync is a SECTION of this screen, not a rail entry: on a tablet it
 /// is the start column beside the preferences, on a phone it leads the
 /// list, because what is queued matters more than which paper the printer
@@ -702,7 +702,7 @@ class _LayoutPreview extends StatelessWidget {
   }
 }
 
-/// The rows that open a sheet: Printer, Station, Device,
+/// The rows that open a sheet: Printer, Device,
 /// Diagnostics, Legal. Each carries its one-line summary.
 class _RowList extends ConsumerWidget {
   const _RowList();
@@ -712,19 +712,13 @@ class _RowList extends ConsumerWidget {
     final bridge = ref.bridge;
     String t(String key) => bridge.tr(key: key);
     final config = ref.watch(settingsProvider.select((s) => s.config));
-    final stations = ref.watch(settingsProvider.select((s) => s.stations));
     ref.watch(shellProvider.select((s) => s.session?.userId));
-    final isKitchen = isKitchenOnly((c) => bridge.can(cap: c));
     final floorAuthored = ref.watch(
       settingsProvider.select((s) => s.floorAuthored),
     );
     final warnings = ref.watch(
       settingsProvider.select((s) => s.diagnostics.length),
     );
-    final stationName = stations
-        .where((station) => station.id == config.stationId)
-        .map((station) => station.name)
-        .firstOrNull;
     final deviceCode = bridge.deviceCode();
     final deviceMeta = [
       if (deviceCode.isNotEmpty) deviceCode,
@@ -747,13 +741,6 @@ class _RowList extends ConsumerWidget {
         glyph: MadarGlyph.printer,
         onTap: () => unawaited(showPrinterSheet(context)),
       ),
-      if (isKitchen && stations.isNotEmpty)
-        MadarListRow.nav(
-          title: t('setup.choose_station'),
-          meta: stationName,
-          glyph: MadarGlyph.flame,
-          onTap: () => unawaited(showStationSheet(context)),
-        ),
       MadarListRow.nav(
         title: t('settings.device'),
         meta: deviceMeta.isEmpty ? null : deviceMeta,

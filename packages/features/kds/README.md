@@ -1,12 +1,12 @@
 # feature_kds
 
-The kitchen board. A device, not a shell: a `kitchen`-role iPad on the pass
-shows `KitchenDisplayScreen` and nothing else.
+The till's kitchen board: Queue's Kitchen segment (`KdsBoardBody`), shown
+when the branch routes fired rounds to the counter — the one-device shop's
+kitchen (spec PS-3). A kitchen screen on its own device is the Madar Kitchen
+app (`apps/kitchen`); the POS no longer turns into one.
 
 ## What it draws
 
-- One ink top bar: station · branch · live dot · open count · the outbox
-  pill · settings.
 - Tickets by station in an adaptive grid (four columns on an iPad landscape,
   one on a phone). Each card: the table label largest, the round, the age
   in mono, the lines with their check toggles, one **Bump all**.

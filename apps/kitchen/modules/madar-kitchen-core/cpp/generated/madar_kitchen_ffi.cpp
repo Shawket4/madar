@@ -180,6 +180,32 @@ extern "C" {
         /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
+    RustBuffer uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert(
+        /*handle*/ uint64_t ptr, 
+        RustCallStatus *uniffi_out_err
+    );
+    int8_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_note_peer(
+        /*handle*/ uint64_t ptr, 
+        RustBuffer device_id, 
+        RustBuffer branch_id, 
+        RustBuffer host, 
+        uint16_t port, 
+        RustBuffer role, 
+        RustBuffer station_id, 
+        RustBuffer device_code, 
+        RustCallStatus *uniffi_out_err
+    );
+    /*handle*/ uint64_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_start(
+        /*handle*/ uint64_t ptr
+    );
+    RustBuffer uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_status(
+        /*handle*/ uint64_t ptr, 
+        RustCallStatus *uniffi_out_err
+    );
+    void uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop(
+        /*handle*/ uint64_t ptr, 
+        RustCallStatus *uniffi_out_err
+    );
     /*handle*/ uint64_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login(
         /*handle*/ uint64_t ptr, 
         RustBuffer email, 
@@ -461,6 +487,16 @@ extern "C" {
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch(
     );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(
+    );
+    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert(
+    );
+    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer(
+    );
+    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start(
+    );
+    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status(
+    );
+    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop(
     );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login(
     );
@@ -2710,6 +2746,46 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections(rt, thisVal, args, count);
         }
     );
+    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert"),
+        1,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_note_peer"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_note_peer"),
+        8,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_note_peer(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_start"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_start"),
+        1,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_start(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_status"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_status"),
+        1,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_status(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop"),
+        1,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop(rt, thisVal, args, count);
+        }
+    );
     props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login"),
@@ -3270,6 +3346,46 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(rt, thisVal, args, count);
         }
     );
+    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert"),
+        0,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer"),
+        0,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start"),
+        0,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status"),
+        0,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop"),
+        0,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop(rt, thisVal, args, count);
+        }
+    );
     props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login"),
@@ -3658,6 +3774,53 @@ jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchen
 jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
         uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
+            &status
+        );
+        uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
+
+        
+        return jsi::Value::undefined();
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
+        auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
+            &status
+        );
+        uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
+
+        
+        return uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_note_peer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
+        auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_note_peer(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3]), uniffi_jsi::Bridging<uint16_t>::fromJs(rt, callInvoker, args[4]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[5]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[6]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[7]), 
+            &status
+        );
+        uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
+
+        
+        return uniffi_jsi::Bridging<int8_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_start(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_start(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
+        );
+
+        
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_status(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
+        auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_status(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
+            &status
+        );
+        uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
+
+        
+        return uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
+        uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
             &status
         );
         uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4229,6 +4392,41 @@ jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_k
 }
 jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(
+        );
+
+        
+        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert(
+        );
+
+        
+        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer(
+        );
+
+        
+        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start(
+        );
+
+        
+        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status(
+        );
+
+        
+        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop(
         );
 
         

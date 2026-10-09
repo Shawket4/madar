@@ -28,6 +28,11 @@ class NativeMadarKitchenFfi : public jsi::HostObject {
     jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_bump(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_choose_branch(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_note_peer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_start(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_status(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_reset_device(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_locale(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
@@ -98,6 +103,11 @@ class NativeMadarKitchenFfi : public jsi::HostObject {
     jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
+    jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_reset_device(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);
     jsi::Value cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_locale(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count);

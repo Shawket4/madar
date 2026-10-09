@@ -11,7 +11,6 @@ import 'package:rust_bridge/rust_bridge.dart';
 
 class _Bridge implements MadarBridge {
   bool failBind = false;
-  bool failStations = false;
   int logouts = 0;
   int signIns = 0;
   String? lastName = 'unset';
@@ -63,14 +62,6 @@ class _Bridge implements MadarBridge {
       return Future<SessionSnapshot>.error(
         const MadarError.offline(detail: 'offline'),
       );
-    }
-    if (name == #kdsListStations) {
-      if (failStations) {
-        return Future<List<KdsStationView>>.error(
-          const MadarError.offline(detail: 'offline'),
-        );
-      }
-      return Future<List<KdsStationView>>.value(const []);
     }
     return null;
   }
@@ -163,15 +154,4 @@ void main() {
     expect(s.busy, isFalse);
     expect(bridge.logouts, 0, reason: 'the manager is not signed out');
   });
-
-  test(
-    'stations that cannot be read are an error, not an empty branch',
-    () async {
-      bridge.failStations = true;
-      await auth().loadStations();
-      final s = container.read(authProvider);
-      expect(s.stationsError, isNotNull);
-      expect(s.stationsLoading, isFalse);
-    },
-  );
 }
