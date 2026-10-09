@@ -423,11 +423,19 @@ impl KitchenCore {
     // board with no internet, and bumps go back the same way. The LAN is a
     // delivery path only — every bump is still outbox-first and synced later.
 
-    /// Start the relay for the signed-in branch. Idempotent; needs a session
-    /// and the branch's LAN key, which an online sign-in caches.
+    /// Start the relay for the signed-in branch. Idempotent. The LAN key comes
+    /// only to a registered device, so the first start registers this screen
+    /// (online) and fetches it; the host's retry covers a start made offline.
     pub async fn lan_start(&self) -> Result<(), KitchenError> {
         let core = self.core.clone();
-        on_rt(async move { core.lan_start().await.map_err(|e| human(&core, &e)) }).await?
+        on_rt(async move {
+            if core.lan_start().await.is_ok() {
+                return Ok(());
+            }
+            core.register_kitchen_screen().await.map_err(|e| human(&core, &e))?;
+            core.lan_start().await.map_err(|e| human(&core, &e))
+        })
+        .await?
     }
 
     pub fn lan_stop(&self) {
