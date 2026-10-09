@@ -107,7 +107,9 @@ class _DashImageUploaderState extends State<DashImageUploader> {
         _preview = url == null ? file.bytes : null;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) {
+        setState(() => _error = DashKitLocalizations.errorTextOf(context, e));
+      }
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -128,7 +130,9 @@ class _DashImageUploaderState extends State<DashImageUploader> {
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = '$e');
+      if (mounted) {
+        setState(() => _error = DashKitLocalizations.errorTextOf(context, e));
+      }
     } finally {
       if (mounted) setState(() => _removing = false);
     }

@@ -49,6 +49,9 @@ const Set<String> _scopedTabs = {
   'poLeadTime',
 };
 
+/// The lead-time KPI's width on wide screens (`lg:max-w-md`).
+const double _leadStripMaxWidth = 448;
+
 /// A shrinkage reason: "unexplained" reads "Other"; an unknown code as is.
 String shrinkageReason(Translator t, String reason) {
   if (reason == 'unexplained') return t('inventory.varianceReasons.other');
@@ -85,6 +88,30 @@ class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage> {
     InvKey? k,
     ProviderListenable<AsyncValue<T>> Function(InvKey k) provider,
   ) => open && k != null ? ref.watch(provider(k)) : AsyncData<T?>(null);
+
+  /// Intent: warms what opening [tab] under [inv] reads, as [build] asks.
+  void _warmTab(String tab, InventoryScope inv) {
+    final s = ref.read(currentScopeProvider);
+    if (tab == 'lowStock') {
+      final k = s.lowStockKey;
+      if (k != null) ref.warm(invLowStockProvider(k));
+      return;
+    }
+    final k = s.invKey(inv);
+    if (k == null) return;
+    switch (tab) {
+      case 'shrinkage':
+        ref.warm(invShrinkageProvider(k));
+      case 'waste':
+        ref.warm(invWasteProvider(k));
+      case 'poLeadTime':
+        if (ref.read(authzProvider).can(Cap.purchasingOrdersRead)) {
+          ref.warm(invLeadTimeProvider(k));
+        }
+      default:
+        ref.warm(invConsumptionProvider(k));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -208,6 +235,7 @@ class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage> {
       tabs: DashPageTabs<String>(
         value: tab,
         onChanged: (v) => setState(() => _tab = v),
+        onIntent: (v) => _warmTab(v, _scope),
         tabs: [
           for (final x in tabs) DashTab(value: x.id, label: t(x.labelKey)),
         ],
@@ -219,6 +247,7 @@ class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage> {
                 key: const ValueKey('inv-scope'),
                 value: _scope,
                 onChanged: (v) => setState(() => _scope = v),
+                onIntent: (v) => _warmTab(tab, v),
               ),
             )
           : null,
@@ -245,8 +274,8 @@ class _ConsumptionTable extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     return InventoryReportTable(
       emptyTitle: noData,
-      loading: q.firstLoad,
-      error: q.hasError ? q.error : null,
+      loading: q.awaitingFirst,
+      error: q.hasError && !q.retrying ? q.error : null,
       onRetry: onRetry,
       head: [
         ReportHead(t('inventory.reports.ingredient')),
@@ -286,8 +315,8 @@ class _ShrinkageTable extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     return InventoryReportTable(
       emptyTitle: noData,
-      loading: q.firstLoad,
-      error: q.hasError ? q.error : null,
+      loading: q.awaitingFirst,
+      error: q.hasError && !q.retrying ? q.error : null,
       onRetry: onRetry,
       head: [
         ReportHead(t('inventory.reports.ingredient')),
@@ -329,8 +358,8 @@ class _WasteTable extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     return InventoryReportTable(
       emptyTitle: noData,
-      loading: q.firstLoad,
-      error: q.hasError ? q.error : null,
+      loading: q.awaitingFirst,
+      error: q.hasError && !q.retrying ? q.error : null,
       onRetry: onRetry,
       head: [
         ReportHead(t('inventory.reports.ingredient')),
@@ -381,8 +410,9 @@ class _LeadTimeTab extends ConsumerWidget {
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: ConstrainedBox(
-            // `lg:max-w-md`.
-            constraints: BoxConstraints(maxWidth: wide ? 448 : double.infinity),
+            constraints: BoxConstraints(
+              maxWidth: wide ? _leadStripMaxWidth : double.infinity,
+            ),
             child: DashLedgerStrip(
               items: [
                 DashLedgerItem(
@@ -390,7 +420,7 @@ class _LeadTimeTab extends ConsumerWidget {
                   label: t('inventory.reports.avgLeadDays'),
                   valueText: days(q.value?.overallAvgDays ?? 0),
                   icon: 'calendar-range',
-                  loading: q.firstLoad,
+                  loading: q.awaitingFirst,
                 ),
               ],
             ),
@@ -398,8 +428,8 @@ class _LeadTimeTab extends ConsumerWidget {
         ),
         InventoryReportTable(
           emptyTitle: noData,
-          loading: q.firstLoad,
-          error: q.hasError ? q.error : null,
+          loading: q.awaitingFirst,
+          error: q.hasError && !q.retrying ? q.error : null,
           onRetry: onRetry,
           head: [
             ReportHead(t('inventory.reports.supplier')),

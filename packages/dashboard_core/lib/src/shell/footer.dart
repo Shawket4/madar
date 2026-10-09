@@ -5,6 +5,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show PublicBrand;
 import 'package:dashboard_core/src/api_provider.dart';
+import 'package:dashboard_core/src/format/tz.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/scope/scope.dart';
 import 'package:dashboard_core/src/session/session.dart';
@@ -26,10 +27,13 @@ final publicBrandProvider = FutureProvider<PublicBrand?>((ref) async {
   }
 }, retry: (_, _) => null);
 
-/// The year the copyright line names.
-final copyrightYearProvider = Provider<int>(
-  (ref) => ref.watch(clockProvider)().year,
-);
+/// The year the copyright line names: Cairo's, in the page's numerals
+/// ("2026" or "٢٠٢٦", the web's `currentYear`).
+final copyrightYearProvider = Provider<String>((ref) {
+  final year = '${inZone(ref.watch(clockProvider)(), appTimezone).year}';
+  if (!ref.watch(localeProvider).startsWith('ar')) return year;
+  return String.fromCharCodes(year.codeUnits.map((u) => u - 0x30 + 0x0660));
+});
 
 /// `© {{year}} Madar. All rights reserved.`
 String copyrightLine(WidgetRef ref) => ref.watch(tProvider)(
@@ -98,7 +102,6 @@ class DashFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.madarColors;
-    final t = ref.watch(tProvider);
     final brand = ref.watch(publicBrandProvider).value;
     final style = DashType.small.copyWith(color: c.textMuted);
     return Container(
@@ -119,19 +122,68 @@ class DashFooter extends ConsumerWidget {
             ),
           ),
           if (brand?.customBranding ?? false)
+            Flexible(child: _PoweredByMadar(style: style)),
+          const DashLegalLinks(center: false),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Powered by Madar" on a shop's own branding: a link to Madar POS's site,
+/// opened outside the app (`app-footer.tsx`).
+class _PoweredByMadar extends ConsumerWidget {
+  const _PoweredByMadar({required this.style});
+
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(tProvider);
+    final label = t(
+      'publicShell.poweredBy.generic',
+      defaultValue: 'Powered by Madar',
+    );
+    final uri = madarSiteHref(
+      ref.watch(localeProvider),
+      'dashboard',
+      'dashboard',
+    );
+    return DashPressable(
+      semanticLabel: '$label ${t('common.opensInNewTab')}',
+      isButton: false,
+      pressScale: false,
+      excludeChildSemantics: true,
+      onTap: () => ref.read(linkOpenerProvider)(uri),
+      builder: (context, s) => ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: DashMetrics.target),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: Space.xs,
+          children: [
             Flexible(
               child: Text(
-                t(
-                  'publicShell.poweredBy.generic',
-                  defaultValue: 'Powered by Madar',
+                label,
+                style: style.copyWith(
+                  color: s.highlighted ? context.madarColors.textPrimary : null,
+                  decoration: TextDecoration.underline,
+                  decorationColor: style.color,
                 ),
-                style: style,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-          const DashLegalLinks(center: false),
-        ],
+            // Up and out: up-left in Arabic.
+            Transform.flip(
+              flipX: Directionality.of(context) == TextDirection.rtl,
+              child: DashIcon(
+                'arrow-up-right',
+                size: IconSize.xs,
+                color: style.color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

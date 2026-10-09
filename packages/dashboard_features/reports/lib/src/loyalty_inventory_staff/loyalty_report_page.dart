@@ -58,6 +58,11 @@ class _LoyaltyReportPageState extends ConsumerState<LoyaltyReportPage> {
       tabs: DashPageTabs<String>(
         value: _tab,
         onChanged: (v) => setState(() => _tab = v),
+        onIntent: (v) => ref.warm(switch (v) {
+          'campaigns' => loyaltyCampaignsProvider(key),
+          'liability' => loyaltyLiabilityProvider(key),
+          _ => loyaltyBehaviorProvider(key),
+        }),
         tabs: [
           for (final tab in loyaltyReportTabs)
             DashTab(value: tab.id, label: t(tab.labelKey)),
@@ -87,7 +92,7 @@ class LoyaltyOverviewTab extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
     final q = ref.watch(loyaltyBehaviorProvider(queryKey));
-    if (q.hasError) {
+    if (q.hasError && !q.retrying) {
       return DashErrorState(
         retryLabel: t('common.retry'),
         retrying: q.isLoading,
@@ -95,7 +100,7 @@ class LoyaltyOverviewTab extends ConsumerWidget {
       );
     }
     final d = q.value;
-    final loading = q.firstLoad;
+    final loading = q.awaitingFirst;
     String n(int? v) => f.fmtNumber(v ?? 0);
     DashLedgerItem item(
       String key,
@@ -198,14 +203,14 @@ class LoyaltyCampaignsTab extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final q = ref.watch(loyaltyCampaignsProvider(queryKey));
-    if (q.hasError) {
+    if (q.hasError && !q.retrying) {
       return DashErrorState(
         retryLabel: t('common.retry'),
         retrying: q.isLoading,
         onRetry: () => ref.invalidate(loyaltyCampaignsProvider(queryKey)),
       );
     }
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       return DashCard(
         padding: const EdgeInsets.all(Space.card),
         child: Column(
@@ -298,9 +303,9 @@ class LoyaltyLiabilityTab extends ConsumerWidget {
     final currency = q.value?.currency ?? 'points';
     final points = q.value?.points ?? const <LiabilityTrendPoint>[];
     final Widget body;
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       body = const DashSkeleton(height: liabilityChartHeight);
-    } else if (q.hasError) {
+    } else if (q.hasError && !q.retrying) {
       body = SizedBox(
         height: liabilityChartHeight,
         child: DashErrorState(

@@ -100,6 +100,10 @@ class BasiraController extends Notifier<BasiraState> {
   /// The latest conversation read: an older answer arriving late is dropped.
   int _openSeq = 0;
 
+  /// A conversation read started on intent, used once by [open]. Not a
+  /// cache: the web reads a conversation fresh on every press.
+  (String, Future<wire.ConversationDetail>, DateTime)? _warm;
+
   @override
   BasiraState build() {
     ref.onDispose(() => _abort(dispose: true));
@@ -132,13 +136,33 @@ class BasiraController extends Notifier<BasiraState> {
     }
   }
 
+  bool _warmFor(String id) {
+    final w = _warm;
+    return w != null &&
+        w.$1 == id &&
+        DateTime.now().difference(w.$3) < const Duration(seconds: 30);
+  }
+
+  /// Starts [open]'s read while the pointer rests on a conversation
+  /// (REP-BAS-009), so the press finds it under way. Not while a question
+  /// streams: its answer would land after the read.
+  void warmOpen(String id) {
+    if (state.busy || _warmFor(id)) return;
+    final read = _ai.getConversation(id: id);
+    // A warm read nobody opens must not surface as an uncaught error.
+    unawaited(read.then((_) {}, onError: (Object _) {}));
+    _warm = (id, read, DateTime.now());
+  }
+
   /// Opens a stored conversation (REP-BAS-009/010).
   Future<void> open(String id) async {
+    final read = _warmFor(id) ? _warm!.$2 : _ai.getConversation(id: id);
+    _warm = null;
     _abort();
     final seq = ++_openSeq;
     _set((s) => s.copyWith(activeId: id, loadingThread: true));
     try {
-      final detail = await _ai.getConversation(id: id);
+      final detail = await read;
       if (seq != _openSeq) return;
       _set(
         (s) => s.copyWith(
@@ -178,6 +202,7 @@ class BasiraController extends Notifier<BasiraState> {
   Future<void> ask(String text) async {
     final question = text.trim();
     if (question.isEmpty || state.busy) return;
+    _warm = null;
     final id = 'x${++_seq}';
     final conversationId = state.activeId;
     _set(
@@ -319,6 +344,7 @@ class BasiraController extends Notifier<BasiraState> {
 
   /// Deletes [c] (REP-BAS-027); the open one gives way to a new one.
   Future<void> delete(wire.ConversationSummary c) async {
+    _warm = null;
     try {
       await _ai.deleteConversation(id: c.id);
       if (c.id == state.activeId) startNew();

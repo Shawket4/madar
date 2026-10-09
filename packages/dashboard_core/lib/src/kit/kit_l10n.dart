@@ -1,6 +1,7 @@
 /// Fills dashboard_kit's words and formats from the live i18n.
 library;
 
+import 'package:dashboard_core/src/authz/gates.dart' show errorMessage;
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/session/session.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -37,9 +38,13 @@ class DashKitScope extends ConsumerWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => DashKitLocalizations(
-    strings: ref.watch(dashKitStringsProvider),
-    formats: ref.watch(dashKitFormatsProvider),
-    child: child,
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(tProvider);
+    return DashKitLocalizations(
+      strings: ref.watch(dashKitStringsProvider),
+      formats: ref.watch(dashKitFormatsProvider),
+      describeError: (e) => errorMessage(e, t),
+      child: child,
+    );
+  }
 }

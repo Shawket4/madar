@@ -248,10 +248,13 @@ class _Provenance extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
-    final style = DashType.mono.copyWith(fontSize: 11, color: c.textSecondary);
+    final style = DashType.mono.copyWith(
+      fontSize: BasiraMetrics.caption,
+      color: c.textSecondary,
+    );
     return Container(
       margin: const EdgeInsets.only(top: Space.sm),
-      padding: const EdgeInsets.all(Space.sm + 2),
+      padding: const EdgeInsets.all(BasiraMetrics.snug),
       decoration: BoxDecoration(
         color: c.muted.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(Radii.xs),
@@ -261,7 +264,7 @@ class _Provenance extends StatelessWidget {
         children: [
           Text(lines.$1, style: style),
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: Space.xs + 2),
+            padding: const EdgeInsets.symmetric(vertical: BasiraMetrics.tight),
             child: Divider(height: 1, thickness: 1, color: c.hairline),
           ),
           Text(lines.$2, style: style),
@@ -304,7 +307,10 @@ class BasiraScopeBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: DashType.small.copyWith(fontSize: 11, color: c.textPrimary),
+        style: DashType.small.copyWith(
+          fontSize: BasiraMetrics.caption,
+          color: c.textPrimary,
+        ),
       ),
     );
   }
@@ -383,7 +389,7 @@ class BasiraResultView extends ConsumerWidget {
           Text(
             t('basira.truncated', args: {'count': block.rows.length}),
             style: DashType.small.copyWith(
-              fontSize: 11,
+              fontSize: BasiraMetrics.caption,
               color: c.textSecondary,
             ),
           ),
@@ -482,7 +488,10 @@ class BasiraHeatmap extends ConsumerWidget {
       dims[1].key,
       measure.key,
     );
-    final label = DashType.mono.copyWith(fontSize: 10, color: c.textSecondary);
+    final label = DashType.mono.copyWith(
+      fontSize: BasiraMetrics.micro,
+      color: c.textSecondary,
+    );
     const cell = Space.xl;
     // The grid fills the card (`w-full`) and scrolls sideways once its
     // cells would go under their 24 minimum.
@@ -492,7 +501,7 @@ class BasiraHeatmap extends ConsumerWidget {
         child: SizedBox(
           width: math.max(
             box.maxWidth,
-            Space.xxl * 2 + grid.cols.length * (cell + 2),
+            Space.xxl * 2 + grid.cols.length * (cell + DashMetrics.hair),
           ),
           child: Table(
             columnWidths: const {0: IntrinsicColumnWidth()},
@@ -531,14 +540,18 @@ class BasiraHeatmap extends ConsumerWidget {
                             child: Semantics(
                               label: words,
                               child: Container(
-                                margin: const EdgeInsets.all(1),
+                                margin: const EdgeInsets.all(
+                                  DashMetrics.hair / 2,
+                                ),
                                 constraints: const BoxConstraints(
                                   minWidth: cell,
                                   minHeight: cell,
                                 ),
                                 decoration: BoxDecoration(
                                   color: hue.withValues(alpha: grid.opacity(v)),
-                                  borderRadius: BorderRadius.circular(2),
+                                  borderRadius: BorderRadius.circular(
+                                    DashMetrics.hair,
+                                  ),
                                 ),
                               ),
                             ),

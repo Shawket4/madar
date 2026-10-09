@@ -17,7 +17,11 @@ import 'package:flutter/widgets.dart';
 /// Build one per surface with `customerSheetControl` (shared/sheets.dart).
 @immutable
 class CustomerLinkControl {
-  const CustomerLinkControl({required this.canOpen, required this.open});
+  const CustomerLinkControl({
+    required this.canOpen,
+    required this.open,
+    this.warm,
+  });
 
   /// Nobody may open anyone (tests, a surface without customers).
   static final CustomerLinkControl none = CustomerLinkControl(
@@ -28,6 +32,9 @@ class CustomerLinkControl {
   /// The viewer holds `customers.view`.
   final bool canOpen;
   final void Function(String customerId) open;
+
+  /// Warms what [open] reads, on intent (a pointer resting on the name).
+  final void Function(String customerId)? warm;
 }
 
 class CustomerLink extends StatelessWidget {
@@ -64,6 +71,7 @@ class CustomerLink extends StatelessWidget {
     }
     return DashPressable(
       onTap: () => control.open(id),
+      onIntent: control.warm == null ? null : () => control.warm!(id),
       semanticLabel: name,
       excludeChildSemantics: true,
       pressScale: false,

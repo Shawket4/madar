@@ -67,6 +67,10 @@ class FloorGeometry extends ChangeNotifier {
     }
   }
 
+  /// Takes the token a write of this page returned (the inspector's PATCH
+  /// bumps `updated_at`), so the next layout save does not 409 on it.
+  void adoptToken(String id, DateTime updatedAt) => _tokens[id] = updatedAt;
+
   /// Live geometry: the local edit if there is one, else the row.
   GeoItem geoOf(FloorTable t) =>
       _geo[t.id] ??

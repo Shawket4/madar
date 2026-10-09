@@ -1,4 +1,4 @@
-/// What the three pages of this unit share: React Query's first load, the
+/// What the three pages of this unit share: the
 /// page's own `<Restricted>` (REP-ALL-005), and the exports' mechanics with
 /// the web's toasts (`lib/excel.ts`, REP-ALL-010…014).
 library;
@@ -13,11 +13,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// `<n> <unit>` (units g / kg / ml / L / pcs).
 String invQty(DashFormat f, num qty, String? unit) =>
     '${f.fmtNumber(qty)} ${fmtUnit(unit)}';
-
-extension LisAsync<T> on AsyncValue<T> {
-  /// React Query's `isLoading`: nothing to show yet and no failure.
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}
 
 /// The page's gate: nothing while the person's rights load (an error with
 /// Retry if they could not be read, as the shell's gate: divergence

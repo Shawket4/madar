@@ -3,6 +3,7 @@
 // and phone-ar-light.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
+import 'package:dashboard_team/src/area_seed.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'approvals_support.dart';
@@ -67,7 +68,23 @@ void main() {
     });
 
     testWidgets('closed month and the cap, $tag', (tester) async {
-      final s = approvalsServer(persona: Persona.manager);
+      // A manager's rights (no cap passing) over a closed month's cover and
+      // overtime.
+      final s = approvalsServer(
+        edit: (db) {
+          final t = db[TeamTables.attendance];
+          final ot = t.rows.firstWhere((r) => r['overtime_status'] == 'pending');
+          final cv = t.rows.firstWhere((r) => r['cover_status'] == 'pending');
+          t.update(ot['id']! as String, {'business_date': '2026-09-28'});
+          t.update(cv['id']! as String, {'business_date': '2026-09-27'});
+        },
+      );
+      answerAuthz(s.server, const [
+        'hr.advances.decide',
+        'hr.shift_cover.confirm',
+        'hr.overtime.approve',
+        'hr.leave.edit',
+      ], everywhere: const []);
       final h = await pumpApprovals(tester, s: s, size: size, locale: lang);
       await shootPage(h, 'manager');
     });

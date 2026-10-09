@@ -510,7 +510,7 @@ class _FloorBodyState extends ConsumerState<_FloorBody> {
         ? null
         : sections.where((s) => s.id == _activeSectionId).firstOrNull;
     final phone = DashBreakpoints.isPhone(context);
-    final loading = tablesQ.firstLoad || sectionsQ.firstLoad;
+    final loading = tablesQ.awaitingFirst || sectionsQ.awaitingFirst;
 
     final canvas = Stack(
       children: [
@@ -551,6 +551,8 @@ class _FloorBodyState extends ConsumerState<_FloorBody> {
                   viewport: _viewport,
                   beginGesture: _geometry.beginGesture,
                   onGeoChange: _geometry.setGeo,
+                  onTableIntent: (id) =>
+                      ref.warm(floorTableHistoryProvider(id)),
                 ),
         ),
         PositionedDirectional(
@@ -597,6 +599,7 @@ class _FloorBodyState extends ConsumerState<_FloorBody> {
           geoOf: _geometry.geoOf,
           onRotate: _rotate,
           customers: customers,
+          adoptToken: _geometry.adoptToken,
           sittingNow: sitting,
         ),
         DecoratedBox(

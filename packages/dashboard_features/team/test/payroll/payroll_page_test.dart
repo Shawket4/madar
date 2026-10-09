@@ -6,6 +6,7 @@ import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:design_system/design_system.dart' show SkeletonBlock;
+import 'package:dashboard_team/src/payroll/payroll_logic.dart' show SlipRow;
 import 'package:dashboard_team/src/payroll/payroll_steps.dart';
 import 'package:dashboard_team/src/payroll/payslip_sheet.dart';
 import 'package:flutter/material.dart';
@@ -315,7 +316,10 @@ void main() {
         findsOneWidget,
       );
       expect(title, findsNothing);
-      expect(pageText('01 Sep 2026 → 30 Sep 2026'), findsOneWidget);
+      expect(
+        pageText('${dateOf(h, '2026-09-01')} → ${dateOf(h, '2026-09-30')}'),
+        findsOneWidget,
+      );
       expect(pageText('Paid 12 of 15'), findsOneWidget);
       // Its own actions, by its own id.
       await h.tap(inPage(find.widgetWithText(DashButton, 'Mark paid')).first);
@@ -475,17 +479,46 @@ void main() {
   testWidgets('TEAM-PAY-063 names come from the payslip, else the active list', (
     tester,
   ) async {
-    final h = await pumpPayroll(
-      tester,
-      edit: (db) {
-        septemberUnpaid(db);
-        // Gone from the business: the payslip carries no name any more.
-        db['employees'].removeWhere((e) => e['id'] == SeedIds.employee('adham'));
-      },
-    );
+    final s = payrollServer(edit: septemberUnpaid);
+    // A server whose payslips lost two names: Ali is still active, Adham
+    // left (no longer on the active list).
+    s.server.on('GET', payslipsT, (req) {
+      final out = <Map<String, Object?>>[];
+      for (final r in s.db['payslips'].rows) {
+        if (r['payroll_period_id'] != req.param('id')) continue;
+        final e = s.db['employees'].find(r['employee_id']! as String);
+        final unnamed = {SeedIds.employee('ali'), SeedIds.employee('adham')};
+        final name = unnamed.contains(r['employee_id']) ? null : e?['name'];
+        out.add({
+          for (final kv in r.entries)
+            if (!kv.key.startsWith('_')) kv.key: kv.value,
+          'employee_name': name,
+        });
+      }
+      return MockResponse.ok(out);
+    });
+    s.db['employees'].update(SeedIds.employee('adham'), {
+      'employment_status': 'terminated',
+    });
+    final h = await pumpPayroll(tester, s: s);
     await h.tap(inPage(find.widgetWithText(DashButton, 'Open it')));
-    expect(pageText('Ali Hassan'), findsOneWidget);
-    expect(pageText('Adham Reda'), findsNothing);
-    expect(pageText('—'), findsWidgets);
+    final table = tester.widget<DashDataTable<SlipRow>>(
+      inPage(find.byType(DashDataTable<SlipRow>)),
+    );
+    final names = {for (final r in table.rows) r.employeeId: r.name};
+    expect(names[SeedIds.employee('ali')], 'Ali Hassan');
+    expect(names[SeedIds.employee('adham')], '—');
+  });
+
+  testWidgets('TEAM-ALL-020 pages of 10; the Columns menu lists Name only', (
+    tester,
+  ) async {
+    final h = await pumpPayroll(tester);
+    expect(pageText('Page 1 of 2'), findsOneWidget);
+    await h.tap(inPage(find.bySemanticsLabel(h.t('common.next'))).last);
+    expect(pageText('Page 2 of 2'), findsOneWidget);
+    await h.tap(inPage(find.text('Columns')));
+    expect(find.text('Name').hitTestable(), findsOneWidget);
+    expect(find.text('Salary').hitTestable(), findsNothing);
   });
 }

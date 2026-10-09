@@ -1,6 +1,7 @@
 // Shared set-up for the Payroll unit's tests: the real app shell with the
 // team area on a seeded mock server, edited per test before pumping.
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart' show formatProvider;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_team/dashboard_team.dart';
@@ -167,6 +168,16 @@ Future<void> background(WidgetTester tester, DashHarness h) async {
   }
   await h.settle();
 }
+
+/// [iso] as the page writes a date.
+String dateOf(DashHarness h, String iso) =>
+    h.container.read(formatProvider).fmtDate(iso);
+
+/// Links [employeeKey]'s employee row to the owner's sign-in.
+void linkOwner(MockDb db, String employeeKey) => db['employees'].update(
+  SeedIds.employee(employeeKey),
+  {'user_id': SeedIds.owner},
+);
 
 /// September's period id.
 String septemberId() => TeamSeedIds.period('sabah', '2026-09');

@@ -243,6 +243,7 @@ class FloorMockHandlers {
         'height': ?body.height,
         'rotation': ?body.rotation,
         'is_active': ?body.isActive,
+        'updated_at': db.nowIso,
       }),
     );
   }
@@ -296,6 +297,7 @@ class FloorMockHandlers {
         'width': p.width,
         'height': p.height,
         'rotation': p.rotation,
+        'updated_at': db.nowIso,
       });
     }
     // The rows as stored (no `next_booking`: the backend attaches none here).

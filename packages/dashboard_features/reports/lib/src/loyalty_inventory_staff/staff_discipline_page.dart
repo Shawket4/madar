@@ -119,6 +119,8 @@ class _StaffDisciplinePageState extends ConsumerState<StaffDisciplinePage> {
     );
     final read = disciplineProvider(key);
     final q = ref.watch(read);
+    // Opened on cached data: the listener below never sees that value.
+    if (q.hasValue) _loadedAt ??= ref.read(clockProvider)();
     ref.listen(read, (prev, next) {
       if (next.hasValue && !next.isLoading && !next.hasError) {
         _loadedAt = ref.read(clockProvider)();
@@ -134,12 +136,15 @@ class _StaffDisciplinePageState extends ConsumerState<StaffDisciplinePage> {
     });
     final groups = groupByDepartment(q.value?.rows ?? const []);
     final Widget body;
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       body = const Column(
         spacing: Space.md,
-        children: [DashSkeleton(height: 160), DashSkeleton(height: 160)],
+        children: [
+          DashSkeleton(height: Space.xxl * 5),
+          DashSkeleton(height: Space.xxl * 5),
+        ],
       );
-    } else if (q.hasError && !q.hasValue) {
+    } else if (q.failedFirst) {
       body = DashErrorState(
         retryLabel: t('common.retry'),
         retrying: q.isLoading,
@@ -229,7 +234,7 @@ class DepartmentCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (final (i, r) in group.rows.indexed) ...[
-                if (i > 0) Container(height: 1, color: c.hairline),
+                if (i > 0) const MadarHairline.row(),
                 DisciplineRowTile(row: r),
               ],
             ],

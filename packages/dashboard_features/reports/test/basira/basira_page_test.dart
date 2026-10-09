@@ -27,7 +27,7 @@ const String _prep = 'How long is prep taking at Zamalek?';
 Finder _own(String s) => find.text(ownDirection(s));
 
 /// The rail item titled [title].
-Finder _item(String title) => inRail(_own(title));
+Finder _item(String title) => inRail(find.text(title));
 
 /// The ⋯ button of the rail item titled [title].
 Finder _more(DashHarness h, String title) => find.descendant(
@@ -202,7 +202,7 @@ void main() {
       await h.tap(
         find.descendant(of: header, matching: find.text('Conversations')),
       );
-      await h.tap(inRail(_own(_compare)));
+      await h.tap(_item(_compare));
       expect(inPage(find.byType(BasiraBlockCard)), findsWidgets);
       await h.tap(
         find.descendant(
@@ -288,7 +288,7 @@ void main() {
     ) async {
       final h = await pumpBasira(tester, size: DashSize.tablet);
       await h.tap(inPage(find.text('Conversations')));
-      await h.tap(inRail(_own(_compare)));
+      await h.tap(_item(_compare));
       expect(rail, findsNothing);
       expect(h.server.callsTo(convRoute), hasLength(1));
       await h.tap(inPage(find.text('Conversations')));
@@ -362,6 +362,74 @@ void main() {
   });
 
   group('conversations', () {
+    testWidgets('REP-BAS-002/004 the header\'s own refresh re-reads the '
+        'list and the open conversation', (tester) async {
+      final h = await pumpBasira(tester);
+      final refresh = find.descendant(
+        of: inPage(find.byType(DashPageHeader)),
+        matching: find.bySemanticsLabel(h.t('common.refresh')),
+      );
+      expect(refresh, findsOneWidget);
+      await h.tap(refresh);
+      expect(h.server.callsTo(listRoute), hasLength(2));
+      expect(h.server.callsTo(convRoute), isEmpty);
+      await _openConversation(h, _compare);
+      await h.tap(refresh);
+      expect(h.server.callsTo(listRoute), hasLength(3));
+      expect(h.server.callsTo(convRoute), hasLength(2));
+      expect(_title(ownDirection(_compare)), findsOneWidget);
+    });
+
+    testWidgets('REP-BAS-007 Arabic: a cut English title keeps its own '
+        'direction, so its ellipsis ends it', (tester) async {
+      await pumpBasira(tester, locale: 'ar');
+      final title = tester.widget<MadarClippedText>(
+        find
+            .ancestor(
+              of: _item(_waste),
+              matching: find.byType(MadarClippedText),
+            )
+            .first,
+      );
+      expect(title.textDirection, TextDirection.ltr);
+      expect(title.textAlign, TextAlign.right);
+    });
+
+    testWidgets('REP-BAS-009 resting on a conversation warms its read', (
+      tester,
+    ) async {
+      final h = await pumpBasira(tester);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(_item(_top)));
+      await tester.pump(kDashIntentDwell);
+      await h.settle();
+      expect(h.server.callsTo(convRoute), hasLength(1), reason: 'warmed');
+      expect(_title(ownDirection(_top)), findsNothing);
+      await h.tap(_item(_top));
+      expect(h.server.callsTo(convRoute), hasLength(1));
+      expect(
+        inTranscript(_own('And how are the branches doing this month?')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('REP-BAS-009 a question asked after the warm read makes the '
+        'press read again', (tester) async {
+      final h = await pumpBasira(tester);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(_item(_top)));
+      await tester.pump(kDashIntentDwell);
+      await h.settle();
+      await mouse.moveTo(Offset.zero);
+      await askByTyping(h, 'Top 3 products');
+      await h.tap(_item(_top));
+      expect(h.server.callsTo(convRoute), hasLength(2));
+    });
+
     testWidgets('REP-BAS-009 opening shows 3 skeletons, then its turns, and '
         'switches the title', (tester) async {
       final s = basiraServer();
@@ -639,7 +707,8 @@ void main() {
 
     testWidgets('REP-BAS-012 Arabic starters ask in Arabic', (tester) async {
       final h = await pumpBasira(tester, locale: 'ar');
-      await h.tap(pageText(h.t('basira.starters.peakHours')));
+      // The rail holds a conversation of the same words: tap the starter.
+      await h.tap(inTranscript(find.text(h.t('basira.starters.peakHours'))));
       final body = _body(streams(h).single);
       expect(body['question'], h.t('basira.starters.peakHours'));
       expect(body['locale'], 'ar');

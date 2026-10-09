@@ -48,6 +48,11 @@ mixin _MoneyForm<W extends ConsumerStatefulWidget> on ConsumerState<W> {
   /// and keeps the form open.
   Future<void> submit(Future<void> Function() send) async {
     if (busy) return;
+    // A number typed but not settled yet (fields settle on blur) counts, as
+    // on the web, where pressing Save blurs the field first.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || busy) return;
     if (!(formKey.currentState?.validate() ?? false)) return;
     setState(() => busy = true);
     // Captured first: the web's query client refetches even when the dialog

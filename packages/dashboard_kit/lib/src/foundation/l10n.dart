@@ -324,6 +324,7 @@ class DashKitLocalizations extends InheritedWidget {
     required this.strings,
     required this.formats,
     required super.child,
+    this.describeError,
     super.key,
   });
 
@@ -334,10 +335,19 @@ class DashKitLocalizations extends InheritedWidget {
     String currency = 'EGP',
     super.key,
   }) : strings = DashKitStrings.forLanguage(languageCode),
-       formats = DashKitFormats(languageCode: languageCode, currency: currency);
+       formats = DashKitFormats(languageCode: languageCode, currency: currency),
+       describeError = null;
 
   final DashKitStrings strings;
   final DashKitFormats formats;
+
+  /// The words for a failure a kit control caught (the web's
+  /// `getErrorMessage`): the host's, so a refusal reads as a sentence.
+  final String Function(Object error)? describeError;
+
+  /// [error] in words; without a host, its `toString()`.
+  static String errorTextOf(BuildContext context, Object error) =>
+      maybeOf(context)?.describeError?.call(error) ?? '$error';
 
   static DashKitLocalizations? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<DashKitLocalizations>();
@@ -354,7 +364,9 @@ class DashKitLocalizations extends InheritedWidget {
 
   @override
   bool updateShouldNotify(DashKitLocalizations oldWidget) =>
-      strings != oldWidget.strings || formats != oldWidget.formats;
+      strings != oldWidget.strings ||
+      formats != oldWidget.formats ||
+      describeError != oldWidget.describeError;
 }
 
 extension DashKitContext on BuildContext {

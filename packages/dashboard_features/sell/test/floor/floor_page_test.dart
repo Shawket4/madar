@@ -9,17 +9,19 @@ import 'dart:convert';
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart'
-    show NumberOptions, formatProvider;
+    show DashAsyncState, orgIdProvider, transportProvider, webRetry;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_sell/src/area_seed.dart';
 import 'package:dashboard_sell/src/floor/floor_canvas.dart';
 import 'package:dashboard_sell/src/floor/floor_inspector.dart';
+import 'package:dashboard_sell/src/floor/floor_providers.dart';
 import 'package:dashboard_sell/src/floor/floor_util.dart';
 import 'package:dashboard_sell/src/floor/transfer_queue.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'floor_support.dart';
@@ -1459,33 +1461,11 @@ void main() {
           () => DashboardApi(h.server).floor.tableHistory(id: _id('T1')),
         ))!;
         expect(_inspector(find.text('Last 30 days')), findsOneWidget);
-        final fmt = h.container.read(formatProvider);
-        expect(
-          _inspector(find.text(fmt.fmtMoney(data.totalMinor))),
-          findsOneWidget,
-        );
-        expect(
-          _inspector(find.text(fmt.fmtMoney(data.averageBillMinor))),
-          findsOneWidget,
-        );
-        expect(
-          _inspector(find.text(fmt.fmtElapsedMs(data.averageMinutes * 60000))),
-          findsOneWidget,
-        );
-        expect(
-          _inspector(
-            find.text(
-              fmt.fmtNumber(
-                data.turnsPerDayX100 / 100,
-                const NumberOptions(
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                ),
-              ),
-            ),
-          ),
-          findsOneWidget,
-        );
+        // The seeded T1 month, as the web shows it (not the mock's own
+        // answer run through the formatter).
+        for (final figure in ['EGP 16,215.00', 'EGP 261.53', '1h 01m', '2.1']) {
+          expect(_inspector(find.text(figure)), findsOneWidget, reason: figure);
+        }
         expect(_inspector(find.text('Bills')), findsOneWidget);
         // The live bill: Nada, 28m · 3 covers, Still open.
         expect(_inspector(find.text('28m · 3 covers')), findsOneWidget);

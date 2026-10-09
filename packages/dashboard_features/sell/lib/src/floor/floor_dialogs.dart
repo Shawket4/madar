@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../orders/error_text.dart';
 import '../shared/invalidate.dart';
+import 'floor_providers.dart';
 import 'floor_util.dart';
 
 Future<void> showAddTableDialog(
@@ -242,6 +243,9 @@ class SectionDialog extends ConsumerStatefulWidget {
 
 class _SectionDialogState extends ConsumerState<SectionDialog> {
   late String _name = widget.section?.name ?? '';
+
+  /// Until the person types, a refetch's name replaces the seeded one.
+  bool _touched = false;
   bool _tried = false;
   bool _busy = false;
 
@@ -286,6 +290,15 @@ class _SectionDialogState extends ConsumerState<SectionDialog> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
+    final id = widget.section?.id;
+    if (id != null && !_touched) {
+      final fresh = ref
+          .watch(floorSectionsProvider(widget.branchId))
+          .value
+          ?.where((s) => s.id == id)
+          .firstOrNull;
+      if (fresh != null) _name = fresh.name;
+    }
     return DashSurface(
       title: t(
         widget.section == null ? 'floor.newSection' : 'floor.sectionSettings',
@@ -298,7 +311,10 @@ class _SectionDialogState extends ConsumerState<SectionDialog> {
         value: _name,
         autofocus: true,
         errorText: _tried && _name.isEmpty ? t('common.requiredField') : null,
-        onChanged: (v) => setState(() => _name = v),
+        onChanged: (v) => setState(() {
+          _touched = true;
+          _name = v;
+        }),
         onSubmitted: (_) => _submit(),
       ),
       actions: [

@@ -65,8 +65,3 @@ final floorTableHistoryProvider = FutureProvider.autoDispose
       ref.watch(realtimeEpochProvider('/floor/tables/$tableId/history'));
       return ref.watch(apiProvider).floor.tableHistory(id: tableId);
     });
-
-/// React Query's `isLoading`: loading with nothing to show yet.
-extension FloorQueryState<T> on AsyncValue<T> {
-  bool get firstLoad => isLoading && !hasValue && !hasError;
-}

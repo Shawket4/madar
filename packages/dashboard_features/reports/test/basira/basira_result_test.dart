@@ -180,7 +180,7 @@ void main() {
     testWidgets('REP-BAS-021 a stored answer says "stored"; no period is '
         '"all time"', (tester) async {
       final h = await pumpBasira(tester);
-      await h.tap(inRail(find.text(ownDirection('Top 5 products last month'))));
+      await h.tap(inRail(find.text('Top 5 products last month')));
       await h.tap(_inCard(find.text('What was queried')));
       expect(
         _inCard(

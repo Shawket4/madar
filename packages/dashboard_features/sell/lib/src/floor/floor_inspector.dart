@@ -28,6 +28,7 @@ class FloorInspector extends ConsumerWidget {
     required this.geoOf,
     required this.onRotate,
     required this.customers,
+    required this.adoptToken,
     this.sittingNow,
     super.key,
   });
@@ -42,6 +43,9 @@ class FloorInspector extends ConsumerWidget {
   final ValueChanged<double> onRotate;
   final CustomerLinkControl customers;
 
+  /// Hands a PATCH's new `updated_at` to the layout autosave's guard.
+  final void Function(String id, DateTime updatedAt) adoptToken;
+
   /// The open bill at the one selected table that names its customer.
   final OpenTicketView? sittingNow;
 
@@ -55,10 +59,11 @@ class FloorInspector extends ConsumerWidget {
     final t = ref.read(tProvider);
     final bus = ref.read(realtimeBusProvider);
     try {
-      await ref
+      final row = await ref
           .read(apiProvider)
           .reservations
           .updateFloorTable(id: table.id, body: body);
+      adoptToken(row.id, row.updatedAt);
       bus.invalidate(SellInvalidate.floor);
     } on Object catch (e) {
       if (context.mounted) DashToast.error(context, ordersErrorText(e, t));
@@ -381,6 +386,8 @@ class _CommitInputState extends State<_CommitInput> {
     onChanged: (v) => setState(() => _draft = v),
     onSubmitted: (_) => _commit(),
     onFocusChange: (focused) {
+      // Back in the field: a failed save may be sent again.
+      if (focused) _sent = null;
       if (!focused) _commit();
     },
   );
@@ -409,7 +416,7 @@ class TableHistoryPanel extends ConsumerWidget {
     final c = context.madarColors;
     final q = ref.watch(floorTableHistoryProvider(tableId));
     final quiet = DashType.meta.copyWith(color: c.textSecondary);
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       return const Padding(
         padding: EdgeInsets.all(Space.lg),
         child: Column(
@@ -422,7 +429,7 @@ class TableHistoryPanel extends ConsumerWidget {
       );
     }
     final data = q.value;
-    if (q.hasError || data == null) {
+    if (data == null || (q.hasError && !q.retrying)) {
       return Padding(
         padding: const EdgeInsets.all(Space.lg),
         child: Text(t('floor.history.failed'), style: quiet),

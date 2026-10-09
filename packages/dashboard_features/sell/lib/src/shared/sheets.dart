@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../customers/customer_sheet.dart';
+import '../customers/customers_data.dart' show customerDetailProvider;
 import '../orders/order_sheet.dart';
 import 'customer_link.dart';
 
@@ -40,6 +41,7 @@ CustomerLinkControl customerSheetControl(
         onOpenOrder: onOpenOrder ?? singleOrderSheet(context),
       );
     },
+    warm: (customerId) => ref.warm(customerDetailProvider(customerId)),
   );
 }
 

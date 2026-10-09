@@ -15,6 +15,39 @@ import 'package:design_system/design_system.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+/// Geometry from the web's classes.
+abstract final class BasiraMetrics {
+  /// The pinned rail (`w-[276px]`).
+  static const double rail = 276;
+
+  /// The slide-over's cap (`max-w-[340px]`), at most 86% of the window.
+  static const double sheet = 340;
+
+  /// The transcript's and composer's measure (`max-w-3xl`).
+  static const double measure = 768;
+
+  /// The composer's tallest (`max-h-40`).
+  static const double composer = 160;
+
+  /// The rename dialog (`sm:max-w-sm`).
+  static const double renameDialog = 384;
+
+  /// The web's `gap-1.5` / `py-1.5` (6).
+  static const double tight = Space.xs + DashMetrics.hair;
+
+  /// The web's `p-2.5` / `px-2.5` / `gap-2.5` (10).
+  static const double snug = Space.sm + DashMetrics.hair;
+
+  /// The web's `p-3.5` / `px-3.5` (14).
+  static const double roomy = Space.md + DashMetrics.hair;
+
+  /// The web's `text-[11px]`: meta lines, chips, the SQL, axis ticks.
+  static final double caption = MadarType.labelSm.fontSize!;
+
+  /// The web's `text-[10px]`: the heatmap's labels (no design_system step).
+  static const double micro = 10;
+}
+
 /// One measure to plot: its column label, one value per category (null is
 /// a gap, never a zero) and its tooltip format.
 @immutable
@@ -46,7 +79,7 @@ String basiraTick(double v) {
 }
 
 TextStyle _axisStyle(BuildContext context) => DashType.small.copyWith(
-  fontSize: 11,
+  fontSize: BasiraMetrics.caption,
   color: context.madarColors.textSecondary,
   fontFeatures: const [FontFeature.tabularFigures()],
 );
@@ -126,7 +159,10 @@ List<TextSpan> _tipLine(
     ),
     TextSpan(
       text: dashFigure(s.format(v)),
-      style: DashType.monoMedium.copyWith(fontSize: 12, color: c.textPrimary),
+      style: DashType.monoMedium.copyWith(
+        fontSize: DashType.small.fontSize,
+        color: c.textPrimary,
+      ),
     ),
   ];
 }

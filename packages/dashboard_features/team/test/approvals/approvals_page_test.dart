@@ -609,7 +609,7 @@ void main() {
     await h.tap(approveOf(cover));
     expect(_body(h, decideCoverT), {'approve': true});
     await h.expectToast(h.t('staff.decisionSaved'));
-    await h.tap(rejectOf(rowOfType(PendingType.overtime)));
+    await h.tap(rejectOf(rowOfType(PendingType.overtime, index: 0)));
     await h.tap(inConfirm(find.text(h.t('common.reject'))));
     expect(_body(h, decideOvertimeT), {'approve': false});
     await h.expectToast(h.t('staff.decisionSaved'));
@@ -728,7 +728,7 @@ void main() {
     expect(rowOfType(PendingType.swap), findsOneWidget);
     expect(pageText(h.t('dawam.sectionLoadError', args: {'section': h.t('dawam.swap')})),
         findsNothing);
-    expect(find.text(h.t('errors.server')), findsOneWidget);
+    expect(find.text(h.refusalWords(MockResponse.error(500, 'down'))), findsOneWidget);
     await h.flushTimers();
   });
 

@@ -27,13 +27,6 @@ Finder inside<T>(Finder matching) =>
 DashDataTable<LowStockRow> lowTable(WidgetTester tester) =>
     tester.widget(find.byType(DashDataTable<LowStockRow>));
 
-/// Lets a sibling unit's dialog (opened from Today) make its own reads
-/// without failing Today's test while that unit is being built.
-void tolerateSiblings(DashHarness h) {
-  h.allowUnmatched = true;
-  h.allowMissingKeys = true;
-}
-
 void main() {
   group('header and reads', () {
     testWidgets('INV-TOD-001 title and subtitle, no header actions', (
@@ -169,7 +162,6 @@ void main() {
           textHas('Nothing has been counted here yet, so the numbers below'),
           findsOneWidget,
         );
-        tolerateSiblings(h);
         await h.tap(byKey('today-first-count'));
         expect(h.location.path, '/inventory/counts');
       },
@@ -515,7 +507,6 @@ void main() {
       expect(viewAll.label, 'View all');
       expect(viewAll.variant, DashButtonVariant.ghost);
       expect(viewAll.trailingIcon, 'chevron-right');
-      tolerateSiblings(h);
       await h.tap(byKey('today-view-all'));
       expect(h.location.path, '/inventory/ingredients');
     });
@@ -678,7 +669,6 @@ void main() {
       'INV-TOD-013 Create PO: the row\'s branch, supplier, ceil qty',
       (tester) async {
         final h = await pumpToday(tester, branch: SeedIds.zamalek);
-        tolerateSiblings(h);
         final oat = InvIds.ingredient('oat');
         await h.tap(byKey('today-create-po-${SeedIds.zamalek}-$oat'));
         final dialog = tester.widget<PurchaseOrderDialog>(
@@ -698,7 +688,6 @@ void main() {
       tester,
     ) async {
       final h = await pumpToday(tester);
-      tolerateSiblings(h);
       final sugar = InvIds.ingredient('sugar');
       await h.tap(byKey('today-create-po-${SeedIds.newCairo}-$sugar'));
       final dialog = tester.widget<PurchaseOrderDialog>(
@@ -719,7 +708,6 @@ void main() {
         db: s.db,
         branch: SeedIds.zamalek,
       );
-      tolerateSiblings(h);
       final hib = InvIds.ingredient('hibiscus');
       await h.tap(byKey('today-create-po-${SeedIds.zamalek}-$hib'));
       final dialog = tester.widget<PurchaseOrderDialog>(
@@ -876,7 +864,6 @@ void main() {
           ltr('08 Oct 2026'),
         ]);
         expect(rows.every((r) => r.icon == 'truck'), isTrue);
-        tolerateSiblings(h);
         await h.tap(byKey('today-receive-$id1044'));
         final dialog = tester.widget<ReceiveDialog>(find.byType(ReceiveDialog));
         expect(dialog.purchaseOrderId, id1044);
@@ -972,7 +959,6 @@ void main() {
       expect(button.icon, 'trash-2');
       expect(button.variant, DashButtonVariant.outline);
       expect(button.onPressed, isNotNull);
-      tolerateSiblings(h);
       await h.tap(byKey('today-log-waste'));
       final dialog = tester.widget<RecordWasteDialog>(
         find.byType(RecordWasteDialog),
@@ -1195,7 +1181,6 @@ void main() {
 
     testWidgets('INV-TOD-028 closing clears the prefill', (tester) async {
       final h = await pumpToday(tester, branch: SeedIds.zamalek);
-      tolerateSiblings(h);
       final oat = InvIds.ingredient('oat');
       final matcha = InvIds.ingredient('matcha');
       await h.tap(byKey('today-create-po-${SeedIds.zamalek}-$oat'));
@@ -1219,7 +1204,6 @@ void main() {
     ) async {
       final s = todayServer();
       final h = await pumpToday(tester, server: s.server, db: s.db);
-      tolerateSiblings(h);
       final po = InvIds.purchaseOrder('po-1042');
       await h.tap(byKey('today-receive-$po'));
       expect(
@@ -1242,33 +1226,50 @@ void main() {
       expect(textHas('PO-1042'), findsNothing);
     });
 
-    testWidgets('INV-TOD-030 after waste is recorded, the list refreshes', (
+    testWidgets('INV-TOD-030 Log waste records a line and Today shows it', (
       tester,
     ) async {
-      final s = todayServer();
-      final h = await pumpToday(
-        tester,
-        server: s.server,
-        db: s.db,
-        branch: SeedIds.maadi,
-      );
+      final h = await pumpToday(tester, branch: SeedIds.maadi);
       expect(find.text('No waste logged today'), findsOneWidget);
-      // What the waste dialog leaves behind: a line, then the invalidation.
-      addWaste(
-        s.db,
-        key: 'recorded',
-        branchId: SeedIds.maadi,
-        ingredientKey: 'almond',
-        qty: 250,
-        createdAt: '2026-10-08T07:00:00.000Z',
-        reason: 'spoiled',
+      final wasteReads = h.server.callsTo(wasteRoute, method: 'GET').length;
+      await h.tap(byKey('today-log-waste'));
+      final dialog = find.byType(RecordWasteDialog);
+      Finder inDialog(Finder f) => find.descendant(of: dialog, matching: f);
+      Finder options(String label) => find.descendant(
+        of: find.byWidgetPredicate((w) => w is DashOptionList),
+        matching: find.text(label),
       );
-      h.container.read(realtimeBusProvider).invalidate(inventoryPathFamilies);
-      await h.settle();
+      Finder trigger(String key) =>
+          inDialog(find.descendant(of: byKey(key), matching: find.byType(DashSelectTrigger)));
+      await h.tap(trigger('waste-ingredient'));
+      await h.enterText(
+        find.byWidgetPredicate((w) => w is DashOptionList).last,
+        'Almond Milk',
+      );
+      await h.tap(options('Almond Milk').last);
+      await h.enterText(inDialog(byKey('waste-quantity')), '250');
+      await h.tap(trigger('waste-reason'));
+      await h.tap(options('Spoiled').last);
+      await h.tap(inDialog(byKey('waste-submit')));
+
+      final post = h.server.callsTo(wasteRoute, method: 'POST').last;
+      expect(post.path, '/inventory/branches/${SeedIds.maadi}/waste');
+      expect(post.body, {
+        'note': null,
+        'org_ingredient_id': InvIds.ingredient('almond'),
+        'quantity': 250,
+        'reason': 'spoiled',
+      });
+      expect(dialog, findsNothing);
+      expect(
+        h.server.callsTo(wasteRoute, method: 'GET').length,
+        greaterThan(wasteReads),
+      );
       final row = tester.widget<DashListRow>(
         inside<TodayWasteSection>(find.byType(DashListRow)),
       );
       expect(row.title, 'Almond Milk');
+      expect(row.meta, 'Spoiled');
       expect(row.value, '250 ml');
     });
   });
@@ -1354,7 +1355,6 @@ void main() {
           findsNothing,
         );
         expect(find.byType(DashCard), findsWidgets);
-        tolerateSiblings(h);
         final oat = InvIds.ingredient('oat');
         await h.tap(byKey('today-create-po-${SeedIds.zamalek}-$oat'));
         expect(find.byType(PurchaseOrderDialog), findsOneWidget);
@@ -1444,7 +1444,6 @@ void main() {
         parMax: 8100,
       );
       final h = await pumpToday(tester, server: s.server, db: s.db);
-      tolerateSiblings(h);
       final oat = InvIds.ingredient('oat');
       final keys = lowTable(tester).rows.map(lowStockRowKey).toList();
       expect(
@@ -1531,7 +1530,6 @@ void main() {
         endOfToday,
       ]);
       // A fresh visit asks about the new day.
-      tolerateSiblings(h);
       await h.go('/inventory/counts');
       await h.go(todayPath);
       expect(h.server.callsTo(orgOrders).last.query['expected_before'], [

@@ -2,7 +2,6 @@
 // and ar/dark, then each other state at desktop-en-light and phone-ar-light.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
-import 'package:dashboard_reports/src/basira/basira_models.dart';
 import 'package:dashboard_reports/src/basira/basira_page.dart';
 import 'package:dashboard_reports/src/mock/basira_mock.dart';
 import 'package:flutter/widgets.dart';
@@ -81,7 +80,7 @@ void main() {
         db: s.db,
       );
       final conv = mockOf(h).conversationsOf(SeedIds.owner).first;
-      final title = ownDirection(conv['title']! as String);
+      final title = conv['title']! as String;
       await openRail(h);
       if (phone) await h.shot('$_page/rail-sheet');
       // The ⋯ menu, rename and delete.

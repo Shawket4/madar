@@ -14,6 +14,7 @@ import 'package:dashboard_api/dashboard_api.dart'
         StockMovement,
         Stocktake;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../purchasing/purchase_order_dialog.dart';
+import '../purchasing/purchasing_data.dart' show purchaseOrderProvider;
 import '../purchasing/receive_dialog.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
@@ -177,6 +179,7 @@ class TodayFirstRunCard extends ConsumerWidget {
       icon: 'clipboard-list',
       expand: narrow,
       onPressed: () => context.go('/inventory/counts'),
+      onIntent: () => ref.prefetchRoute('/inventory/counts'),
     );
     return DashCard(
       child: narrow
@@ -335,7 +338,7 @@ class TodayLowStockSection extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final low = data.lowStock;
-    final hideCount = low.firstLoad || low.hasError;
+    final hideCount = low.firstLoad || low.errorText(t) != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
@@ -351,6 +354,7 @@ class TodayLowStockSection extends ConsumerWidget {
             size: DashButtonSize.compact,
             trailingIcon: DashIcon.forward(context),
             onPressed: () => context.go('/inventory/ingredients'),
+            onIntent: () => ref.prefetchRoute('/inventory/ingredients'),
           ),
         ),
         DashDataTable<LowStockRow>(
@@ -358,7 +362,7 @@ class TodayLowStockSection extends ConsumerWidget {
           rows: data.lowRows,
           rowKey: lowStockRowKey,
           loading: low.firstLoad,
-          errorMessage: low.hasError ? errorMessage(low.error, t) : null,
+          errorMessage: low.errorText(t),
           onRetry: data.retryLowStock,
           pageSize: 12,
           hideViewOptions: true,
@@ -415,6 +419,9 @@ class TodayLowStockSection extends ConsumerWidget {
             DashColumn<LowStockRow>(
               id: 'supplier',
               label: t('inventory.catalog.supplier'),
+              // The web's auto layout never cuts a supplier: give it a name's room.
+              flex: 2,
+              minWidth: 160,
               text: (r) => r.supplierName ?? '—',
               cell: (context, r) => MadarClippedText(
                 r.supplierName ?? '—',
@@ -512,10 +519,11 @@ class TodayArrivingSection extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final q = data.orders;
     final Widget body;
-    if (q.hasError) {
+    if (q.failedFirst) {
       body = DashErrorState(
         title: t('inventory.today.deliveriesFailed'),
         onRetry: data.retryOrders,
+        retrying: q.isLoading,
       );
     } else if (q.firstLoad) {
       body = const TodayListSkeleton();
@@ -539,6 +547,7 @@ class TodayArrivingSection extends ConsumerWidget {
                 size: DashButtonSize.compact,
                 onPressed: () =>
                     showReceiveDialog(context, purchaseOrderId: p.id),
+                onIntent: () => ref.warm(purchaseOrderProvider(p.id)),
               ),
             ),
         ],
@@ -592,10 +601,11 @@ class TodayWasteSection extends ConsumerWidget {
     final Widget body;
     if (branchId == null || q == null) {
       body = TodayQuietEmpty(title: t('inventory.pickBranch'));
-    } else if (q.hasError) {
+    } else if (q.failedFirst) {
       body = DashErrorState(
         title: t('inventory.today.wasteFailed'),
         onRetry: data.retryWaste,
+        retrying: q.isLoading,
       );
     } else if (q.firstLoad) {
       body = const TodayListSkeleton();

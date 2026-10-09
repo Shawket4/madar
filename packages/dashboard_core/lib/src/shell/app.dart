@@ -35,7 +35,8 @@ class DashApp extends ConsumerWidget {
     final pref = ref.watch(themePrefProvider);
     final t = ref.watch(tProvider);
     return MaterialApp.router(
-      onGenerateTitle: (_) => t('app.name', defaultValue: 'Madar'),
+      // The signed-in tab's title (use-signed-in-title.ts).
+      onGenerateTitle: (_) => t('app.documentTitle', defaultValue: 'Madar POS'),
       debugShowCheckedModeBanner: false,
       theme: MadarTheme.light(),
       darkTheme: MadarTheme.dark(),

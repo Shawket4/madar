@@ -94,6 +94,16 @@ final linkOpenerProvider = Provider<Future<void> Function(Uri uri)>(
   (ref) => (_) async {},
 );
 
+/// Madar POS's own site, where "Powered by Madar" leads (the web's
+/// `madarSiteHref`): straight to the page's language, tagged so the site's
+/// analytics can tell who sent the visitor.
+Uri madarSiteHref(String lang, String source, String campaign) =>
+    Uri.https('get.madar-pos.cloud', lang.startsWith('ar') ? '/ar/' : '/en/', {
+      'utm_source': source.isEmpty ? 'madar' : source,
+      'utm_medium': 'powered_by',
+      'utm_campaign': campaign,
+    });
+
 /// The public legal documents (`src/config/legal.ts`).
 abstract final class LegalUrls {
   static const String base = 'https://legal.madar-pos.cloud';

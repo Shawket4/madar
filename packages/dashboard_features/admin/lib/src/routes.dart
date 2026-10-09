@@ -63,6 +63,14 @@ const List<DashRoute> adminRoutes = [
     titleFallback: 'Branches',
     prefetch: _prefetchBranches,
   ),
+  // The branch builder (web `routes/_app/branch-setup.tsx`): a stub until its
+  // page lands (inventory ADM-BSU), so the nav row opens a placeholder.
+  DashRoute(
+    path: '/branch-setup',
+    titleKey: 'nav.branchSetup',
+    titleFallback: 'Branch setup',
+    module: OrgModule.pos,
+  ),
   DashRoute(
     path: DevicesPage.path,
     builder: _devices,

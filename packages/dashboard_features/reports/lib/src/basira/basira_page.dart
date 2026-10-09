@@ -18,7 +18,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart' show Bidi;
 
+import 'basira_charts.dart';
 import 'basira_controller.dart';
 import 'basira_models.dart';
 import 'basira_result.dart';
@@ -26,24 +28,6 @@ import 'basira_result.dart';
 /// The route's page (`DashRoute.builder`).
 Widget basiraPageBuilder(BuildContext context, GoRouterState state) =>
     const BasiraPage();
-
-/// Geometry from the web's classes.
-abstract final class BasiraMetrics {
-  /// The pinned rail (`w-[276px]`).
-  static const double rail = 276;
-
-  /// The slide-over's cap (`max-w-[340px]`), at most 86% of the window.
-  static const double sheet = 340;
-
-  /// The transcript's and composer's measure (`max-w-3xl`).
-  static const double measure = 768;
-
-  /// The composer's tallest (`max-h-40`).
-  static const double composer = 160;
-
-  /// The rename dialog (`sm:max-w-sm`).
-  static const double renameDialog = 384;
-}
 
 /// The web's four starters (REP-BAS-012).
 const List<String> basiraStarters = [
@@ -67,6 +51,7 @@ class _BasiraPageState extends ConsumerState<BasiraPage> {
   final ScrollController _scroll = ScrollController();
   String _question = '';
   bool _railOpen = false;
+  bool _refreshing = false;
 
   BasiraController get _c => ref.read(basiraProvider.notifier);
 
@@ -139,6 +124,22 @@ class _BasiraPageState extends ConsumerState<BasiraPage> {
     }
   }
 
+  /// The header's refresh: Basira keeps no query cache for the shell's
+  /// refresh to refetch, so it re-reads the list and the open conversation.
+  Future<void> _refresh() async {
+    final s = ref.read(basiraProvider);
+    final id = s.activeId;
+    setState(() => _refreshing = true);
+    try {
+      await Future.wait([
+        _c.refreshList(),
+        if (id != null && !s.busy) _c.open(id),
+      ]);
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
   Future<void> _showRail() async {
     setState(() => _railOpen = true);
     await showBasiraRail(context, builder: (_) => _rail());
@@ -181,23 +182,31 @@ class _BasiraPageState extends ConsumerState<BasiraPage> {
       child: DashPageHeader(
         title: title == null ? t('basira.title') : ownDirection(title),
         subtitle: t('basira.subtitle'),
-        actions: pinned
-            ? const []
-            : [
-                DashButton(
-                  label: t('basira.showConversations'),
-                  icon: 'message-square',
-                  variant: DashButtonVariant.outline,
-                  size: DashButtonSize.compact,
-                  onPressed: _showRail,
-                ),
-                DashIconButton(
-                  icon: 'message-square-plus',
-                  semanticLabel: t('basira.newChat'),
-                  variant: DashButtonVariant.outline,
-                  onPressed: _startNew,
-                ),
-              ],
+        refreshAction: false,
+        actions: [
+          if (!pinned) ...[
+            DashButton(
+              label: t('basira.showConversations'),
+              icon: 'message-square',
+              variant: DashButtonVariant.outline,
+              size: DashButtonSize.compact,
+              onPressed: _showRail,
+            ),
+            DashIconButton(
+              icon: 'message-square-plus',
+              semanticLabel: t('basira.newChat'),
+              variant: DashButtonVariant.outline,
+              onPressed: _startNew,
+            ),
+          ],
+          DashIconButton(
+            icon: 'refresh-cw',
+            semanticLabel: context.dashStrings.refresh,
+            variant: DashButtonVariant.outline,
+            loading: _refreshing,
+            onPressed: _refresh,
+          ),
+        ],
       ),
     );
 
@@ -409,7 +418,7 @@ class BasiraConversationList extends ConsumerWidget {
     if (s.loadingList) {
       list = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.xs + 2,
+        spacing: BasiraMetrics.tight,
         children: [
           for (var i = 0; i < 4; i++)
             const DashSkeleton(height: DashMetrics.target),
@@ -522,50 +531,59 @@ class _ConversationItemState extends ConsumerState<_ConversationItem> {
       onExit: (_) => setState(() => _hovered = false),
       child: Stack(
         children: [
-          DashPressable(
-            onTap: widget.onOpen,
-            selected: widget.active,
-            semanticLabel: '${conv.title}, $meta',
-            excludeChildSemantics: true,
-            pressScale: false,
-            builder: (context, s) => Container(
-              padding: const EdgeInsetsDirectional.fromSTEB(
-                Space.sm + 2,
-                Space.sm,
-                Space.xxl + Space.xs,
-                Space.sm,
-              ),
-              decoration: BoxDecoration(
-                color: widget.active
-                    ? c.muted
-                    : (s.highlighted ? c.muted.withValues(alpha: 0.6) : null),
-                borderRadius: BorderRadius.circular(Radii.xs),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  MadarClippedText(
-                    ownDirection(conv.title),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: DashType.meta.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: widget.active || s.highlighted
-                          ? c.textPrimary
-                          : c.textSecondary,
+          DashIntent(
+            onIntent: () => ref.read(basiraProvider.notifier).warmOpen(conv.id),
+            child: DashPressable(
+              onTap: widget.onOpen,
+              selected: widget.active,
+              semanticLabel: '${conv.title}, $meta',
+              excludeChildSemantics: true,
+              pressScale: false,
+              builder: (context, s) => Container(
+                padding: const EdgeInsetsDirectional.fromSTEB(
+                  BasiraMetrics.snug,
+                  Space.sm,
+                  Space.xxl + Space.xs,
+                  Space.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.active
+                      ? c.muted
+                      : (s.highlighted ? c.muted.withValues(alpha: 0.6) : null),
+                  borderRadius: BorderRadius.circular(Radii.xs),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // The title's own direction, so a cut English title in
+                    // the Arabic rail ends in its ellipsis (REP-BAS-007).
+                    MadarClippedText(
+                      conv.title,
+                      textDirection: Bidi.startsWithRtl(conv.title)
+                          ? TextDirection.rtl
+                          : TextDirection.ltr,
+                      textAlign: t.isRtl ? TextAlign.right : TextAlign.left,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: DashType.meta.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: widget.active || s.highlighted
+                            ? c.textPrimary
+                            : c.textSecondary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: DashMetrics.hair),
-                  MadarClippedText(
-                    meta,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: DashType.small.copyWith(
-                      fontSize: 11,
-                      color: c.textMuted,
+                    const SizedBox(height: DashMetrics.hair),
+                    MadarClippedText(
+                      meta,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: DashType.small.copyWith(
+                        fontSize: BasiraMetrics.caption,
+                        color: c.textMuted,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -715,7 +733,7 @@ class _Starter extends StatelessWidget {
       builder: (context, s) => Container(
         constraints: const BoxConstraints(minHeight: DashMetrics.target),
         padding: const EdgeInsets.symmetric(
-          horizontal: Space.md + 2,
+          horizontal: BasiraMetrics.roomy,
           vertical: Space.md,
         ),
         foregroundDecoration: dashFocusRing(
@@ -779,7 +797,7 @@ class BasiraExchangeView extends ConsumerWidget {
               ),
             if (x.capturedAt != null && x.results.isNotEmpty)
               Row(
-                spacing: Space.xs + 2,
+                spacing: BasiraMetrics.tight,
                 children: [
                   DashIcon('clock-3', size: Space.md, color: c.textSecondary),
                   Expanded(
@@ -789,7 +807,7 @@ class BasiraExchangeView extends ConsumerWidget {
                         args: {'when': fmt.fmtDateTime(x.capturedAt)},
                       ),
                       style: DashType.small.copyWith(
-                        fontSize: 11,
+                        fontSize: BasiraMetrics.caption,
                         color: c.textSecondary,
                       ),
                     ),
@@ -897,7 +915,7 @@ class _Failure extends ConsumerWidget {
     return Semantics(
       liveRegion: true,
       child: Container(
-        padding: const EdgeInsets.all(Space.md + 2),
+        padding: const EdgeInsets.all(BasiraMetrics.roomy),
         decoration: BoxDecoration(
           color: c.danger.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(Radii.md),
@@ -918,7 +936,7 @@ class _Failure extends ConsumerWidget {
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: Space.sm + 2,
+                spacing: BasiraMetrics.snug,
                 children: [icon, words, retry],
               ),
       ),
@@ -1013,7 +1031,7 @@ class _Composer extends ConsumerWidget {
               Text(
                 t('basira.disclaimer'),
                 style: DashType.small.copyWith(
-                  fontSize: 11,
+                  fontSize: BasiraMetrics.caption,
                   color: c.textSecondary,
                 ),
               ),

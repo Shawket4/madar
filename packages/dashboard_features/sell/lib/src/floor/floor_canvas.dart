@@ -14,6 +14,7 @@ import 'dart:math' as math;
 
 import 'package:dashboard_api/dashboard_api.dart' show FloorTable;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashIntent;
 import 'package:design_system/design_system.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -105,6 +106,7 @@ class FloorCanvas extends StatefulWidget {
     required this.viewport,
     required this.beginGesture,
     required this.onGeoChange,
+    this.onTableIntent,
     super.key,
   });
 
@@ -121,6 +123,10 @@ class FloorCanvas extends StatefulWidget {
   final FloorViewport viewport;
   final VoidCallback beginGesture;
   final ValueChanged<List<GeoItem>> onGeoChange;
+
+  /// About to press a table (editing: the press selects it and the
+  /// inspector reads its history).
+  final ValueChanged<String>? onTableIntent;
 
   @override
   State<FloorCanvas> createState() => _FloorCanvasState();
@@ -520,14 +526,19 @@ class _FloorCanvasState extends State<FloorCanvas> {
       top: c.dy - hh * z,
       width: hw * 2 * z,
       height: hh * 2 * z,
-      child: Tooltip(
-        key: ValueKey('floor-table-${t.id}'),
-        message: title,
-        excludeFromSemantics: true,
-        child: Semantics(
-          label: '$title · $toneWord',
-          selected: widget.selection.contains(t.id),
-          child: const SizedBox.expand(),
+      child: DashIntent(
+        onIntent: widget.editable && widget.onTableIntent != null
+            ? () => widget.onTableIntent!(t.id)
+            : null,
+        child: Tooltip(
+          key: ValueKey('floor-table-${t.id}'),
+          message: title,
+          excludeFromSemantics: true,
+          child: Semantics(
+            label: '$title · $toneWord',
+            selected: widget.selection.contains(t.id),
+            child: const SizedBox.expand(),
+          ),
         ),
       ),
     );

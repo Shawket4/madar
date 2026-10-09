@@ -323,9 +323,12 @@ Finder rejectIn(String text) => inRow(
 );
 
 /// The [index]th row of [type] (newest first).
-Finder rowOfType(PendingType type, {int index = 0}) => find
-    .byWidgetPredicate((w) => w is PendingRow && w.item.type == type)
-    .at(index);
+Finder rowOfType(PendingType type, {int? index}) {
+  final f = find.byWidgetPredicate(
+    (w) => w is PendingRow && w.item.type == type,
+  );
+  return index == null ? f : f.at(index);
+}
 
 /// The item a row shows.
 Pending itemOf(WidgetTester tester, Finder row) =>

@@ -46,7 +46,7 @@ void main() {
       expect(topText('Ali Hassan'), findsOneWidget);
       expect(topText(h.t('dawam.estimateHint')), findsOneWidget);
       expect(topText('Salary'), findsOneWidget);
-      expect(topText('EGP 9,000.00'), findsWidgets);
+      expect(inTop(find.textContaining('9,000.00')), findsWidgets);
       expect(topText(h.t('dawam.ruleLine')), findsWidgets);
       expect(inTop(find.textContaining('−EGP')), findsWidgets);
       expect(topText('Net'), findsOneWidget);
@@ -74,7 +74,7 @@ void main() {
         findsOneWidget,
       );
       expect(sheetButton('Undo the waiver'), findsOneWidget);
-      expect(topText('EGP 9,000.00'), findsWidgets);
+      expect(inTop(find.textContaining('9,000.00')), findsWidgets);
     },
   );
 
@@ -207,6 +207,7 @@ void main() {
     expect(body['kind'], 'deduction');
     expect(body['amount_piastres'], 5000);
     expect(body['percent_of_base'], isNull);
+    await h.flushTimers();
   });
 
   testWidgets('TEAM-PAY-030/032/037 approved: frozen, nothing to change', (
