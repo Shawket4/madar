@@ -35,33 +35,13 @@ import '../area_seed.dart';
 
 // ── the floor plan ────────────────────────────────────────────────────────
 
-/// One table of the plan.
-class OpsTable {
-  const OpsTable(
-    this.branchKey,
-    this.sectionKey,
-    this.sectionName,
-    this.label,
-    this.seats,
-    this.shape, {
-    this.active = true,
-    this.retired,
-  });
+/// One table of the plan: the core seed's ([seedFloorTables]), the same
+/// sections, labels and ids as the sell area's plan.
+typedef OpsTable = SeedFloorTable;
 
-  final String branchKey;
-
-  /// Null = a table without a section ("No section" in the metrics).
-  final String? sectionKey;
-  final String sectionName;
-  final String label;
-  final int seats;
-  final String shape;
-  final bool active;
-
-  /// When it left the floor plan (no longer listed), if it did.
-  final DateTime? retired;
-
-  String get id => mockUuid('floor-table:$branchKey:$label');
+/// What the floor rows and the metrics read off a table.
+extension OpsTableX on SeedFloorTable {
+  String get id => MockSeed.floorTableId(branchKey, label);
   String get branchId => MockSeed.branchIdOf(branchKey);
   String? get sectionId => sectionKey == null
       ? null
@@ -69,98 +49,16 @@ class OpsTable {
 
   /// The metrics' section dimension (`COALESCE(fs.name, 'No section')`).
   String get sectionLabel => sectionKey == null ? 'No section' : sectionName;
+
+  /// When it left the floor plan (no longer listed), if it did.
+  DateTime? get retired => MockSeed.retiredAt(this);
 }
 
 /// Zamalek's T10 stood on the Nile terrace until 26 Sept 2026.
 final DateTime opsRetiredAt = MockClock.fromCairo(2026, 9, 26, 8, 0);
 
 /// The plan, branch by branch, in plan order.
-final List<OpsTable> opsTables = [
-  // Heliopolis
-  for (final (l, s, sh) in const [
-    ('T1', 4, 'rect'),
-    ('T2', 4, 'rect'),
-    ('T3', 2, 'circle'),
-    ('T4', 2, 'circle'),
-    ('T5', 6, 'rect'),
-    ('T6', 4, 'rect'),
-  ])
-    OpsTable('heliopolis', 'main', 'Main hall', l, s, sh),
-  const OpsTable('heliopolis', 'terrace', 'Terrace', 'T7', 2, 'circle'),
-  const OpsTable('heliopolis', 'terrace', 'Terrace', 'T8', 2, 'circle'),
-  const OpsTable(
-    'heliopolis',
-    'terrace',
-    'Terrace',
-    'T9',
-    4,
-    'rect',
-    active: false,
-  ),
-  // Maadi
-  for (final (l, s, sh) in const [
-    ('T1', 2, 'circle'),
-    ('T2', 4, 'rect'),
-    ('T3', 4, 'rect'),
-    ('T4', 6, 'rect'),
-  ])
-    OpsTable('maadi', 'indoor', 'Indoor', l, s, sh),
-  for (final (l, s, sh) in const [
-    ('T5', 4, 'rect'),
-    ('T6', 4, 'rect'),
-    ('T7', 2, 'circle'),
-    ('T8', 2, 'circle'),
-  ])
-    OpsTable('maadi', 'garden', 'Garden', l, s, sh),
-  // New Cairo
-  for (final (l, s, sh) in const [
-    ('T1', 4, 'rect'),
-    ('T2', 4, 'rect'),
-    ('T3', 2, 'circle'),
-    ('T4', 2, 'circle'),
-    ('T5', 6, 'rect'),
-    ('T6', 4, 'rect'),
-  ])
-    OpsTable('new-cairo', 'ground', 'Ground floor', l, s, sh),
-  for (final (l, s, sh) in const [
-    ('T7', 2, 'circle'),
-    ('T8', 2, 'circle'),
-    ('T9', 4, 'rect'),
-  ])
-    OpsTable('new-cairo', 'mezzanine', 'Mezzanine', l, s, sh),
-  for (final (l, s, sh) in const [
-    ('T10', 4, 'rect'),
-    ('T11', 4, 'rect'),
-    ('T12', 8, 'rect'),
-  ])
-    OpsTable('new-cairo', 'outdoor', 'Outdoor', l, s, sh),
-  // Zamalek
-  for (final (l, s, sh) in const [
-    ('T1', 2, 'circle'),
-    ('T2', 4, 'rect'),
-    ('T3', 4, 'rect'),
-    ('T4', 2, 'circle'),
-    ('T5', 6, 'rect'),
-  ])
-    OpsTable('zamalek', 'main', 'Main hall', l, s, sh),
-  for (final (l, s, sh) in const [
-    ('T6', 2, 'circle'),
-    ('T7', 2, 'circle'),
-    ('T8', 4, 'rect'),
-    ('T9', 4, 'rect'),
-  ])
-    OpsTable('zamalek', 'nile', 'Nile terrace', l, s, sh),
-  OpsTable(
-    'zamalek',
-    'nile',
-    'Nile terrace',
-    'T10',
-    4,
-    'rect',
-    retired: opsRetiredAt,
-  ),
-  const OpsTable('zamalek', null, '', 'Bar 1', 2, 'circle'),
-];
+const List<OpsTable> opsTables = seedFloorTables;
 
 OpsTable? opsTableById(String id) =>
     opsTables.where((t) => t.id == id).firstOrNull;
@@ -168,8 +66,18 @@ OpsTable? opsTableById(String id) =>
 String _branchKeyOf(String branchId) =>
     seedBranches.firstWhere((b) => MockSeed.branchIdOf(b.key) == branchId).key;
 
-String _branchName(String branchId) =>
-    seedBranches.firstWhere((b) => MockSeed.branchIdOf(b.key) == branchId).name;
+/// A branch's name from the seed (the tables dataset's rows are Sabah's).
+String _seedBranchName(String branchId) =>
+    seedBranches
+        .where((b) => MockSeed.branchIdOf(b.key) == branchId)
+        .firstOrNull
+        ?.name ??
+    '';
+
+/// A branch's name as the db has it (another org's, a created one).
+String _branchName(MockDb db, String branchId) =>
+    (db['branches'].find(branchId)?['name'] as String?) ??
+    _seedBranchName(branchId);
 
 /// The plan as `/floor/tables` answers it ([FloorTable] JSON), retired
 /// tables left out.
@@ -326,38 +234,26 @@ class OpsSeed {
   /// Every sitting, oldest first.
   late final List<OpsSitting> sittings = _buildSittings();
 
+  /// Today's open bills (the sell area's open tickets), then the core
+  /// seed's sittings ([MockSeed.sittings]) — the same model the floor's
+  /// table history reads, so a table's ledger and history agree.
   List<OpsSitting> _buildSittings() {
     final out = <OpsSitting>[];
-    final seqByDay = <String, int>{};
-    String ref(String branchKey, DateTime at) {
-      final date = MockClock.cairoDate(at);
-      final k = '$branchKey|$date';
-      final n = seqByDay[k] = (seqByDay[k] ?? 0) + 1;
-      final code = seedBranches.firstWhere((b) => b.key == branchKey).code;
-      return 'T-$code-${date.substring(2).replaceAll('-', '')}-'
-          '${n.toString().padLeft(4, '0')}';
-    }
-
-    final byBranch = <String, List<OpsTable>>{};
-    for (final t in opsTables) {
-      if (!t.active) continue;
-      byBranch.putIfAbsent(t.branchKey, () => []).add(t);
-    }
-    // Today's open bills take their refs first, as they were opened first
-    // in the sell seed's numbering.
     final customers = MockSeed.instance.customers;
+    final today = MockClock.cairoDate(MockSeed.now);
+    final p = today.split('-').map(int.parse).toList();
     for (final (b, label, h, m, ci, guests) in _seatedNow) {
       final table = opsTables.firstWhere(
         (t) => t.branchKey == b && t.label == label,
       );
-      final today = MockClock.cairoDate(MockSeed.now);
-      final p = today.split('-').map(int.parse).toList();
       final opened = MockClock.fromCairo(p[0], p[1], p[2], h, m);
       final c = ci == null ? null : customers[ci];
+      final code = seedBranches.firstWhere((x) => x.key == b).code;
       out.add(
         OpsSitting(
           ticketId: mockUuid('open-ticket:$b:$label'),
-          ticketRef: ref(b, opened),
+          ticketRef: 'T-$code-${today.substring(2).replaceAll('-', '')}-'
+              '${label.replaceAll(' ', '')}',
           table: table,
           seatedAt: opened,
           covers: guests,
@@ -367,31 +263,16 @@ class OpsSeed {
       );
     }
     for (final o in MockSeed.instance.orders) {
-      if (o.orderType != 'dine_in') continue;
-      final key = _branchKeyOf(o.branchId);
-      final rng = MockRandom('reports:sitting:${o.id}');
-      final tables = [
-        for (final t in byBranch[key]!)
-          if (t.retired == null || o.createdAt.isBefore(t.retired!)) t,
-      ];
-      final table = rng.weighted(tables, [
-        for (final t in tables) t.sectionKey == null ? 0.6 : 1.0,
-      ]);
-      final covers = math.min(
-        table.seats,
-        rng.weighted(const [1, 2, 3, 4, 5, 6], const [18, 40, 16, 16, 5, 5]),
-      );
-      final dwell = 22 + rng.nextInt(38) + covers * (6 + rng.nextInt(9));
-      final paid = o.voidedAt ?? o.createdAt;
-      final seated = o.createdAt.subtract(Duration(minutes: dwell));
+      final st = MockSeed.instance.sittingOf(o.id);
+      if (st == null) continue;
       out.add(
         OpsSitting(
-          ticketId: mockUuid('reports:ticket:${o.id}'),
-          ticketRef: ref(key, seated),
-          table: table,
-          seatedAt: seated,
-          closedAt: paid,
-          covers: covers,
+          ticketId: mockUuid('sitting-ticket:${o.id}'),
+          ticketRef: 'T-${o.orderRef}',
+          table: st.table,
+          seatedAt: st.seatedAt,
+          closedAt: o.voidedAt ?? o.createdAt,
+          covers: st.covers,
           orderId: o.id,
           customerId: o.customerId,
           customerName: o.customerName,
@@ -512,7 +393,7 @@ Map<String, Object?> opsTableMeasures(List<OpsTableFact> facts) {
 String _dimValue(OpsTableFact f, String dim) => switch (dim) {
   'table' => f.sitting.table.label,
   'section' => f.sitting.table.sectionLabel,
-  'branch' => _branchName(f.sitting.table.branchId),
+  'branch' => _seedBranchName(f.sitting.table.branchId),
   'hour' => f.hour,
   'day' => f.localDate,
   _ => '',
@@ -991,6 +872,8 @@ bool _handlesShape(MockServer server, String method, String template) {
 }
 
 void registerOperationsMocks(MockServer server, MockDb db) {
+  // The area's branch narrowing reads this server's branch rows.
+  bindReportDb(server, db);
   final seed = OpsSeed.instance;
 
   List<MockRow> scoped(MockRequest req, String branchId) => reportOrders(
@@ -1001,7 +884,7 @@ void registerOperationsMocks(MockServer server, MockDb db) {
   );
 
   String label(String branchId) =>
-      branchId == allBranchesId ? 'All branches' : _branchName(branchId);
+      branchId == allBranchesId ? 'All branches' : _branchName(db, branchId);
 
   // REP-OPS-006 — the metrics layer, `tables` dataset. Gate `[reports
   // read]`; the branch comes from `X-Branch-Id` (absent/nil = every branch
@@ -1014,13 +897,15 @@ void registerOperationsMocks(MockServer server, MockDb db) {
     if (widgets.length > 24) {
       req.badRequest('too many widgets in one request (max 24)');
     }
-    // `accessible_branches`: the org in scope's branches this person works.
-    final accessible = req.orgId != SeedIds.sabahOrg
-        ? const <String>[]
-        : [
-            for (final b in SeedIds.sabahBranches)
-              if (req.persona.seesBranch(b)) b,
-          ];
+    // `accessible_branches`: the org in scope's live branches this person
+    // works.
+    final accessible = [
+      for (final b in db['branches'].rows)
+        if (b['org_id'] == req.orgId &&
+            b['deleted_at'] == null &&
+            req.persona.seesBranch(b['id']! as String))
+          b['id']! as String,
+    ];
     final header = req.branchHeader;
     final selected = header == null || header == allBranchesId
         ? null
@@ -1047,7 +932,7 @@ void registerOperationsMocks(MockServer server, MockDb db) {
       final out = _runTablesWidget(spec, facts, period);
       results[key] = out is String ? {'status': 'error', 'error': out} : out;
     }
-    final names = [for (final b in branchIds) _branchName(b)];
+    final names = [for (final b in branchIds) _branchName(db, b)];
     return MockResponse.ok({
       'scope': {
         'all_branches': selected == null,
@@ -1283,7 +1168,7 @@ void registerOperationsMocks(MockServer server, MockDb db) {
             for (final o in orders.take(10))
               CustomerOrder(
                 branchId: o['branch_id']! as String,
-                branchName: _branchName(o['branch_id']! as String),
+                branchName: _branchName(db, o['branch_id']! as String),
                 createdAt: _at(o),
                 id: o['id']! as String,
                 orderRef: o['order_ref'] as String?,

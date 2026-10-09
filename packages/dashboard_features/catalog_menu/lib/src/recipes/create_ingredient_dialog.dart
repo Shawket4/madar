@@ -72,25 +72,25 @@ class _CreateIngredientDialogState
     final t = ref.read(tProvider);
     final cost = ingredientCostPiastres(_cost);
     final categoryId = _categoryId;
+    // Taken before the await: the refresh happens even if the dialog is gone.
+    final invalidate = ref.menuInvalidate;
+    final api = ref.read(apiProvider);
     setState(() => _busy = true);
     try {
-      final created = await ref
-          .read(apiProvider)
-          .inventory
-          .createCatalogItem(
-            orgId: widget.orgId,
-            body: CreateCatalogItemRequest(
-              name: name,
-              categoryId: categoryId,
-              unit: _unit,
-              costPerUnit: cost,
-              explicitNulls: {
-                if (categoryId == null) 'category_id',
-                if (cost == null) 'cost_per_unit',
-              },
-            ),
-          );
-      ref.menuInvalidate.recipes();
+      final created = await api.inventory.createCatalogItem(
+        orgId: widget.orgId,
+        body: CreateCatalogItemRequest(
+          name: name,
+          categoryId: categoryId,
+          unit: _unit,
+          costPerUnit: cost,
+          explicitNulls: {
+            if (categoryId == null) 'category_id',
+            if (cost == null) 'cost_per_unit',
+          },
+        ),
+      );
+      invalidate.recipes();
       if (!mounted) return;
       DashToast.success(context, t('common.savedChanges'));
       Navigator.of(context).pop(created);
@@ -104,9 +104,11 @@ class _CreateIngredientDialogState
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
-    final categories =
-        ref.watch(ingredientCategoriesProvider(widget.orgId)).value ??
-        const <IngredientCategory>[];
+    final categoriesQ = ref.watch(ingredientCategoriesProvider(widget.orgId));
+    final categories = categoriesQ.value ?? const <IngredientCategory>[];
+    final categoriesLoading =
+        categoriesQ.isLoading && !categoriesQ.hasValue && !categoriesQ.hasError;
+    final categoriesFailed = categoriesQ.hasError && !categoriesQ.hasValue;
     // The web's effect: once the categories land, an unset category becomes
     // `general` (else the first).
     _categoryId ??= defaultIngredientCategory(categories)?.id;
@@ -132,7 +134,12 @@ class _CreateIngredientDialogState
               Expanded(
                 child: DashSelectField<String>(
                   label: t('inventory.catalog.category'),
-                  placeholder: t('inventory.catalog.category'),
+                  placeholder: categoriesLoading
+                      ? t('common.loading')
+                      : t('inventory.catalog.category'),
+                  // Nothing to pick until the read lands (never an empty
+                  // "no results" list while it loads or after it failed).
+                  enabled: categories.isNotEmpty,
                   value: _categoryId,
                   options: [
                     for (final c in categories)
@@ -154,12 +161,19 @@ class _CreateIngredientDialogState
               ),
             ],
           ),
+          if (categoriesFailed)
+            RecipeLoadError(
+              title: t('inventory.settings.categoriesFailed'),
+              message: errorMessage(categoriesQ.error, t),
+              retrying: categoriesQ.isLoading,
+              onRetry: () =>
+                  ref.invalidate(ingredientCategoriesProvider(widget.orgId)),
+            ),
           DashTextField(
             label: t('inventory.catalog.costPerUnit'),
             value: _cost,
             placeholder: '—',
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            textDirection: TextDirection.ltr,
             onChanged: (v) => setState(
               () => _cost = cleanDecimal(
                 DashTime.latinDigits(v).replaceAll('٫', '.'),
@@ -180,6 +194,77 @@ class _CreateIngredientDialogState
           onPressed: canSave ? _submit : null,
         ),
       ],
+    );
+  }
+}
+
+/// A read that failed with nothing to show, compact enough for a dialog or
+/// the builder: what failed, the server's words, and Retry (spinning while
+/// the retry runs). The web shows nothing here (see the divergences file).
+class RecipeLoadError extends ConsumerWidget {
+  const RecipeLoadError({
+    required this.title,
+    required this.message,
+    required this.retrying,
+    required this.onRetry,
+    super.key,
+  });
+
+  final String title;
+  final String message;
+  final bool retrying;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(tProvider);
+    final c = context.madarColors;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(Space.md),
+        decoration: BoxDecoration(
+          color: DashTone.danger.wash(c),
+          borderRadius: BorderRadius.circular(Radii.control),
+        ),
+        child: Row(
+          spacing: Space.md,
+          children: [
+            DashIcon(
+              'alert-triangle',
+              size: IconSize.sm,
+              color: DashTone.danger.foreground(c),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: DashType.bodyStrong.copyWith(
+                      color: DashTone.danger.foreground(c),
+                    ),
+                  ),
+                  if (message.isNotEmpty)
+                    Text(
+                      message,
+                      style: DashType.small.copyWith(color: c.textSecondary),
+                    ),
+                ],
+              ),
+            ),
+            DashButton(
+              label: t('common.retry'),
+              icon: 'rotate-cw',
+              variant: DashButtonVariant.outline,
+              size: DashButtonSize.compact,
+              loading: retrying,
+              onPressed: onRetry,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

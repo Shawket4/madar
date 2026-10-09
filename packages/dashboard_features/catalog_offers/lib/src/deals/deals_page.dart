@@ -150,10 +150,13 @@ class _DealsPageState extends ConsumerState<DealsPage> {
       destructive: true,
     );
     if (!ok || !mounted) return;
+    // Captured first: the refresh happens even if the page is gone by then.
+    final api = ref.read(apiProvider).menu;
+    final bus = ref.read(realtimeBusProvider);
     try {
-      await ref.read(apiProvider).menu.deleteDeal(id: d.id);
+      await api.deleteDeal(id: d.id);
+      bus.invalidate(combosInvalidationPrefixes);
       _toast(DashToastKind.success, t('deals.deleted'));
-      ref.read(realtimeBusProvider).invalidate(combosInvalidationPrefixes);
     } on Object catch (e) {
       _toast(DashToastKind.error, dealErrorText(e, t));
     }
@@ -191,15 +194,17 @@ class _DealsPageState extends ConsumerState<DealsPage> {
       return t('deals.windowsCount', count: w.length);
     }
 
-    Widget muted(BuildContext context, String text, {int maxLines = 2}) =>
-        MadarClippedText(
-          text,
-          maxLines: maxLines,
-          overflow: TextOverflow.ellipsis,
-          style: DashType.body.copyWith(
-            color: context.madarColors.textSecondary,
-          ),
-        );
+    // "Counts" is clamped to two lines (`line-clamp-2`); "When" is not.
+    Widget muted(
+      BuildContext context,
+      String text, {
+      int? maxLines = 2,
+    }) => MadarClippedText(
+      text,
+      maxLines: maxLines,
+      overflow: maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis,
+      style: DashType.body.copyWith(color: context.madarColors.textSecondary),
+    );
 
     return [
       DashColumn<DealRule>(
@@ -216,10 +221,9 @@ class _DealsPageState extends ConsumerState<DealsPage> {
         id: 'rule',
         label: t('deals.col.rule'),
         text: rule,
-        cell: (context, d) => MadarClippedText(
+        // Not clamped, as on the web.
+        cell: (context, d) => Text(
           rule(d),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
           style: DashType.body.copyWith(color: context.madarColors.textPrimary),
         ),
         flex: 3,
@@ -237,7 +241,7 @@ class _DealsPageState extends ConsumerState<DealsPage> {
         id: 'when',
         label: t('deals.col.when'),
         text: when,
-        cell: (context, d) => muted(context, when(d)),
+        cell: (context, d) => muted(context, when(d), maxLines: null),
         flex: 3,
         minWidth: 180,
       ),
@@ -263,9 +267,10 @@ class _DealsPageState extends ConsumerState<DealsPage> {
     final menu = ref.watch(menuOptionsProvider);
 
     final deals = sortedDeals(q.value ?? const []);
-    final loading = q.isLoading && !q.hasValue;
-    // A failed refetch replaces the rows it had (OFFR-ALL-012).
-    final error = q.hasError && !q.isLoading ? q.error : null;
+    // A failed read stays an error (with Retry) while its retry runs; a
+    // failed refetch replaces the rows it had (OFFR-ALL-012).
+    final loading = q.isLoading && !q.hasValue && !q.hasError;
+    final error = q.hasError ? q.error : null;
 
     // Any change of the rows puts the table back on page 1.
     final seen = jsonEncode([for (final d in deals) d.toJson()]);

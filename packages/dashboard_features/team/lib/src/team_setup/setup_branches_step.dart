@@ -182,14 +182,32 @@ class _BranchPinState extends ConsumerState<_BranchPin> {
         : null;
   }
 
-  // Seeded once from the branch, as the web's `useState(saved)`.
+  // Seeded from the branch (the web's `useState(saved)`), and again when a
+  // background refresh brings a newer pin, until the person touches it.
   late LatLng? _pin = _saved;
-  late double? _radius = (widget.branch.geoRadiusMeters ?? 0) > 0
-      ? widget.branch.geoRadiusMeters!.toDouble()
-      : defaultPinRadius.toDouble();
+  late double? _radius = _savedRadius;
   String _paste = '';
   _Locating _locating = const _Idle();
   bool _busy = false;
+  bool _edited = false;
+
+  double get _savedRadius => (widget.branch.geoRadiusMeters ?? 0) > 0
+      ? widget.branch.geoRadiusMeters!.toDouble()
+      : defaultPinRadius.toDouble();
+
+  @override
+  void didUpdateWidget(_BranchPin old) {
+    super.didUpdateWidget(old);
+    final a = old.branch, b = widget.branch;
+    if (_edited ||
+        (a.latitude == b.latitude &&
+            a.longitude == b.longitude &&
+            a.geoRadiusMeters == b.geoRadiusMeters)) {
+      return;
+    }
+    _pin = _saved;
+    _radius = _savedRadius;
+  }
 
   PinParse? get _pasted => _paste.trim().isEmpty ? null : parsePin(_paste);
 
@@ -202,6 +220,7 @@ class _BranchPinState extends ConsumerState<_BranchPin> {
 
   void _onPaste(String text) {
     setState(() {
+      _edited = true;
       _paste = text;
       final r = text.trim().isEmpty ? null : parsePin(text);
       if (r != null && r.ok) _pin = r.pin;
@@ -209,7 +228,10 @@ class _BranchPinState extends ConsumerState<_BranchPin> {
   }
 
   Future<void> _locate() async {
-    setState(() => _locating = const _Busy());
+    setState(() {
+      _edited = true;
+      _locating = const _Busy();
+    });
     final r = await ref
         .read(setupLocatorProvider)
         .locate(timeout: locateTimeout);
@@ -247,33 +269,41 @@ class _BranchPinState extends ConsumerState<_BranchPin> {
     final radius = _radius;
     if (pin == null || !_radiusOk || radius == null) return;
     final t = ref.read(tProvider);
+    final api = ref.read(apiProvider);
+    // Captured before the await: the page may close mid-save, and the web's
+    // invalidation still lands.
+    final bus = ref.read(realtimeBusProvider);
+    final container = ProviderScope.containerOf(context, listen: false);
+    final name = widget.branch.name;
     setState(() => _busy = true);
     try {
-      await ref
-          .read(apiProvider)
-          .branches
-          .patchBranch(
-            id: widget.branch.id,
-            body: UpdateBranchRequest(
-              latitude: pin.lat,
-              longitude: pin.lng,
-              geoRadiusMeters: radius.round(),
-            ),
-          );
-      if (!mounted) return;
-      DashToast.success(
-        context,
-        t('dawam.pinSaved', args: {'name': widget.branch.name}),
+      await api.branches.patchBranch(
+        id: widget.branch.id,
+        body: UpdateBranchRequest(
+          latitude: pin.lat,
+          longitude: pin.lng,
+          geoRadiusMeters: radius.round(),
+        ),
       );
-      // `invalidateBranches()`: the checklist, the sidebar and the scope bar
-      // all read this list.
-      ref.invalidate(branchesProvider);
-      widget.onSaved();
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, errorMessage(e, t));
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        DashToast.error(context, errorMessage(e, t));
+        setState(() => _busy = false);
+      }
+      return;
     }
+    // `invalidateBranches()`: every `/branches…` read; the checklist, the
+    // sidebar and the scope bar all read the core's list.
+    bus.invalidate(const ['/branches']);
+    container.invalidate(branchesProvider);
+    if (!mounted) return;
+    // Saved: what the server holds is this person's pin again.
+    setState(() {
+      _busy = false;
+      _edited = false;
+    });
+    DashToast.success(context, t('dawam.pinSaved', args: {'name': name}));
+    widget.onSaved();
   }
 
   @override
@@ -462,7 +492,10 @@ class _BranchPinState extends ConsumerState<_BranchPin> {
               child: DashNumberInput(
                 key: ValueKey('setup-radius-${b.id}'),
                 value: _radius,
-                onChanged: (v) => setState(() => _radius = v),
+                onChanged: (v) => setState(() {
+                  _edited = true;
+                  _radius = v;
+                }),
                 min: 10,
                 max: 5000,
                 step: 50,

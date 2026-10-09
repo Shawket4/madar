@@ -57,6 +57,7 @@ const List<DashRoute> inventoryRoutes = [
     titleFallback: 'Stock counts',
     caps: [Cap.inventoryCountsRead],
     module: OrgModule.pos,
+    prefetch: _prefetchCounts,
   ),
   DashRoute(
     path: '/inventory/ingredients',
@@ -122,6 +123,13 @@ void _prefetchToday(DashPrefetcher warm, Scope s) {
     warm(inventorySuppliersProvider(orgId));
     warm(inventoryCatalogProvider(orgId));
   }
+}
+
+/// The web's `prefetchRoute('/inventory/counts')`: the picked branch's
+/// counts list (the page's first key; nothing with All branches).
+void _prefetchCounts(DashPrefetcher warm, Scope s) {
+  final b = s.branchId;
+  if (b != null) warm(stocktakesProvider(b));
 }
 
 /// The web's `prefetchRoute('/inventory/purchasing')`, with the page's own

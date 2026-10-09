@@ -22,16 +22,18 @@ class MenuUnsavedBarHost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final b = bar;
-    if (b == null) return child;
+    // One tree with or without the bar: the page under it keeps its state
+    // (its scroll position) when the first edit brings the bar up.
     return Stack(
       children: [
         Positioned.fill(child: child),
-        PositionedDirectional(
-          start: Space.md,
-          end: Space.md,
-          bottom: Space.lg,
-          child: SafeArea(top: false, child: Center(child: b)),
-        ),
+        if (b != null)
+          PositionedDirectional(
+            start: Space.md,
+            end: Space.md,
+            bottom: Space.lg,
+            child: SafeArea(top: false, child: Center(child: b)),
+          ),
       ],
     );
   }

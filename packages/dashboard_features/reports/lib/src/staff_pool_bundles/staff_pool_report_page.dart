@@ -90,6 +90,7 @@ class StaffPoolReportPage extends ConsumerWidget {
       } else if (today.hasError) {
         body = DashErrorState(
           retryLabel: t('common.retry'),
+          retrying: today.isLoading,
           onRetry: () => ref.invalidate(staffPoolTodayProvider(todayQuery)),
         );
       } else if (today.value != null && !today.value!.enabled) {

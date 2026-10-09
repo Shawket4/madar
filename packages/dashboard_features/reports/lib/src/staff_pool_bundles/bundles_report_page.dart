@@ -190,7 +190,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
         hideable: false,
         phone: DashPhoneRole.title,
         flex: 2,
-        minWidth: 180,
+        minWidth: 160,
         text: (r) => _name(r, lang),
         cell: (context, r) => Text(
           _name(r, lang),
@@ -201,20 +201,21 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
         id: 'sold',
         label: soldLabel,
         numeric: true,
-        minWidth: 88,
+        minWidth: 80,
         text: (r) => f.fmtNumber(r.sold),
       ),
       DashColumn<BundlesRow>(
         id: 'orders',
         label: t('reports.bundles.col.orders'),
         numeric: true,
-        minWidth: 88,
+        minWidth: 80,
         text: (r) => f.fmtNumber(r.orders),
       ),
       DashColumn<BundlesRow>(
         id: 'revenue',
         label: t('reports.bundles.col.revenue'),
         numeric: true,
+        minWidth: _Widths.money,
         text: (r) => f.fmtMoney(r.revenue),
         cell: (context, r) => Text(
           dashFigure(f.fmtMoney(r.revenue)),
@@ -225,18 +226,21 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
         id: 'list',
         label: t('reports.bundles.col.listValue'),
         numeric: true,
+        minWidth: _Widths.money,
         text: (r) => f.fmtMoney(r.listValue),
       ),
       DashColumn<BundlesRow>(
         id: 'saving',
         label: t('reports.bundles.col.saving'),
         numeric: true,
+        minWidth: _Widths.money,
         text: (r) => f.fmtMoney(r.saving),
       ),
       DashColumn<BundlesRow>(
         id: 'cost',
         label: t('reports.bundles.col.cost'),
         numeric: true,
+        minWidth: _Widths.money + Space.sm,
         // A cost partly unknown is a floor (REP-BUN-008).
         text: (r) => '${r.costMissing ? '≥ ' : ''}${f.fmtMoney(r.cost)}',
       ),
@@ -244,7 +248,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
         id: 'margin',
         label: t('reports.bundles.col.margin'),
         numeric: true,
-        minWidth: 88,
+        minWidth: 80,
         text: (r) => r.costMissing ? '—' : fmtRateWire(f, r.margin),
       ),
     ];
@@ -306,6 +310,12 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
       if (mounted) setState(() => _exporting = false);
     }
   }
+}
+
+/// Column floors that keep a figure whole ("EGP 41,270.00"); the table
+/// scrolls sideways before it cuts one (the web's cells never wrap).
+abstract final class _Widths {
+  static const double money = 144;
 }
 
 /// The export's columns (`handleExport`), in the web's order and types.

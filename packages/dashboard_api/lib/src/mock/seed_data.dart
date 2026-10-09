@@ -1063,3 +1063,96 @@ const List<String> seedVoidReasons = [
   'quality_issue',
   'other',
 ];
+
+// ── The floor plans ──────────────────────────────────────────────────────
+
+/// One table of a Sabah branch's floor plan. The floor (sell) and the
+/// reports' tables dataset read the same plan and the same sittings
+/// ([MockSeed.sittings]), so a table's history agrees with its ledger.
+class SeedFloorTable {
+  const SeedFloorTable(
+    this.branchKey,
+    this.sectionKey,
+    this.sectionName,
+    this.label,
+    this.seats,
+    this.shape, {
+    this.active = true,
+    this.retiredCairo,
+  });
+
+  final String branchKey;
+
+  /// Null = a table outside any section.
+  final String? sectionKey;
+  final String sectionName;
+  final String label;
+  final int seats;
+  final String shape;
+  final bool active;
+
+  /// When it left the plan (Cairo wall time, `YYYY-MM-DD HH:MM`); its
+  /// earlier sittings stay in the history.
+  final String? retiredCairo;
+}
+
+/// Branch by branch, in plan order. Zamalek's T10 stood on the Nile terrace
+/// until 26 Sept 2026 and is no longer on the plan.
+const List<SeedFloorTable> seedFloorTables = [
+  SeedFloorTable('heliopolis', 'main', 'Main hall', 'T1', 4, 'rect'),
+  SeedFloorTable('heliopolis', 'main', 'Main hall', 'T2', 4, 'rect'),
+  SeedFloorTable('heliopolis', 'main', 'Main hall', 'T3', 2, 'circle'),
+  SeedFloorTable('heliopolis', 'main', 'Main hall', 'T4', 2, 'circle'),
+  SeedFloorTable('heliopolis', 'main', 'Main hall', 'T5', 6, 'rect'),
+  SeedFloorTable('heliopolis', 'main', 'Main hall', 'T6', 4, 'rect'),
+  SeedFloorTable('heliopolis', 'terrace', 'Terrace', 'T7', 2, 'circle'),
+  SeedFloorTable('heliopolis', 'terrace', 'Terrace', 'T8', 2, 'circle'),
+  SeedFloorTable(
+    'heliopolis',
+    'terrace',
+    'Terrace',
+    'T9',
+    4,
+    'rect',
+    active: false,
+  ),
+  SeedFloorTable('maadi', 'indoor', 'Indoor', 'T1', 2, 'circle'),
+  SeedFloorTable('maadi', 'indoor', 'Indoor', 'T2', 4, 'rect'),
+  SeedFloorTable('maadi', 'indoor', 'Indoor', 'T3', 4, 'rect'),
+  SeedFloorTable('maadi', 'indoor', 'Indoor', 'T4', 6, 'rect'),
+  SeedFloorTable('maadi', 'garden', 'Garden', 'T5', 4, 'rect'),
+  SeedFloorTable('maadi', 'garden', 'Garden', 'T6', 4, 'rect'),
+  SeedFloorTable('maadi', 'garden', 'Garden', 'T7', 2, 'circle'),
+  SeedFloorTable('maadi', 'garden', 'Garden', 'T8', 2, 'circle'),
+  SeedFloorTable('new-cairo', 'ground', 'Ground floor', 'T1', 4, 'rect'),
+  SeedFloorTable('new-cairo', 'ground', 'Ground floor', 'T2', 4, 'rect'),
+  SeedFloorTable('new-cairo', 'ground', 'Ground floor', 'T3', 2, 'circle'),
+  SeedFloorTable('new-cairo', 'ground', 'Ground floor', 'T4', 2, 'circle'),
+  SeedFloorTable('new-cairo', 'ground', 'Ground floor', 'T5', 6, 'rect'),
+  SeedFloorTable('new-cairo', 'ground', 'Ground floor', 'T6', 4, 'rect'),
+  SeedFloorTable('new-cairo', 'mezzanine', 'Mezzanine', 'T7', 2, 'circle'),
+  SeedFloorTable('new-cairo', 'mezzanine', 'Mezzanine', 'T8', 2, 'circle'),
+  SeedFloorTable('new-cairo', 'mezzanine', 'Mezzanine', 'T9', 4, 'rect'),
+  SeedFloorTable('new-cairo', 'outdoor', 'Outdoor', 'T10', 4, 'rect'),
+  SeedFloorTable('new-cairo', 'outdoor', 'Outdoor', 'T11', 4, 'rect'),
+  SeedFloorTable('new-cairo', 'outdoor', 'Outdoor', 'T12', 8, 'rect'),
+  SeedFloorTable('zamalek', 'main', 'Main hall', 'T1', 2, 'circle'),
+  SeedFloorTable('zamalek', 'main', 'Main hall', 'T2', 4, 'rect'),
+  SeedFloorTable('zamalek', 'main', 'Main hall', 'T3', 4, 'rect'),
+  SeedFloorTable('zamalek', 'main', 'Main hall', 'T4', 2, 'circle'),
+  SeedFloorTable('zamalek', 'main', 'Main hall', 'T5', 6, 'rect'),
+  SeedFloorTable('zamalek', 'nile', 'Nile terrace', 'T6', 2, 'circle'),
+  SeedFloorTable('zamalek', 'nile', 'Nile terrace', 'T7', 2, 'circle'),
+  SeedFloorTable('zamalek', 'nile', 'Nile terrace', 'T8', 4, 'rect'),
+  SeedFloorTable('zamalek', 'nile', 'Nile terrace', 'T9', 4, 'rect'),
+  SeedFloorTable(
+    'zamalek',
+    'nile',
+    'Nile terrace',
+    'T10',
+    4,
+    'rect',
+    retiredCairo: '2026-09-26 08:00',
+  ),
+  SeedFloorTable('zamalek', null, '', 'Bar 1', 2, 'circle'),
+];

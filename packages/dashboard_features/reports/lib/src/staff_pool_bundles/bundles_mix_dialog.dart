@@ -48,6 +48,7 @@ class BundlesMixDialog extends ConsumerWidget {
       body = DashErrorState(
         framed: false,
         retryLabel: t('common.retry'),
+        retrying: q.isLoading,
         onRetry: () => ref.invalidate(comboMixProvider(query)),
       );
     } else if (q.value!.slots.isEmpty) {

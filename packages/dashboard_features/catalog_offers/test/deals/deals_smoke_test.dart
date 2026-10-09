@@ -1,6 +1,5 @@
 // The deals page mounts in the shell at /menu/deals, with its ?edit param.
 import 'package:dashboard_catalog_offers/src/deals/deals_page.dart';
-import 'package:dashboard_core/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';

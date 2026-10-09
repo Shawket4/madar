@@ -7,6 +7,8 @@ library;
 
 import 'dart:convert';
 
+import 'package:dashboard_api/dashboard_api.dart' show GroupOut;
+
 import '../shared/menu_text.dart';
 
 // ── Pick rule ⇄ selection_type / min / max / is_required ─────────────────
@@ -288,3 +290,69 @@ Object _num(double q) =>
 /// The key of the duplicate check: (ingredient, size label or "every size").
 String lineKey(String ingredientId, String? sizeLabel) =>
     jsonEncode([ingredientId, (sizeLabel ?? '').isEmpty ? null : sizeLabel]);
+
+// ── The list (groups-page.tsx) ───────────────────────────────────────────
+
+/// The shared groups the page lists: the item-private "Options" sets (no
+/// legacy type) are edited in each item's editor; by `sort`, then name.
+List<GroupOut> sharedGroups(Iterable<GroupOut> all) =>
+    [
+      for (final g in all)
+        if (g.legacyAddonType != null) g,
+    ]..sort((a, b) {
+      final c = a.sort - b.sort;
+      return c != 0 ? c : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
+/// A row's pick-rule badge: (key, count for "up to").
+(String, int?) pickBadge(GroupOut g) {
+  final rule = selectionToPickRule(
+    selectionType: g.selectionType,
+    minSelections: g.minSelections,
+    maxSelections: g.maxSelections,
+    isRequired: g.isRequired,
+  );
+  return switch (rule.kind) {
+    PickKind.exactlyOne => ('menu.groups.pick.exactlyOneShort', null),
+    PickKind.upTo => ('menu.groups.pick.upToShort', rule.max),
+    PickKind.any => ('menu.groups.pick.anyShort', null),
+  };
+}
+
+/// Whether a row's effect badge is the filled one (it swaps).
+bool groupSwaps(GroupOut g) =>
+    g.effect == 'swaps' || isSwapType(g.legacyAddonType);
+
+/// A row's effect badge key.
+String effectBadgeKey(GroupOut g) {
+  if (groupSwaps(g)) {
+    if (g.swapCategorySlug == swapSlugs[SwapTarget.beans] ||
+        g.legacyAddonType == swapTypes[SwapTarget.beans]) {
+      return 'menu.groups.effect.swapsBeans';
+    }
+    final slug = g.swapCategorySlug;
+    return slug != null && slug.isNotEmpty && slug != swapSlugs[SwapTarget.milk]
+        ? 'menu.groups.effect.swapsOther'
+        : 'menu.groups.effect.swapsMilk';
+  }
+  return switch (g.effect) {
+    'adds' => 'menu.groups.effect.adds',
+    'none' => 'menu.groups.effect.none',
+    _ => 'menu.groups.effect.addsOrNothing',
+  };
+}
+
+/// The name to show in [lang]: the Arabic one in Arabic when it is not
+/// blank, else [name] (`getTranslatedName` would put an empty `ar` into a
+/// sentence: "حذف ؟").
+String shownName(String name, Object? translations, String lang) {
+  final ar = arOf(translations).trim();
+  return lang.startsWith('ar') && ar.isNotEmpty ? ar : name;
+}
+
+/// `arrayMove`.
+List<T> arrayMove<T>(List<T> list, int from, int to) {
+  final next = [...list];
+  next.insert(to, next.removeAt(from));
+  return next;
+}

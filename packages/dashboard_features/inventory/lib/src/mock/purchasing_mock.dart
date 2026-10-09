@@ -128,8 +128,15 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
   server.on('DELETE', '/purchasing/suppliers/{id}', (req) {
     req.requireCap('purchasing.suppliers.delete');
     final s = supplier(req);
-    // Soft-deleted on the server: gone from the list; past orders keep the
-    // name they were placed with.
+    // Soft-deleted on the server: gone from the list, while its orders and
+    // receipts still read its last name (the server's name subquery does not
+    // skip deleted rows).
+    for (final r in [
+      ...orders.where((o) => o['supplier_id'] == s['id']),
+      ...receipts.where((o) => o['supplier_id'] == s['id']),
+    ]) {
+      r['supplier_name'] = s['name'];
+    }
     suppliers.delete(s['id']! as String);
     return MockResponse.empty();
   });

@@ -86,7 +86,9 @@ class _LegalAuditTabState extends ConsumerState<LegalAuditTab> {
         ? ref.watch(legalAuditProvider(key))
         : const AsyncData<AuditReport?>(null);
     if (q.hasError) {
+      // The error stays (its Retry spinning) while a retry runs.
       return DashErrorState(
+        retrying: q.isLoading,
         onRetry: () => ref.invalidate(legalAuditProvider(key!)),
       );
     }

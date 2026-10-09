@@ -260,8 +260,9 @@ class TodayKpiStrip extends ConsumerWidget {
   }
 }
 
-/// Fades the strip up into place once (the web staggers its cards in); still
-/// under reduced motion.
+/// Fades the strip up into place once, as the web's `listItem` (160 ms, a
+/// 6 px rise; the web staggers each card 50 ms, which the kit's strip cannot
+/// yet); still under reduced motion.
 class TodayReveal extends StatefulWidget {
   const TodayReveal({required this.child, super.key});
 
@@ -273,9 +274,15 @@ class TodayReveal extends StatefulWidget {
 
 class _TodayRevealState extends State<TodayReveal>
     with SingleTickerProviderStateMixin {
+  static const double _rise = Space.xs + DashMetrics.hair;
+
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: DashMotion.slow,
+    duration: DashMotion.fast,
+  );
+  late final Animation<double> _shown = CurvedAnimation(
+    parent: _c,
+    curve: const Cubic(0.22, 1, 0.36, 1),
   );
   bool _started = false;
 
@@ -298,19 +305,17 @@ class _TodayRevealState extends State<TodayReveal>
   }
 
   @override
-  Widget build(BuildContext context) {
-    final curve = CurvedAnimation(parent: _c, curve: DashMotion.ease);
-    return FadeTransition(
-      opacity: curve,
-      child: SlideTransition(
-        position: Tween(
-          begin: const Offset(0, 0.04),
-          end: Offset.zero,
-        ).animate(curve),
-        child: widget.child,
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _shown,
+    child: AnimatedBuilder(
+      animation: _shown,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, _rise * (1 - _shown.value)),
+        child: child,
       ),
-    );
-  }
+      child: widget.child,
+    ),
+  );
 }
 
 // ── Low stock ───────────────────────────────────────────────────────────────
@@ -543,7 +548,15 @@ class TodayArrivingSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
-        DashSectionHeader(icon: 'truck', title: t('inventory.today.arriving')),
+        // As tall as the waste header's Log waste button, so the two titles
+        // line up side by side (the web's `min-h-8` matches its `sm` button).
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: DashMetrics.target),
+          child: DashSectionHeader(
+            icon: 'truck',
+            title: t('inventory.today.arriving'),
+          ),
+        ),
         body,
       ],
     );

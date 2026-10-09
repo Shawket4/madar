@@ -1,1 +1,3 @@
-{}
+{
+  "recipes.builder.catalogFailed": "Couldn't load the ingredients"
+}

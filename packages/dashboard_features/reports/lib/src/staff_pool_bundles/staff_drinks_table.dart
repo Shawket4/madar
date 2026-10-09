@@ -75,15 +75,18 @@ class StaffDrinksTable extends ConsumerWidget {
         label: t('staffPool.colTime'),
         numeric: true,
         align: DashAlign.start,
-        minWidth: showDate ? 168 : 96,
+        // "08 Oct 2026 · 09:45 AM" whole on a desktop row.
+        minWidth: showDate ? 208 : 104,
         text: time,
+        // Never cut: on a phone card it wraps instead.
+        cell: (context, d) => Text(dashFigure(time(d))),
       ),
       DashColumn<StaffDrink>(
         id: 'item',
         label: t('staffPool.colItem'),
         phone: DashPhoneRole.title,
         flex: 2,
-        minWidth: 160,
+        minWidth: 128,
         text: staffDrinkItemText,
         cell: (context, d) {
           final text = Text(staffDrinkItemText(d));
@@ -145,6 +148,8 @@ class StaffDrinksTable extends ConsumerWidget {
         id: 'comp',
         label: t('staffPool.colComp'),
         numeric: true,
+        // Room for the "Till differs" pill.
+        minWidth: 120,
         text: (d) => switch (staffDrinkMoney(d)) {
           StaffDrinkPriced(:final comp) => f.fmtMoney(comp),
           StaffDrinkUnpriced() => '—',
@@ -171,6 +176,7 @@ class StaffDrinksTable extends ConsumerWidget {
         id: 'extras',
         label: t('staffPool.colExtras'),
         numeric: true,
+        minWidth: 136,
         text: (d) => switch (staffDrinkMoney(d)) {
           StaffDrinkPriced(:final extras) => f.fmtMoney(extras),
           StaffDrinkUnpriced() => '—',
@@ -184,6 +190,7 @@ class StaffDrinksTable extends ConsumerWidget {
         id: 'cost',
         label: t('staffPool.colCost'),
         numeric: true,
+        minWidth: 104,
         text: (d) => d.costMinor == null ? '—' : f.fmtMoney(d.costMinor),
       ),
       DashColumn<StaffDrink>(
@@ -265,28 +272,32 @@ class _OverBadge extends ConsumerWidget {
         color: DashTone.danger.wash(c),
         borderRadius: BorderRadius.circular(Radii.pill),
       ),
-      child: Text.rich(
-        TextSpan(
-          text: t('staffPool.overBadge'),
-          children: [
-            if (replay)
-              TextSpan(
-                text: ' ${t('staffPool.overOnReplay')}',
-                style: DashType.small.copyWith(
-                  color: fg.withValues(alpha: 1 - Opacities.subtle),
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-          ],
-        ),
+      child: Text(
+        t('staffPool.overBadge'),
         style: DashType.smallStrong.copyWith(color: fg),
+        softWrap: false,
       ),
     );
     if (!replay) return badge;
+    // "· on recount" rides under the badge rather than inside it, so the
+    // column fits a desktop row without scrolling sideways.
     return MadarHoldHint(
       message: t('staffPool.overOnReplayHint'),
       semantics: true,
-      child: badge,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        spacing: DashMetrics.hair,
+        children: [
+          badge,
+          Text(
+            t('staffPool.overOnReplay'),
+            style: DashType.small.copyWith(
+              color: fg.withValues(alpha: 1 - Opacities.subtle),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

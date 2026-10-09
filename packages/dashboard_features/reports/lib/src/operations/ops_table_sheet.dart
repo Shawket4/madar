@@ -80,7 +80,7 @@ class OpsTableHistory extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
-    final q = ref.watch(opsTableHistoryProvider((tableId, from, to)));
+    final q = ref.watch(opsTableHistoryProvider((id: tableId, from: from, to: to)));
     final small = DashType.small.copyWith(color: c.textSecondary);
     if (q.firstLoad) {
       return const Column(
@@ -211,17 +211,38 @@ class _SittingRow extends ConsumerWidget {
     final customerId = s.customerId;
     final Widget whoWidget =
         name != null && name.isNotEmpty && customerId != null && canOpen
+        // The web's `CustomerLink`: the name, underlined, lined up with
+        // the other rows' words; a 44 pt target.
         ? Align(
             alignment: AlignmentDirectional.centerStart,
-            child: DashButton(
+            child: DashPressable(
               key: ValueKey('ops-customer-$customerId-${s.openTicketId}'),
-              label: name,
-              variant: DashButtonVariant.link,
-              size: DashButtonSize.compact,
-              onPressed: () => showDashSidePanel<void>(
+              pressScale: false,
+              semanticLabel: name,
+              excludeChildSemantics: true,
+              onTap: () => showDashSidePanel<void>(
                 context,
                 width: DashMetrics.dialogWide,
                 builder: (_) => OpsCustomerSheet(customerId: customerId),
+              ),
+              builder: (context, st) => ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: DashMetrics.target,
+                ),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  widthFactor: 1,
+                  child: MadarClippedText(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DashType.body.copyWith(
+                      color: st.highlighted ? c.brand : c.textPrimary,
+                      decoration: TextDecoration.underline,
+                      decorationColor: c.textSecondary,
+                    ),
+                  ),
+                ),
               ),
             ),
           )
@@ -312,14 +333,11 @@ class OpsCustomerSheet extends ConsumerWidget {
     if (q.firstLoad) {
       body = const DashSkeleton(height: Space.xxl * 8);
     } else if (q.hasError || d == null || customer == null) {
-      body = DashEmptyState(
+      body = DashErrorState(
         title: t('customers.loadFailed'),
-        description: q.hasError ? opsErrorText(q.error, t) : null,
-        action: DashButton(
-          label: t('common.retry'),
-          variant: DashButtonVariant.outline,
-          onPressed: () => ref.invalidate(_customerProvider(customerId)),
-        ),
+        message: q.hasError ? opsErrorText(q.error, t) : null,
+        retrying: q.isLoading,
+        onRetry: () => ref.invalidate(_customerProvider(customerId)),
       );
     } else {
       Widget stat(String label, String value) => Container(
@@ -517,11 +535,17 @@ class _RecentOrders extends ConsumerWidget {
                 label: o.orderRef ?? o.id.substring(0, 8),
                 variant: DashButtonVariant.link,
                 size: DashButtonSize.compact,
-                onPressed: () => showDashSidePanel<void>(
-                  context,
-                  width: DashMetrics.dialogWide,
-                  builder: (_) => OpsOrderSheet(orderId: o.id),
-                ),
+                onPressed: () {
+                  // The customer panel closes first, then the order opens
+                  // (`useCustomerSheet`'s onOpenOrder).
+                  final nav = Navigator.of(context, rootNavigator: true);
+                  nav.pop();
+                  showDashSidePanel<void>(
+                    nav.context,
+                    width: DashMetrics.dialogWide,
+                    builder: (_) => OpsOrderSheet(orderId: o.id),
+                  );
+                },
               ),
             ),
             DashColumn<CustomerOrder>(
@@ -573,6 +597,7 @@ class OpsOrderSheet extends ConsumerWidget {
     } else if (q.hasError || o == null) {
       body = DashErrorState(
         message: opsErrorText(q.error, t),
+        retrying: q.isLoading,
         onRetry: () => ref.invalidate(_orderProvider(orderId)),
       );
     } else {

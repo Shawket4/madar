@@ -73,6 +73,7 @@ class StaffDrinkOrderSheet extends ConsumerWidget {
             ? DashErrorState(
                 message: errorMessage(q.error, t),
                 retryLabel: t('common.retry'),
+                retrying: q.isLoading,
                 onRetry: () => ref.invalidate(staffDrinkOrderProvider(orderId)),
                 framed: false,
               )

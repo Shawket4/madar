@@ -411,25 +411,28 @@ class _SetupRulesStepState extends ConsumerState<SetupRulesStep> {
 
   Future<void> _save() async {
     final t = ref.read(tProvider);
+    final api = ref.read(apiProvider);
+    // Captured before the await: the invalidation lands even if the page
+    // closes mid-save.
+    final staff = ref.read(staffRevisionsProvider.notifier);
     setState(() => _busy = true);
     try {
-      await ref
-          .read(apiProvider)
-          .staff
-          .putAttendanceSettings(
-            body: _values.fullBody(canGender: widget.canGender),
-          );
-      if (!mounted) return;
-      DashToast.success(context, t('dawam.setupRulesSaved'));
-      ref.read(staffRevisionsProvider.notifier).invalidateAttendance();
-      // The sidebar's own copy of the checklist (the set-up leaf leaves the
-      // nav once the rules are saved).
-      retrySetup(ref);
+      await api.staff.putAttendanceSettings(
+        body: _values.fullBody(canGender: widget.canGender),
+      );
     } on Object catch (e) {
-      if (mounted) DashToast.error(context, errorMessage(e, t));
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        DashToast.error(context, errorMessage(e, t));
+        setState(() => _busy = false);
+      }
+      return;
     }
+    // `invalidateAttendance()`: also reaches the core's settings read, so the
+    // sidebar's copy of the checklist drops the set-up leaf.
+    staff.invalidateAttendance();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    DashToast.success(context, t('dawam.setupRulesSaved'));
   }
 
   @override

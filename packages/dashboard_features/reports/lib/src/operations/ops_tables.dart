@@ -110,9 +110,13 @@ List<(String, num)> opsHourSeries(WidgetOutcome? o) {
   ];
 }
 
-/// Distinct sections, sorted, for the section filter.
+/// Distinct sections, sorted as `localeCompare` sorts them (case aside,
+/// lower case first), for the section filter.
 List<String> opsSectionsOf(List<OpsTableRow> rows) =>
-    {for (final r in rows) r.section}.toList()..sort();
+    {for (final r in rows) r.section}.toList()..sort((a, b) {
+      final c = a.toLowerCase().compareTo(b.toLowerCase());
+      return c != 0 ? c : b.compareTo(a);
+    });
 
 /// Whether the request failed or any widget came back as an error.
 bool opsTablesFailed(AsyncValue<MetricsQueryResponse> q) =>
@@ -122,6 +126,9 @@ bool opsTablesFailed(AsyncValue<MetricsQueryResponse> q) =>
 // ── the tab ───────────────────────────────────────────────────────────────
 
 const String _allSections = '__all__';
+
+/// The ledger's table-name cell (what a test taps to open a row).
+const Key opsTableNameKey = ValueKey('ops-table-name');
 
 /// The web's `sm:max-w-md` side sheet.
 const double opsTableSheetWidth = 448;
@@ -136,20 +143,6 @@ class OpsTablesView extends ConsumerStatefulWidget {
 class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
   String _section = _allSections;
 
-  @override
-  void initState() {
-    super.initState();
-    // Back on the tab after the stale time: refetch quietly (REP-OPS-062).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final scope = ref.read(currentScopeProvider);
-      final locale = ref.read(localeProvider);
-      if (ref.read(opsCacheProvider).isStale(tablesKey(scope, locale))) {
-        ref.invalidate(opsTablesProvider((scope, locale)));
-      }
-    });
-  }
-
   Future<void> _open(OpsTableRow row) => showDashSidePanel<void>(
     context,
     width: opsTableSheetWidth,
@@ -162,9 +155,12 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final scope = ref.watch(currentScopeProvider);
-    final locale = ref.watch(localeProvider) == 'ar' ? 'ar' : 'en';
-    final key = (scope, locale);
+    final key = scope.opsTables(opsMetricsLocale(ref.watch(localeProvider)));
     final q = ref.watch(opsTablesProvider(key));
+    // The floor lookup runs with the page whenever a branch is picked
+    // (`tables-page.tsx:73-77`), so a row's panel opens without waiting.
+    final branchId = scope.branchId;
+    if (branchId != null) ref.watch(opsFloorTablesProvider(branchId));
     final data = q.value;
     final loading = q.firstLoad;
     final failed = opsTablesFailed(q);
@@ -313,6 +309,7 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
           values: [for (final (_, v) in hours) v.toDouble()],
           color: opsChartColor(c, 0),
           integerAxis: true,
+          thinLabels: true,
           yAxisWidth: Space.xxl,
           formatAxis: (v) => fmtNum(f, v),
           tooltip: (i) =>
@@ -355,9 +352,11 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
           id: 'table',
           label: t('tablesInsights.table'),
           phone: DashPhoneRole.title,
+          minWidth: 72,
           text: (r) => r.table,
           cell: (context, r) => MadarClippedText(
             r.table,
+            key: opsTableNameKey,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: DashType.bodyMedium.copyWith(color: c.textPrimary),
@@ -367,6 +366,7 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
           id: 'section',
           label: t('tablesInsights.section'),
           hideable: false,
+          minWidth: 96,
           text: (r) => r.section,
         ),
         if (scope.branchId == null)
@@ -374,6 +374,7 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
             id: 'branch',
             label: t('tablesInsights.branch'),
             hideable: false,
+            minWidth: 104,
             text: (r) => r.branch,
           ),
         // Search matches the raw values each column reads (REP-ALL-015).
@@ -410,6 +411,7 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
           label: t('tablesInsights.revenue'),
           numeric: true,
           hideable: false,
+          minWidth: 144,
           text: (r) => '${r.tableRevenue}',
           cell: (context, r) => Text(
             dashFigure(f.fmtMoney(r.tableRevenue)),
@@ -421,6 +423,7 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
           label: t('tablesInsights.revenuePerCover'),
           numeric: true,
           hideable: false,
+          minWidth: 152,
           text: (r) => '${r.revenuePerCover}',
           cell: (context, r) => Text(dashFigure(f.fmtMoney(r.revenuePerCover))),
         ),
@@ -429,7 +432,7 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
           label: t('tablesInsights.avgDwell'),
           numeric: true,
           hideable: false,
-          minWidth: 96,
+          minWidth: 112,
           text: (r) => '${r.avgDwellMinutes}',
           cell: (context, r) => Text(fmtDwell(r.avgDwellMinutes)),
         ),

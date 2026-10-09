@@ -412,17 +412,11 @@ void main() {
       h.t('dawam.savePin'),
     );
     await h.tapText('300 ${h.t('dawam.metres')}');
-    h.server.fail(
-      'PATCH',
-      '/branches/{id}',
-      MockResponse.denied('branches.edit'),
-    );
+    final denied = MockResponse.denied('branches.edit');
+    h.server.fail('PATCH', '/branches/{id}', denied);
     await h.tapKey(ValueKey('setup-save-pin-$zamalek'));
-    // The server's refusal, as sent (it names the capability's description).
-    expect(
-      find.textContaining("Forbidden: You don't have permission to do this"),
-      findsOneWidget,
-    );
+    // The server's refusal, as the app words it.
+    expect(find.text(h.refusalWords(denied)), findsOneWidget);
     await h.flushTimers();
     expect(byKey('setup-paste-$zamalek'), findsOneWidget);
     expect(h.db!['branches'].get(zamalek)['geo_radius_meters'], 200);
@@ -445,6 +439,23 @@ void main() {
       ),
       throwsA(isA<ApiException>().having((e) => e.status, 'status', 403)),
     );
+  });
+
+  testWidgets('TEAM-SET-023 a refresh that brings a newer pin re-seeds an '
+      'untouched editor; a touched one keeps the person\'s pin', (
+    tester,
+  ) async {
+    final h = await pumpSetup(tester, edit: _twoUnpinned);
+    expect(textIn('setup-pin-$maadi', '29.96020, 31.25690'), findsOneWidget);
+    // Someone else pins Maadi elsewhere; Refresh brings it in.
+    h.db!['branches'].update(maadi, {'latitude': 29.9, 'longitude': 31.2});
+    await h.tapKey(const ValueKey('setup-refresh'));
+    expect(textIn('setup-pin-$maadi', '29.90000, 31.20000'), findsOneWidget);
+    // Once the person pastes their own, a refresh leaves it alone.
+    await _paste(h, maadi, '30.0444, 31.2357');
+    h.db!['branches'].update(maadi, {'latitude': 29.8, 'longitude': 31.1});
+    await h.tapKey(const ValueKey('setup-refresh'));
+    expect(textIn('setup-pin-$maadi', '30.04440, 31.23570'), findsOneWidget);
   });
 
   testWidgets('TEAM-SET-039 phone: the pin controls stack', (tester) async {

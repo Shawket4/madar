@@ -238,3 +238,8 @@ String _jsText(Object raw) {
 
 /// A row cell as text, as the web's `String(value)` prints it.
 String rawText(Object? raw) => raw == null ? '' : _jsText(raw);
+
+/// What a person typed or the server wrote, in its own direction (a first
+/// strong isolate): an English question on the Arabic page keeps its
+/// question mark at its end (the web lays it out in the page's direction).
+String ownDirection(String s) => '\u2068$s\u2069';

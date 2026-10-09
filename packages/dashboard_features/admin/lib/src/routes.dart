@@ -24,6 +24,7 @@ import 'orgs/orgs_page.dart';
 import 'orgs/orgs_providers.dart';
 import 'review/review_page.dart';
 import 'roles/roles_page.dart';
+import 'users/users_data.dart' show prefetchUsers;
 import 'users/users_page.dart';
 
 Widget _orgs(BuildContext context, GoRouterState state) => const OrgsPage();
@@ -73,6 +74,7 @@ const List<DashRoute> adminRoutes = [
     builder: _users,
     titleKey: 'nav.users',
     titleFallback: 'Users',
+    prefetch: prefetchUsers,
   ),
   DashRoute(
     path: RolesPage.path,

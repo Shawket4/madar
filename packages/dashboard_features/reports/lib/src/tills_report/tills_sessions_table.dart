@@ -173,7 +173,7 @@ class TillSessionsTable extends ConsumerWidget {
       DashColumn(
         id: 'closed_at',
         label: t('reports.tills.closedAt'),
-        minWidth: 216,
+        minWidth: 264,
         text: (r) => r.closedAt == null ? '' : isoString(r.closedAt!),
         cell: (context, r) {
           final closed = r.closedAt;

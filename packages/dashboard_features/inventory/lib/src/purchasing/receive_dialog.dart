@@ -359,9 +359,11 @@ class _ReceiveLines extends ConsumerWidget {
       );
     }
 
-    // Wide: the web's table.
+    // Wide: the web's table. The invoice column is wider than its input
+    // (`w-28 ms-auto`) so its header reads whole.
     const inputQty = Space.xxl * 3;
     const inputTotal = Space.xxl * 3 + Space.lg;
+    const totalColumn = Space.xxl * 4 + Space.lg;
     final head = DashType.tableHeader.copyWith(color: c.textSecondary);
     Widget cell(Widget child, {double? width, bool end = true}) {
       final aligned = Align(
@@ -402,7 +404,7 @@ class _ReceiveLines extends ConsumerWidget {
             headCell(t('inventory.purchasing.alreadyReceived'), width: fig),
             headCell(t('inventory.purchasing.remaining'), width: fig),
             headCell(t('inventory.purchasing.receiving'), width: inputQty),
-            headCell(t('inventory.purchasing.invoiceTotal'), width: inputTotal),
+            headCell(t('inventory.purchasing.invoiceTotal'), width: totalColumn),
           ],
         ),
       ),
@@ -457,7 +459,16 @@ class _ReceiveLines extends ConsumerWidget {
                   width: fig,
                 ),
                 SizedBox(width: inputQty, child: qtyInput(po.lines[i])),
-                SizedBox(width: inputTotal, child: totalInput(po.lines[i])),
+                SizedBox(
+                  width: totalColumn,
+                  child: Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: SizedBox(
+                      width: inputTotal,
+                      child: totalInput(po.lines[i]),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -614,13 +625,17 @@ class _History extends ConsumerWidget {
                           tone: DashTone.danger,
                           small: true,
                         ),
-                      const Spacer(),
-                      Flexible(
-                        child: MadarClippedText(
-                          r.receivedByName ?? r.receivedBy,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: DashType.body.copyWith(color: c.textSecondary),
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerEnd,
+                          child: MadarClippedText(
+                            r.receivedByName ?? r.receivedBy,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: DashType.body.copyWith(
+                              color: c.textSecondary,
+                            ),
+                          ),
                         ),
                       ),
                     ],

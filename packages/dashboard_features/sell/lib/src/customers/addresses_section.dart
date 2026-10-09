@@ -26,13 +26,14 @@ class AddressesSection extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final q = ref.watch(customerAddressesProvider(customerId));
     final Widget body;
-    if (q.isLoading && !q.hasValue) {
-      body = const DashSkeleton(height: Space.xxl * 2 + Space.lg);
-    } else if (q.hasError && !q.isLoading) {
+    if (q.hasError && !q.hasValue) {
       body = InlineFailure(
         message: peopleErrorMessage(q.error, t),
+        retrying: q.isLoading,
         onRetry: () => ref.invalidate(customerAddressesProvider(customerId)),
       );
+    } else if (!q.hasValue) {
+      body = const DashSkeleton(height: Space.xxl * 2 + Space.lg);
     } else {
       final rows = q.value ?? const <CustomerAddress>[];
       body = rows.isEmpty

@@ -44,7 +44,8 @@ Future<List<ExcelSheet<Object?>>> opsExportSheets({
   final branchId = scope.scopeBranchId;
   switch (tab) {
     case 'items':
-      final (items, addons) = await (
+      // Both at once (`Promise.all`); the first failure is what is shown.
+      final both = await Future.wait<List<Object>>([
         api.reports.branchCombinedItemSales(
           branchId: branchId,
           from: from,
@@ -57,7 +58,9 @@ Future<List<ExcelSheet<Object?>>> opsExportSheets({
           to: to,
           limit: opsExportLimit,
         ),
-      ).wait;
+      ]);
+      final items = both[0].cast<CombinedItemSalesRow>();
+      final addons = both[1].cast<AddonSalesRow>();
       return [
         ExcelSheet<CombinedItemSalesRow>(
           name: t('analytics.tabs.items'),

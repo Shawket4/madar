@@ -64,15 +64,16 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   Future<void> _finish(String orgId) async {
     final t = ref.read(tProvider);
     setState(() => _finishing = true);
+    final container = ProviderScope.containerOf(context, listen: false);
     try {
       final updated = await ref
           .read(apiProvider)
           .orgs
           .completeOnboarding(id: orgId);
-      if (!mounted) return;
       // The shell's first-run gate asks again, so it lets them through on
       // landing (the web seeds the same query synchronously).
-      ref.invalidate(onboardingCompletedProvider);
+      container.invalidate(onboardingCompletedProvider);
+      if (!mounted) return;
       setState(() {
         _finished = updated;
         _celebrating = true;

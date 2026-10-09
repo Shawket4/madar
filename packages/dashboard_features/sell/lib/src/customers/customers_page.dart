@@ -9,7 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../orders/order_sheet.dart';
+import '../shared/sheets.dart';
 import 'customer_dialog.dart';
 import 'customer_sheet.dart';
 import 'customers_data.dart';
@@ -49,14 +49,18 @@ class _CustomersPageState extends ConsumerState<CustomersPage> {
     if (mounted) setState(() => _openId = null);
   }
 
-  void _openOrder(String orderId) {
-    showOrderSheet(context, orderId: orderId, onSwitchOrder: _openOrder);
-  }
+  /// The page's one order sheet (`openOrder`): it stacks over the customer
+  /// sheet, which stays open; another order replaces it, never a second.
+  late final ValueChanged<String> _openOrder = singleOrderSheet(context);
 
-  Future<void> _add() async {
-    final saved = await showCustomerDialog(context);
-    if (saved != null && mounted) await _open(saved.customer.id);
-  }
+  /// A saved customer's sheet opens even when the dialog was closed while
+  /// it saved (`onSaved` → `setOpenCustomer`).
+  void _add() => showCustomerDialog(
+    context,
+    onSaved: (d) {
+      if (mounted) _open(d.customer.id);
+    },
+  );
 
   @override
   Widget build(BuildContext context) {

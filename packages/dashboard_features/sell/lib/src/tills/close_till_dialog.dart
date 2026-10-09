@@ -206,6 +206,7 @@ class _CloseTillDialogState extends ConsumerState<CloseTillDialog> {
               onChanged: (v) => setState(() => _cash = v),
               semanticLabel: t('tills.closingCash'),
               invalid: cashError,
+              onSubmitted: (_) => _submit(),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
@@ -375,7 +376,6 @@ class LastTillWarningDialog extends ConsumerWidget {
     final fmt = ref.watch(formatProvider);
     return DashSurface(
       title: t('tills.lastTillTitle'),
-      showClose: false,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: Space.md,

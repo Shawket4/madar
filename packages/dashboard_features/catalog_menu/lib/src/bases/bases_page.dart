@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/menu_providers.dart';
 import '../shared/menu_queries.dart';
 import 'base_editor_dialog.dart';
+import 'bases_providers.dart';
 import 'bases_widgets.dart';
 
 class RecipeBasesPage extends ConsumerWidget {
@@ -41,6 +42,9 @@ class RecipeBasesPage extends ConsumerWidget {
     if (orgId == null) {
       body = empty;
     } else {
+      // The web always mounts the editor, whose ingredient picker reads the
+      // catalog with the page (`useIngredientPicker`).
+      ref.watch(ingredientCatalogProvider(orgId));
       final provider = recipeBasesProvider(orgId);
       final bases = ref.watch(provider);
       if (bases.hasError) {
@@ -96,14 +100,18 @@ class RecipeBasesPage extends ConsumerWidget {
     );
   }
 
-  /// MENU-BAS-009: confirm (not destructive-styled), delete, toast, refresh
-  /// the bases and the catalog; a refusal shows the server's words.
+  /// MENU-BAS-009: confirm (not destructive-styled), delete, refresh the
+  /// bases and the catalog, toast; a refusal shows the server's words.
   Future<void> _delete(
     BuildContext context,
     WidgetRef ref,
     RecipeBaseOut b,
   ) async {
     final t = ref.read(tProvider);
+    // Captured first: the refresh must happen even if the page goes away
+    // while the request is out.
+    final container = ProviderScope.containerOf(context, listen: false);
+    final invalidate = ref.menuInvalidate;
     final ok = await showDashConfirm(
       context,
       title: t('modeling.bases.deleteTitle', args: {'name': b.name}),
@@ -112,12 +120,10 @@ class RecipeBasesPage extends ConsumerWidget {
     );
     if (!ok || !context.mounted) return;
     try {
-      await ref.read(apiProvider).menu.deleteBase(id: b.id);
+      await container.read(apiProvider).menu.deleteBase(id: b.id);
+      invalidateBases(container, invalidate);
       if (!context.mounted) return;
       DashToast.success(context, t('modeling.bases.deleted'));
-      ref.menuInvalidate
-        ..paths(const [MenuPaths.recipeBases])
-        ..catalog();
     } on Object catch (e) {
       if (!context.mounted) return;
       DashToast.error(context, errorMessage(e, t));

@@ -10,7 +10,6 @@ import 'package:dashboard_catalog_menu/src/bases/bases_widgets.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -26,42 +25,10 @@ final String _blend = MenuSeedIds.ingredient('house_blend');
 final String _ice = MenuSeedIds.ingredient('ice');
 final String _matcha = MenuSeedIds.ingredient('matcha');
 
-/// The quantity cell of [ingredient] in the column [size].
-Finder cell(DashHarness h, String ingredient, String size) =>
-    find.bySemanticsLabel(
-      h.t(
-        'modeling.grid.cellAria',
-        args: {'ingredient': ingredient, 'size': size},
-      ),
-    );
-
-/// The editable text inside [f].
-EditableText editable(WidgetTester tester, Finder f) => tester.widget(
-  find.descendant(of: f, matching: find.byType(EditableText)).first,
-);
-
 Future<void> openEditor(DashHarness h, String baseId) =>
     h.tap(labelIn(rowOf(baseId), h.t('common.edit')));
 
 Future<void> openNew(DashHarness h) => h.tapText(h.t('modeling.bases.new'));
-
-/// Picks [name] in the "+ ingredient" combobox.
-Future<void> addIngredient(DashHarness h, String name) async {
-  await h.tap(find.text(h.t('modeling.grid.addIngredient')).last);
-  await pickOption(h, name);
-}
-
-/// Picks [name] in the open option list, searched for first (the list is
-/// longer than its popover; a person types). The option row comes after the
-/// search box, which now holds [name] too.
-Future<void> pickOption(DashHarness h, String name) async {
-  final list = find.byWidgetPredicate((w) => w is DashOptionList);
-  await h.enterText(
-    find.descendant(of: list, matching: find.byType(EditableText)),
-    name,
-  );
-  await h.tap(find.descendant(of: list, matching: find.text(name)).last);
-}
 
 /// The "Base saved · N sizes updated" words.
 String savedText(DashHarness h, int n) => h.t('modeling.bases.saved', count: n);
@@ -86,6 +53,15 @@ void main() {
     testWidgets('MENU-BAS-002 the org\'s bases, by name', (tester) async {
       final h = await pumpMenu(tester);
       expect(h.server.callsTo(_list, method: 'GET'), hasLength(1));
+      // The always-mounted editor's ingredient picker reads with the page.
+      expect(
+        h.server.callsTo(_catalog).single.path,
+        '/inventory/orgs/${SeedIds.sabahOrg}/catalog',
+      );
+      // Opening the editor reuses it: no second request.
+      await openEditor(h, icedBase);
+      expect(h.server.callsTo(_catalog), hasLength(1));
+      await h.tapText('Cancel');
       final names = [
         for (final id in [espressoBase, icedBase, mochaOldBase])
           tester.getTopLeft(rowOf(id)).dy,
@@ -104,7 +80,6 @@ void main() {
       final h = await pumpMenu(tester, seeded: s);
       expect(find.byType(ModelingSkeleton), findsOneWidget);
       expect(find.text('Espresso shot'), findsNothing);
-      await h.shot('bases/loading');
       gate.release();
       await h.settle();
       expect(find.byType(ModelingSkeleton), findsNothing);
@@ -120,7 +95,6 @@ void main() {
       expect(find.text('Could not load recipe bases'), findsOneWidget);
       expect(find.text('Database is down'), findsOneWidget);
       expect(find.text('Espresso shot'), findsNothing);
-      await h.shot('bases/error');
       await h.tapText('Retry');
       expect(find.text('Could not load recipe bases'), findsNothing);
       expect(find.text('Espresso shot'), findsOneWidget);
@@ -131,7 +105,7 @@ void main() {
       final s = menuServer();
       CatalogMenuSeed.loadInto(s.db);
       s.db[MenuTables.bases].clear();
-      final h = await pumpMenu(tester, seeded: s);
+      await pumpMenu(tester, seeded: s);
       expect(find.text('No recipe bases yet'), findsOneWidget);
       expect(
         find.text(
@@ -141,7 +115,6 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('New base'), findsOneWidget);
-      await h.shot('bases/empty');
     });
 
     testWidgets('MENU-BAS-006 a row: name, Inactive pill, usage and lines', (
@@ -189,12 +162,11 @@ void main() {
       testWidgets('MENU-BAS-008 ${persona.name}: read-only list', (
         tester,
       ) async {
-        final h = await pumpMenu(tester, persona: persona);
+        await pumpMenu(tester, persona: persona);
         expect(find.text('Espresso shot'), findsOneWidget);
         expect(find.text('New base'), findsNothing);
         expect(find.bySemanticsLabel('Edit'), findsNothing);
         expect(find.bySemanticsLabel('Delete'), findsNothing);
-        await h.shot('bases/read-only-${persona.name}');
       });
     }
 
@@ -231,6 +203,7 @@ void main() {
       final h = await pumpMenu(tester, persona: Persona.platform);
       expect(find.text('No recipe bases yet'), findsOneWidget);
       expect(h.server.callsTo(_list), isEmpty);
+      expect(h.server.callsTo(_catalog), isEmpty);
       // A platform admin holds every capability.
       expect(find.text('New base'), findsOneWidget);
     });
@@ -283,14 +256,16 @@ void main() {
         ),
         findsNothing,
       );
-      await h.shot('bases/delete-confirm');
       final lists = h.server.callsTo(_list, method: 'GET').length;
+      final epochs = [for (final k in catalogKeys) epochOf(h, k)];
       await h.tap(
         find.descendant(
           of: find.byType(DashConfirmDialog),
           matching: find.text('Delete'),
         ),
       );
+      // invalidateCatalog(): items and categories are stale too.
+      expect([for (final e in epochs) e()], [1, 1]);
       final del = lastCall(h, 'DELETE', _one);
       expect(del.path, '/recipe-bases/$icedBase');
       expect(del.status, 204);
@@ -360,7 +335,6 @@ void main() {
       // MENU-BAS-013: an empty grid.
       expect(find.text('No ingredients yet.'), findsOneWidget);
       expect(find.text('All sizes'), findsOneWidget);
-      await h.shot('bases/editor-new');
     });
 
     testWidgets('MENU-BAS-010 edit: the usage replaces the help once loaded', (
@@ -411,7 +385,6 @@ void main() {
       await h.tapText('Save');
       expect(find.text('This field is required'), findsOneWidget);
       expect(h.server.callsTo(_list, method: 'POST'), isEmpty);
-      await h.shot('bases/editor-required');
       // Re-checked on every change after the first Save.
       await h.enterText(find.bySemanticsLabel('Name'), 'Chai base');
       expect(find.text('This field is required'), findsNothing);
@@ -464,7 +437,6 @@ void main() {
       );
       // × on the size columns only.
       expect(find.bySemanticsLabel('Remove column'), findsNWidgets(2));
-      await h.shot('bases/editor-edit');
     });
 
     testWidgets('MENU-BAS-013 cells keep digits and one dot', (tester) async {
@@ -494,7 +466,6 @@ void main() {
         findsNothing,
       );
       expect(find.text('Vanilla powder'), findsNothing);
-      await h.shot('bases/editor-picker');
       await pickOption(h, 'Ice');
       expect(cell(h, 'Ice', 'All sizes'), findsOneWidget);
       expect(editable(tester, cell(h, 'Ice', 'Large')).controller.text, '');
@@ -568,9 +539,8 @@ void main() {
       expect(h.server.callsTo(_lines), isEmpty);
     });
 
-    testWidgets('MENU-BAS-014 "Used by" opens to the item sizes', (
-      tester,
-    ) async {
+    testWidgets('MENU-BAS-014 "Used by" opens to the item sizes; one_size '
+        'reads "One size" (divergence)', (tester) async {
       final h = await pumpMenu(tester);
       await openEditor(h, espressoBase);
       expect(find.text('Used by'), findsOneWidget);
@@ -584,10 +554,12 @@ void main() {
         find.text('Espresso · Double', findRichText: true),
         findsOneWidget,
       );
-      // A one-price item names no size (no "one_size").
-      expect(find.text('Cortado', findRichText: true), findsOneWidget);
+      // A one-price item's size is named, never the raw "one_size".
+      expect(
+        find.text('Cortado · One size', findRichText: true),
+        findsOneWidget,
+      );
       expect(textHas('one_size'), findsNothing);
-      await h.shot('bases/editor-used-by');
     });
 
     testWidgets('MENU-BAS-014 nothing to list: no "Used by"', (tester) async {
@@ -753,18 +725,25 @@ void main() {
       );
     });
 
-    testWidgets('MENU-BAS-017 save end: bases and catalog refetched, closed', (
-      tester,
-    ) async {
+    testWidgets('MENU-BAS-017 save end: bases and catalog refetched (the '
+        'list key only, not the usage), closed', (tester) async {
       final h = await pumpMenu(tester);
       final lists = h.server.callsTo(_list, method: 'GET').length;
+      final epochs = [for (final k in catalogKeys) epochOf(h, k)];
       await openEditor(h, icedBase);
+      final usage = h.server.callsTo(_usage).length;
       await h.enterText(find.bySemanticsLabel('Name'), 'Iced base');
       await h.tapText('Save');
       await h.flushTimers();
       expect(find.text('Edit base'), findsNothing);
       expect(h.server.callsTo(_list, method: 'GET').length, lists + 1);
       expect(find.text('Iced base'), findsOneWidget);
+      expect([for (final e in epochs) e()], [1, 1]);
+      // The web invalidates `getListBasesQueryKey()` only: the base's usage
+      // stays cached (fresh), so reopening asks nothing.
+      expect(h.server.callsTo(_usage), hasLength(usage));
+      await openEditor(h, icedBase);
+      expect(h.server.callsTo(_usage), hasLength(usage));
     });
 
     testWidgets('MENU-BAS-017 an error keeps the dialog open with the words', (
@@ -851,11 +830,16 @@ void main() {
     testWidgets('MENU-AREA-014 until the catalog lands, lines read "Unknown '
         'ingredient" and the picker is empty', (tester) async {
       final s = menuServer();
-      final h = await pumpMenu(tester, seeded: s);
-      // The list page does not read the catalog: the editor's read is held.
+      // Read with the page (the web always mounts the editor): held.
       final gate = s.server.hold('GET', _catalog);
+      final h = await pumpMenu(tester, seeded: s);
+      expect(find.text('Iced build'), findsOneWidget);
       await openEditor(h, icedBase);
       expect(find.text('Unknown ingredient'), findsOneWidget);
+      final picker = find.byWidgetPredicate(
+        (w) => w is DashSelect && w.semanticLabel == '+ ingredient',
+      );
+      expect(tester.widget<DashSelect<String>>(picker).options, isEmpty);
       gate.release();
       await h.settle();
       expect(find.text('Unknown ingredient'), findsNothing);
@@ -868,9 +852,7 @@ void main() {
       final h = await pumpMenu(tester, size: DashSize.phone, locale: 'ar');
       await openEditor(h, icedBase);
       expect(find.text(h.t('modeling.bases.edit')), findsOneWidget);
-      await h.shot('bases/editor-edit');
       await h.tapText(h.t('modeling.bases.usedBy'));
-      await h.shot('bases/editor-used-by');
       await h.tapText(h.t('common.save'));
       await h.expectToast(h.t('modeling.bases.saved', count: 0));
     });

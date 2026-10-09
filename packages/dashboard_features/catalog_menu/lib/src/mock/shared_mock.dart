@@ -87,12 +87,23 @@ void registerSharedMenuMocks(MockServer server, MockDb db) {
     ]);
   });
 
-  // GET /recipe-bases (menu.items.read; the org from the session).
+  // GET /recipe-bases (menu.items.read; `claims_org`: the session's org, a
+  // platform admin must have picked one). Counts only live items' sizes.
   server.on('GET', '/recipe-bases', (req) {
     req.requireCap('menu.items.read');
-    final org = req.orgId;
+    final org =
+        req.orgId ??
+        req.fail(
+          MockResponse.forbidden('A super admin must scope this to an org'),
+        );
     final data = CatalogMenuData(db);
-    final sizes = db[MenuTables.sizes].rows;
+    final items = db[MenuTables.menuItems];
+    final sizes = [
+      for (final s in db[MenuTables.sizes].rows)
+        if (items.find(s['menu_item_id'] as String) case final m?
+            when m['deleted_at'] == null)
+          s,
+    ];
     return MockResponse.ok([
       for (final b in db[MenuTables.bases].query(
         filters: {'org_id': org},

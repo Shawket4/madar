@@ -137,7 +137,9 @@ class _LegalTaxTabState extends ConsumerState<LegalTaxTab> {
         ? ref.watch(legalTaxProvider(query))
         : const AsyncData<TaxReport?>(null);
     if (q.hasError) {
+      // The error stays (its Retry spinning) while a retry runs.
       return DashErrorState(
+        retrying: q.isLoading,
         onRetry: () => ref.invalidate(legalTaxProvider(query!)),
       );
     }

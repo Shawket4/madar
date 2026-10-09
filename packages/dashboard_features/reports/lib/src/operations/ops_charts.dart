@@ -25,6 +25,23 @@ import 'package:flutter/rendering.dart';
 /// The web's `h-72` plot.
 const double opsChartHeight = 288;
 
+/// Recharts' tick step for a `[0, max]` axis of five ticks
+/// (`recharts-scale` `getFormatStep`): the rough step `max / 4` rounded up
+/// to a multiple of 0.05 × 10ⁿ (0.1 × 10ⁿ for a one-digit step), whole
+/// for an [integer] axis. 272 → 70 (0…280); 2,489,300 → 650,000.
+double opsNiceStep(double max, {bool integer = false}) {
+  if (!(max > 0)) return 1;
+  final rough = max / 4;
+  final digits = (math.log(rough) / math.ln10).floor() + 1;
+  final unit = math.pow(10, digits).toDouble();
+  final scale = digits == 1 ? 0.1 : 0.05;
+  // Round away float noise before the ceiling (0.7 / 0.05 is 13.999…).
+  final ratio = (rough / unit / scale * 1e9).round() / 1e9;
+  final step = ratio.ceil() * scale * unit;
+  final clean = double.parse(step.toStringAsPrecision(12));
+  return integer ? clean.ceilToDouble() : clean;
+}
+
 TextStyle _axisStyle(BuildContext context) => DashType.tableHeader.copyWith(
   letterSpacing: 0,
   fontWeight: FontWeight.w400,
@@ -87,6 +104,7 @@ class OpsBarChart extends StatelessWidget {
     this.tooltipTitle,
     this.yAxisWidth = 64,
     this.integerAxis = false,
+    this.thinLabels = false,
     this.maxBarWidth = 56,
     this.height = opsChartHeight,
     super.key,
@@ -108,6 +126,10 @@ class OpsBarChart extends StatelessWidget {
 
   /// Whole-number ticks only (`allowDecimals={false}`).
   final bool integerAxis;
+
+  /// Skip labels that would not fit their slot (Recharts' default
+  /// `interval`), where the default shows every one (`interval={0}`).
+  final bool thinLabels;
   final double maxBarWidth;
   final double height;
 
@@ -115,18 +137,11 @@ class OpsBarChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.madarColors;
     final textDir = Directionality.of(context);
-    final maxV = values.fold<double>(0, math.max);
-    final double maxY;
-    final double step;
-    if (integerAxis) {
-      final top = math.max(1, maxV.ceil());
-      final s = math.max(1, (top / 4).ceil());
-      step = s.toDouble();
-      maxY = (s * 4).toDouble();
-    } else {
-      maxY = dashNiceCeil(maxV);
-      step = maxY / 4;
-    }
+    final step = opsNiceStep(
+      values.fold<double>(0, math.max),
+      integer: integerAxis,
+    );
+    final maxY = step * 4;
     final style = _axisStyle(context);
     return Semantics(
       container: true,
@@ -139,6 +154,22 @@ class OpsBarChart extends StatelessWidget {
               final n = math.max(1, labels.length);
               final slot = (box.maxWidth - yAxisWidth) / n;
               final bar = math.min(maxBarWidth, slot * 0.8);
+              var every = 1;
+              if (thinLabels && labels.isNotEmpty) {
+                final widest = labels
+                    .map((l) {
+                      final tp = TextPainter(
+                        text: TextSpan(text: l, style: style),
+                        textDirection: textDir,
+                        maxLines: 1,
+                      )..layout();
+                      final w = tp.width;
+                      tp.dispose();
+                      return w;
+                    })
+                    .fold<double>(0, math.max);
+                every = math.max(1, ((widest + Space.sm) / slot).ceil());
+              }
               return BarChart(
                 duration: DashMotion.of(context, DashMotion.slow),
                 BarChartData(
@@ -183,13 +214,14 @@ class OpsBarChart extends StatelessWidget {
                           final i = v.round();
                           if ((v - i).abs() > 0.01 ||
                               i < 0 ||
-                              i >= labels.length) {
+                              i >= labels.length ||
+                              i % every != 0) {
                             return const SizedBox.shrink();
                           }
                           return SideTitleWidget(
                             meta: meta,
                             child: SizedBox(
-                              width: slot,
+                              width: slot * every,
                               child: Directionality(
                                 textDirection: textDir,
                                 child: MadarClippedText(
@@ -297,8 +329,8 @@ class _OpsHBarChartState extends State<OpsHBarChart> {
     final c = context.madarColors;
     final textDir = Directionality.of(context);
     final style = _axisStyle(context);
-    final maxV = widget.values.fold<double>(0, math.max);
-    final maxX = dashNiceCeil(maxV);
+    final maxX =
+        opsNiceStep(widget.values.fold<double>(0, math.max)) * 4;
     const axisHeight = Space.xl;
     const gap = Space.sm;
     final reduced = DashMotion.reduced(context);
@@ -314,6 +346,26 @@ class _OpsHBarChartState extends State<OpsHBarChart> {
             );
             final n = math.max(1, widget.labels.length);
             final rowH = (widget.height - axisHeight) / n;
+            // Ticks that would touch are skipped (every other, then the
+            // ends), as Recharts thins its axis.
+            final widest = [
+              for (var k = 0; k <= 4; k++)
+                dashFigure(widget.formatAxis(maxX * k / 4)),
+            ].map((l) {
+              final tp = TextPainter(
+                text: TextSpan(text: l, style: style),
+                textDirection: textDir,
+                maxLines: 1,
+              )..layout();
+              final w = tp.width;
+              tp.dispose();
+              return w;
+            }).fold<double>(0, math.max);
+            final tickStep = plotW / 4 >= widest + Space.sm
+                ? 1
+                : plotW / 2 >= widest + Space.sm
+                ? 2
+                : 4;
             final barH = math.min(rowH * 0.7, Space.xxl);
             Widget row(int i) {
               final v = i < widget.values.length ? widget.values[i] : 0.0;
@@ -400,13 +452,14 @@ class _OpsHBarChartState extends State<OpsHBarChart> {
                       height: axisHeight,
                       child: Stack(
                         children: [
-                          for (var k = 0; k <= 4; k++)
+                          for (var k = 0; k <= 4; k += tickStep)
                             Positioned(
-                              left:
-                                  OpsHBarChart.nameAxis +
-                                  gap +
-                                  plotW * k / 4 -
-                                  Space.xxl,
+                              // Centred on its tick, kept inside the card.
+                              left: (OpsHBarChart.nameAxis +
+                                      gap +
+                                      plotW * k / 4 -
+                                      Space.xxl)
+                                  .clamp(0, box.maxWidth - Space.xxl * 2),
                               width: Space.xxl * 2,
                               bottom: 0,
                               child: Text(

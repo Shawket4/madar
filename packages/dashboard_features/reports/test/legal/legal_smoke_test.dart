@@ -1,5 +1,6 @@
 // Smoke: the unit's page(s) open through the real shell on the mock
 // server, titled, at desktop (en, light) and phone (ar, dark).
+import 'package:dashboard_api/mock.dart' show Persona;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_reports/dashboard_reports.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,4 +29,18 @@ void main() {
       });
     }
   }
+
+  testWidgets('REP-LEG-001 the real area\'s route: the page\'s own gate, '
+      'not the shell\'s', (tester) async {
+    final route = reportsRoutes.singleWhere((r) => r.path == '/reports/legal');
+    expect(route.caps, isEmpty);
+    expect(route.module, isNull);
+    final h = await DashHarness.pump(
+      tester,
+      areas: const [reportsArea],
+      path: '/reports/legal',
+      persona: Persona.limited,
+    );
+    expect(find.text(h.t('reports.noAccess')), findsOneWidget);
+  });
 }

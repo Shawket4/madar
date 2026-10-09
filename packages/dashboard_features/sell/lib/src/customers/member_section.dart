@@ -245,8 +245,11 @@ class LedgerList extends ConsumerWidget {
       return Text.rich(
         TextSpan(
           children: [
+            // Only the signed number is isolated left-to-right
+            // (`<span dir="ltr">`); the unit follows in the reader's
+            // direction, so "+1 طلب" reads right in Arabic.
             TextSpan(
-              text: signedAmount(e.points),
+              text: MadarFormat.ltr(signedAmount(e.points)),
               style: DashType.mono.copyWith(
                 fontSize: 14,
                 color: isUndone ? c.textSecondary : c.textPrimary,
@@ -262,7 +265,6 @@ class LedgerList extends ConsumerWidget {
             ),
           ],
         ),
-        textDirection: TextDirection.ltr,
         maxLines: 1,
         softWrap: false,
       );

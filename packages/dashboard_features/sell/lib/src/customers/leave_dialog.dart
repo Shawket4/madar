@@ -43,16 +43,17 @@ class _LeaveProgrammeDialogState extends ConsumerState<LeaveProgrammeDialog> {
   Future<void> _confirm() async {
     final t = ref.read(tProvider);
     setState(() => _pending = true);
+    final invalidate = peopleInvalidator(ref);
     try {
       await ref
           .read(apiProvider)
           .loyalty
           .deleteLoyaltyMember(id: widget.member.id);
-      if (!mounted) return;
-      DashToast.success(context, t('loyalty.leave.done'));
       // The customer is still there, no longer a member: every list of
       // people is stale.
-      invalidatePeople(ref);
+      invalidate();
+      if (!mounted) return;
+      DashToast.success(context, t('loyalty.leave.done'));
       Navigator.of(context).pop(true);
     } on Object catch (e) {
       if (!mounted) return;

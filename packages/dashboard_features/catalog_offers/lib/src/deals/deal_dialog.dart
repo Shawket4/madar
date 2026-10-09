@@ -79,7 +79,11 @@ class _DealDialogState extends ConsumerState<DealDialog> {
   late DealRule? _deal = widget.deal;
   late String _seed = _fingerprint(widget.deal);
   late DealDraft _v = _draftOf(widget.deal);
-  late Map<String, BranchState> _initialBranches = _v.branches;
+
+  /// The branch switches as the dialog opened (or last re-seeded): what a
+  /// Save compares against. Set in [initState], never lazily, or it would
+  /// read the switches as already changed.
+  late Map<String, BranchState> _initialBranches;
 
   /// Save was pressed once: from now on every change re-checks the form
   /// (react-hook-form's re-validate on change).
@@ -98,6 +102,7 @@ class _DealDialogState extends ConsumerState<DealDialog> {
   @override
   void initState() {
     super.initState();
+    _initialBranches = _v.branches;
     widget.open?.addListener(_onOpenChanged);
   }
 
@@ -147,8 +152,9 @@ class _DealDialogState extends ConsumerState<DealDialog> {
     final body = _v.toWire(sort: deal?.sort ?? listed);
     final calls = branchChanges(_initialBranches, _v.branches);
     setState(() => _saving = true);
+    DealRule? saved;
     try {
-      final saved = deal == null
+      saved = deal == null
           ? await api.createDeal(body: body)
           : await api.updateDeal(id: deal.id, body: body);
       for (final c in calls) {
@@ -170,6 +176,15 @@ class _DealDialogState extends ConsumerState<DealDialog> {
       bus.invalidate(combosInvalidationPrefixes);
       _close();
     } on Object catch (e) {
+      // The deal was created but a branch call failed: the next Save updates
+      // it instead of creating a second one (the web creates another).
+      if (deal == null && saved != null && mounted) {
+        final created = saved;
+        setState(() {
+          _deal = created;
+          _seed = _fingerprint(created);
+        });
+      }
       toast(DashToastKind.error, dealErrorText(e, t));
     } finally {
       if (mounted) setState(() => _saving = false);

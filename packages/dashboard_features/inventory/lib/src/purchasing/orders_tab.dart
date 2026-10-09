@@ -114,12 +114,19 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
       ),
   ];
 
+  /// Runs [action] once the menu has closed, so the dialog it opens keeps
+  /// the focus (the menu hands focus back as it goes).
+  void _afterMenu(VoidCallback action) =>
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) action();
+      });
+
   Widget _menu(Translator t, PurchaseOrder po) => DashMenu(
     key: ValueKey('po-menu-${po.id}'),
     items: [
       DashMenuItem(
         label: t('inventory.purchasing.viewOrder'),
-        onSelected: () => _open(po),
+        onSelected: () => _afterMenu(() => _open(po)),
       ),
       // A partly received order cannot be cancelled (the server refuses):
       // the goods have to be reversed first.
@@ -128,7 +135,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
           label: t('inventory.purchasing.cancel'),
           icon: 'x-circle',
           destructive: true,
-          onSelected: () => _cancel(po),
+          onSelected: () => _afterMenu(() => _cancel(po)),
         ),
     ],
     builder: (context, c) => DashIconButton(
@@ -207,7 +214,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
         text: (po) => poReference(id: po.id, reference: po.reference),
         cell: (context, po) => refText(po),
         phone: DashPhoneRole.title,
-        minWidth: Space.xxl * 3,
+        minWidth: Space.xxl * 3 + Space.lg,
         searchable: false,
       ),
       if (all)
@@ -229,7 +236,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-        minWidth: Space.xxl * 4,
+        minWidth: Space.xxl * 5 + Space.lg,
         searchable: false,
       ),
       DashColumn(
@@ -237,7 +244,8 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
         label: t('inventory.purchasing.status'),
         text: (po) => poStatusLabel(t, po.status),
         cell: (context, po) => pill(po),
-        minWidth: Space.xxl * 4 + Space.lg,
+        // Wide enough for "Partially received" in its pill.
+        minWidth: Space.xxl * 5 + Space.sm,
         searchable: false,
       ),
       DashColumn(
@@ -245,7 +253,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
         label: t('inventory.purchasing.expectedAt'),
         text: (po) => f.fmtDate(po.expectedAt),
         numeric: true,
-        minWidth: Space.xxl * 3 + Space.sm,
+        minWidth: Space.xxl * 4 + Space.sm,
         searchable: false,
       ),
       DashColumn(
@@ -253,7 +261,7 @@ class _PurchaseOrdersTabState extends ConsumerState<PurchaseOrdersTab> {
         label: t('inventory.purchasing.createdAt'),
         text: (po) => f.fmtDate(po.createdAt),
         numeric: true,
-        minWidth: Space.xxl * 3 + Space.sm,
+        minWidth: Space.xxl * 4 + Space.sm,
         searchable: false,
       ),
     ];

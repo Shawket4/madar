@@ -1,4 +1,5 @@
-/// The bookings page's reads (SELL-BKG-003, -040, -047, -060), each keyed
+/// The bookings page's reads (SELL-BKG-003, -040, -047, -060; the floor
+/// tables and sections are the floor unit's own reads, one cache entry), each keyed
 /// like the web's query and refetched by the same invalidations: a write's
 /// `invalidateBookings` (`/bookings…` and `/floor…`, through
 /// [SellInvalidate.bookings]) and a realtime `booking.*` event both bump the
@@ -8,6 +9,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 
 /// `GET /bookings/settings?branch_id=` (`useGetBookingSettings`) — shared by
 /// the page (the online-off notice, the timeline window, the duration
@@ -20,31 +22,7 @@ final bookingSettingsProvider = FutureProvider.autoDispose
           .watch(apiProvider)
           .bookings
           .getBookingSettings(branchId: branchId);
-    }, retry: (_, _) => null);
-
-/// `GET /floor/tables?branch_id=` (`useListFloorTables`): the branch's
-/// tables, every one (the page keeps the active ones, sorted by label).
-final bookingFloorTablesProvider = FutureProvider.autoDispose
-    .family<List<FloorTable>, String>((ref, branchId) {
-      ref.webCache();
-      ref.watch(realtimeEpochProvider('/floor/tables'));
-      return ref
-          .watch(apiProvider)
-          .reservations
-          .listFloorTables(branchId: branchId);
-    }, retry: (_, _) => null);
-
-/// `GET /floor/sections?branch_id=` (`useListSections`), for the booking
-/// dialog's preferred section.
-final bookingSectionsProvider = FutureProvider.autoDispose
-    .family<List<FloorSection>, String>((ref, branchId) {
-      ref.webCache();
-      ref.watch(realtimeEpochProvider('/floor/sections'));
-      return ref
-          .watch(apiProvider)
-          .reservations
-          .listSections(branchId: branchId);
-    }, retry: (_, _) => null);
+    });
 
 /// One branch's day.
 typedef BookingDayKey = ({String branchId, String date});
@@ -59,7 +37,7 @@ final bookingDayProvider = FutureProvider.autoDispose
           .watch(apiProvider)
           .bookings
           .listBookings(branchId: key.branchId, date: key.date);
-    }, retry: (_, _) => null);
+    });
 
 /// What the booking dialog asks availability for.
 typedef BookingAvailabilityKey = ({
@@ -86,10 +64,24 @@ final bookingAvailabilityProvider = FutureProvider.autoDispose
             sectionId: key.sectionId,
             excludeBookingId: key.excludeBookingId,
           );
-    }, retry: (_, _) => null);
+    });
 
-/// The branch's active tables, by label (`tables` on the page).
+/// The branch's active tables, by label (`tables` on the page: the web's
+/// `localeCompare`, case-blind like the backend's `lower(label)`).
 List<FloorTable> activeTablesByLabel(List<FloorTable>? all) => [
   for (final t in all ?? const <FloorTable>[])
     if (t.isActive) t,
-]..sort((a, b) => a.label.compareTo(b.label));
+]..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+
+/// React Query's `isLoading`: loading with nothing to show yet.
+extension BookingQueryState<T> on AsyncValue<T> {
+  bool get firstLoad => isLoading && !hasValue && !hasError;
+}
+
+/// A read the web keeps `enabled: false` is not watched at all: nothing,
+/// not loading, no request.
+AsyncValue<T?> watchIf<T>(
+  WidgetRef ref,
+  bool enabled,
+  ProviderListenable<AsyncValue<T>> Function() provider,
+) => enabled ? ref.watch(provider()) : const AsyncData(null);

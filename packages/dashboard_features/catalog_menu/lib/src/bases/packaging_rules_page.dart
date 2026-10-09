@@ -18,6 +18,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/menu_providers.dart';
 import '../shared/menu_queries.dart';
 import '../shared/menu_text.dart';
 import 'bases_providers.dart';
@@ -42,9 +43,9 @@ class _PackagingRulesPageState extends ConsumerState<PackagingRulesPage> {
     setState(() => _applying = true);
     try {
       final r = await ref.read(apiProvider).menu.applyRules();
+      invalidate.catalog();
       if (!mounted) return;
       setState(() => _result = r);
-      invalidate.catalog();
     } on Object catch (e) {
       if (mounted) DashToast.error(context, errorMessage(e, t));
     } finally {
@@ -101,6 +102,9 @@ class _PackagingRulesPageState extends ConsumerState<PackagingRulesPage> {
     if (orgId == null) {
       list = empty;
     } else {
+      // The web always mounts the rule dialog, whose ingredient picker reads
+      // the catalog with the page (`useIngredientPicker`).
+      ref.watch(ingredientCatalogProvider(orgId));
       final provider = packagingRulesProvider(orgId);
       final rules = ref.watch(provider);
       if (rules.hasError) {
@@ -189,15 +193,17 @@ class _PackagingRulesPageState extends ConsumerState<PackagingRulesPage> {
 /// A rule's sub-line (MENU-PKG-004): the set matches joined " · " (or
 /// "Every size"), " → ", then "ingredient quantity" joined ", " (or "—").
 /// The arrow points along the reading direction: "←" in Arabic (divergence
-/// MENU-PKG-004).
+/// MENU-PKG-004). Each match and each line is its own bidi isolate, so a
+/// Latin name beside the arrow does not pull it into its left-to-right run.
 String _ruleLine(Translator t, PackagingRuleOut r, List<String?> matches) {
+  String iso(String s) => '\u2068$s\u2069';
   final set = [
     for (final m in matches)
-      if (m != null && m.isNotEmpty) m,
+      if (m != null && m.isNotEmpty) iso(m),
   ];
   final lines = [
     for (final l in r.lines)
-      '${l.ingredientName} ${jsNumberText(jsNumber(l.quantity))}',
+      iso('${l.ingredientName} ${jsNumberText(jsNumber(l.quantity))}'),
   ].join(', ');
   return '${set.isEmpty ? t('modeling.packaging.matchAll') : set.join(' · ')}'
       '${t.isRtl ? ' ← ' : ' → '}'

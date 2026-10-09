@@ -4,9 +4,12 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:dashboard_reports/src/legal/audit_cards.dart';
+import 'package:dashboard_reports/src/legal/audit_tab.dart';
 import 'package:dashboard_reports/src/legal/legal_page.dart';
 import 'package:dashboard_reports/src/legal/legal_words.dart';
 import 'package:dashboard_reports/src/mock/legal_mock.dart';
+import 'package:design_system/design_system.dart' show MadarClippedText;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,12 +31,11 @@ const List<String> legalSupplements = [
   'packages/dashboard_reports/assets/i18n/legal.ar.json',
 ];
 
-/// The reports area as the shell mounts it, with only the Legal page and
-/// its mocks, so these tests do not depend on the other units' files.
-/// [ownGate] drops the route's capability, so the page's own
-/// `<Restricted>` answers (what routes.dart should declare: see the unit's
-/// open issue); otherwise the route is exactly routes.dart's.
-DashArea legalArea({bool ownGate = false}) => DashArea(
+/// The reports area as the shell mounts it, with only the Legal page (its
+/// route exactly as routes.dart declares it: no shell gate, the page's own
+/// `<Restricted>` answers) and its mocks, so these tests do not depend on
+/// the other units' files.
+const DashArea legalArea = DashArea(
   key: 'reports',
   routes: [
     DashRoute(
@@ -41,7 +43,6 @@ DashArea legalArea({bool ownGate = false}) => DashArea(
       builder: legalPageBuilder,
       titleKey: 'reports.legal.title',
       titleFallback: 'Legal',
-      caps: ownGate ? const [] : const [Cap.reportsLegal],
       tabs: legalTabs,
     ),
   ],
@@ -71,10 +72,9 @@ Future<DashHarness> pumpLegal(
   MockServer? server,
   MockDb? db,
   Map<String, String>? prefs,
-  bool ownGate = false,
 }) => DashHarness.pump(
   tester,
-  areas: [legalArea(ownGate: ownGate)],
+  areas: const [legalArea],
   path: legalPath,
   persona: persona,
   size: size,
@@ -136,3 +136,57 @@ void expectAnyText(List<String> forms, {String? reason}) {
 Finder textHas(String s) => find.textContaining(s, findRichText: true);
 
 DashFormat fmtOf(DashHarness h) => h.container.read(formatProvider);
+
+// ── audit tabs ───────────────────────────────────────────────────────────
+
+/// [f] inside the open audit tab.
+Finder inAudit(Finder f) =>
+    find.descendant(of: find.byType(LegalAuditTab), matching: f);
+
+/// The card titled [title] in the open audit tab.
+Finder auditCard(String title) => find.ancestor(
+  of: inAudit(find.text(title)),
+  matching: find.byType(LegalCard),
+);
+
+/// [f] inside the card titled [title].
+Finder inCard(String title, Finder f) =>
+    find.descendant(of: auditCard(title), matching: f);
+
+/// A breakdown card's row labels, top to bottom.
+List<String> cardLabels(WidgetTester tester, String title) => [
+  for (final w in tester.widgetList<MadarClippedText>(
+    inCard(title, find.byType(MadarClippedText)),
+  ))
+    w.data ?? '',
+];
+
+/// The audit tab's export button.
+Finder get auditExport => inAudit(find.byType(DashExportButton));
+
+/// Whether the audit export can be pressed.
+bool auditExportEnabled(WidgetTester tester) =>
+    tester
+        .widget<DashButton>(
+          find.descendant(of: auditExport, matching: find.byType(DashButton)),
+        )
+        .onPressed !=
+    null;
+
+/// The KPI card [key] (`count` / `amount`) of the open audit tab.
+DashStatCard auditKpi(WidgetTester tester, String key) =>
+    tester.widget<DashStatCard>(inAudit(find.byKey(ValueKey(key))));
+
+/// A seed user's display name.
+String userName(MockDb db, String key) =>
+    db['users'].get(SeedIds.user(key))['name']! as String;
+
+/// The file name's UTC date stamp (the mock clock's).
+String exportStamp(DashHarness h) =>
+    isoString(h.container.read(clockProvider)()).substring(0, 10);
+
+/// Picks [item] from the open audit tab's export menu.
+Future<void> auditMenu(DashHarness h, String item) async {
+  await h.tap(auditExport);
+  await h.tap(find.text(item).last);
+}

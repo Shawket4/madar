@@ -5,7 +5,7 @@
 /// Riverpod provider per web query hook.
 ///
 /// Every read here watches the realtime epoch of its own path, so
-/// [invalidatePeople] (the web's `isPersonQuery` predicate: every
+/// [peopleInvalidator] (the web's `isPersonQuery` predicate: every
 /// `/customers…` and `/loyalty/…` key) refetches exactly what the web's React
 /// Query refetches.
 library;
@@ -314,9 +314,13 @@ final RegExp _serverKind = RegExp(
   r'^(?:Unauthorized|Forbidden|Not found|Bad request|Conflict|Service unavailable|Database error): ',
 );
 
-/// The server's own sentence (`error`, else `message`), when it sent one.
+/// The server's sentence: the exception's own message first (in real mode
+/// the core has already worded it in the active language; the envelope's
+/// `error` beside it stays in English), else the envelope's `error` /
+/// `message`.
 String? serverText(Object? e) {
   if (e is! ApiException) return null;
+  if (e.message.isNotEmpty) return e.message;
   final d = e.details;
   if (d is Map) {
     final err = d['error'];
@@ -324,7 +328,7 @@ String? serverText(Object? e) {
     final msg = d['message'];
     if (msg is String) return msg;
   }
-  return e.message.isEmpty ? null : e.message;
+  return null;
 }
 
 /// The words for a failed request, exactly as the web's `getErrorMessage`:
@@ -380,7 +384,13 @@ bool isMemberMustSurvive(Object? e) =>
   Object? e,
   Translator t,
 ) {
-  final text = (e is ApiException ? serverText(e) : null) ?? '';
+  // The backend's own (English) sentence is what names the refusal; the
+  // message beside it may already be in Arabic.
+  final d = e is ApiException ? e.details : null;
+  final text = [
+    serverText(e),
+    if (d is Map) d['error'],
+  ].whereType<String>().join(' ');
   final mentionsNote = RegExp(r'\(note\)|adjusted', caseSensitive: false);
   final saysWhy = RegExp('say why|note', caseSensitive: false);
   if (mentionsNote.hasMatch(text) && saysWhy.hasMatch(text)) {
@@ -395,9 +405,13 @@ bool isMemberMustSurvive(Object? e) =>
 // ── Reads ─────────────────────────────────────────────────────────────────
 
 /// Marks every person read stale (`invalidateQueries({predicate:
-/// isPersonQuery})`).
-void invalidatePeople(WidgetRef ref) =>
-    sellInvalidateFromWidget(ref, SellInvalidate.people);
+/// isPersonQuery})`). Take it BEFORE a mutation's await and call it after,
+/// whatever became of the widget: the web's query client refetches even
+/// when the dialog or the page closed mid-save.
+VoidCallback peopleInvalidator(WidgetRef ref) {
+  final bus = ref.read(realtimeBusProvider);
+  return () => bus.invalidate(SellInvalidate.people);
+}
 
 /// The arguments of [customersListProvider] (`useListCustomers`).
 typedef CustomersQuery = ({String q, bool? member, String? source, int limit});
@@ -417,6 +431,18 @@ final customersListProvider = FutureProvider.autoDispose
             limit: k.limit,
             offset: 0,
           );
+    });
+
+/// `GET /customers?q&limit=20` — the merge picker's own read
+/// (`useListCustomers({q, limit: 20})`: no offset, no filters).
+final mergePickProvider = FutureProvider.autoDispose
+    .family<List<Customer>, String>((ref, q) {
+      ref.webCache();
+      ref.watch(realtimeEpochProvider('/customers'));
+      return ref
+          .watch(apiProvider)
+          .customers
+          .listCustomers(q: q.isEmpty ? null : q, limit: mergePickLimit);
     });
 
 /// `GET /loyalty/settings[?branch_id]` (`useGetLoyaltySettings`): the
@@ -442,8 +468,8 @@ final customerDetailProvider = FutureProvider.autoDispose
 /// The arguments of [loyaltyMemberProvider].
 typedef MemberQuery = ({String id, String? branchId});
 
-/// `GET /loyalty/members/{id}[?branch_id]` (`useGetLoyaltyMember`, no
-/// retry).
+/// `GET /loyalty/members/{id}[?branch_id]` (`useGetLoyaltyMember`, asked
+/// once: `retry: false`).
 final loyaltyMemberProvider = FutureProvider.autoDispose
     .family<MemberDetail, MemberQuery>((ref, k) {
       ref.webCache();
@@ -452,7 +478,7 @@ final loyaltyMemberProvider = FutureProvider.autoDispose
           .watch(apiProvider)
           .loyalty
           .getLoyaltyMember(id: k.id, branchId: k.branchId);
-    });
+    }, retry: (_, _) => null);
 
 /// `GET /customers/{id}/addresses` (`useListCustomerAddresses`).
 final customerAddressesProvider = FutureProvider.autoDispose

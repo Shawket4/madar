@@ -12,23 +12,28 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
 
+final MockResponse _notHere = MockResponse.forbidden(
+  'Not assigned to this branch',
+);
+
 Finder inside<T>(Finder matching) =>
     find.descendant(of: find.byType(T), matching: matching);
 
 void main() {
-  testWidgets('limited (no inventory.read): no Today leaf, Restricted page', (
-    tester,
-  ) async {
-    final h = await pumpToday(tester, persona: Persona.limited);
-    expect(find.byType(TodayPage), findsNothing);
-    expect(find.byType(DashStatCard), findsNothing);
-    for (final r in [orgValuation, orgLow, orgOrders, catalogRoute]) {
-      expect(h.server.callsTo(r), isEmpty, reason: r);
-    }
-    expect(find.byType(Restricted), findsOneWidget);
-  });
+  testWidgets(
+    'INV-ALL-006 (divergence) limited (no inventory.read): Restricted, no reads',
+    (tester) async {
+      final h = await pumpToday(tester, persona: Persona.limited);
+      expect(find.byType(TodayPage), findsNothing);
+      expect(find.byType(DashStatCard), findsNothing);
+      for (final r in [orgValuation, orgLow, orgOrders, catalogRoute]) {
+        expect(h.server.callsTo(r), isEmpty, reason: r);
+      }
+      expect(find.byType(Restricted), findsOneWidget);
+    },
+  );
 
-  testWidgets('dawamOnly (INV-ALL-005): not part of this business\'s plan', (
+  testWidgets('INV-ALL-005 dawamOnly: not part of this business\'s plan', (
     tester,
   ) async {
     final h = await pumpToday(tester, persona: Persona.dawamOnly);
@@ -44,7 +49,7 @@ void main() {
     expect(h.server.callsTo(orgLow), isEmpty);
   });
 
-  testWidgets('platform with no org (INV-ALL-009): pick an organization', (
+  testWidgets('INV-ALL-009 platform with no org: pick an organization', (
     tester,
   ) async {
     await pumpToday(tester, persona: Persona.platform);
@@ -85,12 +90,7 @@ void main() {
   ) async {
     final s = todayServer(persona: Persona.manager);
     for (final r in [branchValuation, branchLow, stockRoute, wasteRoute]) {
-      s.server.fail(
-        'GET',
-        r,
-        MockResponse.forbidden('Not assigned to this branch'),
-        times: null,
-      );
+      s.server.fail('GET', r, _notHere, times: null);
     }
     final h = await pumpToday(
       tester,
@@ -101,9 +101,7 @@ void main() {
     );
     // The low-stock table shows the refusal itself (INV-ALL-018).
     expect(
-      inside<DashDataTable<LowStockRow>>(
-        find.text('Forbidden: Not assigned to this branch'),
-      ),
+      inside<DashDataTable<LowStockRow>>(find.text(h.refusalWords(_notHere))),
       findsOneWidget,
     );
     // The waste list names only what failed (INV-ALL-026).
@@ -112,9 +110,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      inside<TodayWasteSection>(
-        find.text('Forbidden: Not assigned to this branch'),
-      ),
+      inside<TodayWasteSection>(find.text(h.refusalWords(_notHere))),
       findsNothing,
     );
     // The KPIs read as zero, never as an error (INV-TOD-037).
@@ -144,7 +140,7 @@ void main() {
             .having(
               (e) => e.message,
               'message',
-              'Forbidden: Not assigned to this branch',
+              MockServer.toApiException(_notHere).message,
             ),
       ),
     );
@@ -212,7 +208,7 @@ void main() {
       MockResponse.denied('inventory.read'),
       times: null,
     );
-    await pumpToday(
+    final h = await pumpToday(
       tester,
       server: s.server,
       db: s.db,
@@ -221,6 +217,12 @@ void main() {
     );
     expect(
       inside<DashDataTable<LowStockRow>>(find.text('تعذّر التحميل')),
+      findsOneWidget,
+    );
+    expect(
+      inside<DashDataTable<LowStockRow>>(
+        find.text(h.refusalWords(MockResponse.denied('inventory.read'))),
+      ),
       findsOneWidget,
     );
     expect(

@@ -63,6 +63,7 @@ class _MergeDialogState extends ConsumerState<MergeDialog> {
     final t = ref.read(tProvider);
     final reversed = _reversed;
     setState(() => _pending = true);
+    final invalidate = peopleInvalidator(ref);
     try {
       final result = await ref
           .read(apiProvider)
@@ -71,9 +72,9 @@ class _MergeDialogState extends ConsumerState<MergeDialog> {
             id: _from.id,
             body: MergeCustomerRequest(into: kept.id),
           );
+      invalidate();
       if (!mounted) return;
       DashToast.success(context, t('customers.merged'));
-      invalidatePeople(ref);
       Navigator.of(context).pop(result);
     } on Object catch (e) {
       if (!mounted) return;
@@ -93,6 +94,9 @@ class _MergeDialogState extends ConsumerState<MergeDialog> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
+    // The 20 suggestions load as the dialog opens (`enabled: open`), so the
+    // picker opens on them.
+    ref.watch(mergePickProvider(''));
     final into = _into;
     final kept = _kept;
     return DashSurface(
@@ -281,14 +285,7 @@ class _MergeOptionsState extends ConsumerState<MergeOptions> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
-    final list = ref.watch(
-      customersListProvider((
-        q: _q,
-        member: null,
-        source: null,
-        limit: mergePickLimit,
-      )),
-    );
+    final list = ref.watch(mergePickProvider(_q));
     final options = [
       for (final p in list.value ?? const <Customer>[])
         if (p.id != widget.exclude) p,
@@ -385,18 +382,24 @@ class _OptionRow extends StatelessWidget {
                   ? DashIcon('check', size: IconSize.sm, color: c.textPrimary)
                   : null,
             ),
-            Flexible(
-              child: MadarClippedText(
-                customer.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textDirection: autoDirection(customer.name),
-                style: DashType.body.copyWith(color: c.textPrimary),
+            Expanded(
+              child: Row(
+                spacing: Space.sm,
+                children: [
+                  Flexible(
+                    child: MadarClippedText(
+                      customer.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textDirection: autoDirection(customer.name),
+                      style: DashType.body.copyWith(color: c.textPrimary),
+                    ),
+                  ),
+                  if (member)
+                    DashIcon('star', size: IconSize.xs, color: c.textSecondary),
+                ],
               ),
             ),
-            if (member)
-              DashIcon('star', size: IconSize.xs, color: c.textSecondary),
-            const Spacer(),
             if (phone != null && phone.isNotEmpty)
               PhoneText(
                 phone,

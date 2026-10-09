@@ -11,7 +11,9 @@
 /// - `DELETE /deals/{id}`: a soft delete (204; 404 when it is not there);
 /// - `PUT|DELETE /deals/{id}/branches/{branchId}` (`menu.deals.edit` AT that
 ///   branch): the branch's on/off override saved or removed (204), the
-///   branch must be the org's (404 "Branch not found").
+///   branch must be the org's (404 "Branch not found");
+/// - every route: a platform admin with no org picked is refused (403 "A
+///   super admin must scope this to an org"), as `claims_org` does.
 ///
 /// Seed rows carry no `org_id` (they are Sabah's); a created row records its
 /// org. Internal fields (`org_id`, `deleted_at`) never leave the handler.
@@ -41,7 +43,7 @@ void registerDealsMocks(MockServer server, MockDb db) {
 
   MockRow liveDeal(MockRequest req, String id) {
     final r = deals.find(id);
-    if (r == null || !live(r, req.orgId)) req.notFound('Deal not found');
+    if (r == null || !live(r, _org(req))) req.notFound('Deal not found');
     return r;
   }
 
@@ -52,7 +54,7 @@ void registerDealsMocks(MockServer server, MockDb db) {
 
   server.on('GET', '/deals', (req) {
     req.requireCap('menu.items.read');
-    final org = req.orgId;
+    final org = _org(req);
     final active = req.qBool('is_active');
     final rows = [
       for (final r in deals.rows)
@@ -63,7 +65,7 @@ void registerDealsMocks(MockServer server, MockDb db) {
 
   server.on('POST', '/deals', (req) {
     req.requireCap('menu.deals.edit');
-    final org = req.orgId!;
+    final org = _org(req);
     final body = req.json;
     _validate(req, db, org, body);
     final id = db.newId(OffersTables.deals);
@@ -81,7 +83,7 @@ void registerDealsMocks(MockServer server, MockDb db) {
 
   server.on('PUT', '/deals/{id}', (req) {
     req.requireCap('menu.deals.edit');
-    final org = req.orgId!;
+    final org = _org(req);
     final id = req.param('id');
     final row = liveDeal(req, id);
     final body = req.json;
@@ -107,7 +109,7 @@ void registerDealsMocks(MockServer server, MockDb db) {
     final row = liveDeal(req, req.param('id'));
     final branch = db['branches'].find(branchId);
     if (branch == null ||
-        branch['org_id'] != req.orgId ||
+        branch['org_id'] != _org(req) ||
         branch['deleted_at'] != null) {
       req.notFound('Branch not found');
     }
@@ -145,6 +147,12 @@ void registerDealsMocks(MockServer server, MockDb db) {
     return MockResponse.empty();
   });
 }
+
+/// `claims_org`: the org of the token, or (a platform admin's) the one
+/// picked; none → 403.
+String _org(MockRequest req) =>
+    req.orgId ??
+    req.fail(MockResponse.forbidden('A super admin must scope this to an org'));
 
 /// `ORDER BY sort, name, id`.
 int _byListOrder(MockRow a, MockRow b) {

@@ -16,7 +16,6 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart' show ProviderBase;
 
 import '../shared/report_shared.dart';
 import 'ops_charts.dart';
@@ -79,30 +78,6 @@ class OpsTableCard extends StatelessWidget {
   }
 }
 
-/// Refetch a tab's reads quietly when they are older than the stale time
-/// (REP-OPS-062), once, when the tab is shown again.
-void _refreshIfStale(
-  WidgetRef ref,
-  List<(String, ProviderBase<Object?>)> reads,
-) {
-  final cache = ref.read(opsCacheProvider);
-  for (final (key, p) in reads) {
-    if (cache.isStale(key)) ref.invalidate(p);
-  }
-}
-
-mixin _StaleOnShow<W extends ConsumerStatefulWidget> on ConsumerState<W> {
-  List<(String, ProviderBase<Object?>)> reads(Scope scope);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _refreshIfStale(ref, reads(ref.read(currentScopeProvider)));
-    });
-  }
-}
-
 DashEmptyState _noData(Translator t) =>
     DashEmptyState(title: t('analytics.noData'), framed: false);
 
@@ -115,13 +90,7 @@ class OpsItemsView extends ConsumerStatefulWidget {
   ConsumerState<OpsItemsView> createState() => _OpsItemsViewState();
 }
 
-class _OpsItemsViewState extends ConsumerState<OpsItemsView> with _StaleOnShow {
-  @override
-  List<(String, ProviderBase<Object?>)> reads(Scope s) => [
-    (itemsKey(s), opsItemsProvider(s)),
-    (addonsKey(s), opsAddonsProvider(s)),
-  ];
-
+class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
@@ -129,8 +98,8 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> with _StaleOnShow {
     final lang = ref.watch(localeProvider);
     final c = context.madarColors;
     final scope = ref.watch(currentScopeProvider);
-    final items = ref.watch(opsItemsProvider(scope));
-    final addons = ref.watch(opsAddonsProvider(scope));
+    final items = ref.watch(opsItemsProvider(scope.opsRange));
+    final addons = ref.watch(opsAddonsProvider(scope.opsRange));
     final strong = DashType.monoStrong.copyWith(color: c.textPrimary);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -147,7 +116,7 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> with _StaleOnShow {
             rowKey: (r) => r.itemId,
             loading: items.firstLoad,
             errorMessage: items.hasError ? opsErrorText(items.error, t) : null,
-            onRetry: () => ref.invalidate(opsItemsProvider(scope)),
+            onRetry: () => ref.invalidate(opsItemsProvider(scope.opsRange)),
             empty: _noData(t),
             columns: [
               DashColumn<CombinedItemSalesRow>(
@@ -187,7 +156,7 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> with _StaleOnShow {
             errorMessage: addons.hasError
                 ? opsErrorText(addons.error, t)
                 : null,
-            onRetry: () => ref.invalidate(opsAddonsProvider(scope)),
+            onRetry: () => ref.invalidate(opsAddonsProvider(scope.opsRange)),
             empty: _noData(t),
             columns: [
               DashColumn<AddonSalesRow>(
@@ -236,23 +205,18 @@ class OpsTellersView extends ConsumerStatefulWidget {
 }
 
 class _OpsTellersViewState extends ConsumerState<OpsTellersView>
-    with _StaleOnShow {
-  @override
-  List<(String, ProviderBase<Object?>)> reads(Scope s) => [
-    (tellersKey(s), opsTellersProvider(s)),
-  ];
-
+    {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final scope = ref.watch(currentScopeProvider);
-    final q = ref.watch(opsTellersProvider(scope));
+    final q = ref.watch(opsTellersProvider(scope.opsRange));
     final rows = q.value ?? const <TellerStats>[];
     final chart = [...rows]..sort((a, b) => b.revenue.compareTo(a.revenue));
     final top = chart.take(10).toList();
-    void retry() => ref.invalidate(opsTellersProvider(scope));
+    void retry() => ref.invalidate(opsTellersProvider(scope.opsRange));
     final strong = DashType.monoStrong.copyWith(color: c.textPrimary);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -357,28 +321,25 @@ class OpsWaitersView extends ConsumerStatefulWidget {
 }
 
 class _OpsWaitersViewState extends ConsumerState<OpsWaitersView>
-    with _StaleOnShow {
-  @override
-  List<(String, ProviderBase<Object?>)> reads(Scope s) => [
-    (waitersKey(s), opsWaitersProvider(s)),
-  ];
-
+    {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final scope = ref.watch(currentScopeProvider);
-    final q = ref.watch(opsWaitersProvider(scope));
+    final q = ref.watch(opsWaitersProvider(scope.opsRange));
     final report = q.value;
     final rows = report?.waiters ?? const <WaiterStats>[];
     final top = ([
       ...rows,
     ]..sort((a, b) => b.revenue.compareTo(a.revenue))).take(10).toList();
-    void retry() => ref.invalidate(opsWaitersProvider(scope));
+    void retry() => ref.invalidate(opsWaitersProvider(scope.opsRange));
     final strong = DashType.monoStrong.copyWith(color: c.textPrimary);
+    // Hidden only on the first load and on a failure (React Query's
+    // `isLoading`), so a background refresh never blinks it.
     final coverage =
-        !q.isLoading && !q.hasError && report != null && report.totalOrders > 0
+        !q.firstLoad && !q.hasError && report != null && report.totalOrders > 0
         ? Text(
             t(
               'analytics.waiterCoverage',
@@ -501,12 +462,7 @@ class OpsBranchesView extends ConsumerStatefulWidget {
 }
 
 class _OpsBranchesViewState extends ConsumerState<OpsBranchesView>
-    with _StaleOnShow {
-  @override
-  List<(String, ProviderBase<Object?>)> reads(Scope s) => [
-    if (s.orgId != null) (branchesKey(s), opsBranchesProvider(s)),
-  ];
-
+    {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
@@ -517,12 +473,12 @@ class _OpsBranchesViewState extends ConsumerState<OpsBranchesView>
     // stays off, as the web's `enabled: !!orgId`.
     final AsyncValue<OrgComparisonReport?> q = scope.orgId == null
         ? const AsyncData(null)
-        : ref.watch(opsBranchesProvider(scope));
+        : ref.watch(opsBranchesProvider(scope.opsOrgRange));
     final report = q.value;
     final rows = report?.branches ?? const <BranchComparison>[];
     final chart = [...rows]
       ..sort((a, b) => b.totalRevenue.compareTo(a.totalRevenue));
-    void retry() => ref.invalidate(opsBranchesProvider(scope));
+    void retry() => ref.invalidate(opsBranchesProvider(scope.opsOrgRange));
     final strong = DashType.monoStrong.copyWith(color: c.textPrimary);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

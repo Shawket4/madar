@@ -15,6 +15,7 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/menu_providers.dart';
 import '../shared/menu_queries.dart';
 
 /// `GET /recipe-bases/{id}/usage`: the item sizes following one base.
@@ -46,3 +47,11 @@ final packagingItemOptionsProvider = FutureProvider.autoDispose
           .listMenuCatalog(orgId: orgId, perPage: 500);
       return page.data;
     });
+
+/// The web's save / delete refresh: `invalidateQueries({queryKey:
+/// getListBasesQueryKey()})` matches the list key only (not a base's
+/// `/usage`), then `invalidateCatalog()`.
+void invalidateBases(ProviderContainer container, MenuInvalidator bus) {
+  container.invalidate(recipeBasesProvider);
+  bus.catalog();
+}

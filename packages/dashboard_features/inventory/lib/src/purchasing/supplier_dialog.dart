@@ -1,7 +1,10 @@
 /// The supplier dialog (INV-PUR-052…057, web `supplier-dialog.tsx`): New
 /// supplier, or Edit supplier with the Active switch. Save is off while the
-/// name is blank; the others are sent trimmed or null.
+/// name is blank; the others are sent trimmed or null. An edit form follows
+/// a background refresh of its row until the person types (SPEC 6.1).
 library;
+
+import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart'
     show CreateSupplierRequest, Supplier, UpdateSupplierRequest;
@@ -35,12 +38,39 @@ class SupplierDialog extends ConsumerStatefulWidget {
 }
 
 class _SupplierDialogState extends ConsumerState<SupplierDialog> {
-  late String _name = widget.supplier?.name ?? '';
-  late String _contact = widget.supplier?.contactName ?? '';
-  late String _email = widget.supplier?.email ?? '';
-  late String _phone = widget.supplier?.phone ?? '';
-  late bool _active = widget.supplier?.isActive ?? true;
+  late String _name;
+  late String _contact;
+  late String _email;
+  late String _phone;
+  late bool _active;
   bool _busy = false;
+
+  /// The row the form was filled from, and whether the person changed it.
+  late String _seed = _fingerprint(widget.supplier);
+  bool _edited = false;
+
+  static String _fingerprint(Supplier? s) =>
+      s == null ? '' : jsonEncode(s.toJson());
+
+  @override
+  void initState() {
+    super.initState();
+    _fill(widget.supplier);
+  }
+
+  void _fill(Supplier? s) {
+    _name = s?.name ?? '';
+    _contact = s?.contactName ?? '';
+    _email = s?.email ?? '';
+    _phone = s?.phone ?? '';
+    _active = s?.isActive ?? true;
+  }
+
+  /// A change typed by the person: the form stops following refreshes.
+  void _edit(VoidCallback change) => setState(() {
+    _edited = true;
+    change();
+  });
 
   bool get _editing => widget.supplier != null;
 
@@ -96,6 +126,19 @@ class _SupplierDialogState extends ConsumerState<SupplierDialog> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
+    final id = widget.supplier?.id;
+    if (id != null) {
+      ref.listen(inventorySuppliersProvider(widget.orgId), (_, next) {
+        final row = next.value?.where((s) => s.id == id).firstOrNull;
+        if (_edited || next.isLoading || row == null) return;
+        final seed = _fingerprint(row);
+        if (seed == _seed) return;
+        setState(() {
+          _seed = seed;
+          _fill(row);
+        });
+      });
+    }
     return DashSurface(
       title: _editing
           ? t('inventory.purchasing.editSupplier')
@@ -111,13 +154,13 @@ class _SupplierDialogState extends ConsumerState<SupplierDialog> {
             label: t('inventory.purchasing.supplier'),
             value: _name,
             autofocus: true,
-            onChanged: (v) => setState(() => _name = v),
+            onChanged: (v) => _edit(() => _name = v),
           ),
           DashTextField(
             key: const ValueKey('supplier-contact'),
             label: t('inventory.purchasing.contactName'),
             value: _contact,
-            onChanged: (v) => setState(() => _contact = v),
+            onChanged: (v) => _edit(() => _contact = v),
           ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,7 +173,7 @@ class _SupplierDialogState extends ConsumerState<SupplierDialog> {
                   value: _email,
                   keyboardType: TextInputType.emailAddress,
                   textDirection: TextDirection.ltr,
-                  onChanged: (v) => setState(() => _email = v),
+                  onChanged: (v) => _edit(() => _email = v),
                 ),
               ),
               Expanded(
@@ -140,7 +183,7 @@ class _SupplierDialogState extends ConsumerState<SupplierDialog> {
                   value: _phone,
                   keyboardType: TextInputType.phone,
                   textDirection: TextDirection.ltr,
-                  onChanged: (v) => setState(() => _phone = v),
+                  onChanged: (v) => _edit(() => _phone = v),
                 ),
               ),
             ],
@@ -156,7 +199,7 @@ class _SupplierDialogState extends ConsumerState<SupplierDialog> {
                 key: const ValueKey('supplier-active'),
                 label: t('inventory.purchasing.supplierActive'),
                 value: _active,
-                onChanged: (v) => setState(() => _active = v),
+                onChanged: (v) => _edit(() => _active = v),
               ),
             ),
         ],

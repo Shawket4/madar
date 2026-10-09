@@ -29,6 +29,7 @@ const List<DashRoute> sellRoutes = [
     titleKey: 'nav.orders',
     titleFallback: 'Orders',
     module: OrgModule.pos,
+    prefetch: OrdersPage.prefetch,
   ),
   DashRoute(
     path: '/floor',
@@ -50,6 +51,7 @@ const List<DashRoute> sellRoutes = [
     titleKey: 'nav.tills',
     titleFallback: 'Tills',
     module: OrgModule.pos,
+    prefetch: TillsPage.prefetch,
   ),
   DashRoute(
     path: '/customers',

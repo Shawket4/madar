@@ -15,11 +15,9 @@ import 'tills_data.dart';
 Future<void> showOpenTillDialog(
   BuildContext context, {
   required String branchId,
-  required int suggestedCash,
 }) => showDashDialog<void>(
   context,
-  builder: (_) =>
-      OpenTillDialog(branchId: branchId, suggestedCash: suggestedCash),
+  builder: (_) => OpenTillDialog(branchId: branchId),
 );
 
 /// A typed amount in pounds (`Number(v)`), Arabic digits too; null when it
@@ -28,26 +26,27 @@ double? parseAmount(String raw) =>
     raw.trim().isEmpty ? null : dashParseNumber(raw);
 
 class OpenTillDialog extends ConsumerStatefulWidget {
-  const OpenTillDialog({
-    required this.branchId,
-    required this.suggestedCash,
-    super.key,
-  });
+  const OpenTillDialog({required this.branchId, super.key});
 
   final String branchId;
-
-  /// Minor units; 0 = no suggestion (the field starts blank).
-  final int suggestedCash;
 
   @override
   ConsumerState<OpenTillDialog> createState() => _OpenTillDialogState();
 }
 
 class _OpenTillDialogState extends ConsumerState<OpenTillDialog> {
-  late String _cash = widget.suggestedCash > 0
-      ? Strings.jsString(piastresToEgp(widget.suggestedCash))
-      : '';
+  /// What the person typed; null while untouched, the field then follows
+  /// the suggestion as the pre-fill read lands or changes.
+  String? _typed;
   bool _pending = false;
+
+  /// The suggested float in minor units, as of the last build; 0 = none
+  /// (`suggested_opening_cash`).
+  int _suggested = 0;
+
+  String get _cash =>
+      _typed ??
+      (_suggested > 0 ? Strings.jsString(piastresToEgp(_suggested)) : '');
 
   double? get _amount {
     final n = parseAmount(_cash);
@@ -82,6 +81,12 @@ class _OpenTillDialogState extends ConsumerState<OpenTillDialog> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final fmt = ref.watch(formatProvider);
+    _suggested =
+        ref
+            .watch(tillPreFillProvider(widget.branchId))
+            .value
+            ?.suggestedOpeningCash ??
+        0;
     return DashSurface(
       title: t('tills.openShift'),
       description: t('tills.openDesc'),
@@ -89,14 +94,13 @@ class _OpenTillDialogState extends ConsumerState<OpenTillDialog> {
         key: const ValueKey('opening-cash'),
         label: t('tills.openingCash'),
         value: _cash,
-        onChanged: (v) => setState(() => _cash = v),
+        onChanged: (v) => setState(() => _typed = v),
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         textDirection: TextDirection.ltr,
         mono: true,
-        description: widget.suggestedCash > 0
-            ? '${t('tills.suggested')}: ${fmt.fmtMoney(widget.suggestedCash)}'
+        description: _suggested > 0
+            ? '${t('tills.suggested')}: ${fmt.fmtMoney(_suggested)}'
             : null,
-        onSubmitted: (_) => _submit(),
       ),
       actions: [
         DashButton(

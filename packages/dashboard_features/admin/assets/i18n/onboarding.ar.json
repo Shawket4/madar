@@ -1,1 +1,7 @@
-{}
+{
+  "menu.addonsHint": "الإضافات التي يمكن للعميل اختيارها لهذا الصنف",
+  "menu.addonsEmpty": "لم تُختر أي إضافات — تُطبَّق كل إضافات المؤسسة.",
+  "menu.noAddonsMatch": "لا توجد إضافات مطابقة",
+  "onboarding.form.priceMin": "أدخل مبلغًا يساوي صفرًا أو أكثر",
+  "onboarding.form.notANumber": "أدخل رقمًا"
+}

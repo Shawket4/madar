@@ -129,7 +129,6 @@ class _CashMovementDialogState extends ConsumerState<CashMovementDialog> {
             placeholder: t('tills.cashNotePlaceholder'),
             value: _note,
             onChanged: (v) => setState(() => _note = v),
-            onSubmitted: (_) => _submit(),
           ),
         ],
       ),

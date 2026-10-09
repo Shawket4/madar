@@ -34,6 +34,7 @@ import 'kitchen/kitchen_stations_page.dart';
 import 'links/links_page.dart';
 import 'loyalty/loyalty_page.dart';
 import 'payment_methods/payment_methods_page.dart';
+import 'payment_methods/pm_data.dart' show paymentMethodsProvider;
 import 'qr/qr_page.dart';
 import 'staff_pool/staff_pool_settings_page.dart';
 import 'whatsapp/whatsapp_page.dart';
@@ -107,6 +108,7 @@ const List<DashRoute> setupRoutes = [
     titleKey: 'nav.paymentMethods',
     titleFallback: 'Payment methods',
     module: OrgModule.pos,
+    prefetch: _prefetchPaymentMethods,
   ),
   DashRoute(
     path: '/settings/staff-pool',
@@ -173,6 +175,12 @@ Widget _combos(BuildContext c, GoRouterState s) =>
 
 Widget _paymentMethods(BuildContext c, GoRouterState s) =>
     _shell(s, PaymentMethodsPage(edit: s.uri.queryParameters['edit']));
+
+/// The web's `prefetchRoute('/settings/payment-methods')`: the list, with an
+/// org in scope (SET-SHL-013, SET-PAY-038).
+void _prefetchPaymentMethods(DashPrefetcher warm, Scope s) {
+  if (s.orgId != null) warm(paymentMethodsProvider);
+}
 
 Widget _staffPool(BuildContext c, GoRouterState s) =>
     _shell(s, const StaffPoolSettingsPage());

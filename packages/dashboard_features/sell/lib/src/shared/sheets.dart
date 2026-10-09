@@ -19,7 +19,8 @@ import 'customer_link.dart';
 /// - with [onOpenOrder] (the Orders page: `?order=` and its own sheet, with
 ///   Void) that order goes there;
 /// - otherwise it opens in an order sheet of its own, with NO Void button
-///   (Floor, Bookings).
+///   (Floor, Bookings); another of the member's orders chosen from inside it
+///   replaces it ([singleOrderSheet]).
 ///
 /// Call it in a build: it watches the person's capabilities.
 CustomerLinkControl customerSheetControl(
@@ -36,12 +37,31 @@ CustomerLinkControl customerSheetControl(
         context,
         customerId: customerId,
         readOnly: true,
-        onOpenOrder:
-            onOpenOrder ??
-            (orderId) {
-              if (context.mounted) showOrderSheet(context, orderId: orderId);
-            },
+        onOpenOrder: onOpenOrder ?? singleOrderSheet(context),
       );
     },
   );
+}
+
+/// One order sheet at a time, without Void (the web's single
+/// `OrderDetailSheet` whose `orderId` is state, `onSwitchOrder` setting it):
+/// another order chosen from inside it (through its member's sheet, which
+/// closes itself first) replaces it rather than stacking a second.
+ValueChanged<String> singleOrderSheet(BuildContext context) {
+  String? open;
+  late final ValueChanged<String> show;
+  show = (orderId) {
+    final replacing = open != null;
+    open = orderId;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!context.mounted) return;
+      if (replacing) {
+        await Navigator.of(context, rootNavigator: true).maybePop();
+      }
+      if (!context.mounted || open != orderId) return;
+      await showOrderSheet(context, orderId: orderId, onSwitchOrder: show);
+      if (open == orderId) open = null;
+    });
+  };
+  return show;
 }

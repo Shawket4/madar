@@ -5,6 +5,8 @@
 /// (`data/api/errors.ts`, SELL-ALL-017) for every toast and inline error.
 library;
 
+import 'dart:async';
+
 import 'package:dashboard_api/dashboard_api.dart'
     show
         ApiException,
@@ -235,3 +237,31 @@ String tillsErrorMessage(Object? error, Translator t) {
 /// else the method as stored (`t(\`payments.${m}\`, m)`).
 String paymentMethodLabel(Translator t, String method) =>
     t.exists('payments.$method') ? t('payments.$method') : method;
+
+/// A till's status word (`t(`tillStatus.${s}`, s)`).
+String tillStatusLabel(Translator t, String status) =>
+    t.exists('tillStatus.$status') ? t('tillStatus.$status') : status;
+
+/// `isFlagged`: opened while another till was open, or its payment check
+/// disagreed.
+bool isFlaggedTill(Till t) =>
+    t.openedWhileAnotherOpen || t.reconciliationStatus == 'disagreed';
+
+/// The list's discrepancy (SELL-TIL-021): "—" for none, plain zero, else
+/// signed money ("+EGP 20.00" / "−EGP 50.00").
+String discrepancyText(DashFormat fmt, int? d) => d == null
+    ? '—'
+    : d == 0
+    ? fmt.fmtMoney(0)
+    : fmt.fmtMoneySigned(d);
+
+/// Starts [tillId]'s report read so the panel opens on data (the web's
+/// `onRowPrefetch`); a failure leaves nothing cached.
+void prefetchTillReport(WidgetRef ref, String tillId) {
+  final p = tillReportProvider(tillId);
+  unawaited(
+    ref.read(p.future).then<void>((_) {}, onError: (Object _) {
+      ref.invalidate(p);
+    }),
+  );
+}

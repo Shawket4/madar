@@ -127,6 +127,7 @@ class _BaseEditorDialogState extends ConsumerState<BaseEditorDialog> {
     ];
     final nameAr = _nameAr.trim();
     final api = ref.read(apiProvider).menu;
+    final container = ProviderScope.containerOf(context, listen: false);
     final invalidate = ref.menuInvalidate;
     try {
       final base = widget.base;
@@ -166,9 +167,7 @@ class _BaseEditorDialogState extends ConsumerState<BaseEditorDialog> {
         }
         message = t('modeling.bases.saved', count: changed);
       }
-      invalidate
-        ..paths(const [MenuPaths.recipeBases])
-        ..catalog();
+      invalidateBases(container, invalidate);
       if (!mounted) return;
       DashToast.success(context, message);
       Navigator.of(context).pop();
@@ -244,17 +243,17 @@ class _BaseEditorDialogState extends ConsumerState<BaseEditorDialog> {
                   for (final s in usage.sizes)
                     Text.rich(
                       TextSpan(
-                        text: s.menuItemName,
+                        text: '${s.menuItemName} · ',
                         children: [
-                          // A one-price item's size is the `one_size`
-                          // sentinel: never shown (divergence MENU-BAS-014).
-                          if (s.sizeLabel != oneSize) ...[
-                            const TextSpan(text: ' · '),
-                            TextSpan(
-                              text: s.sizeLabel,
-                              style: TextStyle(color: c.textSecondary),
+                          // A one-price item's `one_size` sentinel reads
+                          // "One size" (divergence MENU-BAS-014).
+                          TextSpan(
+                            text: sizeLabelText(
+                              s.sizeLabel,
+                              t('recipes.oneSize'),
                             ),
-                          ],
+                            style: TextStyle(color: c.textSecondary),
+                          ),
                         ],
                       ),
                       key: ValueKey('usage-${s.sizeId}'),

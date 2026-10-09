@@ -1,8 +1,10 @@
 // Smoke: the unit's page(s) open through the real shell on the mock
-// server, titled, at desktop (en, light) and phone (ar, dark).
+// server, titled, at desktop (en, light) and phone (ar, dark). Mounted as
+// this unit's own area, so another unit's work in progress never stops it.
 import 'package:dashboard_core/testing.dart';
-import 'package:dashboard_reports/dashboard_reports.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support.dart';
 
 const _pages = [('Till sessions', '/reports/tills', 'reports.tills.title')];
 
@@ -16,7 +18,7 @@ void main() {
       ) async {
         final h = await DashHarness.pump(
           tester,
-          areas: const [reportsArea],
+          areas: const [tillsArea],
           path: path,
           size: size,
           locale: locale,

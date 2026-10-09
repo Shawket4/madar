@@ -17,6 +17,8 @@ library;
 
 import 'dart:convert';
 
+import 'package:dashboard_api/dashboard_api.dart'
+    show GroupOptionRecipeLine, GroupOut, IngredientCategory;
 import 'package:flutter/foundation.dart';
 
 import '../shared/grid_model.dart';
@@ -190,6 +192,80 @@ class GroupDraft {
       if (k != index) options[k].isDefault = false;
     }
   }
+}
+
+/// The form a group opens with (the web's `seeded`); null while an old swap
+/// group (no `swap_category_id`) waits for the ingredient categories
+/// ([categories] null = still loading).
+GroupDraft? seedGroupDraft(
+  GroupOut? group,
+  List<IngredientCategory>? categories,
+) {
+  if (group == null) return GroupDraft();
+  final legacySwap = isSwapType(group.legacyAddonType);
+  if ((group.effect == 'swaps' || legacySwap) &&
+      group.swapCategoryId == null &&
+      categories == null) {
+    return null;
+  }
+  final anyLines = group.options.any((o) => (o.recipe ?? const []).isNotEmpty);
+  final rule = selectionToPickRule(
+    selectionType: group.selectionType,
+    minSelections: group.minSelections,
+    maxSelections: group.maxSelections,
+    isRequired: group.isRequired,
+  );
+  // Groups from before `swap_category_id`: the swap family's category by slug.
+  final legacySlug = switch (group.legacyAddonType) {
+    'coffee_type' => swapSlugs[SwapTarget.beans],
+    'milk_type' => swapSlugs[SwapTarget.milk],
+    _ => null,
+  };
+  final options = [...group.options]..sort((a, b) => a.sort - b.sort);
+  return GroupDraft(
+    name: group.name,
+    nameAr: arOf(group.nameTranslations),
+    pick: rule.kind,
+    upTo: rule.kind == PickKind.upTo ? '${rule.max}' : '1',
+    effect: groupEffect(
+      effect: group.effect,
+      legacyAddonType: group.legacyAddonType,
+      anyOptionHasLines: anyLines,
+    ),
+    swapCategoryId:
+        group.swapCategoryId ??
+        (categories ?? const <IngredientCategory>[])
+            .where((c) => legacySlug != null && c.slug == legacySlug)
+            .firstOrNull
+            ?.id ??
+        '',
+    isActive: group.isActive,
+    options: [
+      for (final o in options)
+        OptionDraft(
+          key: ValueKey(o.id),
+          id: o.id,
+          name: o.name,
+          nameAr: arOf(o.nameTranslations),
+          price: egpText(o.price),
+          isActive: o.isActive,
+          isDefault: o.isDefault,
+          swapIngredientId:
+              o.replacesIngredientId ??
+              (o.recipe ?? const []).firstOrNull?.ingredientId ??
+              '',
+          lines: [
+            for (final l in o.recipe ?? const <GroupOptionRecipeLine>[])
+              OptionLineDraft(
+                ingredientId: l.ingredientId,
+                quantity: jsNumberText(l.quantity),
+                unit: l.unit,
+                sizeLabel: l.sizeLabel,
+              ),
+          ],
+        ),
+    ],
+  );
 }
 
 /// The editor's messages (the web's `GroupSchemaMessages`, plus the words

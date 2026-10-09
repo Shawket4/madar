@@ -4,7 +4,12 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/dashboard_inventory.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
-import 'package:flutter/widgets.dart';
+import 'package:dashboard_inventory/src/purchasing/purchase_order_dialog.dart';
+import 'package:dashboard_inventory/src/purchasing/purchasing_page.dart';
+import 'package:dashboard_inventory/src/purchasing/receive_dialog.dart';
+import 'package:dashboard_inventory/src/purchasing/supplier_dialog.dart';
+import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const String purchasingPath = '/inventory/purchasing';
@@ -81,3 +86,78 @@ Finder byKey(String key) => find.byKey(ValueKey(key));
 /// Taps [text] in an open menu or popover.
 Future<void> pick(DashHarness h, String text) =>
     h.tap(find.text(text).hitTestable());
+
+// ── Scoped finders ─────────────────────────────────────────────────────────
+
+Finder get page => find.byType(PurchasingPage);
+Finder get poDialog => find.byType(PurchaseOrderDialog);
+Finder get receiveDialog => find.byType(ReceiveDialog);
+Finder get supplierDialog => find.byType(SupplierDialog);
+Finder get ordersTable => find.byKey(const ValueKey('po-table'));
+Finder get suppliersTable => find.byKey(const ValueKey('supplier-table'));
+Finder get tabStrip => find.byKey(const ValueKey('purchasing-tabs'));
+
+Finder inPage(Finder f) => find.descendant(of: page, matching: f);
+Finder inOrders(Finder f) => find.descendant(of: ordersTable, matching: f);
+Finder inSuppliers(Finder f) =>
+    find.descendant(of: suppliersTable, matching: f);
+Finder inPo(Finder f) => find.descendant(of: poDialog, matching: f);
+Finder inReceive(Finder f) => find.descendant(of: receiveDialog, matching: f);
+Finder inSupplier(Finder f) =>
+    find.descendant(of: supplierDialog, matching: f);
+
+/// A cell (or any plain text) reading exactly [s] inside [scope].
+Finder exactText(Finder scope, String s) => find.descendant(
+  of: scope,
+  matching: find.byWidgetPredicate(
+    (w) => w is Text && (w.data ?? w.textSpan?.toPlainText()) == s,
+    description: '"$s"',
+  ),
+);
+
+/// Opens the tab labelled [label].
+Future<void> openTab(DashHarness h, String label) =>
+    h.tap(find.descendant(of: tabStrip, matching: find.text(label)));
+
+/// Opens the ⋯ menu of the order [poId] and taps [item].
+Future<void> orderMenu(DashHarness h, String poId, String item) async {
+  await h.tap(inPage(byKey('po-menu-$poId')));
+  await pick(h, item);
+}
+
+/// Opens the ⋯ menu of the supplier [supplierId] and taps [item].
+Future<void> supplierMenu(DashHarness h, String supplierId, String item) async {
+  await h.tap(inPage(byKey('supplier-menu-$supplierId')));
+  await pick(h, item);
+}
+
+/// The text inside the input keyed [key].
+String inputText(WidgetTester tester, String key) => tester
+    .widget<EditableText>(
+      find.descendant(of: byKey(key), matching: find.byType(EditableText)),
+    )
+    .controller
+    .text;
+
+/// The hint the input keyed [key] shows while empty.
+String? inputHint(WidgetTester tester, String key) => tester
+    .widget<TextField>(
+      find.descendant(of: byKey(key), matching: find.byType(TextField)),
+    )
+    .decoration
+    ?.hintText;
+
+/// The button keyed [key].
+DashButton button(WidgetTester tester, String key) =>
+    tester.widget<DashButton>(byKey(key));
+
+/// The last JSON body sent to [template] by [method].
+Map<String, Object?> lastBody(DashHarness h, String template, String method) =>
+    h.server.callsTo(template, method: method).last.body!
+        as Map<String, Object?>;
+
+/// The org's suppliers as the server lists them (by name).
+List<MockRow> sabahSuppliers(MockDb db) => db[InvTables.suppliers].query(
+  filters: {'org_id': SeedIds.sabahOrg},
+  sort: 'name',
+);

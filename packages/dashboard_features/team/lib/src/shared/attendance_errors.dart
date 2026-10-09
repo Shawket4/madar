@@ -1,4 +1,4 @@
-/// The words behind every error toast and error state on the Attendance page:
+/// The words behind every error toast and error state on the team pages:
 /// the web's `getErrorMessage` (`data/api/errors.ts`, TEAM-ALL-014/019) for
 /// the refusals this unit meets.
 ///

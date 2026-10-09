@@ -6,6 +6,7 @@
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
+import 'package:dashboard_inventory/src/purchasing/purchase_order_dialog.dart';
 import 'package:dashboard_inventory/src/today/today_page.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
@@ -143,6 +144,35 @@ void main() {
         branch: SeedIds.maadi,
       );
       await shootPage(h, 'quiet');
+    });
+
+    testWidgets('Create PO and Receive opened from Today, $tag', (
+      tester,
+    ) async {
+      final h = await pumpToday(
+        tester,
+        size: size,
+        locale: lang,
+        branch: SeedIds.zamalek,
+      );
+      final oat = InvIds.ingredient('oat');
+      final po = find.byKey(
+        ValueKey('today-create-po-${SeedIds.zamalek}-$oat'),
+      );
+      await h.scrollUntilVisible(po);
+      await h.tap(po);
+      await h.shot('today/create-po');
+      Navigator.of(
+        tester.element(find.byType(PurchaseOrderDialog)),
+        rootNavigator: true,
+      ).pop();
+      await h.settle();
+      final receive = find.byKey(
+        ValueKey('today-receive-${InvIds.purchaseOrder('po-1042')}'),
+      );
+      await h.scrollUntilVisible(receive);
+      await h.tap(receive);
+      await h.shot('today/receive');
     });
 
     testWidgets('the exact figure behind a shortened one, $tag', (

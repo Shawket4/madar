@@ -39,17 +39,26 @@ class SuppliersTab extends ConsumerWidget {
     }
   }
 
+  /// Runs [action] once the menu has closed, so the dialog it opens keeps
+  /// the focus (the menu hands focus back as it goes).
+  void _afterMenu(BuildContext context, VoidCallback action) =>
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) action();
+      });
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final async = ref.watch(inventorySuppliersProvider(orgId));
 
-    Widget orDash(String? v, {bool mono = false}) => MadarClippedText(
+    // Email and phone read left to right in Arabic too (cut at their end).
+    Widget orDash(String? v, {bool mono = false, bool ltr = false}) =>
+        MadarClippedText(
       v ?? '—',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      textDirection: mono && v != null ? TextDirection.ltr : null,
+      textDirection: (mono || ltr) && v != null ? TextDirection.ltr : null,
       style: (mono && v != null ? DashType.mono : DashType.body).copyWith(
         color: c.textPrimary,
       ),
@@ -82,8 +91,8 @@ class SuppliersTab extends ConsumerWidget {
           id: 'email',
           label: t('inventory.purchasing.email'),
           text: (s) => s.email ?? '',
-          cell: (context, s) => orDash(s.email),
-          minWidth: Space.xxl * 5,
+          cell: (context, s) => orDash(s.email, ltr: true),
+          minWidth: Space.xxl * 4,
         ),
         DashColumn(
           id: 'phone',
@@ -108,7 +117,8 @@ class SuppliersTab extends ConsumerWidget {
                   icon: 'minus-circle',
                 ),
           searchable: false,
-          minWidth: Space.xxl * 3,
+          // Wide enough for the "Inactive" pill.
+          minWidth: Space.xxl * 4,
         ),
       ],
       rows: async.value ?? const [],
@@ -126,13 +136,15 @@ class SuppliersTab extends ConsumerWidget {
         items: [
           DashMenuItem(
             label: t('common.edit'),
-            onSelected: () =>
-                showSupplierDialog(context, orgId: orgId, supplier: s),
+            onSelected: () => _afterMenu(
+              context,
+              () => showSupplierDialog(context, orgId: orgId, supplier: s),
+            ),
           ),
           DashMenuItem(
             label: t('common.delete'),
             destructive: true,
-            onSelected: () => _delete(context, ref, s),
+            onSelected: () => _afterMenu(context, () => _delete(context, ref, s)),
           ),
         ],
         builder: (context, ctl) => DashIconButton(

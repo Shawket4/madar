@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/mock/staff_pool_bundles_mock.dart';
 import 'package:dashboard_reports/src/staff_pool_bundles/bundles_mix_dialog.dart';
@@ -89,6 +90,19 @@ void main() {
       expect(h.server.callsTo(bundlesTpl), isNotEmpty);
       expect(find.text('Brunch for Two'), findsOneWidget);
     });
+
+    testWidgets(
+      'REP-ALL-004 a Dawam-only org: the POS-off page, nothing asked',
+      (tester) async {
+        final h = await pumpReports(
+          tester,
+          path: bundlesPath,
+          persona: Persona.dawamOnly,
+        );
+        expect(find.text("Not part of this business's plan"), findsOneWidget);
+        expect(h.server.callsTo(bundlesTpl), isEmpty);
+      },
+    );
 
     testWidgets('REP-BUN-010 a 403 from the server shows its words', (
       tester,
@@ -478,6 +492,85 @@ void main() {
       await h.settle();
       expect(find.text('SEPARATELY'), findsNothing);
     });
+
+    testWidgets('REP-BUN-011 (divergence) Deals: "Applied" in the menu too', (
+      tester,
+    ) async {
+      final h = await pumpReports(tester, path: bundlesPath);
+      await h.tapText('Deals');
+      await h.tapText('Columns');
+      final menu = find.byType(Overlay).last;
+      // The web leaves the menu entry reading "Sold" under an "Applied"
+      // header; one word for one column here.
+      expect(
+        find.descendant(of: menu, matching: find.text('Applied')),
+        findsWidgets,
+      );
+      expect(
+        find.descendant(of: menu, matching: find.text('Sold')),
+        findsNothing,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await h.settle();
+    });
+
+    testWidgets(
+      'REP-BUN-007/012 phone: a card per combo; a tap opens its mix',
+      (tester) async {
+        final h = await pumpReports(
+          tester,
+          path: '$bundlesPath?branchId=${SeedIds.heliopolis}',
+          size: DashSize.phone,
+        );
+        expect(find.text('Coffee & Cookie'), findsOneWidget);
+        // The other cells, labelled, under the name.
+        expect(find.text('Separately'), findsWidgets);
+        await h.tapText('Coffee & Cookie');
+        expect(find.text('What went into Coffee & Cookie'), findsOneWidget);
+        expect(h.server.callsTo(mixTpl), hasLength(1));
+        await h.shot('phone-mix');
+      },
+    );
+
+    testWidgets(
+      'REP-ALL-018 a failed refetch replaces the rows with the error',
+      (tester) async {
+        final s = reportsServer();
+        final h = await pumpReports(
+          tester,
+          path: '$bundlesPath?branchId=${SeedIds.zamalek}',
+          server: s.server,
+          db: s.db,
+        );
+        expect(find.text('Brunch for Two'), findsOneWidget);
+        s.server.fail('GET', bundlesTpl, MockResponse.error(500, 'Down'));
+        h.realtime.current!.emit('till.closed', data: '{}');
+        await h.settle();
+        expect(find.text("Couldn't load this"), findsOneWidget);
+        expect(find.text('Brunch for Two'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'REP-BUN-010 a retry in flight keeps the error, never "empty"',
+      (tester) async {
+        final s = reportsServer();
+        s.server.fail('GET', bundlesTpl, MockResponse.error(500, 'Down'));
+        final h = await pumpReports(
+          tester,
+          path: bundlesPath,
+          server: s.server,
+          db: s.db,
+        );
+        final gate = s.server.hold('GET', bundlesTpl);
+        await h.tapText('Retry');
+        expect(find.text("Couldn't load this"), findsOneWidget);
+        expect(find.text('No combos sold in this period'), findsNothing);
+        gate.release();
+        await h.settle();
+        expect(find.text('Morning Croissant Combo'), findsOneWidget);
+      },
+    );
 
     testWidgets('REP-BUN-012 deal rows open nothing', (tester) async {
       final h = await pumpReports(tester, path: bundlesPath);

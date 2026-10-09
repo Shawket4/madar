@@ -10,9 +10,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/offers_cache.dart';
 import 'deal_form.dart';
 
-/// `GET /deals` (key `["/deals", {}]`): every deal of the org, refetched
-/// after any combo or deal write (`invalidateCombos`) or a `resync`.
-final dealsProvider = FutureProvider<List<DealRule>>((ref) async {
+/// `GET /deals` (key `["/deals", {}]`: no params, so no family): every deal
+/// of the org, refetched after any combo or deal write (`invalidateCombos`)
+/// or a `resync`.
+final dealsProvider = FutureProvider.autoDispose<List<DealRule>>((ref) {
+  ref.webCache();
   ref.watch(realtimeEpochProvider(OffersPaths.deals));
   return ref.watch(apiProvider).menu.listDeals();
 });

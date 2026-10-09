@@ -175,25 +175,25 @@ class AddonRecipeHost extends ConsumerWidget {
               priceForSize: (_) => defaultPrice,
               onSave: (rows, removed) async {
                 log.calls.add((rows, removed));
+                // Taken before any await (the dialog may close meanwhile).
+                final api = ref.read(apiProvider);
+                final invalidate = ref.menuInvalidate;
                 final hold = log.hold;
                 if (hold != null) await hold.future;
                 try {
-                  await ref
-                      .read(apiProvider)
-                      .menu
-                      .putOptionRecipe(
-                        oid: addonId,
-                        body: [
-                          for (final r in rows)
-                            if (r.orgIngredientId != null)
-                              OptionRecipeLineInput(
-                                ingredientId: r.orgIngredientId!,
-                                quantity: r.quantityUsed,
-                                unit: r.ingredientUnit,
-                              ),
-                        ],
-                      );
-                  ref.menuInvalidate.catalog();
+                  await api.menu.putOptionRecipe(
+                    oid: addonId,
+                    body: [
+                      for (final r in rows)
+                        if (r.orgIngredientId != null)
+                          OptionRecipeLineInput(
+                            ingredientId: r.orgIngredientId!,
+                            quantity: r.quantityUsed,
+                            unit: r.ingredientUnit,
+                          ),
+                    ],
+                  );
+                  invalidate.catalog();
                   if (context.mounted) {
                     DashToast.success(context, t('recipes.builder.saved'));
                     if (closeOnSave) Navigator.of(context).pop();

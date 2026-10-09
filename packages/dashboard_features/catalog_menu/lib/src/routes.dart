@@ -20,7 +20,9 @@ import 'bases/bases_page.dart';
 import 'bases/packaging_rules_page.dart';
 import 'groups/groups_page.dart';
 import 'items/items_page.dart';
+import 'items/items_providers.dart' show prefetchMenuItems;
 import 'pricing/pricing_page.dart';
+import 'pricing/pricing_providers.dart' show prefetchPricing;
 import 'studio/menu_studio_page.dart';
 
 Widget _items(BuildContext context, GoRouterState state) =>
@@ -50,6 +52,7 @@ const List<DashRoute> catalogMenuRoutes = [
     titleKey: 'nav.menu',
     titleFallback: 'Menu',
     module: OrgModule.pos,
+    prefetch: prefetchMenuItems,
   ),
   DashRoute(
     path: '/menu/items/:itemId',
@@ -71,6 +74,7 @@ const List<DashRoute> catalogMenuRoutes = [
     titleKey: 'menu.pricing.title',
     titleFallback: 'Pricing & availability',
     module: OrgModule.pos,
+    prefetch: prefetchPricing,
   ),
   DashRoute(
     path: '/menu/bases',

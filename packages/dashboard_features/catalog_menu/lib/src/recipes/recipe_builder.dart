@@ -3,7 +3,35 @@
 /// and margin per size, scaling from the base size, and either its own
 /// "Save recipe" footer (the add-on recipe dialog) or deferred mode (the item
 /// dialog streams the cleaned rows to its host). Shared by the item dialogs,
-/// the add-on recipe dialog and onboarding; exported from the package.
+/// the add-on recipe dialog, the studio and onboarding.
+///
+/// ## Public API (exported by `package:dashboard_catalog_menu`)
+///
+/// - [RecipeBuilder]: the widget. The host passes the org's ingredient
+///   catalog (the value of `ingredientCatalogProvider(orgId)`, `GET
+///   /inventory/orgs/{orgId}/catalog`) and the saved rows, and writes the
+///   result. The builder watches that same read (no second request) for its
+///   states: "Loading…" in the picker until it lands, and a failed read
+///   with nothing to show says so with Retry above the sizes.
+///   - standalone: `onSave: (rows, removed) async {…}` → the "Save recipe"
+///     footer. The host writes, toasts, and rethrows on failure (the rows
+///     stay unsaved); on success what was saved becomes the new baseline.
+///   - deferred: `deferred: true, onRowsChange: (rows) {…}` → no footer; the
+///     rows that count reach the host after every edit (and after seeding),
+///     for the host's own Save.
+///   - `sizes`: ordered labels, the first is the base for scaling; `one_size`
+///     reads "One size". `priceForSize` (piastres) drives the margin.
+///   - `allowCreateIngredient` (default on): the toolbar's "New ingredient".
+/// - [RecipeRowInit]: a saved row to start from. The draft is re-seeded only
+///   when the rows' content (size, name, quantity) changes, so a host that
+///   rebuilds with equal rows keeps the person's edits.
+/// - [CleanRow]: a row that counts (a name and a quantity above zero); rows
+///   that do not count are dropped silently.
+/// - [RemovedRow]: a saved row no longer kept (standalone `onSave` only).
+/// - `showCreateIngredientDialog(context, orgId:)` / `CreateIngredientDialog`
+///   (`create_ingredient_dialog.dart`): creates an org ingredient and resolves
+///   with it (null when cancelled); it refreshes the recipe reads itself
+///   (`invalidateRecipes`).
 ///
 /// Wide (>= 760): a row is one line (ingredient, quantity + unit, line cost,
 /// remove), as on the web. Phone: the ingredient takes its own line and the
@@ -24,7 +52,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/ingredient_options.dart';
-import '../shared/menu_providers.dart' show ingredientsById;
+import '../shared/menu_providers.dart'
+    show ingredientCatalogProvider, ingredientsById;
 import '../shared/menu_text.dart';
 import 'create_ingredient_dialog.dart';
 import 'recipe_model.dart';
@@ -250,6 +279,12 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
 
   bool get _dirty => recipeRowsDiffer(_rows, _baseline);
 
+  /// The web's `text-end` in the reading direction: the figure sits by its
+  /// unit (or ×) in Arabic too, while the box itself reads left to right.
+  TextAlign get _endAlign => Directionality.of(context) == TextDirection.rtl
+      ? TextAlign.left
+      : TextAlign.right;
+
   String get _baseSize => widget.sizes.isEmpty ? oneSize : widget.sizes.first;
 
   void _addRow(String size) => _set([
@@ -315,6 +350,14 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
     final phone = DashBreakpoints.isPhone(context);
     final byId = ingredientsById(widget.catalog);
     final options = ingredientOptions(widget.catalog, t);
+    // The host's catalog is this read's value: its states are shown here.
+    final catalogQ = ref.watch(ingredientCatalogProvider(widget.orgId));
+    final catalogFailed = catalogQ.hasError && !catalogQ.hasValue;
+    final pickerEmpty = catalogFailed
+        ? t('recipes.builder.catalogFailed')
+        : catalogQ.isLoading && !catalogQ.hasValue
+        ? t('common.loading')
+        : t('common.noResults');
     double? unitCostOf(String? id) =>
         id == null ? null : positiveUnitCost(byId[id]);
 
@@ -325,6 +368,14 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
       spacing: Space.lg + Space.xs,
       children: [
         ?toolbar,
+        if (catalogFailed)
+          RecipeLoadError(
+            title: t('recipes.builder.catalogFailed'),
+            message: errorMessage(catalogQ.error, t),
+            retrying: catalogQ.isLoading,
+            onRetry: () =>
+                ref.invalidate(ingredientCatalogProvider(widget.orgId)),
+          ),
         if (_scaling && widget.sizes.length > 1) _scalePanel(t, c),
         for (final (i, size) in widget.sizes.indexed)
           _section(
@@ -335,6 +386,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
             c: c,
             phone: phone,
             options: options,
+            pickerEmpty: pickerEmpty,
             unitCostOf: unitCostOf,
           ),
         if (!widget.deferred) _footer(t, c),
@@ -485,7 +537,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
             value: _factors[size] ?? '',
             placeholder: '1.5',
             semanticLabel: label,
-            textAlign: TextAlign.end,
+            textAlign: _endAlign,
             textDirection: TextDirection.ltr,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             leading: Text(
@@ -509,6 +561,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
     required MadarColors c,
     required bool phone,
     required List<DashOption<String>> options,
+    required String pickerEmpty,
     required double? Function(String?) unitCostOf,
   }) {
     final rows = [
@@ -626,6 +679,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
                       c: c,
                       phone: phone,
                       options: options,
+                      pickerEmpty: pickerEmpty,
                       unitCost: unitCostOf(r.orgIngredientId),
                     ),
                   _AddRowButton(
@@ -649,6 +703,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
     required MadarColors c,
     required bool phone,
     required List<DashOption<String>> options,
+    required String pickerEmpty,
     required double? unitCost,
   }) {
     final lineCost = recipeLineCost(unitCost, r.quantity);
@@ -664,7 +719,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
       semanticLabel: t('recipes.ingredient'),
       sheetTitle: t('recipes.ingredient'),
       searchPlaceholder: t('common.search'),
-      emptyText: t('common.noResults'),
+      emptyText: pickerEmpty,
       onChanged: (id) {
         final ing = widget.catalog.where((c) => c.id == id).firstOrNull;
         _replace(
@@ -680,7 +735,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
       key: ValueKey('recipe-qty-${r.id}'),
       value: r.quantity,
       placeholder: '0.000',
-      textAlign: TextAlign.end,
+      textAlign: _endAlign,
       textDirection: TextDirection.ltr,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       semanticLabel: t(

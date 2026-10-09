@@ -25,17 +25,46 @@ import 'package:dashboard_core/dashboard_core.dart' show allBranchesId;
 
 // ── branch narrowing ──────────────────────────────────────────────────────
 
-/// The branches a report read covers: [branchId] itself (403 unless the
-/// persona sees it), or for the all-branches sentinel every Sabah branch the
-/// persona sees.
+final Expando<MockDb> _reportDb = Expando('reports-db');
+
+/// Lets [reportBranchIds] read [server]'s branch rows (the area's mocks bind
+/// it once when they register).
+void bindReportDb(MockServer server, MockDb db) => _reportDb[server] = db;
+
+/// The branches a report read covers (`resolve_report_branches`): [branchId]
+/// itself (403 unless the persona works there, 404 when it does not exist,
+/// was deleted or is another org's), or for the all-branches sentinel every live branch of the
+/// org in scope that the persona sees. Without a bound db (a unit's mocks
+/// registered alone) the Sabah branches stand in.
 List<String> reportBranchIds(MockRequest req, String branchId) {
+  final db = _reportDb[req.server];
   if (branchId == allBranchesId) {
+    if (db == null) {
+      return [
+        for (final b in SeedIds.sabahBranches)
+          if (req.persona.seesBranch(b)) b,
+      ];
+    }
+    final org = req.orgId;
+    if (org == null) {
+      req.fail(MockResponse.forbidden('No organization in scope'));
+    }
     return [
-      for (final b in SeedIds.sabahBranches)
-        if (req.persona.seesBranch(b)) b,
+      for (final b in db['branches'].rows)
+        if (b['org_id'] == org &&
+            b['deleted_at'] == null &&
+            req.persona.seesBranch(b['id']! as String))
+          b['id']! as String,
     ];
   }
   req.requireBranch(branchId);
+  if (db != null) {
+    final b = db['branches'].find(branchId);
+    // Another org's branch is not found either (the backend scopes by org).
+    if (b == null || b['deleted_at'] != null || b['org_id'] != req.orgId) {
+      req.notFound('Branch not found');
+    }
+  }
   return [branchId];
 }
 

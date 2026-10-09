@@ -657,9 +657,11 @@ class SellSeed {
 
   FloorTable _table(int i, String branchKey, _S section, _T t) {
     final id = SellIds.table(branchKey, t.label);
-    // A tidy grid per section: three to a row, 180 × 140 apart; tables
+    // A tidy grid per section: three to a row, 180 × 140 apart, each section
+    // beside the last on the one plane (All shows them side by side); tables
     // without a section stand by the counter.
     final inSection = section.tables.indexOf(t);
+    final across = _plans[branchKey]!.indexOf(section) * 620.0;
     final col = inSection % 3;
     final row = inSection ~/ 3;
     final (w, h) = switch ((t.shape, t.seats)) {
@@ -688,7 +690,7 @@ class SellSeed {
       label: t.label,
       seats: t.seats,
       shape: t.shape,
-      posX: section.key == null ? 620.0 : 40.0 + col * 180,
+      posX: section.key == null ? 620.0 : 40.0 + across + col * 180,
       posY: section.key == null ? 420.0 : 40.0 + row * 140,
       width: w,
       height: h,

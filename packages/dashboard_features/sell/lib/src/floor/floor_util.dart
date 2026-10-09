@@ -11,6 +11,8 @@ library;
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:dashboard_api/dashboard_api.dart' show FloorTable, TransferView;
+
 // ── Status ────────────────────────────────────────────────────────────────
 
 /// The four display tones (`TABLE_TONES`), in legend order.
@@ -547,3 +549,52 @@ WheelIntent wheelIntent({
 /// The scale between two pinch distances; 1 on a degenerate first move.
 double pinchFactor(double prev, double next) =>
     prev > 0 && next > 0 ? next / prev : 1;
+
+// ── Page rules (`floor-page.tsx`, `add-table-dialog.tsx`, `transfer-queue.tsx`)
+
+/// Where a new table lands: beside the tables already in its section
+/// (inactive ones included), cascading so repeated adds stay visible; the
+/// first one at the origin; snapped to the grid.
+({double x, double y}) spawnPosition(
+  Iterable<({double x, double y, double h})> siblings,
+) {
+  final list = siblings.toList();
+  if (list.isEmpty) return (x: 0, y: 0);
+  final offset = (list.length % 5) * kFloorGrid * 3;
+  final x = list.map((s) => s.x).reduce(math.min) + offset;
+  final y = list.map((s) => s.y + s.h).reduce(math.max) + kFloorGrid * 2;
+  return (x: snapTo(x, true), y: snapTo(y, true));
+}
+
+/// The capacity overlay over the visible tables: all seats, the seats not
+/// taken, and how many tables need clearing.
+({int seats, int free, int dirty}) capacityOf(
+  Iterable<({int seats, String status, String? occupant})> tables,
+) {
+  var seats = 0;
+  var taken = 0;
+  var dirty = 0;
+  for (final t in tables) {
+    seats += t.seats;
+    if (isTableTaken(t.status, t.occupant)) {
+      taken += t.seats;
+    } else if (needsClearing(t.status, t.occupant)) {
+      dirty += 1;
+    }
+  }
+  return (seats: seats, free: seats - taken, dirty: dirty);
+}
+
+/// Which tables may take a waiting party (`candidatesFor`): active tables
+/// whose raw status is `free`, then the wished table, else the wished
+/// section, else any.
+List<FloorTable> transferCandidates(TransferView tr, List<FloorTable> tables) {
+  final free = tables.where((t) => t.status == 'free' && t.isActive);
+  final table = tr.targetTableId;
+  if (table != null) return free.where((t) => t.id == table).toList();
+  final section = tr.targetSectionId;
+  if (section != null) {
+    return free.where((t) => t.sectionId == section).toList();
+  }
+  return free.toList();
+}

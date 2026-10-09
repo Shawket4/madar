@@ -145,18 +145,12 @@ void main() {
   testWidgets('TEAM-SET-005 a read that failed: error words, the server\'s '
       'message, Retry asks only that read again', (tester) async {
     final s = setupServer();
-    s.server.fail(
-      'GET',
-      '/staff/work-shifts',
-      MockResponse.error(500, 'Internal server error: shifts unavailable'),
-    );
+    final boom = MockResponse.error(500, 'shifts unavailable');
+    s.server.fail('GET', '/staff/work-shifts', boom);
     final h = await pumpSetup(tester, s: s);
     expect(byKey('setup-error'), findsOneWidget);
     expect(find.text(h.t('dawam.setupLoadError')), findsOneWidget);
-    expect(
-      find.text('Internal server error: shifts unavailable'),
-      findsOneWidget,
-    );
+    expect(find.text(h.refusalWords(boom)), findsOneWidget);
     expect(byKey('setup-step-branches'), findsNothing);
     await h.shot('error');
     final before = {for (final p in _reads) p: _calls(h, p)};
@@ -172,15 +166,16 @@ void main() {
   testWidgets('TEAM-SET-005 a failed refresh keeps the checklist on screen '
       'and toasts once (TEAM-ALL-022)', (tester) async {
     final h = await pumpSetup(tester, edit: _oneOfFour);
-    h.server.fail(
-      'GET',
-      '/staff/work-shifts',
-      MockResponse.error(429, 'Too many requests', retryAfterSeconds: 2),
+    final busy = MockResponse.error(
+      429,
+      'Too many requests',
+      retryAfterSeconds: 2,
     );
+    h.server.fail('GET', '/staff/work-shifts', busy);
     await h.tapKey(const ValueKey('setup-refresh'));
     expect(byKey('setup-ready'), findsOneWidget);
     expect(byKey('setup-error'), findsNothing);
-    await h.expectToast('Too many requests');
+    await h.expectToast(h.refusalWords(busy));
   });
 
   // ── Done rules, opening step ─────────────────────────────────────────
@@ -456,9 +451,10 @@ void main() {
     late int missing;
     final h = await pumpSetup(
       tester,
+      // `salary_set` is the stored salary's presence (employees mock).
       edit: (db) => missing = activeStaff(
         db,
-      ).where((e) => e['salary_set'] == false).length,
+      ).where((e) => e['base_salary_piastres'] == null).length,
     );
     expect(missing, greaterThan(0));
     await h.tapKey(const ValueKey('setup-step-employees'));
@@ -474,7 +470,7 @@ void main() {
       tester,
       edit: (db) {
         for (final e in activeStaff(db)) {
-          e['salary_set'] = true;
+          e['base_salary_piastres'] ??= 1000000;
         }
       },
     );
@@ -748,17 +744,10 @@ void main() {
     tester,
   ) async {
     final h = await pumpSetup(tester, edit: rulesNeverSaved);
-    h.server.fail(
-      'PUT',
-      '/staff/attendance/settings',
-      MockResponse.denied('hr.rules.edit'),
-    );
+    final denied = MockResponse.denied('hr.rules.edit');
+    h.server.fail('PUT', '/staff/attendance/settings', denied);
     await h.tapKey(const ValueKey('setup-save-rules'));
-    await h.expectToast(
-      "Forbidden: You don't have permission to do this: "
-      'Change attendance and pay rules (hr.rules.edit)',
-      keep: true,
-    );
+    await h.expectToast(h.refusalWords(denied), keep: true);
     expect(byKey('setup-save-rules'), findsOneWidget);
     expect(_button(tester, 'setup-save-rules').loading, isFalse);
     expect(find.text(h.t('dawam.setupRulesSuggested')), findsOneWidget);
@@ -798,13 +787,10 @@ void main() {
     tester,
   ) async {
     final s = setupServer();
-    s.server.fail(
-      'GET',
-      '/staff/attendance/settings',
-      MockResponse.denied('hr.rules.view'),
-    );
+    final denied = MockResponse.denied('hr.rules.view');
+    s.server.fail('GET', '/staff/attendance/settings', denied);
     final h = await pumpSetup(tester, s: s);
     expect(find.text(h.t('dawam.setupLoadError')), findsOneWidget);
-    expect(find.textContaining('(hr.rules.view)'), findsOneWidget);
+    expect(find.text(h.refusalWords(denied)), findsOneWidget);
   });
 }

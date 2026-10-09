@@ -55,10 +55,20 @@ class TillReportPanel extends StatefulWidget {
 }
 
 class _TillReportPanelState extends State<TillReportPanel> {
+  /// The panel's own route, kept so a URL change after the panel started
+  /// closing never looks it up from a deactivated element.
+  ModalRoute<Object?>? _route;
+
   @override
   void initState() {
     super.initState();
     widget.tillId.addListener(_changed);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route = ModalRoute.of(context);
   }
 
   @override
@@ -69,10 +79,11 @@ class _TillReportPanelState extends State<TillReportPanel> {
 
   void _changed() {
     if (!mounted) return;
+    final route = _route;
+    if (route == null || !route.isActive) return;
     if (widget.tillId.value == null) {
-      final route = ModalRoute.of(context);
-      if (route == null || !route.isActive) return;
-      final nav = Navigator.of(context);
+      final nav = route.navigator;
+      if (nav == null) return;
       if (route.isCurrent) {
         nav.pop();
       } else {
@@ -468,6 +479,9 @@ class _PaymentsCard extends ConsumerWidget {
   }
 }
 
+/// Below this the four-column check is stacked per method.
+const double _reconciliationMinWidth = 400;
+
 /// The per-method close check (SELL-TIL-050). Empty for tills closed before
 /// the rework, and then not shown.
 class ReconciliationTable extends ConsumerWidget {
@@ -489,6 +503,9 @@ class ReconciliationTable extends ConsumerWidget {
     final c = context.madarColors;
     final head = DashType.tableHeader.copyWith(color: c.textSecondary);
     final figure = DashType.mono.copyWith(fontSize: 13, color: c.textPrimary);
+    String pill(String status) => t.exists('tills.reconciliation.$status')
+        ? t('tills.reconciliation.$status')
+        : status;
     Widget cell(Widget child, {bool end = false, bool first = false}) =>
         Padding(
           padding: EdgeInsetsDirectional.only(
@@ -568,9 +585,7 @@ class ReconciliationTable extends ConsumerWidget {
             ),
             cell(
               DashStatusPill(
-                label: t.exists('tills.reconciliation.${l.status}')
-                    ? t('tills.reconciliation.${l.status}')
-                    : l.status,
+                label: pill(l.status),
                 tone: _tone(l.status),
                 small: true,
               ),
@@ -579,14 +594,83 @@ class ReconciliationTable extends ConsumerWidget {
           ],
         ),
     ];
+    // Too narrow for four columns (a phone): one stacked block per method.
+    Widget stacked() => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (i, l) in lines.indexed)
+          Container(
+            key: ValueKey('reconciliation-line-${l.method}'),
+            padding: const EdgeInsets.symmetric(vertical: Space.sm),
+            decoration: i == 0
+                ? null
+                : BoxDecoration(
+                    border: Border(top: BorderSide(color: c.hairline)),
+                  ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              spacing: DashMetrics.hair,
+              children: [
+                Row(
+                  spacing: Space.sm,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        paymentMethodLabel(t, l.method),
+                        style: DashType.bodyMedium.copyWith(
+                          color: c.textPrimary,
+                        ),
+                      ),
+                    ),
+                    DashStatusPill(
+                      label: pill(l.status),
+                      tone: _tone(l.status),
+                      small: true,
+                    ),
+                  ],
+                ),
+                if (l.note != null && l.note!.isNotEmpty)
+                  Text(
+                    l.note!,
+                    style: DashType.small.copyWith(color: c.textSecondary),
+                  ),
+                if (l.changedAfterClose)
+                  Text(
+                    t(
+                      'tills.reconciliation.changedAfterClose',
+                      args: {'amount': fmt.fmtMoney(l.currentSystemTotal)},
+                    ),
+                    style: DashType.small.copyWith(
+                      color: DashTone.warning.foreground(c),
+                    ),
+                  ),
+                ReportLine(
+                  label: t('tills.reconciliation.system'),
+                  value: fmt.fmtMoney(l.systemTotal),
+                  small: true,
+                ),
+                ReportLine(
+                  label: t('tills.reconciliation.declared'),
+                  value: l.declaredAmount != null
+                      ? fmt.fmtMoney(l.declaredAmount)
+                      : '—',
+                  small: true,
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
     return _ReportCard(
       key: const ValueKey('reconciliation-table'),
       title: t('tills.reconciliation.title'),
       children: [
         LayoutBuilder(
           builder: (context, box) {
-            const minWidth = 380.0;
-            final w = box.maxWidth < minWidth ? minWidth : box.maxWidth;
+            if (box.maxWidth < _reconciliationMinWidth) return stacked();
+            final w = box.maxWidth;
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: SizedBox(

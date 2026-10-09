@@ -1,5 +1,6 @@
 {
   "menu.addonsHint": "الإضافات التي يمكن للعميل اختيارها لهذا الصنف",
   "menu.addonsEmpty": "لم تُختر أي إضافات — تُطبَّق كل إضافات المؤسسة.",
-  "menu.noAddonsMatch": "لا توجد إضافات مطابقة"
+  "menu.noAddonsMatch": "لا توجد إضافات مطابقة",
+  "menu.sizeLabelPlaceholder": "كبير"
 }

@@ -15,19 +15,29 @@ import '../shared/phone.dart';
 import 'customers_data.dart';
 
 /// Opens the form: [customer] present = edit it; absent = add one.
-/// Resolves with the saved customer, or null when cancelled.
+/// Resolves with the saved customer, or null when cancelled. [onSaved] runs
+/// on success even when the dialog was closed while it saved, and the toast
+/// then shows through the opener's [context] (the web's mutation outlives
+/// its dialog).
 Future<CustomerDetail?> showCustomerDialog(
   BuildContext context, {
   Customer? customer,
+  ValueChanged<CustomerDetail>? onSaved,
 }) => showDashDialog<CustomerDetail>(
   context,
-  builder: (context) => CustomerDialog(customer: customer),
+  builder: (_) =>
+      CustomerDialog(customer: customer, onSaved: onSaved, host: context),
 );
 
 class CustomerDialog extends ConsumerStatefulWidget {
-  const CustomerDialog({this.customer, super.key});
+  const CustomerDialog({this.customer, this.onSaved, this.host, super.key});
 
   final Customer? customer;
+  final ValueChanged<CustomerDetail>? onSaved;
+
+  /// The opener's context: it outlives the dialog, so a save that finishes
+  /// after the dialog closed still toasts.
+  final BuildContext? host;
 
   @override
   ConsumerState<CustomerDialog> createState() => _CustomerDialogState();
@@ -42,7 +52,25 @@ class _CustomerDialogState extends ConsumerState<CustomerDialog> {
   String? _phoneServerError;
   bool _pending = false;
 
+  /// Typed into: from then on a fresher copy of the customer no longer
+  /// re-seeds the form.
+  bool _dirty = false;
+
+  /// The copy the form was last seeded from.
+  CustomerDetail? _from;
+
   bool get _editing => widget.customer != null;
+
+  /// Toasts here, or through the opener once the dialog has closed.
+  void _toast(String words, {bool error = false}) {
+    final at = mounted ? context : widget.host;
+    if (at == null || !at.mounted) return;
+    if (error) {
+      DashToast.error(at, words);
+    } else {
+      DashToast.success(at, words);
+    }
+  }
 
   @override
   void dispose() {
@@ -78,6 +106,7 @@ class _CustomerDialogState extends ConsumerState<CustomerDialog> {
     if (!(_form.currentState?.validate() ?? false)) return;
     setState(() => _pending = true);
     final api = ref.read(apiProvider).customers;
+    final invalidate = peopleInvalidator(ref);
     try {
       final c = widget.customer;
       final detail = c == null
@@ -101,21 +130,17 @@ class _CustomerDialogState extends ConsumerState<CustomerDialog> {
                 notes: _notes.trim(),
               ),
             );
-      if (!mounted) return;
-      DashToast.success(
-        context,
-        _editing ? t('customers.saved') : t('customers.created'),
-      );
-      invalidatePeople(ref);
-      Navigator.of(context).pop(detail);
+      invalidate();
+      _toast(_editing ? t('customers.saved') : t('customers.created'));
+      if (mounted) Navigator.of(context).pop(detail);
+      widget.onSaved?.call(detail);
     } on Object catch (e) {
-      if (!mounted) return;
-      if (isPhoneTaken(e)) {
+      if (mounted && isPhoneTaken(e)) {
         setState(() => _phoneServerError = t('customers.errors.phoneTaken'));
         _phoneFocus.requestFocus();
         return;
       }
-      DashToast.error(context, peopleErrorMessage(e, t));
+      _toast(peopleErrorMessage(e, t), error: true);
     } finally {
       if (mounted) setState(() => _pending = false);
     }
@@ -125,6 +150,18 @@ class _CustomerDialogState extends ConsumerState<CustomerDialog> {
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final optional = '(${t('common.optional')})';
+    // Editing a cached copy: a background refresh landing re-seeds the form
+    // until something is typed, so a stale copy is never saved over newer
+    // data.
+    if (widget.customer case final c?) {
+      final fresh = ref.watch(customerDetailProvider(c.id)).value;
+      if (!_dirty && fresh != null && !identical(fresh, _from)) {
+        _from = fresh;
+        _name = fresh.customer.name;
+        _phone = fresh.customer.phone ?? '';
+        _notes = fresh.customer.notes ?? '';
+      }
+    }
     return DashSurface(
       title: _editing ? t('customers.editTitle') : t('customers.addTitle'),
       description: t('customers.formHint'),
@@ -151,7 +188,10 @@ class _CustomerDialogState extends ConsumerState<CustomerDialog> {
               label: t('customers.name'),
               value: _name,
               maxLength: customerNameMax,
-              onChanged: (v) => setState(() => _name = v),
+              onChanged: (v) => setState(() {
+                _name = v;
+                _dirty = true;
+              }),
               validator: (v) => _nameError(v, t),
             ),
             DashFormField<String>(
@@ -172,6 +212,7 @@ class _CustomerDialogState extends ConsumerState<CustomerDialog> {
                 onChanged: (v) => setState(() {
                   _phone = v;
                   _phoneServerError = null;
+                  _dirty = true;
                 }),
               ),
             ),
@@ -187,7 +228,10 @@ class _CustomerDialogState extends ConsumerState<CustomerDialog> {
                 minLines: 3,
                 maxLines: 6,
                 invalid: invalid,
-                onChanged: (v) => setState(() => _notes = v),
+                onChanged: (v) => setState(() {
+                  _notes = v;
+                  _dirty = true;
+                }),
               ),
             ),
           ],

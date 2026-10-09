@@ -440,6 +440,44 @@ void main() {
       expect(find.text(exact), findsOneWidget);
     });
 
+    testWidgets('INV-TOD-010 the cards fade up 6 px into place, once', (
+      tester,
+    ) async {
+      final h = await pumpToday(
+        tester,
+        path: '/inventory/settings',
+        branch: SeedIds.zamalek,
+        reducedMotion: false,
+      );
+      h.router.go(todayPath);
+      final fade = find.descendant(
+        of: find.byType(TodayReveal),
+        matching: find.byType(FadeTransition),
+      );
+      double opacity() =>
+          tester.widget<FadeTransition>(fade.first).opacity.value;
+      double rise() => tester
+          .widget<Transform>(
+            find
+                .descendant(
+                  of: find.byType(TodayReveal),
+                  matching: find.byType(Transform),
+                )
+                .first,
+          )
+          .transform
+          .getTranslation()
+          .y;
+      await tester.pump();
+      expect(opacity(), lessThan(1));
+      expect(rise(), greaterThan(0));
+      expect(rise(), lessThanOrEqualTo(6));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(opacity(), 1);
+      expect(rise(), 0);
+      await h.settle();
+    });
+
     testWidgets('INV-TOD-010 counts up from zero on first reveal', (
       tester,
     ) async {
@@ -522,61 +560,62 @@ void main() {
       expect(header().count, isNull);
     });
 
-    testWidgets('INV-TOD-012 columns, pills, figures, supplier', (
-      tester,
-    ) async {
-      final h = await pumpToday(tester, branch: SeedIds.zamalek);
-      for (final label in [
-        'NAME',
-        'BRANCH',
-        'ON HAND',
-        'REORDER POINT',
-        'ORDER',
-        'SUPPLIER',
-      ]) {
+    testWidgets(
+      'INV-TOD-012 INV-ALL-017 INV-ALL-025 columns, pills, figures; no Columns menu, no search',
+      (tester) async {
+        final h = await pumpToday(tester, branch: SeedIds.zamalek);
+        for (final label in [
+          'NAME',
+          'BRANCH',
+          'ON HAND',
+          'REORDER POINT',
+          'ORDER',
+          'SUPPLIER',
+        ]) {
+          expect(
+            inside<DashDataTable<LowStockRow>>(find.text(label)),
+            findsOneWidget,
+            reason: label,
+          );
+        }
+        final table = lowTable(tester);
+        expect(table.pageSize, 12);
+        expect(table.hideViewOptions, isTrue);
+        expect(table.searchPlaceholder, isNull);
+        expect(find.text('Columns'), findsNothing);
+        // Server order: by branch, then name.
+        expect(table.rows.map((r) => r.ingredientName), [
+          'Croissant Dough',
+          'Matcha Powder',
+          'Oat Milk',
+          'Paper Cup 12oz',
+          'Vanilla Syrup',
+        ]);
         expect(
-          inside<DashDataTable<LowStockRow>>(find.text(label)),
-          findsOneWidget,
-          reason: label,
+          inside<DashDataTable<LowStockRow>>(find.text('Critical')),
+          findsNWidgets(2),
         );
-      }
-      final table = lowTable(tester);
-      expect(table.pageSize, 12);
-      expect(table.hideViewOptions, isTrue);
-      expect(table.searchPlaceholder, isNull);
-      expect(find.text('Columns'), findsNothing);
-      // Server order: by branch, then name.
-      expect(table.rows.map((r) => r.ingredientName), [
-        'Croissant Dough',
-        'Matcha Powder',
-        'Oat Milk',
-        'Paper Cup 12oz',
-        'Vanilla Syrup',
-      ]);
-      expect(
-        inside<DashDataTable<LowStockRow>>(find.text('Critical')),
-        findsNWidgets(2),
-      );
-      expect(
-        inside<DashDataTable<LowStockRow>>(find.text('Low')),
-        findsNWidgets(3),
-      );
-      final critical = tester.widget<DashStatusPill>(
-        find.ancestor(
-          of: find.text('Critical').first,
-          matching: find.byType(DashStatusPill),
-        ),
-      );
-      expect(critical.tone, DashTone.danger);
-      expect(critical.icon, 'octagon-x');
-      final oat = stockRow(h.db!, SeedIds.zamalek, 'oat')!;
-      expect(oat['on_hand'], -350);
-      expect(textHas('−350 ml'), findsOneWidget);
-      expect(textHas('4,000 ml'), findsOneWidget);
-      expect(textHas('9,350 ml'), findsOneWidget);
-      expect(find.text('Metro Wholesale'), findsNWidgets(3));
-      expect(find.text('Zamalek'), findsWidgets);
-    });
+        expect(
+          inside<DashDataTable<LowStockRow>>(find.text('Low')),
+          findsNWidgets(3),
+        );
+        final critical = tester.widget<DashStatusPill>(
+          find.ancestor(
+            of: find.text('Critical').first,
+            matching: find.byType(DashStatusPill),
+          ),
+        );
+        expect(critical.tone, DashTone.danger);
+        expect(critical.icon, 'octagon-x');
+        final oat = stockRow(h.db!, SeedIds.zamalek, 'oat')!;
+        expect(oat['on_hand'], -350);
+        expect(textHas('−350 ml'), findsOneWidget);
+        expect(textHas('4,000 ml'), findsOneWidget);
+        expect(textHas('9,350 ml'), findsOneWidget);
+        expect(find.text('Metro Wholesale'), findsNWidgets(3));
+        expect(find.text('Zamalek'), findsWidgets);
+      },
+    );
 
     testWidgets('INV-TOD-012 a row with no supplier shows a muted dash', (
       tester,
@@ -599,7 +638,9 @@ void main() {
       );
     });
 
-    testWidgets('INV-TOD-012 12 rows a page, then a pager', (tester) async {
+    testWidgets('INV-TOD-012 INV-ALL-016 12 rows a page, then a pager', (
+      tester,
+    ) async {
       final s = todayServer();
       for (final k in [
         'house-blend',
@@ -1122,7 +1163,7 @@ void main() {
 
   group('dialogs and refresh', () {
     testWidgets(
-      'INV-TOD-028 after an order is placed, every figure refreshes',
+      'INV-TOD-028 INV-ALL-010 after an order is placed, every figure refreshes',
       (tester) async {
         final s = todayServer();
         final h = await pumpToday(
@@ -1272,6 +1313,11 @@ void main() {
       final w = tester.getTopLeft(find.byType(TodayWasteSection));
       expect(a.dy, w.dy);
       expect(w.dx, greaterThan(a.dx));
+      // The two titles sit on one line (Log waste makes its header taller).
+      expect(
+        tester.getBottomLeft(find.text('Arriving today')).dy,
+        tester.getBottomLeft(find.text("Today's waste")).dy,
+      );
     });
 
     testWidgets('INV-TOD-032 tablet: KPIs across, lists side by side', (
@@ -1283,36 +1329,37 @@ void main() {
       expect(a.dy, w.dy);
     });
 
-    testWidgets('INV-TOD-032 phone: KPIs two across, sections stacked, cards', (
-      tester,
-    ) async {
-      final h = await pumpToday(
-        tester,
-        size: DashSize.phone,
-        branch: SeedIds.zamalek,
-      );
-      final tops = [
-        for (final c in tester.widgetList<DashStatCard>(
-          find.byType(DashStatCard),
-        ))
-          tester.getTopLeft(find.byWidget(c)).dy,
-      ];
-      expect(tops.toSet(), hasLength(2));
-      final low = tester.getTopLeft(find.byType(TodayLowStockSection)).dy;
-      final a = tester.getTopLeft(find.byType(TodayArrivingSection)).dy;
-      final w = tester.getTopLeft(find.byType(TodayWasteSection)).dy;
-      expect(low < a && a < w, isTrue);
-      // Rows are cards: no header row, Create PO on each card.
-      expect(
-        inside<DashDataTable<LowStockRow>>(find.text('NAME')),
-        findsNothing,
-      );
-      expect(find.byType(DashCard), findsWidgets);
-      tolerateSiblings(h);
-      final oat = InvIds.ingredient('oat');
-      await h.tap(byKey('today-create-po-${SeedIds.zamalek}-$oat'));
-      expect(find.byType(PurchaseOrderDialog), findsOneWidget);
-    });
+    testWidgets(
+      'INV-TOD-032 INV-ALL-019 phone: KPIs two across, sections stacked, cards',
+      (tester) async {
+        final h = await pumpToday(
+          tester,
+          size: DashSize.phone,
+          branch: SeedIds.zamalek,
+        );
+        final tops = [
+          for (final c in tester.widgetList<DashStatCard>(
+            find.byType(DashStatCard),
+          ))
+            tester.getTopLeft(find.byWidget(c)).dy,
+        ];
+        expect(tops.toSet(), hasLength(2));
+        final low = tester.getTopLeft(find.byType(TodayLowStockSection)).dy;
+        final a = tester.getTopLeft(find.byType(TodayArrivingSection)).dy;
+        final w = tester.getTopLeft(find.byType(TodayWasteSection)).dy;
+        expect(low < a && a < w, isTrue);
+        // Rows are cards: no header row, Create PO on each card.
+        expect(
+          inside<DashDataTable<LowStockRow>>(find.text('NAME')),
+          findsNothing,
+        );
+        expect(find.byType(DashCard), findsWidgets);
+        tolerateSiblings(h);
+        final oat = InvIds.ingredient('oat');
+        await h.tap(byKey('today-create-po-${SeedIds.zamalek}-$oat'));
+        expect(find.byType(PurchaseOrderDialog), findsOneWidget);
+      },
+    );
 
     testWidgets('INV-TOD-032 phone first run: text over a full-width button', (
       tester,
@@ -1494,29 +1541,30 @@ void main() {
   });
 
   group('realtime', () {
-    testWidgets('a till event refreshes the valuation and low stock', (
-      tester,
-    ) async {
-      final s = todayServer();
-      final h = await pumpToday(
-        tester,
-        server: s.server,
-        db: s.db,
-        branch: SeedIds.zamalek,
-      );
-      final low = h.server.callsTo(branchLow).length;
-      final val = h.server.callsTo(branchValuation).length;
-      final orders = h.server.callsTo(orgOrders).length;
-      setStock(s.db, SeedIds.zamalek, 'sugar', onHand: 10, parMin: 3000);
-      h.container
-          .read(realtimeBusProvider)
-          .dispatch(const RealtimeFrame(event: 'till.closed', data: '{}'));
-      await h.settle();
-      expect(h.server.callsTo(branchLow).length, low + 1);
-      expect(h.server.callsTo(branchValuation).length, val + 1);
-      // Orders are not under /reports: untouched.
-      expect(h.server.callsTo(orgOrders).length, orders);
-      expect(kpi(tester, 'Low stock').value, 6);
-    });
+    testWidgets(
+      'INV-ALL-015 a till event refreshes the valuation and low stock',
+      (tester) async {
+        final s = todayServer();
+        final h = await pumpToday(
+          tester,
+          server: s.server,
+          db: s.db,
+          branch: SeedIds.zamalek,
+        );
+        final low = h.server.callsTo(branchLow).length;
+        final val = h.server.callsTo(branchValuation).length;
+        final orders = h.server.callsTo(orgOrders).length;
+        setStock(s.db, SeedIds.zamalek, 'sugar', onHand: 10, parMin: 3000);
+        h.container
+            .read(realtimeBusProvider)
+            .dispatch(const RealtimeFrame(event: 'till.closed', data: '{}'));
+        await h.settle();
+        expect(h.server.callsTo(branchLow).length, low + 1);
+        expect(h.server.callsTo(branchValuation).length, val + 1);
+        // Orders are not under /reports: untouched.
+        expect(h.server.callsTo(orgOrders).length, orders);
+        expect(kpi(tester, 'Low stock').value, 6);
+      },
+    );
   });
 }

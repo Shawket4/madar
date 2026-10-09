@@ -1,6 +1,8 @@
-/// The Operations page's reads, one provider per endpoint, keyed like the
-/// web's React Query keys so a branch, period (or language) change asks
-/// again:
+/// The Operations page's reads, one provider per endpoint, keyed by exactly
+/// the params its request sends (the web's React Query key), so a branch,
+/// period (or language) change asks again and nothing else does. Every read
+/// calls `ref.webCache()` first: kept 5 min unwatched, refetched in the
+/// background when a tab opens on data older than 30 s (REP-OPS-062).
 ///
 /// - Tables (REP-OPS-006): `POST /metrics/query`, key
 ///   `["metrics","tables",branchId,from,to,locale]`. Never refreshed by
@@ -11,8 +13,6 @@
 ///   refreshed by floor, table, booking and ticket events.
 /// - The analytics reads (REP-OPS-034…054): `/reports/...`, refreshed by a
 ///   `till.*` event (and `resync`) while a branch is selected (REP-ALL-009).
-///
-/// Every read stays in the page's [OpsCache] while the page is open.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -36,19 +36,41 @@ import 'package:dashboard_api/dashboard_api.dart'
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'ops_support.dart';
-
 DateTime _instant(String iso) => DateTime.parse(iso);
 
-/// Runs [fetch] as a cached read of the page: kept while the page is open,
-/// its answer time noted under [key] for the stale check.
-Future<T> _cached<T>(Ref ref, String key, Future<T> Function() fetch) async {
-  final cache = ref.read(opsCacheProvider);
-  cache.keep(ref, key);
-  final out = await fetch();
-  cache.fetched(key);
-  return out;
+/// A report read's key: the branch (or org) id and the period it sends.
+typedef OpsRange = ({String id, String from, String to});
+
+/// Branch sales' key: its range and the `exclude_items` list (null when
+/// nothing is excluded, as the web's `undefined` drops out of its key).
+typedef OpsSalesKey = ({String id, String from, String to, String? exclude});
+
+/// The Tables read's key (`["metrics","tables",branchId,from,to,locale]`).
+typedef OpsTablesKey = ({String? branchId, String from, String to, String locale});
+
+/// A table history's key.
+typedef OpsHistoryKey = ({String id, String from, String to});
+
+/// The one place each read's key is built from the scope (the page, the
+/// Retry buttons, the prefetch and the tests all use these).
+extension OpsKeys on Scope {
+  /// The analytics reads: the branch or the all-branches sentinel.
+  OpsRange get opsRange => (id: scopeBranchId, from: from, to: to);
+
+  /// The Branches tab: the org in scope (only read with one).
+  OpsRange get opsOrgRange => (id: orgId!, from: from, to: to);
+
+  /// The Overview: [exclude] is `excludeItemsParam(...)`.
+  OpsSalesKey opsSales(String? exclude) =>
+      (id: scopeBranchId, from: from, to: to, exclude: exclude);
+
+  /// Tables, in [locale] (`ar` or `en`).
+  OpsTablesKey opsTables(String locale) =>
+      (branchId: branchId, from: from, to: to, locale: locale);
 }
+
+/// `i18n.language.startsWith("ar") ? "ar" : "en"`.
+String opsMetricsLocale(String lang) => lang.startsWith('ar') ? 'ar' : 'en';
 
 // ── Tables ────────────────────────────────────────────────────────────────
 
@@ -94,211 +116,150 @@ List<WidgetRequest> tablesWidgets({required bool branchScoped}) => [
   ),
 ];
 
-String tablesKey(Scope s, String locale) =>
-    'metrics|tables|${s.branchId}|${s.from}|${s.to}|$locale';
-
-/// REP-OPS-006: the branch rides the `X-Branch-Id` header (the scope's).
+/// REP-OPS-006: the branch rides the `X-Branch-Id` header (the scope's), so
+/// it is in the key but not in the body.
 final opsTablesProvider = FutureProvider.autoDispose
-    .family<MetricsQueryResponse, (Scope, String)>((ref, k) {
+    .family<MetricsQueryResponse, OpsTablesKey>((ref, k) {
       ref.webCache();
-      final (s, locale) = k;
-      return _cached(
-        ref,
-        tablesKey(s, locale),
-        () => ref
-            .watch(apiProvider)
-            .metrics
-            .runMetricsQuery(
-              body: MetricsQueryRequest(
-                locale: locale,
-                period: Period(from: s.from, to: s.to),
-                widgets: tablesWidgets(branchScoped: s.branchId != null),
-              ),
+      return ref
+          .watch(apiProvider)
+          .metrics
+          .runMetricsQuery(
+            body: MetricsQueryRequest(
+              locale: k.locale,
+              period: Period(from: k.from, to: k.to),
+              widgets: tablesWidgets(branchScoped: k.branchId != null),
             ),
-      );
+          );
     });
 
 /// REP-OPS-025: the floor's tables, to turn a label into a table id.
 final opsFloorTablesProvider = FutureProvider.autoDispose
     .family<List<FloorTable>, String>((ref, branchId) {
       ref.webCache();
-      return _cached(
-        ref,
-        'floor-tables|$branchId',
-        () => ref
-            .watch(apiProvider)
-            .reservations
-            .listFloorTables(branchId: branchId),
-      );
+      return ref
+          .watch(apiProvider)
+          .reservations
+          .listFloorTables(branchId: branchId);
     });
 
 /// REP-OPS-027: a table's history over the scope's period.
 final opsTableHistoryProvider = FutureProvider.autoDispose
-    .family<TableHistory, (String, String, String)>((ref, k) {
+    .family<TableHistory, OpsHistoryKey>((ref, k) {
       ref.webCache();
-      final (id, from, to) = k;
-      ref.watch(realtimeEpochProvider('/floor/tables/$id/history'));
-      return _cached(
-        ref,
-        'history|$id|$from|$to',
-        () => ref
-            .watch(apiProvider)
-            .floor
-            .tableHistory(id: id, from: _instant(from), to: _instant(to)),
-      );
+      ref.watch(realtimeEpochProvider('/floor/tables/${k.id}/history'));
+      return ref
+          .watch(apiProvider)
+          .floor
+          .tableHistory(id: k.id, from: _instant(k.from), to: _instant(k.to));
     });
 
 // ── Overview ──────────────────────────────────────────────────────────────
 
-String salesKey(Scope s, String? exclude) =>
-    'sales|${s.scopeBranchId}|${s.from}|${s.to}|$exclude';
-
-/// REP-OPS-034: branch sales; [exclude] is the `exclude_items` list (null
-/// when nothing is excluded).
+/// REP-OPS-034: branch sales; `exclude` is the `exclude_items` list.
 final opsSalesProvider = FutureProvider.autoDispose
-    .family<BranchSalesReport, (Scope, String?)>((ref, k) {
+    .family<BranchSalesReport, OpsSalesKey>((ref, k) {
       ref.webCache();
-      final (s, exclude) = k;
-      ref.watch(
-        realtimeEpochProvider('/reports/branches/${s.scopeBranchId}/sales'),
-      );
-      return _cached(
-        ref,
-        salesKey(s, exclude),
-        () => ref
-            .watch(apiProvider)
-            .reports
-            .branchSales(
-              branchId: s.scopeBranchId,
-              from: _instant(s.from),
-              to: _instant(s.to),
-              excludeItems: exclude,
-            ),
-      );
+      ref.watch(realtimeEpochProvider('/reports/branches/${k.id}/sales'));
+      return ref
+          .watch(apiProvider)
+          .reports
+          .branchSales(
+            branchId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
+            excludeItems: k.exclude,
+          );
     });
 
 /// REP-OPS-039: the org's menu, read only once the exclude list opens.
 final opsMenuItemsProvider = FutureProvider.autoDispose
     .family<List<MenuItem>, String>((ref, orgId) {
       ref.webCache();
+      ref.watch(realtimeEpochProvider('/menu-items'));
       return ref.watch(apiProvider).menu.listMenuItems(orgId: orgId);
     });
 
 // ── Items, Tellers, Waiters, Branches ─────────────────────────────────────
 
-String itemsKey(Scope s) => 'items|${s.scopeBranchId}|${s.from}|${s.to}';
-String addonsKey(Scope s) => 'addons|${s.scopeBranchId}|${s.from}|${s.to}';
-String tellersKey(Scope s) => 'tellers|${s.scopeBranchId}|${s.from}|${s.to}';
-String waitersKey(Scope s) => 'waiters|${s.scopeBranchId}|${s.from}|${s.to}';
-String branchesKey(Scope s) => 'branches|${s.orgId}|${s.from}|${s.to}';
-
 /// REP-OPS-047: combined item sales, the top 50.
 final opsItemsProvider = FutureProvider.autoDispose
-    .family<List<CombinedItemSalesRow>, Scope>((ref, s) {
+    .family<List<CombinedItemSalesRow>, OpsRange>((ref, k) {
       ref.webCache();
       ref.watch(
-        realtimeEpochProvider(
-          '/reports/branches/${s.scopeBranchId}/items-combined',
-        ),
+        realtimeEpochProvider('/reports/branches/${k.id}/items-combined'),
       );
-      return _cached(
-        ref,
-        itemsKey(s),
-        () => ref
-            .watch(apiProvider)
-            .reports
-            .branchCombinedItemSales(
-              branchId: s.scopeBranchId,
-              from: _instant(s.from),
-              to: _instant(s.to),
-              limit: 50,
-            ),
-      );
+      return ref
+          .watch(apiProvider)
+          .reports
+          .branchCombinedItemSales(
+            branchId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
+            limit: 50,
+          );
     });
 
 /// REP-OPS-048: the top 20 add-ons.
 final opsAddonsProvider = FutureProvider.autoDispose
-    .family<List<AddonSalesRow>, Scope>((ref, s) {
+    .family<List<AddonSalesRow>, OpsRange>((ref, k) {
       ref.webCache();
-      ref.watch(
-        realtimeEpochProvider('/reports/branches/${s.scopeBranchId}/addons'),
-      );
-      return _cached(
-        ref,
-        addonsKey(s),
-        () => ref
-            .watch(apiProvider)
-            .reports
-            .branchAddonSales(
-              branchId: s.scopeBranchId,
-              from: _instant(s.from),
-              to: _instant(s.to),
-              limit: 20,
-            ),
-      );
+      ref.watch(realtimeEpochProvider('/reports/branches/${k.id}/addons'));
+      return ref
+          .watch(apiProvider)
+          .reports
+          .branchAddonSales(
+            branchId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
+            limit: 20,
+          );
     });
 
 /// REP-OPS-049: teller stats.
 final opsTellersProvider = FutureProvider.autoDispose
-    .family<List<TellerStats>, Scope>((ref, s) {
+    .family<List<TellerStats>, OpsRange>((ref, k) {
       ref.webCache();
-      ref.watch(
-        realtimeEpochProvider('/reports/branches/${s.scopeBranchId}/tellers'),
-      );
-      return _cached(
-        ref,
-        tellersKey(s),
-        () => ref
-            .watch(apiProvider)
-            .reports
-            .branchTellerStats(
-              branchId: s.scopeBranchId,
-              from: _instant(s.from),
-              to: _instant(s.to),
-              limit: 50,
-            ),
-      );
+      ref.watch(realtimeEpochProvider('/reports/branches/${k.id}/tellers'));
+      return ref
+          .watch(apiProvider)
+          .reports
+          .branchTellerStats(
+            branchId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
+            limit: 50,
+          );
     });
 
 /// REP-OPS-051: waiter stats.
 final opsWaitersProvider = FutureProvider.autoDispose
-    .family<WaiterStatsReport, Scope>((ref, s) {
+    .family<WaiterStatsReport, OpsRange>((ref, k) {
       ref.webCache();
-      ref.watch(
-        realtimeEpochProvider('/reports/branches/${s.scopeBranchId}/waiters'),
-      );
-      return _cached(
-        ref,
-        waitersKey(s),
-        () => ref
-            .watch(apiProvider)
-            .reports
-            .branchWaiterStats(
-              branchId: s.scopeBranchId,
-              from: _instant(s.from),
-              to: _instant(s.to),
-            ),
-      );
+      ref.watch(realtimeEpochProvider('/reports/branches/${k.id}/waiters'));
+      return ref
+          .watch(apiProvider)
+          .reports
+          .branchWaiterStats(
+            branchId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
+          );
     });
 
 /// REP-OPS-054: every branch of the org (needs an org in scope).
 final opsBranchesProvider = FutureProvider.autoDispose
-    .family<OrgComparisonReport, Scope>((ref, s) {
+    .family<OrgComparisonReport, OpsRange>((ref, k) {
       ref.webCache();
-      final org = s.orgId!;
-      ref.watch(realtimeEpochProvider('/reports/orgs/$org/comparison'));
-      return _cached(
-        ref,
-        branchesKey(s),
-        () => ref
-            .watch(apiProvider)
-            .reports
-            .orgBranchComparison(
-              orgId: org,
-              from: _instant(s.from),
-              to: _instant(s.to),
-            ),
-      );
+      ref.watch(realtimeEpochProvider('/reports/orgs/${k.id}/comparison'));
+      return ref
+          .watch(apiProvider)
+          .reports
+          .orgBranchComparison(
+            orgId: k.id,
+            from: _instant(k.from),
+            to: _instant(k.to),
+          );
     });
 
 // ── the excluded items (REP-OPS-039/068) ──────────────────────────────────

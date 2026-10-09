@@ -847,9 +847,8 @@ class _Handlers {
       }
       b['visits_balance'] =
           ((b['visits_balance'] as num?)?.toInt() ?? 0) + moved;
-      db[CustomerTables.members].update(fromId, {
-        'left_at': now.toIso8601String(),
-      });
+      db[CustomerTables.members].find(fromId)?['left_at'] = now
+          .toIso8601String();
     }
     // The kept customer takes what it lacks; the orders move over.
     b['phone'] ??= a['phone'];
@@ -1060,13 +1059,15 @@ class _Handlers {
     final c = _live(req.param('id'));
     // A card already gone is not a failure.
     if (c == null || c['is_member'] != true) return MockResponse.empty();
+    // The memberships (and the ledger built from them) are read from the
+    // customers lazily: load them before this one stops being a member.
+    final members = db[CustomerTables.members]..rows;
+    db[CustomerTables.ledger].rows;
     c
       ..['is_member'] = false
       ..['loyalty_customer_id'] = null
       ..['updated_at'] = req.now.toIso8601String();
-    db[CustomerTables.members].update(c['id']! as String, {
-      'left_at': req.now.toIso8601String(),
-    });
+    members.find(c['id']! as String)?['left_at'] = req.now.toIso8601String();
     return MockResponse.empty();
   }
 

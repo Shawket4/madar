@@ -1,30 +1,33 @@
-/// The wizard's reads, one provider per endpoint (the web's React Query keys):
+/// The wizard's own reads and the rules the web computes in the browser:
 ///
 /// - `GET /orgs/{id}/onboarding` ([onbStatusProvider]) — every step's done /
 ///   count / required, `can_complete`, `recipe_coverage`;
-/// - `GET /orgs/{id}` ([onbOrgProvider]) — the café's name, currency, logo;
-/// - `GET /categories?org_id=` ([onbCategoriesProvider]) and
-///   `GET /menu-items?org_id=` ([onbMenuItemsProvider]) for the menu-items
-///   and recipes steps;
-/// - the dialogs' own reads (the add-on view, the modifier groups, the
-///   ingredient catalog and its categories).
+/// - `GET /orgs/{id}` ([onbOrgProvider]) — the café's name, currency, logo,
+///   tax (the price hint of the item editor).
 ///
-/// After a change, [refreshOnboarding] asks the checklist again (the web's
-/// `invalidateQueries(['/orgs/{id}/onboarding'])`); a dialog that saved
-/// invalidates its own lists first ([invalidateOnbCatalog]).
+/// The menu reads the steps and their editors share live in
+/// `dialogs/menu_reads.dart`.
+///
+/// After a change, [onbRefreshers] ask the checklist again (the web's
+/// `invalidateQueries(['/orgs/{id}/onboarding'])`).
 library;
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show publicBrandProvider;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'onboarding_config.dart';
+
+/// The checklist's request path (its web query key).
+String onbStatusPath(String orgId) => '/orgs/$orgId/onboarding';
 
 /// `GET /orgs/{id}/onboarding`.
 final onbStatusProvider = FutureProvider.autoDispose
     .family<OnboardingStatus, String>((ref, orgId) {
       ref.webCache();
+      ref.watch(realtimeEpochProvider(onbStatusPath(orgId)));
       return ref.watch(apiProvider).orgs.getOnboarding(id: orgId);
     });
 
@@ -37,76 +40,26 @@ final onbOrgProvider = FutureProvider.autoDispose.family<Org, String>((
   return ref.watch(apiProvider).orgs.getOrg(id: orgId);
 });
 
-/// `GET /categories?org_id=`.
-final onbCategoriesProvider = FutureProvider.autoDispose
-    .family<List<Category>, String>((ref, orgId) {
-      ref.webCache();
-      return ref.watch(apiProvider).menu.listCategories(orgId: orgId);
-    });
-
-/// `GET /menu-items?org_id=`.
-final onbMenuItemsProvider = FutureProvider.autoDispose
-    .family<List<MenuItem>, String>((ref, orgId) {
-      ref.webCache();
-      return ref.watch(apiProvider).menu.listMenuItems(orgId: orgId);
-    });
-
-/// `GET /addon-items?org_id=` (the item dialog's add-on picker).
-final onbAddonItemsProvider = FutureProvider.autoDispose
-    .family<List<AddonItem>, String>((ref, orgId) {
-      ref.webCache();
-      return ref.watch(apiProvider).menu.listAddonItems(orgId: orgId);
-    });
-
-/// `GET /modifier-groups?org_id=` (the add-on dialog's groups, the item
-/// dialog's attachments).
-final onbGroupsProvider = FutureProvider.autoDispose
-    .family<List<GroupOut>, String>((ref, orgId) {
-      ref.webCache();
-      return ref.watch(apiProvider).menu.listGroups(orgId: orgId);
-    });
-
-/// `GET /inventory/orgs/{org_id}/catalog` (the recipe builder).
-final onbCatalogProvider = FutureProvider.autoDispose
-    .family<List<OrgIngredient>, String>((ref, orgId) {
-      ref.webCache();
-      return ref.watch(apiProvider).inventory.listCatalog(orgId: orgId);
-    });
-
-/// `GET /inventory/orgs/{org_id}/categories` (the ingredient dialog).
-final onbIngredientCategoriesProvider = FutureProvider.autoDispose
-    .family<List<IngredientCategory>, String>((ref, orgId) {
-      ref.webCache();
-      return ref
-          .watch(apiProvider)
-          .inventory
-          .listIngredientCategories(orgId: orgId);
-    });
-
-/// Asks the checklist again (closing a step's dialog, saving the café, a new
-/// logo).
-void refreshOnboarding(WidgetRef ref, String orgId) =>
-    ref.invalidate(onbStatusProvider(orgId));
-
-/// What the web's `invalidateCatalog()` / `invalidateRecipes()` refresh here:
-/// the categories, the items, the add-ons and groups, the ingredients.
-void invalidateOnbCatalog(WidgetRef ref, String orgId) {
-  ref
-    ..invalidate(onbCategoriesProvider(orgId))
-    ..invalidate(onbMenuItemsProvider(orgId))
-    ..invalidate(onbAddonItemsProvider(orgId))
-    ..invalidate(onbGroupsProvider(orgId))
-    ..invalidate(onbCatalogProvider(orgId))
-    ..invalidate(onbIngredientCategoriesProvider(orgId));
-}
-
-/// The org changed (name, currency, logo): this page's read and the shell's
-/// (the org read the scope keeps, the brand the sidebar and footer draw).
-void invalidateOnbOrg(WidgetRef ref, String orgId) {
-  ref
-    ..invalidate(onbOrgProvider(orgId))
-    ..invalidate(currentOrgProvider)
-    ..invalidate(publicBrandProvider);
+/// The invalidations a write ends with, taken from [context] BEFORE the
+/// write's `await`, so they run even when the step is gone by then:
+/// - `checklist`: every read of `/orgs/{id}/onboarding` (closing a step's
+///   editor, saving the café, a new logo; the web's key is shared with the
+///   home's Keep-building card);
+/// - `org`: the org changed (name, currency, logo): this page's read and the
+///   shell's (the org read the scope keeps, the brand the sidebar draws).
+({VoidCallback checklist, VoidCallback org}) onbRefreshers(
+  BuildContext context,
+  String orgId,
+) {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final bus = container.read(realtimeBusProvider);
+  return (
+    checklist: () => bus.invalidate([onbStatusPath(orgId)]),
+    org: () => container
+      ..invalidate(onbOrgProvider(orgId))
+      ..invalidate(currentOrgProvider)
+      ..invalidate(publicBrandProvider),
+  );
 }
 
 /// The server's steps by key.
@@ -143,24 +96,3 @@ String cheerKey(int pct) => pct >= 100
     : pct > 0
     ? 'onboarding.cheer.start'
     : 'onboarding.cheer.go';
-
-/// The Arabic name when the language is Arabic and one exists
-/// (`getTranslatedName`).
-String translatedName(
-  String name,
-  Map<String, Object?>? translations,
-  String lang,
-) {
-  final ar = translations?['ar'];
-  if (lang.startsWith('ar') && ar is String) return ar;
-  return name;
-}
-
-/// The Arabic text of a translations map (`arOf`), '' without one.
-String arOf(Object? translations) {
-  if (translations is Map) {
-    final ar = translations['ar'];
-    if (ar is String) return ar;
-  }
-  return '';
-}

@@ -14,6 +14,8 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'menu_bilingual_field.dart';
+import 'menu_providers.dart';
 import 'menu_queries.dart';
 import 'menu_text.dart';
 
@@ -48,7 +50,36 @@ class _CategoryDialogState extends ConsumerState<CategoryDialog> {
   String? _nameError;
   bool _busy = false;
 
+  /// The person has changed the form: fresh reads stop re-seeding it.
+  bool _touched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.category;
+    if (c == null) return;
+    // The row came from the (possibly older) list: each fresh read of the
+    // list re-seeds the form until the person edits it.
+    ref.listenManual(menuCategoriesProvider(widget.orgId), (prev, next) {
+      final list = next.value;
+      if (list == null || _touched || identical(list, prev?.value)) return;
+      final fresh = list.where((x) => x.id == c.id).firstOrNull;
+      if (fresh == null) return;
+      setState(() {
+        _name = fresh.name;
+        _nameAr = arOf(fresh.nameTranslations);
+        _active = fresh.isActive;
+      });
+    });
+  }
+
+  void _edit(VoidCallback change) => setState(() {
+    _touched = true;
+    change();
+  });
+
   Future<void> _save() async {
+    if (_busy) return;
     final t = ref.read(tProvider);
     // zod `min(1)`: the raw text, not trimmed.
     if (_name.isEmpty) {
@@ -60,6 +91,7 @@ class _CategoryDialogState extends ConsumerState<CategoryDialog> {
       _busy = true;
     });
     final api = ref.read(apiProvider);
+    final invalidate = ref.menuInvalidate;
     final translations = _nameAr.isEmpty
         ? null
         : <String, Object?>{'ar': _nameAr};
@@ -85,9 +117,9 @@ class _CategoryDialogState extends ConsumerState<CategoryDialog> {
           ),
         );
       }
+      invalidate.catalog();
       if (!mounted) return;
       DashToast.success(context, t('common.savedChanges'));
-      ref.menuInvalidate.catalog();
       Navigator.of(context).pop(saved);
     } on Object catch (e) {
       if (!mounted) return;
@@ -108,18 +140,19 @@ class _CategoryDialogState extends ConsumerState<CategoryDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.lg,
         children: [
-          DashBilingualField(
+          MenuBilingualField(
             label: t('common.name'),
             en: _name,
             ar: _nameAr,
             enError: _nameError,
-            onEnChanged: (v) => setState(() => _name = v),
-            onArChanged: (v) => setState(() => _nameAr = v),
+            onEnChanged: (v) => _edit(() => _name = v),
+            onArChanged: (v) => _edit(() => _nameAr = v),
+            onSubmit: _save,
           ),
           DashSwitchField(
             label: t('common.active'),
             value: _active,
-            onChanged: (v) => setState(() => _active = v),
+            onChanged: (v) => _edit(() => _active = v),
           ),
         ],
       ),

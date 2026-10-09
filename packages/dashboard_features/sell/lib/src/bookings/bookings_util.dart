@@ -220,3 +220,75 @@ String guestPhoneToWire(String typed) => canonicalPhone(typed) ?? typed.trim();
 
 /// The custom-time box's rule (`/^\d{1,2}:\d{2}$/`, ASCII digits only).
 final RegExp customTimePattern = RegExp(r'^[0-9]{1,2}:[0-9]{2}$');
+
+/// The filter's word (`Active`, `All`, a status) — the segmented control's
+/// and the export's subtitle.
+String bookingFilterLabel(Translator t, String filter) => switch (filter) {
+  'active' => t('bookings.filterActive'),
+  'all' => t('common.all'),
+  _ => t('bookings.status.$filter', defaultValue: filter),
+};
+
+/// The Tables cell as words: "Needs a table", the labels joined " + ", "—".
+String bookingTablesText(Translator t, BookingView b) => b.needsTable
+    ? t('bookings.needsTable')
+    : (b.tableLabels.isEmpty ? '—' : b.tableLabels.join(' + '));
+
+/// The export's columns (SELL-BKG-034).
+List<ExcelColumn<BookingView>> bookingExportColumns(Translator t) => [
+  ExcelColumn(
+    header: t('bookings.time'),
+    accessor: (b) => b.startsAt,
+    type: ExcelColumnType.dateTime,
+    width: 22,
+  ),
+  ExcelColumn(
+    header: t('bookings.endsAt'),
+    accessor: (b) => b.endsAt,
+    type: ExcelColumnType.dateTime,
+    width: 22,
+  ),
+  ExcelColumn(
+    header: t('bookings.guest'),
+    accessor: (b) => b.guestName,
+    type: ExcelColumnType.text,
+    width: 24,
+  ),
+  ExcelColumn(
+    header: t('bookings.phone'),
+    accessor: (b) => formatPhoneDisplay(b.guestPhone),
+    type: ExcelColumnType.text,
+    width: 18,
+  ),
+  ExcelColumn(
+    header: t('bookings.party'),
+    accessor: (b) => b.partySize,
+    type: ExcelColumnType.integer,
+    width: 10,
+  ),
+  ExcelColumn(
+    header: t('bookings.tables'),
+    accessor: (b) => bookingTablesText(t, b),
+    type: ExcelColumnType.text,
+    width: 20,
+  ),
+  ExcelColumn(
+    header: t('common.status'),
+    accessor: (b) => t('bookings.status.${b.status}', defaultValue: b.status),
+    type: ExcelColumnType.text,
+    width: 16,
+  ),
+  ExcelColumn(
+    header: t('bookings.source'),
+    accessor: (b) =>
+        b.source == 'public' ? t('bookings.online') : t('bookings.byPhone'),
+    type: ExcelColumnType.text,
+    width: 14,
+  ),
+  ExcelColumn(
+    header: t('bookings.notes'),
+    accessor: (b) => b.notes ?? '',
+    type: ExcelColumnType.text,
+    width: 36,
+  ),
+];

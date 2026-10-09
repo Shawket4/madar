@@ -104,8 +104,12 @@ class MenuOptions {
 }
 
 /// `GET /menu-items?org_id=…&full=true`, raw `MenuItemFull`s. Refetches
-/// after `invalidateCombos` (which covers `/menu-items`) or a `resync`.
-final offersMenuItemsProvider = FutureProvider<List<MenuItemFull>>((ref) async {
+/// after `invalidateCombos` (which covers `/menu-items`) or a `resync`; kept
+/// and refreshed like a web query (`ref.webCache()`, keyed by the org).
+final offersMenuItemsProvider = FutureProvider.autoDispose<List<MenuItemFull>>((
+  ref,
+) async {
+  ref.webCache();
   ref.watch(realtimeEpochProvider(OffersPaths.menuItems));
   final orgId = ref.watch(orgIdProvider);
   if (orgId == null) return const [];
@@ -136,8 +140,12 @@ final offersMenuItemsProvider = FutureProvider<List<MenuItemFull>>((ref) async {
   ];
 });
 
-/// `GET /categories?org_id=…`.
-final offersCategoriesProvider = FutureProvider<List<Category>>((ref) async {
+/// `GET /categories?org_id=…` (a web query: `ref.webCache()`, keyed by the
+/// org).
+final offersCategoriesProvider = FutureProvider.autoDispose<List<Category>>((
+  ref,
+) async {
+  ref.webCache();
   ref.watch(realtimeEpochProvider(OffersPaths.categories));
   final orgId = ref.watch(orgIdProvider);
   if (orgId == null) return const [];
@@ -146,7 +154,7 @@ final offersCategoriesProvider = FutureProvider<List<Category>>((ref) async {
 
 /// The pick lists in the active language. Each list loads on its own: one
 /// still loading (or failed) leaves its lookups empty, as on the web.
-final menuOptionsProvider = Provider<MenuOptions>((ref) {
+final menuOptionsProvider = Provider.autoDispose<MenuOptions>((ref) {
   final lang = ref.watch(localeProvider);
   final full = ref.watch(offersMenuItemsProvider).value ?? const [];
   final cats = ref.watch(offersCategoriesProvider).value ?? const [];
@@ -171,7 +179,7 @@ final menuOptionsProvider = Provider<MenuOptions>((ref) {
             return sizes.isEmpty ? [SizeOption(oneSize, m.basePrice)] : sizes;
           }(),
         ),
-  ]..sort((a, b) => a.name.compareTo(b.name));
+  ]..sort((a, b) => compareNames(a.name, b.name));
 
   return MenuOptions(
     items: items,
@@ -185,9 +193,35 @@ final menuOptionsProvider = Provider<MenuOptions>((ref) {
 });
 
 /// Whether any pick list is still on its first load.
-final menuOptionsLoadingProvider = Provider<bool>(
+final menuOptionsLoadingProvider = Provider.autoDispose<bool>(
   (ref) =>
       ref.watch(offersMenuItemsProvider).isLoading ||
       ref.watch(offersCategoriesProvider).isLoading ||
       ref.watch(branchesProvider).isLoading,
 );
+
+/// Names in the order the web's `localeCompare` gives closely enough: case,
+/// Latin accents, Arabic short vowels and the alef forms (آ أ إ ٱ → ا) are
+/// folded first; a tie falls back to the plain order.
+int compareNames(String a, String b) {
+  final c = _fold(a).compareTo(_fold(b));
+  return c != 0 ? c : a.compareTo(b);
+}
+
+String _fold(String s) {
+  final out = StringBuffer();
+  for (final r in s.toLowerCase().runes) {
+    if (r >= 0x064B && r <= 0x0652) continue; // tashkeel
+    final ch = String.fromCharCode(r);
+    out.write(_folds[ch] ?? ch);
+  }
+  return out.toString();
+}
+
+const Map<String, String> _folds = {
+  'à': 'a', 'á': 'a', 'â': 'a', 'ã': 'a', 'ä': 'a', 'å': 'a', 'ç': 'c', //
+  'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e', 'ì': 'i', 'í': 'i', 'î': 'i', //
+  'ï': 'i', 'ñ': 'n', 'ò': 'o', 'ó': 'o', 'ô': 'o', 'õ': 'o', 'ö': 'o', //
+  'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u', 'ý': 'y', 'ÿ': 'y', //
+  'آ': 'ا', 'أ': 'ا', 'إ': 'ا', 'ٱ': 'ا',
+};

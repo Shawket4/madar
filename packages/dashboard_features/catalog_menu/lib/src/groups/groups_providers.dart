@@ -9,6 +9,9 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/menu_queries.dart';
+// `GET /menu-items/{id}`: the studio's read, so one cache entry per item as
+// on the web (one `getGetMenuItemQueryOptions` key).
+import '../studio/studio_providers.dart' show studioMenuItemProvider;
 
 /// `GET /modifier-groups/{gid}/usage`: the items offering a group (one read
 /// per group, inactive items included).
@@ -17,14 +20,6 @@ final groupUsageProvider = FutureProvider.autoDispose
       ref.webCache();
       watchMenuPath(ref, MenuPaths.groupUsage(gid));
       return ref.watch(apiProvider).menu.getGroupUsage(gid: gid);
-    });
-
-/// `GET /menu-items/{id}` (`getMenuItem`).
-final groupMenuItemProvider = FutureProvider.autoDispose
-    .family<MenuItemFull, String>((ref, id) {
-      ref.webCache();
-      watchMenuPath(ref, MenuPaths.menuItem(id));
-      return ref.watch(apiProvider).menu.getMenuItem(id: id);
     });
 
 /// `GET /menu-items?org_id`: every item of the org (the usage dialog).
@@ -43,7 +38,7 @@ final groupSizeLabelsProvider = Provider.autoDispose
       final usage = ref.watch(groupUsageProvider(gid)).value ?? const [];
       final labels = <String>{};
       for (final u in usage) {
-        final item = ref.watch(groupMenuItemProvider(u.itemId)).value;
+        final item = ref.watch(studioMenuItemProvider(u.itemId)).value;
         for (final s in item?.sizes ?? const <ItemSize>[]) {
           if (s.label.isNotEmpty) labels.add(s.label);
         }

@@ -91,9 +91,12 @@ class StatBox extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: AlignmentDirectional.centerStart,
+            // Not `dashFigure`: its isolate marks mis-measure inside a
+            // FittedBox and cut the last digit in Arabic ("32" → "3").
             child: Text(
-              dashFigure(value),
+              value,
               maxLines: 1,
+              textDirection: _arabic.hasMatch(value) ? null : TextDirection.ltr,
               style: DashType.statFigure(18).copyWith(color: c.textPrimary),
             ),
           ),
@@ -102,6 +105,8 @@ class StatBox extends StatelessWidget {
     );
   }
 }
+
+final RegExp _arabic = RegExp('[\u0600-\u06FF]');
 
 /// A grid of [StatBox]es: two columns, four from the web's `sm` (640).
 class StatGrid extends StatelessWidget {
@@ -266,11 +271,15 @@ class InlineFailure extends StatelessWidget {
   const InlineFailure({
     required this.message,
     required this.onRetry,
+    this.retrying = false,
     super.key,
   });
 
   final String message;
   final VoidCallback onRetry;
+
+  /// The retry is running: its button spins.
+  final bool retrying;
 
   @override
   Widget build(BuildContext context) {
@@ -292,6 +301,7 @@ class InlineFailure extends StatelessWidget {
             label: context.t('common.retry'),
             variant: DashButtonVariant.outline,
             size: DashButtonSize.compact,
+            loading: retrying,
             onPressed: onRetry,
           ),
         ],

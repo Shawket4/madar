@@ -147,8 +147,7 @@ void main() {
         await h.tap(byKey('po-submit'));
         expect(h.server.callsTo(_createOrder).single.status, 403);
         await h.expectToast(
-          "Forbidden: You don't have permission to do this: "
-          'Create purchase orders (purchasing.orders.create)',
+          h.refusalWords(MockResponse.denied('purchasing.orders.create')),
         );
         expect(find.byType(PurchaseOrderDialog), findsOneWidget);
         expect(s.db[InvTables.purchaseOrders].length, ordersBefore);
@@ -179,7 +178,9 @@ void main() {
       final oat = InvIds.ingredient('oat');
       await h.tap(byKey('today-create-po-${SeedIds.zamalek}-$oat'));
       await h.tap(byKey('po-submit'));
-      await h.expectToast('Forbidden: هذا الإجراء غير مسموح لك');
+      await h.expectToast(
+        h.refusalWords(MockResponse.forbidden('هذا الإجراء غير مسموح لك')),
+      );
       expect(find.byType(PurchaseOrderDialog), findsOneWidget);
     });
   });
@@ -264,8 +265,7 @@ void main() {
         await h.tap(byKey('today-receive-$po'));
         await h.tap(byKey('receive-submit'));
         await h.expectToast(
-          "Forbidden: You don't have permission to do this: "
-          'Approve and receive purchase orders (purchasing.orders.edit)',
+          h.refusalWords(MockResponse.denied('purchasing.orders.edit')),
         );
         expect(find.byType(ReceiveDialog), findsOneWidget);
         expect(s.db[InvTables.purchaseOrders].find(po)!['status'], 'ordered');
@@ -286,14 +286,18 @@ void main() {
         expect(h.server.callsTo(_receive).single.status, 409);
         expect(find.byType(ReceiveDialog), findsOneWidget);
         await h.expectToast(
-          'Conflict: Purchase order is already received or cancelled',
+          h.refusalWords(
+            MockResponse.conflict(
+              'Purchase order is already received or cancelled',
+            ),
+          ),
         );
       },
     );
   });
 
   group('scope kept by in-page links (INV-ALL-024)', () {
-    testWidgets('View all opens Ingredients on the same branch', (
+    testWidgets('INV-ALL-024 (divergence) View all keeps the branch', (
       tester,
     ) async {
       final h = await pumpToday(tester, branch: SeedIds.zamalek);
@@ -303,14 +307,15 @@ void main() {
       expect(h.container.read(scopeProvider).branchId, SeedIds.zamalek);
     });
 
-    testWidgets('the first-count button opens Counts on the same branch', (
-      tester,
-    ) async {
-      final h = await pumpToday(tester, branch: SeedIds.heliopolis);
-      h.allowUnmatched = true;
-      await h.tap(byKey('today-first-count'));
-      expect(h.location.path, '/inventory/counts');
-      expect(h.container.read(scopeProvider).branchId, SeedIds.heliopolis);
-    });
+    testWidgets(
+      'INV-ALL-024 (divergence) the first-count button keeps the branch',
+      (tester) async {
+        final h = await pumpToday(tester, branch: SeedIds.heliopolis);
+        h.allowUnmatched = true;
+        await h.tap(byKey('today-first-count'));
+        expect(h.location.path, '/inventory/counts');
+        expect(h.container.read(scopeProvider).branchId, SeedIds.heliopolis);
+      },
+    );
   });
 }

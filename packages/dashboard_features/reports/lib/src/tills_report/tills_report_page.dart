@@ -5,7 +5,8 @@
 /// - Offered to holders of `till.read.branch` only: the route answers plain
 ///   `till.read` with the caller's OWN drawers, which under this title would
 ///   read as the branch's. Without it: `Restricted` with the reports words,
-///   and the sessions are never asked for (REP-TIL-001).
+///   and the sessions are never asked for (REP-TIL-001). Nothing shows while
+///   the rights load (divergence SH-10).
 /// - One read for the scope's branch (or every branch the person works at)
 ///   and range; all three tabs share it (REP-TIL-002, -005).
 /// - A refused range (400) says to shorten the period, with no Retry; any
@@ -57,23 +58,35 @@ class _TillsReportPageState extends ConsumerState<TillsReportPage> {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final authz = ref.watch(authzProvider);
-    final canSee = authz.can(Cap.tillReadBranch);
     final title = t('reports.tills.title');
-    if (authz.ready && !canSee) {
+    if (!authz.ready) {
+      // As the shell's gate (divergence SH-10): nothing while the person's
+      // rights load, an error with Retry if they could not be read.
+      final error = authz.error;
+      if (error == null) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsetsDirectional.all(Space.xl),
+        child: DashErrorState(
+          title: t('shell.accessLoadError'),
+          message: errorMessage(error, t),
+          retryLabel: t('common.retry'),
+          onRetry: () => ref.read(authzProvider.notifier).refresh(),
+        ),
+      );
+    }
+    if (!authz.can(Cap.tillReadBranch)) {
       return Restricted(title: title, who: t('reports.noAccess'));
     }
 
     final scope = ref.watch(currentScopeProvider);
     final key = tillSessionsKey(scope);
-    // Off until the person's rights say they may (the web's `enabled`): a
-    // disabled read is neither loading nor failed and has no rows.
-    final q = canSee ? ref.watch(tillSessionsProvider(key)) : null;
-    final error = q != null && q.hasError ? q.error : null;
+    final q = ref.watch(tillSessionsProvider(key));
+    final error = q.hasError ? q.error : null;
     final refused = isRangeRefused(error);
     final load = TillsLoad(
-      rows: q?.value ?? const <TillSessionRow>[],
-      loading: q != null && q.isLoading && !q.hasValue && !q.hasError,
-      loaded: q?.hasValue ?? false,
+      rows: q.value ?? const <TillSessionRow>[],
+      loading: q.isLoading && !q.hasValue && !q.hasError,
+      loaded: q.hasValue,
       error: error == null
           ? null
           : refused

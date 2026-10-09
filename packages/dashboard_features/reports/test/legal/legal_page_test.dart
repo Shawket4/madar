@@ -3,6 +3,8 @@
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashErrorState;
+import 'package:dashboard_reports/src/legal/legal_page.dart';
 import 'package:dashboard_reports/src/legal/legal_words.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,31 +15,68 @@ List<String> _labels(DashHarness h, Iterable<LegalTab> tabs) => [
 ];
 
 void main() {
-  testWidgets('REP-LEG-001 without reports.legal: Restricted "Legal", no '
-      'tabs, nothing asked (shell gate)', (tester) async {
+  testWidgets('REP-LEG-001 without reports.legal: Restricted "Legal" with '
+      'the reports\' words, no tabs, nothing asked', (tester) async {
     final h = await pumpLegal(tester, persona: Persona.limited);
     expect(find.text(h.t('reports.legal.title')), findsWidgets);
-    expect(find.text(h.t('common.restrictedTitle')), findsOneWidget);
-    expect(legalStrip, findsNothing);
-    expect(legalCalls(h), isEmpty);
-  });
-
-  testWidgets('REP-LEG-001 the page\'s own Restricted says the reports\' '
-      'words', (tester) async {
-    final h = await pumpLegal(tester, persona: Persona.limited, ownGate: true);
-    expect(find.text(h.t('reports.legal.title')), findsWidgets);
-    expect(find.text(h.t('common.restrictedTitle')), findsOneWidget);
-    expect(find.text(h.t('reports.noAccess')), findsOneWidget);
+    expect(find.text('Not available on this account'), findsOneWidget);
+    expect(
+      find.text(
+        "Your account can't open this report. The owner can give you access.",
+      ),
+      findsOneWidget,
+    );
+    expect(find.text(h.t('common.restrictedBody')), findsNothing);
     expect(legalStrip, findsNothing);
     expect(legalCalls(h), isEmpty);
     await h.shot('legal/restricted');
   });
 
-  testWidgets('REP-LEG-001 the page\'s own gate opens for reports.legal', (
+  testWidgets('REP-LEG-001 the page opens for reports.legal', (tester) async {
+    final h = await pumpLegal(tester);
+    expect(find.text(h.t('reports.noAccess')), findsNothing);
+    expect(legalStrip, findsOneWidget);
+    expect(h.server.callsTo(taxRoute), hasLength(1));
+  });
+
+  testWidgets('REP-ALL-030 (divergence SH-10) nothing renders and nothing is '
+      'asked while the person\'s rights load; then the page and its read', (
     tester,
   ) async {
-    final h = await pumpLegal(tester, ownGate: true);
+    final s = legalServer(persona: Persona.limited);
+    final gate = s.server.hold('GET', '/authz/me');
+    final h = await pumpLegal(
+      tester,
+      persona: Persona.limited,
+      server: s.server,
+      db: s.db,
+    );
+    expect(find.byType(LegalReportPage), findsOneWidget);
+    expect(find.text(h.t('reports.legal.noVat')), findsNothing);
     expect(find.text(h.t('reports.noAccess')), findsNothing);
+    expect(legalCalls(h), isEmpty);
+    gate.release();
+    await h.settle();
+    expect(find.text(h.t('reports.noAccess')), findsOneWidget);
+  });
+
+  testWidgets('REP-ALL-030 rights that could not be read: the error with '
+      'Retry, which asks again', (tester) async {
+    final s = legalServer();
+    s.server.fail(
+      'GET',
+      '/authz/me',
+      MockResponse.error(500, 'Internal error'),
+      times: 1,
+    );
+    final h = await pumpLegal(tester, server: s.server, db: s.db);
+    final page = find.byType(LegalReportPage);
+    expect(
+      find.descendant(of: page, matching: find.byType(DashErrorState)),
+      findsOneWidget,
+    );
+    expect(legalCalls(h), isEmpty);
+    await h.tap(find.descendant(of: page, matching: find.text('Retry')));
     expect(legalStrip, findsOneWidget);
     expect(h.server.callsTo(taxRoute), hasLength(1));
   });
@@ -46,7 +85,6 @@ void main() {
     final h = await pumpLegal(
       tester,
       persona: Persona.limited,
-      ownGate: true,
       locale: 'ar',
       size: DashSize.phone,
     );

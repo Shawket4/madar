@@ -23,6 +23,7 @@ import 'combo_editor/combo_editor_page.dart';
 import 'combos/combos_page.dart';
 import 'deals/deals_page.dart';
 import 'discounts/discounts_page.dart';
+import 'discounts/discounts_data.dart';
 
 const List<DashRoute> catalogOffersRoutes = [
   DashRoute(
@@ -53,6 +54,7 @@ const List<DashRoute> catalogOffersRoutes = [
     titleKey: 'discounts.title',
     titleFallback: 'Discounts',
     module: OrgModule.pos,
+    prefetch: _prefetchDiscounts,
   ),
 ];
 
@@ -66,3 +68,9 @@ Widget _deals(BuildContext context, GoRouterState state) =>
 
 Widget _discounts(BuildContext context, GoRouterState state) =>
     DiscountsPage(edit: state.uri.queryParameters['edit']);
+
+/// The web's `prefetchRoute('/discounts')`: the org's discounts, with the
+/// page's own key.
+void _prefetchDiscounts(DashPrefetcher warm, Scope s) {
+  if (s.orgId case final orgId?) warm(discountsProvider(orgId));
+}

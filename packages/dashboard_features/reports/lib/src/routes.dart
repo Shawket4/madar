@@ -18,6 +18,8 @@ import 'basira/basira_page.dart';
 import 'financial/financial_page.dart';
 import 'legal/legal_page.dart';
 import 'loyalty_inventory_staff/inventory_reports_page.dart';
+import 'loyalty_inventory_staff/lis_providers.dart'
+    show prefetchInventoryReports;
 import 'loyalty_inventory_staff/loyalty_report_page.dart';
 import 'loyalty_inventory_staff/staff_discipline_page.dart';
 import 'operations/operations_page.dart';
@@ -26,52 +28,57 @@ import 'staff_pool_bundles/staff_pool_report_page.dart';
 import 'tills_report/tills_report_page.dart';
 
 const List<DashRoute> reportsRoutes = [
-  // REP-OPS-001: `orders.read`.
+  // REP-OPS-001: `orders.read`, checked by the page's own `<Restricted>`
+  // (with the reports' words, REP-ALL-005), as the web's route has no guard.
   DashRoute(
     path: '/reports/operations',
     builder: operationsPageBuilder,
     titleKey: 'reports.operations.title',
     titleFallback: 'Operations',
-    caps: [Cap.ordersRead],
     module: OrgModule.pos,
     tabs: operationsTabs,
+    prefetch: prefetchOperations,
   ),
-  // REP-FIN-002: Restricted only when no tab is visible.
+  // REP-FIN-002: Restricted only when no tab is visible (`orders.read`,
+  // `inventory.read` or `purchasing.orders.read`), checked by the page with
+  // the reports' words (REP-ALL-005), as the web's route has no guard.
   DashRoute(
     path: '/reports/financial',
     builder: financialPageBuilder,
     titleKey: 'reports.financial.title',
     titleFallback: 'Financial',
-    caps: [Cap.ordersRead, Cap.inventoryRead, Cap.purchasingOrdersRead],
     module: OrgModule.pos,
     tabs: financialTabs,
+    prefetch: prefetchFinancial,
   ),
-  // REP-INV-001: `inventory.read`.
+  // REP-INV-001: `inventory.read`, checked by the page's own `<Restricted>`
+  // (with the reports' words, REP-ALL-005), as the web's route has no guard.
   DashRoute(
     path: '/reports/inventory',
     builder: inventoryReportsPageBuilder,
     titleKey: 'inventory.reports.title',
     titleFallback: 'Inventory reports',
-    caps: [Cap.inventoryRead],
     module: OrgModule.pos,
     tabs: inventoryReportTabs,
+    prefetch: prefetchInventoryReports,
   ),
-  // REP-LEG-001: `reports.legal`; no route module (every org), REP-ALL-004.
+  // REP-LEG-001: `reports.legal`, checked by the page's own `<Restricted>`
+  // (with the reports' words, REP-ALL-005), as the web's route has no guard;
+  // no route module (every org), REP-ALL-004.
   DashRoute(
     path: '/reports/legal',
     builder: legalPageBuilder,
     titleKey: 'reports.legal.title',
     titleFallback: 'Legal',
-    caps: [Cap.reportsLegal],
     tabs: legalTabs,
   ),
-  // REP-LOY-001: `loyalty.members.list`.
+  // REP-LOY-001: `loyalty.members.list`, checked by the page's own
+  // `<Restricted>` (REP-ALL-005).
   DashRoute(
     path: '/reports/loyalty',
     builder: loyaltyReportPageBuilder,
     titleKey: 'reports.loyalty.title',
     titleFallback: 'Loyalty',
-    caps: [Cap.loyaltyMembersList],
     module: OrgModule.pos,
     tabs: loyaltyReportTabs,
   ),
@@ -84,13 +91,13 @@ const List<DashRoute> reportsRoutes = [
     caps: [Cap.reportsBundles],
     module: OrgModule.pos,
   ),
-  // REP-STF-002: `hr.attendance.read`; a Dawam page.
+  // REP-STF-002: `hr.attendance.read`, checked by the page's own
+  // `<Restricted>` (REP-ALL-005); a Dawam page.
   DashRoute(
     path: '/reports/staff',
     builder: staffDisciplinePageBuilder,
     titleKey: 'reports.staff.title',
     titleFallback: 'Staff discipline',
-    caps: [Cap.hrAttendanceRead],
     module: OrgModule.dawam,
   ),
   // REP-SPL-001: `orders.staff_drink.record`; pos (the longer prefix wins
@@ -103,13 +110,15 @@ const List<DashRoute> reportsRoutes = [
     caps: [Cap.ordersStaffDrinkRecord],
     module: OrgModule.pos,
   ),
-  // REP-TIL-001: `till.read.branch` (plain `till.read` is Restricted).
+  // REP-TIL-001: `till.read.branch` (plain `till.read` is Restricted),
+  // checked by the page's own `<Restricted>` with the reports' words; the
+  // web's route has no guard, so the page renders while rights load
+  // (REP-ALL-030).
   DashRoute(
     path: '/reports/tills',
     builder: tillsReportPageBuilder,
     titleKey: 'reports.tills.title',
     titleFallback: 'Till sessions',
-    caps: [Cap.tillReadBranch],
     module: OrgModule.pos,
     tabs: tillsReportTabs,
   ),

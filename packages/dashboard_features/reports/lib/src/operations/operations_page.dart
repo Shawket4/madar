@@ -10,20 +10,29 @@ library;
 
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:design_system/design_system.dart' show Space;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../shared/report_shared.dart';
 import 'ops_analytics.dart';
+import 'ops_data.dart';
 import 'ops_export.dart';
 import 'ops_overview.dart';
-import 'ops_support.dart';
 import 'ops_tables.dart';
 
 /// The route's page (`DashRoute.builder`).
 Widget operationsPageBuilder(BuildContext context, GoRouterState state) =>
     const OperationsReportPage();
+
+/// The web's `prefetchRoute('/reports/operations')`: the default tab is
+/// Tables (not prefetched); the Overview's branch sales are warmed when a
+/// branch is picked, with no exclusions (the web's key carries none, so a
+/// person with excluded items reads again, REP-ALL-029).
+void prefetchOperations(DashPrefetcher warm, Scope s) {
+  if (s.branchId != null) warm(opsSalesProvider(s.opsSales(null)));
+}
 
 /// The tab strip, in the web's order (REP-OPS-003). Tabs are page state,
 /// not routes (REP-ALL-022); every tab shows to whoever sees the page.
@@ -53,8 +62,27 @@ class _OperationsReportPageState extends ConsumerState<OperationsReportPage> {
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
-    // The page's read cache: each tab's reads stay while the page is open.
-    ref.watch(opsCacheProvider);
+    final authz = ref.watch(authzProvider);
+    final title = t('reports.operations.title');
+    if (!authz.ready) {
+      // As the shell's gate (divergence SH-10): nothing while the person's
+      // rights load, an error with Retry if they could not be read.
+      final error = authz.error;
+      if (error == null) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsetsDirectional.all(Space.xl),
+        child: DashErrorState(
+          title: t('shell.accessLoadError'),
+          message: errorMessage(error, t),
+          retryLabel: t('common.retry'),
+          onRetry: () => ref.read(authzProvider.notifier).refresh(),
+        ),
+      );
+    }
+    // REP-OPS-001 / REP-ALL-005.
+    if (!authz.can(Cap.ordersRead)) {
+      return Restricted(title: title, who: t('reports.noAccess'));
+    }
     final body = switch (_tab) {
       'overview' => const OpsOverviewView(),
       'items' => const OpsItemsView(),
@@ -64,7 +92,7 @@ class _OperationsReportPageState extends ConsumerState<OperationsReportPage> {
       _ => const OpsTablesView(),
     };
     return DashPageScaffold(
-      title: t('reports.operations.title'),
+      title: title,
       subtitleWidget: const ReportPeriodSubtitle(),
       actions: [
         if (opsExportTabs.contains(_tab))

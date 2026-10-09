@@ -39,6 +39,25 @@ class SeedGroupLink {
   };
 }
 
+/// Where a seeded dine-in order was eaten: one of its branch's tables
+/// ([seedFloorTables]), the party seated [seatedAt], [covers] guests. The one
+/// model the floor's table history and the reports' tables dataset read.
+class SeedSitting {
+  const SeedSitting({
+    required this.orderId,
+    required this.table,
+    required this.seatedAt,
+    required this.covers,
+  });
+
+  final String orderId;
+  final SeedFloorTable table;
+  final DateTime seatedAt;
+  final int covers;
+
+  String get tableId => MockSeed.floorTableId(table.branchKey, table.label);
+}
+
 class _Line {
   const _Line(this.item, this.size, this.qty, this.milk, this.extra);
 
@@ -779,6 +798,69 @@ class MockSeed {
       mockUuid('till:$branchKey:$date:$shift');
 
   late final _History _history = _History.build(this);
+
+  // ── tables and sittings ──────────────────────────────────────────────
+
+  /// A floor table's id (`floor-table:<branch>:<label>`), as the floor's
+  /// rows carry it.
+  static String floorTableId(String branchKey, String label) =>
+      mockUuid('floor-table:$branchKey:$label');
+
+  /// When [table] left the plan, if it did.
+  static DateTime? retiredAt(SeedFloorTable table) {
+    final c = table.retiredCairo;
+    if (c == null) return null;
+    final p = c.split(RegExp('[- :]')).map(int.parse).toList();
+    return MockClock.fromCairo(p[0], p[1], p[2], p[3], p[4]);
+  }
+
+  /// Every dine-in order's sitting (settled or voided), by order id: a table
+  /// of its branch that was on the plan then (a table without a section
+  /// drawn less often), up to its seats in guests, seated before the bill
+  /// was paid — longer for a bigger party.
+  late final Map<String, SeedSitting> sittings = () {
+    final byBranch = <String, List<SeedFloorTable>>{};
+    for (final t in seedFloorTables) {
+      if (t.active) byBranch.putIfAbsent(t.branchKey, () => []).add(t);
+    }
+    final keyOf = {
+      for (final b in seedBranches) MockSeed.branchIdOf(b.key): b.key,
+    };
+    final out = <String, SeedSitting>{};
+    for (final o in orders) {
+      if (o.orderType != 'dine_in') continue;
+      final plan = byBranch[keyOf[o.branchId]];
+      if (plan == null) continue;
+      final rng = MockRandom('floor-sitting:${o.id}');
+      final open = [
+        for (final t in plan)
+          if (retiredAt(t) == null || o.createdAt.isBefore(retiredAt(t)!)) t,
+      ];
+      final table = rng.weighted(open, [
+        for (final t in open) t.sectionKey == null ? 0.6 : 1.0,
+      ]);
+      final party = rng.weighted(const [1, 2, 3, 4, 5, 6], const [
+        18,
+        40,
+        16,
+        16,
+        5,
+        5,
+      ]);
+      final covers = party < table.seats ? party : table.seats;
+      final dwell = 22 + rng.nextInt(38) + covers * (6 + rng.nextInt(9));
+      out[o.id] = SeedSitting(
+        orderId: o.id,
+        table: table,
+        seatedAt: o.createdAt.subtract(Duration(minutes: dwell)),
+        covers: covers,
+      );
+    }
+    return Map<String, SeedSitting>.unmodifiable(out);
+  }();
+
+  /// The sitting [orderId] settled, if it was eaten at a table.
+  SeedSitting? sittingOf(String orderId) => sittings[orderId];
 
   /// Copies the seed into [db] as JSON rows (each a model's `toJson()`):
   ///

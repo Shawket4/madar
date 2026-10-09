@@ -98,8 +98,9 @@ abstract final class TillIds {
   /// views).
   static final String helioMorning = seeded('heliopolis', 0, 'morning');
 
-  /// Ali Hassan's second till, on Counter 2, opened while his first was open
-  /// (flagged, verified on the LAN, no sales yet).
+  /// Ali Hassan's second till, on Counter 3, opened while his first was open
+  /// (flagged, verified on the LAN, no sales yet). Counter 2 is the orders
+  /// unit's second teller's.
   static final String helioSecond = mockUuid('till:heliopolis:second');
 
   /// Hana Mostafa's open till at Maadi (the limited persona's own till).
@@ -221,7 +222,7 @@ void loadTillsScenario(MockDb db) {
   spot(TillIds.helioMorning, 'rana', _at(0, 8, 30), printed: true);
   spot(TillIds.helioMorning, 'ali', _at(0, 9, 40), approverKey: 'rana');
 
-  // Ali's second till on Counter 2, replayed from the LAN while his first
+  // Ali's second till on Counter 3, replayed from the LAN while his first
   // was open.
   final first = tills.get(TillIds.helioMorning);
   tills.insert(
@@ -231,9 +232,9 @@ void loadTillsScenario(MockDb db) {
       branchName: first['branch_name'] as String?,
       tellerId: first['teller_id']! as String,
       tellerName: first['teller_name']! as String,
-      deviceId: mockUuid('device:heliopolis:T2'),
-      deviceCode: 'T2',
-      deviceLabel: 'Counter 2',
+      deviceId: mockUuid('device:heliopolis:T3'),
+      deviceCode: 'T3',
+      deviceLabel: 'Counter 3',
       openedAt: _at(0, 8, 12),
       openingCash: 50000,
       openingCashWasEdited: false,

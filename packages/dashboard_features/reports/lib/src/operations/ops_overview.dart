@@ -38,20 +38,8 @@ class OpsOverviewView extends ConsumerStatefulWidget {
 }
 
 class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final scope = ref.read(currentScopeProvider);
-      final exclude = excludeItemsParam(
-        ref.read(excludedItemsProvider(scope.orgId)),
-      );
-      if (ref.read(opsCacheProvider).isStale(salesKey(scope, exclude))) {
-        ref.invalidate(opsSalesProvider((scope, exclude)));
-      }
-    });
-  }
+  /// The last key whose answer was on screen.
+  OpsSalesKey? _shown;
 
   @override
   Widget build(BuildContext context) {
@@ -61,8 +49,21 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
     final c = context.madarColors;
     final scope = ref.watch(currentScopeProvider);
     final excluded = ref.watch(excludedItemsProvider(scope.orgId));
-    final key = (scope, excludeItemsParam(excluded));
-    final q = ref.watch(opsSalesProvider(key));
+    final key = scope.opsSales(excludeItemsParam(excluded));
+    final current = ref.watch(opsSalesProvider(key));
+    var q = current;
+    // A pick in the exclude list changes only `exclude_items`: keep the
+    // figures (and so the open list) until the new count lands, where the
+    // web drops to skeletons and closes the list (divergence REP-OPS-039).
+    final prev = _shown;
+    if (current.firstLoad &&
+        prev != null &&
+        prev != key &&
+        (prev.id, prev.from, prev.to) == (key.id, key.from, key.to)) {
+      final held = ref.watch(opsSalesProvider(prev));
+      if (held.hasValue) q = held;
+    }
+    if (current.hasValue) _shown = key;
     void retry() => ref.invalidate(opsSalesProvider(key));
     final d = q.value;
     final loading = q.firstLoad;
@@ -368,6 +369,8 @@ class OpsExcludeItemsControl extends ConsumerWidget {
     final any = excluded.isNotEmpty;
     return DashPopover(
       width: Space.xxl * 8,
+      // The web's note, search, a 300 px list and Clear.
+      maxHeight: Space.xxl * 15,
       align: DashPopoverAlign.end,
       anchor: (context, ctl) => DashPressable(
         key: const ValueKey('ops-exclude-trigger'),

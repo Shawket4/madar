@@ -18,12 +18,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'customers_data.dart';
 
 /// `GET /loyalty/members/{id}/google-object`: a live read of Google, never
-/// cached (`staleTime: 0, gcTime: 0`).
+/// cached (`staleTime: 0, gcTime: 0`) — so no `webCache()`: it goes the
+/// moment the dialog closes.
 final googleObjectProvider = FutureProvider.autoDispose
-    .family<GoogleObjectDump, String>((ref, id) {
-      ref.webCache();
-      return ref.watch(apiProvider).loyalty.getLoyaltyGoogleObject(id: id);
-    });
+    .family<GoogleObjectDump, String>(
+      (ref, id) =>
+          ref.watch(apiProvider).loyalty.getLoyaltyGoogleObject(id: id),
+    );
 
 /// Opens the dialog for [memberId]; closing it drops the report.
 Future<void> showGoogleObjectDialog(

@@ -102,6 +102,7 @@ class _AdjustDialogState extends ConsumerState<AdjustDialog> {
     if (!(_form.currentState?.validate() ?? false)) return;
     final amount = dashParseNumber(_amount)!.round();
     setState(() => _pending = true);
+    final invalidate = peopleInvalidator(ref);
     try {
       await ref
           .read(apiProvider)
@@ -114,9 +115,9 @@ class _AdjustDialogState extends ConsumerState<AdjustDialog> {
               note: _reason.trim(),
             ),
           );
+      invalidate();
       if (!mounted) return;
       DashToast.success(context, t('loyalty.adjusted'));
-      invalidatePeople(ref);
       Navigator.of(context).pop();
     } on Object catch (e) {
       if (!mounted) return;

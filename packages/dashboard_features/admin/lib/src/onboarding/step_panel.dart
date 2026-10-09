@@ -13,10 +13,16 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../branches/branch_dialog.dart';
 import '../users/user_dialog.dart';
+import 'dialogs/addon_dialog.dart';
+import 'dialogs/category_dialog.dart';
+import 'dialogs/create_ingredient_dialog.dart';
+import 'dialogs/menu_item_dialog.dart';
+import 'dialogs/menu_reads.dart';
+import 'dialogs/menu_text.dart';
+import 'dialogs/payment_method_dialog.dart';
 import 'onboarding_config.dart';
 import 'onboarding_data.dart';
 import 'org_identity_step.dart';
@@ -44,6 +50,9 @@ class OnbStepPanel extends ConsumerWidget {
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final VoidCallback onFinish;
+
+  /// A skeleton count line (`py-3` text).
+  static const double lineHeight = Space.xxl + Space.sm;
 
   /// The panel's least height (`min-h-[28rem]`, less its padding).
   static const double minHeight = 448 - Space.xl * 2;
@@ -168,18 +177,20 @@ class _StepBody extends ConsumerWidget {
     return switch (active) {
       OnbStep.orgProfile => OnbOrgIdentityStep(orgId: orgId, onNext: onNext),
       OnbStep.branch => add((context) => showBranchDialog(context)),
-      OnbStep.paymentMethods => add(
-        (context) => _openPage(context, '/settings/payment-methods'),
-      ),
+      OnbStep.paymentMethods => add(showPaymentMethodDialog),
       OnbStep.ingredients => add(
-        (context) => _openPage(context, '/inventory/ingredients'),
+        (context) => showCreateIngredientDialog(context, orgId: orgId),
       ),
-      OnbStep.categories => add((context) => _openPage(context, '/menu/items')),
+      OnbStep.categories => add(
+        (context) => showCategoryDialog(context, orgId: orgId),
+      ),
       OnbStep.menuItems => _MenuItemsBody(
         orgId: orgId,
         count: _count('menu_items'),
       ),
-      OnbStep.addons => add((context) => _openPage(context, '/menu/items')),
+      OnbStep.addons => add(
+        (context) => showAddonDialog(context, orgId: orgId),
+      ),
       OnbStep.recipes => _RecipesBody(orgId: orgId),
       OnbStep.team => add((context) => showUserDialog(context)),
       OnbStep.goLive => _GoLiveBody(
@@ -311,8 +322,10 @@ class OnbAddViaDialog extends ConsumerWidget {
                 ? DashButtonVariant.outline
                 : DashButtonVariant.primary,
             onPressed: () async {
+              // A create likely happened, whatever the editor answers.
+              final refresh = onbRefreshers(context, orgId).checklist;
               await open(context);
-              refreshOnboarding(ref, orgId);
+              refresh();
             },
           ),
         ),
@@ -332,17 +345,19 @@ class _MenuItemsBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
-    final categories =
-        ref.watch(onbCategoriesProvider(orgId)).value ?? const <Category>[];
+    final q = ref.watch(menuCategoriesProvider(orgId));
+    final categories = q.value ?? const <Category>[];
     const k = 'onboarding.steps.menu_items';
-    final Widget line = categories.isEmpty
-        ? OnbDashedNote(text: t('$k.needCategory'), warning: true)
-        : _CountLine(
-            added: count > 0
-                ? t('$k.added', args: {'count': count}, count: count)
-                : null,
-            empty: t('$k.empty'),
-          );
+    final Widget line =
+        _readState(t, q, () => ref.invalidate(menuCategoriesProvider(orgId))) ??
+        (categories.isEmpty
+            ? OnbDashedNote(text: t('$k.needCategory'), warning: true)
+            : _CountLine(
+                added: count > 0
+                    ? t('$k.added', args: {'count': count}, count: count)
+                    : null,
+                empty: t('$k.empty'),
+              ));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.lg + DashMetrics.hair * 2,
@@ -359,8 +374,9 @@ class _MenuItemsBody extends ConsumerWidget {
             onPressed: categories.isEmpty
                 ? null
                 : () async {
-                    await _openPage(context, '/menu/items');
-                    refreshOnboarding(ref, orgId);
+                    final refresh = onbRefreshers(context, orgId).checklist;
+                    await showMenuItemDialog(context, orgId: orgId);
+                    refresh();
                   },
           ),
         ),
@@ -383,8 +399,15 @@ class _RecipesBody extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final lang = ref.watch(localeProvider);
-    final items =
-        ref.watch(onbMenuItemsProvider(orgId)).value ?? const <MenuItem>[];
+    final q = ref.watch(menuItemsProvider(orgId));
+    final items = q.value ?? const <MenuItem>[];
+    final state = _readState(
+      t,
+      q,
+      () => ref.invalidate(menuItemsProvider(orgId)),
+    );
+    // The item editor's categories (the web reads them on this step too).
+    ref.watch(menuCategoriesProvider(orgId));
     const k = 'onboarding.steps.recipes';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -394,7 +417,9 @@ class _RecipesBody extends ConsumerWidget {
           t('$k.intro'),
           style: DashType.body.copyWith(color: c.textSecondary),
         ),
-        if (items.isEmpty)
+        if (state != null)
+          state
+        else if (items.isEmpty)
           OnbDashedNote(text: t('$k.noItems'))
         else
           Container(
@@ -436,8 +461,16 @@ class _RecipesBody extends ConsumerWidget {
                           variant: DashButtonVariant.outline,
                           size: DashButtonSize.compact,
                           onPressed: () async {
-                            await _openPage(context, '/menu/items');
-                            refreshOnboarding(ref, orgId);
+                            final refresh = onbRefreshers(
+                              context,
+                              orgId,
+                            ).checklist;
+                            await showMenuItemDialog(
+                              context,
+                              orgId: orgId,
+                              item: item,
+                            );
+                            refresh();
                           },
                         ),
                       ],
@@ -562,7 +595,20 @@ class OnbDashedBorder extends CustomPainter {
       old.color != color || old.radius != radius;
 }
 
-// ponytail: the web opens each editor inline (onboarding dialogs not ported
-// yet); this opens the page that owns it and refreshes the checklist on return.
-Future<Object?> _openPage(BuildContext context, String path) =>
-    context.push<Object?>(path);
+/// A step read with no data yet: a skeleton line while it loads, its error
+/// with Retry (refetching only that read) when it failed; null once there is
+/// an answer. The web shows its empty line in both cases (its `data ?? []`).
+Widget? _readState(Translator t, AsyncValue<Object?> q, VoidCallback retry) {
+  if (q.hasValue) return null;
+  if (q.hasError) {
+    return DashErrorState(
+      framed: false,
+      title: t('common.loadFailed'),
+      message: errorMessage(q.error, t),
+      retryLabel: t('common.retry'),
+      retrying: q.isLoading,
+      onRetry: retry,
+    );
+  }
+  return const DashSkeleton(height: OnbStepPanel.lineHeight, radius: Radii.md);
+}

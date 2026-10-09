@@ -6,6 +6,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -82,15 +83,16 @@ class _CustomersListState extends ConsumerState<CustomersList> {
     final list = ref.watch(customersListProvider(_key));
     final data = list.value;
     if (data != null) _previous = data;
-    final shownData = data ?? _previous;
+    // Failed with nothing for this window: the error (and its Retry) stays
+    // up while the retry runs; never the empty state, never old rows.
+    final failed = list.hasError && !list.hasValue;
+    final shownData = failed ? null : data ?? _previous;
     final rows = [
       for (final r in shownData ?? const <Customer>[])
         PersonRow(customer: r, mode: mode),
     ];
-    final loading = shownData == null && !list.hasError;
-    final error = list.hasError && !list.isLoading
-        ? peopleErrorMessage(list.error, t)
-        : null;
+    final loading = shownData == null && !failed;
+    final error = failed ? peopleErrorMessage(list.error, t) : null;
 
     Widget dash() => const MutedDash();
     final columns = <DashColumn<PersonRow>>[
@@ -99,7 +101,8 @@ class _CustomersListState extends ConsumerState<CustomersList> {
         label: t('customers.name'),
         phone: DashPhoneRole.title,
         flex: 2,
-        minWidth: 180,
+        // A name and its Member pill, uncut, before the table scrolls.
+        minWidth: 220,
         text: (r) => r.name,
         cell: (context, r) => Row(
           spacing: Space.sm,
@@ -120,7 +123,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
       DashColumn(
         id: 'phone',
         label: t('customers.phone'),
-        minWidth: 150,
+        minWidth: 164,
         text: (r) => formatPhoneDisplay(r.phone),
         cell: (context, r) {
           final p = r.phone;
@@ -180,6 +183,13 @@ class _CustomersListState extends ConsumerState<CustomersList> {
         text: (r) => r.customer.lastOrderAt == null
             ? '—'
             : fmt.fmtDate(r.customer.lastOrderAt),
+        cell: (context, r) => r.customer.lastOrderAt == null
+            ? dash()
+            : Text(
+                dashFigure(fmt.fmtDate(r.customer.lastOrderAt)),
+                maxLines: 1,
+                softWrap: false,
+              ),
       ),
     ];
 
@@ -193,7 +203,10 @@ class _CustomersListState extends ConsumerState<CustomersList> {
         DashFilterSelect<String>(
           label: t('customers.source.label'),
           allLabel: t('customers.source.all'),
-          minWidth: 176,
+          // `w-full sm:w-44`: the whole line below 640.
+          minWidth: MediaQuery.sizeOf(context).width < DashBreakpoints.sm
+              ? double.infinity
+              : 176,
           options: [
             for (final s in customerSources)
               DashOption(value: s, label: t('customers.source.$s')),
@@ -264,7 +277,6 @@ class _CustomersListState extends ConsumerState<CustomersList> {
     final t = ref.read(tProvider);
     final transport = ref.read(transportProvider);
     final exporter = ref.read(exporterProvider);
-    final orgId = ref.read(orgIdProvider);
     final key = _key;
     setState(() => _exporting = true);
     try {
@@ -343,7 +355,13 @@ class _CustomersListState extends ConsumerState<CustomersList> {
         ),
       ];
       final title = t('customers.title');
-      final logo = await _exportLogo(api, orgId);
+      // `useExportLogo`: the brand the shell already holds, no extra read
+      // (an export-header read would spend the export budget).
+      final brand = ref.read(publicBrandProvider).value;
+      final logoUrl = brand?.logoUrl?.trim() ?? '';
+      final logo = brand != null && brand.customBranding && logoUrl.isNotEmpty
+          ? logoUrl
+          : null;
       if (!mounted) return;
       await runExcelExport(
         context,
@@ -368,18 +386,6 @@ class _CustomersListState extends ConsumerState<CustomersList> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
-  }
-}
-
-/// The shop's own logo when it is on the branding tier, else null (Madar's)
-/// — the web's `useExportLogo`, read through the tier-gated public brand.
-Future<String?> _exportLogo(DashboardApi api, String? orgId) async {
-  if (orgId == null) return null;
-  try {
-    final brand = await api.orgs.publicOrgBrand(orgId: orgId);
-    return brand.customBranding ? brand.logoUrl : null;
-  } on Object {
-    return null;
   }
 }
 

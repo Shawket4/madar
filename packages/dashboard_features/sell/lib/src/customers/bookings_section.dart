@@ -69,6 +69,7 @@ class _BookingsSectionState extends ConsumerState<BookingsSection> {
     final c = context.madarColors;
     final q = ref.watch(customerBookingsProvider(_key));
     if (q.value != null) _previous = q.value;
+    final failed = q.hasError && !q.hasValue;
     final rows = q.value ?? _previous;
     final branches = ref.watch(branchesProvider).value;
     String branchName(String id) {
@@ -79,14 +80,16 @@ class _BookingsSectionState extends ConsumerState<BookingsSection> {
     }
 
     final Widget body;
-    if (rows == null && q.isLoading) {
-      body = const DashSkeleton(height: Space.xxl * 2 + Space.lg);
-    } else if (q.hasError && !q.isLoading) {
+    if (failed) {
+      // Stays up, its Retry spinning, while the retry runs.
       body = InlineFailure(
         message: peopleErrorMessage(q.error, t),
+        retrying: q.isLoading,
         onRetry: () => ref.invalidate(customerBookingsProvider(_key)),
       );
-    } else if (rows == null || rows.isEmpty) {
+    } else if (rows == null) {
+      body = const DashSkeleton(height: Space.xxl * 2 + Space.lg);
+    } else if (rows.isEmpty) {
       body = DashedNote(t('customers.bookings.empty'));
     } else {
       body = Column(

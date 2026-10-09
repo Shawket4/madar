@@ -42,6 +42,7 @@ class _OnbOrgIdentityStepState extends ConsumerState<OnbOrgIdentityStep> {
   Future<void> _save(String name, String currency) async {
     final t = ref.read(tProvider);
     setState(() => _busy = true);
+    final refresh = onbRefreshers(context, widget.orgId);
     try {
       final trimmed = name.trim();
       await ref
@@ -54,9 +55,16 @@ class _OnbOrgIdentityStepState extends ConsumerState<OnbOrgIdentityStep> {
               currencyCode: currency,
             ),
           );
-      invalidateOnbOrg(ref, widget.orgId);
-      await ref.read(onbOrgProvider(widget.orgId).future);
-      refreshOnboarding(ref, widget.orgId);
+      refresh.org();
+      // The web awaits the org's refetch (which never throws) first.
+      if (mounted) {
+        try {
+          await ref.read(onbOrgProvider(widget.orgId).future);
+        } on Object {
+          // The page's own read shows a failed refetch.
+        }
+      }
+      refresh.checklist();
       if (!mounted) return;
       DashToast.success(context, t('onboarding.steps.org_profile.saved'));
       widget.onNext();
@@ -73,12 +81,15 @@ class _OnbOrgIdentityStepState extends ConsumerState<OnbOrgIdentityStep> {
     return DashPickedFile(
       bytes: Uint8List.fromList(f.bytes),
       name: f.name,
-      mimeType: f.mimeType ?? _mimeOf(f.name),
+      mimeType: f.mimeType ?? mimeOf(f.name),
     );
   }
 
   Future<String?> _upload(DashPickedFile file) async {
     final t = ref.read(tProvider);
+    final refresh = onbRefreshers(context, widget.orgId);
+    final isPlatform = ref.read(currentSessionProvider)?.isPlatform ?? false;
+    final picked = ref.read(selectedOrgProvider.notifier);
     try {
       final updated = await ref
           .read(apiProvider)
@@ -97,14 +108,12 @@ class _OnbOrgIdentityStepState extends ConsumerState<OnbOrgIdentityStep> {
       final logo = updated.logoUrl;
       // A platform admin's picked org keeps its logo for the shell (the
       // same org, so the branch stays).
-      final session = ref.read(currentSessionProvider);
-      if (logo != null && (session?.isPlatform ?? false)) {
-        await ref
-            .read(selectedOrgProvider.notifier)
-            .select(widget.orgId, logoUrl: logo);
+      if (logo != null && isPlatform) {
+        await picked.select(widget.orgId, logoUrl: logo);
       }
-      invalidateOnbOrg(ref, widget.orgId);
-      refreshOnboarding(ref, widget.orgId);
+      refresh
+        ..org()
+        ..checklist();
       return logo;
     } on Object catch (e) {
       // The server's words, under the picker.
@@ -210,7 +219,8 @@ class OnbUploadFailure implements Exception {
   String toString() => message;
 }
 
-String _mimeOf(String name) {
+/// The image type a picked file names by its extension.
+String mimeOf(String name) {
   final n = name.toLowerCase();
   if (n.endsWith('.png')) return 'image/png';
   if (n.endsWith('.webp')) return 'image/webp';

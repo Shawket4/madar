@@ -117,11 +117,12 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
     );
     if (!ok || !mounted) return;
     setState(() => _erasing = true);
+    final invalidate = peopleInvalidator(ref);
     try {
       await ref.read(apiProvider).customers.eraseCustomer(id: c.id);
+      invalidate();
       if (!mounted) return;
       DashToast.success(context, t('customers.erased'));
-      invalidatePeople(ref);
       _close();
     } on Object catch (e) {
       if (mounted) DashToast.error(context, peopleErrorMessage(e, t));
@@ -164,9 +165,8 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
         : card?.value != null;
 
     final Widget body;
-    if (primary == null || (primary.isLoading && !primary.hasValue)) {
-      body = const DashSkeleton(height: Space.xxl * 8);
-    } else if (!primary.hasValue) {
+    if (primary != null && primary.hasError && !primary.hasValue) {
+      // Stays up, its Retry spinning, while the retry runs.
       body = DashEmptyState(
         title: access.canViewCustomers
             ? t('customers.loadFailed')
@@ -177,6 +177,7 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
         action: DashButton(
           label: t('common.retry'),
           variant: DashButtonVariant.outline,
+          loading: primary.isLoading,
           onPressed: () => access.canViewCustomers
               ? ref.invalidate(customerDetailProvider(_id))
               : ref.invalidate(
@@ -187,6 +188,8 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
                 ),
         ),
       );
+    } else if (primary == null || !primary.hasValue) {
+      body = const DashSkeleton(height: Space.xxl * 8);
     } else {
       final d = detail?.value;
       body = Column(
@@ -244,17 +247,13 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
                     if (!access.canViewCustomers) _close();
                   },
                 ),
-                AsyncValue(isLoading: true) => const DashSkeleton(
-                  height: Space.xxl * 5,
-                ),
-                AsyncValue(:final error) => DashEmptyState(
+                AsyncValue(:final error?) => DashEmptyState(
                   title: t('loyalty.memberLoadFailed'),
-                  description: error == null
-                      ? null
-                      : peopleErrorMessage(error, t),
+                  description: peopleErrorMessage(error, t),
                   action: DashButton(
                     label: t('common.retry'),
                     variant: DashButtonVariant.outline,
+                    loading: card.isLoading,
                     onPressed: () => ref.invalidate(
                       loyaltyMemberProvider((
                         id: personId,
@@ -263,6 +262,7 @@ class _CustomerSheetState extends ConsumerState<CustomerSheet> {
                     ),
                   ),
                 ),
+                _ => const DashSkeleton(height: Space.xxl * 5),
               },
             ),
           if (d != null && customer != null) ...[
