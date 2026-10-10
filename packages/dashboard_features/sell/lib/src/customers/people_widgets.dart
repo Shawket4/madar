@@ -96,6 +96,10 @@ class StatBox extends StatelessWidget {
             child: Text(
               value,
               maxLines: 1,
+              // Measured unwrapped, as the FittedBox lays it out: a figure
+              // wrapped at the box's width reads a line too short and the
+              // scaled one overflows its row (money in Arabic on a phone).
+              softWrap: false,
               textDirection: _arabic.hasMatch(value) ? null : TextDirection.ltr,
               style: DashType.statFigure(18).copyWith(color: c.textPrimary),
             ),

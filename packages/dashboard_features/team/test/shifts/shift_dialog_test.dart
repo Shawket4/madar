@@ -651,13 +651,10 @@ void main() {
     await h.shot('shifts/new-dialog');
   });
 
-  testWidgets('phone: the dialog is a full-screen sheet', (tester) async {
+  testWidgets('phone: the dialog is a centred card', (tester) async {
     final h = await pumpShifts(tester, size: DashSize.phone);
     await h.tap(inPage(find.byKey(const ValueKey('shifts-new'))));
-    expect(
-      tester.widget<DashSurfaceScope>(find.byType(DashSurfaceScope).last).mode,
-      DashSurfaceMode.fullScreen,
-    );
+    expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
     await h.shot('shifts/new-dialog');
   });
 }

@@ -42,7 +42,6 @@ Future<void> showLastTillWarning(
   LastTillWarning warning,
 ) => showDashDialog<void>(
   context,
-  phoneFullScreen: false,
   builder: (_) => LastTillWarningDialog(warning: warning),
 );
 

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
-import 'l10n.dart';
 import 'press.dart';
 import 'tokens.dart';
 
@@ -27,6 +26,21 @@ class DashPopoverController extends ChangeNotifier {
   }
 
   void toggle() => _open ? close() : open();
+}
+
+/// The theme a popover's card is drawn in when its trigger sits on a surface
+/// of another theme: the shell's dark header opens cards in the page's
+/// colours, as the web's header dropdowns are.
+class DashPopoverTheme extends InheritedWidget {
+  const DashPopoverTheme({required this.data, required super.child, super.key});
+
+  final ThemeData data;
+
+  static ThemeData? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DashPopoverTheme>()?.data;
+
+  @override
+  bool updateShouldNotify(DashPopoverTheme old) => old.data != data;
 }
 
 /// Which edge of the trigger a popover lines up with ([center]: its middle,
@@ -158,7 +172,12 @@ class _DashPopoverState extends State<DashPopover> {
         ? host.localToGlobal(Offset.zero) & host.size
         : Offset.zero & screen;
     final top = math.max(area.top, pad.top);
-    final bottom = math.min(area.bottom, screen.height - pad.bottom);
+    // Above the keyboard: a phone's searchable list opens over it, not under.
+    final bottom = math.min(
+      area.bottom,
+      screen.height -
+          math.max(pad.bottom, MediaQuery.viewInsetsOf(context).bottom),
+    );
 
     // The room under and over the trigger. The card opens below when it
     // fits there, above when it fits there instead, and otherwise on the
@@ -183,41 +202,49 @@ class _DashPopoverState extends State<DashPopover> {
     );
     final dx = left - anchor.left;
 
-    final colors = context.madarColors;
-    final card = Material(
-      type: MaterialType.transparency,
-      child: Container(
-        width: width,
-        constraints: BoxConstraints(maxHeight: maxH),
-        decoration: BoxDecoration(
-          color: colors.card,
-          borderRadius: BorderRadius.circular(Radii.control),
-          border: Border.all(color: colors.hairline),
-          boxShadow: DashShadows.popover(context),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Shortcuts(
-          shortcuts: const {
-            SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
-          },
-          child: Actions(
-            actions: {
-              DismissIntent: CallbackAction<DismissIntent>(
-                onInvoke: (_) {
-                  _c.close();
-                  return null;
+    // A trigger on another surface (the shell's dark header) still opens a
+    // card in the page's colours, as the web's dropdowns are.
+    final paper = DashPopoverTheme.maybeOf(this.context);
+    Widget card = Builder(
+      builder: (context) {
+        final colors = context.madarColors;
+        return Material(
+          type: MaterialType.transparency,
+          child: Container(
+            width: width,
+            constraints: BoxConstraints(maxHeight: maxH),
+            decoration: BoxDecoration(
+              color: colors.card,
+              borderRadius: BorderRadius.circular(Radii.control),
+              border: Border.all(color: colors.hairline),
+              boxShadow: DashShadows.popover(context),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Shortcuts(
+              shortcuts: const {
+                SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+              },
+              child: Actions(
+                actions: {
+                  DismissIntent: CallbackAction<DismissIntent>(
+                    onInvoke: (_) {
+                      _c.close();
+                      return null;
+                    },
+                  ),
                 },
+                child: FocusScope(
+                  node: _scope,
+                  autofocus: widget.autofocusContent,
+                  child: widget.content(context, _c),
+                ),
               ),
-            },
-            child: FocusScope(
-              node: _scope,
-              autofocus: widget.autofocusContent,
-              child: widget.content(context, _c),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
+    if (paper != null) card = Theme(data: paper, child: card);
 
     return Stack(
       children: [
@@ -495,78 +522,4 @@ class _MenuListState extends State<_MenuList> {
       ),
     );
   }
-}
-
-/// Opens a picker as a bottom sheet — the phone's answer to a dropdown.
-Future<T?> showDashPickerSheet<T>(
-  BuildContext context, {
-  required String title,
-  required Widget Function(BuildContext context) builder,
-  bool fullHeight = false,
-}) {
-  final colors = context.madarColors;
-  return showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    useSafeArea: true,
-    backgroundColor: colors.card,
-    barrierColor: colors.scrim,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
-    ),
-    builder: (context) {
-      final h = MediaQuery.sizeOf(context).height;
-      return ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: fullHeight ? h : h * 0.75),
-        child: SizedBox(
-          height: fullHeight ? h : null,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsetsDirectional.fromSTEB(
-                  Space.card,
-                  Space.lg,
-                  Space.sm,
-                  Space.sm,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: DashType.sectionTitle.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    DashPressable(
-                      semanticLabel: context.dashStrings.close,
-                      excludeChildSemantics: true,
-                      onTap: () => Navigator.of(context).maybePop(),
-                      builder: (context, s) => SizedBox.square(
-                        dimension: DashMetrics.target,
-                        child: Center(
-                          child: DashIcon(
-                            'x',
-                            size: IconSize.md,
-                            color: colors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(
-                fit: fullHeight ? FlexFit.tight : FlexFit.loose,
-                child: builder(context),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
 }

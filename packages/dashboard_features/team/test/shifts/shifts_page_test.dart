@@ -471,9 +471,6 @@ void main() {
     expect(inRow(oldNight, find.text('Inactive')), findsOneWidget);
     expect(inRow(oldNight, find.bySemanticsLabel('Edit')), findsOneWidget);
     await h.tap(inRow(brunch, find.bySemanticsLabel('Edit')));
-    expect(
-      tester.widget<DashSurfaceScope>(find.byType(DashSurfaceScope).last).mode,
-      DashSurfaceMode.fullScreen,
-    );
+    expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
   });
 }

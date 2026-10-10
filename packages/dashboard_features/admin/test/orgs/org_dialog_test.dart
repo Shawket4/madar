@@ -498,7 +498,9 @@ void main() {
     expect(h.location.queryParameters.containsKey('edit'), isFalse);
   });
 
-  testWidgets('ADM-ORG-056 a phone: full screen, closed by ✕', (tester) async {
+  testWidgets('ADM-ORG-056 a phone: a centred card, closed by its ✕', (
+    tester,
+  ) async {
     final h = await _open(
       tester,
       AdminSeed.layaliOrg,
@@ -506,7 +508,17 @@ void main() {
       locale: 'ar',
     );
     expect(find.text(h.t('orgs.editTitle')), findsOneWidget);
-    await h.tapLabel(h.t('common.close'));
+    expectPhoneDialog(
+      tester,
+      primary: h.t('common.save'),
+      secondary: h.t('common.cancel'),
+    );
+    await h.tap(
+      find.descendant(
+        of: dashSurfaceCard,
+        matching: find.bySemanticsLabel(h.t('common.close')),
+      ),
+    );
     expect(find.text(h.t('orgs.editTitle')), findsNothing);
     expect(h.location.queryParameters.containsKey('edit'), isFalse);
   });

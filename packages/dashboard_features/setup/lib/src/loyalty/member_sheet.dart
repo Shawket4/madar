@@ -347,7 +347,6 @@ class MemberSection extends ConsumerWidget {
                   onPressed: () async {
                     final left = await showDashDialog<bool>(
                       context,
-                      phoneFullScreen: false,
                       barrierDismissible: false,
                       builder: (_) => LeaveProgrammeDialog(member: m),
                     );

@@ -3,6 +3,7 @@
 import 'package:dashboard_admin/src/branches/branch_dialog.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -83,6 +84,20 @@ void main() {
     expect(_dialogText('Edit Branch'), findsOneWidget);
     await _kind(h, 'Warehouse');
     expect(_dialogText('Edit warehouse'), findsOneWidget);
+  });
+
+  testWidgets('ADM-BRA-020 phone: a centred card, its field pairs in one '
+      'column', (tester) async {
+    await pumpBranches(
+      tester,
+      path: '$branchesPath?edit=${SeedIds.zamalek}',
+      size: DashSize.phone,
+    );
+    expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
+    expect(
+      tester.getTopLeft(field('branch-timezone')).dy,
+      greaterThan(tester.getTopLeft(field('branch-phone')).dy),
+    );
   });
 
   testWidgets('ADM-BRA-021 the name is required; "Warehouse name" for a '

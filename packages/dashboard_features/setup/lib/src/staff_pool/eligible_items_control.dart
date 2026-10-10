@@ -71,17 +71,6 @@ class _EligibleItemsControlState extends ConsumerState<EligibleItemsControl> {
     if (org != null) ref.warm(staffPoolMenuProvider(org));
   }
 
-  Future<void> _openSheet(Translator t) => showDashPickerSheet<void>(
-    context,
-    title: t('staffPool.items'),
-    fullHeight: true,
-    builder: (_) => _PickerBody(
-      orgId: widget.orgId,
-      value: widget.value,
-      onChanged: widget.onChanged,
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
@@ -108,26 +97,19 @@ class _EligibleItemsControlState extends ConsumerState<EligibleItemsControl> {
       onTap: onTap,
       onIntent: _warm,
     );
-    final phone = DashBreakpoints.isPhone(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       spacing: Space.sm,
       children: [
-        if (phone)
-          trigger(() => _openSheet(t))
-        else
-          DashPopover(
-            controller: _popover,
-            width: _popoverWidth,
-            maxHeight: _popoverMaxHeight,
-            anchor: (context, c) => trigger(c.toggle),
-            content: (context, c) => _PickerBody(
-              orgId: org,
-              value: ids,
-              onChanged: widget.onChanged,
-            ),
-          ),
+        DashPopover(
+          controller: _popover,
+          width: _popoverWidth,
+          maxHeight: _popoverMaxHeight,
+          anchor: (context, c) => trigger(c.toggle),
+          content: (context, c) =>
+              _PickerBody(orgId: org, value: ids, onChanged: widget.onChanged),
+        ),
         if (ids.isNotEmpty)
           Wrap(
             key: const ValueKey('spl-chips'),

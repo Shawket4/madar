@@ -351,7 +351,9 @@ void main() {
       },
     );
 
-    testWidgets('a phone select opens a sheet', (tester) async {
+    testWidgets('a phone select opens its list in a card under it', (
+      tester,
+    ) async {
       String? v;
       await pumpDashApp(
         tester,
@@ -372,8 +374,17 @@ void main() {
       );
       await tester.tap(find.text('Select…'));
       await tester.pumpAndSettle();
-      expect(find.byType(BottomSheet), findsOneWidget);
-      await tester.tap(find.text('Open'));
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(dashPopoverCard, findsOneWidget);
+      final option = find.descendant(
+        of: dashPopoverCard,
+        matching: find.text('Open'),
+      );
+      expect(
+        tester.getRect(option).top,
+        greaterThan(tester.getRect(find.text('Select…')).bottom),
+      );
+      await tester.tap(option);
       await tester.pumpAndSettle();
       expect(v, 'open');
     });

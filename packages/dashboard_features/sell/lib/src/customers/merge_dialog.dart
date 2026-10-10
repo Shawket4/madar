@@ -210,21 +210,6 @@ class _MergePickerState extends State<_MergePicker> {
       semanticLabel: t('customers.mergeWith'),
       onTap: onTap,
     );
-    if (DashBreakpoints.isPhone(context)) {
-      return trigger(() async {
-        final p = await showDashPickerSheet<Customer>(
-          context,
-          title: t('customers.mergeWith'),
-          fullHeight: true,
-          builder: (sheet) => MergeOptions(
-            exclude: widget.exclude,
-            picked: picked,
-            onPick: (c) => Navigator.of(sheet).pop(c),
-          ),
-        );
-        if (p != null) widget.onPick(p);
-      });
-    }
     return DashPopover(
       controller: _popover,
       matchAnchorWidth: true,

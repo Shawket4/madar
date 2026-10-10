@@ -91,7 +91,7 @@ void main() {
     expect(byKey('setup-no-people'), findsOneWidget);
   });
 
-  testWidgets('TEAM-SET-036 phone: the dialog is a full-screen sheet', (
+  testWidgets('TEAM-SET-036 phone: the dialog is a centred card', (
     tester,
   ) async {
     final h = await pumpSetup(
@@ -102,8 +102,11 @@ void main() {
     );
     await h.tapKey(const ValueKey('setup-add-employee'));
     expect(find.byType(AddEmployeeDialog), findsOneWidget);
-    final box = tester.getSize(find.byType(AddEmployeeDialog));
-    expect(box.width, closeTo(DashSize.phone.size.width, 1));
+    expectPhoneDialog(
+      tester,
+      primary: h.t('dawam.addEmployee'),
+      secondary: h.t('common.cancel'),
+    );
     await h.shot('add-employee');
   });
 

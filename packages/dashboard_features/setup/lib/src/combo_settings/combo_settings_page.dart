@@ -376,7 +376,6 @@ class _ComboSettingsBodyState extends ConsumerState<ComboSettingsBody> {
           'combos.settings.branchChannel',
           args: {'branch': b.name, 'channel': label},
         ),
-        sheetTitle: '${b.name} · $label',
         minWidth: _cellMin,
         enabled: canEdit && _savingBranch != b.id,
         onChanged: (v) => _setBranch(settings, b.id, ch, v),

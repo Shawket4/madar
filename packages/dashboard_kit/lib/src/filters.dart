@@ -131,7 +131,6 @@ class DashFilterSelect<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     return DashSelect<_All<T>>(
       semanticLabel: label,
-      sheetTitle: label,
       searchable: searchable,
       minWidth: minWidth,
       expand: false,

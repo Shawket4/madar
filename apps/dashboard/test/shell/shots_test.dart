@@ -69,8 +69,12 @@ void main() {
       await h.settle();
       if (phone) {
         await h.tap(labelled(t('common.filters')));
+        // The scope controls drop from the button in a card, as on the web.
+        expect(dashPopoverCard, findsOneWidget);
         await h.shot('open/filters');
-        await h.tap(labelled(t('common.close')).last);
+        await tester.tapAt(const Offset(5, 800));
+        await h.settle();
+        expect(dashPopoverCard, findsNothing);
         await h.tap(labelled(t('common.more')).last);
         await h.settle(rounds: 12);
         await h.shot('open/drawer');

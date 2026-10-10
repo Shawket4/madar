@@ -242,7 +242,7 @@ void main() {
     expect(h.server.callsTo(catalogRoute), hasLength(1));
   });
 
-  testWidgets('INV-CNT-057 phone: the dialog is full screen and starts a '
+  testWidgets('INV-CNT-057 phone: the dialog is a centred card and starts a '
       'count', (tester) async {
     final h = await pumpCounts(
       tester,
@@ -251,7 +251,11 @@ void main() {
     );
     await h.tap(inPage(byKey('counts-start')));
     expect(scopeDialog, findsOneWidget);
-    expect(tester.getSize(scopeDialog).width, closeTo(390, 1));
+    expectPhoneDialog(
+      tester,
+      primary: h.t('inventory.stocktakes.startCount'),
+      secondary: h.t('common.cancel'),
+    );
     await _scope(h, 'One category');
     await pick(h, inScope(byKey('count-scope-category')), 'Bakery (2)');
     await h.tap(_start);

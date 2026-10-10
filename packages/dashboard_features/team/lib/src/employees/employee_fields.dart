@@ -384,7 +384,6 @@ class EmployeeDateField extends StatelessWidget {
           final r = await showDashDialog<(DateTime?,)>(
             context,
             width: DashMetrics.sidePanel - Space.xxl * 3,
-            phoneFullScreen: false,
             builder: (_) => _MonthCard(
               title: label,
               selected: picked,
@@ -448,7 +447,6 @@ class _MonthCardState extends ConsumerState<_MonthCard> {
               DashSelect<int>(
                 expand: false,
                 semanticLabel: year,
-                sheetTitle: year,
                 value: _month.year,
                 options: [
                   for (var y = last; y >= first; y--)

@@ -7,7 +7,15 @@
 library;
 
 export 'package:dashboard_kit/testing.dart'
-    show DashSize, captureShot, dashShotsDir, loadDashFonts;
+    show
+        DashSize,
+        captureShot,
+        dashPopoverCard,
+        dashShotsDir,
+        dashSurfaceCard,
+        expectPhoneDialog,
+        expectPhonePanel,
+        loadDashFonts;
 
 export 'src/testing/harness.dart';
 export 'src/testing/vectors.dart';

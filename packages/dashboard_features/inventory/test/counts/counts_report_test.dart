@@ -227,11 +227,10 @@ void main() {
     );
   });
 
-  testWidgets('INV-CNT-049 phone: full screen, the table scrolls sideways', (
-    tester,
-  ) async {
+  testWidgets('INV-CNT-049 phone: a centred card, the table scrolls '
+      'sideways', (tester) async {
     await _open(tester, zamalekFull, size: DashSize.phone);
-    expect(tester.getSize(report).width, closeTo(390, 1));
+    expectPhoneDialog(tester);
     expect(
       find.descendant(
         of: inReport(byKey('variance-table')),

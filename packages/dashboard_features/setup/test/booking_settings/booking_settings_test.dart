@@ -538,17 +538,16 @@ void main() {
       expect(inRules(find.byType(Scrollable)), findsWidgets);
     });
 
-    testWidgets('SET-BKG-018 phone: full width, one column', (tester) async {
+    testWidgets('SET-BKG-018 phone: a centred card, one column', (
+      tester,
+    ) async {
       final p = await pumpBookingRules(tester, size: DashSize.phone);
       await openRules(p, 'Heliopolis');
       expect(
         tester.getTopLeft(rulesKey('bkg-min_party')).dy,
         lessThan(tester.getTopLeft(rulesKey('bkg-max_party')).dy),
       );
-      expect(
-        tester.getSize(find.byType(BookingRulesDialog)).width,
-        greaterThan(380),
-      );
+      expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
     });
 
     testWidgets('SET-BKG-019 (refusal) a read the server refuses is '

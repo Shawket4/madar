@@ -69,9 +69,11 @@ void main() {
     );
   });
 
-  testWidgets('SELL-TIL-045 phone: the report full screen', (tester) async {
+  testWidgets('SELL-TIL-045 phone: the report slides in from the end side', (
+    tester,
+  ) async {
     await _report(tester, TillIds.helioMorning, size: DashSize.phone);
-    expect(tester.getSize(find.byType(DashSurface).last).width, 390);
+    expectPhonePanel(tester);
   });
 
   testWidgets('SELL-TIL-046 report loading: four skeletons, "Loading…"', (

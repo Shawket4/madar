@@ -5,6 +5,7 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_catalog_offers/src/area_seed.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show DashSidebar;
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -574,7 +575,7 @@ void main() {
 
     testWidgets('OFFR-DEA-021 phone: a card per deal, titled by the name, '
         'Rule / Counts / When / Status as label and value; a tap opens it '
-        'full screen', (tester) async {
+        'in a centred card', (tester) async {
       final h = await pumpDeals(tester, size: DashSize.phone);
       expect(inPage(find.text('Columns')), findsNothing);
       final card = rowOf('Second iced latte half price');
@@ -598,10 +599,7 @@ void main() {
       );
       await h.tap(card);
       expect(dialog, findsOneWidget);
-      expect(
-        tester.getSize(dialog).width,
-        tester.view.physicalSize.width / tester.view.devicePixelRatio,
-      );
+      expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
     });
 
     testWidgets('OFFR-DEA-022 ?edit=<id> opens that deal once the list has '

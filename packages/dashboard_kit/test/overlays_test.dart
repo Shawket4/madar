@@ -1,5 +1,6 @@
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_kit/testing.dart';
+import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -121,22 +122,32 @@ void main() {
     });
 
     testWidgets(
-      'on a phone the same dialog is a full-screen page with stacked actions',
+      'on a phone the same dialog is a centred card: title centred, ✕ at the '
+      'end, actions stacked',
       (tester) async {
-        await pumpDashApp(
-          tester,
-          _opener((c) => showDashDialog<void>(c, builder: surface)),
-          size: DashSize.phone,
-        );
-        await tester.tap(find.text('Open'));
-        await tester.pumpAndSettle();
-        expect(
-          tester.widget<DashSurfaceScope>(find.byType(DashSurfaceScope)).mode,
-          DashSurfaceMode.fullScreen,
-        );
-        final save = tester.getRect(find.text('Save'));
-        final cancel = tester.getRect(find.text('Cancel'));
-        expect(save.top, lessThan(cancel.top));
+        for (final lang in ['en', 'ar']) {
+          await tester.pumpWidget(const SizedBox());
+          await pumpDashApp(
+            tester,
+            _opener((c) => showDashDialog<void>(c, builder: surface)),
+            size: DashSize.phone,
+            lang: lang,
+          );
+          await tester.tap(find.text('Open'));
+          await tester.pumpAndSettle();
+          expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
+          final card = tester.getRect(dashSurfaceCard);
+          for (final text in ['Edit Flat White', 'Changes reach every till.']) {
+            expect(
+              tester.widget<Text>(find.text(text)).textAlign,
+              TextAlign.center,
+            );
+          }
+          expect(
+            tester.getCenter(find.text('Edit Flat White')).dx,
+            moreOrLessEquals(card.center.dx, epsilon: Space.xl),
+          );
+        }
       },
     );
 
@@ -172,7 +183,7 @@ void main() {
       );
     });
 
-    testWidgets('a sheet is full screen on a phone', (tester) async {
+    testWidgets('a sheet is the same centred card on a phone', (tester) async {
       await pumpDashApp(
         tester,
         _opener((c) => showDashSheet<void>(c, builder: surface)),
@@ -180,9 +191,40 @@ void main() {
       );
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
+      expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
+    });
+
+    testWidgets('a side panel on a phone slides in from the end side', (
+      tester,
+    ) async {
+      for (final lang in ['en', 'ar']) {
+        await tester.pumpWidget(const SizedBox());
+        await pumpDashApp(
+          tester,
+          _opener((c) => showDashSidePanel<void>(c, builder: surface)),
+          size: DashSize.phone,
+          lang: lang,
+        );
+        await tester.tap(find.text('Open'));
+        await tester.pumpAndSettle();
+        expectPhonePanel(tester);
+      }
+    });
+
+    testWidgets('a phone dialog rises over the keyboard', (tester) async {
+      await pumpDashApp(
+        tester,
+        _opener((c) => showDashDialog<void>(c, builder: surface)),
+        size: DashSize.phone,
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300 * 2);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pumpAndSettle();
       expect(
-        tester.widget<DashSurfaceScope>(find.byType(DashSurfaceScope)).mode,
-        DashSurfaceMode.fullScreen,
+        tester.getRect(dashSurfaceCard).bottom,
+        lessThanOrEqualTo(DashSize.phone.size.height - 300),
       );
     });
   });

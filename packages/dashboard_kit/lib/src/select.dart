@@ -430,8 +430,8 @@ class _OptionRow<T> extends StatelessWidget {
   }
 }
 
-/// A single select (the web's `Select`): a trigger, a list under it on a
-/// wide screen, a sheet on a phone. [searchable] makes it the web's
+/// A single select (the web's `Select`): a trigger and a list under it, on
+/// a phone too, as the web shows it there. [searchable] makes it the web's
 /// `Combobox`.
 class DashSelect<T> extends StatefulWidget {
   const DashSelect({
@@ -448,7 +448,6 @@ class DashSelect<T> extends StatefulWidget {
     this.width,
     this.minWidth,
     this.leadingIcon,
-    this.sheetTitle,
     this.active = false,
     this.expand = true,
     this.onOptionIntent,
@@ -480,9 +479,6 @@ class DashSelect<T> extends StatefulWidget {
   final double? minWidth;
   final String? leadingIcon;
 
-  /// The phone sheet's title; defaults to [semanticLabel] / [placeholder].
-  final String? sheetTitle;
-
   /// A filter that is narrowing the list.
   final bool active;
 
@@ -506,39 +502,10 @@ class _DashSelectState<T> extends State<DashSelect<T>> {
     return null;
   }
 
-  Future<void> _openSheet(BuildContext context) async {
-    final t = context.dashStrings;
-    final picked = await showDashPickerSheet<DashOption<T>>(
-      context,
-      title:
-          widget.sheetTitle ??
-          widget.semanticLabel ??
-          widget.placeholder ??
-          t.select,
-      fullHeight: widget.searchable,
-      builder: (sheet) => DashOptionList<T>(
-        options: widget.options,
-        isSelected: (v) => v == widget.value,
-        searchable: widget.searchable,
-        searchPlaceholder: widget.searchPlaceholder,
-        emptyText: widget.emptyText,
-        shrinkWrap: !widget.searchable,
-        onIntent: widget.onOptionIntent,
-        onPick: (v) => Navigator.of(
-          sheet,
-        ).pop(widget.options.firstWhere((o) => o.value == v)),
-      ),
-    );
-    if (picked != null && picked.value != widget.value) {
-      widget.onChanged(picked.value);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = context.dashStrings;
     final sel = _selected;
-    final phone = DashBreakpoints.isPhone(context);
     Widget trigger(VoidCallback onTap) => DashSelectTrigger(
       label: sel?.label ?? widget.placeholder ?? t.select,
       placeholder: sel == null,
@@ -553,7 +520,6 @@ class _DashSelectState<T> extends State<DashSelect<T>> {
       expand: widget.expand,
       chevron: widget.searchable ? 'chevrons-up-down' : 'chevron-down',
     );
-    if (phone) return trigger(() => _openSheet(context));
     return DashPopover(
       controller: _popover,
       matchAnchorWidth: true,
@@ -660,8 +626,6 @@ class _DashMultiSelectState<T> extends State<DashMultiSelect<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final phone = DashBreakpoints.isPhone(context);
-    final t = context.dashStrings;
     Widget trigger(VoidCallback onTap) => DashSelectTrigger(
       label: _summary(context),
       placeholder: widget.values.isEmpty,
@@ -675,17 +639,6 @@ class _DashMultiSelectState<T> extends State<DashMultiSelect<T>> {
       chevron: 'chevrons-up-down',
       expand: widget.expand,
     );
-    if (phone) {
-      return trigger(
-        () => showDashPickerSheet<void>(
-          context,
-          title: widget.semanticLabel ?? widget.placeholder ?? t.select,
-          fullHeight: widget.searchable,
-          builder: (sheet) =>
-              StatefulBuilder(builder: (context, inner) => _list(inner)),
-        ),
-      );
-    }
     return DashPopover(
       matchAnchorWidth: true,
       anchor: (context, c) => trigger(c.toggle),

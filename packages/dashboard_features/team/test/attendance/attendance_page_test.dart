@@ -640,12 +640,8 @@ void main() {
       greaterThan(tester.getTopLeft(pageText('This week')).dy),
     );
     await h.tap(inPage(find.bySemanticsLabel('Correct')).first);
-    expect(
-      DashSurfaceScope.maybeOf(
-        tester.element(find.byType(AttendanceCorrectDialog)),
-      ),
-      DashSurfaceMode.fullScreen,
-    );
+    expect(find.byType(AttendanceCorrectDialog), findsOneWidget);
+    expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
   });
 
   // ── area-wide rows on this page ─────────────────────────────────────────

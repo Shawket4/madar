@@ -20,7 +20,6 @@ Future<bool> showLeaveProgrammeDialog(
 }) async {
   final left = await showDashDialog<bool>(
     context,
-    phoneFullScreen: false,
     barrierDismissible: false,
     builder: (context) => LeaveProgrammeDialog(member: member),
   );

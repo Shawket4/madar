@@ -421,7 +421,7 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('TEAM-SCH-050 (phone) the day editor is a full-screen sheet in '
+  testWidgets('TEAM-SCH-050 (phone) the day editor is a centred card in '
       'Arabic', (tester) async {
     final h = await openDay(
       tester,
@@ -431,7 +431,7 @@ void main() {
       locale: 'ar',
     );
     expect(surfaceText(h.t('dawam.dayEditorWarn')), findsOneWidget);
-    expect(tester.getSize(surface()).width, greaterThan(360));
+    expectPhoneDialog(tester);
   });
 
   // ── coverage needs ───────────────────────────────────────────────────

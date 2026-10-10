@@ -22,7 +22,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'src/buttons.dart';
 import 'src/foundation/l10n.dart';
+import 'src/foundation/popover.dart';
+import 'src/overlays.dart';
 
 bool _fontsLoaded = false;
 
@@ -209,4 +212,96 @@ Future<void> pumpDashApp(
     ),
   );
   await tester.pump();
+}
+
+/// The box the open [DashSurface] is drawn in: a dialog's card, a side
+/// panel.
+Finder get dashSurfaceCard => find
+    .ancestor(
+      of: find.byType(DashSurfaceScope).last,
+      matching: find.byType(Container),
+    )
+    .first;
+
+/// The open [DashPopover] cards (the web's dropdowns); none while closed.
+Finder get dashPopoverCard => find.descendant(
+  of: find.byType(DashPopover),
+  matching: find.byType(CompositedTransformFollower),
+);
+
+/// Checks the open [DashSurface] is a phone's dialog, the web's way there: a
+/// card in [DashSurfaceMode.dialog] 16 px in from the window's sides, centred
+/// down it, its ✕ at the header's end. Given the [primary] and [secondary]
+/// footer buttons' labels, checks they stack full width, [primary] on top.
+void expectPhoneDialog(
+  WidgetTester tester, {
+  String? primary,
+  String? secondary,
+}) {
+  final scope = find.byType(DashSurfaceScope).last;
+  expect(tester.widget<DashSurfaceScope>(scope).mode, DashSurfaceMode.dialog);
+  final window = tester.view.physicalSize / tester.view.devicePixelRatio;
+  final card = tester.getRect(dashSurfaceCard);
+  expect(card.left, moreOrLessEquals(Space.lg), reason: '16 px from the side');
+  expect(card.right, moreOrLessEquals(window.width - Space.lg));
+  expect(card.center.dy, moreOrLessEquals(window.height / 2, epsilon: 1));
+
+  _expectCloseAtEnd(tester, card);
+
+  if (primary == null || secondary == null) return;
+  Rect button(String label) => tester.getRect(
+    find.descendant(
+      of: dashSurfaceCard,
+      matching: find.widgetWithText(DashButton, label),
+    ),
+  );
+  final p = button(primary);
+  final s = button(secondary);
+  expect(p.bottom, lessThanOrEqualTo(s.top), reason: 'stacked, main on top');
+  expect(p.left, moreOrLessEquals(s.left));
+  expect(p.width, moreOrLessEquals(s.width));
+  expect(p.width, greaterThan(card.width * 0.8), reason: 'full width');
+}
+
+/// Checks the open [DashSurface] is a phone's side panel, the web's way
+/// there: in [DashSurfaceMode.panel], 90 % of the window wide, against its
+/// end side (the left in Arabic), its ✕ at the header's end.
+void expectPhonePanel(WidgetTester tester) {
+  final scope = find.byType(DashSurfaceScope).last;
+  expect(tester.widget<DashSurfaceScope>(scope).mode, DashSurfaceMode.panel);
+  final window = tester.view.physicalSize / tester.view.devicePixelRatio;
+  final panel = tester.getRect(dashSurfaceCard);
+  expect(panel.width, moreOrLessEquals(window.width * 0.9));
+  if (Directionality.of(tester.element(scope)) == TextDirection.rtl) {
+    expect(panel.left, moreOrLessEquals(0));
+  } else {
+    expect(panel.right, moreOrLessEquals(window.width));
+  }
+  _expectCloseAtEnd(tester, panel);
+}
+
+/// The surface's first ✕ sits in its header, at the end side.
+void _expectCloseAtEnd(WidgetTester tester, Rect card) {
+  final scope = find.byType(DashSurfaceScope).last;
+  final rtl = Directionality.of(tester.element(scope)) == TextDirection.rtl;
+  final x = tester.getRect(
+    find
+        .descendant(
+          of: dashSurfaceCard,
+          matching: find.byWidgetPredicate(
+            (w) => w is DashIconButton && w.icon == 'x',
+          ),
+        )
+        .first,
+  );
+  expect(
+    rtl ? x.left - card.left : card.right - x.right,
+    lessThan(Space.lg),
+    reason: 'the ✕ at the header\'s end',
+  );
+  expect(
+    x.top - card.top,
+    lessThan(Space.xxl * 2),
+    reason: 'the ✕ in the header',
+  );
 }

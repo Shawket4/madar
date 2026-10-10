@@ -26,7 +26,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 const double headerHeight = Metrics.buttonHeight;
 
 /// The controls on the chrome wear the dark palette in both themes.
-Widget onChrome(Widget child) => Theme(data: MadarTheme.dark(), child: child);
+/// The chrome's dark theme over [child]; a card one of its buttons opens is
+/// drawn in [paper], the page's theme (the web's header dropdowns are).
+Widget onChrome(Widget child, {ThemeData? paper}) {
+  final dark = Theme(data: MadarTheme.dark(), child: child);
+  return paper == null ? dark : DashPopoverTheme(data: paper, child: dark);
+}
 
 /// The wide header.
 class DashHeader extends ConsumerWidget {
@@ -47,6 +52,7 @@ class DashHeader extends ConsumerWidget {
       ),
       padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.md),
       child: onChrome(
+        paper: Theme.of(paperContext),
         LayoutBuilder(
           builder: (context, box) => Row(
             spacing: Space.sm,
@@ -115,6 +121,7 @@ class DashPhoneBar extends ConsumerWidget {
             end: Space.xs,
           ),
           child: onChrome(
+            paper: Theme.of(paperContext),
             Row(
               children: [
                 const MadarSymbol(size: Space.xxl - Space.xs, reversed: true),
@@ -126,22 +133,20 @@ class DashPhoneBar extends ConsumerWidget {
                   onPressed: () => showDashCommandPalette(paperContext),
                 ),
                 const Spacer(),
-                DashIconButton(
-                  icon: 'sliders-horizontal',
-                  semanticLabel: t('common.filters', defaultValue: 'Filters'),
-                  color: c.onChromeMuted,
-                  onPressed: () => showDashPickerSheet<void>(
-                    paperContext,
-                    title: t('common.filters', defaultValue: 'Filters'),
-                    builder: (context) => const SingleChildScrollView(
-                      padding: EdgeInsets.fromLTRB(
-                        Space.card,
-                        Space.xs,
-                        Space.card,
-                        Space.xl,
-                      ),
-                      child: DashScopeControls(vertical: true),
-                    ),
+                // The web's phone header: the scope controls in a card that
+                // drops from the button (a popover, not a sheet).
+                DashPopover(
+                  align: DashPopoverAlign.end,
+                  maxHeight: 360,
+                  anchor: (context, ctl) => DashIconButton(
+                    icon: 'sliders-horizontal',
+                    semanticLabel: t('common.filters', defaultValue: 'Filters'),
+                    color: c.onChromeMuted,
+                    onPressed: ctl.toggle,
+                  ),
+                  content: (context, ctl) => const SingleChildScrollView(
+                    padding: EdgeInsets.all(Space.card),
+                    child: DashScopeControls(vertical: true),
                   ),
                 ),
                 const ThemeMenu(),
@@ -267,12 +272,8 @@ class _Stretch extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => _VerticalScope(
-    vertical: vertical,
-    child: vertical
-        ? Align(alignment: AlignmentDirectional.centerStart, child: child)
-        : child,
-  );
+  Widget build(BuildContext context) =>
+      _VerticalScope(vertical: vertical, child: child);
 }
 
 class _VerticalScope extends InheritedWidget {
@@ -319,7 +320,6 @@ class DashOrgPicker extends ConsumerWidget {
       minWidth: DashMetrics.menu - Space.xxl - Space.xxl,
       placeholder: t('scope.pickOrg', defaultValue: 'Select a shop'),
       semanticLabel: t('scope.pickOrg', defaultValue: 'Select a shop'),
-      sheetTitle: t('scope.pickOrg', defaultValue: 'Select a shop'),
       searchPlaceholder: t('scope.searchOrgs', defaultValue: 'Search shops…'),
       emptyText: t('scope.noOrgs', defaultValue: 'No shops found'),
       enabled: !q.isLoading,
@@ -408,7 +408,6 @@ class DashBranchPicker extends ConsumerWidget {
       expand: vertical,
       minWidth: DashMetrics.menu / 2 + Space.xxl,
       semanticLabel: label,
-      sheetTitle: label,
       onChanged: (v) => ref
           .read(scopeProvider.notifier)
           .setBranch(v == _allBranches ? null : v),
@@ -431,6 +430,7 @@ class DashPeriodPicker extends ConsumerWidget {
     }
 
     return DashDateRangePicker(
+      expand: _VerticalScope.of(context),
       preset: scope.preset.wire,
       presets: [
         for (final p in scopePresets)
