@@ -259,6 +259,8 @@ class _AttendanceTab extends ConsumerWidget {
     final q = ref.watch(read);
     final rows = q.value ?? const <AttendanceSummary>[];
     final loading = q.awaitingFirst;
+    // Failed with nothing to show: the cards read "—", never a reassuring 0.
+    final failed = q.failedFirst;
     String h(int m) => fmtHours(lang, m);
     final cols = <ReportCol<AttendanceSummary>>[
       ReportCol('name', t('staff.name'), (r) => r.employeeName),
@@ -309,25 +311,27 @@ class _AttendanceTab extends ConsumerWidget {
           children: [
             DashStatCard(
               label: t('dawam.people'),
-              value: rows.length,
+              value: failed ? null : rows.length,
               format: DashStatFormat.number,
               loading: loading,
             ),
             DashStatCard(
               label: t('dawam.stateLate'),
-              value: _sum(rows, (r) => r.lateDays),
+              value: failed ? null : _sum(rows, (r) => r.lateDays),
               format: DashStatFormat.number,
               loading: loading,
             ),
             DashStatCard(
               label: t('dawam.stateAbsent'),
-              value: _sum(rows, (r) => r.absentDays),
+              value: failed ? null : _sum(rows, (r) => r.absentDays),
               format: DashStatFormat.number,
               loading: loading,
             ),
             DashStatCard(
               label: t('dawam.overtime'),
-              valueText: h(_sum(rows, (r) => r.totalOvertimeMinutes)),
+              valueText: failed
+                  ? null
+                  : h(_sum(rows, (r) => r.totalOvertimeMinutes)),
               loading: loading,
             ),
           ],
@@ -362,6 +366,8 @@ class _LabourTab extends ConsumerWidget {
     final names = {for (final b in branches) b.id: b.name};
     final rows = q.value ?? const <LabourDay>[];
     final loading = q.awaitingFirst;
+    // Failed with nothing to show: the cards read "—", never a reassuring 0.
+    final failed = q.failedFirst;
     final cols = <ReportCol<LabourDay>>[
       ReportCol('date', t('dawam.rDate'), (r) => f.fmtDate(r.date)),
       ReportCol('branch', t('dawam.branch'), (r) => names[r.branchId] ?? '—'),
@@ -395,19 +401,19 @@ class _LabourTab extends ConsumerWidget {
           children: [
             DashStatCard(
               label: t('dawam.rSales'),
-              value: sales,
+              value: failed ? null : sales,
               format: DashStatFormat.money,
               loading: loading,
             ),
             DashStatCard(
               label: t('dawam.rLabourCost'),
-              value: labour,
+              value: failed ? null : labour,
               format: DashStatFormat.money,
               loading: loading,
             ),
             DashStatCard(
               label: t('dawam.rShare'),
-              valueText: ltr(labourShare(labour, sales)),
+              valueText: failed ? null : ltr(labourShare(labour, sales)),
               loading: loading,
             ),
           ],
@@ -441,6 +447,8 @@ class _PayrollTab extends ConsumerWidget {
     final q = ref.watch(read);
     final rows = q.value ?? const <PayrollHistoryRow>[];
     final loading = q.awaitingFirst;
+    // Failed with nothing to show: the cards read "—", never a reassuring 0.
+    final failed = q.failedFirst;
     final cols = <ReportCol<PayrollHistoryRow>>[
       ReportCol(
         'period',
@@ -498,19 +506,19 @@ class _PayrollTab extends ConsumerWidget {
           children: [
             DashStatCard(
               label: t('dawam.totalNet'),
-              value: _sum(rows, (r) => r.netPiastres),
+              value: failed ? null : _sum(rows, (r) => r.netPiastres),
               format: DashStatFormat.money,
               loading: loading,
             ),
             DashStatCard(
               label: t('dawam.overtime'),
-              value: _sum(rows, (r) => r.overtimePiastres),
+              value: failed ? null : _sum(rows, (r) => r.overtimePiastres),
               format: DashStatFormat.money,
               loading: loading,
             ),
             DashStatCard(
               label: t('dawam.deductions'),
-              value: _sum(rows, (r) => r.deductionsPiastres),
+              value: failed ? null : _sum(rows, (r) => r.deductionsPiastres),
               format: DashStatFormat.money,
               loading: loading,
             ),
@@ -545,6 +553,8 @@ class _AdvancesTab extends ConsumerWidget {
     final q = ref.watch(read);
     final data = q.value;
     final loading = q.awaitingFirst;
+    // Failed with nothing to show: the cards read "—", never a reassuring 0.
+    final failed = q.failedFirst;
     final sCols = <ReportCol<SalaryAdvanceRow>>[
       ReportCol('name', t('staff.name'), (r) => r.employeeName),
       ReportCol('given', t('dawam.rGiven'), (r) => f.fmtDate(r.givenOn)),
@@ -606,19 +616,19 @@ class _AdvancesTab extends ConsumerWidget {
           children: [
             DashStatCard(
               label: t('dawam.rSalaryGiven'),
-              value: data?.salaryGivenPiastres ?? 0,
+              value: failed ? null : data?.salaryGivenPiastres ?? 0,
               format: DashStatFormat.money,
               loading: loading,
             ),
             DashStatCard(
               label: t('dawam.rOutstanding'),
-              value: data?.salaryOutstandingPiastres ?? 0,
+              value: failed ? null : data?.salaryOutstandingPiastres ?? 0,
               format: DashStatFormat.money,
               loading: loading,
             ),
             DashStatCard(
               label: t('dawam.rExpenseGiven'),
-              value: data?.expenseGivenPiastres ?? 0,
+              value: failed ? null : data?.expenseGivenPiastres ?? 0,
               format: DashStatFormat.money,
               loading: loading,
             ),

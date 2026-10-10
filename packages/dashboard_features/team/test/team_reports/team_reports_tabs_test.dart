@@ -271,17 +271,38 @@ void main() {
     }
   });
 
-  testWidgets('TEAM-RPT-051 a failed report: the table says so, its cards '
-      'read 0 and the share "—" (as the web)', (tester) async {
+  testWidgets('TEAM-RPT-051 a failed report: the table says so and every '
+      'card on the 4 tabs reads "—", never 0 (as the web)', (tester) async {
     final s = reportsServer();
-    s.server.fail('GET', labourT, MockResponse.error(500, 'boom'), times: null);
+    for (final read in reportReads) {
+      s.server.fail('GET', read, MockResponse.error(500, 'boom'), times: null);
+    }
     final h = await pumpReports(tester, s: s);
-    await openTab(h, 'Labour vs sales');
     final f = _fmt(tester);
+    void dashes(List<String> labels) {
+      final cards = inPage(find.byType(DashStatCard));
+      expect(cards, findsNWidgets(labels.length));
+      for (final label in labels) {
+        expect(inCard(label, find.text('—')), findsOneWidget, reason: label);
+      }
+      for (final zero in ['0', '0m', f.fmtMoney(0)]) {
+        expect(
+          find.descendant(of: cards, matching: find.text(zero)),
+          findsNothing,
+        );
+      }
+    }
+
     expect(pageText(h.t('dawam.reportLoadError')), findsOneWidget);
-    expect(inCard('Sales', find.text(f.fmtMoney(0))), findsOneWidget);
-    expect(inCard('Labour share', find.text(ltr('—'))), findsOneWidget);
+    dashes(['People', 'Late', 'Absent', 'Overtime']);
+    await openTab(h, 'Labour vs sales');
+    dashes(['Sales', 'Labour cost', 'Labour share']);
     expect(pageText('CSV'), findsNothing);
+    await openTab(h, 'Overtime & payroll');
+    dashes(['Net pay', 'Overtime', 'Deductions']);
+    await openTab(h, 'Salary advances');
+    dashes(['Salary advances given', 'Still owed', 'Expense advances given']);
+    expect(pageText(h.t('dawam.reportLoadError')), findsNWidgets(2));
   });
 
   testWidgets('TEAM-RPT-042 an advances failure shows on both tables', (
