@@ -508,13 +508,22 @@ void main() {
       await h.shot('studio/preview-phone');
     });
 
-    testWidgets('MENU-STUDIO-113 raw labels: "one_size", raw group names', (
-      tester,
-    ) async {
+    testWidgets('MENU-STUDIO-113 a single-price item: no Size row, never the '
+        'raw one_size; groups keep their stored names', (tester) async {
       final h = await pumpStudio(tester, key: 'cortado', locale: 'ar');
-      expect(chip('one_size'), findsOneWidget);
+      final preview = find.byType(StudioPreviewPanel);
+      expect(
+        find.descendant(of: preview, matching: find.text('one_size')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: preview,
+          matching: find.text(h.t('modeling.preview.size')),
+        ),
+        findsNothing,
+      );
       expect(studioText('Milk'), findsWidgets);
-      expect(h.t('modeling.preview.size'), isNotEmpty);
     });
   });
 }

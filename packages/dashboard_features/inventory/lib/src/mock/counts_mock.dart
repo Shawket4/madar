@@ -247,14 +247,22 @@ void registerCountsMocks(MockServer server, MockDb db) {
     if (input is! List) req.badRequest('Json deserialize error: items');
     // One transaction: the first bad line refuses the whole save.
     final work = <(MockRow, MockRow)>[];
+    final uncount = <MockRow>[];
     for (final raw in input) {
       final line = raw as Map<String, Object?>;
       final qty = line['counted_qty'];
       final ingId = line['org_ingredient_id'];
-      if (qty is! num || ingId is! String) {
+      // Required but nullable: null un-counts the line (B2).
+      if (!line.containsKey('counted_qty') ||
+          (qty != null && qty is! num) ||
+          ingId is! String) {
         req.badRequest('Json deserialize error: counted_qty');
       }
-      if (qty < 0) req.badRequest('counted_qty cannot be negative');
+      if (qty == null) {
+        uncount.add(line);
+        continue;
+      }
+      if ((qty as num) < 0) req.badRequest('counted_qty cannot be negative');
       final reason = line['variance_reason'] as String?;
       if (reason != null && !_reasons.contains(reason)) {
         req.badRequest(
@@ -266,6 +274,21 @@ void registerCountsMocks(MockServer server, MockDb db) {
         req.badRequest("Ingredient not found in this organization's catalog");
       }
       work.add((ing, line));
+    }
+    // A line with no row was never counted: nothing to do.
+    for (final line in uncount) {
+      items
+          .firstWhere(
+            (i) =>
+                i['stocktake_id'] == st['id'] &&
+                i['org_ingredient_id'] == line['org_ingredient_id'],
+          )
+          ?.addAll({
+            'counted_qty': null,
+            'counted_by': null,
+            'variance_reason': null,
+            'note': line['note'],
+          });
     }
     for (final (ing, line) in work) {
       final set = {

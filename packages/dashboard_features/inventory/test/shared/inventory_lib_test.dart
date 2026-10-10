@@ -34,6 +34,20 @@ void main() {
       ]);
     });
 
+    test('un-counts a cleared row the server holds a figure for, and only '
+        'that row (W9, B2)', () {
+      final payload = buildCountPayload(
+        ['a', 'b', 'c'],
+        {'a': '', 'b': '', 'c': '4'},
+        {'a': 'theft'},
+        {'a', 'c'},
+      );
+      expect(payload.map((p) => p.toJson()).toList(), [
+        {'counted_qty': null, 'org_ingredient_id': 'a'},
+        {'counted_qty': 4.0, 'org_ingredient_id': 'c', 'variance_reason': null},
+      ]);
+    });
+
     test('treats a blank reason as none (sent as null)', () {
       final p = buildCountPayload(['a'], {'a': '0'}, {'a': ''}).single;
       expect(p.varianceReason, isNull);

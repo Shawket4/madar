@@ -176,6 +176,15 @@ void main() {
       expect(lastQuery(h)['q'], ['cookie']);
       expect(shownNames(tester), [_cookie, _kids]);
 
+      // W1: trimmed before it is sent; spaces alone are no filter.
+      await h.enterText(box, ' cookie ');
+      await afterDebounce(h);
+      expect(lastQuery(h)['q'], ['cookie']);
+      await h.enterText(box, '   ');
+      await afterDebounce(h);
+      expect(shownNames(tester), _all);
+      expect(find.text('No combo matches these filters'), findsNothing);
+
       await h.enterText(box, 'عصرية');
       await afterDebounce(h);
       expect(lastQuery(h)['q'], ['عصرية']);

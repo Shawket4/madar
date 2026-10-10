@@ -1,7 +1,8 @@
 /// Studio section 5, Options (the web's `section-options.tsx`): priced
 /// add-ons private to this item, each with an optional single-ingredient
-/// deduction. Rows are drafts the save replace-sets. Ungated: the server
-/// decides (MENU-STUDIO-112).
+/// deduction. Rows are drafts the save replace-sets. Without
+/// `menu.items.edit` (what the save needs) they show and nothing edits
+/// (MENU-STUDIO-112).
 library;
 
 import 'package:dashboard_api/dashboard_api.dart' show OrgIngredient;
@@ -32,12 +33,14 @@ class StudioOptionsSection extends ConsumerWidget {
     required this.rows,
     required this.catalog,
     required this.onChanged,
+    this.readOnly = false,
     super.key,
   });
 
   final List<OptionRow> rows;
   final List<OrgIngredient> catalog;
   final ValueChanged<List<OptionRow>> onChanged;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -89,6 +92,7 @@ class StudioOptionsSection extends ConsumerWidget {
                   t('common.name'),
                   DashTextInput(
                     value: r.name,
+                    enabled: !readOnly,
                     placeholder: t('menu.studio.options.namePh'),
                     semanticLabel: t('common.name'),
                     onChanged: (v) => set(i, r.copyWith(name: v)),
@@ -100,6 +104,7 @@ class StudioOptionsSection extends ConsumerWidget {
                     priceLabel,
                     DashTextInput(
                       value: r.price,
+                      enabled: !readOnly,
                       mono: true,
                       textAlign: TextAlign.end,
                       semanticLabel: priceLabel,
@@ -118,6 +123,7 @@ class StudioOptionsSection extends ConsumerWidget {
                     children: [
                       DashSwitch(
                         value: r.isActive,
+                        enabled: !readOnly,
                         semanticLabel: t('common.active'),
                         onChanged: (v) => set(i, r.copyWith(isActive: v)),
                       ),
@@ -128,15 +134,17 @@ class StudioOptionsSection extends ConsumerWidget {
                     ],
                   ),
                 );
-                final remove = DashIconButton(
-                  icon: 'trash-2',
-                  color: c.danger,
-                  semanticLabel: t('common.remove'),
-                  onPressed: () => onChanged([
-                    for (final (j, x) in rows.indexed)
-                      if (j != i) x,
-                  ]),
-                );
+                final remove = readOnly
+                    ? null
+                    : DashIconButton(
+                        icon: 'trash-2',
+                        color: c.danger,
+                        semanticLabel: t('common.remove'),
+                        onPressed: () => onChanged([
+                          for (final (j, x) in rows.indexed)
+                            if (j != i) x,
+                        ]),
+                      );
                 // The web's `flex-wrap`: Name grows (min-w-40 flex-1), the
                 // trash sits at the row's end (ms-auto) on whichever line.
                 if (box.maxWidth >= _oneLine) {
@@ -147,7 +155,7 @@ class StudioOptionsSection extends ConsumerWidget {
                       Expanded(child: name),
                       price,
                       active,
-                      remove,
+                      ?remove,
                     ],
                   );
                 }
@@ -163,7 +171,7 @@ class StudioOptionsSection extends ConsumerWidget {
                         price,
                       ],
                     ),
-                    Row(children: [active, const Spacer(), remove]),
+                    Row(children: [active, const Spacer(), ?remove]),
                   ],
                 );
               },
@@ -189,6 +197,7 @@ class StudioOptionsSection extends ConsumerWidget {
                     child: DashSelect<String>(
                       options: options,
                       value: r.ingredientId.isEmpty ? null : r.ingredientId,
+                      enabled: !readOnly,
                       searchable: true,
                       placeholder: t('menu.studio.options.noDeduction'),
                       semanticLabel: t('menu.studio.options.deducts'),
@@ -208,6 +217,7 @@ class StudioOptionsSection extends ConsumerWidget {
                       width: Space.xxl * 4 + Space.lg,
                       child: DashTextInput(
                         value: r.quantity,
+                        enabled: !readOnly,
                         mono: true,
                         placeholder: '0.000',
                         textAlign: TextAlign.end,
@@ -231,13 +241,14 @@ class StudioOptionsSection extends ConsumerWidget {
                       StudioHint(
                         t('menu.studio.options.cost', args: {'cost': lineCost}),
                       ),
-                    DashButton(
-                      label: t('common.clear'),
-                      variant: DashButtonVariant.link,
-                      size: DashButtonSize.compact,
-                      onPressed: () =>
-                          set(i, r.copyWith(ingredientId: '', quantity: '')),
-                    ),
+                    if (!readOnly)
+                      DashButton(
+                        label: t('common.clear'),
+                        variant: DashButtonVariant.link,
+                        size: DashButtonSize.compact,
+                        onPressed: () =>
+                            set(i, r.copyWith(ingredientId: '', quantity: '')),
+                      ),
                   ],
                 ],
               ),
@@ -251,11 +262,17 @@ class StudioOptionsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
+        if (readOnly && rows.isEmpty)
+          Text(
+            t('menu.studio.options.empty'),
+            style: DashType.body.copyWith(color: c.textSecondary),
+          ),
         for (final (i, r) in rows.indexed) row(i, r),
-        StudioDashedAdd(
-          label: t('menu.studio.options.add'),
-          onTap: () => onChanged([...rows, const OptionRow()]),
-        ),
+        if (!readOnly)
+          StudioDashedAdd(
+            label: t('menu.studio.options.add'),
+            onTap: () => onChanged([...rows, const OptionRow()]),
+          ),
       ],
     );
   }

@@ -157,8 +157,8 @@ List<(String, String)> countRowCategories(List<CountRow> rows) {
 }
 
 /// The rows the search, category and filter leave (INV-CNT-028…030). The
-/// search is case-insensitive and only applies when it has a non-blank
-/// character (the text itself is not trimmed, as on the web).
+/// search is case-insensitive and ignores outer spaces (W1): spaces alone
+/// are no filter.
 List<CountRow> visibleCountRows(
   List<CountRow> rows, {
   required String search,
@@ -167,11 +167,10 @@ List<CountRow> visibleCountRows(
   required Map<String, String> counts,
   required num threshold,
 }) {
-  final q = search.toLowerCase();
+  final q = search.trim().toLowerCase();
   return [
     for (final r in rows)
-      if ((search.trim().isEmpty ||
-              r.ingredientName.toLowerCase().contains(q)) &&
+      if ((q.isEmpty || r.ingredientName.toLowerCase().contains(q)) &&
           (category == null || r.categoryId == category) &&
           _passes(r, filter, parseCount(counts[r.orgIngredientId]), threshold))
         r,

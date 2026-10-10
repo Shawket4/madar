@@ -134,12 +134,16 @@ double? parseCount(String? raw) {
 }
 
 /// The `PUT /stocktakes/{id}/items` payload: one entry per row with a count,
-/// carrying its reason (or an explicit null).
+/// carrying its reason (or an explicit null). A row cleared on screen that
+/// the server still holds a figure for ([held]) is sent as
+/// `counted_qty: null`, which un-counts it, so finalize agrees with the
+/// screen (B2).
 List<ItemCountInput> buildCountPayload(
   List<String> rowIds,
   Map<String, String> counts,
-  Map<String, String> reasons,
-) => [
+  Map<String, String> reasons, [
+  Set<String> held = const {},
+]) => [
   for (final id in rowIds)
     if (parseCount(counts[id]) case final qty?)
       ItemCountInput(
@@ -149,7 +153,9 @@ List<ItemCountInput> buildCountPayload(
         explicitNulls: (reasons[id] ?? '').isEmpty
             ? const {'variance_reason'}
             : const {},
-      ),
+      )
+    else if (held.contains(id))
+      ItemCountInput(orgIngredientId: id, countedQty: null),
 ];
 
 /// One editor row as [missingReasons] needs it.

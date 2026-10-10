@@ -866,7 +866,7 @@ void registerTransfersMocks(MockServer server, MockDb db) {
       if (refused == 'over_needs_note') {
         req.fail(
           MockResponse.error(
-            400,
+            409, // B6: a conflict with what was sent (it was 400).
             'More ${l['ingredient_name']} arrived than was sent. Add a '
             'note saying why.',
             code: 'OVER_RECEIVE_NEEDS_NOTE',

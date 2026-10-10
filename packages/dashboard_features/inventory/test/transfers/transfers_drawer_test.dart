@@ -456,15 +456,21 @@ void main() {
     final h = await pumpTransfers(tester, server: s.server, db: s.db);
     await openRow(h, 'TR-7');
     await h.tap(inDrawer(byKey('transfer-step-receive')));
-    final refusal = MockResponse.error(
-      400,
-      'More Croissant Dough arrived than was sent. Add a note saying why.',
-      code: 'OVER_RECEIVE_NEEDS_NOTE',
-    );
-    s.server.fail('POST', stepRoute('receive'), refusal);
-    await h.tap(inReceive(byKey('receive-submit')));
-    await h.expectToast(h.refusalWords(refusal));
-    expect(receiveDialog, findsOneWidget);
+    // B6: worded by its code, at 409 (the server now) or 400 (before).
+    for (final status in [409, 400]) {
+      s.server.fail(
+        'POST',
+        stepRoute('receive'),
+        MockResponse.error(
+          status,
+          'More Croissant Dough arrived than was sent. Add a note saying why.',
+          code: 'OVER_RECEIVE_NEEDS_NOTE',
+        ),
+      );
+      await h.tap(inReceive(byKey('receive-submit')));
+      await h.expectToast('More arrived than was sent. Add a note saying why.');
+      expect(receiveDialog, findsOneWidget);
+    }
     await h.enterText(inReceive(byKey('receive-qty-$cro')), '9');
     await h.enterText(inReceive(byKey('receive-note-$cro')), ' One fell ');
     await h.tap(inReceive(byKey('receive-submit')));

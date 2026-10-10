@@ -11,6 +11,7 @@ import 'package:dashboard_api/dashboard_api.dart'
         OrgIngredient,
         PreviewOptionPrice,
         PreviewPrice,
+        RecipeStepPreset,
         StudioAggregate;
 import 'package:dashboard_catalog_menu/src/shared/grid_model.dart';
 import 'package:dashboard_catalog_menu/src/studio/meal_model.dart';
@@ -139,6 +140,51 @@ void main() {
       expect(steps[0].titleAr, '');
       expect(steps[1].isPreset, isTrue);
       expect(steps[1].note, '30 seconds');
+    });
+
+    test('MENU-STUDIO-065/067/018 a preset note equal to the library\'s '
+        '(per language) seeds an empty box; the drink\'s own note stays', () {
+      Map<String, Object?> preset(String slug, String? note, String? ar) => {
+        'position': 1,
+        'kind': 'preset',
+        'preset_slug': slug,
+        'name': slug,
+        'name_ar': slug,
+        'note': note,
+        'note_ar': ar,
+        'animation_is_global': true,
+      };
+      const library = [
+        RecipeStepPreset(
+          animationSha256: 'x',
+          animationUrl: '/a.json',
+          bytes: 1,
+          name: 'Blend',
+          nameAr: 'اخلط',
+          note: 'Blend until smooth',
+          noteAr: 'اخلط حتى ينعم',
+          slug: 'blend',
+          sortOrder: 1,
+        ),
+      ];
+      final s = agg({
+        'recipe_steps': [
+          preset('blend', 'Blend until smooth', 'اخلط حتى ينعم'),
+          preset('blend', '30 seconds', 'اخلط حتى ينعم'),
+          preset('retired', 'Old words', null),
+        ],
+      });
+      final steps = toStepDrafts(s, library);
+      expect(
+        [for (final x in steps) (x.note, x.noteAr)],
+        [('', ''), ('30 seconds', ''), ('Old words', '')],
+      );
+      // Before the library answers, the server's words seed the box.
+      expect(toStepDrafts(s).first.note, 'Blend until smooth');
+      // An empty box saves as null: the step follows the library.
+      final body = stepsPayload(steps).toJson()['steps']! as List;
+      expect((body.first as Map)['note'], isNull);
+      expect((body.first as Map)['note_ar'], isNull);
     });
 
     test('attachments: every option included collapses to null', () {

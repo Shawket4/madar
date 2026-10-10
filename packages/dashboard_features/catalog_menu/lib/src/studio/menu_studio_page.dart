@@ -16,7 +16,12 @@ library;
 import 'dart:typed_data';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ApiFilePart, OrgIngredient, StudioAggregate, UploadImageMultipart;
+    show
+        ApiFilePart,
+        OrgIngredient,
+        RecipeStepPreset,
+        StudioAggregate,
+        UploadImageMultipart;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -72,6 +77,10 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
   bool _scrolled = false;
   ProviderSubscription<AsyncValue<StudioAggregate>>? _sub;
 
+  /// The step library, to tell a preset step's own note from the library's.
+  List<RecipeStepPreset> _presets = const [];
+  ProviderSubscription<AsyncValue<List<RecipeStepPreset>>>? _presetsSub;
+
   final Map<String, GlobalKey> _sections = {
     for (final s in const ['item', 'sizes', 'steps', 'modifiers', 'options'])
       s: GlobalKey(debugLabel: 'studio-section-$s'),
@@ -80,6 +89,18 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
   @override
   void initState() {
     super.initState();
+    _presetsSub = ref.listenManual<AsyncValue<List<RecipeStepPreset>>>(
+      stepPresetsProvider,
+      (prev, next) {
+        final p = next.value;
+        if (p == null || identical(prev?.value, p) || !mounted) return;
+        _presets = p;
+        // A library that answers after the item re-seeds the untouched steps.
+        final s = ref.read(menuStudioProvider(widget.itemId)).value;
+        if (s != null && _loaded) setState(() => _seed(s, force: false));
+      },
+      fireImmediately: true,
+    );
     _subscribe();
   }
 
@@ -95,6 +116,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
   @override
   void dispose() {
     _sub?.close();
+    _presetsSub?.close();
     super.dispose();
   }
 
@@ -149,7 +171,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
 
     final item = toItemDraft(s);
     final blocks = toSizeBlocks(s);
-    final steps = toStepDrafts(s);
+    final steps = toStepDrafts(s, _presets);
     final attached = toAttachDrafts(s);
     final rows = toOptionRows(s);
 
@@ -262,6 +284,8 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
     final modifiersDirty = _modifiersDirty;
     final optionsDirty = _optionsDirty;
     final canEditSteps = ref.read(authzProvider).can(Cap.recipesEdit);
+    // Item-only options save through PUT /menu-items/{id}/options.
+    final canEditOptions = ref.read(authzProvider).can(Cap.menuItemsEdit);
     final sourceItemId = s.recipeSourceItemId;
     final api = ref.read(apiProvider);
     // Captured before the first await: the web's refresh runs even when the
@@ -404,8 +428,8 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
         );
       }
 
-      // 6 · Item-only options.
-      if (optionsDirty) {
+      // 6 · Item-only options (menu.items.edit).
+      if (optionsDirty && canEditOptions) {
         try {
           await api.menu.putItemOptions(id: id, body: optionsPayload(rows));
         } on Object catch (e) {
@@ -468,6 +492,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
     final authz = ref.watch(authzProvider);
     final canPreview = authz.can(Cap.menuItemsRead);
     final canEditSteps = authz.can(Cap.recipesEdit);
+    final canEditOptions = authz.can(Cap.menuItemsEdit);
     final catalog = orgId == null
         ? const <OrgIngredient>[]
         : ref.watch(ingredientCatalogProvider(orgId)).value ??
@@ -561,6 +586,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
         child: StudioOptionsSection(
           rows: _rows,
           catalog: catalog,
+          readOnly: !canEditOptions,
           onChanged: (v) => setState(() => _rows = v),
         ),
       ),
