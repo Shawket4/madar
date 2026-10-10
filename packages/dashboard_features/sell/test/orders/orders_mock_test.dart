@@ -212,6 +212,85 @@ void main() {
     );
   });
 
+  group('POST void: a teller holding orders.void (SELL-ORD-069)', () {
+    /// A Zamalek sale nothing was refunded on: the teller's own or not, on an
+    /// open (today's) till or a closed one.
+    MockRow sale(MockDb db, {required bool own, required bool open}) =>
+        db[OrderTables.orders].rows.firstWhere(
+          (o) =>
+              o['branch_id'] == SeedIds.zamalek &&
+              o['status'] == 'completed' &&
+              (o['teller_id'] == Persona.voider.userId) == own &&
+              (db['tills'].find(o['till_id']! as String)?['status'] ==
+                      'open') ==
+                  open &&
+              refundedOn(db, o['id']! as String) == 0,
+        );
+
+    Future<Order> voidAt(
+      ({MockServer server, MockDb db, DashboardApi api}) s,
+      MockRow o,
+      Duration after,
+    ) {
+      s.db.clock.set(DateTime.parse(o['created_at']! as String).add(after));
+      return s.api.orders.voidOrder(
+        orderId: o['id']! as String,
+        body: VoidOrderRequest(reason: 'customer_request'),
+      );
+    }
+
+    final refused = throwsA(
+      isA<ApiException>().having((e) => e.status, 'status', 403),
+    );
+
+    test('their own sale within ten minutes is voided', () async {
+      final s = _setup(Persona.voider);
+      final o = sale(s.db, own: true, open: true);
+      final v = await voidAt(s, o, const Duration(minutes: 9));
+      expect(v.status, 'voided');
+      expect(v.voidedBy, Persona.voider.userId);
+    });
+
+    test('past ten minutes, or another teller\'s sale, is refused', () async {
+      final s = _setup(Persona.voider);
+      final own = sale(s.db, own: true, open: true);
+      await expectLater(voidAt(s, own, const Duration(minutes: 11)), refused);
+      final other = sale(s.db, own: false, open: true);
+      await expectLater(voidAt(s, other, const Duration(minutes: 1)), refused);
+      expect(
+        s.db[OrderTables.orders].find(own['id']! as String)!['status'],
+        'completed',
+      );
+    });
+
+    test(
+      'their own sale on a closed shift is refused, a manager voids it',
+      () async {
+        final s = _setup(Persona.voider);
+        final o = sale(s.db, own: true, open: false);
+        await expectLater(
+          voidAt(s, o, const Duration(minutes: 1)),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.status, 'status', 403)
+                .having(
+                  (e) => e.message,
+                  'message',
+                  contains('shift is closed'),
+                ),
+          ),
+        );
+        final m = _setup(Persona.manager);
+        final v = await voidAt(
+          m,
+          m.db[OrderTables.orders].find(o['id']! as String)!,
+          const Duration(minutes: 1),
+        );
+        expect(v.status, 'voided');
+      },
+    );
+  });
+
   test('delivery-sales: delivered only, per channel', () async {
     final s = _setup();
     final r = await s.api.reports.branchDeliverySales(

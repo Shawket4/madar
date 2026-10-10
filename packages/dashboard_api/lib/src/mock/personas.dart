@@ -1,4 +1,4 @@
-/// Who is signed in to the mock: five people whose capabilities come from the
+/// Who is signed in to the mock: seven people whose capabilities come from the
 /// web's registry (`MadarDashboard/src/generated/capabilities.ts`, generated
 /// into `mock_capabilities.dart`). Plain strings: this package does not depend
 /// on dashboard_core.
@@ -34,7 +34,16 @@ enum Persona {
   platform,
 
   /// Yasmin Ghali: owner of Nakhla Bakery, an org with only the Dawam module.
-  dawamOnly;
+  dawamOnly,
+
+  /// Youssef Samir: Zamalek's evening cashier with the registry's teller
+  /// defaults plus `orders.void`, which a teller holds limited: their own
+  /// sale, within ten minutes, on an open till.
+  voider,
+
+  /// Ziad Amr: a Maadi cashier with [limitedCapabilities] but no
+  /// `orders.read`, for the refusals that grant gates.
+  noOrders;
 
   String get userId => switch (this) {
     owner => SeedIds.owner,
@@ -42,6 +51,8 @@ enum Persona {
     limited => SeedIds.limited,
     platform => SeedIds.platform,
     dawamOnly => SeedIds.dawamOwner,
+    voider => SeedIds.user('youssef'),
+    noOrders => SeedIds.user('ziad'),
   };
 
   String get displayName => switch (this) {
@@ -50,6 +61,8 @@ enum Persona {
     limited => 'Hana Mostafa',
     platform => 'Madar Support',
     dawamOnly => 'Yasmin Ghali',
+    voider => 'Youssef Samir',
+    noOrders => 'Ziad Amr',
   };
 
   /// The sign-in email (every persona's password is [password]).
@@ -59,6 +72,8 @@ enum Persona {
     limited => 'hana@sabah.test',
     platform => 'support@madar.test',
     dawamOnly => 'yasmin@nakhla.test',
+    voider => 'youssef@sabah.test',
+    noOrders => 'ziad@sabah.test',
   };
 
   /// Test-only password of every persona.
@@ -68,7 +83,7 @@ enum Persona {
   String get role => switch (this) {
     owner || dawamOnly => 'org_admin',
     manager => 'branch_manager',
-    limited => 'teller',
+    limited || voider || noOrders => 'teller',
     platform => 'super_admin',
   };
 
@@ -76,7 +91,7 @@ enum Persona {
   List<String> get roleKinds => switch (this) {
     owner || dawamOnly || platform => const ['org_admin'],
     manager => const ['branch_manager'],
-    limited => const ['teller'],
+    limited || voider || noOrders => const ['teller'],
   };
 
   bool get isPlatform => this == platform;
@@ -85,7 +100,7 @@ enum Persona {
 
   /// The persona's org (null for the platform admin, who picks one).
   String? get orgId => switch (this) {
-    owner || manager || limited => SeedIds.sabahOrg,
+    owner || manager || limited || voider || noOrders => SeedIds.sabahOrg,
     dawamOnly => SeedIds.nakhlaOrg,
     platform => null,
   };
@@ -94,7 +109,8 @@ enum Persona {
   /// the org.
   List<String>? get branchIds => switch (this) {
     manager => [SeedIds.zamalek],
-    limited => [SeedIds.maadi],
+    limited || noOrders => [SeedIds.maadi],
+    voider => [SeedIds.zamalek],
     owner || dawamOnly || platform => null,
   };
 
@@ -148,5 +164,14 @@ enum Persona {
         if (c.tier != 'legacy' && c.defaults.contains('branch_manager')) c.key,
     ],
     limited => limitedCapabilities,
+    voider => [
+      for (final c in mockCapabilities)
+        if (c.tier != 'legacy' && c.defaults.contains('teller')) c.key,
+      'orders.void',
+    ],
+    noOrders => [
+      for (final c in limitedCapabilities)
+        if (c != 'orders.read') c,
+    ],
   };
 }

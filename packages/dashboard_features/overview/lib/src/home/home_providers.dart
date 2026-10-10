@@ -18,7 +18,6 @@ import 'package:dashboard_api/dashboard_api.dart'
         BranchSalesReport,
         DeliverySalesReport,
         MarginWatch,
-        OnboardingStatus,
         OrgComparisonReport,
         Till,
         TimeseriesPoint;
@@ -141,14 +140,6 @@ final homeOpenTillsProvider = FutureProvider.autoDispose
       ref.webCache();
       ref.watch(realtimeEpochProvider('/tills/branches/$branchId/open'));
       return ref.watch(apiProvider).tills.listOpenTills(branchId: branchId);
-    });
-
-/// E7 `GET /orgs/{orgId}/onboarding` — for the Keep-building card.
-final homeOnboardingProvider = FutureProvider.autoDispose
-    .family<OnboardingStatus, String>((ref, orgId) {
-      ref.webCache();
-      ref.watch(realtimeEpochProvider('/orgs/$orgId/onboarding'));
-      return ref.watch(apiProvider).orgs.getOnboarding(id: orgId);
     });
 
 /// The Keep-building card was dismissed: for the rest of this app session

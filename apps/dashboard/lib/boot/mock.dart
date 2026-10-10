@@ -72,8 +72,12 @@ Future<ProviderContainer> bootMock() async {
       offlineStoreProvider.overrideWithValue(
         await OfflineStore.open(MemoryBlobs()),
       ),
+      // Refusals worded as real mode words them (the core's rules).
       transportProvider.overrideWith(
-        (ref) => dashTransport(ref, session.transport),
+        (ref) => dashTransport(
+          ref,
+          RefusalWordingTransport(session.transport, () => ref.read(tProvider)),
+        ),
       ),
       clockProvider.overrideWithValue(() => db.clock.now),
       realtimeGatewayProvider.overrideWithValue(

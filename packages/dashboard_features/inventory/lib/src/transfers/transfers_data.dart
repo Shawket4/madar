@@ -127,7 +127,7 @@ Future<List<StockTransfer>> fetchAllTransfers(
   ApiTransport transport,
   TransfersKey k,
 ) {
-  final api = DashboardApi(_ExportTransport(transport));
+  final api = apiWithHeaders(transport, exportRequestHeaders);
   return fetchAllPages(
     (offset, limit) async => ExportPage(
       await api.inventory.listTransfers(
@@ -139,28 +139,6 @@ Future<List<StockTransfer>> fetchAllTransfers(
       ),
     ),
   );
-}
-
-/// The transport with [exportRequestHeaders] on every request.
-class _ExportTransport implements ApiTransport {
-  _ExportTransport(this.inner);
-
-  final ApiTransport inner;
-
-  ApiRequest _with(ApiRequest r) => ApiRequest(
-    method: r.method,
-    path: r.path,
-    query: r.query,
-    body: r.body,
-    files: r.files,
-    headers: {...r.headers, ...exportRequestHeaders},
-  );
-
-  @override
-  Future<ApiResponse> send(ApiRequest request) => inner.send(_with(request));
-
-  @override
-  Stream<String> stream(ApiRequest request) => inner.stream(_with(request));
 }
 
 // ── The step table (`lib.ts` TRANSFER_STEPS) ───────────────────────────────

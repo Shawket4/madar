@@ -334,8 +334,9 @@ void main() {
     expect(shownNames(s.db), contains('Almond Milk'));
   });
 
-  testWidgets('INV-ALL-016 (divergence) a filter switch keeps the kit '
-      'table on its page (the web goes back to page 1)', (tester) async {
+  testWidgets('INV-ALL-016 a filter switch goes back to page 1', (
+    tester,
+  ) async {
     final s = ingredientsServer();
     // Fifteen never counted at Zamalek: two pages of them.
     var n = 0;
@@ -358,9 +359,8 @@ void main() {
     await h.tap(find.bySemanticsLabel('Next'));
     expect(find.text('Page 2 of 3'), findsOneWidget);
     await h.tap(inPage(find.text('Never counted')));
-    // Kit gap: still page 2 (the web shows "Page 1 of 2").
-    expect(find.text('Page 2 of 2'), findsOneWidget);
-    expect(shownNames(s.db), never.skip(10).toList());
+    expect(find.text('Page 1 of 2'), findsOneWidget);
+    expect(shownNames(s.db), never.take(10).toList());
   });
 
   testWidgets('INV-ING-012 / INV-ALL-017 Columns menu hides a column', (

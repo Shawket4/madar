@@ -453,7 +453,7 @@ class _History extends ConsumerWidget {
     final q = ref.watch(ingredientMovementsProvider(key));
     final rows = q.value ?? const <StockMovement>[];
     Widget body;
-    if (q.firstLoad) {
+    if (q.awaitingFirst) {
       body = Column(
         key: const ValueKey('ingredient-history-loading'),
         spacing: Space.md,

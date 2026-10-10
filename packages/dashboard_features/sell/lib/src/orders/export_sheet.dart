@@ -9,7 +9,6 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../customers/customers_data.dart' show apiWithHeaders;
 import '../customers/customers_list.dart' show runExcelExport;
 import 'export_data.dart';
 import 'orders_providers.dart';

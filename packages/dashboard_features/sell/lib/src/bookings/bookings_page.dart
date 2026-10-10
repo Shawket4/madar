@@ -18,7 +18,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../customers/customers_data.dart' show apiWithHeaders;
 import '../shared/booking_status.dart';
 import '../shared/branch_required.dart';
 import '../shared/customer_link.dart';

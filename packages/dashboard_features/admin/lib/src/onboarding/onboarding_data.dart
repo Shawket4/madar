@@ -1,6 +1,7 @@
 /// The wizard's own reads and the rules the web computes in the browser:
 ///
-/// - `GET /orgs/{id}/onboarding` ([onbStatusProvider]) — every step's done /
+/// - `GET /orgs/{id}/onboarding` (dashboard_core's [onboardingStatusProvider],
+///   shared with the shell's gate and the home's card) — every step's done /
 ///   count / required, `can_complete`, `recipe_coverage`;
 /// - `GET /orgs/{id}` ([onbOrgProvider]) — the café's name, currency, logo,
 ///   tax (the price hint of the item editor).
@@ -22,14 +23,6 @@ import 'onboarding_config.dart';
 
 /// The checklist's request path (its web query key).
 String onbStatusPath(String orgId) => '/orgs/$orgId/onboarding';
-
-/// `GET /orgs/{id}/onboarding`.
-final onbStatusProvider = FutureProvider.autoDispose
-    .family<OnboardingStatus, String>((ref, orgId) {
-      ref.webCache();
-      ref.watch(realtimeEpochProvider(onbStatusPath(orgId)));
-      return ref.watch(apiProvider).orgs.getOnboarding(id: orgId);
-    });
 
 /// `GET /orgs/{id}`.
 final onbOrgProvider = FutureProvider.autoDispose.family<Org, String>((

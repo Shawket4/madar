@@ -540,14 +540,14 @@ void main() {
           };
           expect(sides, contains(rtl ? AxisSide.right : AxisSide.left));
           expect(sides, isNot(contains(rtl ? AxisSide.left : AxisSide.right)));
-          // The oldest day: at the start of the reading direction (the kit
-          // mirrors time in Arabic; see the divergence log).
+          // Time runs left to right in both languages, as the web's plot:
+          // the newest day (always drawn, Recharts' preserveEnd) on the right.
           final labels = tester.widget<DashLineChart>(chart).labels;
-          final oldest = tester.getCenter(
-            find.descendant(of: chart, matching: find.text(labels.first)),
+          final newest = tester.getCenter(
+            find.descendant(of: chart, matching: find.text(labels.last)),
           );
           final mid = tester.getCenter(chart);
-          expect(oldest.dx, rtl ? greaterThan(mid.dx) : lessThan(mid.dx));
+          expect(newest.dx, greaterThan(mid.dx));
         },
       );
     }

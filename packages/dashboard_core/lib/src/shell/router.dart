@@ -11,6 +11,7 @@ import 'package:dashboard_core/src/routes/nav.dart';
 import 'package:dashboard_core/src/routes/route.dart';
 import 'package:dashboard_core/src/session/session.dart';
 import 'package:dashboard_core/src/shell/frame.dart';
+import 'package:dashboard_core/src/shell/leave_guard.dart';
 import 'package:dashboard_core/src/shell/pages.dart';
 import 'package:dashboard_core/src/shell/sign_in.dart';
 import 'package:dashboard_kit/dashboard_kit.dart' show DashMotion;
@@ -149,12 +150,18 @@ GoRouter buildDashRouter(
     return s.value == null ? SessionStatus.signedOut : SessionStatus.signedIn;
   }
 
+  // A page's "leave?" ([DashLeaveGuard]); signing out never asks.
+  FutureOr<bool> leave(BuildContext _, GoRouterState state) =>
+      status() == SessionStatus.signedIn
+      ? ref.read(dashLeaveGuardsProvider).leave(state.pageKey)
+      : true;
+
   final framed = <RouteBase>[];
   final fullScreen = <RouteBase>[];
   for (final area in areas) {
     for (final r in area.routes) {
       (fullScreenPaths.contains(r.path) ? fullScreen : framed).add(
-        _goRoute(r, framed: !fullScreenPaths.contains(r.path)),
+        _goRoute(r, framed: !fullScreenPaths.contains(r.path), onExit: leave),
       );
     }
   }
@@ -192,17 +199,24 @@ GoRouter buildDashRouter(
   );
 }
 
-GoRoute _goRoute(DashRoute r, {required bool framed}) {
+GoRoute _goRoute(
+  DashRoute r, {
+  required bool framed,
+  required ExitCallback onExit,
+}) {
   final redirect = r.redirect;
   return GoRoute(
     path: r.path,
     redirect: redirect == null ? null : (c, s) => redirect(c, s),
+    onExit: onExit,
     pageBuilder: (context, state) => _fadePage(
       context,
       state,
       DashRouteHost(route: r, state: state, framed: framed),
     ),
-    routes: [for (final c in r.children) _goRoute(c, framed: framed)],
+    routes: [
+      for (final c in r.children) _goRoute(c, framed: framed, onExit: onExit),
+    ],
   );
 }
 

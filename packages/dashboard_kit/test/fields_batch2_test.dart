@@ -237,7 +237,8 @@ void main() {
     });
   });
 
-  testWidgets('12 a long select list stops at 256 and scrolls', (tester) async {
+  testWidgets('12 a long select list stops at the window and scrolls; a '
+      'searchable one at 360', (tester) async {
     String? v;
     await pumpDashApp(
       tester,
@@ -265,18 +266,54 @@ void main() {
           )
           .first,
     );
-    expect(card.height, lessThanOrEqualTo(256));
-    await tester.scrollUntilVisible(
-      find.text('Table 30'),
-      100,
-      scrollable: find.descendant(
-        of: find.byType(DashOptionList<int>),
-        matching: find.byType(Scrollable),
+    expect(card.height, greaterThan(360), reason: 'the window, not 360');
+    expect(card.bottom, lessThanOrEqualTo(DashSize.desktop.size.height));
+    // Every row is built; the arrow keys scroll theirs into view.
+    expect(find.text('Table 30'), findsOneWidget);
+    expect(find.text('Table 30').hitTestable(), findsNothing);
+    for (var i = 0; i < 30; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('Table 30').hitTestable(), findsOneWidget);
+    expect(find.text('Table 1').hitTestable(), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Table 29'));
+    await tester.pumpAndSettle();
+    expect(v, '29');
+
+    await pumpDashApp(
+      tester,
+      _host(
+        DashSelectField<int>(
+          label: 'Table',
+          value: null,
+          searchable: true,
+          onChanged: (_) {},
+          options: [
+            for (var i = 1; i <= 30; i++)
+              DashOption(value: i, label: 'Table $i'),
+          ],
+        ),
       ),
     );
-    await tester.tap(find.text('Table 30'));
+    await tester.tap(find.text('Select…'));
     await tester.pumpAndSettle();
-    expect(v, '30');
+    expect(
+      tester
+          .getRect(
+            find
+                .ancestor(
+                  of: find.byType(DashOptionList<int>),
+                  matching: find.byType(Material),
+                )
+                .first,
+          )
+          .height,
+      lessThanOrEqualTo(360),
+    );
   });
 
   group('13 phone', () {

@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show DashLeaveGuard;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -103,43 +104,27 @@ class _BranchSetupPageState extends ConsumerState<BranchSetupPage> {
         ),
       );
     }
-    return ValueListenableBuilder<bool>(
-      valueListenable: _dirty,
-      builder: (context, dirty, child) => PopScope(
-        canPop: !dirty,
-        onPopInvokedWithResult: (didPop, _) async {
-          if (didPop) return;
-          final nav = Navigator.of(context);
-          if (await _confirmLeave()) {
-            _dirty.value = false;
-            nav.maybePop();
-          }
-        },
-        child: child!,
-      ),
+    // Unsaved changes ask before any way out: the sidebar, the palette, the
+    // header, a link, a back (ADM-BSU-085, the web's `useBlocker`).
+    return DashLeaveGuard(
+      when: _dirty,
+      ask: _confirmLeave,
       child: BranchBuilder(
         key: ValueKey(shown),
         branchId: shown,
         dirty: _dirty,
-        confirmLeave: _confirmLeave,
       ),
     );
   }
 }
 
 class BranchBuilder extends ConsumerStatefulWidget {
-  const BranchBuilder({
-    required this.branchId,
-    required this.dirty,
-    required this.confirmLeave,
-    super.key,
-  });
+  const BranchBuilder({required this.branchId, required this.dirty, super.key});
 
   final String branchId;
 
   /// Tells the page whether there is a draft to lose.
   final ValueNotifier<bool> dirty;
-  final Future<bool> Function() confirmLeave;
 
   @override
   ConsumerState<BranchBuilder> createState() => _BranchBuilderState();
@@ -447,13 +432,9 @@ class _BranchBuilderState extends ConsumerState<BranchBuilder> {
     }
   }
 
-  Future<void> _toItemRouting() async {
-    final router = GoRouter.of(context);
-    if (await widget.confirmLeave()) {
-      widget.dirty.value = false;
-      router.go(BranchPlanPaths.kitchenRouting);
-    }
-  }
+  /// The page's leave guard asks first when there is a draft.
+  void _toItemRouting() =>
+      GoRouter.of(context).go(BranchPlanPaths.kitchenRouting);
 
   // ── Keyboard ────────────────────────────────────────────────────────────
 

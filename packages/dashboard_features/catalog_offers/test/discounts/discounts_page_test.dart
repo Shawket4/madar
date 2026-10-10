@@ -357,8 +357,9 @@ void main() {
       );
     });
 
-    testWidgets('OFFR-DSC-041 search: case-insensitive, untrimmed, never the '
-        'Arabic name or the status; Esc and × empty it', (tester) async {
+    testWidgets('OFFR-DSC-041 search: case-insensitive, trimmed (the kit '
+        'search box), never the Arabic name or the status; Esc and × empty '
+        'it', (tester) async {
       final h = await pumpDiscounts(tester);
       await h.enterText(search, 'STAFF');
       expect(inTable(find.text('Staff Meal')), findsOneWidget);
@@ -367,6 +368,8 @@ void main() {
       await h.enterText(search, ' meal');
       expect(inTable(find.text('Staff Meal')), findsOneWidget);
       await h.enterText(search, 'meal ');
+      expect(inTable(find.text('Staff Meal')), findsOneWidget);
+      await h.enterText(search, 'meal x');
       expect(inPage(find.text('No discounts yet')), findsOneWidget);
 
       await h.enterText(search, 'وجبة');

@@ -89,7 +89,8 @@ void main() {
       expect(methods, r.totalRevenue);
       var lines = 0;
       for (final o in sold) {
-        for (final l in MockSeed.instance.orderItems(o['id']! as String)) {
+        // The core seed's lines, or a staff-drink sale's own.
+        for (final l in OpsSeed.instance.linesOf(o)) {
           // Every seed line names its item, so this is the home's count too.
           expect(l.menuItemId, isNotNull);
           lines += l.quantity;
@@ -185,12 +186,31 @@ void main() {
       expect(other.status, 403);
     });
 
+    test('REP-OPS-001 without orders.read every operations read is refused '
+        '(Persona.noOrders)', () async {
+      final s = opsServer(persona: Persona.noOrders);
+      final b = SeedIds.maadi;
+      for (final path in [
+        '/reports/branches/$b/sales',
+        '/reports/branches/$allBranchesId/sales',
+        '/reports/branches/$b/items-combined',
+        '/reports/branches/$b/addons',
+        '/reports/branches/$b/tellers',
+        '/reports/branches/$b/waiters',
+        '/reports/orgs/${SeedIds.sabahOrg}/comparison',
+      ]) {
+        final e = await _refused(_get(s.server, path));
+        expect(e.status, 403, reason: path);
+      }
+      // The grant, not the branch: the same reads answer with it.
+      final ok = opsServer(persona: Persona.limited);
+      expect((await _get(ok.server, '/reports/branches/$b/sales')).status, 200);
+    });
+
     test(
       'refusals by persona: another org\'s branch is refused, a deleted '
       'branch is not found; the sentinel covers only the org in scope',
       () async {
-        // Every seeded persona holds orders.read, so that gate cannot be
-        // driven by one; these are the refusals the personas do reach.
         final s = opsServer(persona: Persona.dawamOnly);
         final other = await _refused(
           _get(s.server, '/reports/branches/${SeedIds.zamalek}/sales'),

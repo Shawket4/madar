@@ -223,7 +223,7 @@ class TodayKpiStrip extends ConsumerWidget {
             icon: 'wallet',
             value: v?.totalValue ?? 0,
             format: DashStatFormat.money,
-            loading: data.valuation.firstLoad,
+            loading: data.valuation.awaitingFirst,
             hint: v == null
                 ? null
                 : t('inventory.today.unknownCost', count: v.unknownCostCount),
@@ -235,7 +235,7 @@ class TodayKpiStrip extends ConsumerWidget {
             tone: DashTone.warning,
             value: data.lowRows.length,
             format: DashStatFormat.number,
-            loading: data.lowStock.firstLoad,
+            loading: data.lowStock.awaitingFirst,
             hint: t('inventory.today.critical', count: data.criticalCount),
           ),
           DashLedgerItem(
@@ -244,7 +244,7 @@ class TodayKpiStrip extends ConsumerWidget {
             icon: 'truck',
             value: data.arriving.length,
             format: DashStatFormat.number,
-            loading: data.orders.firstLoad,
+            loading: data.orders.awaitingFirst,
             hint: t('inventory.today.arrivingToday'),
           ),
           DashLedgerItem(
@@ -254,7 +254,7 @@ class TodayKpiStrip extends ConsumerWidget {
             value: due,
             valueText: due == null ? '—' : null,
             format: DashStatFormat.number,
-            loading: !data.allBranches && (data.stock?.firstLoad ?? false),
+            loading: !data.allBranches && (data.stock?.awaitingFirst ?? false),
             hint: t('inventory.today.countsOverdue'),
           ),
         ],
@@ -338,7 +338,7 @@ class TodayLowStockSection extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final low = data.lowStock;
-    final hideCount = low.firstLoad || low.errorText(t) != null;
+    final hideCount = low.awaitingFirst || low.errorText(t) != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
@@ -361,7 +361,7 @@ class TodayLowStockSection extends ConsumerWidget {
           key: const ValueKey('today-low-stock'),
           rows: data.lowRows,
           rowKey: lowStockRowKey,
-          loading: low.firstLoad,
+          loading: low.awaitingFirst,
           errorMessage: low.errorText(t),
           onRetry: data.retryLowStock,
           retrying: low.isLoading,
@@ -528,7 +528,7 @@ class TodayArrivingSection extends ConsumerWidget {
         onRetry: data.retryOrders,
         retrying: q.isLoading,
       );
-    } else if (q.firstLoad) {
+    } else if (q.awaitingFirst) {
       body = const TodayListSkeleton();
     } else if (data.arriving.isEmpty) {
       body = TodayQuietEmpty(title: t('inventory.today.noDeliveries'));
@@ -560,14 +560,13 @@ class TodayArrivingSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.md,
       children: [
-        // As tall as the waste header's Log waste button, so the two titles
-        // line up side by side (the web's `min-h-8` matches its `sm` button).
-        ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: DashMetrics.target),
-          child: DashSectionHeader(
-            icon: 'truck',
-            title: t('inventory.today.arriving'),
-          ),
+        // An empty 44 pt trailing slot, as tall as the waste header's Log
+        // waste button, so the two titles line up side by side (the web's
+        // `min-h-8` matches its `sm` button).
+        DashSectionHeader(
+          icon: 'truck',
+          title: t('inventory.today.arriving'),
+          trailing: const SizedBox(height: DashMetrics.target),
         ),
         body,
       ],
@@ -610,7 +609,7 @@ class TodayWasteSection extends ConsumerWidget {
         onRetry: data.retryWaste,
         retrying: q.isLoading,
       );
-    } else if (q.firstLoad) {
+    } else if (q.awaitingFirst) {
       body = const TodayListSkeleton();
     } else if (data.todaysWaste.isEmpty) {
       body = TodayQuietEmpty(title: t('inventory.today.noWasteToday'));

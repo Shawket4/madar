@@ -45,8 +45,4 @@ class CoreApi {
   /// want selling branches only filter with `isSelling`.
   Future<List<Branch>> listBranches(String orgId) =>
       api.branches.listBranches(orgId: orgId, includeWarehouses: true);
-
-  /// `GET /orgs/{id}/onboarding`: `completed`.
-  Future<bool> getOnboardingCompleted(String orgId) async =>
-      (await api.orgs.getOnboarding(id: orgId)).completed;
 }

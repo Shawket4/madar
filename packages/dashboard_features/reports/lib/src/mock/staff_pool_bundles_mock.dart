@@ -10,6 +10,10 @@
 /// - `GET /orders/{order_id}` for the sale a staff drink was rung on, when no
 ///   other area answers that route (the orders area owns it in the app).
 ///
+/// The priced drinks' sales go into the shared seed's `orders` table, each
+/// row carrying its own `items`, so the orders area lists and opens the same
+/// sale "View order" names.
+///
 /// Handlers behave like the backend: the capability (`orders.staff_drink
 /// .record`, `reports.bundles`) and branch refusals in its 403 envelope, 400
 /// for a range that ends before it starts or a kind that is neither, 404 for
@@ -116,8 +120,9 @@ abstract final class StaffPoolMock {
   static const String drinksTable = 'staff_drinks';
   static const String settingsTable = 'staff_pool_settings';
 
-  /// Where the sales the drinks were rung on live (read by `GET /orders/…`).
-  static const String ordersTable = 'reports_staff_drink_orders';
+  /// Where the sales the drinks were rung on live: the shared seed's orders,
+  /// each with its own `items` (read by `GET /orders/…` in either area).
+  static const String ordersTable = 'orders';
 
   /// The org default: three drinks a day.
   static const int orgAllowance = 3;
@@ -298,7 +303,9 @@ abstract final class StaffPoolMock {
     if (!db.hasTable(settingsTable)) {
       db.lazyTable(settingsTable, settingsRows);
     }
-    if (!db.hasTable(ordersTable)) db.lazyTable(ordersTable, () => orders);
+    if (db[ordersTable].find(orders.first['id']! as String) == null) {
+      db[ordersTable].insertAll(orders);
+    }
 
     /// The branch every staff-pool read names: known, held, reachable.
     String branchOf(MockRequest req) {
@@ -388,7 +395,7 @@ abstract final class StaffPoolMock {
       req.requireCap(_Caps.ordersRead);
       final id = req.param('order_id');
       final mine = db[ordersTable].find(id);
-      if (mine != null) {
+      if (mine != null && mine['items'] != null) {
         req.requireBranch('${mine['branch_id']}');
         return MockResponse.ok(mine);
       }

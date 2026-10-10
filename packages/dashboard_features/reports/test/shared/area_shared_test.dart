@@ -164,13 +164,5 @@ void main() {
       );
       expect(inventoryBranchMissing(InventoryScope.org, scope(null)), isFalse);
     });
-
-    test('export re-reads carry X-Madar-Export: 1', () async {
-      final server = MockServer();
-      server.on('GET', '/probe', (req) => MockResponse.ok(const {}));
-      final api = HeaderTransport(server, exportRequestHeaders);
-      await api.send(const ApiRequest(method: 'GET', path: '/probe'));
-      expect(server.calls.last.headers['X-Madar-Export'], '1');
-    });
   });
 }

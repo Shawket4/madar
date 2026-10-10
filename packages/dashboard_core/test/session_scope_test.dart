@@ -402,6 +402,15 @@ void main() {
       await r.ready();
       expect(r.c.read(onboardingCompletedProvider).value, isTrue);
       expect(r.c.read(sendsToOnboardingProvider), isFalse);
+      // One read: the home card and the wizard share the gate's answer.
+      final card = r.c.listen(
+        onboardingStatusProvider(SeedIds.sabahOrg),
+        (_, _) {},
+      );
+      addTearDown(card.close);
+      await settle();
+      expect(card.read().value?.completed, isTrue);
+      expect(r.server.callsTo('/orgs/{id}/onboarding'), hasLength(1));
       // A Dawam-only owner is never asked.
       final d = Rig(as: Persona.dawamOnly);
       addTearDown(d.dispose);

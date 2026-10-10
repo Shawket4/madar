@@ -69,7 +69,7 @@ Future<List<StockMovement>> fetchWholeWasteLog(
   ApiTransport transport,
   String branchId,
 ) {
-  final api = DashboardApi(_HeaderTransport(transport, exportRequestHeaders));
+  final api = apiWithHeaders(transport, exportRequestHeaders);
   return fetchAllPages(
     (offset, limit) async => ExportPage(
       await api.inventory.listWaste(
@@ -79,27 +79,4 @@ Future<List<StockMovement>> fetchWholeWasteLog(
       ),
     ),
   );
-}
-
-/// The generated client with extra headers on every request.
-class _HeaderTransport implements ApiTransport {
-  _HeaderTransport(this.inner, this.headers);
-
-  final ApiTransport inner;
-  final Map<String, String> headers;
-
-  ApiRequest _with(ApiRequest r) => ApiRequest(
-    method: r.method,
-    path: r.path,
-    query: r.query,
-    body: r.body,
-    files: r.files,
-    headers: {...r.headers, ...headers},
-  );
-
-  @override
-  Future<ApiResponse> send(ApiRequest request) => inner.send(_with(request));
-
-  @override
-  Stream<String> stream(ApiRequest request) => inner.stream(_with(request));
 }

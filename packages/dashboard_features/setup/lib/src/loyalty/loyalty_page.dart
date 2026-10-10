@@ -275,8 +275,24 @@ class _SignUpCodeState extends ConsumerState<SignUpCode> {
           ? Row(
               spacing: Space.md,
               children: [
-                label,
-                Expanded(child: hint),
+                // The web's w-64 label gives way only once the hint has no
+                // room left (flex-shrink), so a 1024 window never overflows.
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, box) => Row(
+                      spacing: Space.md,
+                      children: [
+                        SizedBox(
+                          width: (box.maxWidth - Space.md)
+                              .clamp(0.0, Space.xxl * 8)
+                              .toDouble(),
+                          child: label,
+                        ),
+                        Expanded(child: hint),
+                      ],
+                    ),
+                  ),
+                ),
                 button,
               ],
             )

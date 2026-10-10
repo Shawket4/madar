@@ -50,12 +50,21 @@ class _BasiraPageState extends ConsumerState<BasiraPage> {
   final ScrollController _scroll = ScrollController();
   String _question = '';
   bool _railOpen = false;
-  bool _refreshing = false;
+  late final void Function() _dropRefresh;
 
   BasiraController get _c => ref.read(basiraProvider.notifier);
 
   @override
+  void initState() {
+    super.initState();
+    // Basira keeps no query cache: the header's refresh and Cmd/Ctrl+R
+    // reach its reads through the page's own refresh (REP-BAS-002/004).
+    _dropRefresh = ref.read(queryCacheProvider).addPageRefresh(_refresh);
+  }
+
+  @override
   void dispose() {
+    _dropRefresh();
     _scroll.dispose();
     super.dispose();
   }
@@ -123,20 +132,14 @@ class _BasiraPageState extends ConsumerState<BasiraPage> {
     }
   }
 
-  /// The header's refresh: Basira keeps no query cache for the shell's
-  /// refresh to refetch, so it re-reads the list and the open conversation.
+  /// The page's refresh: the list and the open conversation read again.
   Future<void> _refresh() async {
     final s = ref.read(basiraProvider);
     final id = s.activeId;
-    setState(() => _refreshing = true);
-    try {
-      await Future.wait([
-        _c.refreshList(),
-        if (id != null && !s.busy) _c.open(id),
-      ]);
-    } finally {
-      if (mounted) setState(() => _refreshing = false);
-    }
+    await Future.wait([
+      _c.refreshList(),
+      if (id != null && !s.busy) _c.open(id),
+    ]);
   }
 
   Future<void> _showRail() async {
@@ -181,7 +184,6 @@ class _BasiraPageState extends ConsumerState<BasiraPage> {
       child: DashPageHeader(
         title: title == null ? t('basira.title') : ownDirection(title),
         subtitle: t('basira.subtitle'),
-        refreshAction: false,
         actions: [
           if (!pinned) ...[
             DashButton(
@@ -198,13 +200,6 @@ class _BasiraPageState extends ConsumerState<BasiraPage> {
               onPressed: _startNew,
             ),
           ],
-          DashIconButton(
-            icon: 'refresh-cw',
-            semanticLabel: context.dashStrings.refresh,
-            variant: DashButtonVariant.outline,
-            loading: _refreshing,
-            onPressed: _refresh,
-          ),
         ],
       ),
     );

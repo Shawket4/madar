@@ -100,10 +100,6 @@ List<Supplier> activeSuppliers(List<Supplier> all) => [
 /// FIRST load only (a refetch keeps the rows), and an error wins over rows
 /// (React Query keeps `error` beside stale `data`).
 extension InventoryAsyncX<T> on AsyncValue<T> {
-  /// Loading with nothing to show yet, Riverpod's automatic retries
-  /// included (the web stays pending while it retries).
-  bool get firstLoad => isLoading && !hasValue && (!hasError || retrying);
-
   /// The words for a failed read once its automatic retries are spent, kept
   /// while a manual Retry runs (never an empty state in between), or null.
   String? errorText(Translator t) =>

@@ -214,6 +214,28 @@ class _DashOptionListState<T> extends State<DashOptionList<T>> {
     return KeyEventResult.ignored;
   }
 
+  /// A plain list is short and capped (256): every row is built, so a
+  /// keyboard pick or a test can scroll to any of them. A searchable one may
+  /// be long: lazy.
+  Widget _rows(
+    BuildContext context,
+    List<DashOption<T>> list,
+    IndexedWidgetBuilder row,
+  ) => widget.searchable
+      ? ListView.builder(
+          shrinkWrap: widget.shrinkWrap,
+          padding: const EdgeInsets.all(Space.xs),
+          itemCount: list.length,
+          itemBuilder: row,
+        )
+      : SingleChildScrollView(
+          padding: const EdgeInsets.all(Space.xs),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [for (var i = 0; i < list.length; i++) row(context, i)],
+          ),
+        );
+
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
@@ -228,51 +250,46 @@ class _DashOptionListState<T> extends State<DashOptionList<T>> {
               style: DashType.body.copyWith(color: c.textSecondary),
             ),
           )
-        : ListView.builder(
-            shrinkWrap: widget.shrinkWrap,
-            padding: const EdgeInsets.all(Space.xs),
-            itemCount: list.length,
-            itemBuilder: (context, i) {
-              final group = list[i].group;
-              final row = _OptionRow<T>(
-                option: list[i],
-                selected: widget.isSelected(list[i].value),
-                active: i == _active,
-                multi: widget.multi,
-                onTap: () => widget.onPick(list[i].value),
-                onIntent: widget.onIntent == null
-                    ? null
-                    : () => widget.onIntent!(list[i].value),
-              );
-              if (group == null || (i > 0 && list[i - 1].group == group)) {
-                return row;
-              }
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsetsDirectional.fromSTEB(
-                      Space.sm,
-                      Space.sm,
-                      Space.sm,
-                      Space.xs,
-                    ),
-                    child: Semantics(
-                      header: true,
-                      child: Text(
-                        group,
-                        style: DashType.small.copyWith(
-                          color: c.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
+        : _rows(context, list, (context, i) {
+            final group = list[i].group;
+            final row = _OptionRow<T>(
+              option: list[i],
+              selected: widget.isSelected(list[i].value),
+              active: i == _active,
+              multi: widget.multi,
+              onTap: () => widget.onPick(list[i].value),
+              onIntent: widget.onIntent == null
+                  ? null
+                  : () => widget.onIntent!(list[i].value),
+            );
+            if (group == null || (i > 0 && list[i - 1].group == group)) {
+              return row;
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(
+                    Space.sm,
+                    Space.sm,
+                    Space.sm,
+                    Space.xs,
+                  ),
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      group,
+                      style: DashType.small.copyWith(
+                        color: c.textSecondary,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                  row,
-                ],
-              );
-            },
-          );
+                ),
+                row,
+              ],
+            );
+          });
     return Focus(
       onKeyEvent: _key,
       autofocus: !widget.searchable,
@@ -331,6 +348,19 @@ class _OptionRow<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
+    // The arrow keys' row stays in the capped list's view, as Radix scrolls
+    // its highlighted item into view.
+    if (active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        for (final p in const [
+          ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+          ScrollPositionAlignmentPolicy.keepVisibleAtStart,
+        ]) {
+          Scrollable.ensureVisible(context, alignmentPolicy: p);
+        }
+      });
+    }
     return DashPressable(
       onTap: option.enabled ? onTap : null,
       onIntent: onIntent,
@@ -530,9 +560,10 @@ class _DashSelectState<T> extends State<DashSelect<T>> {
       width: widget.searchable
           ? DashMetrics.popover
           : DashMetrics.menu - Space.xxl,
-      // A plain list stops at 256 and scrolls (the web's `max-h-64`); a
-      // searchable one keeps room for its search box.
-      maxHeight: widget.searchable ? 360 : 256,
+      // A plain list takes the room the window has and scrolls past it (the
+      // web's Select: max-h of the available height); a searchable one is
+      // cmdk's 300 px list under its search box.
+      maxHeight: widget.searchable ? 360 : double.infinity,
       anchor: (context, c) => trigger(c.toggle),
       content: (context, c) => DashOptionList<T>(
         options: widget.options,

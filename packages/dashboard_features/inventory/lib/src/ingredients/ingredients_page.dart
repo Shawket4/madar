@@ -237,7 +237,7 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage> {
         rows: rows,
         stock: byId,
         hasBranch: hasBranch,
-        loading: catalog.firstLoad,
+        loading: catalog.awaitingFirst,
         // Kept while Retry runs, as React Query keeps `error` (no false
         // "No ingredients yet" in between).
         errorText: catalog.errorText(t),

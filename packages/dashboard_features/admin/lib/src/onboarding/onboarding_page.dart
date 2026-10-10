@@ -103,7 +103,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     final width = MediaQuery.sizeOf(context).width;
     final wide = width >= DashBreakpoints.lg;
     final orgId = ref.watch(orgIdProvider);
-    final query = orgId == null ? null : ref.watch(onbStatusProvider(orgId));
+    final query = orgId == null
+        ? null
+        : ref.watch(onboardingStatusProvider(orgId));
     final status = _finished ?? query?.value;
     final byKey = stepsByKey(status);
     final active = _active ?? firstIncomplete(byKey);
@@ -118,7 +120,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
         !query.retrying &&
         _finished == null) {
       body = _LoadError(
-        onRetry: () => ref.invalidate(onbStatusProvider(orgId!)),
+        onRetry: () => ref.invalidate(onboardingStatusProvider(orgId!)),
       );
     } else if (orgId == null || status == null) {
       body = _Loading(wide: wide);

@@ -704,33 +704,6 @@ final loyaltyQrProvider = FutureProvider.autoDispose
           : qr.orgLoyaltyQr(id: k.orgId);
     }, retry: (_, _) => null);
 
-/// The API with [headers] on every request (the export's
-/// `X-Madar-Export: 1`).
-DashboardApi apiWithHeaders(ApiTransport inner, Map<String, String> headers) =>
-    DashboardApi(_HeaderTransport(inner, headers));
-
-class _HeaderTransport implements ApiTransport {
-  _HeaderTransport(this.inner, this.headers);
-
-  final ApiTransport inner;
-  final Map<String, String> headers;
-
-  ApiRequest _with(ApiRequest r) => ApiRequest(
-    method: r.method,
-    path: r.path,
-    query: r.query,
-    body: r.body,
-    files: r.files,
-    headers: {...r.headers, ...headers},
-  );
-
-  @override
-  Future<ApiResponse> send(ApiRequest request) => inner.send(_with(request));
-
-  @override
-  Stream<String> stream(ApiRequest request) => inner.stream(_with(request));
-}
-
 // ── Phones (`lib/phone.ts`, the sell area's copy of the one rule) ─────────
 
 final RegExp _nonDigits = RegExp('[^0-9]');

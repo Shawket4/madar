@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dashboard_api/dashboard_api.dart' show PublicBrand;
+import 'package:dashboard_api/mock.dart' show MockResponse, MockServer;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/mock.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -318,5 +319,16 @@ void main() {
     expect(exportLogoUrl(brand(own: true, logo: '   ')), isNull);
     expect(exportLogoUrl(brand(own: true)), isNull);
     expect(exportLogoUrl(brand(own: false, logo: 'https://x/l.png')), isNull);
+  });
+
+  test('apiWithHeaders: every request carries the export mark '
+      '(EXPORT_REQUEST)', () async {
+    final server = MockServer()
+      ..on('GET', '/branches', (_) => MockResponse.ok(const <Object?>[]));
+    await apiWithHeaders(
+      server,
+      exportRequestHeaders,
+    ).branches.listBranches(orgId: 'o');
+    expect(server.calls.single.headers['X-Madar-Export'], '1');
   });
 }

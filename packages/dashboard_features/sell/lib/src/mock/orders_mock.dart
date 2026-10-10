@@ -39,7 +39,8 @@ const String _allBranches = '00000000-0000-0000-0000-000000000000';
 
 /// The tables this unit reads and writes.
 abstract final class OrderTables {
-  /// [Order] rows (the core seed's, plus [loadOrdersSeed]'s).
+  /// [Order] rows (the core seed's, plus [loadOrdersSeed]'s, plus the sales
+  /// another area seeds with their own `items`).
   static const String orders = 'orders';
 
   /// One row per order this unit wrote lines for (`id` is the order's):
@@ -1011,7 +1012,11 @@ class _Handlers {
   final Map<String, List<Map<String, Object?>>> _lines = {};
 
   List<Map<String, Object?>> linesOf(String orderId) => _lines[orderId] ??= () {
-    final own = db[OrderTables.details].find(orderId)?['items'];
+    // A sale another area seeded carries its own lines (reports' staff-drink
+    // sales).
+    final own =
+        db[OrderTables.details].find(orderId)?['items'] ??
+        db[OrderTables.orders].find(orderId)?['items'];
     if (own is List) {
       return [
         for (final l in own) Map<String, Object?>.of(l as Map<String, Object?>),

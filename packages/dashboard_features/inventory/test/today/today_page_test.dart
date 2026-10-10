@@ -840,7 +840,9 @@ void main() {
       );
       expect(header.title, 'Arriving today');
       expect(header.icon, 'truck');
-      expect(header.trailing, isNull);
+      // No control: only an empty slot that lines its title up with the
+      // waste header's (whose Log waste is a 44 pt target).
+      expect(header.trailing, isA<SizedBox>());
     });
 
     testWidgets(

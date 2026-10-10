@@ -104,25 +104,41 @@ class QueryCache {
   Completer<void>? _quiet;
   List<Object>? _failures;
 
+  /// The open pages' own refreshes ([addPageRefresh]).
+  final _pageRefreshes = <Future<void> Function()>{};
+
+  /// A page whose data is not in this cache (Basira's conversations) adds
+  /// its own read again, so the header's refresh and Cmd/Ctrl+R reach it
+  /// ([refetchActive] runs it). Call the returned function when the page
+  /// goes.
+  void Function() addPageRefresh(Future<void> Function() refresh) {
+    _pageRefreshes.add(refresh);
+    return () => _pageRefreshes.remove(refresh);
+  }
+
   /// The web's `refetchQueries({type: 'active'})`, by hand (pull to refresh,
   /// Cmd/Ctrl+R, back online): every read a shown page watches is fetched
   /// again, fresh or not, its data on screen meanwhile; a read nobody shows
   /// is left alone. Resolves once the reads it set off (and any they chain)
-  /// have landed, with the first failure, or null.
+  /// have landed, with the first failure, or null. The pages' own
+  /// refreshes ([addPageRefresh]) run alongside.
   Future<Object?> refetchActive() async {
     final active = [
       for (final r in _reads.values)
         if (r.mounted && !r.isPaused) r,
     ];
-    if (active.isEmpty) return null;
+    if (active.isEmpty && _pageRefreshes.isEmpty) return null;
     onRefetch?.call();
     final failures = _failures = [];
     try {
-      final container = active.first.container;
+      final own = Future.wait([
+        for (final refresh in _pageRefreshes.toList())
+          refresh().catchError((Object e) => failures.add(e)),
+      ]);
       for (final r in active) {
         r.invalidateSelf();
       }
-      await container.pump();
+      if (active.isNotEmpty) await active.first.container.pump();
       // A read that awaits another starts its request a turn later.
       do {
         while (_reading > 0) {
@@ -130,6 +146,7 @@ class QueryCache {
         }
         await Future<void>.delayed(Duration.zero);
       } while (_reading > 0);
+      await own;
       return failures.firstOrNull;
     } finally {
       if (identical(_failures, failures)) _failures = null;

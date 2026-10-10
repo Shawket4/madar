@@ -28,6 +28,15 @@ final Map<String, Strings> _stringsCache = {};
 
 /// The running app under test.
 class DashHarness {
+  /// Word the mock's refusals as real mode does ([RefusalWordingTransport]):
+  /// no "Conflict: " prefix, words for an uncoded 403/429, no server English
+  /// in Arabic, `errors.codes.*` for a coded one.
+  ///
+  /// ponytail: an area turns this on in its `flutter_test_config.dart` once
+  /// its tests assert worded refusals; when every area has, word always and
+  /// drop the flag.
+  static bool wordRefusals = false;
+
   DashHarness._({
     required this.tester,
     required this.server,
@@ -162,7 +171,15 @@ class DashHarness {
         sessionGatewayProvider.overrideWithValue(session),
         offlineStoreProvider.overrideWithValue(offlineStore),
         transportProvider.overrideWith(
-          (ref) => dashTransport(ref, session.transport),
+          (ref) => dashTransport(
+            ref,
+            wordRefusals
+                ? RefusalWordingTransport(
+                    session.transport,
+                    () => ref.read(tProvider),
+                  )
+                : session.transport,
+          ),
         ),
         clockProvider.overrideWithValue(() => mockClock.now),
         fileGatewayProvider.overrideWith((ref) => h.files),
@@ -317,8 +334,12 @@ class DashHarness {
   /// server sentence, so tests follow when the wording rules change (the
   /// real app words refusals like the core: no "Conflict: " prefix, no
   /// English on an Arabic screen).
-  String refusalWords(MockResponse response) =>
-      MockServer.toApiException(response).message;
+  String refusalWords(MockResponse response) {
+    final e = MockServer.toApiException(response);
+    return wordRefusals
+        ? wordRefusal(e, container.read(tProvider)).message
+        : e.message;
+  }
 
   /// Expects a toast saying [text]; then lets it expire (so no timer is
   /// left running) unless [keep].

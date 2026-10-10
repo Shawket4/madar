@@ -184,6 +184,22 @@ void main() {
     },
   );
 
+  test('REP-BAS-002/004 a page\'s own refresh runs with a refresh by hand, '
+      'with nothing cached, and is gone with the page', () async {
+    final cache = c.read(queryCacheProvider);
+    var runs = 0;
+    final drop = cache.addPageRefresh(() async => runs++);
+    expect(await cache.refetchActive(), isNull);
+    expect(runs, 1);
+    final failing = cache.addPageRefresh(() async => throw StateError('x'));
+    expect(await cache.refetchActive(), isA<StateError>());
+    expect(runs, 2);
+    failing();
+    drop();
+    expect(await cache.refetchActive(), isNull);
+    expect(runs, 2);
+  });
+
   test('ADM-APP-116: the web retry policy', () {
     ApiException e(int s) => ApiException(status: s, message: '');
     for (final s in [401, 403, 404, 422]) {

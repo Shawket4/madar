@@ -11,12 +11,8 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart'
     show
-        ApiRequest,
-        ApiResponse,
-        ApiTransport,
         Category,
         CategoryRouteInput,
-        DashboardApi,
         ItemRouteInput,
         MenuItemWithCosts,
         PaginatedMenuItems;
@@ -113,8 +109,9 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
     final lang = ref.read(localeProvider);
     final brand = ref.read(publicBrandProvider).value;
     final exporter = ref.read(exporterProvider);
-    final api = DashboardApi(
-      _HeaderTransport(ref.read(transportProvider), exportRequestHeaders),
+    final api = apiWithHeaders(
+      ref.read(transportProvider),
+      exportRequestHeaders,
     );
     final search = _search.isEmpty ? null : _search;
     setState(() => _exporting = true);
@@ -566,27 +563,4 @@ class RoutingSkeleton extends StatelessWidget {
       ],
     );
   }
-}
-
-/// Every request through [inner] carries [headers] (`X-Madar-Export: 1`).
-class _HeaderTransport implements ApiTransport {
-  _HeaderTransport(this.inner, this.headers);
-
-  final ApiTransport inner;
-  final Map<String, String> headers;
-
-  ApiRequest _with(ApiRequest r) => ApiRequest(
-    method: r.method,
-    path: r.path,
-    query: r.query,
-    body: r.body,
-    files: r.files,
-    headers: {...r.headers, ...headers},
-  );
-
-  @override
-  Future<ApiResponse> send(ApiRequest request) => inner.send(_with(request));
-
-  @override
-  Stream<String> stream(ApiRequest request) => inner.stream(_with(request));
 }

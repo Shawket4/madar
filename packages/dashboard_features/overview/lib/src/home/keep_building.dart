@@ -25,7 +25,7 @@ class HomeKeepBuildingCard extends ConsumerWidget {
     );
     final dismissed = ref.watch(homeNudgeDismissedProvider);
     if (orgId == null || !can || dismissed) return false;
-    final steps = ref.watch(homeOnboardingProvider(orgId)).value?.steps;
+    final steps = ref.watch(onboardingStatusProvider(orgId)).value?.steps;
     if (steps == null || steps.isEmpty) return false;
     return steps.where((s) => s.done).length < steps.length;
   }
@@ -34,7 +34,7 @@ class HomeKeepBuildingCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final orgId = ref.watch(orgIdProvider);
     if (orgId == null) return const SizedBox.shrink();
-    final steps = ref.watch(homeOnboardingProvider(orgId)).value?.steps;
+    final steps = ref.watch(onboardingStatusProvider(orgId)).value?.steps;
     if (steps == null) return const SizedBox.shrink();
     final t = ref.watch(tProvider);
     final c = context.madarColors;

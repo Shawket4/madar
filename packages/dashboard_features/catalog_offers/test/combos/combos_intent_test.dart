@@ -56,7 +56,11 @@ void main() {
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: Offset.zero);
       addTearDown(mouse.removePointer);
-      int asked() => h.server.calls.where((c) => c.method == 'GET').length;
+      // The org's branches (the pick lists' shared read) refetch on any mount
+      // after the stale time, as the web's useBranches: not this read's ask.
+      int asked() => h.server.calls
+          .where((c) => c.method == 'GET' && c.template != '/branches')
+          .length;
       // Older than 30 s: a press adding a reader would refetch.
       h.db!.clock.advance(const Duration(seconds: 31));
       final f = target();

@@ -63,33 +63,10 @@ final attendanceSummaryProvider = FutureProvider.autoDispose
 Future<List<AttendanceRecord>> exportAttendance(
   ApiTransport transport,
   AttendanceQuery k,
-) => DashboardApi(_HeaderTransport(transport, exportRequestHeaders)).staff
-    .listAttendance(
-      from: k.from,
-      to: k.to,
-      branchId: k.branchId,
-      status: k.status,
-      employeeId: k.employeeId,
-    );
-
-class _HeaderTransport implements ApiTransport {
-  _HeaderTransport(this.inner, this.headers);
-
-  final ApiTransport inner;
-  final Map<String, String> headers;
-
-  ApiRequest _with(ApiRequest r) => ApiRequest(
-    method: r.method,
-    path: r.path,
-    query: r.query,
-    body: r.body,
-    files: r.files,
-    headers: {...r.headers, ...headers},
-  );
-
-  @override
-  Future<ApiResponse> send(ApiRequest request) => inner.send(_with(request));
-
-  @override
-  Stream<String> stream(ApiRequest request) => inner.stream(_with(request));
-}
+) => apiWithHeaders(transport, exportRequestHeaders).staff.listAttendance(
+  from: k.from,
+  to: k.to,
+  branchId: k.branchId,
+  status: k.status,
+  employeeId: k.employeeId,
+);

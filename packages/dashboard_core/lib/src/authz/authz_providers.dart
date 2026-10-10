@@ -14,6 +14,7 @@ import 'package:dashboard_api/dashboard_api.dart'
         Employee,
         LinkableUser,
         MyAuthz,
+        OnboardingStatus,
         WorkShift;
 import 'package:dashboard_core/src/api_provider.dart';
 import 'package:dashboard_core/src/authz/authz.dart';
@@ -168,7 +169,17 @@ class OnboardingSkipNotifier extends Notifier<bool> {
 final onboardingSkippedProvider =
     NotifierProvider<OnboardingSkipNotifier, bool>(OnboardingSkipNotifier.new);
 
-/// `GET /orgs/{id}/onboarding` `completed`, asked only of an owner whose org
+/// `GET /orgs/{id}/onboarding`: the org's set-up checklist. One read (the
+/// web's one query key) for the shell's [onboardingCompletedProvider], the
+/// wizard and the home's Keep-building card.
+final onboardingStatusProvider = FutureProvider.autoDispose
+    .family<OnboardingStatus, String>((ref, orgId) {
+      ref.webCache();
+      ref.watch(realtimeEpochProvider('/orgs/$orgId/onboarding'));
+      return ref.watch(apiProvider).orgs.getOnboarding(id: orgId);
+    });
+
+/// [onboardingStatusProvider]'s `completed`, asked only of an owner whose org
 /// sells with Madar POS and who has not skipped; null otherwise / until known.
 final onboardingCompletedProvider = FutureProvider<bool?>((ref) async {
   final orgId = ref.watch(orgIdProvider);
@@ -177,7 +188,7 @@ final onboardingCompletedProvider = FutureProvider<bool?>((ref) async {
   final mods = ref.watch(orgModulesProvider);
   final hasPos = mods.known && mods.has(OrgModule.pos);
   if (orgId == null || role != 'org_admin' || skipped || !hasPos) return null;
-  return ref.watch(coreApiProvider).getOnboardingCompleted(orgId);
+  return (await ref.watch(onboardingStatusProvider(orgId).future)).completed;
 }, retry: (_, _) => null);
 
 /// `sendsToOnboarding`: only an owner whose org has POS switched on, whose

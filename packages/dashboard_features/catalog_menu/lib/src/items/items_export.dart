@@ -6,14 +6,7 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show
-        AddonItem,
-        ApiRequest,
-        ApiResponse,
-        ApiTransport,
-        Category,
-        DashboardApi,
-        MenuItemWithCosts;
+    show AddonItem, Category, MenuItemWithCosts;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -33,9 +26,7 @@ Future<void> exportMenu(
   required List<AddonItem> addons,
 }) async {
   final t = ref.read(tProvider);
-  final api = DashboardApi(
-    _HeaderTransport(ref.read(transportProvider), exportRequestHeaders),
-  );
+  final api = apiWithHeaders(ref.read(transportProvider), exportRequestHeaders);
   final brand = ref.read(publicBrandProvider).value;
   String name(String n, Object? tr) => translatedName(n, tr, t.lang);
   String status(bool on) => t(on ? 'common.active' : 'common.inactive');
@@ -171,27 +162,4 @@ Future<void> exportMenu(
     outcome is ExportDone ? DashToastKind.success : DashToastKind.error,
     outcome.message(t),
   );
-}
-
-/// The API with the export mark on every request (`EXPORT_REQUEST`).
-class _HeaderTransport implements ApiTransport {
-  _HeaderTransport(this.inner, this.headers);
-
-  final ApiTransport inner;
-  final Map<String, String> headers;
-
-  ApiRequest _with(ApiRequest r) => ApiRequest(
-    method: r.method,
-    path: r.path,
-    query: r.query,
-    body: r.body,
-    files: r.files,
-    headers: {...r.headers, ...headers},
-  );
-
-  @override
-  Future<ApiResponse> send(ApiRequest request) => inner.send(_with(request));
-
-  @override
-  Stream<String> stream(ApiRequest request) => inner.stream(_with(request));
 }

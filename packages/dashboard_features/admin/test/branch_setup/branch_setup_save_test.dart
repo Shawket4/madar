@@ -467,6 +467,35 @@ void main() {
     expect(h.location.path, '/settings/kitchen-routing');
   });
 
+  testWidgets('ADM-BSU-085 every other way out asks too: the sidebar, the '
+      'palette and the header go through the router (DashLeaveGuard)', (
+    tester,
+  ) async {
+    final h = await pumpBuilder(tester, branchId: SeedIds.zamalek);
+    // Clean: straight out and back, nothing asked.
+    h.router.go('/');
+    await h.settle();
+    expect(find.text('Leave without saving?'), findsNothing);
+    expect(h.location.path, '/');
+    h.router.go('/branch-setup${atBranch(SeedIds.zamalek)}');
+    await h.settle();
+    await unlock(h);
+    await h.tap(cardTitled('Kitchen'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await h.settle();
+    h.router.go('/');
+    await h.settle();
+    expect(find.text('Leave without saving?'), findsOneWidget);
+    await h.tap(top('Cancel'));
+    expect(h.location.path, '/branch-setup');
+    expect(byKey('bb-unsaved'), findsOneWidget);
+    h.router.go('/');
+    await h.settle();
+    await h.tap(top('Leave'));
+    expect(h.location.path, '/');
+    expect(find.text('Leave without saving?'), findsNothing);
+  });
+
   testWidgets(
     'ADM-BSU-010/011/085 (divergence) a branch switch: a clean editor starts '
     'fresh; a dirty one asks, and Cancel puts the scope back',

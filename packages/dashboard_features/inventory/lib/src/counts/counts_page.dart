@@ -126,7 +126,7 @@ class _CountsPageState extends ConsumerState<CountsPage> {
     final firstRun =
         branchId != null &&
         open == null &&
-        !q.firstLoad &&
+        !q.awaitingFirst &&
         needsFirstCount(q.value?.map((s) => s.status));
 
     return DashPageScaffold(
@@ -174,7 +174,7 @@ class _CountsPageState extends ConsumerState<CountsPage> {
           CountsHistoryTable(
             rows: branchId != null ? history : (q.value ?? const []),
             allBranches: branchId == null,
-            loading: q.firstLoad,
+            loading: q.awaitingFirst,
             // Kept while Retry runs, as React Query keeps `error` (no false
             // "No counts yet" in between); never during automatic retries.
             errorText: q.errorText(t),

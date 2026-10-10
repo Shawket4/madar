@@ -362,8 +362,8 @@ void main() {
   });
 
   group('conversations', () {
-    testWidgets('REP-BAS-002/004 the header\'s own refresh re-reads the '
-        'list and the open conversation', (tester) async {
+    testWidgets('REP-BAS-002/004 the header\'s refresh re-reads the list and '
+        'the open conversation (the page\'s own refresh)', (tester) async {
       final h = await pumpBasira(tester);
       final refresh = find.descendant(
         of: inPage(find.byType(DashPageHeader)),
@@ -378,6 +378,24 @@ void main() {
       expect(h.server.callsTo(listRoute), hasLength(3));
       expect(h.server.callsTo(convRoute), hasLength(2));
       expect(_title(ownDirection(_compare)), findsOneWidget);
+    });
+
+    testWidgets('REP-BAS-002/004 Cmd/Ctrl+R reaches the page\'s own refresh', (
+      tester,
+    ) async {
+      final h = await pumpBasira(tester);
+      await _openConversation(h, _compare);
+      final lists = h.server.callsTo(listRoute).length;
+      final convs = h.server.callsTo(convRoute).length;
+      final mod = defaultTargetPlatform == TargetPlatform.macOS
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(mod);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.sendKeyUpEvent(mod);
+      await h.settle();
+      expect(h.server.callsTo(listRoute), hasLength(lists + 1));
+      expect(h.server.callsTo(convRoute), hasLength(convs + 1));
     });
 
     testWidgets('REP-BAS-007 Arabic: a cut English title keeps its own '
