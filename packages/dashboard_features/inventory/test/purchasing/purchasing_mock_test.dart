@@ -177,8 +177,9 @@ void main() {
       final l = po.lines.single;
       expect(l.unitsPerPurchaseUnit, 1000);
       expect(l.lineCost, 54001);
-      // 54,001 ÷ 12 = 4,500.083333… piastres a litre.
-      expect(l.unitCostExact, 4500.083333);
+      // 54,001 ÷ 12 = 4,500.083333… piastres a litre, kept to 8 dp as the
+      // server's `line_costs` stores it (madar-inventory, through the core).
+      expect(l.unitCostExact, 4500.08333333);
       expect(l.unitCost, 4500);
       final listed = await b.api.purchasing.listPurchaseOrders(
         branchId: SeedIds.zamalek,
