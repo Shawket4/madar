@@ -211,4 +211,31 @@ void main() {
         ..circle(radius: 16, color: ink),
     );
   });
+
+  testWidgets('on the ink chrome the satellite turns the lighter teal', (
+    tester,
+  ) async {
+    const paper = Color(0xFFEEF2F3);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: MadarTheme.light(),
+        home: const Center(
+          child: AnimatedBrandMark(
+            symbolSize: 120,
+            wordmark: false,
+            ink: paper,
+          ),
+        ),
+      ),
+    );
+    expect(
+      find.descendant(
+        of: find.byType(AnimatedBrandMark),
+        matching: find.byType(CustomPaint),
+      ),
+      paints
+        ..circle(radius: 44, color: paper, style: PaintingStyle.stroke)
+        ..circle(radius: 13, color: MadarColors.dark.brand),
+    );
+  });
 }
