@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1470180000;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -964761222;
 
 // Section: executor
 
@@ -2255,6 +2255,40 @@ fn wire__crate__api__rules__local_parts_impl(
         },
     )
 }
+fn wire__crate__api__rules__loyalty_card_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "loyalty_card",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_balance = <i32>::sse_decode(&mut deserializer);
+            let api_next_reward_cost = <i32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::rules::loyalty_card(
+                    api_balance,
+                    api_next_reward_cost,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__rules__margin_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -3902,6 +3936,22 @@ impl SseDecode for crate::api::rules::LocalParts {
     }
 }
 
+impl SseDecode for crate::api::rules::LoyaltyCard {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_rewardsReady = <i32>::sse_decode(deserializer);
+        let mut var_progressToNext = <i32>::sse_decode(deserializer);
+        let mut var_pointsToNextReward = <i32>::sse_decode(deserializer);
+        let mut var_canRedeem = <bool>::sse_decode(deserializer);
+        return crate::api::rules::LoyaltyCard {
+            rewards_ready: var_rewardsReady,
+            progress_to_next: var_progressToNext,
+            points_to_next_reward: var_pointsToNextReward,
+            can_redeem: var_canRedeem,
+        };
+    }
+}
+
 impl SseDecode for crate::api::types::MadarConfig {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4470,8 +4520,8 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        74 => wire__crate__api__xlsx__xlsx_read_impl(port, ptr, rust_vec_len, data_len),
-        75 => wire__crate__api__xlsx__xlsx_write_impl(port, ptr, rust_vec_len, data_len),
+        75 => wire__crate__api__xlsx__xlsx_read_impl(port, ptr, rust_vec_len, data_len),
+        76 => wire__crate__api__xlsx__xlsx_write_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4541,29 +4591,30 @@ fn pde_ffi_dispatcher_sync_impl(
         48 => wire__crate__api__rules__line_costs_impl(ptr, rust_vec_len, data_len),
         49 => wire__crate__api__rules__local_instant_impl(ptr, rust_vec_len, data_len),
         50 => wire__crate__api__rules__local_parts_impl(ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__rules__margin_impl(ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__rules__milli_impl(ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__rules__pay_period_impl(ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__rules__percent_of_salary_impl(ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__rules__phone_canonical_impl(ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__rules__price_options_impl(ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__rules__prorated_base_impl(ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__rules__quantity_milli_impl(ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__rules__recipe_base_qty_impl(ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__rules__recipe_cost_impl(ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__rules__reconcile_refusal_impl(ptr, rust_vec_len, data_len),
-        62 => wire__crate__api__rules__replenish_suggest_impl(ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__rules__salary_rates_impl(ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__rules__scale_qty_impl(ptr, rust_vec_len, data_len),
-        65 => wire__crate__api__rules__select_late_tier_impl(ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__rules__transfer_step_impl(ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__rules__unit_convert_impl(ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__rules__unit_cost_from_total_impl(ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__rules__unit_price_impl(ptr, rust_vec_len, data_len),
-        70 => wire__crate__api__rules__unit_spec_impl(ptr, rust_vec_len, data_len),
-        71 => wire__crate__api__rules__units_of_impl(ptr, rust_vec_len, data_len),
-        72 => wire__crate__api__rules__usable_qty_impl(ptr, rust_vec_len, data_len),
-        73 => wire__crate__api__rules__week_start_impl(ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__rules__loyalty_card_impl(ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__rules__margin_impl(ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__rules__milli_impl(ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__rules__pay_period_impl(ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__rules__percent_of_salary_impl(ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__rules__phone_canonical_impl(ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__rules__price_options_impl(ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__rules__prorated_base_impl(ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__rules__quantity_milli_impl(ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__rules__recipe_base_qty_impl(ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__rules__recipe_cost_impl(ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__rules__reconcile_refusal_impl(ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__rules__replenish_suggest_impl(ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__rules__salary_rates_impl(ptr, rust_vec_len, data_len),
+        65 => wire__crate__api__rules__scale_qty_impl(ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__rules__select_late_tier_impl(ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__rules__transfer_step_impl(ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__rules__unit_convert_impl(ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__rules__unit_cost_from_total_impl(ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__rules__unit_price_impl(ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__rules__unit_spec_impl(ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__rules__units_of_impl(ptr, rust_vec_len, data_len),
+        73 => wire__crate__api__rules__usable_qty_impl(ptr, rust_vec_len, data_len),
+        74 => wire__crate__api__rules__week_start_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -5147,6 +5198,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::rules::LocalParts>
     for crate::api::rules::LocalParts
 {
     fn into_into_dart(self) -> crate::api::rules::LocalParts {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::rules::LoyaltyCard {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.rewards_ready.into_into_dart().into_dart(),
+            self.progress_to_next.into_into_dart().into_dart(),
+            self.points_to_next_reward.into_into_dart().into_dart(),
+            self.can_redeem.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::rules::LoyaltyCard
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::rules::LoyaltyCard>
+    for crate::api::rules::LoyaltyCard
+{
+    fn into_into_dart(self) -> crate::api::rules::LoyaltyCard {
         self
     }
 }
@@ -6019,6 +6093,16 @@ impl SseEncode for crate::api::rules::LocalParts {
         <String>::sse_encode(self.date, serializer);
         <u32>::sse_encode(self.hour, serializer);
         <u32>::sse_encode(self.minute, serializer);
+    }
+}
+
+impl SseEncode for crate::api::rules::LoyaltyCard {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.rewards_ready, serializer);
+        <i32>::sse_encode(self.progress_to_next, serializer);
+        <i32>::sse_encode(self.points_to_next_reward, serializer);
+        <bool>::sse_encode(self.can_redeem, serializer);
     }
 }
 

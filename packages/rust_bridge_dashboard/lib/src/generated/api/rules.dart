@@ -383,6 +383,12 @@ ReconcileRefusal? reconcileRefusal({
   inputs: inputs,
 );
 
+LoyaltyCard loyaltyCard({required int balance, required int nextRewardCost}) =>
+    DashboardBridge.instance.api.crateApiRulesLoyaltyCard(
+      balance: balance,
+      nextRewardCost: nextRewardCost,
+    );
+
 /// One unit of an item at a size (`None`: the sizeless line); `None` when the
 /// item has no active priced size.
 PlatformInt64? unitPrice({required String itemJson, String? sizeLabel}) =>
@@ -601,6 +607,43 @@ class LocalParts {
           date == other.date &&
           hour == other.hour &&
           minute == other.minute;
+}
+
+/// What a member's card shows for a balance against the next reward's cost.
+class LoyaltyCard {
+  /// Rewards the balance has already earned.
+  final int rewardsReady;
+
+  /// Progress towards the next reward, the earned ones set aside.
+  final int progressToNext;
+
+  /// What the next reward still needs: the full cost on an exact multiple.
+  final int pointsToNextReward;
+  final bool canRedeem;
+
+  const LoyaltyCard({
+    required this.rewardsReady,
+    required this.progressToNext,
+    required this.pointsToNextReward,
+    required this.canRedeem,
+  });
+
+  @override
+  int get hashCode =>
+      rewardsReady.hashCode ^
+      progressToNext.hashCode ^
+      pointsToNextReward.hashCode ^
+      canRedeem.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoyaltyCard &&
+          runtimeType == other.runtimeType &&
+          rewardsReady == other.rewardsReady &&
+          progressToNext == other.progressToNext &&
+          pointsToNextReward == other.pointsToNextReward &&
+          canRedeem == other.canRedeem;
 }
 
 /// The pay period holding a day, both ends inclusive.

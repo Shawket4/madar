@@ -28,6 +28,7 @@ import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../area_seed.dart';
 import '../shared/phone.dart';
@@ -997,7 +998,7 @@ class _Handlers {
       }
     }
     final m = db[CustomerTables.members].find(id);
-    final progress = cost <= 0 ? 0 : balance % cost;
+    final card = rules.loyaltyCard(balance: balance, nextRewardCost: cost);
     return MemberView(
       id: id,
       orgId: org,
@@ -1014,10 +1015,10 @@ class _Handlers {
         (m?['enrolled_at'] ?? c['created_at'])! as String,
       ),
       nextRewardCost: cost,
-      progressToNext: progress,
-      pointsToNextReward: cost - progress,
-      rewardsReady: cost <= 0 ? 0 : balance ~/ cost,
-      canRedeem: balance >= cost,
+      progressToNext: card.progressToNext,
+      pointsToNextReward: card.pointsToNextReward,
+      rewardsReady: card.rewardsReady,
+      canRedeem: card.canRedeem,
     );
   }
 

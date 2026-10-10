@@ -31,20 +31,21 @@ calamine = { version = "0.36", features = ["chrono"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The business rules the dashboard shows (api/rules.rs): madar-shared's own
-# crates, the same rev as madar-core's (bump them together).
+# crates, the same tag as madar-core's (bump them together).
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 chrono-tz = "0.10"
 # Dawam's salary money crosses as f64 and is read as the exact Decimal the
 # crate takes.
 rust_decimal = { version = "1", default-features = false }
-madar-time = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
-madar-units = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
-madar-dawam = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
-madar-ids = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
-madar-money = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
-madar-catalog = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
-madar-till = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
-madar-inventory = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
+madar-time = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-units = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-dawam = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-ids = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-money = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-catalog = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-till = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-inventory = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
 
 [dev-dependencies]
 # Reads the written workbook's XML in the xlsx tests (rust_xlsxwriter's own zip).

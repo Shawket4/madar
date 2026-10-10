@@ -299,6 +299,9 @@ abstract class DashboardBridgeApiImplPlatform
   LocalParts dco_decode_local_parts(dynamic raw);
 
   @protected
+  LoyaltyCard dco_decode_loyalty_card(dynamic raw);
+
+  @protected
   MadarConfig dco_decode_madar_config(dynamic raw);
 
   @protected
@@ -702,6 +705,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   LocalParts sse_decode_local_parts(SseDeserializer deserializer);
+
+  @protected
+  LoyaltyCard sse_decode_loyalty_card(SseDeserializer deserializer);
 
   @protected
   MadarConfig sse_decode_madar_config(SseDeserializer deserializer);
@@ -1211,6 +1217,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_encode_local_parts(LocalParts self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_loyalty_card(LoyaltyCard self, SseSerializer serializer);
 
   @protected
   void sse_encode_madar_config(MadarConfig self, SseSerializer serializer);

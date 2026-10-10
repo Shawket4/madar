@@ -712,6 +712,30 @@ pub fn reconcile_refusal(
     })
 }
 
+// ── Loyalty card (madar-loyalty) ──────────────────────────────────────
+
+/// What a member's card shows for a balance against the next reward's cost.
+pub struct LoyaltyCard {
+    /// Rewards the balance has already earned.
+    pub rewards_ready: i32,
+    /// Progress towards the next reward, the earned ones set aside.
+    pub progress_to_next: i32,
+    /// What the next reward still needs: the full cost on an exact multiple.
+    pub points_to_next_reward: i32,
+    pub can_redeem: bool,
+}
+
+#[frb(sync)]
+pub fn loyalty_card(balance: i32, next_reward_cost: i32) -> LoyaltyCard {
+    let c = madar_loyalty::card::card(balance, next_reward_cost);
+    LoyaltyCard {
+        rewards_ready: c.rewards_ready,
+        progress_to_next: c.progress_to_next,
+        points_to_next_reward: c.points_to_next_reward,
+        can_redeem: c.can_redeem,
+    }
+}
+
 // ── Catalogue prices (madar-catalog) ──────────────────────────────────
 
 /// One unit of an item at a size (`None`: the sizeless line); `None` when the
