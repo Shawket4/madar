@@ -322,22 +322,34 @@ fn sum_result(formula: &str, rows: &[Vec<Value>], first_row: u32) -> Option<Stri
     })
 }
 
-/// Write the workbook `spec` describes; `logo` is a PNG/JPEG drawn in each
-/// sheet's banner.
+/// The banner logo as an image the writer embeds: PNG, JPEG, GIF or BMP as it
+/// comes, anything else the decoder reads (an org logo is stored as WebP)
+/// re-encoded as PNG. Unreadable bytes draw no logo: as on the web, a logo
+/// never fails the export.
+fn logo_image(bytes: &[u8]) -> Option<Image> {
+    Image::new_from_buffer(bytes).ok().or_else(|| {
+        let mut png = Vec::new();
+        image::load_from_memory(bytes)
+            .ok()?
+            .write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png)
+            .ok()?;
+        Image::new_from_buffer(&png).ok()
+    })
+}
+
+/// Write the workbook `spec` describes; `logo` (PNG, JPEG, WebP, …) is drawn
+/// in each sheet's banner.
 pub fn write_workbook(spec: &WorkbookSpec, logo: Option<&[u8]>) -> Result<Vec<u8>, XlsxFailure> {
     let colors = Colors::of(&spec.palette)?;
-    let logo = match logo.filter(|b| !b.is_empty()) {
-        Some(bytes) => {
-            let image = Image::new_from_buffer(bytes)?;
+    let logo = logo
+        .filter(|b| !b.is_empty())
+        .and_then(logo_image)
+        .map(|image| {
             let (w, h) = fit_box(image.width(), image.height(), 150.0, 52.0);
-            Some(
-                image
-                    .set_scale_to_size(w, h, true)
-                    .set_object_movement(ObjectMovement::MoveButDontSizeWithCells),
-            )
-        }
-        None => None,
-    };
+            image
+                .set_scale_to_size(w, h, true)
+                .set_object_movement(ObjectMovement::MoveButDontSizeWithCells)
+        });
     let mut wb = Workbook::new();
     wb.set_properties(&DocProperties::new().set_author(spec.creator.as_deref().unwrap_or("Madar")));
     let mut taken = Vec::new();
@@ -754,6 +766,36 @@ mod tests {
         let rows = &read_sheets(&bytes).unwrap()[0].rows;
         assert_eq!(rows[0], vec![json!("الطلبات")]);
         assert_eq!(rows.last().unwrap()[0], json!("الإجماليات"));
+    }
+
+    /// An org's logo is stored as WebP, which the writer cannot embed: it is
+    /// drawn as a PNG, and bytes no decoder reads draw no logo instead of
+    /// failing the export (every branded shop's exports used to fail).
+    #[test]
+    fn a_webp_logo_is_drawn_and_an_unreadable_one_is_skipped() {
+        let mut webp = Vec::new();
+        image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            40,
+            12,
+            image::Rgba([13, 98, 115, 255]),
+        ))
+        .write_to(&mut Cursor::new(&mut webp), image::ImageFormat::WebP)
+        .unwrap();
+        assert_eq!(&webp[8..12], b"WEBP");
+        let bytes = write_workbook(&spec(orders()), Some(&webp)).unwrap();
+        assert!(part(&bytes, "xl/worksheets/sheet1.xml").contains("<drawing "));
+        let mut media = Vec::new();
+        zip::ZipArchive::new(Cursor::new(bytes))
+            .unwrap()
+            .by_name("xl/media/image1.png")
+            .unwrap()
+            .read_to_end(&mut media)
+            .unwrap();
+        assert!(media.starts_with(b"\x89PNG"));
+
+        let bytes = write_workbook(&spec(orders()), Some(b"<html>not an image</html>")).unwrap();
+        assert!(!part(&bytes, "xl/worksheets/sheet1.xml").contains("<drawing "));
+        assert_eq!(read_sheets(&bytes).unwrap()[0].rows.len(), 8);
     }
 
     #[test]

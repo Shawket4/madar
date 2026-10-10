@@ -2126,6 +2126,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "flutter_rust_bridge",
+ "image",
  "madar-catalog",
  "madar-core",
  "madar-dawam",

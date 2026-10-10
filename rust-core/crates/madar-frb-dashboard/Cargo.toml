@@ -28,6 +28,9 @@ tokio = { version = "1", features = ["sync"] }
 # POS binary never links them. Both pure Rust, no default features.
 rust_xlsxwriter = "0.99"
 calamine = { version = "0.36", features = ["chrono"] }
+# The export's banner logo: an org logo is stored as WebP, which the writer
+# cannot embed, so it is re-encoded as PNG. Already linked through madar-core.
+image = { version = "0.25", default-features = false, features = ["png", "webp"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The business rules the dashboard shows (api/rules.rs): madar-shared's own
