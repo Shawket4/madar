@@ -5,6 +5,7 @@
 // 115, so the till offers "Make it a meal +EGP 35.00".
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_catalog_menu/src/area_seed.dart';
+import 'package:dashboard_catalog_menu/src/studio/studio_preview.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/material.dart';
