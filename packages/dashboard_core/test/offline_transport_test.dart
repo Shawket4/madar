@@ -171,7 +171,14 @@ void main() {
       expect(host.shown, [savedAt]);
       // Nothing saved for this one: the offline error stands.
       await expectLater(
-        t.send(_get('/probe', query: {'q': ['x']})),
+        t.send(
+          _get(
+            '/probe',
+            query: {
+              'q': ['x'],
+            },
+          ),
+        ),
         throwsA(isA<ApiException>().having((e) => e.status, 'status', 0)),
       );
     });
@@ -190,20 +197,23 @@ void main() {
       expect(host.shown, hasLength(1));
     });
 
-    test('exports, sign-in, streams, writes and refusals are never saved', () async {
-      await t.send(_get('/probe', headers: {'X-Madar-Export': '1'}));
-      await t.send(_get('/auth/me'));
-      await t.stream(_get('/stream')).toList();
-      await t.send(const ApiRequest(method: 'POST', path: '/probe'));
-      await expectLater(t.send(_get('/gone')), throwsA(isA<ApiException>()));
-      await pumpEventQueue();
-      expect(store.length, 0);
-      // And signed out, nothing either.
-      host.scope = null;
-      await t.send(_get('/probe'));
-      await pumpEventQueue();
-      expect(store.length, 0);
-    });
+    test(
+      'exports, sign-in, streams, writes and refusals are never saved',
+      () async {
+        await t.send(_get('/probe', headers: {'X-Madar-Export': '1'}));
+        await t.send(_get('/auth/me'));
+        await t.stream(_get('/stream')).toList();
+        await t.send(const ApiRequest(method: 'POST', path: '/probe'));
+        await expectLater(t.send(_get('/gone')), throwsA(isA<ApiException>()));
+        await pumpEventQueue();
+        expect(store.length, 0);
+        // And signed out, nothing either.
+        host.scope = null;
+        await t.send(_get('/probe'));
+        await pumpEventQueue();
+        expect(store.length, 0);
+      },
+    );
 
     test('a write offline fails at once, in words that say so', () async {
       server.offline = true;
@@ -228,46 +238,69 @@ void main() {
         'from': [from.toIso8601String()],
         'to': [to.toIso8601String()],
       };
-      final wide = range(DateTime.utc(2026, 9, 30, 21), DateTime.utc(2026, 10, 8, 21));
-      final narrow = range(DateTime.utc(2026, 10, 2, 21), DateTime.utc(2026, 10, 3, 20, 59));
+      final wide = range(
+        DateTime.utc(2026, 9, 30, 21),
+        DateTime.utc(2026, 10, 8, 21),
+      );
+      final narrow = range(
+        DateTime.utc(2026, 10, 2, 21),
+        DateTime.utc(2026, 10, 3, 20, 59),
+      );
 
-      test('online: from a wide answer read under 30 s ago, as a hit', () async {
-        await t.send(_get(path, query: wide));
-        final live = server.callsTo('/reports/branches/{id}/tills').length;
-        host.clock = host.clock.add(const Duration(seconds: 20));
-        final derived = _json(await t.send(_get(path, query: narrow)));
-        expect(server.callsTo('/reports/branches/{id}/tills'), hasLength(live));
-        server.offline = false;
-        // What the server itself says for the narrow range.
-        final t2 = OfflineTransport(server, store: null, host: host);
-        expect(derived, _json(await t2.send(_get(path, query: narrow))));
-        expect(derived, hasLength(4));
-        expect(host.shown, isEmpty);
-      });
+      test(
+        'online: from a wide answer read under 30 s ago, as a hit',
+        () async {
+          await t.send(_get(path, query: wide));
+          final live = server.callsTo('/reports/branches/{id}/tills').length;
+          host.clock = host.clock.add(const Duration(seconds: 20));
+          final derived = _json(await t.send(_get(path, query: narrow)));
+          expect(
+            server.callsTo('/reports/branches/{id}/tills'),
+            hasLength(live),
+          );
+          server.offline = false;
+          // What the server itself says for the narrow range.
+          final t2 = OfflineTransport(server, store: null, host: host);
+          expect(derived, _json(await t2.send(_get(path, query: narrow))));
+          expect(derived, hasLength(4));
+          expect(host.shown, isEmpty);
+        },
+      );
 
-      test('online: never from an answer 30 s old, after a write, or twice', () async {
-        int calls() => server.callsTo('/reports/branches/{id}/tills').length;
-        await t.send(_get(path, query: wide));
-        host.clock = host.clock.add(const Duration(seconds: 30));
-        await t.send(_get(path, query: narrow));
-        expect(calls(), 2);
-        // Fresh wide again; a write in between: what was read may differ.
-        await t.send(_get(path, query: wide));
-        await t.send(const ApiRequest(method: 'POST', path: '/probe'));
-        await t.send(_get(path, query: narrow));
-        expect(calls(), 4);
-        // Derived once; asked again inside 30 s it is a refetch: live.
-        await t.send(_get(path, query: wide));
-        await t.send(_get(path, query: narrow));
-        expect(calls(), 5);
-        await t.send(_get(path, query: narrow));
-        expect(calls(), 6);
-        // A realtime nudge forgets too.
-        await t.send(_get(path, query: wide));
-        t.forgetRecent();
-        await t.send(_get(path, query: range(DateTime.utc(2026, 10, 1), DateTime.utc(2026, 10, 2))));
-        expect(calls(), 8);
-      });
+      test(
+        'online: never from an answer 30 s old, after a write, or twice',
+        () async {
+          int calls() => server.callsTo('/reports/branches/{id}/tills').length;
+          await t.send(_get(path, query: wide));
+          host.clock = host.clock.add(const Duration(seconds: 30));
+          await t.send(_get(path, query: narrow));
+          expect(calls(), 2);
+          // Fresh wide again; a write in between: what was read may differ.
+          await t.send(_get(path, query: wide));
+          await t.send(const ApiRequest(method: 'POST', path: '/probe'));
+          await t.send(_get(path, query: narrow));
+          expect(calls(), 4);
+          // Derived once; asked again inside 30 s it is a refetch: live.
+          await t.send(_get(path, query: wide));
+          await t.send(_get(path, query: narrow));
+          expect(calls(), 5);
+          await t.send(_get(path, query: narrow));
+          expect(calls(), 6);
+          // A realtime nudge forgets too.
+          await t.send(_get(path, query: wide));
+          t.forgetRecent();
+          await t.send(
+            _get(
+              path,
+              query: range(
+                DateTime.utc(2026, 10, 1),
+                DateTime.utc(2026, 10, 2),
+              ),
+            ),
+          );
+          expect(calls(), 8);
+        },
+      );
 
       test('offline: from a saved wide answer, the later saved wins', () async {
         final wideAt = host.clock;

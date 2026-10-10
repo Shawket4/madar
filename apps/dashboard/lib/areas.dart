@@ -5,8 +5,7 @@ library;
 import 'package:dashboard_admin/dashboard_admin.dart';
 import 'package:dashboard_catalog_menu/dashboard_catalog_menu.dart';
 import 'package:dashboard_catalog_offers/dashboard_catalog_offers.dart';
-import 'package:dashboard_core/dashboard_core.dart'
-    show AreaOpeners, DashArea;
+import 'package:dashboard_core/dashboard_core.dart' show AreaOpeners, DashArea;
 import 'package:dashboard_inventory/dashboard_inventory.dart';
 import 'package:dashboard_overview/dashboard_overview.dart';
 import 'package:dashboard_reports/dashboard_reports.dart';

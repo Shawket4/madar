@@ -15,8 +15,11 @@ void main() {
     );
     addTearDown(c.dispose);
     final seen = <(bool, bool)>[];
-    c.listen(p, (_, v) => seen.add((v.awaitingFirst, v.failedFirst)),
-        fireImmediately: true);
+    c.listen(
+      p,
+      (_, v) => seen.add((v.awaitingFirst, v.failedFirst)),
+      fireImmediately: true,
+    );
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(calls, 2);
     // Never an error while an automatic retry is pending.

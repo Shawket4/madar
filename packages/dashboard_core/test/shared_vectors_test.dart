@@ -30,7 +30,11 @@ void main() {
       // Reports filter `at <= to`: the last instant is Rust's exclusive end minus 1 ms.
       final end = _iso(v['end']! as String, 1);
       expect(dayBoundaryISO(tz, p.y, p.m, p.d), start, reason: why);
-      expect(dayBoundaryISO(tz, p.y, p.m, p.d, endOfDay: true), end, reason: why);
+      expect(
+        dayBoundaryISO(tz, p.y, p.m, p.d, endOfDay: true),
+        end,
+        reason: why,
+      );
       final f = DashFormat(lang: 'en', timezone: tz);
       expect(f.cairoDateISO(p.y, p.m, p.d), start, reason: why);
       expect(f.cairoDateISO(p.y, p.m, p.d, endOfDay: true), end, reason: why);

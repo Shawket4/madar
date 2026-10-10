@@ -7,12 +7,17 @@ import 'dart:io';
 /// it looks for `dashboard_core/test/vectors/` from the current folder upwards.
 Object? sharedVectors(String name) {
   for (var dir = Directory.current.absolute; ; dir = dir.parent) {
-    for (final base in ['${dir.path}/dashboard_core', '${dir.path}/packages/dashboard_core']) {
+    for (final base in [
+      '${dir.path}/dashboard_core',
+      '${dir.path}/packages/dashboard_core',
+    ]) {
       final f = File('$base/test/vectors/${name}_vectors.json');
       if (f.existsSync()) return json.decode(f.readAsStringSync());
     }
     if (dir.parent.path == dir.path) {
-      throw StateError('${name}_vectors.json not found: run tool/sync_web_vectors.py');
+      throw StateError(
+        '${name}_vectors.json not found: run tool/sync_web_vectors.py',
+      );
     }
   }
 }

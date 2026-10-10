@@ -134,8 +134,11 @@ class RefOfflineHost implements OfflineHost {
 
   @override
   String? zoneFor(String? branchId) {
-    if (branchId == null) return ref.container.read(currentOrgProvider).value?.timezone;
-    for (final b in ref.container.read(branchesProvider).value ?? const <Branch>[]) {
+    if (branchId == null) {
+      return ref.container.read(currentOrgProvider).value?.timezone;
+    }
+    for (final b
+        in ref.container.read(branchesProvider).value ?? const <Branch>[]) {
       // `Branch.timezone` is the effective zone (branch → org → Cairo), the
       // one the server buckets in.
       if (b.id == branchId) return b.timezone;
@@ -144,14 +147,16 @@ class RefOfflineHost implements OfflineHost {
   }
 
   @override
-  String get cantSaveWords => ref.container.read(tProvider)('shell.offlineCantSave');
+  String get cantSaveWords =>
+      ref.container.read(tProvider)('shell.offlineCantSave');
 
   @override
   void showedSaved(DateTime savedAt) =>
       ref.container.read(offlineProvider.notifier).showedSaved(savedAt);
 
   @override
-  void reachedServer() => ref.container.read(offlineProvider.notifier).reachedServer();
+  void reachedServer() =>
+      ref.container.read(offlineProvider.notifier).reachedServer();
 }
 
 /// A failure that never reached the Madar server: no network (the core's
@@ -359,11 +364,7 @@ class OfflineTransport implements ApiTransport {
     return null;
   }
 
-  ApiResponse? _fromRecent(
-    OfflineScope scope,
-    String key,
-    ApiRequest request,
-  ) {
+  ApiResponse? _fromRecent(OfflineScope scope, String key, ApiRequest request) {
     final w = _want(request);
     if (w == null) return null;
     final now = host.now();

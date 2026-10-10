@@ -228,11 +228,7 @@ Object? deriveTimeseries(Object? wider, DeriveRequest want) {
   final id = want.match.group(1)!;
   final zone = want.zoneFor(id == allBranchesId ? null : id);
   if (zone == null) return null;
-  final days = wholeLocalDays(
-    want.from as DateTime,
-    want.to as DateTime,
-    zone,
-  );
+  final days = wholeLocalDays(want.from as DateTime, want.to as DateTime, zone);
   if (days == null) return null;
   final out = <Object?>[];
   for (final p in wider) {

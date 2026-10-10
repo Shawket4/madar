@@ -841,14 +841,10 @@ class MockSeed {
       final table = rng.weighted(open, [
         for (final t in open) t.sectionKey == null ? 0.6 : 1.0,
       ]);
-      final party = rng.weighted(const [1, 2, 3, 4, 5, 6], const [
-        18,
-        40,
-        16,
-        16,
-        5,
-        5,
-      ]);
+      final party = rng.weighted(
+        const [1, 2, 3, 4, 5, 6],
+        const [18, 40, 16, 16, 5, 5],
+      );
       final covers = party < table.seats ? party : table.seats;
       final dwell = 22 + rng.nextInt(38) + covers * (6 + rng.nextInt(9));
       out[o.id] = SeedSitting(
