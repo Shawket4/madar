@@ -4,7 +4,7 @@ library;
 
 import 'dart:io';
 
-import 'src/core.dart';
+import 'package:rust_bridge_dashboard/src/core.dart';
 
 /// Call once per test file (from `flutter_test_config.dart`). Fails loudly when
 /// the library isn't built, so no test passes without the rules it checks.
