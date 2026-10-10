@@ -460,6 +460,8 @@ void main() {
           .transform
           .getTranslation()
           .y;
+      // The router lands the page a frame after `go`.
+      await tester.pump();
       await tester.pump();
       expect(opacity(), lessThan(1));
       expect(rise(), greaterThan(0));

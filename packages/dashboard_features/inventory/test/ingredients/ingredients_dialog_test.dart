@@ -578,7 +578,10 @@ void main() {
     await openCreate(h);
     await h.enterText(inDialog(byKey('ingredient-name')), 'Pistachio Paste');
     await h.tap(inDialog(byKey('ingredient-save')));
-    expect(textHas('Add stock items (inventory.items.create)'), findsOneWidget);
+    expect(
+      textHas(h.refusalWords(MockResponse.denied('inventory.items.create'))),
+      findsOneWidget,
+    );
     expect(dialog, findsOneWidget);
     await h.flushTimers();
   });

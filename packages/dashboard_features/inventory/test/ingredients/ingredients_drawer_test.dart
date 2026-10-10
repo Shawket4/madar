@@ -206,7 +206,10 @@ void main() {
     );
     await openDrawer(h, 'Oat Milk');
     await h.tap(inDrawer(byKey('ingredient-drawer-count')));
-    expect(textHas('(inventory.counts.create)'), findsOneWidget);
+    expect(
+      textHas(h.refusalWords(MockResponse.denied('inventory.counts.create'))),
+      findsOneWidget,
+    );
     expect(drawer, findsOneWidget);
     expect(h.location.path, ingredientsPath);
     await h.flushTimers();
@@ -305,7 +308,10 @@ void main() {
     );
     await openDrawer(h, 'Almond Milk');
     await h.tap(inDrawer(byKey('ingredient-drawer-par-save')));
-    expect(textHas('(inventory.adjust)'), findsOneWidget);
+    expect(
+      textHas(h.refusalWords(MockResponse.denied('inventory.adjust'))),
+      findsOneWidget,
+    );
     expect(drawerButton(tester, 'ingredient-drawer-par-save').loading, isFalse);
     await h.flushTimers();
   });

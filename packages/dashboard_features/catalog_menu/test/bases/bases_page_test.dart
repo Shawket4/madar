@@ -179,7 +179,7 @@ void main() {
       expect(h.server.callsTo(_list), isEmpty);
     });
 
-    testWidgets('MENU-BAS-008 a 403 on the read shows the server\'s words', (
+    testWidgets('MENU-BAS-008 a 403 on the read shows the refusal\'s words', (
       tester,
     ) async {
       final s = menuServer(persona: Persona.limited);
@@ -192,7 +192,7 @@ void main() {
       final h = await pumpMenu(tester, persona: Persona.limited, seeded: s);
       expect(find.text('Could not load recipe bases'), findsOneWidget);
       expect(
-        textHas("You don't have permission to do this: See the menu"),
+        textHas(h.refusalWords(MockResponse.denied('menu.items.read'))),
         findsOneWidget,
       );
       h.server.clearFailures();
@@ -297,7 +297,7 @@ void main() {
       expect(find.text('Iced build'), findsOneWidget);
     });
 
-    testWidgets('a refusal shows the server\'s words, the row stays', (
+    testWidgets('a refusal shows the refusal\'s words, the row stays', (
       tester,
     ) async {
       final h = await pumpMenu(tester);
@@ -310,8 +310,7 @@ void main() {
         ),
       );
       await h.expectToast(
-        "Forbidden: You don't have permission to do this: Edit menu items, "
-        'prices and availability (menu.items.edit)',
+        h.refusalWords(MockResponse.denied('menu.items.edit')),
       );
       expect(find.text('Iced build'), findsOneWidget);
     });
@@ -620,9 +619,7 @@ void main() {
       // Base names are unique per org (case-insensitive): 409.
       await h.enterText(find.bySemanticsLabel('Name'), 'espresso SHOT');
       await h.tapText('Save');
-      await h.expectToast(
-        'Conflict: A recipe base with this name already exists',
-      );
+      await h.expectToast('A recipe base with this name already exists');
       expect(find.text('New base'), findsWidgets);
       // Still open (its label and input both carry "Name").
       expect(find.bySemanticsLabel('Name'), findsWidgets);
@@ -758,7 +755,7 @@ void main() {
       await openEditor(h, icedBase);
       await h.enterText(cell(h, 'Ice', 'All sizes'), '160');
       await h.tapText('Save');
-      await h.expectToast('Bad request: quantity must be >= 0');
+      await h.expectToast('quantity must be >= 0');
       expect(find.text('Edit base'), findsOneWidget);
       // Save again once the server agrees.
       await h.tapText('Save');

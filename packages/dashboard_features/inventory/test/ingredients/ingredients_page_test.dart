@@ -491,9 +491,12 @@ void main() {
       MockResponse.denied('inventory.read'),
       times: null,
     );
-    await pumpIngredients(tester, server: s.server, db: s.db);
+    final h = await pumpIngredients(tester, server: s.server, db: s.db);
     expect(inPage(find.text("Couldn't load this")), findsOneWidget);
-    expect(inPage(textHas('(inventory.read)')), findsOneWidget);
+    expect(
+      inPage(textHas(h.refusalWords(MockResponse.denied('inventory.read')))),
+      findsOneWidget,
+    );
     expect(inPage(find.text('New ingredient')), findsOneWidget);
   });
 

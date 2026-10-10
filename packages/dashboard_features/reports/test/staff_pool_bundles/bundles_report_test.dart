@@ -109,21 +109,30 @@ void main() {
       },
     );
 
-    testWidgets('REP-BUN-010 a 403 from the server shows its words', (
-      tester,
-    ) async {
-      final s = reportsServer();
-      s.server.fail(
-        'GET',
-        bundlesTpl,
-        MockResponse.denied('reports.bundles'),
-        times: null,
-      );
-      await pumpReports(tester, path: bundlesPath, server: s.server, db: s.db);
-      expect(find.text("Couldn't load this"), findsOneWidget);
-      expect(textHas("You don't have permission to do this"), findsOneWidget);
-      expect(find.text('Retry'), findsOneWidget);
-    });
+    testWidgets(
+      'REP-BUN-010 a 403 from the server shows the refusal\'s words',
+      (tester) async {
+        final s = reportsServer();
+        s.server.fail(
+          'GET',
+          bundlesTpl,
+          MockResponse.denied('reports.bundles'),
+          times: null,
+        );
+        final h = await pumpReports(
+          tester,
+          path: bundlesPath,
+          server: s.server,
+          db: s.db,
+        );
+        expect(find.text("Couldn't load this"), findsOneWidget);
+        expect(
+          textHas(h.refusalWords(MockResponse.denied('reports.bundles'))),
+          findsOneWidget,
+        );
+        expect(find.text('Retry'), findsOneWidget);
+      },
+    );
   });
 
   group('the header and the request', () {

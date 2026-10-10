@@ -355,7 +355,7 @@ void main() {
       expect(labelIn(rowOf(_iced), 'Delete'), findsOneWidget);
     });
 
-    testWidgets('MENU-PKG-006 a 403 on the read shows the server\'s words', (
+    testWidgets('MENU-PKG-006 a 403 on the read shows the refusal\'s words', (
       tester,
     ) async {
       final s = menuServer(persona: Persona.limited);
@@ -373,7 +373,7 @@ void main() {
       );
       expect(find.text('Could not load packaging rules'), findsOneWidget);
       expect(
-        textHas("You don't have permission to do this: See the menu"),
+        textHas(h.refusalWords(MockResponse.denied('menu.items.read'))),
         findsOneWidget,
       );
       h.server.clearFailures();
@@ -486,7 +486,7 @@ void main() {
       expect(find.text('Rules applied'), findsOneWidget);
     });
 
-    testWidgets('a refusal toasts the server\'s words, no alert', (
+    testWidgets('a refusal toasts the refusal\'s words, no alert', (
       tester,
     ) async {
       final h = await pumpMenu(tester, path: packagingPath);
@@ -497,8 +497,7 @@ void main() {
       );
       await h.tap(_inPage(find.text('Apply rules')));
       await h.expectToast(
-        "Forbidden: You don't have permission to do this: Re-apply packaging "
-        'rules to every menu item (menu.packaging_rules.apply)',
+        h.refusalWords(MockResponse.denied('menu.packaging_rules.apply')),
       );
       expect(find.text('Rules applied'), findsNothing);
     });
@@ -557,7 +556,7 @@ void main() {
       expect(find.text('Iced cup'), findsOneWidget);
     });
 
-    testWidgets('a refusal shows the server\'s words, the row stays', (
+    testWidgets('a refusal shows the refusal\'s words, the row stays', (
       tester,
     ) async {
       final h = await pumpMenu(tester, path: packagingPath);
@@ -570,8 +569,7 @@ void main() {
         ),
       );
       await h.expectToast(
-        "Forbidden: You don't have permission to do this: Edit menu items, "
-        'prices and availability (menu.items.edit)',
+        h.refusalWords(MockResponse.denied('menu.items.edit')),
       );
       expect(find.text('Iced cup'), findsOneWidget);
     });
@@ -850,7 +848,7 @@ void main() {
       await _save(h);
       expect(h.server.callsTo(_list, method: 'POST').single.status, 400);
       await h.expectToast(
-        'Bad request: A rule must match a category, a size label or an item',
+        'A rule must match a category, a size label or an item',
       );
       expect(_dialog, findsOneWidget);
       expect(find.text('Everything'), findsOneWidget); // still in the field
