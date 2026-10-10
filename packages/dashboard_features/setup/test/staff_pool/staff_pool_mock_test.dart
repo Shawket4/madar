@@ -74,18 +74,25 @@ void main() {
         'enabled': true,
         'daily_allowance': 3,
         'eligible_item_ids': StaffPoolSettingsMock.eligibleItemIds,
+        'inherited': false,
       });
       expect(StaffPoolSettingsMock.eligibleItemIds, hasLength(8));
       final helio = await _send(b, 'GET', branch: SeedIds.heliopolis);
       expect((helio.json! as Map)['daily_allowance'], 4);
       expect((helio.json! as Map)['branch_id'], SeedIds.heliopolis);
+      expect((helio.json! as Map)['inherited'], false);
       final zam = await _send(b, 'GET', branch: SeedIds.zamalek);
       expect((zam.json! as Map)['daily_allowance'], 5);
       final nc = await _send(b, 'GET', branch: SeedIds.newCairo);
       expect((nc.json! as Map)['enabled'], false);
-      // Maadi has no row: the org's, reported under Maadi (load_effective).
+      // Maadi has no row: the org's, reported under Maadi (load_effective)
+      // and flagged inherited (B4).
       final maadi = await _send(b, 'GET', branch: SeedIds.maadi);
-      expect(maadi.json, {...org.json! as Map, 'branch_id': SeedIds.maadi});
+      expect(maadi.json, {
+        ...org.json! as Map,
+        'branch_id': SeedIds.maadi,
+        'inherited': true,
+      });
     });
 
     test('with no rows at all: off, nothing allowed', () async {
@@ -96,6 +103,7 @@ void main() {
       final maadi = await _send(b, 'GET', branch: SeedIds.maadi);
       expect((maadi.json! as Map)['branch_id'], SeedIds.maadi);
       expect((maadi.json! as Map)['eligible_item_ids'], isEmpty);
+      expect((maadi.json! as Map)['inherited'], true);
     });
 
     test(
@@ -171,6 +179,7 @@ void main() {
         'enabled': false,
         'daily_allowance': 0,
         'eligible_item_ids': <String>[],
+        'inherited': false,
       });
     });
 

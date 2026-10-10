@@ -5,23 +5,15 @@
 ///   `scopeProvider.select((s) => s.branchId)` (null = "All branches").
 ///   Switching the header branch reloads a branch-scoped pane (SET-SHL-015).
 /// - A branch-scoped settings row (Loyalty, Staff drinks) is INHERITED when a
-///   branch is in scope and the server answered with another row (the
-///   organisation's): saving creates the branch's own, "Follow the
-///   organisation" deletes it.
+///   branch is in scope and the server answered with the organisation's
+///   (Staff drinks says so in `inherited`): saving creates the branch's own,
+///   "Follow the organisation" deletes it.
 /// - The in-page refusal (Combos, Staff drinks, Integrations, WhatsApp):
 ///   [SetupRefusalPane].
 library;
 
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
-
-/// Whether the settings row the server returned for [scopeBranchId] is the
-/// organisation's, not the branch's own (`inherited` in `use-program.ts`,
-/// `use-staff-pool.ts`).
-bool isInheritedScope({
-  required String? scopeBranchId,
-  required String? rowBranchId,
-}) => scopeBranchId != null && rowBranchId != scopeBranchId;
 
 /// A pane that refuses in place: its own header, then an empty state
 /// saying why (the web's `<Restricted>` inside the pane, or WhatsApp's own

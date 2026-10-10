@@ -10,7 +10,6 @@ import 'package:dashboard_setup/src/area_seed.dart';
 import 'package:dashboard_setup/src/brand_appearance/settings_shell.dart';
 import 'package:dashboard_setup/src/mock/support.dart';
 import 'package:dashboard_setup/src/shared/qr_preview_dialog.dart';
-import 'package:dashboard_setup/src/shared/scope.dart';
 import 'package:dashboard_setup/src/shared/social_links.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -41,21 +40,6 @@ void main() {
         'website': 'https://sabah.coffee',
       });
     });
-  });
-
-  test('inherited: a branch in scope answered with another row', () {
-    expect(isInheritedScope(scopeBranchId: null, rowBranchId: null), isFalse);
-    expect(
-      isInheritedScope(scopeBranchId: SeedIds.maadi, rowBranchId: null),
-      isTrue,
-    );
-    expect(
-      isInheritedScope(
-        scopeBranchId: SeedIds.zamalek,
-        rowBranchId: SeedIds.zamalek,
-      ),
-      isFalse,
-    );
   });
 
   testWidgets('the mock QR is a real square PNG; codes are stable', (
