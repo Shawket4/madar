@@ -108,6 +108,25 @@ jobs:
         working-directory: packages/rust_bridge
         run: flutter test
 
+      # The Flutter dashboard's business rules run in Rust (madar-frb-dashboard's
+      # api/rules.rs); every dashboard package's tests load this build and FAIL
+      # without it (loadRulesForTest), so nothing passes on a Dart stand-in.
+      - name: Build dashboard host dylib
+        working-directory: rust-core
+        run: cargo build -p madar_frb_dashboard --release
+
+      # Only where there is something to run: an empty test/ makes `flutter
+      # test` exit non-zero.
+      - name: Dashboard tests
+        run: |
+          set -e
+          for p in packages/dashboard_api packages/dashboard_kit packages/dashboard_core packages/dashboard_features/* packages/rust_bridge_dashboard apps/dashboard; do
+            if find "$p/test" -name '*_test.dart' 2>/dev/null | grep -q .; then
+              echo "── $p"
+              (cd "$p" && flutter test)
+            fi
+          done
+
   windows:
     name: Windows build + host tests
     runs-on: windows-2025
