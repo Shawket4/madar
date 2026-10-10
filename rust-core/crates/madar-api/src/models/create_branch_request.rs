@@ -28,6 +28,9 @@ pub struct CreateBranchRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub geo_radius_meters: Option<Option<i32>>,
+    /// `warehouse` for a stock-only location; defaults to `branch`.
+    #[serde(rename = "kind", skip_serializing_if = "Option::is_none")]
+    pub kind: Option<models::BranchKind>,
     #[serde(
         rename = "latitude",
         default,
@@ -90,6 +93,7 @@ impl CreateBranchRequest {
         CreateBranchRequest {
             address: None,
             geo_radius_meters: None,
+            kind: None,
             latitude: None,
             longitude: None,
             name,

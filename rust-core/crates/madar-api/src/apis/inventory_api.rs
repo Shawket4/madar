@@ -13,6 +13,22 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`accept_transfer`]
+#[derive(Clone, Debug)]
+pub struct AcceptTransferParams {
+    /// Transfer ID
+    pub id: String,
+    pub accept_transfer_request: models::AcceptTransferRequest,
+}
+
+/// struct for passing parameters to the method [`cancel_stock_transfer`]
+#[derive(Clone, Debug)]
+pub struct CancelStockTransferParams {
+    /// Transfer ID
+    pub id: String,
+    pub close_transfer_request: models::CloseTransferRequest,
+}
+
 /// struct for passing parameters to the method [`create_catalog_item`]
 #[derive(Clone, Debug)]
 pub struct CreateCatalogItemParams {
@@ -43,6 +59,14 @@ pub struct CreateWasteParams {
     pub create_waste_request: models::CreateWasteRequest,
 }
 
+/// struct for passing parameters to the method [`decline_transfer`]
+#[derive(Clone, Debug)]
+pub struct DeclineTransferParams {
+    /// Transfer ID
+    pub id: String,
+    pub close_transfer_request: models::CloseTransferRequest,
+}
+
 /// struct for passing parameters to the method [`delete_catalog_item`]
 #[derive(Clone, Debug)]
 pub struct DeleteCatalogItemParams {
@@ -63,9 +87,9 @@ pub struct DeleteIngredientCategoryParams {
     pub reassign_to: Option<String>,
 }
 
-/// struct for passing parameters to the method [`delete_transfer`]
+/// struct for passing parameters to the method [`dispatch_transfer`]
 #[derive(Clone, Debug)]
-pub struct DeleteTransferParams {
+pub struct DispatchTransferParams {
     /// Transfer ID
     pub id: String,
 }
@@ -75,6 +99,13 @@ pub struct DeleteTransferParams {
 pub struct GetInventorySettingsParams {
     /// Organization ID
     pub org_id: String,
+}
+
+/// struct for passing parameters to the method [`get_transfer`]
+#[derive(Clone, Debug)]
+pub struct GetTransferParams {
+    /// Transfer ID
+    pub id: String,
 }
 
 /// struct for passing parameters to the method [`list_branch_stock`]
@@ -114,9 +145,12 @@ pub struct ListMovementsParams {
 /// struct for passing parameters to the method [`list_transfers`]
 #[derive(Clone, Debug)]
 pub struct ListTransfersParams {
-    /// Branch ID
+    /// Branch or warehouse ID; the nil UUID = every location in the org
     pub branch_id: String,
+    /// `incoming` | `outgoing`; omitted = both.
     pub direction: Option<String>,
+    /// `requested` | `draft` | `dispatched` | `received` | `cancelled`; omitted = all.
+    pub status: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -130,10 +164,27 @@ pub struct ListWasteParams {
     pub offset: Option<i64>,
 }
 
+/// struct for passing parameters to the method [`receive_transfer`]
+#[derive(Clone, Debug)]
+pub struct ReceiveTransferParams {
+    /// Transfer ID
+    pub id: String,
+    pub receive_transfer_request: models::ReceiveTransferRequest,
+}
+
 /// struct for passing parameters to the method [`record_waste`]
 #[derive(Clone, Debug)]
 pub struct RecordWasteParams {
     pub record_waste_request: models::RecordWasteRequest,
+}
+
+/// struct for passing parameters to the method [`replenishment`]
+#[derive(Clone, Debug)]
+pub struct ReplenishmentParams {
+    /// Warehouse ID
+    pub warehouse_id: String,
+    /// The branch to fill from this warehouse.
+    pub branch_id: String,
 }
 
 /// struct for passing parameters to the method [`set_par_levels`]
@@ -144,6 +195,24 @@ pub struct SetParLevelsParams {
     /// Ingredient ID
     pub org_ingredient_id: String,
     pub set_par_request: models::SetParRequest,
+}
+
+/// struct for passing parameters to the method [`transfer_differences`]
+#[derive(Clone, Debug)]
+pub struct TransferDifferencesParams {
+    /// Organization ID
+    pub org_id: String,
+    /// Received on or after (inclusive).
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    /// Received before (exclusive).
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+}
+
+/// struct for passing parameters to the method [`transfer_locations`]
+#[derive(Clone, Debug)]
+pub struct TransferLocationsParams {
+    /// Organization ID
+    pub org_id: String,
 }
 
 /// struct for passing parameters to the method [`update_catalog_item`]
@@ -180,6 +249,32 @@ pub struct UpdateTransferParams {
     /// Transfer ID
     pub id: String,
     pub update_transfer_request: models::UpdateTransferRequest,
+}
+
+/// struct for typed errors of method [`accept_transfer`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum AcceptTransferError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`cancel_stock_transfer`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CancelStockTransferError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
 }
 
 /// struct for typed errors of method [`create_catalog_item`]
@@ -234,6 +329,19 @@ pub enum CreateWasteError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`decline_transfer`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeclineTransferError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`delete_catalog_item`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -260,10 +368,10 @@ pub enum DeleteIngredientCategoryError {
     UnknownValue(serde_json::Value),
 }
 
-/// struct for typed errors of method [`delete_transfer`]
+/// struct for typed errors of method [`dispatch_transfer`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum DeleteTransferError {
+pub enum DispatchTransferError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -277,6 +385,19 @@ pub enum DeleteTransferError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetInventorySettingsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_transfer`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetTransferError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -364,6 +485,19 @@ pub enum ListWasteError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`receive_transfer`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReceiveTransferError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`record_waste`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -377,10 +511,49 @@ pub enum RecordWasteError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`replenishment`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReplenishmentError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`set_par_levels`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SetParLevelsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`transfer_differences`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TransferDifferencesError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`transfer_locations`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TransferLocationsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -440,6 +613,106 @@ pub enum UpdateTransferError {
     Status409(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
+}
+
+pub async fn accept_transfer(
+    configuration: &configuration::Configuration,
+    params: AcceptTransferParams,
+) -> Result<models::StockTransfer, Error<AcceptTransferError>> {
+    let uri_str = format!(
+        "{}/inventory/transfers/{id}/accept",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.accept_transfer_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StockTransfer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StockTransfer`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<AcceptTransferError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn cancel_stock_transfer(
+    configuration: &configuration::Configuration,
+    params: CancelStockTransferParams,
+) -> Result<models::StockTransfer, Error<CancelStockTransferError>> {
+    let uri_str = format!(
+        "{}/inventory/transfers/{id}/cancel",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.close_transfer_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StockTransfer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StockTransfer`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CancelStockTransferError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 pub async fn create_catalog_item(
@@ -638,6 +911,56 @@ pub async fn create_waste(
     }
 }
 
+pub async fn decline_transfer(
+    configuration: &configuration::Configuration,
+    params: DeclineTransferParams,
+) -> Result<models::StockTransfer, Error<DeclineTransferError>> {
+    let uri_str = format!(
+        "{}/inventory/transfers/{id}/decline",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.close_transfer_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StockTransfer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StockTransfer`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeclineTransferError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn delete_catalog_item(
     configuration: &configuration::Configuration,
     params: DeleteCatalogItemParams,
@@ -719,18 +1042,18 @@ pub async fn delete_ingredient_category(
     }
 }
 
-pub async fn delete_transfer(
+pub async fn dispatch_transfer(
     configuration: &configuration::Configuration,
-    params: DeleteTransferParams,
-) -> Result<(), Error<DeleteTransferError>> {
+    params: DispatchTransferParams,
+) -> Result<models::StockTransfer, Error<DispatchTransferError>> {
     let uri_str = format!(
-        "{}/inventory/transfers/{id}",
+        "{}/inventory/transfers/{id}/dispatch",
         configuration.base_path,
         id = crate::apis::urlencode(params.id)
     );
     let mut req_builder = configuration
         .client
-        .request(reqwest::Method::DELETE, &uri_str);
+        .request(reqwest::Method::POST, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
@@ -743,12 +1066,23 @@ pub async fn delete_transfer(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        Ok(())
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StockTransfer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StockTransfer`")))),
+        }
     } else {
         let content = resp.text().await?;
-        let entity: Option<DeleteTransferError> = serde_json::from_str(&content).ok();
+        let entity: Option<DispatchTransferError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -796,6 +1130,53 @@ pub async fn get_inventory_settings(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetInventorySettingsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_transfer(
+    configuration: &configuration::Configuration,
+    params: GetTransferParams,
+) -> Result<models::StockTransfer, Error<GetTransferError>> {
+    let uri_str = format!(
+        "{}/inventory/transfers/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StockTransfer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StockTransfer`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetTransferError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1024,6 +1405,9 @@ pub async fn list_transfers(
     if let Some(ref param_value) = params.direction {
         req_builder = req_builder.query(&[("direction", &param_value.to_string())]);
     }
+    if let Some(ref param_value) = params.status {
+        req_builder = req_builder.query(&[("status", &param_value.to_string())]);
+    }
     if let Some(ref param_value) = params.limit {
         req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
     }
@@ -1119,6 +1503,56 @@ pub async fn list_waste(
     }
 }
 
+pub async fn receive_transfer(
+    configuration: &configuration::Configuration,
+    params: ReceiveTransferParams,
+) -> Result<models::StockTransfer, Error<ReceiveTransferError>> {
+    let uri_str = format!(
+        "{}/inventory/transfers/{id}/receive",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.receive_transfer_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::StockTransfer`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::StockTransfer`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ReceiveTransferError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn record_waste(
     configuration: &configuration::Configuration,
     params: RecordWasteParams,
@@ -1157,6 +1591,54 @@ pub async fn record_waste(
     } else {
         let content = resp.text().await?;
         let entity: Option<RecordWasteError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn replenishment(
+    configuration: &configuration::Configuration,
+    params: ReplenishmentParams,
+) -> Result<Vec<models::ReplenishmentRow>, Error<ReplenishmentError>> {
+    let uri_str = format!(
+        "{}/inventory/warehouses/{warehouse_id}/replenishment",
+        configuration.base_path,
+        warehouse_id = crate::apis::urlencode(params.warehouse_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    req_builder = req_builder.query(&[("branch_id", &params.branch_id.to_string())]);
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::ReplenishmentRow&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::ReplenishmentRow&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ReplenishmentError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1206,6 +1688,106 @@ pub async fn set_par_levels(
     } else {
         let content = resp.text().await?;
         let entity: Option<SetParLevelsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn transfer_differences(
+    configuration: &configuration::Configuration,
+    params: TransferDifferencesParams,
+) -> Result<Vec<models::TransferDifferenceRow>, Error<TransferDifferencesError>> {
+    let uri_str = format!(
+        "{}/inventory/orgs/{org_id}/transfer-differences",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TransferDifferenceRow&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TransferDifferenceRow&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<TransferDifferencesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn transfer_locations(
+    configuration: &configuration::Configuration,
+    params: TransferLocationsParams,
+) -> Result<Vec<models::TransferLocation>, Error<TransferLocationsError>> {
+    let uri_str = format!(
+        "{}/inventory/orgs/{org_id}/transfer-locations",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::TransferLocation&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::TransferLocation&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<TransferLocationsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

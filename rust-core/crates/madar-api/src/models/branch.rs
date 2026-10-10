@@ -42,6 +42,9 @@ pub struct Branch {
     pub id: uuid::Uuid,
     #[serde(rename = "is_active")]
     pub is_active: bool,
+    /// `branch` sells; `warehouse` only holds stock (WAREHOUSE_DESIGN.md).
+    #[serde(rename = "kind")]
+    pub kind: models::BranchKind,
     /// WGS-84 latitude for geofenced branch resolution.
     #[serde(
         rename = "latitude",
@@ -166,6 +169,7 @@ impl Branch {
         created_at: chrono::DateTime<chrono::FixedOffset>,
         id: uuid::Uuid,
         is_active: bool,
+        kind: models::BranchKind,
         name: String,
         old_bill_hours: u32,
         org_id: uuid::Uuid,
@@ -179,6 +183,7 @@ impl Branch {
             geo_radius_meters: None,
             id,
             is_active,
+            kind,
             latitude: None,
             longitude: None,
             name,

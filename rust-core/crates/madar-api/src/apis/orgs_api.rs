@@ -121,6 +121,15 @@ pub struct PublicOrgLinksParams {
     pub slug: Option<String>,
 }
 
+/// struct for passing parameters to the method [`public_tenant_shell`]
+#[derive(Clone, Debug)]
+pub struct PublicTenantShellParams {
+    /// The shop's host, e.g. `rue.madar-pos.cloud`. nginx sends it as the `X-Shell-Host` header; the query parameter is for tests and probes.
+    pub host: Option<String>,
+    /// The page's path and query, e.g. `/order/menu?branch=…`. nginx sends it as the `X-Shell-Path` header.
+    pub path: Option<String>,
+}
+
 /// struct for passing parameters to the method [`put_links_page`]
 #[derive(Clone, Debug)]
 pub struct PutLinksPageParams {
@@ -334,6 +343,15 @@ pub enum PublicOrgLinksError {
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
     Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`public_tenant_shell`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PublicTenantShellError {
+    Status404(),
+    Status503(),
     UnknownValue(serde_json::Value),
 }
 
@@ -1053,6 +1071,42 @@ pub async fn public_org_links(
     } else {
         let content = resp.text().await?;
         let entity: Option<PublicOrgLinksError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// Called by nginx for page requests on a shop's own host. Public by nature: it returns what the shop's public pages and the public JSON endpoints already show.
+pub async fn public_tenant_shell(
+    configuration: &configuration::Configuration,
+    params: PublicTenantShellParams,
+) -> Result<(), Error<PublicTenantShellError>> {
+    let uri_str = format!("{}/public/tenant-shell", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.host {
+        req_builder = req_builder.query(&[("host", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.path {
+        req_builder = req_builder.query(&[("path", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PublicTenantShellError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

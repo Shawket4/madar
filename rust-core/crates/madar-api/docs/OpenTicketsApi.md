@@ -9,7 +9,7 @@ Method | HTTP request | Description
 [**get_open_ticket**](OpenTicketsApi.md#get_open_ticket) | **GET** /open-tickets/{id} | 
 [**list_open_tickets**](OpenTicketsApi.md#list_open_tickets) | **GET** /open-tickets | 
 [**move_ticket_table**](OpenTicketsApi.md#move_ticket_table) | **PATCH** /open-tickets/{id}/table | Switch an open ticket to a different table (the \"move table\" button). Works for any live ticket — walk-in dine-in or one auto-opened from a booking. The old table is flagged `dirty` (bus it), the new one `seated`; if the ticket came from a booking, the booking's assignment is kept in sync.
-[**public_table**](OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | 
+[**public_table**](OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | The table behind a QR code: its label, its branch, and whether the branch is taking orders now.
 [**public_table_cart_quote**](OpenTicketsApi.md#public_table_cart_quote) | **POST** /public/tables/{id}/cart-quote | Price a QR table cart, deals applied.
 [**public_table_menu**](OpenTicketsApi.md#public_table_menu) | **GET** /public/tables/{id}/menu | The menu at this table.
 [**public_table_order**](OpenTicketsApi.md#public_table_order) | **POST** /public/table-orders | Send this table's order to the kitchen.
@@ -166,7 +166,7 @@ Name | Type | Description  | Required | Notes
 ## public_table
 
 > models::PublicTable public_table(id)
-
+The table behind a QR code: its label, its branch, and whether the branch is taking orders now.
 
 ### Parameters
 

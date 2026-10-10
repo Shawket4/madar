@@ -35,6 +35,14 @@ pub struct UpdateBranchRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub is_active: Option<Option<bool>>,
+    /// Turn a branch into a warehouse or back (WAREHOUSE_DESIGN.md §4.3).
+    #[serde(
+        rename = "kind",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub kind: Option<Option<models::BranchKind>>,
     #[serde(
         rename = "latitude",
         default,
@@ -151,6 +159,7 @@ impl UpdateBranchRequest {
             address: None,
             geo_radius_meters: None,
             is_active: None,
+            kind: None,
             latitude: None,
             longitude: None,
             name: None,

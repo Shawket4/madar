@@ -189,6 +189,7 @@ pub async fn loyalty_apple_pass(
     }
 }
 
+/// The token is the one on the card's barcode.
 pub async fn loyalty_card(
     configuration: &configuration::Configuration,
     params: LoyaltyCardParams,
@@ -312,6 +313,7 @@ pub async fn loyalty_card_qr(
     }
 }
 
+/// Where `require_otp` is on, send the `device_token` from `/public/otp/verify`; until the phone is proven the answer carries no card.
 pub async fn loyalty_join(
     configuration: &configuration::Configuration,
     params: LoyaltyJoinParams,
@@ -355,6 +357,7 @@ pub async fn loyalty_join(
     }
 }
 
+/// Name the shop with `org_id`, or a branch with `branch_id` from its counter code.
 pub async fn loyalty_join_info(
     configuration: &configuration::Configuration,
     params: LoyaltyJoinInfoParams,
@@ -401,6 +404,7 @@ pub async fn loyalty_join_info(
     }
 }
 
+/// The card's own token is the key. Answers 204.
 pub async fn set_loyalty_card_preferences(
     configuration: &configuration::Configuration,
     params: SetLoyaltyCardPreferencesParams,

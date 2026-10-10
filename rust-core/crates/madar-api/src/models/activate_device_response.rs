@@ -26,6 +26,14 @@ pub struct ActivateDeviceResponse {
     pub org_id: uuid::Uuid,
     #[serde(rename = "org_name")]
     pub org_name: String,
+    /// The branch-plan slot this device now fills, when the code was made for one.
+    #[serde(
+        rename = "slot_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub slot_id: Option<Option<uuid::Uuid>>,
 }
 
 impl ActivateDeviceResponse {
@@ -44,6 +52,7 @@ impl ActivateDeviceResponse {
             device_token,
             org_id,
             org_name,
+            slot_id: None,
         }
     }
 }

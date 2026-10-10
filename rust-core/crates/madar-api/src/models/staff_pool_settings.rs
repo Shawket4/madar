@@ -31,6 +31,9 @@ pub struct StaffPoolSettings {
     /// The owner's master switch for this scope.
     #[serde(rename = "enabled", skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
+    /// Read only. `true` when a branch has no override of its own and these are the organisation's settings (or the off default) it follows; `branch_id` still names the branch asked about. Ignored on PUT.
+    #[serde(rename = "inherited", skip_serializing_if = "Option::is_none")]
+    pub inherited: Option<bool>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
 }
@@ -43,6 +46,7 @@ impl StaffPoolSettings {
             daily_allowance: None,
             eligible_item_ids: None,
             enabled: None,
+            inherited: None,
             org_id,
         }
     }

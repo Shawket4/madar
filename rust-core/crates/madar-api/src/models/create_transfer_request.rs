@@ -11,10 +11,14 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// CreateTransferRequest : `POST /inventory/transfers`. With `request: true` the DESTINATION asks (status `requested`); otherwise the SOURCE starts a `draft`.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CreateTransferRequest {
     #[serde(rename = "destination_branch_id")]
     pub destination_branch_id: uuid::Uuid,
+    /// At least one; each ingredient once.
+    #[serde(rename = "lines")]
+    pub lines: Vec<models::TransferLineInput>,
     #[serde(
         rename = "note",
         default,
@@ -22,26 +26,24 @@ pub struct CreateTransferRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub note: Option<Option<String>>,
-    #[serde(rename = "org_ingredient_id")]
-    pub org_ingredient_id: uuid::Uuid,
-    #[serde(rename = "quantity")]
-    pub quantity: f64,
+    #[serde(rename = "request", skip_serializing_if = "Option::is_none")]
+    pub request: Option<bool>,
     #[serde(rename = "source_branch_id")]
     pub source_branch_id: uuid::Uuid,
 }
 
 impl CreateTransferRequest {
+    /// `POST /inventory/transfers`. With `request: true` the DESTINATION asks (status `requested`); otherwise the SOURCE starts a `draft`.
     pub fn new(
         destination_branch_id: uuid::Uuid,
-        org_ingredient_id: uuid::Uuid,
-        quantity: f64,
+        lines: Vec<models::TransferLineInput>,
         source_branch_id: uuid::Uuid,
     ) -> CreateTransferRequest {
         CreateTransferRequest {
             destination_branch_id,
+            lines,
             note: None,
-            org_ingredient_id,
-            quantity,
+            request: None,
             source_branch_id,
         }
     }

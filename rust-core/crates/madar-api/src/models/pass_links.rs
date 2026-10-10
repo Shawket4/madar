@@ -25,7 +25,7 @@ pub struct PassLinks {
         skip_serializing_if = "Option::is_none"
     )]
     pub apple_url: Option<Option<String>>,
-    /// `https://pay.google.com/gp/v/save/<jwt>`.
+    /// The Google Wallet save link: the signed JWT on pay.google.com's save path.
     #[serde(
         rename = "google_url",
         default,

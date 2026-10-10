@@ -300,7 +300,7 @@ Name | Type | Description  | Required | Notes
 
 ## review_flag
 
-> models::ReplayFlag review_flag(id)
+> models::ReviewedOut review_flag(id)
 Mark one flag as looked at. It is an acknowledgement, not an approval: the act is already on the books either way, so there is nothing here to undo or let through.
 
 ### Parameters
@@ -312,7 +312,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::ReplayFlag**](ReplayFlag.md)
+[**models::ReviewedOut**](ReviewedOut.md)
 
 ### Authorization
 

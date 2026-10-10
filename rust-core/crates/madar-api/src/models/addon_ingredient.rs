@@ -30,6 +30,9 @@ pub struct AddonIngredient {
     pub quantity_used: f64,
     #[serde(rename = "unit")]
     pub unit: String,
+    /// The usable amount before yield loss: `quantity_used` × the linked ingredient's yield, 3 dp (madar-units `usable_qty`). What an editor shows and sends back; a line sent back unchanged keeps its stored quantity.
+    #[serde(rename = "usable_quantity")]
+    pub usable_quantity: f64,
 }
 
 impl AddonIngredient {
@@ -39,6 +42,7 @@ impl AddonIngredient {
         ingredient_name: String,
         quantity_used: f64,
         unit: String,
+        usable_quantity: f64,
     ) -> AddonIngredient {
         AddonIngredient {
             addon_item_id,
@@ -47,6 +51,7 @@ impl AddonIngredient {
             org_ingredient_id: None,
             quantity_used,
             unit,
+            usable_quantity,
         }
     }
 }

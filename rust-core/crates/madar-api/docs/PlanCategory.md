@@ -1,0 +1,13 @@
+# PlanCategory
+
+## Properties
+
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** |  | 
+**name** | **String** |  | 
+**name_translations** | Option<**serde_json::Value**> |  | 
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+

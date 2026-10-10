@@ -100,7 +100,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_branches
 
-> Vec<models::Branch> list_branches(org_id)
+> Vec<models::Branch> list_branches(org_id, kind, include_warehouses)
 
 
 ### Parameters
@@ -109,6 +109,8 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **org_id** | **uuid::Uuid** | Organization whose branches to list. Must match the caller's JWT org. | [required] |
+**kind** | Option<[**BranchKind**](BranchKind.md)> | Only this kind. Omitted: selling branches, plus warehouses when `include_warehouses` is set. |  |
+**include_warehouses** | Option<**bool**> | Also list warehouses (when `kind` is omitted). Off by default so a client that predates warehouses (POS and KDS device setup, the staff app) never offers one as a branch to sell from. |  |
 
 ### Return type
 

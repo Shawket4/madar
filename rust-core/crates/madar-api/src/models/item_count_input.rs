@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ItemCountInput {
-    #[serde(rename = "counted_qty")]
-    pub counted_qty: f64,
+    /// The figure counted. `null` un-counts the line: its figure, reason and counter are cleared and finalize treats it as not counted. Required (omitting it is refused), so no client un-counts by accident.
+    #[serde(rename = "counted_qty", deserialize_with = "Option::deserialize")]
+    pub counted_qty: Option<f64>,
     #[serde(
         rename = "note",
         default,
@@ -35,7 +36,7 @@ pub struct ItemCountInput {
 }
 
 impl ItemCountInput {
-    pub fn new(counted_qty: f64, org_ingredient_id: uuid::Uuid) -> ItemCountInput {
+    pub fn new(counted_qty: Option<f64>, org_ingredient_id: uuid::Uuid) -> ItemCountInput {
         ItemCountInput {
             counted_qty,
             note: None,

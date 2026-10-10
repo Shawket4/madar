@@ -77,6 +77,14 @@ pub struct DeliveryMenuItem {
     pub optionals: Vec<models::DeliveryOptionalField>,
     #[serde(rename = "price")]
     pub price: i32,
+    /// A kind=item row: madar-catalog's view of it at this branch (sizes, the recipe's swap categories and bases, groups), so the storefront prices a swap over the recipe's own choice exactly as the order is charged. No quantities or costs. Additive.
+    #[serde(
+        rename = "pricing",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pricing: Option<Option<serde_json::Value>>,
     #[serde(rename = "sizes")]
     pub sizes: Vec<models::DeliveryMenuSize>,
 }
@@ -108,6 +116,7 @@ impl DeliveryMenuItem {
             name_translations,
             optionals,
             price,
+            pricing: None,
             sizes,
         }
     }

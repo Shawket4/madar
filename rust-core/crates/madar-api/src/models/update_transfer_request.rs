@@ -11,8 +11,16 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// UpdateTransferRequest : `PATCH /inventory/transfers/{id}`. `lines`, when given, replaces every line (only while `requested` or `draft`).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateTransferRequest {
+    #[serde(
+        rename = "lines",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub lines: Option<Option<Vec<models::TransferLineInput>>>,
     #[serde(
         rename = "note",
         default,
@@ -23,7 +31,11 @@ pub struct UpdateTransferRequest {
 }
 
 impl UpdateTransferRequest {
+    /// `PATCH /inventory/transfers/{id}`. `lines`, when given, replaces every line (only while `requested` or `draft`).
     pub fn new() -> UpdateTransferRequest {
-        UpdateTransferRequest { note: None }
+        UpdateTransferRequest {
+            lines: None,
+            note: None,
+        }
     }
 }

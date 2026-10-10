@@ -4,20 +4,23 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**cancelled** | Option<[**models::TransferStamp**](TransferStamp.md)> |  | [optional]
+**created** | [**models::TransferStamp**](TransferStamp.md) |  | 
 **destination_branch_id** | **uuid::Uuid** |  | 
 **destination_branch_name** | **String** |  | 
+**destination_kind** | [**models::BranchKind**](BranchKind.md) |  | 
+**dispatched** | Option<[**models::TransferStamp**](TransferStamp.md)> |  | [optional]
 **id** | **uuid::Uuid** |  | 
-**ingredient_name** | **String** |  | 
-**initiated_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
-**initiated_by** | **uuid::Uuid** |  | 
-**initiated_by_name** | **String** |  | 
+**lines** | [**Vec<models::StockTransferLine>**](StockTransferLine.md) |  | 
 **note** | Option<**String**> |  | [optional]
 **org_id** | **uuid::Uuid** |  | 
-**org_ingredient_id** | **uuid::Uuid** |  | 
-**quantity** | **f64** |  | 
+**received** | Option<[**models::TransferStamp**](TransferStamp.md)> |  | [optional]
+**reference** | **String** | `TR-1043`, per org. | 
+**requested** | Option<[**models::TransferStamp**](TransferStamp.md)> |  | [optional]
 **source_branch_id** | **uuid::Uuid** |  | 
 **source_branch_name** | **String** |  | 
-**unit** | **String** |  | 
+**source_kind** | [**models::BranchKind**](BranchKind.md) |  | 
+**status** | [**models::TransferStatus**](TransferStatus.md) |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

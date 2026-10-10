@@ -78,6 +78,7 @@ pub enum OrderNowReplaceIdentityError {
     UnknownValue(serde_json::Value),
 }
 
+/// The answer to a `PHONE_BELONGS_TO_ANOTHER` refusal from replace-identity, with the same proofs. This card's customer is the one kept.
 pub async fn order_now_combine(
     configuration: &configuration::Configuration,
     params: OrderNowCombineParams,
@@ -125,6 +126,7 @@ pub async fn order_now_combine(
     }
 }
 
+/// The card's token alone shows only a first name and a masked phone. With a `device_token` for the member's current phone it gives the full prefill and saved addresses.
 pub async fn order_now_context(
     configuration: &configuration::Configuration,
     params: OrderNowContextParams,
@@ -172,6 +174,7 @@ pub async fn order_now_context(
     }
 }
 
+/// Needs proof of both phones: `device_token` for the current one and `new_phone_device_token` for the new one. At most two changes in 30 days.
 pub async fn order_now_replace_identity(
     configuration: &configuration::Configuration,
     params: OrderNowReplaceIdentityParams,

@@ -20,7 +20,7 @@ pub struct PublicSocialLink {
     /// What a human calls it. The page falls back to this where it has no glyph for `key`, so a platform added on the server still renders.
     #[serde(rename = "label")]
     pub label: String,
-    /// `https://…` and nothing else — checked on write and again on read, see `orgs::social::links_of`.
+    /// An https address and nothing else — checked on write and again on read, see `orgs::social::links_of`.
     #[serde(rename = "url")]
     pub url: String,
 }

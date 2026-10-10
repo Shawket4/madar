@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **address** | Option<**String**> |  | [optional]
 **geo_radius_meters** | Option<**i32**> |  | [optional]
 **is_active** | Option<**bool**> |  | [optional]
+**kind** | Option<[**models::BranchKind**](BranchKind.md)> | Turn a branch into a warehouse or back (WAREHOUSE_DESIGN.md §4.3). | [optional]
 **latitude** | Option<**f64**> |  | [optional]
 **longitude** | Option<**f64**> |  | [optional]
 **name** | Option<**String**> |  | [optional]

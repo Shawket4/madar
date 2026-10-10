@@ -18,6 +18,7 @@ Name | Type | Description | Notes
 **name_translations** | **serde_json::Value** |  | 
 **optionals** | [**Vec<models::DeliveryOptionalField>**](DeliveryOptionalField.md) |  | 
 **price** | **i32** |  | 
+**pricing** | Option<**serde_json::Value**> | A kind=item row: madar-catalog's view of it at this branch (sizes, the recipe's swap categories and bases, groups), so the storefront prices a swap over the recipe's own choice exactly as the order is charged. No quantities or costs. Additive. | [optional]
 **sizes** | [**Vec<models::DeliveryMenuSize>**](DeliveryMenuSize.md) |  | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

@@ -31,6 +31,14 @@ pub struct CreateActivationCodeRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub label: Option<Option<String>>,
+    /// A slot of the branch plan (`GET /branch-plan`). The code takes the slot's kind and name, and the device that uses it fills the slot.
+    #[serde(
+        rename = "slot_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub slot_id: Option<Option<uuid::Uuid>>,
 }
 
 impl CreateActivationCodeRequest {
@@ -39,6 +47,7 @@ impl CreateActivationCodeRequest {
             branch_id,
             kind: None,
             label: None,
+            slot_id: None,
         }
     }
 }

@@ -67,6 +67,14 @@ pub struct Org {
         skip_serializing_if = "Option::is_none"
     )]
     pub logo_url: Option<Option<String>>,
+    /// How many warehouses this org may have; `null` = unlimited. Set by a super admin (WAREHOUSE_DESIGN.md).
+    #[serde(
+        rename = "max_warehouses",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_warehouses: Option<Option<i32>>,
     /// Switched-on modules: `pos`, `dawam` (PS-2). Switching one off hides it and keeps every record.
     #[serde(rename = "modules")]
     pub modules: Vec<String>,
@@ -137,6 +145,7 @@ impl Org {
             id,
             is_active,
             logo_url: None,
+            max_warehouses: None,
             modules,
             name,
             receipt_footer: None,

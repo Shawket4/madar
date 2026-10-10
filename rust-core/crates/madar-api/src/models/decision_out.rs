@@ -38,8 +38,13 @@ pub struct DecisionOut {
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     /// Measured after-window aggregate; `null` until ≥1 day of after-data.
-    #[serde(rename = "impact")]
-    pub impact: serde_json::Value,
+    #[serde(
+        rename = "impact",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub impact: Option<Option<serde_json::Value>>,
     /// True once the full baseline window has elapsed since the decision.
     #[serde(rename = "impact_complete")]
     pub impact_complete: bool,
@@ -60,7 +65,6 @@ impl DecisionOut {
         created_at: chrono::DateTime<chrono::FixedOffset>,
         detail: serde_json::Value,
         id: uuid::Uuid,
-        impact: serde_json::Value,
         impact_complete: bool,
         item_name: String,
         menu_item_id: uuid::Uuid,
@@ -75,7 +79,7 @@ impl DecisionOut {
             created_by: None,
             detail,
             id,
-            impact,
+            impact: None,
             impact_complete,
             item_name,
             menu_item_id,

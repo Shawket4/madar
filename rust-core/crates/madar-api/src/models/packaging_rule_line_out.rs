@@ -24,6 +24,9 @@ pub struct PackagingRuleLineOut {
     pub sort: i32,
     #[serde(rename = "unit")]
     pub unit: String,
+    /// The usable amount before yield loss, like `RecipeLineOut::usable_quantity`: what an editor shows and sends back (a line sent back unchanged keeps its stored `quantity`).
+    #[serde(rename = "usable_quantity")]
+    pub usable_quantity: String,
 }
 
 impl PackagingRuleLineOut {
@@ -33,6 +36,7 @@ impl PackagingRuleLineOut {
         quantity: String,
         sort: i32,
         unit: String,
+        usable_quantity: String,
     ) -> PackagingRuleLineOut {
         PackagingRuleLineOut {
             ingredient_id,
@@ -40,6 +44,7 @@ impl PackagingRuleLineOut {
             quantity,
             sort,
             unit,
+            usable_quantity,
         }
     }
 }

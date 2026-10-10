@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **address** | Option<**String**> |  | [optional]
 **geo_radius_meters** | Option<**i32**> | Geofence radius in meters. Defaults to 200. | [optional]
+**kind** | Option<[**models::BranchKind**](BranchKind.md)> | `warehouse` for a stock-only location; defaults to `branch`. | [optional]
 **latitude** | Option<**f64**> |  | [optional]
 **longitude** | Option<**f64**> |  | [optional]
 **name** | **String** |  | 
