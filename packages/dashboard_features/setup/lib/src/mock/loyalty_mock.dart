@@ -25,6 +25,7 @@ import 'dart:math' as math;
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../area_seed.dart';
 import 'support.dart';
@@ -874,10 +875,7 @@ class _Handlers {
         lifePoints += _i(e['points']);
       }
     }
-    final ready = target <= 0 || balance <= 0 ? 0 : balance ~/ target;
-    final progress = target <= 0 || balance <= 0
-        ? math.max(balance, 0)
-        : balance % target;
+    final card = rules.loyaltyCard(balance: balance, nextRewardCost: target);
     final m = db[LoyaltyTables.members].find(id);
     return MemberView(
       id: id,
@@ -895,10 +893,10 @@ class _Handlers {
         (m?['enrolled_at'] ?? c['created_at'])! as String,
       ),
       nextRewardCost: target,
-      progressToNext: progress,
-      pointsToNextReward: math.max(target - progress, 0),
-      rewardsReady: ready,
-      canRedeem: ready > 0,
+      progressToNext: card.progressToNext,
+      pointsToNextReward: card.pointsToNextReward,
+      rewardsReady: card.rewardsReady,
+      canRedeem: card.canRedeem,
     );
   }
 

@@ -19,6 +19,7 @@ dependencies:
   dashboard_api: ^0.1.0
   dashboard_core: ^0.1.0
   dashboard_kit: ^0.1.0
+  rust_bridge_dashboard: ^0.1.0
   fl_chart: ^1.2.0
   table_calendar: ^3.2.0
   two_dimensional_scrollables: ^0.5.4
@@ -28,7 +29,6 @@ dependencies:
   lottie: ^3.3.0
 
 dev_dependencies:
-  rust_bridge_dashboard: ^0.1.0
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0

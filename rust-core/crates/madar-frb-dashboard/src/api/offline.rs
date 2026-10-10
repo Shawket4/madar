@@ -45,7 +45,11 @@ fn pairs(v: Vec<ApiPair>) -> Vec<(String, String)> {
 
 impl From<CacheScope> for api_cache::CacheScope {
     fn from(s: CacheScope) -> Self {
-        api_cache::CacheScope { user: s.user, org: s.org, branch: s.branch }
+        api_cache::CacheScope {
+            user: s.user,
+            org: s.org,
+            branch: s.branch,
+        }
     }
 }
 
@@ -69,7 +73,9 @@ impl OfflineCache {
     /// In memory: tests and mock mode. `fresh_ms`: the query stale time.
     #[frb(sync)]
     pub fn in_memory(fresh_ms: i64) -> Result<OfflineCache, MadarError> {
-        Ok(OfflineCache { inner: ApiCache::in_memory(fresh_ms)? })
+        Ok(OfflineCache {
+            inner: ApiCache::in_memory(fresh_ms)?,
+        })
     }
 
     /// The branch whose zone `path`'s narrower ranges are cut in; `None`
@@ -109,9 +115,13 @@ impl OfflineCache {
         body: Vec<u8>,
         at_ms: i64,
     ) -> Result<(), MadarError> {
-        Ok(self
-            .inner
-            .save(&scope.into(), &request.into(), &pairs(headers), &body, at_ms)?)
+        Ok(self.inner.save(
+            &scope.into(),
+            &request.into(),
+            &pairs(headers),
+            &body,
+            at_ms,
+        )?)
     }
 
     /// Online: a narrower range's answer from a wider one read live moments
@@ -141,7 +151,10 @@ impl OfflineCache {
         Ok(self
             .inner
             .saved(&scope.into(), &request.into(), zone.as_deref())?
-            .map(|s| CachedAnswer { body: s.body, saved_at_ms: s.saved_at_ms }))
+            .map(|s| CachedAnswer {
+                body: s.body,
+                saved_at_ms: s.saved_at_ms,
+            }))
     }
 }
 
@@ -149,6 +162,8 @@ impl MadarBridge {
     /// The saved answers, in this core's own store.
     #[frb(sync)]
     pub fn offline_cache(&self, fresh_ms: i64) -> Result<OfflineCache, MadarError> {
-        Ok(OfflineCache { inner: self.inner.api_cache(fresh_ms)? })
+        Ok(OfflineCache {
+            inner: self.inner.api_cache(fresh_ms)?,
+        })
     }
 }

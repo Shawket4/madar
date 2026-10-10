@@ -227,6 +227,9 @@ abstract class DashboardBridgeApiImplPlatform
   LadderRung dco_decode_ladder_rung(dynamic raw);
 
   @protected
+  LineAddon dco_decode_line_addon(dynamic raw);
+
+  @protected
   LineCosts dco_decode_line_costs(dynamic raw);
 
   @protected
@@ -272,6 +275,12 @@ abstract class DashboardBridgeApiImplPlatform
   List<LadderRung> dco_decode_list_ladder_rung(dynamic raw);
 
   @protected
+  List<LineAddon> dco_decode_list_line_addon(dynamic raw);
+
+  @protected
+  Int64List dco_decode_list_prim_i_64_strict(dynamic raw);
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
@@ -288,6 +297,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   LocalParts dco_decode_local_parts(dynamic raw);
+
+  @protected
+  LoyaltyCard dco_decode_loyalty_card(dynamic raw);
 
   @protected
   MadarConfig dco_decode_madar_config(dynamic raw);
@@ -619,6 +631,9 @@ abstract class DashboardBridgeApiImplPlatform
   LadderRung sse_decode_ladder_rung(SseDeserializer deserializer);
 
   @protected
+  LineAddon sse_decode_line_addon(SseDeserializer deserializer);
+
+  @protected
   LineCosts sse_decode_line_costs(SseDeserializer deserializer);
 
   @protected
@@ -664,6 +679,12 @@ abstract class DashboardBridgeApiImplPlatform
   List<LadderRung> sse_decode_list_ladder_rung(SseDeserializer deserializer);
 
   @protected
+  List<LineAddon> sse_decode_list_line_addon(SseDeserializer deserializer);
+
+  @protected
+  Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer);
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
@@ -684,6 +705,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   LocalParts sse_decode_local_parts(SseDeserializer deserializer);
+
+  @protected
+  LoyaltyCard sse_decode_loyalty_card(SseDeserializer deserializer);
 
   @protected
   MadarConfig sse_decode_madar_config(SseDeserializer deserializer);
@@ -1093,6 +1117,9 @@ abstract class DashboardBridgeApiImplPlatform
   void sse_encode_ladder_rung(LadderRung self, SseSerializer serializer);
 
   @protected
+  void sse_encode_line_addon(LineAddon self, SseSerializer serializer);
+
+  @protected
   void sse_encode_line_costs(LineCosts self, SseSerializer serializer);
 
   @protected
@@ -1150,6 +1177,18 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_list_line_addon(
+    List<LineAddon> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_i_64_strict(
+    Int64List self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
@@ -1178,6 +1217,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_encode_local_parts(LocalParts self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_loyalty_card(LoyaltyCard self, SseSerializer serializer);
 
   @protected
   void sse_encode_madar_config(MadarConfig self, SseSerializer serializer);

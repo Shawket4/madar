@@ -215,6 +215,26 @@ PlatformInt64 averageTicket({
   orderCount: orderCount,
 );
 
+/// The extras on ONE unit of a line: every add-on's delta × its quantity,
+/// plus every optional's price.
+PlatformInt64 extrasPerUnit({
+  required List<LineAddon> addons,
+  required Int64List optionals,
+}) => DashboardBridge.instance.api.crateApiRulesExtrasPerUnit(
+  addons: addons,
+  optionals: optionals,
+);
+
+/// A line as charged, before any reward: one unit's charged price ×
+/// quantity.
+PlatformInt64 chargedSubtotal({
+  required PlatformInt64 chargedPerUnit,
+  required PlatformInt64 quantity,
+}) => DashboardBridge.instance.api.crateApiRulesChargedSubtotal(
+  chargedPerUnit: chargedPerUnit,
+  quantity: quantity,
+);
+
 /// A line's cost in whole piastres: `qty × cost_per_unit`, exact, half away
 /// from zero.
 PlatformInt64 lineCost({required double qty, required double costPerUnit}) =>
@@ -363,6 +383,12 @@ ReconcileRefusal? reconcileRefusal({
   inputs: inputs,
 );
 
+LoyaltyCard loyaltyCard({required int balance, required int nextRewardCost}) =>
+    DashboardBridge.instance.api.crateApiRulesLoyaltyCard(
+      balance: balance,
+      nextRewardCost: nextRewardCost,
+    );
+
 /// One unit of an item at a size (`None`: the sizeless line); `None` when the
 /// item has no active priced size.
 PlatformInt64? unitPrice({required String itemJson, String? sizeLabel}) =>
@@ -504,6 +530,25 @@ class LadderRung {
           toMinutes == other.toMinutes;
 }
 
+/// A selected add-on: its charged delta per unit and how many.
+class LineAddon {
+  final PlatformInt64 priceModifier;
+  final PlatformInt64 quantity;
+
+  const LineAddon({required this.priceModifier, required this.quantity});
+
+  @override
+  int get hashCode => priceModifier.hashCode ^ quantity.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LineAddon &&
+          runtimeType == other.runtimeType &&
+          priceModifier == other.priceModifier &&
+          quantity == other.quantity;
+}
+
 /// A purchase line's costs as the server stores them: the line total, the
 /// unit cost (whole piastres) and the exact unit cost (8 dp); or `refused`,
 /// the server's words for a 400.
@@ -562,6 +607,43 @@ class LocalParts {
           date == other.date &&
           hour == other.hour &&
           minute == other.minute;
+}
+
+/// What a member's card shows for a balance against the next reward's cost.
+class LoyaltyCard {
+  /// Rewards the balance has already earned.
+  final int rewardsReady;
+
+  /// Progress towards the next reward, the earned ones set aside.
+  final int progressToNext;
+
+  /// What the next reward still needs: the full cost on an exact multiple.
+  final int pointsToNextReward;
+  final bool canRedeem;
+
+  const LoyaltyCard({
+    required this.rewardsReady,
+    required this.progressToNext,
+    required this.pointsToNextReward,
+    required this.canRedeem,
+  });
+
+  @override
+  int get hashCode =>
+      rewardsReady.hashCode ^
+      progressToNext.hashCode ^
+      pointsToNextReward.hashCode ^
+      canRedeem.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoyaltyCard &&
+          runtimeType == other.runtimeType &&
+          rewardsReady == other.rewardsReady &&
+          progressToNext == other.progressToNext &&
+          pointsToNextReward == other.pointsToNextReward &&
+          canRedeem == other.canRedeem;
 }
 
 /// The pay period holding a day, both ends inclusive.
