@@ -100,8 +100,8 @@ class DashHarness {
   ///   [locale] and [dark]).
   /// - [shotArea]: the screenshot folder (the single area's key, else
   ///   `shell`).
-  /// - [offlineStore]: save every GET answer there and answer from it when
-  ///   the network is down (`server.offline`); pass the same store to a
+  /// - [offlineCache]: save every GET answer there and answer from it when
+  ///   the network is down (`server.offline`); pass the same cache to a
   ///   second pump to relaunch. Without it nothing is saved.
   /// - [overrides]: more provider overrides (the app's cross-area
   ///   [areaOpenersProvider], say), applied after the harness's own.
@@ -119,7 +119,7 @@ class DashHarness {
     Map<String, String>? prefs,
     bool reducedMotion = true,
     String? shotArea,
-    OfflineStore? offlineStore,
+    OfflineCache? offlineCache,
     List<Override> overrides = const [],
   }) async {
     await tester.runAsync(loadDashFonts);
@@ -160,7 +160,7 @@ class DashHarness {
         initialLocaleProvider.overrideWithValue(locale),
         preferencesProvider.overrideWithValue(memory),
         sessionGatewayProvider.overrideWithValue(session),
-        offlineStoreProvider.overrideWithValue(offlineStore),
+        offlineCacheProvider.overrideWithValue(offlineCache),
         transportProvider.overrideWith(
           // The mock's refusals worded as real mode words them: no
           // "Conflict: " prefix, no server English on an Arabic screen.

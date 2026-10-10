@@ -5,7 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dashboard_core/src/data/models.dart';
-import 'package:dashboard_core/src/data/offline.dart' show offlineStoreProvider;
+import 'package:dashboard_core/src/data/offline.dart' show offlineCacheProvider;
 import 'package:dashboard_core/src/data/query_cache.dart';
 import 'package:dashboard_core/src/gateways/preferences.dart';
 import 'package:dashboard_core/src/scope/scope.dart' show ScopePrefKeys;
@@ -91,13 +91,13 @@ class SessionNotifier extends AsyncNotifier<SessionInfo?> {
     // query: sign out before anything fires (`requireAuth`).
     if (token != null && tokenExpired(token, ref.read(clockProvider)())) {
       await _gateway.signOut();
-      await ref.read(offlineStoreProvider)?.wipe();
+      ref.read(offlineCacheProvider)?.wipe();
       _lastReason = SignOutReason.expired;
       return null;
     }
     // The saved answers are this person's alone (another's are wiped).
     if (restored != null) {
-      await ref.read(offlineStoreProvider)?.claim(restored.user.id);
+      ref.read(offlineCacheProvider)?.claim(userId: restored.user.id);
     }
     return restored;
   }
@@ -114,7 +114,7 @@ class SessionNotifier extends AsyncNotifier<SessionInfo?> {
       password: password,
       orgId: orgId,
     );
-    await ref.read(offlineStoreProvider)?.claim(info.user.id);
+    ref.read(offlineCacheProvider)?.claim(userId: info.user.id);
     _tearingDown = false;
     _lastReason = null;
     state = AsyncData(info);
@@ -132,7 +132,7 @@ class SessionNotifier extends AsyncNotifier<SessionInfo?> {
     // Flush every cached read, as the web's `queryClient.clear()`, and every
     // answer saved for offline use (salaries and payroll among them).
     ref.read(queryCacheProvider).clear();
-    await ref.read(offlineStoreProvider)?.wipe();
+    ref.read(offlineCacheProvider)?.wipe();
     state = const AsyncData(null);
   }
 

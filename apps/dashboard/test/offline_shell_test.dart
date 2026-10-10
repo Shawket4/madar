@@ -23,13 +23,13 @@ final Finder _banner = find.textContaining("You're offline. Showing data");
 
 void main() {
   late ({MockServer server, MockDb db}) s;
-  late MemoryBlobs blobs;
-  late OfflineStore store;
+  // The core's saved answers, in memory: the same object across a relaunch
+  // is the same "disk".
+  late OfflineCache cache;
 
-  setUp(() async {
+  setUp(() {
     s = _seeded();
-    blobs = MemoryBlobs();
-    store = await OfflineStore.open(blobs);
+    cache = memoryOfflineCache();
   });
 
   Future<DashHarness> launch(WidgetTester tester, {String locale = 'en'}) =>
@@ -39,7 +39,7 @@ void main() {
         server: s.server,
         db: s.db,
         locale: locale,
-        offlineStore: store,
+        offlineCache: cache,
       );
 
   testWidgets('offline after online: saved answers under the banner; back '
@@ -47,8 +47,6 @@ void main() {
     final h = await launch(tester);
     expect(find.text(_welcome), findsOneWidget);
     expect(_banner, findsNothing);
-    expect(store.owner, SeedIds.owner);
-    expect(store.keysWithPrefix('').length, greaterThan(5));
 
     s.server.offline = true;
     final cache = h.container.read(queryCacheProvider);
@@ -76,9 +74,7 @@ void main() {
       // The saves still queued land before the relaunch.
       await first.settle();
       s.server.offline = true;
-      // Relaunched: the store opens again from what is on "disk".
-      store = (await tester.runAsync(() => OfflineStore.open(blobs)))!;
-      expect(store.owner, SeedIds.owner);
+      // Relaunched over what is on "disk".
       final h = await launch(tester, locale: locale);
       expect(h.location.path, '/');
       expect(
@@ -105,18 +101,19 @@ void main() {
       server: s.server,
       db: s.db,
       persona: null,
-      offlineStore: store,
+      offlineCache: cache,
     );
     expect(h.location.path, '/login');
-    expect(store.keysWithPrefix(''), isEmpty);
   });
 
   testWidgets('signing out wipes every saved answer', (tester) async {
     final h = await launch(tester);
-    expect(store.keysWithPrefix(''), isNotEmpty);
     await h.container.read(sessionProvider.notifier).signOut();
     await h.settle();
-    expect(store.keysWithPrefix(''), isEmpty);
-    expect(store.owner, isNull);
+    // The same person back, offline: nothing saved to show.
+    s.server.offline = true;
+    await launch(tester);
+    expect(_banner, findsNothing);
+    expect(find.text(_welcome), findsNothing);
   });
 }

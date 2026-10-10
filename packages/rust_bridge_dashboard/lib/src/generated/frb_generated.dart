@@ -5,6 +5,7 @@
 
 import 'api/bridge.dart';
 import 'api/error.dart';
+import 'api/offline.dart';
 import 'api/reports.dart';
 import 'api/rules.dart';
 import 'api/transport.dart';
@@ -76,7 +77,7 @@ class DashboardBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1156061335;
+  int get rustContentHash => -23214981;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -159,6 +160,11 @@ abstract class DashboardBridgeApi extends BaseApi {
     required MadarConfig config,
   });
 
+  OfflineCache crateApiBridgeMadarBridgeOfflineCache({
+    required MadarBridge that,
+    required PlatformInt64 freshMs,
+  });
+
   Future<bool> crateApiBridgeMadarBridgeRefreshConnectivity({
     required MadarBridge that,
   });
@@ -182,6 +188,45 @@ abstract class DashboardBridgeApi extends BaseApi {
     required MadarBridge that,
     required String key,
   });
+
+  void crateApiOfflineOfflineCacheClaim({
+    required OfflineCache that,
+    required String userId,
+  });
+
+  void crateApiOfflineOfflineCacheForgetRecent({required OfflineCache that});
+
+  OfflineCache crateApiOfflineOfflineCacheInMemory({
+    required PlatformInt64 freshMs,
+  });
+
+  Uint8List? crateApiOfflineOfflineCacheRecent({
+    required OfflineCache that,
+    required CacheScope scope,
+    required CacheRequest request,
+    required PlatformInt64 nowMs,
+    String? zone,
+  });
+
+  void crateApiOfflineOfflineCacheSave({
+    required OfflineCache that,
+    required CacheScope scope,
+    required CacheRequest request,
+    required List<ApiPair> headers,
+    required List<int> body,
+    required PlatformInt64 atMs,
+  });
+
+  CachedAnswer? crateApiOfflineOfflineCacheSaved({
+    required OfflineCache that,
+    required CacheScope scope,
+    required CacheRequest request,
+    String? zone,
+  });
+
+  void crateApiOfflineOfflineCacheWipe({required OfflineCache that});
+
+  ZoneOf? crateApiOfflineOfflineCacheZoneOf({required String path});
 
   PlatformInt64 crateApiRulesAverageTicket({
     required PlatformInt64 netSales,
@@ -280,6 +325,14 @@ abstract class DashboardBridgeApi extends BaseApi {
   get rust_arc_decrement_strong_count_MadarBridge;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MadarBridgePtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_OfflineCache;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_OfflineCache;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_OfflineCachePtr;
 }
 
 class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
@@ -816,6 +869,40 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       const TaskConstMeta(debugName: "MadarBridge_new", argNames: ["config"]);
 
   @override
+  OfflineCache crateApiBridgeMadarBridgeOfflineCache({
+    required MadarBridge that,
+    required PlatformInt64 freshMs,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_i_64(freshMs, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeOfflineCacheConstMeta,
+        argValues: [that, freshMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeOfflineCacheConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_offline_cache",
+        argNames: ["that", "freshMs"],
+      );
+
+  @override
   Future<bool> crateApiBridgeMadarBridgeRefreshConnectivity({
     required MadarBridge that,
   }) {
@@ -830,7 +917,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 17,
             port: port_,
           );
         },
@@ -863,7 +950,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_session_snapshot,
@@ -898,7 +985,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           );
           sse_encode_opt_String(orgId, serializer);
           sse_encode_opt_String(branchId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -931,7 +1018,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(locale, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -964,7 +1051,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(key, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -984,6 +1071,266 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       );
 
   @override
+  void crateApiOfflineOfflineCacheClaim({
+    required OfflineCache that,
+    required String userId,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+            that,
+            serializer,
+          );
+          sse_encode_String(userId, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiOfflineOfflineCacheClaimConstMeta,
+        argValues: [that, userId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOfflineOfflineCacheClaimConstMeta =>
+      const TaskConstMeta(
+        debugName: "OfflineCache_claim",
+        argNames: ["that", "userId"],
+      );
+
+  @override
+  void crateApiOfflineOfflineCacheForgetRecent({required OfflineCache that}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiOfflineOfflineCacheForgetRecentConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOfflineOfflineCacheForgetRecentConstMeta =>
+      const TaskConstMeta(
+        debugName: "OfflineCache_forget_recent",
+        argNames: ["that"],
+      );
+
+  @override
+  OfflineCache crateApiOfflineOfflineCacheInMemory({
+    required PlatformInt64 freshMs,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(freshMs, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiOfflineOfflineCacheInMemoryConstMeta,
+        argValues: [freshMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOfflineOfflineCacheInMemoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "OfflineCache_in_memory",
+        argNames: ["freshMs"],
+      );
+
+  @override
+  Uint8List? crateApiOfflineOfflineCacheRecent({
+    required OfflineCache that,
+    required CacheScope scope,
+    required CacheRequest request,
+    required PlatformInt64 nowMs,
+    String? zone,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_cache_scope(scope, serializer);
+          sse_encode_box_autoadd_cache_request(request, serializer);
+          sse_encode_i_64(nowMs, serializer);
+          sse_encode_opt_String(zone, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_list_prim_u_8_strict,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiOfflineOfflineCacheRecentConstMeta,
+        argValues: [that, scope, request, nowMs, zone],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOfflineOfflineCacheRecentConstMeta =>
+      const TaskConstMeta(
+        debugName: "OfflineCache_recent",
+        argNames: ["that", "scope", "request", "nowMs", "zone"],
+      );
+
+  @override
+  void crateApiOfflineOfflineCacheSave({
+    required OfflineCache that,
+    required CacheScope scope,
+    required CacheRequest request,
+    required List<ApiPair> headers,
+    required List<int> body,
+    required PlatformInt64 atMs,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_cache_scope(scope, serializer);
+          sse_encode_box_autoadd_cache_request(request, serializer);
+          sse_encode_list_api_pair(headers, serializer);
+          sse_encode_list_prim_u_8_loose(body, serializer);
+          sse_encode_i_64(atMs, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiOfflineOfflineCacheSaveConstMeta,
+        argValues: [that, scope, request, headers, body, atMs],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOfflineOfflineCacheSaveConstMeta =>
+      const TaskConstMeta(
+        debugName: "OfflineCache_save",
+        argNames: ["that", "scope", "request", "headers", "body", "atMs"],
+      );
+
+  @override
+  CachedAnswer? crateApiOfflineOfflineCacheSaved({
+    required OfflineCache that,
+    required CacheScope scope,
+    required CacheRequest request,
+    String? zone,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_cache_scope(scope, serializer);
+          sse_encode_box_autoadd_cache_request(request, serializer);
+          sse_encode_opt_String(zone, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_cached_answer,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiOfflineOfflineCacheSavedConstMeta,
+        argValues: [that, scope, request, zone],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOfflineOfflineCacheSavedConstMeta =>
+      const TaskConstMeta(
+        debugName: "OfflineCache_saved",
+        argNames: ["that", "scope", "request", "zone"],
+      );
+
+  @override
+  void crateApiOfflineOfflineCacheWipe({required OfflineCache that}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+            that,
+            serializer,
+          );
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiOfflineOfflineCacheWipeConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOfflineOfflineCacheWipeConstMeta =>
+      const TaskConstMeta(debugName: "OfflineCache_wipe", argNames: ["that"]);
+
+  @override
+  ZoneOf? crateApiOfflineOfflineCacheZoneOf({required String path}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(path, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_zone_of,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiOfflineOfflineCacheZoneOfConstMeta,
+        argValues: [path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiOfflineOfflineCacheZoneOfConstMeta =>
+      const TaskConstMeta(
+        debugName: "OfflineCache_zone_of",
+        argNames: ["path"],
+      );
+
+  @override
   PlatformInt64 crateApiRulesAverageTicket({
     required PlatformInt64 netSales,
     required PlatformInt64 orderCount,
@@ -994,7 +1341,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(netSales, serializer);
           sse_encode_i_64(orderCount, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_64,
@@ -1023,7 +1370,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(tzName, serializer);
           sse_encode_i_64(atMs, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -1054,7 +1401,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_f_64(sent, serializer);
           sse_encode_f_64(got, serializer);
           sse_encode_opt_String(note, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_receive_check,
@@ -1086,7 +1433,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_String(comboJson, serializer);
           sse_encode_String(picksJson, serializer);
           sse_encode_i_64(n, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1110,7 +1457,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 25)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1137,7 +1484,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(tzName, serializer);
           sse_encode_String(date, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 26)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_day_bounds,
@@ -1161,7 +1508,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 27)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -1188,7 +1535,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(day, serializer);
           sse_encode_i_64(startDay, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 28)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_pay_period,
@@ -1213,7 +1560,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(raw, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 29)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -1240,7 +1587,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(viewJson, serializer);
           sse_encode_String(selectionJson, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 30)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1275,7 +1622,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_i_32(closingCashSystem, serializer);
           sse_encode_opt_String(cashNote, serializer);
           sse_encode_list_reconcile_input(inputs, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 31)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_reconcile_refusal,
@@ -1327,7 +1674,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_f_64(openInbound, serializer);
           sse_encode_f_64(warehouseOnHand, serializer);
           sse_encode_f_64(warehouseDraftedOut, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 32)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_replenish,
@@ -1373,7 +1720,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(status, serializer);
           sse_encode_String(action, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_transfer_step,
@@ -1404,7 +1751,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_f_64(qty, serializer);
           sse_encode_String(fromUnit, serializer);
           sse_encode_String(toUnit, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_f_64,
@@ -1433,7 +1780,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(itemJson, serializer);
           sse_encode_opt_String(sizeLabel, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_i_64,
@@ -1458,7 +1805,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(unit, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_unit_spec,
@@ -1481,7 +1828,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(base, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
@@ -1504,7 +1851,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(date, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -1530,7 +1877,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 48,
             port: port_,
           );
         },
@@ -1562,7 +1909,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 49,
             port: port_,
           );
         },
@@ -1590,6 +1937,14 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   get rust_arc_decrement_strong_count_MadarBridge => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge;
 
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_OfflineCache => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_OfflineCache => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -1606,6 +1961,15 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  OfflineCache
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return OfflineCacheImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   MadarBridge
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     dynamic raw,
@@ -1615,12 +1979,30 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  OfflineCache
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return OfflineCacheImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   MadarBridge
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return MadarBridgeImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  OfflineCache
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return OfflineCacheImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1766,6 +2148,24 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  CacheRequest dco_decode_box_autoadd_cache_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_cache_request(raw);
+  }
+
+  @protected
+  CacheScope dco_decode_box_autoadd_cache_scope(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_cache_scope(raw);
+  }
+
+  @protected
+  CachedAnswer dco_decode_box_autoadd_cached_answer(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_cached_answer(raw);
+  }
+
+  @protected
   DayBounds dco_decode_box_autoadd_day_bounds(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_day_bounds(raw);
@@ -1826,6 +2226,12 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  ZoneOf dco_decode_box_autoadd_zone_of(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_zone_of(raw);
+  }
+
+  @protected
   BranchView dco_decode_branch_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1836,6 +2242,45 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       name: dco_decode_String(arr[1]),
       isActive: dco_decode_bool(arr[2]),
       orgLogoUrl: dco_decode_opt_String(arr[3]),
+    );
+  }
+
+  @protected
+  CacheRequest dco_decode_cache_request(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return CacheRequest(
+      method: dco_decode_String(arr[0]),
+      path: dco_decode_String(arr[1]),
+      query: dco_decode_list_api_pair(arr[2]),
+      headers: dco_decode_list_api_pair(arr[3]),
+    );
+  }
+
+  @protected
+  CacheScope dco_decode_cache_scope(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return CacheScope(
+      user: dco_decode_String(arr[0]),
+      org: dco_decode_opt_String(arr[1]),
+      branch: dco_decode_opt_String(arr[2]),
+    );
+  }
+
+  @protected
+  CachedAnswer dco_decode_cached_answer(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CachedAnswer(
+      body: dco_decode_list_prim_u_8_strict(arr[0]),
+      savedAtMs: dco_decode_i_64(arr[1]),
     );
   }
 
@@ -2124,6 +2569,12 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  CachedAnswer? dco_decode_opt_box_autoadd_cached_answer(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_cached_answer(raw);
+  }
+
+  @protected
   DayBounds? dco_decode_opt_box_autoadd_day_bounds(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_day_bounds(raw);
@@ -2175,6 +2626,12 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   UnitSpec? dco_decode_opt_box_autoadd_unit_spec(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_unit_spec(raw);
+  }
+
+  @protected
+  ZoneOf? dco_decode_opt_box_autoadd_zone_of(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_zone_of(raw);
   }
 
   @protected
@@ -2341,6 +2798,15 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  ZoneOf dco_decode_zone_of(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return ZoneOf(branchId: dco_decode_opt_String(arr[0]));
+  }
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
@@ -2360,6 +2826,18 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  OfflineCache
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return OfflineCacheImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   MadarBridge
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     SseDeserializer deserializer,
@@ -2372,12 +2850,36 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  OfflineCache
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return OfflineCacheImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   MadarBridge
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return MadarBridgeImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  OfflineCache
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return OfflineCacheImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -2527,6 +3029,28 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  CacheRequest sse_decode_box_autoadd_cache_request(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_cache_request(deserializer));
+  }
+
+  @protected
+  CacheScope sse_decode_box_autoadd_cache_scope(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_cache_scope(deserializer));
+  }
+
+  @protected
+  CachedAnswer sse_decode_box_autoadd_cached_answer(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_cached_answer(deserializer));
+  }
+
+  @protected
   DayBounds sse_decode_box_autoadd_day_bounds(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_day_bounds(deserializer));
@@ -2595,6 +3119,12 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  ZoneOf sse_decode_box_autoadd_zone_of(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_zone_of(deserializer));
+  }
+
+  @protected
   BranchView sse_decode_branch_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
@@ -2607,6 +3137,38 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       isActive: var_isActive,
       orgLogoUrl: var_orgLogoUrl,
     );
+  }
+
+  @protected
+  CacheRequest sse_decode_cache_request(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_method = sse_decode_String(deserializer);
+    var var_path = sse_decode_String(deserializer);
+    var var_query = sse_decode_list_api_pair(deserializer);
+    var var_headers = sse_decode_list_api_pair(deserializer);
+    return CacheRequest(
+      method: var_method,
+      path: var_path,
+      query: var_query,
+      headers: var_headers,
+    );
+  }
+
+  @protected
+  CacheScope sse_decode_cache_scope(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_user = sse_decode_String(deserializer);
+    var var_org = sse_decode_opt_String(deserializer);
+    var var_branch = sse_decode_opt_String(deserializer);
+    return CacheScope(user: var_user, org: var_org, branch: var_branch);
+  }
+
+  @protected
+  CachedAnswer sse_decode_cached_answer(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_body = sse_decode_list_prim_u_8_strict(deserializer);
+    var var_savedAtMs = sse_decode_i_64(deserializer);
+    return CachedAnswer(body: var_body, savedAtMs: var_savedAtMs);
   }
 
   @protected
@@ -3003,6 +3565,19 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  CachedAnswer? sse_decode_opt_box_autoadd_cached_answer(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_cached_answer(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   DayBounds? sse_decode_opt_box_autoadd_day_bounds(
     SseDeserializer deserializer,
   ) {
@@ -3106,6 +3681,17 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_unit_spec(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ZoneOf? sse_decode_opt_box_autoadd_zone_of(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_zone_of(deserializer));
     } else {
       return null;
     }
@@ -3276,6 +3862,13 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  ZoneOf sse_decode_zone_of(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_branchId = sse_decode_opt_String(deserializer);
+    return ZoneOf(branchId: var_branchId);
+  }
+
+  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -3299,6 +3892,19 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    OfflineCache self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as OfflineCacheImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     MadarBridge self,
     SseSerializer serializer,
@@ -3312,6 +3918,19 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    OfflineCache self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as OfflineCacheImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     MadarBridge self,
     SseSerializer serializer,
@@ -3319,6 +3938,19 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as MadarBridgeImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    OfflineCache self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as OfflineCacheImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -3455,6 +4087,33 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_cache_request(
+    CacheRequest self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_cache_request(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_cache_scope(
+    CacheScope self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_cache_scope(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_cached_answer(
+    CachedAnswer self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_cached_answer(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_day_bounds(
     DayBounds self,
     SseSerializer serializer,
@@ -3539,12 +4198,42 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_box_autoadd_zone_of(ZoneOf self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_zone_of(self, serializer);
+  }
+
+  @protected
   void sse_encode_branch_view(BranchView self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_bool(self.isActive, serializer);
     sse_encode_opt_String(self.orgLogoUrl, serializer);
+  }
+
+  @protected
+  void sse_encode_cache_request(CacheRequest self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.method, serializer);
+    sse_encode_String(self.path, serializer);
+    sse_encode_list_api_pair(self.query, serializer);
+    sse_encode_list_api_pair(self.headers, serializer);
+  }
+
+  @protected
+  void sse_encode_cache_scope(CacheScope self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.user, serializer);
+    sse_encode_opt_String(self.org, serializer);
+    sse_encode_opt_String(self.branch, serializer);
+  }
+
+  @protected
+  void sse_encode_cached_answer(CachedAnswer self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_prim_u_8_strict(self.body, serializer);
+    sse_encode_i_64(self.savedAtMs, serializer);
   }
 
   @protected
@@ -3875,6 +4564,19 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_cached_answer(
+    CachedAnswer? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_cached_answer(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_day_bounds(
     DayBounds? self,
     SseSerializer serializer,
@@ -3982,6 +4684,19 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_unit_spec(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_zone_of(
+    ZoneOf? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_zone_of(self, serializer);
     }
   }
 
@@ -4120,6 +4835,12 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
   }
+
+  @protected
+  void sse_encode_zone_of(ZoneOf self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.branchId, serializer);
+  }
 }
 
 @sealed
@@ -4244,6 +4965,12 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
       .api
       .crateApiBridgeMadarBridgeLogout(that: this, wipeOutbox: wipeOutbox);
 
+  /// The saved answers, in this core's own store.
+  OfflineCache offlineCache({required PlatformInt64 freshMs}) => DashboardBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeOfflineCache(that: this, freshMs: freshMs);
+
   /// Ping /health; updates the online flag. True when reachable.
   Future<bool> refreshConnectivity() => DashboardBridge.instance.api
       .crateApiBridgeMadarBridgeRefreshConnectivity(that: this);
@@ -4268,4 +4995,89 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key}) => DashboardBridge.instance.api
       .crateApiBridgeMadarBridgeTr(that: this, key: key);
+}
+
+@sealed
+class OfflineCacheImpl extends RustOpaque implements OfflineCache {
+  // Not to be used by end users
+  OfflineCacheImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  OfflineCacheImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount: DashboardBridge
+        .instance
+        .api
+        .rust_arc_increment_strong_count_OfflineCache,
+    rustArcDecrementStrongCount: DashboardBridge
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_OfflineCache,
+    rustArcDecrementStrongCountPtr: DashboardBridge
+        .instance
+        .api
+        .rust_arc_decrement_strong_count_OfflineCachePtr,
+  );
+
+  /// Makes `user_id` the owner; anyone else's answers are wiped first.
+  void claim({required String userId}) => DashboardBridge.instance.api
+      .crateApiOfflineOfflineCacheClaim(that: this, userId: userId);
+
+  /// What was read may have changed: nothing held answers another range
+  /// online.
+  void forgetRecent() => DashboardBridge.instance.api
+      .crateApiOfflineOfflineCacheForgetRecent(that: this);
+
+  /// Online: a narrower range's answer from a wider one read live moments
+  /// ago, or `None` (ask the server). `zone`: the zone [`Self::zone_of`]
+  /// names, when known.
+  Uint8List? recent({
+    required CacheScope scope,
+    required CacheRequest request,
+    required PlatformInt64 nowMs,
+    String? zone,
+  }) => DashboardBridge.instance.api.crateApiOfflineOfflineCacheRecent(
+    that: this,
+    scope: scope,
+    request: request,
+    nowMs: nowMs,
+    zone: zone,
+  );
+
+  /// Saves the server's 2xx answer (`headers` and `body` as it sent them),
+  /// read at `at_ms`; the core drops what it does not keep.
+  void save({
+    required CacheScope scope,
+    required CacheRequest request,
+    required List<ApiPair> headers,
+    required List<int> body,
+    required PlatformInt64 atMs,
+  }) => DashboardBridge.instance.api.crateApiOfflineOfflineCacheSave(
+    that: this,
+    scope: scope,
+    request: request,
+    headers: headers,
+    body: body,
+    atMs: atMs,
+  );
+
+  /// Offline: the saved answer, or one derived from a saved wider range,
+  /// whichever was saved later.
+  CachedAnswer? saved({
+    required CacheScope scope,
+    required CacheRequest request,
+    String? zone,
+  }) => DashboardBridge.instance.api.crateApiOfflineOfflineCacheSaved(
+    that: this,
+    scope: scope,
+    request: request,
+    zone: zone,
+  );
+
+  /// Forgets everything (sign-out).
+  void wipe() =>
+      DashboardBridge.instance.api.crateApiOfflineOfflineCacheWipe(that: this);
 }

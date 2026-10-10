@@ -1,5 +1,6 @@
 pub mod bridge;
 pub mod error;
+pub mod offline;
 pub mod reports;
 pub mod rules;
 pub mod transport;
