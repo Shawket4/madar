@@ -433,8 +433,8 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       _branch = fresh;
       _seed(fresh);
     }
-    final wide =
-        DashSurfaceScope.maybeOf(context) != DashSurfaceMode.fullScreen;
+    // One column on a phone (the web's `sm:grid-cols-2`).
+    final wide = !DashBreakpoints.isPhone(context);
 
     Widget pair(Widget a, Widget b) => wide
         ? Row(

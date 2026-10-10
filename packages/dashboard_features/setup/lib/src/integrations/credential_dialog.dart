@@ -113,8 +113,8 @@ class _CredentialDialogState extends ConsumerState<CredentialDialog> {
       for (final b in ref.watch(branchesProvider).value ?? const <Branch>[])
         if (b.isActive && isSelling(b)) b,
     ];
-    final wide =
-        DashSurfaceScope.maybeOf(context) != DashSurfaceMode.fullScreen;
+    // No keyboard thrown up on a phone the moment it opens.
+    final wide = !DashBreakpoints.isPhone(context);
     // Closing mid-issue would lose the one-time secret: the POST lands and
     // the pop that hands it to the handoff never runs (SET-INT-019).
     return PopScope(

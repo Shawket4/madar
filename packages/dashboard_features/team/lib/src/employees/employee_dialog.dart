@@ -298,7 +298,6 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
     final departments = ref.watch(staffDepartmentsProvider).value ?? const [];
     final branches = ref.watch(branchesProvider).value ?? const <Branch>[];
     final problems = _submitted ? _problems(t) : const <String, String>{};
-    final mode = DashSurfaceScope.maybeOf(context) ?? DashSurfaceMode.dialog;
     final model = e.deviceModel;
     final today = dashParseYmd(teamTodayIsoOf(ref));
 
@@ -557,7 +556,8 @@ class _EmployeeDialogState extends ConsumerState<EmployeeDialog> {
         twoColumns: MediaQuery.sizeOf(context).width >= DashBreakpoints.sm,
         items: items,
       ),
-      actions: revoke == null || mode == DashSurfaceMode.fullScreen
+      // A phone stacks the three full width, as its dialogs do.
+      actions: revoke == null || DashBreakpoints.isPhone(context)
           ? [?revoke, cancel, save]
           : [
               Row(
