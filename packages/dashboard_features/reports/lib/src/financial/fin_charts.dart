@@ -184,106 +184,112 @@ class FinChart extends StatelessWidget {
             ];
             final duration = DashMotion.of(context, DashMotion.slow);
             if (area) {
-              return LineChart(
-                duration: duration,
-                LineChartData(
-                  minX: 0,
-                  maxX: math.max(1, n - 1).toDouble(),
-                  minY: 0,
-                  maxY: maxY,
-                  titlesData: titles,
-                  gridData: grid,
-                  borderData: FlBorderData(show: false),
-                  lineTouchData: LineTouchData(
-                    touchTooltipData: LineTouchTooltipData(
-                      getTooltipColor: (_) => c.card,
-                      tooltipBorder: BorderSide(color: c.hairline),
-                      tooltipBorderRadius: BorderRadius.circular(Radii.xs),
-                      fitInsideHorizontally: true,
-                      fitInsideVertically: true,
-                      maxContentWidth: 240,
-                      getTooltipItems: (spots) => [
-                        for (final s in spots)
-                          LineTooltipItem(
-                            labels[s.x.round()],
-                            tipTitle,
-                            textAlign: TextAlign.start,
-                            textDirection: dir,
-                            children: tipBody(s.x.round()),
-                          ),
-                      ],
-                    ),
-                  ),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: [
-                        for (var i = 0; i < n; i++)
-                          FlSpot(i.toDouble(), values[i]),
-                      ],
-                      isCurved: true,
-                      preventCurveOverShooting: true,
-                      color: paint,
-                      barWidth: 2,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            paint.withValues(alpha: 0.35),
-                            paint.withValues(alpha: 0),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-            final slot = (box.maxWidth - yWidth) / math.max(1, n);
-            return BarChart(
-              duration: duration,
-              BarChartData(
+              final data = LineChartData(
+                minX: 0,
+                maxX: math.max(1, n - 1).toDouble(),
                 minY: 0,
                 maxY: maxY,
-                alignment: BarChartAlignment.spaceAround,
                 titlesData: titles,
                 gridData: grid,
                 borderData: FlBorderData(show: false),
-                barTouchData: BarTouchData(
-                  touchTooltipData: BarTouchTooltipData(
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (_) => c.card,
                     tooltipBorder: BorderSide(color: c.hairline),
                     tooltipBorderRadius: BorderRadius.circular(Radii.xs),
                     fitInsideHorizontally: true,
                     fitInsideVertically: true,
                     maxContentWidth: 240,
-                    getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
-                      labels[group.x],
-                      tipTitle,
-                      textAlign: TextAlign.start,
-                      textDirection: dir,
-                      children: tipBody(group.x),
-                    ),
+                    getTooltipItems: (spots) => [
+                      for (final s in spots)
+                        LineTooltipItem(
+                          labels[s.x.round()],
+                          tipTitle,
+                          textAlign: TextAlign.start,
+                          textDirection: dir,
+                          children: tipBody(s.x.round()),
+                        ),
+                    ],
                   ),
                 ),
-                barGroups: [
-                  for (var i = 0; i < n; i++)
-                    BarChartGroupData(
-                      x: i,
-                      barRods: [
-                        BarChartRodData(
-                          toY: values[i],
-                          width: math.min(maxBar, math.max(3, slot * 0.8)),
-                          color: paint,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(Space.xs),
-                          ),
-                        ),
-                      ],
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: [
+                      for (var i = 0; i < n; i++)
+                        FlSpot(i.toDouble(), values[i]),
+                    ],
+                    isCurved: true,
+                    preventCurveOverShooting: true,
+                    color: paint,
+                    barWidth: 2,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          paint.withValues(alpha: 0.35),
+                          paint.withValues(alpha: 0),
+                        ],
+                      ),
                     ),
+                  ),
                 ],
+              );
+              return DashChartSelection<int>(
+                builder: (context, at, touch) => LineChart(
+                  duration: duration,
+                  dashLineSelected(data, at, touch),
+                ),
+              );
+            }
+            final slot = (box.maxWidth - yWidth) / math.max(1, n);
+            final data = BarChartData(
+              minY: 0,
+              maxY: maxY,
+              alignment: BarChartAlignment.spaceAround,
+              titlesData: titles,
+              gridData: grid,
+              borderData: FlBorderData(show: false),
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (_) => c.card,
+                  tooltipBorder: BorderSide(color: c.hairline),
+                  tooltipBorderRadius: BorderRadius.circular(Radii.xs),
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  maxContentWidth: 240,
+                  getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
+                    labels[group.x],
+                    tipTitle,
+                    textAlign: TextAlign.start,
+                    textDirection: dir,
+                    children: tipBody(group.x),
+                  ),
+                ),
+              ),
+              barGroups: [
+                for (var i = 0; i < n; i++)
+                  BarChartGroupData(
+                    x: i,
+                    barRods: [
+                      BarChartRodData(
+                        toY: values[i],
+                        width: math.min(maxBar, math.max(3, slot * 0.8)),
+                        color: paint,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(Space.xs),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            );
+            return DashChartSelection<(int, int)>(
+              builder: (context, at, touch) => BarChart(
+                duration: duration,
+                dashBarSelected(data, at, touch),
               ),
             );
           },

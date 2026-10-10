@@ -1,9 +1,11 @@
 // Charts: Recharts' nice ticks (below zero too), x labels thinned by the
 // room they take and kept inside the plot, time left to right in Arabic,
-// gaps in a line, the flat area fill, and the horizontal bar chart.
+// gaps in a line, the flat area fill, the horizontal bar chart, and a
+// tap's selection kept after the finger lifts (the web's tooltips).
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_kit/testing.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -269,6 +271,201 @@ void main() {
       // The zero line is where the positive bar starts.
       expect(b[1].right, closeTo(b[0].left, 0.5));
       expect(b[1].width, greaterThan(0));
+    });
+  });
+
+  // fl_chart's own touches showed a tooltip only while a finger was down;
+  // the web keeps the tapped one until a tap elsewhere.
+  group('a tap keeps its selection', () {
+    String tipText(String text, List<TextSpan>? children) =>
+        TextSpan(text: text, children: children).toPlainText();
+
+    /// The kit line chart's tooltip and dot, or null when none is shown.
+    String? lineTip(WidgetTester tester) {
+      final data = _lineData(tester);
+      if (data.showingTooltipIndicators.isEmpty) return null;
+      final spots = data.showingTooltipIndicators.single.showingSpots;
+      final x = spots.first.spotIndex;
+      expect(data.lineBarsData.first.showingIndicators, [x]);
+      final item = data.lineTouchData.touchTooltipData
+          .getTooltipItems(spots)
+          .first!;
+      return tipText(item.text, item.children);
+    }
+
+    // The plot: past a 40 wide y axis, above the x labels.
+    Rect plot(WidgetTester tester, Type chart) {
+      final r = tester.getRect(find.byType(chart));
+      return Rect.fromLTRB(r.left + 40, r.top, r.right, r.bottom - 28);
+    }
+
+    Widget line() => DashLineChart(
+      labels: const ['Jan', 'Feb', 'Mar'],
+      series: [
+        const DashSeries(label: 'Revenue', values: [10, 50, 272]),
+      ],
+      formatY: _plain,
+      yReserved: 40,
+    );
+
+    testWidgets('line: the nearest point stays after the tap; the point '
+        'again or a tap outside clears it', (tester) async {
+      await _pump(tester, line());
+      final p = plot(tester, LineChart);
+      expect(lineTip(tester), isNull);
+
+      // Nearer Mar than Feb, nowhere near the line itself.
+      await tester.tapAt(Offset(p.left + p.width * 0.8, p.top + 4));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+      expect(lineTip(tester), allOf(contains('Mar'), contains('272')));
+
+      await tester.tapAt(Offset(p.right - 2, p.center.dy));
+      await tester.pumpAndSettle();
+      expect(lineTip(tester), isNull);
+
+      await tester.tapAt(Offset(p.left + 2, p.center.dy));
+      await tester.pumpAndSettle();
+      expect(lineTip(tester), contains('Jan'));
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(lineTip(tester), isNull);
+    });
+
+    testWidgets('line: a drag scrubs, a long press holds, both stay', (
+      tester,
+    ) async {
+      await _pump(tester, line());
+      final p = plot(tester, LineChart);
+      await tester.dragFrom(
+        Offset(p.left + 2, p.center.dy),
+        Offset(p.width / 2, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(lineTip(tester), contains('Feb'));
+
+      await tester.longPressAt(Offset(p.right - 2, p.center.dy));
+      await tester.pumpAndSettle();
+      expect(lineTip(tester), contains('Mar'));
+    });
+
+    testWidgets('line: a mouse shows it on hover, a click keeps it, '
+        'leaving drops it', (tester) async {
+      await _pump(tester, line());
+      final p = plot(tester, LineChart);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(Offset(p.center.dx, p.center.dy));
+      await tester.pumpAndSettle();
+      expect(lineTip(tester), contains('Feb'));
+      await mouse.down(Offset(p.center.dx, p.center.dy));
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(lineTip(tester), contains('Feb'));
+      await mouse.moveTo(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(lineTip(tester), isNull);
+    });
+
+    testWidgets('bar: a tap anywhere in a bar column stays; a tap '
+        'between bars clears it', (tester) async {
+      await _pump(
+        tester,
+        DashBarChart(
+          labels: const ['Cash', 'Card'],
+          series: [
+            const DashSeries(label: 'Orders', values: [100, 20]),
+          ],
+          formatY: _plain,
+          yReserved: 40,
+        ),
+      );
+      BarChartData data() =>
+          tester.widget<BarChart>(find.byType(BarChart)).data;
+      String? tip() {
+        for (final (g, group) in data().barGroups.indexed) {
+          if (group.showingTooltipIndicators.isEmpty) continue;
+          final r = group.showingTooltipIndicators.single;
+          final item = data().barTouchData.touchTooltipData.getTooltipItem(
+            group,
+            g,
+            group.barRods[r],
+            r,
+          )!;
+          return tipText(item.text, item.children);
+        }
+        return null;
+      }
+
+      final p = plot(tester, BarChart);
+      // High above the short Card bar.
+      await tester.tapAt(Offset(p.left + p.width * 0.75, p.top + 4));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+      expect(tip(), allOf(contains('Card'), contains('20')));
+
+      await tester.tapAt(Offset(p.center.dx, p.center.dy));
+      await tester.pumpAndSettle();
+      expect(tip(), isNull);
+    });
+
+    testWidgets('donut: a tapped slice stays in the centre; the hole '
+        'clears it', (tester) async {
+      await _pump(
+        tester,
+        DashDonutChart(
+          slices: const [
+            DashSlice(label: 'Cash', value: 3),
+            DashSlice(label: 'Card', value: 1),
+          ],
+          centerLabel: 'Total',
+          centerValue: '4',
+          formatValue: (v) => 'EGP ${v.toStringAsFixed(0)}',
+          legend: false,
+        ),
+      );
+      final centre = tester.getCenter(find.byType(PieChart));
+      // Cash runs clockwise from the top for three quarters: the right.
+      await tester.tapAt(centre + const Offset(78, 0));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text('Cash'), findsOneWidget);
+      expect(find.textContaining('EGP 3'), findsOneWidget);
+
+      await tester.tapAt(centre);
+      await tester.pumpAndSettle();
+      expect(find.text('Total'), findsOneWidget);
+      expect(find.text('Cash'), findsNothing);
+    });
+
+    testWidgets('hbar: a tapped row stays; the row again or a tap outside '
+        'clears it', (tester) async {
+      await _pump(
+        tester,
+        DashHBarChart(
+          labels: const ['Ahmed', 'Mona'],
+          series: [
+            const DashSeries(label: 'Revenue', values: [100, 50]),
+          ],
+          formatX: _plain,
+          formatValue: (v) => 'EGP ${v.toStringAsFixed(0)}',
+        ),
+      );
+      await tester.tap(find.text('Mona').first);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.textContaining('EGP 50'), findsOneWidget);
+      await tester.tap(find.text('Mona').first);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('EGP 50'), findsNothing);
+
+      await tester.tap(find.text('Ahmed').first);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('EGP 100'), findsOneWidget);
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('EGP 100'), findsNothing);
     });
   });
 }

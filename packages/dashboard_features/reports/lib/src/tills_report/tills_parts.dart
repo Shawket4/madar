@@ -153,142 +153,135 @@ class TillHourChart extends ConsumerWidget {
                   final gap = math.min(Space.xs, groupW * 0.1);
                   final rod = math.max(1.5, (groupW * 0.8 - gap) / 2);
                   final radius = Radius.circular(math.min(Space.xs, rod / 2));
-                  return BarChart(
-                    duration: DashMotion.of(context, DashMotion.slow),
-                    BarChartData(
-                      minY: 0,
-                      maxY: maxY,
-                      alignment: BarChartAlignment.spaceAround,
-                      borderData: FlBorderData(show: false),
-                      gridData: FlGridData(
-                        drawVerticalLine: false,
-                        horizontalInterval: step.toDouble(),
-                        getDrawingHorizontalLine: (_) => FlLine(
-                          color: c.hairline,
-                          strokeWidth: 1,
-                          dashArray: const [3, 3],
+                  final data = BarChartData(
+                    minY: 0,
+                    maxY: maxY,
+                    alignment: BarChartAlignment.spaceAround,
+                    borderData: FlBorderData(show: false),
+                    gridData: FlGridData(
+                      drawVerticalLine: false,
+                      horizontalInterval: step.toDouble(),
+                      getDrawingHorizontalLine: (_) => FlLine(
+                        color: c.hairline,
+                        strokeWidth: 1,
+                        dashArray: const [3, 3],
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      topTitles: const AxisTitles(),
+                      rightTitles: const AxisTitles(),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: _yAxis,
+                          interval: step.toDouble(),
+                          getTitlesWidget: (v, meta) => SideTitleWidget(
+                            meta: meta,
+                            child: Text(
+                              f.fmtNumber(v.round()),
+                              style: axis,
+                              maxLines: 1,
+                              softWrap: false,
+                            ),
+                          ),
                         ),
                       ),
-                      titlesData: FlTitlesData(
-                        topTitles: const AxisTitles(),
-                        rightTitles: const AxisTitles(),
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: _yAxis,
-                            interval: step.toDouble(),
-                            getTitlesWidget: (v, meta) => SideTitleWidget(
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: Space.xl + Space.xs,
+                          interval: 1,
+                          getTitlesWidget: (v, meta) {
+                            final h = v.round();
+                            if ((v - h).abs() > 0.01 ||
+                                h < 0 ||
+                                h > 23 ||
+                                h % stride != 0) {
+                              return const SizedBox.shrink();
+                            }
+                            return SideTitleWidget(
                               meta: meta,
                               child: Text(
-                                f.fmtNumber(v.round()),
+                                f.fmtHour(h),
                                 style: axis,
                                 maxLines: 1,
                                 softWrap: false,
                               ),
-                            ),
-                          ),
-                        ),
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: Space.xl + Space.xs,
-                            interval: 1,
-                            getTitlesWidget: (v, meta) {
-                              final h = v.round();
-                              if ((v - h).abs() > 0.01 ||
-                                  h < 0 ||
-                                  h > 23 ||
-                                  h % stride != 0) {
-                                return const SizedBox.shrink();
-                              }
-                              return SideTitleWidget(
-                                meta: meta,
-                                child: Text(
-                                  f.fmtHour(h),
-                                  style: axis,
-                                  maxLines: 1,
-                                  softWrap: false,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      barTouchData: BarTouchData(
-                        touchTooltipData: BarTouchTooltipData(
-                          getTooltipColor: (_) => c.card,
-                          tooltipBorder: BorderSide(color: c.hairline),
-                          tooltipBorderRadius: BorderRadius.circular(Radii.xs),
-                          tooltipPadding: const EdgeInsets.symmetric(
-                            horizontal: Space.md,
-                            vertical: Space.sm,
-                          ),
-                          fitInsideHorizontally: true,
-                          fitInsideVertically: true,
-                          maxContentWidth: 220,
-                          getTooltipItem: (group, gi, rod, ri) {
-                            final b = buckets[group.x];
-                            return BarTooltipItem(
-                              '${f.fmtHour(b.hour)}\n',
-                              tipTitle,
-                              textAlign: TextAlign.start,
-                              textDirection: Directionality.of(context),
-                              children: [
-                                TextSpan(
-                                  text: '● ',
-                                  style: tipBody.copyWith(color: openedColor),
-                                ),
-                                TextSpan(
-                                  text: '$openedLabel  ',
-                                  style: tipBody,
-                                ),
-                                TextSpan(
-                                  text: f.fmtNumber(b.opened),
-                                  style: tipValue,
-                                ),
-                                const TextSpan(text: '\n'),
-                                TextSpan(
-                                  text: '● ',
-                                  style: tipBody.copyWith(color: closedColor),
-                                ),
-                                TextSpan(
-                                  text: '$closedLabel  ',
-                                  style: tipBody,
-                                ),
-                                TextSpan(
-                                  text: f.fmtNumber(b.closed),
-                                  style: tipValue,
-                                ),
-                              ],
                             );
                           },
                         ),
                       ),
-                      barGroups: [
-                        for (final b in buckets)
-                          BarChartGroupData(
-                            x: b.hour,
-                            barsSpace: gap,
-                            barRods: [
-                              BarChartRodData(
-                                toY: b.opened.toDouble(),
-                                width: rod,
-                                color: openedColor,
-                                borderRadius: BorderRadius.vertical(
-                                  top: radius,
-                                ),
+                    ),
+                    barTouchData: BarTouchData(
+                      touchTooltipData: BarTouchTooltipData(
+                        getTooltipColor: (_) => c.card,
+                        tooltipBorder: BorderSide(color: c.hairline),
+                        tooltipBorderRadius: BorderRadius.circular(Radii.xs),
+                        tooltipPadding: const EdgeInsets.symmetric(
+                          horizontal: Space.md,
+                          vertical: Space.sm,
+                        ),
+                        fitInsideHorizontally: true,
+                        fitInsideVertically: true,
+                        maxContentWidth: 220,
+                        getTooltipItem: (group, gi, rod, ri) {
+                          final b = buckets[group.x];
+                          return BarTooltipItem(
+                            '${f.fmtHour(b.hour)}\n',
+                            tipTitle,
+                            textAlign: TextAlign.start,
+                            textDirection: Directionality.of(context),
+                            children: [
+                              TextSpan(
+                                text: '● ',
+                                style: tipBody.copyWith(color: openedColor),
                               ),
-                              BarChartRodData(
-                                toY: b.closed.toDouble(),
-                                width: rod,
-                                color: closedColor,
-                                borderRadius: BorderRadius.vertical(
-                                  top: radius,
-                                ),
+                              TextSpan(text: '$openedLabel  ', style: tipBody),
+                              TextSpan(
+                                text: f.fmtNumber(b.opened),
+                                style: tipValue,
+                              ),
+                              const TextSpan(text: '\n'),
+                              TextSpan(
+                                text: '● ',
+                                style: tipBody.copyWith(color: closedColor),
+                              ),
+                              TextSpan(text: '$closedLabel  ', style: tipBody),
+                              TextSpan(
+                                text: f.fmtNumber(b.closed),
+                                style: tipValue,
                               ),
                             ],
-                          ),
-                      ],
+                          );
+                        },
+                      ),
+                    ),
+                    barGroups: [
+                      for (final b in buckets)
+                        BarChartGroupData(
+                          x: b.hour,
+                          barsSpace: gap,
+                          barRods: [
+                            BarChartRodData(
+                              toY: b.opened.toDouble(),
+                              width: rod,
+                              color: openedColor,
+                              borderRadius: BorderRadius.vertical(top: radius),
+                            ),
+                            BarChartRodData(
+                              toY: b.closed.toDouble(),
+                              width: rod,
+                              color: closedColor,
+                              borderRadius: BorderRadius.vertical(top: radius),
+                            ),
+                          ],
+                        ),
+                    ],
+                  );
+                  return DashChartSelection<(int, int)>(
+                    builder: (context, at, touch) => BarChart(
+                      duration: DashMotion.of(context, DashMotion.slow),
+                      dashBarSelected(data, at, touch),
                     ),
                   );
                 },
