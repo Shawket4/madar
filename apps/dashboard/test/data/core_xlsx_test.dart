@@ -2,8 +2,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/mock.dart' show RecordingFileGateway;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:madar_dashboard/data/core_xlsx.dart';
+
+/// A 4×2 lossless WebP: how the backend stores an org's logo.
+const String _webpLogo = 'UklGRh4AAABXRUJQVlA4TBEAAAAvA0AAAAdQsTZ0rv+BiOh/AAA=';
 
 void main() {
   test('the spec goes as JSON, the logo as bytes beside it', () {
@@ -113,5 +117,55 @@ void main() {
     await gateway.buildXlsx(const WorkbookSpec(sheets: []));
     expect(jsonDecode(sentJson!), isNot(contains('rtl')));
     expect(sentLogo, isNull);
+  });
+
+  // Through the real core: the writer used to refuse a WebP logo, so every
+  // Excel export of a shop with its own logo said "Export failed" while the
+  // web's went through.
+  test('a branded shop exports with its WebP logo through the core', () async {
+    final now = DateTime.utc(2026, 10, 8, 7, 30);
+    final files = RecordingFileGateway();
+    final exporter = DashExporter(
+      exports: CoreExportGateway(logo: (_) async => base64Decode(_webpLogo)),
+      files: files,
+      format: DashFormat(lang: 'en', clock: () => now),
+      t: Translator(Strings(const {}), 'en'),
+      clock: () => now,
+    );
+    final outcome = await exporter.exportToExcel(
+      ExcelConfig(
+        filename: 'Madar-Customers',
+        logoUrl: 'https://api.madar-pos.cloud/uploads/org/logos/g.webp',
+        sheets: [
+          ExcelSheet<(String, int)>(
+            name: 'Customers',
+            title: 'Customers',
+            totals: true,
+            rows: const [('Mona', 650000), ('Ali', 0)],
+            columns: [
+              ExcelColumn(header: 'Name', accessor: (r) => r.$1),
+              ExcelColumn(
+                header: 'Total spent',
+                accessor: (r) => r.$2,
+                type: ExcelColumnType.money,
+                total: true,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    expect(
+      outcome,
+      isA<ExportDone>(),
+      reason: outcome is ExportFailed ? '${outcome.error}' : null,
+    );
+    final bytes = files.saved.single.bytes;
+    expect(bytes.sublist(0, 2), [0x50, 0x4B], reason: 'an xlsx is a zip');
+    expect(
+      latin1.decode(bytes).contains('xl/media/image1.png'),
+      isTrue,
+      reason: 'the logo is drawn, as a PNG',
+    );
   });
 }

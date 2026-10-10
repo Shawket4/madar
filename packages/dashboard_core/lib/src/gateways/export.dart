@@ -15,6 +15,7 @@ import 'package:dashboard_core/src/format/icu_number.dart';
 import 'package:dashboard_core/src/format/tz.dart';
 import 'package:dashboard_core/src/gateways/files.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// `ColumnType`.
@@ -525,8 +526,8 @@ class DashExporter {
       );
       final total = config.sheets.fold<int>(0, (s, sh) => s + sh.rows.length);
       return ExportDone(rows: total, filename: name, savedTo: saved);
-    } on Object catch (e) {
-      return ExportFailed(e);
+    } on Object catch (e, st) {
+      return _failed(e, st);
     }
   }
 
@@ -560,9 +561,15 @@ class DashExporter {
         filename: name,
         savedTo: saved,
       );
-    } on Object catch (e) {
-      return ExportFailed(e);
+    } on Object catch (e, st) {
+      return _failed(e, st);
     }
+  }
+
+  /// The toast says only "Export failed": the cause goes to the log.
+  static ExportFailed _failed(Object e, StackTrace st) {
+    debugPrint('Export failed: $e\n$st');
+    return ExportFailed(e);
   }
 
   static String _csvCell(String v) =>
