@@ -163,6 +163,27 @@ void main() {
     expect(c.profitShare, closeTo(23000 / 30000, 1e-9));
   });
 
+  test('a deduction costs its quantity × the catalogue cost, whole piastres '
+      'half away from zero; the snapshot cost wins', () {
+    const d = Deduction(
+      ingredientName: 'Milk',
+      quantity: 0.25,
+      unit: 'l',
+      orgIngredientId: 'milk',
+    );
+    expect(d.costWith({'milk': 10}), 3); // 2.5 → 3
+    expect(d.costWith({'milk': 12.6}), 3); // 3.15 → 3
+    expect(d.costWith({}), isNull);
+    const snap = Deduction(
+      ingredientName: 'Milk',
+      quantity: 0.25,
+      unit: 'l',
+      orgIngredientId: 'milk',
+      cost: 2.5,
+    );
+    expect(snap.costWith({'milk': 10}), 2.5);
+  });
+
   test('SELL-ORD-075 the default file name', () {
     expect(
       exportFilename(

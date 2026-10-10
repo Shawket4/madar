@@ -229,6 +229,9 @@ abstract class DashboardBridgeApiImplPlatform
   LadderRung dco_decode_ladder_rung(dynamic raw);
 
   @protected
+  LineAddon dco_decode_line_addon(dynamic raw);
+
+  @protected
   LineCosts dco_decode_line_costs(dynamic raw);
 
   @protected
@@ -272,6 +275,12 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   List<LadderRung> dco_decode_list_ladder_rung(dynamic raw);
+
+  @protected
+  List<LineAddon> dco_decode_list_line_addon(dynamic raw);
+
+  @protected
+  Int64List dco_decode_list_prim_i_64_strict(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
@@ -621,6 +630,9 @@ abstract class DashboardBridgeApiImplPlatform
   LadderRung sse_decode_ladder_rung(SseDeserializer deserializer);
 
   @protected
+  LineAddon sse_decode_line_addon(SseDeserializer deserializer);
+
+  @protected
   LineCosts sse_decode_line_costs(SseDeserializer deserializer);
 
   @protected
@@ -664,6 +676,12 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   List<LadderRung> sse_decode_list_ladder_rung(SseDeserializer deserializer);
+
+  @protected
+  List<LineAddon> sse_decode_list_line_addon(SseDeserializer deserializer);
+
+  @protected
+  Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer);
 
   @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
@@ -1095,6 +1113,9 @@ abstract class DashboardBridgeApiImplPlatform
   void sse_encode_ladder_rung(LadderRung self, SseSerializer serializer);
 
   @protected
+  void sse_encode_line_addon(LineAddon self, SseSerializer serializer);
+
+  @protected
   void sse_encode_line_costs(LineCosts self, SseSerializer serializer);
 
   @protected
@@ -1148,6 +1169,18 @@ abstract class DashboardBridgeApiImplPlatform
   @protected
   void sse_encode_list_ladder_rung(
     List<LadderRung> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_line_addon(
+    List<LineAddon> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_i_64_strict(
+    Int64List self,
     SseSerializer serializer,
   );
 

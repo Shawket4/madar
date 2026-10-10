@@ -11,6 +11,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart'
     show OrderDeal, OrderFull, OrderItemAddon, OrderItemFull;
 import 'package:dashboard_core/dashboard_core.dart' show Translator;
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 // ── Names ────────────────────────────────────────────────────────────────
 
@@ -131,9 +132,17 @@ StaffDrinkLine? staffDrinkLine(OrderItemFull it) {
   if (!isStaffDrinkLine(it)) return null;
   final comp = _pos(it.staffCompMinor);
   final addons = it.addons.fold<int>(0, (s, a) => s + a.lineTotal);
-  // An optional carries a per-unit price and no total of its own.
-  final optionals =
-      it.optionals.fold<int>(0, (s, o) => s + o.price) * it.quantity;
+  // An optional carries a per-unit price and no total of its own
+  // (madar-money's `line` rule, through the core).
+  final optionals = rules.chargedSubtotal(
+    chargedPerUnit: rules.extrasPerUnit(
+      addons: const [],
+      optionals: rules.Int64List.fromList([
+        for (final o in it.optionals) o.price,
+      ]),
+    ),
+    quantity: it.quantity,
+  );
   final charged = it.lineTotal + addons + optionals;
   return StaffDrinkLine(normal: charged + comp, comp: comp, charged: charged);
 }
@@ -288,7 +297,7 @@ OrderCogs orderCogs(OrderFull o) {
     known: known,
     anyMissing: missing,
     profit: profit,
-    profitShare: o.totalAmount > 0 ? profit / o.totalAmount : null,
+    profitShare: rules.margin(price: o.totalAmount, cost: known),
   );
 }
 
@@ -316,12 +325,13 @@ class Deduction {
   /// The snapshot's own cost (piastres), when it carried one.
   final double? cost;
 
-  /// The snapshot's cost, else quantity × the catalogue's cost per unit.
-  double? costWith(Map<String, double> costPerUnit) {
+  /// The snapshot's cost, else quantity × the catalogue's cost per unit in
+  /// whole piastres (madar-money's `line_cost`).
+  num? costWith(Map<String, double> costPerUnit) {
     if (cost != null) return cost;
     final id = orgIngredientId;
     final per = id == null ? null : costPerUnit[id];
-    return per == null ? null : quantity * per;
+    return per == null ? null : rules.lineCost(qty: quantity, costPerUnit: per);
   }
 }
 

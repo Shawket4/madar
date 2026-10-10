@@ -18,6 +18,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../shared/report_shared.dart';
 import 'staff_pool_providers.dart';
@@ -60,8 +61,17 @@ const String _oneSize = 'one_size';
   if (!isStaff) return null;
   final comp = (it.staffCompMinor ?? 0) < 0 ? 0 : (it.staffCompMinor ?? 0);
   final addons = it.addons.fold<int>(0, (s, a) => s + a.lineTotal);
-  final optionals =
-      it.optionals.fold<int>(0, (s, o) => s + o.price) * it.quantity;
+  // An optional carries a per-unit price and no total of its own
+  // (madar-money's `line` rule, through the core).
+  final optionals = rules.chargedSubtotal(
+    chargedPerUnit: rules.extrasPerUnit(
+      addons: const [],
+      optionals: rules.Int64List.fromList([
+        for (final o in it.optionals) o.price,
+      ]),
+    ),
+    quantity: it.quantity,
+  );
   final charged = it.lineTotal + addons + optionals;
   return (normal: charged + comp, comp: comp, charged: charged);
 }
@@ -148,7 +158,7 @@ class _OrderBody extends ConsumerWidget {
     final knownCogs = items.fold<int>(0, (s, it) => s + (it.lineCost ?? 0));
     final anyMissing = items.any((it) => it.costMissing || it.lineCost == null);
     final profit = order.totalAmount - knownCogs;
-    final profitPct = order.totalAmount > 0 ? profit / order.totalAmount : null;
+    final profitPct = rules.margin(price: order.totalAmount, cost: knownCogs);
     final voided = order.status == 'voided';
     final legs = order.paymentLegs;
 

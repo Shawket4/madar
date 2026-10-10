@@ -215,6 +215,26 @@ PlatformInt64 averageTicket({
   orderCount: orderCount,
 );
 
+/// The extras on ONE unit of a line: every add-on's delta × its quantity,
+/// plus every optional's price.
+PlatformInt64 extrasPerUnit({
+  required List<LineAddon> addons,
+  required Int64List optionals,
+}) => DashboardBridge.instance.api.crateApiRulesExtrasPerUnit(
+  addons: addons,
+  optionals: optionals,
+);
+
+/// A line as charged, before any reward: one unit's charged price ×
+/// quantity.
+PlatformInt64 chargedSubtotal({
+  required PlatformInt64 chargedPerUnit,
+  required PlatformInt64 quantity,
+}) => DashboardBridge.instance.api.crateApiRulesChargedSubtotal(
+  chargedPerUnit: chargedPerUnit,
+  quantity: quantity,
+);
+
 /// A line's cost in whole piastres: `qty × cost_per_unit`, exact, half away
 /// from zero.
 PlatformInt64 lineCost({required double qty, required double costPerUnit}) =>
@@ -502,6 +522,25 @@ class LadderRung {
           runtimeType == other.runtimeType &&
           fromMinutes == other.fromMinutes &&
           toMinutes == other.toMinutes;
+}
+
+/// A selected add-on: its charged delta per unit and how many.
+class LineAddon {
+  final PlatformInt64 priceModifier;
+  final PlatformInt64 quantity;
+
+  const LineAddon({required this.priceModifier, required this.quantity});
+
+  @override
+  int get hashCode => priceModifier.hashCode ^ quantity.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LineAddon &&
+          runtimeType == other.runtimeType &&
+          priceModifier == other.priceModifier &&
+          quantity == other.quantity;
 }
 
 /// A purchase line's costs as the server stores them: the line total, the

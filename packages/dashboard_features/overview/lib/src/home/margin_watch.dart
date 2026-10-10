@@ -13,6 +13,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import 'home_parts.dart';
 import 'home_providers.dart';
@@ -127,9 +128,10 @@ class HomeMarginWatchCard extends ConsumerWidget {
       body = DashEmptyState(framed: false, title: t('insights.watch.empty'));
     } else {
       final tl = totals!;
-      final delta = tl.prevMarginKnown > 0
-          ? (tl.marginKnown - tl.prevMarginKnown) / tl.prevMarginKnown
-          : null;
+      // (now − before) / before is minus the margin of now against before:
+      // madar-money's `margin`, null unless before is above 0.
+      final m = rules.margin(price: tl.prevMarginKnown, cost: tl.marginKnown);
+      final delta = m == null ? null : -m;
       final up = (delta ?? 0) >= 0;
       final deltaTone = up ? DashTone.success : DashTone.danger;
       body = Column(

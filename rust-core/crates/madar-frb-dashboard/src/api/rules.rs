@@ -11,9 +11,9 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use flutter_rust_bridge::frb;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
-use serde::{Serialize, de::DeserializeOwned};
+use rust_decimal::Decimal;
+use serde::{de::DeserializeOwned, Serialize};
 
 fn ymd(s: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
@@ -142,7 +142,12 @@ pub struct SalaryRates {
 /// piastres), over `working_days` a month of `day_minutes` each; `None` for
 /// another word or working days that are not a number.
 #[frb(sync)]
-pub fn salary_rates(typed: String, value: i64, working_days: f64, day_minutes: i64) -> Option<SalaryRates> {
+pub fn salary_rates(
+    typed: String,
+    value: i64,
+    working_days: f64,
+    day_minutes: i64,
+) -> Option<SalaryRates> {
     use madar_dawam::salary::Typed;
     let typed = match typed.as_str() {
         "monthly" => Typed::Monthly(value),
@@ -232,7 +237,7 @@ pub struct LadderRung {
 /// past a ladder that stops.
 #[frb(sync)]
 pub fn select_late_tier(rungs: Vec<LadderRung>, late_minutes: i64) -> Option<u32> {
-    use madar_dawam::ladder::{LateDeductionKind, LateTier, select_late_tier};
+    use madar_dawam::ladder::{select_late_tier, LateDeductionKind, LateTier};
     // The kind and value do not enter the choice.
     let tiers: Vec<LateTier> = rungs
         .iter()
@@ -259,7 +264,7 @@ pub fn late_deduction_piastres(
     working_days: f64,
     day_minutes: i64,
 ) -> Option<i64> {
-    use madar_dawam::ladder::{LateTier, late_deduction_piastres};
+    use madar_dawam::ladder::{late_deduction_piastres, LateTier};
     use madar_dawam::salary::PayRates;
     let tier = LateTier {
         from_minutes: 0,
@@ -362,6 +367,35 @@ pub fn phone_canonical(raw: String) -> Option<String> {
 #[frb(sync)]
 pub fn average_ticket(net_sales: i64, order_count: i64) -> i64 {
     madar_money::metrics::average_ticket(net_sales, order_count)
+}
+
+// ── Sale lines (madar-money `line`) ───────────────────────────────────
+
+/// A selected add-on: its charged delta per unit and how many.
+pub struct LineAddon {
+    pub price_modifier: i64,
+    pub quantity: i64,
+}
+
+/// The extras on ONE unit of a line: every add-on's delta × its quantity,
+/// plus every optional's price.
+#[frb(sync)]
+pub fn extras_per_unit(addons: Vec<LineAddon>, optionals: Vec<i64>) -> i64 {
+    let addons: Vec<madar_money::line::Addon> = addons
+        .into_iter()
+        .map(|a| madar_money::line::Addon {
+            price_modifier: a.price_modifier,
+            quantity: a.quantity,
+        })
+        .collect();
+    madar_money::line::extras_per_unit(&addons, &optionals)
+}
+
+/// A line as charged, before any reward: one unit's charged price ×
+/// quantity.
+#[frb(sync)]
+pub fn charged_subtotal(charged_per_unit: i64, quantity: i64) -> i64 {
+    madar_money::line::charged_subtotal(charged_per_unit, quantity)
 }
 
 // ── Recipe cost (madar-money `cost`) ──────────────────────────────────
@@ -518,7 +552,12 @@ pub fn estimate_line_total(
     purchase_unit: String,
     stock_unit: String,
 ) -> Option<i64> {
-    madar_inventory::purchase::estimate_line_total(cost_per_stock_unit, qty, &purchase_unit, &stock_unit)
+    madar_inventory::purchase::estimate_line_total(
+        cost_per_stock_unit,
+        qty,
+        &purchase_unit,
+        &stock_unit,
+    )
 }
 
 /// The unit cost a line total implies (piastres per unit, 8 dp); `None` for a
@@ -539,7 +578,11 @@ pub struct LineCosts {
 }
 
 #[frb(sync)]
-pub fn line_costs(quantity_ordered: f64, line_cost: Option<i64>, unit_cost: Option<i64>) -> LineCosts {
+pub fn line_costs(
+    quantity_ordered: f64,
+    line_cost: Option<i64>,
+    unit_cost: Option<i64>,
+) -> LineCosts {
     match madar_inventory::purchase::line_costs(quantity_ordered, line_cost, unit_cost) {
         Ok((line, exact)) => LineCosts {
             line_cost: line,
@@ -629,7 +672,7 @@ pub fn reconcile_refusal(
     cash_note: Option<String>,
     inputs: Vec<ReconcileInput>,
 ) -> Option<ReconcileRefusal> {
-    use madar_till::reconcile::{Input, MethodTotal, PlanError, plan_lines};
+    use madar_till::reconcile::{plan_lines, Input, MethodTotal, PlanError};
     let totals: Vec<MethodTotal<String>> = totals
         .into_iter()
         .map(|t| MethodTotal {
@@ -698,14 +741,20 @@ pub fn price_options(view_json: String, selection_json: String) -> String {
 /// `combo::choice_for`: its own item choice, else its category's), in order;
 /// none for a combo that does not parse.
 #[frb(sync)]
-pub fn combo_slots_for(combo_json: String, menu_item_id: String, category_id: Option<String>) -> Vec<String> {
+pub fn combo_slots_for(
+    combo_json: String,
+    menu_item_id: String,
+    category_id: Option<String>,
+) -> Vec<String> {
     let Ok(combo) = serde_json::from_str::<madar_catalog::combo::ComboView>(&combo_json) else {
         return Vec::new();
     };
     combo
         .slots
         .into_iter()
-        .filter(|s| madar_catalog::combo::choice_for(s, &menu_item_id, category_id.as_deref()).is_some())
+        .filter(|s| {
+            madar_catalog::combo::choice_for(s, &menu_item_id, category_id.as_deref()).is_some()
+        })
         .map(|s| s.id)
         .collect()
 }

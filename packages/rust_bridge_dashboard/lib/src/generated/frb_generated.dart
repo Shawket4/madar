@@ -77,7 +77,7 @@ class DashboardBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 295221031;
+  int get rustContentHash => 1470180000;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -245,6 +245,11 @@ abstract class DashboardBridgeApi extends BaseApi {
     required PlatformInt64 atMs,
   });
 
+  PlatformInt64 crateApiRulesChargedSubtotal({
+    required PlatformInt64 chargedPerUnit,
+    required PlatformInt64 quantity,
+  });
+
   ReceiveCheck crateApiRulesCheckReceiveLine({
     required double sent,
     required double got,
@@ -283,6 +288,11 @@ abstract class DashboardBridgeApi extends BaseApi {
     required double qty,
     required String purchaseUnit,
     required String stockUnit,
+  });
+
+  PlatformInt64 crateApiRulesExtrasPerUnit({
+    required List<LineAddon> addons,
+    required Int64List optionals,
   });
 
   int crateApiBridgeFfiSurfaceVersion();
@@ -1553,6 +1563,36 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   );
 
   @override
+  PlatformInt64 crateApiRulesChargedSubtotal({
+    required PlatformInt64 chargedPerUnit,
+    required PlatformInt64 quantity,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_i_64(chargedPerUnit, serializer);
+          sse_encode_i_64(quantity, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiRulesChargedSubtotalConstMeta,
+        argValues: [chargedPerUnit, quantity],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiRulesChargedSubtotalConstMeta =>
+      const TaskConstMeta(
+        debugName: "charged_subtotal",
+        argNames: ["chargedPerUnit", "quantity"],
+      );
+
+  @override
   ReceiveCheck crateApiRulesCheckReceiveLine({
     required double sent,
     required double got,
@@ -1565,7 +1605,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_f_64(sent, serializer);
           sse_encode_f_64(got, serializer);
           sse_encode_opt_String(note, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_receive_check,
@@ -1597,7 +1637,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_String(comboJson, serializer);
           sse_encode_String(picksJson, serializer);
           sse_encode_i_64(n, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 34)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1628,7 +1668,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_String(comboJson, serializer);
           sse_encode_String(menuItemId, serializer);
           sse_encode_opt_String(categoryId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 35)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
@@ -1652,7 +1692,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 36)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -1679,7 +1719,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(tzName, serializer);
           sse_encode_String(date, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 37)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_day_bounds,
@@ -1714,7 +1754,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_opt_box_autoadd_i_64(unitCost, serializer);
           sse_encode_i_64(orderedLineCost, serializer);
           sse_encode_f_64(quantityOrdered, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 38)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_i_64,
@@ -1759,7 +1799,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_f_64(qty, serializer);
           sse_encode_String(purchaseUnit, serializer);
           sse_encode_String(stockUnit, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 39)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_i_64,
@@ -1779,12 +1819,41 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       );
 
   @override
+  PlatformInt64 crateApiRulesExtrasPerUnit({
+    required List<LineAddon> addons,
+    required Int64List optionals,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_line_addon(addons, serializer);
+          sse_encode_list_prim_i_64_strict(optionals, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiRulesExtrasPerUnitConstMeta,
+        argValues: [addons, optionals],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiRulesExtrasPerUnitConstMeta => const TaskConstMeta(
+    debugName: "extras_per_unit",
+    argNames: ["addons", "optionals"],
+  );
+
+  @override
   int crateApiBridgeFfiSurfaceVersion() {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 40)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -1813,7 +1882,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_i_64(monthly, serializer);
           sse_encode_String(hireDate, serializer);
           sse_encode_i_64(startDay, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 41)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_first_pay,
@@ -1842,7 +1911,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(cost, serializer);
           sse_encode_i_64(price, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 42)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -1873,7 +1942,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_f_64(book, serializer);
           sse_encode_f_64(counted, serializer);
           sse_encode_f_64(pct, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 43)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -1909,7 +1978,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_i_64(salary, serializer);
           sse_encode_f_64(workingDays, serializer);
           sse_encode_i_64(dayMinutes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 44)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_i_64,
@@ -1939,7 +2008,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_64(qty, serializer);
           sse_encode_f_64(costPerUnit, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 45)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_64,
@@ -1970,7 +2039,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_f_64(quantityOrdered, serializer);
           sse_encode_opt_box_autoadd_i_64(lineCost, serializer);
           sse_encode_opt_box_autoadd_i_64(unitCost, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 46)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_line_costs,
@@ -2003,7 +2072,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_String(date, serializer);
           sse_encode_u_32(hour, serializer);
           sse_encode_u_32(minute, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_i_64,
@@ -2032,7 +2101,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(tzName, serializer);
           sse_encode_i_64(atMs, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_local_parts,
@@ -2061,7 +2130,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(price, serializer);
           sse_encode_i_64(cost, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_f_64,
@@ -2084,7 +2153,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_64(q, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_64,
@@ -2111,7 +2180,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(day, serializer);
           sse_encode_i_64(startDay, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 51)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_pay_period,
@@ -2140,7 +2209,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(salary, serializer);
           sse_encode_f_64(percent, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_i_64,
@@ -2166,7 +2235,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(raw, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -2193,7 +2262,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(viewJson, serializer);
           sse_encode_String(selectionJson, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 54)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -2230,7 +2299,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_String(windowEnd, serializer);
           sse_encode_String(paidFrom, serializer);
           sse_encode_String(paidTo, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 55)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_i_64,
@@ -2269,7 +2338,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_64(q, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 56)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_i_64,
@@ -2302,7 +2371,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_String(baseUnit, serializer);
           sse_encode_opt_box_autoadd_f_64(density, serializer);
           sse_encode_opt_box_autoadd_f_64(yieldPct, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 57)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_f_64,
@@ -2327,7 +2396,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_cost_line(lines, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 58)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_recipe_cost,
@@ -2360,7 +2429,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_i_32(closingCashSystem, serializer);
           sse_encode_opt_String(cashNote, serializer);
           sse_encode_list_reconcile_input(inputs, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 59)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_reconcile_refusal,
@@ -2412,7 +2481,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_f_64(openInbound, serializer);
           sse_encode_f_64(warehouseOnHand, serializer);
           sse_encode_f_64(warehouseDraftedOut, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 60)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_replenish,
@@ -2462,7 +2531,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_i_64(value, serializer);
           sse_encode_f_64(workingDays, serializer);
           sse_encode_i_64(dayMinutes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 61)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_salary_rates,
@@ -2488,7 +2557,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_64(qty, serializer);
           sse_encode_f_64(factor, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 62)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_64,
@@ -2515,7 +2584,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_ladder_rung(rungs, serializer);
           sse_encode_i_64(lateMinutes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 63)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_u_32,
@@ -2545,7 +2614,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(status, serializer);
           sse_encode_String(action, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 64)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_transfer_step,
@@ -2576,7 +2645,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           sse_encode_f_64(qty, serializer);
           sse_encode_String(fromUnit, serializer);
           sse_encode_String(toUnit, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 65)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_f_64,
@@ -2605,7 +2674,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_i_64(line, serializer);
           sse_encode_f_64(qty, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 66)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_f_64,
@@ -2635,7 +2704,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(itemJson, serializer);
           sse_encode_opt_String(sizeLabel, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 67)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_i_64,
@@ -2660,7 +2729,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(unit, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 68)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_unit_spec,
@@ -2683,7 +2752,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(base, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 69)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_String,
@@ -2707,7 +2776,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_f_64(stored, serializer);
           sse_encode_opt_box_autoadd_f_64(yieldPct, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 70)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 72)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_f_64,
@@ -2732,7 +2801,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(date, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 71)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 73)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -2758,7 +2827,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 72,
+            funcId: 74,
             port: port_,
           );
         },
@@ -2790,7 +2859,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 73,
+            funcId: 75,
             port: port_,
           );
         },
@@ -3350,6 +3419,18 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  LineAddon dco_decode_line_addon(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return LineAddon(
+      priceModifier: dco_decode_i_64(arr[0]),
+      quantity: dco_decode_i_64(arr[1]),
+    );
+  }
+
+  @protected
   LineCosts dco_decode_line_costs(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -3446,6 +3527,18 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   List<LadderRung> dco_decode_list_ladder_rung(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_ladder_rung).toList();
+  }
+
+  @protected
+  List<LineAddon> dco_decode_list_line_addon(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_line_addon).toList();
+  }
+
+  @protected
+  Int64List dco_decode_list_prim_i_64_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeInt64List(raw);
   }
 
   @protected
@@ -4421,6 +4514,14 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  LineAddon sse_decode_line_addon(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_priceModifier = sse_decode_i_64(deserializer);
+    var var_quantity = sse_decode_i_64(deserializer);
+    return LineAddon(priceModifier: var_priceModifier, quantity: var_quantity);
+  }
+
+  @protected
   LineCosts sse_decode_line_costs(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_lineCost = sse_decode_i_64(deserializer);
@@ -4574,6 +4675,25 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       ans_.add(sse_decode_ladder_rung(deserializer));
     }
     return ans_;
+  }
+
+  @protected
+  List<LineAddon> sse_decode_list_line_addon(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LineAddon>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_line_addon(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getInt64List(len_);
   }
 
   @protected
@@ -5640,6 +5760,13 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_line_addon(LineAddon self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.priceModifier, serializer);
+    sse_encode_i_64(self.quantity, serializer);
+  }
+
+  @protected
   void sse_encode_line_costs(LineCosts self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_64(self.lineCost, serializer);
@@ -5769,6 +5896,28 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     for (final item in self) {
       sse_encode_ladder_rung(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_list_line_addon(
+    List<LineAddon> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_line_addon(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_prim_i_64_strict(
+    Int64List self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putInt64List(self);
   }
 
   @protected

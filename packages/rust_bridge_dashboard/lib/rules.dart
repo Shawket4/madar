@@ -4,4 +4,7 @@
 /// them; it calls these.
 library;
 
+// The list type `extrasPerUnit` takes (the bridge's own 64-bit list).
+export 'package:flutter_rust_bridge/flutter_rust_bridge.dart' show Int64List;
+
 export 'src/generated/api/rules.dart';
