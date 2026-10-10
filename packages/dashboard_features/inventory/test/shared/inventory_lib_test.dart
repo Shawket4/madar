@@ -154,26 +154,16 @@ void main() {
       expect(formatUnitCost(f, 10000 / 3), '33.333333');
     });
 
-    test('purchase unit to stock units within a measure', () {
-      expect(stockUnitsPer('kg', 'g'), 1000);
-      expect(stockUnitsPer('g', 'g'), 1);
-      expect(stockUnitsPer('l', 'ml'), 1000);
-      expect(stockUnitsPer('case', 'pcs'), isNull);
-      expect(stockUnitsPer('kg', 'ml'), isNull);
-    });
-
     test('line estimate from the catalog cost per stock unit', () {
+      // The conversion is madar-units' (Rust): unknown or cross-family = no
+      // figure.
       expect(estimateLineTotal(4.568, 12000, 'g', 'g'), 54816);
       expect(estimateLineTotal(4.568, 12, 'kg', 'g'), 54816);
       expect(estimateLineTotal(null, 12, 'kg', 'g'), isNull);
       expect(estimateLineTotal(4.568, 0, 'g', 'g'), isNull);
       expect(estimateLineTotal(4.568, 12, 'kg', 'ml'), isNull);
+      expect(estimateLineTotal(4.568, 12, 'case', 'pcs'), isNull);
+      expect(estimateLineTotal(90000, 500, 'g', 'kg'), 45000);
     });
-  });
-
-  test('measure families', () {
-    expect(unitsForFamily('kg'), ['g', 'kg']);
-    expect(unitsForFamily('ml'), ['ml', 'l']);
-    expect(unitsForFamily('pcs'), ['pcs']);
   });
 }

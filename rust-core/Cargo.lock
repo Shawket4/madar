@@ -1950,8 +1950,8 @@ dependencies = [
 
 [[package]]
 name = "madar-authz"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "argon2",
  "chrono",
@@ -1961,8 +1961,8 @@ dependencies = [
 
 [[package]]
 name = "madar-catalog"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "madar-money",
  "madar-units",
@@ -2017,8 +2017,8 @@ dependencies = [
 
 [[package]]
 name = "madar-dawam"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -2029,24 +2029,36 @@ dependencies = [
 
 [[package]]
 name = "madar-ids"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "serde",
 ]
 
 [[package]]
+name = "madar-inventory"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
+dependencies = [
+ "chrono",
+ "madar-authz",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "madar-loyalty"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "madar-money"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -2058,8 +2070,8 @@ dependencies = [
 
 [[package]]
 name = "madar-sync"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "serde",
  "serde_json",
@@ -2069,8 +2081,8 @@ dependencies = [
 
 [[package]]
 name = "madar-till"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "chrono",
  "madar-money",
@@ -2079,8 +2091,8 @@ dependencies = [
 
 [[package]]
 name = "madar-time"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -2089,8 +2101,8 @@ dependencies = [
 
 [[package]]
 name = "madar-units"
-version = "0.5.3"
-source = "git+https://github.com/Shawket4/madar-shared?tag=v0.5.3#f7f687253e57ab28faf2ed0092c8924d0377ec6d"
+version = "0.6.0"
+source = "git+https://github.com/Shawket4/madar-shared?tag=v0.6.0#5bfb7455d75142cb89a0090af2d7141ad967e3ec"
 dependencies = [
  "serde",
 ]
@@ -2109,8 +2121,18 @@ name = "madar_frb_dashboard"
 version = "0.1.0"
 dependencies = [
  "calamine",
+ "chrono",
+ "chrono-tz",
  "flutter_rust_bridge",
+ "madar-catalog",
  "madar-core",
+ "madar-dawam",
+ "madar-ids",
+ "madar-inventory",
+ "madar-money",
+ "madar-till",
+ "madar-time",
+ "madar-units",
  "rust_xlsxwriter",
  "serde",
  "serde_json",

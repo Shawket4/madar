@@ -1,14 +1,17 @@
 /// "Make it a meal" (the web's `features/combos/meal.ts` and the item list of
 /// `use-menu-options.ts`): which slots of a combo take this item, and the
-/// "+X" the till shows.
+/// "+X" the till shows, quoted by madar-catalog's `combo::quote`.
 library;
 
+import 'dart:convert';
+
 import 'package:dashboard_api/dashboard_api.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../shared/menu_text.dart';
 
-/// A sellable item with its active sizes, cheapest first (a single-price
-/// item has one `one_size` row).
+/// A sellable item with its active sizes (a single-price item has one
+/// `one_size` row).
 class MealItem {
   const MealItem({
     required this.id,
@@ -20,14 +23,16 @@ class MealItem {
   final String? categoryId;
   final List<({String label, int price})> sizes;
 
-  /// `unit_price` over the sizes it sells: a size it no longer sells costs
-  /// its lowest.
-  int? priceOf(String? label) {
-    for (final s in sizes) {
-      if (s.label == label) return s.price;
-    }
-    return sizes.firstOrNull?.price;
-  }
+  /// madar-catalog's `CatalogView` of the item: its sizes, no add-ons.
+  Map<String, Object?> get view => {
+    'item': {
+      'id': id,
+      'sizes': [
+        for (final s in sizes)
+          {'label': s.label, 'price': s.price, 'is_active': true},
+      ],
+    },
+  };
 }
 
 /// The org's sellable items (`useMenuOptions().items`): never a combo nor a
@@ -45,7 +50,7 @@ Map<String, MealItem> mealItemsOf(List<MenuItemFull> full) => {
           final sizes = [
             for (final s in rows)
               if (s.isActive) (label: s.label, price: s.priceOverride),
-          ]..sort((a, b) => a.price.compareTo(b.price));
+          ];
           return sizes.isEmpty ? [(label: oneSize, price: m.basePrice)] : sizes;
         }(),
       ),
@@ -73,61 +78,70 @@ List<ComboSlot> slotsAdmitting(
     if (choiceFor(s, itemId, categoryId) != null) s,
 ];
 
-String? _includedLabel(ComboChoice c, MealItem? it) =>
-    c.includedSizeLabel ?? it?.sizes.firstOrNull?.label;
+/// One pick for [mealQuote]: [item] in [slotId] at [sizeLabel] (null: the
+/// size the combo includes), [quantity] per combo.
+typedef MealPick = ({
+  String slotId,
+  MealItem item,
+  String? sizeLabel,
+  int quantity,
+});
 
-/// What one pick of [it] through [c] at [sizeLabel] adds on top of the combo
-/// price.
-int pickExtra(ComboChoice c, MealItem? it, String? sizeLabel) {
-  final inc = _includedLabel(c, it);
-  var sizeExtra = 0;
-  if (sizeLabel != null && inc != null && sizeLabel != inc) {
-    final owner = c.sizeSurcharges
-        .where((x) => x.sizeLabel == sizeLabel)
-        .firstOrNull;
-    if (owner != null) {
-      sizeExtra = owner.surcharge;
-    } else {
-      final chosen = it?.priceOf(sizeLabel);
-      final base = it?.priceOf(inc);
-      sizeExtra = chosen != null && base != null && chosen > base
-          ? chosen - base
-          : 0;
-    }
-  }
-  return c.surcharge + sizeExtra;
+/// madar-catalog's `combo::quote` of one [combo] of [picks], no add-ons;
+/// null when it refuses them.
+Map<String, Object?>? mealQuote(Combo combo, List<MealPick> picks) {
+  final answer = rules.comboQuote(
+    // The windows are not the quote's business, nor in its shape.
+    comboJson: jsonEncode({...combo.toJson(), 'windows': const <Object?>[]}),
+    picksJson: jsonEncode([
+      for (final p in picks)
+        {
+          'slot_id': p.slotId,
+          'view': p.item.view,
+          'category_id': p.item.categoryId,
+          'selection': {'size_label': p.sizeLabel},
+          'quantity': p.quantity,
+        },
+    ]),
+    n: 1,
+  );
+  return (jsonDecode(answer) as Map<String, Object?>)['Ok']
+      as Map<String, Object?>?;
 }
 
-/// A slot's default pick's extra: its default item (or first item choice).
-int _defaultExtra(ComboSlot slot, MealItem? Function(String id) lookup) {
-  final id =
-      slot.defaultItemId ??
-      slot.choices.where((c) => c.menuItemId != null).firstOrNull?.menuItemId;
-  final it = id == null ? null : lookup(id);
-  final c = it != null
-      ? choiceFor(slot, it.id, it.categoryId)
-      : slot.choices.firstOrNull;
-  return c == null ? 0 : pickExtra(c, it, slot.defaultSizeLabel);
-}
-
-/// The "+X": the combo with this item in [slotId] and the defaults
-/// elsewhere, minus the item alone at the size the combo includes. Null
-/// when the slot does not admit the item or a price is unknown.
+/// The "+X": the combo with this item in [slotId] and each slot's default
+/// (its default item, else its first item choice) at its minimum elsewhere,
+/// less the item alone at the size the combo includes. Null when the quote
+/// refuses it (the slot does not admit the item, a default is not a
+/// sellable item, no priced size).
 int? mealDelta(
   Combo combo,
   String slotId,
   MealItem item,
   MealItem? Function(String id) lookup,
 ) {
-  final slot = combo.slots.where((s) => s.id == slotId).firstOrNull;
-  final own = slot == null ? null : choiceFor(slot, item.id, item.categoryId);
-  if (slot == null || own == null) return null;
-  final alone = item.priceOf(_includedLabel(own, item));
-  if (alone == null) return null;
-  var total = combo.price + pickExtra(own, item, null);
+  final picks = <MealPick>[
+    (slotId: slotId, item: item, sizeLabel: null, quantity: 1),
+  ];
   for (final s in combo.slots) {
-    final picks = s.id == slotId ? (s.min - 1 < 0 ? 0 : s.min - 1) : s.min;
-    if (picks > 0) total += picks * _defaultExtra(s, lookup);
+    final n = s.id == slotId ? s.min - 1 : s.min;
+    if (n < 1) continue;
+    final id =
+        s.defaultItemId ??
+        s.choices.where((c) => c.menuItemId != null).firstOrNull?.menuItemId;
+    final it = id == null ? null : lookup(id);
+    if (it == null) return null;
+    picks.add((
+      slotId: s.id,
+      item: it,
+      sizeLabel: s.defaultSizeLabel,
+      quantity: n,
+    ));
   }
-  return total - alone;
+  final q = mealQuote(combo, picks);
+  if (q == null) return null;
+  final own = (q['parts']! as List).cast<Map<String, Object?>>().firstWhere(
+    (p) => p['pick_index'] == 0,
+  );
+  return (q['unit_total']! as int) - (own['unit_price']! as int);
 }

@@ -1,8 +1,9 @@
-// The kit's date rules over madar-shared's vectors (copied by
+// The kit's quick ranges over madar-shared's vectors (copied by
 // tool/sync_web_vectors.py into dashboard_core/test/vectors/; the kit cannot
-// import dashboard_core, so it reads the file itself): the pay period
-// (madar-dawam `pay::period_window`, the web's quickRange "this_period") and
-// the Saturday week start (madar-time, quickRange "this_week").
+// import dashboard_core, so it reads the file itself). The rules run in Rust:
+// the pay period (madar-dawam `pay::period_window`, the web's quickRange
+// "this_period") and the Saturday week start (madar-time, quickRange
+// "this_week"), through the core; this checks the kit's wiring of them.
 import 'dart:convert';
 import 'dart:io';
 

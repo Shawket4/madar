@@ -36,6 +36,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../pricing/pricing_model.dart';
 import '../recipes/recipe_builder.dart';
 import '../shared/category_dialog.dart';
 import '../shared/menu_bilingual_field.dart';
@@ -242,17 +243,17 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
     }.toList();
   }
 
-  int? _priceForSize(String size) {
-    for (final s in _sizes) {
-      if (s.label == size) {
-        final p = egpTextToPiastres(s.price);
-        if (p != null) return p;
-        break;
-      }
-    }
-    final all = [for (final s in _sizes) ?egpTextToPiastres(s.price)];
-    return all.isEmpty ? null : all.reduce((a, b) => a < b ? a : b);
-  }
+  /// The typed prices as the till prices a size (an untyped one costs the
+  /// lowest typed).
+  int? _priceForSize(String size) => unitPrice([
+    for (final s in _sizes)
+      (
+        label: s.label,
+        price: egpTextToPiastres(s.price),
+        isActive: true,
+        branchPrice: null,
+      ),
+  ], size);
 
   /// The zod schema: every message at once; true when the form is valid.
   bool _validate() {

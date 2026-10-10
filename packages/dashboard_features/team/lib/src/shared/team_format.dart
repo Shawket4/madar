@@ -6,6 +6,9 @@ library;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
+
+import 'week.dart';
 
 /// "42m", "7h 25m", "1d 03h" from a minute count (`fmtMinutes`): attendance
 /// cells and the Team board's "late". Arabic units with a space, in an RTL
@@ -53,19 +56,20 @@ String formatSpan(num minutes, String lang) {
   return '$h $hh $m $mm';
 }
 
-/// The ISO date [n] days from today, "today" being the calendar day in
-/// [timezone] at [now] (`isoDaysFromToday`): UTC is still yesterday from
-/// midnight to 03:00 in Cairo.
+/// The ISO date [n] days from today, "today" being [timezone]'s business
+/// date at [now] (`isoDaysFromToday`; madar-time's `business_date_of` through
+/// the core): UTC is still yesterday from midnight to 03:00 in Cairo. An
+/// unknown zone reads as Cairo.
 String isoDaysFromToday(
   int n, {
   required String timezone,
   required DateTime now,
 }) {
-  final local = inZone(now, timezone);
-  final d = DateTime.utc(local.year, local.month, local.day + n);
-  return '${d.year.toString().padLeft(4, '0')}-'
-      '${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
+  final at = now.millisecondsSinceEpoch;
+  final today =
+      rules.businessDate(tzName: timezone, atMs: at) ??
+      rules.businessDate(tzName: appTimezone, atMs: at)!;
+  return addDays(today, n);
 }
 
 /// Today in the active branch/org zone, by the app clock (`todayIso`).

@@ -1,6 +1,7 @@
-// madar-shared's catalog_vectors.json (the web's `src/lib`, pinned to its tag;
-// tool/sync_web_vectors.py): each case's unit price is [unitPrice] over its
-// item view, as the web's `pricing/unit-price.test.ts` checks it.
+// madar-shared's catalog_vectors.json (pinned to its tag;
+// tool/sync_web_vectors.py): each case's unit price is [unitPrice]
+// (madar-catalog's `unit_price`, run in Rust) over its item view as the
+// pricing page maps it.
 import 'package:dashboard_catalog_menu/src/pricing/pricing_model.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter_test/flutter_test.dart';

@@ -1,14 +1,16 @@
 /// The Transfers unit's reads and the rules the web computes in the browser
 /// (`transfers-page.tsx`, `transfer-drawer.tsx`, `lib.ts` at af50aa63): the
 /// list keyed by scope, direction and status, the org's transfer locations,
-/// the differences report, the replenishment rows, the export walk, the step
-/// table, `milli` and the status words and tones.
+/// the differences report, the replenishment rows, the export walk, the steps
+/// open to the viewer (madar-inventory's table, through the core), `milli` and
+/// the status words and tones.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart' show DashTone;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../shared/inventory_labels.dart';
 
@@ -141,55 +143,24 @@ Future<List<StockTransfer>> fetchAllTransfers(
   );
 }
 
-// ── The step table (`lib.ts` TRANSFER_STEPS) ───────────────────────────────
+// ── Steps ──────────────────────────────────────────────────────────────────
 
+/// The steps a transfer may take; each name is the step table's action word.
 enum TransferAction { edit, accept, decline, dispatch, receive, cancel }
-
-/// Which side may take which step in which status: the backend's table
-/// (`madar_inventory::transfer::step`); true = the source.
-const Map<String, Map<TransferAction, bool>> _steps = {
-  'requested': {
-    TransferAction.edit: false,
-    TransferAction.cancel: false,
-    TransferAction.accept: true,
-    TransferAction.decline: true,
-  },
-  'draft': {
-    TransferAction.edit: true,
-    TransferAction.dispatch: true,
-    TransferAction.cancel: true,
-  },
-  'dispatched': {TransferAction.receive: false, TransferAction.cancel: true},
-};
-
-/// The capability a step needs (the table's third column).
-String transferStepCap(String status, TransferAction a) =>
-    a == TransferAction.receive
-    ? Cap.inventoryTransfersEdit
-    : a == TransferAction.cancel && status == 'dispatched'
-    ? Cap.inventoryTransfersDelete
-    : Cap.inventoryTransfersCreate;
-
-/// One cell of the table (pinned by the shared `inventory_vectors.json`):
-/// who acts (true = the source) and the capability, or null when closed.
-({bool source, String cap})? transferStep(String status, TransferAction a) {
-  final source = _steps[status]?[a];
-  return source == null
-      ? null
-      : (source: source, cap: transferStepCap(status, a));
-}
 
 /// The steps open to someone working at [mine] who holds the step's
 /// capability AT the acting side (`can(cap, at)`), where the server checks.
+/// The table is madar-inventory's (`transfer::step`) through the core.
 Set<TransferAction> transferActions(
   StockTransfer t,
   Set<String> mine,
   bool Function(String cap, String at) can,
 ) => {
   for (final a in TransferAction.values)
-    if (transferStep(t.status.value, a) case final step?)
-      if (step.source ? t.sourceBranchId : t.destinationBranchId case final at
-          when mine.contains(at) && can(step.cap, at))
+    if (rules.transferStep(status: t.status.value, action: a.name)
+        case final step?)
+      if (step.side == 'source' ? t.sourceBranchId : t.destinationBranchId
+          case final at when mine.contains(at) && can(step.cap, at))
         a,
 };
 
@@ -198,28 +169,6 @@ Set<TransferAction> transferActions(
 int milli(num q) {
   final m = (q.abs() * 1000).round();
   return q < 0 ? -m : m;
-}
-
-/// One received line as the server judges it
-/// (`madar_inventory::transfer::check_receive_line`, pinned by the shared
-/// `inventory_vectors.json`): in whole thousandths, more than was sent needs
-/// a note; [difference] = received − sent. [refused] is `negative` or
-/// `over_needs_note`, else null.
-({String? arrival, double? difference, String? refused}) checkReceiveLine(
-  num sent,
-  num got,
-  String? note,
-) {
-  final s = milli(sent), g = milli(got);
-  if (g < 0) return (arrival: null, difference: null, refused: 'negative');
-  if (g > s && (note ?? '').trim().isEmpty) {
-    return (arrival: null, difference: null, refused: 'over_needs_note');
-  }
-  return (
-    arrival: g == s ? 'exact' : (g < s ? 'short' : 'over'),
-    difference: (g - s) / 1000,
-    refused: null,
-  );
 }
 
 /// `TRANSFER_TONES` (an unknown status is neutral).

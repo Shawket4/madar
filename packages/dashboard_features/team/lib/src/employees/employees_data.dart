@@ -7,6 +7,7 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart' show Employee;
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 // ── phones ─────────────────────────────────────────────────────────────
 
@@ -19,26 +20,11 @@ String _asciiDigits(String s) => s.replaceAllMapped(RegExp('[٠-٩۰-۹]'), (m) 
 });
 
 /// The canonical form of whatever was typed (`201001234567`, E.164 digits
-/// without the `+`), or null when it is not a phone (`canonicalPhone`).
-String? canonicalPhone(String? raw) {
-  if (raw == null || raw.runes.length > phoneRawMax) return null;
-  var digits = _asciiDigits(raw).replaceAll(RegExp('[^0-9]'), '');
-  if (digits.startsWith('00')) {
-    digits = digits.substring(2);
-  } else if (digits.startsWith('20')) {
-    // already country-coded
-  } else if (digits.startsWith('0')) {
-    digits = '20${digits.substring(1)}';
-  } else if (digits.length == 10 && digits.startsWith('1')) {
-    digits = '20$digits';
-  }
-  if (digits.length < 10 || digits.length > 15) return null;
-  // An Egyptian mobile is exactly 12 digits; landlines are untouched.
-  if (RegExp('^201[0125]').hasMatch(digits) && digits.length != 12) {
-    return null;
-  }
-  return digits;
-}
+/// without the `+`), or null when it is not a phone: madar-ids
+/// `phone::canonical` through the bridge, the copy the backend and the POS
+/// core run.
+String? canonicalPhone(String? raw) =>
+    raw == null ? null : rules.phoneCanonical(raw: raw);
 
 bool isValidPhone(String? raw) => canonicalPhone(raw) != null;
 
@@ -163,32 +149,21 @@ String _iso(DateTime d) =>
 
 int _dayDiff(String a, String b) => _utc(b).difference(_utc(a)).inDays;
 
-/// The pay period holding [date], for periods opening on [startDay]
-/// (`periodOf`: the 26th means 26th–25th). madar-dawam `pay::period_window`,
-/// pinned by dawam_vectors.json: [startDay] clamps to 1–28.
-({String start, String end, int days}) periodOf(String date, int startDay) {
-  final s = startDay.clamp(1, 28);
-  final d = _utc(date);
-  // The 1-based month the period opens in (DateTime.utc normalises 0, -1).
-  final month = d.day >= s ? d.month : d.month - 1;
-  final start = _iso(DateTime.utc(d.year, month, s));
-  final end = _iso(DateTime.utc(d.year, month + 1, s - 1));
-  return (start: start, end: end, days: _dayDiff(start, end) + 1);
-}
-
 /// The first pay of someone hired on [hireDate]: the monthly salary × days
-/// employed ÷ the period's days (`firstPay`).
+/// employed ÷ the period's days (`firstPay`). The pay period holding the hire
+/// date (periods opening on [startDay], the 26th meaning 26th–25th) is
+/// madar-dawam's `pay::period_window` through the core.
 ({String from, String to, int piastres}) firstPay(
   int monthly,
   String hireDate,
   int startDay,
 ) {
-  final p = periodOf(hireDate, startDay);
-  final days = _dayDiff(hireDate, p.end) + 1;
+  final p = rules.payPeriod(day: hireDate, startDay: startDay)!;
+  final days = _dayDiff(hireDate, p.to) + 1;
   return (
     from: hireDate,
-    to: p.end,
-    piastres: roundDiv(monthly * days, p.days),
+    to: p.to,
+    piastres: roundDiv(monthly * days, _dayDiff(p.from, p.to) + 1),
   );
 }
 

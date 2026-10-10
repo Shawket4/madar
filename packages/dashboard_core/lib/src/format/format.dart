@@ -10,6 +10,7 @@ library;
 
 import 'package:dashboard_core/src/format/icu_number.dart';
 import 'package:dashboard_core/src/format/tz.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 export 'package:dashboard_core/src/format/icu_number.dart'
     show NumberOptions, SignDisplay;
@@ -54,11 +55,10 @@ int egpToPiastres(num egp) => _jsRound(egp * 100);
 
 int _jsRound(num v) => (v + 0.5).floor();
 
-/// The average bill (`averageTicket`, madar-money `metrics::average_ticket`,
-/// pinned by pos_metrics_vectors.json): sales over orders rounded half up, in
-/// integers; 0 when there is nothing to divide by.
+/// The average bill: madar-money's `metrics::average_ticket` through the core
+/// (sales over orders rounded half up; 0 when there is nothing to divide by).
 int averageTicket(int sales, int orders) =>
-    orders > 0 ? ((2 * sales + orders) / (2 * orders)).floor() : 0;
+    rules.averageTicket(netSales: sales, orderCount: orders);
 
 /// `initials("Ahmad Ghazal")` -> `AG`.
 String initials([String name = '']) => name
@@ -367,36 +367,44 @@ class DashFormat {
   String cairoDateISO(int year, int month0, int day, {bool endOfDay = false}) =>
       dayBoundaryISO(timezone, year, month0, day, endOfDay: endOfDay);
 
-  /// Calendar parts of [iso] in the active zone (month 0-based).
+  /// Calendar parts of [iso] in the active zone (month 0-based): madar-time's
+  /// `business_date_of` through the core.
   ({int y, int m, int d}) cairoParts(String iso) {
     final d = parseJsDate(iso);
     if (d == null) throw RangeError('Invalid time value');
-    final z = inZone(d, timezone);
-    return (y: z.year, m: z.month - 1, d: z.day);
+    final at = d.millisecondsSinceEpoch;
+    final date =
+        rules.businessDate(tzName: timezone, atMs: at) ??
+        rules.businessDate(tzName: appTimezone, atMs: at)!;
+    final p = date.split('-').map(int.parse).toList();
+    return (y: p[0], m: p[1] - 1, d: p[2]);
   }
 }
 
 /// UTC ISO instant for the start (or last ms) of a calendar day in [zone]
-/// (`dayBoundaryISO`). [month0] is 0-based. madar-time `day_bounds`, pinned by
-/// day_bounds_vectors.json: the end is the next local midnight minus 1 ms, not
-/// wall-clock 23:59:59.999 (Cairo and Beirut fall back at midnight, so that
-/// time happens twice and the first one drops the day's last hour).
+/// (`dayBoundaryISO`): madar-time's `day_bounds` through the core. The day's
+/// last instant is its exclusive end (the next local midnight) minus 1 ms, as
+/// reports filter `at <= to`; on the night the clocks go back that keeps the
+/// repeated hour. [month0] is 0-based and out-of-range parts roll over as in
+/// JavaScript's `Date`; an unknown zone reads as [appTimezone].
 String dayBoundaryISO(
   String zone,
   int year,
   int month0,
   int day, {
   bool endOfDay = false,
-}) => isoString(
-  endOfDay
-      ? wallClock(
-          zone,
-          year,
-          month0,
-          day + 1,
-        ).subtract(const Duration(milliseconds: 1))
-      : wallClock(zone, year, month0, day),
-);
+}) {
+  final date = DateTime.utc(year, month0 + 1, day);
+  final ymd =
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+  final bounds =
+      rules.dayBounds(tzName: zone, date: ymd) ??
+      rules.dayBounds(tzName: appTimezone, date: ymd)!;
+  final ms = endOfDay ? bounds.endMs - 1 : bounds.startMs;
+  return isoString(DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true));
+}
 
 /// Excel (1900 system) serial for [instant] on [zone]'s wall clock
 /// (`toExcelDateSerial`).

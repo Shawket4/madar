@@ -1,6 +1,6 @@
-// The phone rule against madar-shared's vectors (the web's pinned
-// `src/lib/phone_vectors.json`, via `sharedVectors`) and the web's own
-// display/input cases.
+// The phone rule (madar-ids, run through the bridge) against madar-shared's
+// vectors (the web's pinned `src/lib/phone_vectors.json`, via
+// `sharedVectors`), and the web's own display/input cases on top of it.
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_sell/src/shared/phone.dart';
 import 'package:flutter_test/flutter_test.dart';

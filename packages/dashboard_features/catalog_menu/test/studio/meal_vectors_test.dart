@@ -1,8 +1,9 @@
-// madar-shared's combo_vectors.json (the web's `src/lib`, pinned to its tag;
-// tool/sync_web_vectors.py), as the web's `combos/meal-vectors.test.ts` asks
-// it: every quote part's surcharge is [pickExtra], and each case shaped like
-// "Make it a meal" (the item in its slot, a default per other slot, no
-// add-ons) is re-asked as a +X: the quote's unit total less the item alone.
+// madar-shared's combo_vectors.json (pinned to its tag;
+// tool/sync_web_vectors.py) through the studio's mapping to madar-catalog's
+// `combo::quote` (run in Rust): every quote part's surcharge comes back from
+// [mealQuote], and each case shaped like "Make it a meal" (the item in its
+// slot, a default per other slot, no add-ons) is re-asked as a +X: the
+// quote's unit total less the item alone.
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_catalog_menu/src/studio/meal_model.dart';
 import 'package:dashboard_core/testing.dart';
@@ -54,7 +55,7 @@ void main() {
   J itemOf(J pick) => items[pick['item']]!['item']! as J;
 
   /// What the studio's item list hands the view: active sizes at their
-  /// branch-effective price, cheapest first.
+  /// branch-effective price.
   MealItem option(J pick) {
     final it = itemOf(pick);
     return MealItem(
@@ -68,7 +69,7 @@ void main() {
               label: s['label']! as String,
               price: (s['branch_price'] ?? s['price'])! as int,
             ),
-      ]..sort((a, b) => a.price.compareTo(b.price)),
+      ],
     );
   }
 
@@ -85,14 +86,21 @@ void main() {
 
   for (final c in quotes) {
     test("${c['name']}: each part's surcharge", () {
-      final combo = comboOf(combos[c['combo']]!);
-      final picks = _list(c['picks']);
+      final q = mealQuote(comboOf(combos[c['combo']]!), [
+        for (final p in _list(c['picks']))
+          (
+            slotId: p['slot_id']! as String,
+            item: option(p),
+            sizeLabel: sizeOf(p),
+            quantity: p['quantity']! as int,
+          ),
+      ])!;
+      final got = {
+        for (final part in _list(q['parts']))
+          part['pick_index']: part['surcharge_unit'],
+      };
       for (final part in _list(quoteOf(c)['parts'])) {
-        final p = picks[part['pick_index']! as int];
-        final it = option(p);
-        final slot = combo.slots.firstWhere((s) => s.id == p['slot_id']);
-        final choice = choiceFor(slot, it.id, it.categoryId)!;
-        expect(pickExtra(choice, it, sizeOf(p)), part['surcharge_unit']);
+        expect(got[part['pick_index']], part['surcharge_unit']);
       }
     });
   }

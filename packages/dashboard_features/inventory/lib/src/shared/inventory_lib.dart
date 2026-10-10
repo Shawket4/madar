@@ -12,6 +12,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart' show ItemCountInput;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart' show DashTone;
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 // ── Enums (mirror the backend) ─────────────────────────────────────────────
 
@@ -54,45 +55,7 @@ const List<String> inventoryUnits = ['g', 'kg', 'ml', 'l', 'pcs'];
 /// (`ALL_BRANCHES_ID`); [Scope.scopeBranchId] gives it.
 const String inventoryAllBranchesId = allBranchesId;
 
-// ── Measure families (the backend converts only within a family) ───────────
-
-enum MeasureFamily { weight, volume, count }
-
-/// madar-units' `unit_spec` (pinned by the shared `unit_vectors.json`): a
-/// unit's family and its factor to the family's smallest unit, case and
-/// surrounding spaces ignored; null for a unit the backend doesn't know.
-(MeasureFamily, num)? _unitSpec(String unit) =>
-    switch (unit.trim().toLowerCase()) {
-      'g' => (MeasureFamily.weight, 1),
-      'kg' => (MeasureFamily.weight, 1000),
-      'ml' => (MeasureFamily.volume, 1),
-      'l' => (MeasureFamily.volume, 1000),
-      'pcs' => (MeasureFamily.count, 1),
-      _ => null,
-    };
-
-/// Null for a unit the backend doesn't know.
-MeasureFamily? unitFamily(String unit) => _unitSpec(unit)?.$1;
-
-/// The units an ingredient of [unit] may be bought or re-measured in (an
-/// unknown unit only in itself).
-List<String> unitsForFamily(String unit) => switch (unitFamily(unit)) {
-  MeasureFamily.weight => const ['g', 'kg'],
-  MeasureFamily.volume => const ['ml', 'l'],
-  MeasureFamily.count => const ['pcs'],
-  null => [unit],
-};
-
 // ── Purchase costs: the invoice total is the truth ─────────────────────────
-
-/// Base stock units in one purchase unit (a kg of a gram item → 1000); null
-/// where the backend refuses to convert: an unknown unit, or across families.
-num? stockUnitsPer(String purchaseUnit, String stockUnit) {
-  final from = _unitSpec(purchaseUnit), to = _unitSpec(stockUnit);
-  return from != null && to != null && from.$1 == to.$1
-      ? from.$2 / to.$2
-      : null;
-}
 
 /// A line's unit cost DERIVED from its total, in piastres per purchase unit,
 /// unrounded; null until both are known.
@@ -110,13 +73,17 @@ int? estimateLineTotal(
   String purchaseUnit,
   String stockUnit,
 ) {
-  final per = stockUnitsPer(purchaseUnit, stockUnit);
-  return catalogCostPerStockUnit != null &&
-          per != null &&
-          qty.isFinite &&
-          qty > 0
-      ? jsRound(catalogCostPerStockUnit * qty * per)
-      : null;
+  if (catalogCostPerStockUnit == null || !qty.isFinite || qty <= 0) {
+    return null;
+  }
+  // madar-units through the core: the quantity in stock units (3 dp, as the
+  // server stores it), null across families or for an unknown unit.
+  final inStock = rules.unitConvert(
+    qty: qty.toDouble(),
+    fromUnit: purchaseUnit,
+    toUnit: stockUnit,
+  );
+  return inStock == null ? null : jsRound(catalogCostPerStockUnit * inStock);
 }
 
 /// Fraction digits a unit cost is shown with (EGP), always all of them.

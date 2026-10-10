@@ -18,6 +18,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
@@ -525,25 +526,27 @@ class _ReceiveTransferDialogState extends ConsumerState<ReceiveTransferDialog> {
       for (final l in tr.lines)
         () {
           final got = double.tryParse((_qty[l.id] ?? '').trim());
-          // The server's rule (`check_receive_line`), in thousandths.
+          // The server's rule (madar-inventory's `check_receive_line`).
           final check = got == null || !got.isFinite
               ? null
-              : checkReceiveLine(l.qtySent, got, _notes[l.id]);
-          final ok = check != null && check.refused != 'negative';
-          final needsNote = ok && check.refused == 'over_needs_note';
-          final over = needsNote || check?.arrival == 'over';
-          final short = check?.arrival == 'short';
+              : rules.checkReceiveLine(
+                  sent: l.qtySent,
+                  got: got,
+                  note: _notes[l.id],
+                );
+          final needsNote = check?.refused == 'over_needs_note';
           return (
             l: l,
             got: got,
-            ok: ok,
-            over: over,
-            short: short,
+            ok: check != null && check.refused == null,
+            over: needsNote || check?.arrival == 'over',
+            short: check?.arrival == 'short',
             needsNote: needsNote,
           );
         }(),
     ];
-    final valid = rows.every((r) => r.ok && !r.needsNote);
+    // Submit only what the rule accepts: no refusal on any line.
+    final valid = rows.every((r) => r.ok);
     final shortColor = _diffColor(c, -1);
     return DashSurface(
       key: const ValueKey('transfer-receive'),
