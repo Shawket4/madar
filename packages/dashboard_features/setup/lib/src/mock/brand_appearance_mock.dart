@@ -3,10 +3,11 @@
 ///
 /// Routes this unit answers (`orgs::handlers`), each only when no other area
 /// does (`onIfAbsent`: admin's org dialog answers the same routes in the app):
-/// - `PATCH /orgs/{id}` (`update_org`): `org.settings.edit`, then super admin
-///   only — a shop owner's links save is refused by the real server too;
+/// - `PATCH /orgs/{id}` (`update_org`): [requireOrgPatch] (B3: a body of
+///   only `social_links` and/or `logo_url` is the caller's own org's to save
+///   with `org.settings.edit`; anything else is super admin only);
 ///   `social_links` checked (closed list, https only) and stored cleaned,
-///   replacing the map.
+///   replacing the map; `logo_url: null` clears the logo.
 /// - `PUT /orgs/{id}/logo` (field `logo`) and `PUT /orgs/{id}/card-image`
 ///   (field `image`): `org.settings.edit` and the caller's own org (or a
 ///   super admin). The asset worker finishes at once here: the stored address
@@ -91,9 +92,8 @@ void registerBrandAppearanceMocks(MockServer server, MockDb db) {
   );
 
   onIfAbsent(server, 'PATCH', '/orgs/{id}', (req) {
-    req.requireCap('org.settings.edit');
-    req.requirePlatform();
     final id = req.param('id');
+    requireOrgPatch(req, id);
     live(req, id);
     final body = req.json;
     final patch = <String, Object?>{};
@@ -120,6 +120,7 @@ void registerBrandAppearanceMocks(MockServer server, MockDb db) {
     for (final f in const ['name', 'receipt_footer', 'custom_branding']) {
       if (body[f] != null) patch[f] = body[f];
     }
+    if (body.containsKey('logo_url')) patch['logo_url'] = body['logo_url'];
     return MockResponse.ok(orgs.update(id, patch));
   });
 }

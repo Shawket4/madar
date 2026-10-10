@@ -36,22 +36,6 @@ Finder _inCard(Finder f) => find.descendant(of: _card(), matching: f);
   return m;
 }
 
-({MockServer server, MockDb db}) _platform([Map<String, Object?>? changes]) {
-  final m = setupMockServer(persona: Persona.platform);
-  if (changes != null) m.db['orgs'].update(SeedIds.sabahOrg, changes);
-  return m;
-}
-
-Future<DashHarness> _platformBrand(
-  WidgetTester tester, [
-  ({MockServer server, MockDb db})? m,
-]) => pumpBrand(
-  tester,
-  persona: Persona.platform,
-  backend: m ?? _platform(),
-  prefs: pickedSabah,
-);
-
 void main() {
   group('page', () {
     testWidgets('SET-BRD-001 the pane header: "Brand" and its description', (
@@ -488,7 +472,7 @@ void main() {
 
     testWidgets('SET-BRD-016 http:// is refused under the field; nothing is '
         'sent', (tester) async {
-      final h = await _platformBrand(tester);
+      final h = await pumpBrand(tester);
       await h.enterText(_field(7), 'http://sabah.coffee');
       await h.tap(byKey('brand-links-save'));
       expect(
@@ -498,10 +482,10 @@ void main() {
       expect(h.server.callsTo(orgRoute, method: 'PATCH'), isEmpty);
     });
 
-    testWidgets('SET-BRD-017 Save: only filled platforms, "" for an emptied '
-        'one; toast; re-read', (tester) async {
-      final m = _platform();
-      final h = await _platformBrand(tester, m);
+    testWidgets('SET-BRD-017 the owner saves (B3): only filled platforms, "" '
+        'for an emptied one; toast; re-read', (tester) async {
+      final m = _sabah();
+      final h = await pumpBrand(tester, backend: m);
       final reads = h.server.callsTo(orgRoute, method: 'GET').length;
       await h.enterText(_field(1), '');
       await h.enterText(_field(7), '  https://sabah.coffee ');
@@ -528,7 +512,7 @@ void main() {
     testWidgets('SET-BRD-017 Enter in a field saves (SET-SHL-018)', (
       tester,
     ) async {
-      final h = await _platformBrand(tester);
+      final h = await pumpBrand(tester);
       await h.enterText(_field(3), 'https://x.com/sabah');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await h.settle();
@@ -539,16 +523,15 @@ void main() {
       await h.expectToast('Links updated');
     });
 
-    testWidgets('SET-BRD-017 refusal: the server keeps org edits to super '
-        'admins; the owner hears its words and the form keeps the edit', (
-      tester,
-    ) async {
-      final h = await pumpBrand(tester);
+    testWidgets('SET-BRD-017 a refusal is toasted in the server\'s words and '
+        'the form keeps the edit', (tester) async {
+      final m = _sabah();
+      final denied = MockResponse.denied('org.settings.edit');
+      m.server.fail('PATCH', orgRoute, denied);
+      final h = await pumpBrand(tester, backend: m);
       await h.enterText(_field(4), 'https://youtube.com/@sabah');
       await h.tap(byKey('brand-links-save'));
-      await h.expectToast(
-        h.refusalWords(MockResponse.forbidden('Super admin access required')),
-      );
+      await h.expectToast(h.refusalWords(denied));
       expect(_text(tester, 4), 'https://youtube.com/@sabah');
       expect(
         tester.widget<DashButton>(byKey('brand-links-save')).loading,
@@ -559,10 +542,10 @@ void main() {
     testWidgets('SET-BRD-017 a server 400 is toasted in its words', (
       tester,
     ) async {
-      final m = _platform();
+      final m = _sabah();
       const words = 'The website link has to be a full https:// address';
       m.server.fail('PATCH', orgRoute, MockResponse.badRequest(words));
-      final h = await _platformBrand(tester, m);
+      final h = await pumpBrand(tester, backend: m);
       await h.tap(byKey('brand-links-save'));
       await h.expectToast(h.refusalWords(MockResponse.badRequest(words)));
     });

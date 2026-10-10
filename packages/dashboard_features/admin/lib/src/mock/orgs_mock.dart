@@ -5,7 +5,8 @@
 ///
 /// Handlers behave like the backend (MadarRust `src/orgs/handlers.rs`,
 /// `provision.rs`, `slugs.rs`, `social.rs`): super-admin only except the
-/// logo (a member may change their own org's), the same refusals in the
+/// logo and the brand-only PATCH ([requireOrgPatch], B3: a member with
+/// `org.settings.edit` may change their own org's), the same refusals in the
 /// same order with the same sentences, soft deletes, and state over the
 /// shared [MockDb] (a create shows in the next list).
 /// `max_warehouses` (the warehouses feature) is kept and patched like the
@@ -115,8 +116,8 @@ void registerOrgsMocks(MockServer server, MockDb db) {
   // PATCH /orgs/{id} — `update_org`: COALESCE semantics (a null leaves the
   // field as it is), except `logo_url: null`, which clears the logo.
   server.on('PATCH', '/orgs/{id}', (req) {
-    req.requirePlatform();
     final id = req.param('id');
+    requireOrgPatch(req, id);
     final existing = live(req, id);
     final body = req.json;
 

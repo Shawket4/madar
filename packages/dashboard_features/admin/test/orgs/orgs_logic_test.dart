@@ -1,13 +1,17 @@
 // The Organizations rules on their own (the web's provision.test.ts,
 // social-links.test.ts, tax-rate.test.ts and errors ladder): slugs, the
-// provision body, social links, rates and the words for a failure.
+// provision body, social links, rates and the words for a failure; and who
+// the mock lets PATCH an org (B3).
 import 'package:dashboard_admin/src/shared/org_errors.dart';
 import 'package:dashboard_admin/src/orgs/provision.dart';
 import 'package:dashboard_admin/src/orgs/social_links.dart';
 import 'package:dashboard_admin/src/shared/tax_rate.dart';
 import 'package:dashboard_api/dashboard_api.dart';
+import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support.dart';
 
 Strings _tables() => Strings({
   'en': {
@@ -246,6 +250,45 @@ void main() {
       expect(
         provisionConflictTarget(_err(400, 'Bad request: slug bad'), en),
         isNull,
+      );
+    });
+  });
+
+  group('the mock\'s PATCH /orgs/{id} (B3, update_org)', () {
+    final sabah = '/orgs/${SeedIds.sabahOrg}';
+
+    Future<int> patch(Persona p, String path, Map<String, Object?> body) async {
+      final s = orgsServer(persona: p).server;
+      try {
+        return (await s.send(
+          ApiRequest(method: 'PATCH', path: path, body: body),
+        )).status;
+      } on ApiException catch (e) {
+        expect(e.status, 403, reason: '$body: ${e.message}');
+        return e.status;
+      }
+    }
+
+    test('an owner saves their own org\'s links and clears its logo; any '
+        'other field or another org stays refused', () async {
+      const links = {
+        'social_links': {'x': 'https://x.com/sabah'},
+      };
+      expect(await patch(Persona.owner, sabah, links), 200);
+      expect(await patch(Persona.owner, sabah, {'logo_url': null}), 200);
+      expect(await patch(Persona.owner, sabah, {...links, 'name': 'S'}), 403);
+      expect(
+        await patch(Persona.owner, sabah, {...links, 'max_warehouses': null}),
+        403,
+      );
+      expect(
+        await patch(Persona.owner, '/orgs/${SeedIds.nakhlaOrg}', links),
+        403,
+      );
+      expect(await patch(Persona.manager, sabah, links), 403);
+      expect(
+        await patch(Persona.platform, sabah, {...links, 'name': 'S'}),
+        200,
       );
     });
   });

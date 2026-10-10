@@ -32,6 +32,40 @@ const List<String> mockTimezones = [
 /// `server.publish(realtimeChannel(branchId), jsonEncode({...}))`.
 String realtimeChannel(String? branchId) => 'realtime:${branchId ?? 'org'}';
 
+/// `PATCH /orgs/{id}`'s guard (`update_org`, B3): `org.settings.edit`, then
+/// a body with nothing but the org's own brand fields (`social_links`,
+/// `logo_url`) needs the caller's own org, and any other field is super-admin
+/// only (`UpdateOrgRequest::brand_only`). A null counts as absent, except
+/// `max_warehouses`, whose null means "unlimited".
+void requireOrgPatch(MockRequest req, String orgId) {
+  req.requireCap('org.settings.edit');
+  final body = req.json;
+  final brandOnly =
+      !body.containsKey('max_warehouses') &&
+      _superAdminOrgFields.every((f) => body[f] == null);
+  if (brandOnly) {
+    req.requireSameOrg(orgId);
+  } else {
+    req.requirePlatform();
+  }
+}
+
+const List<String> _superAdminOrgFields = [
+  'name',
+  'slug',
+  'currency_code',
+  'tax_rate',
+  'tax_inclusive',
+  'service_charge_rate',
+  'service_charge_taxable',
+  'require_table_for_orders',
+  'receipt_footer',
+  'is_active',
+  'modules',
+  'timezone',
+  'custom_branding',
+];
+
 /// Registers the shell's routes on [server] over [db] (a [MockDb.seeded]).
 void registerCoreMocks(MockServer server, MockDb db) {
   // ── auth ──────────────────────────────────────────────────────────────
