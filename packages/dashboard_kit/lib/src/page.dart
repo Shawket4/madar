@@ -273,16 +273,23 @@ class DashPageScaffold extends StatelessWidget {
           ),
         );
         if (fillBody && !unbounded) {
-          return Padding(
-            padding: pad,
-            child: capped(
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  header,
-                  const SizedBox(height: Space.xl),
-                  Expanded(child: content),
-                ],
+          // The page does not scroll: a panel's scroll in it stays here, or
+          // the shell would read it as the page's (its foot would come and
+          // go under the panel's end).
+          return NotificationListener<Notification>(
+            onNotification: (n) =>
+                n is ScrollNotification || n is ScrollMetricsNotification,
+            child: Padding(
+              padding: pad,
+              child: capped(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    header,
+                    const SizedBox(height: Space.xl),
+                    Expanded(child: content),
+                  ],
+                ),
               ),
             ),
           );

@@ -527,14 +527,11 @@ void main() {
       tester,
     ) async {
       final h = await pumpOrgs(tester);
-      h.server.fail(
-        'DELETE',
-        '/orgs/{id}',
-        MockResponse.notFound('Org not found'),
-      );
+      final refusal = MockResponse.notFound('Org not found');
+      h.server.fail('DELETE', '/orgs/{id}', refusal);
       await h.tap(find.bySemanticsLabel('Delete').at(0));
       await h.tap(_inConfirm('Delete'));
-      await h.expectToast('Org not found');
+      await h.expectToast(shown(h, refusal));
       expect(find.text('Layali Bistro'), findsOneWidget);
     });
   });

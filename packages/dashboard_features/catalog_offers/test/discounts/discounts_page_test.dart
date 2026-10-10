@@ -128,10 +128,11 @@ void main() {
     testWidgets('OFFR-DSC-003 a refused toggle (no discounts.edit) reads '
         '"You don\'t have permission…"', (tester) async {
       final s = discountsServer();
-      s.server.fail('PATCH', itemRoute, MockResponse.denied('discounts.edit'));
+      final denied = MockResponse.denied('discounts.edit');
+      s.server.fail('PATCH', itemRoute, denied);
       final h = await pumpDiscounts(tester, server: s.server, db: s.db);
       await h.tap(statusOf('Staff Meal', 'Deactivate discount'));
-      await h.expectToast("You don't have permission to perform this action.");
+      await h.expectToast(h.refusalWords(denied));
       expect(inRow('Staff Meal', find.text('Active')), findsOneWidget);
     });
 

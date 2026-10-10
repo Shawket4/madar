@@ -9,10 +9,12 @@ import 'package:dashboard_api/dashboard_api.dart'
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/src/data/core_api.dart';
 import 'package:dashboard_core/src/data/models.dart';
+import 'package:dashboard_core/src/data/refusal_words.dart';
 import 'package:dashboard_core/src/gateways/export.dart';
 import 'package:dashboard_core/src/gateways/files.dart';
 import 'package:dashboard_core/src/gateways/preferences.dart';
 import 'package:dashboard_core/src/gateways/realtime.dart';
+import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/session/session.dart';
 
 // ── Preferences ──────────────────────────────────────────────────────────
@@ -76,7 +78,15 @@ class MockSessionGateway implements SessionGateway {
     'X-Branch-Id': ?branchId,
   };
 
-  CoreApi get _api => CoreApi(transport);
+  /// The words sign-in and restore refusals read in, as the app's transport
+  /// words the rest ([RefusalWordingTransport]); unset, the server's own.
+  Translator Function()? refusalWords;
+
+  CoreApi get _api => CoreApi(
+    refusalWords == null
+        ? transport
+        : RefusalWordingTransport(transport, refusalWords!),
+  );
 
   @override
   Future<SessionInfo?> restore() async {

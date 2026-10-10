@@ -210,9 +210,14 @@ void main() {
     await _type(h, 'slug', 'sabah-cairo');
     await _save(h);
     await h.expectToast(
-      "This shop's short name is part of its web address and the codes it "
-      'has printed, so it cannot be changed. Turn custom branding off first '
-      'if it really has to move.',
+      shown(
+        h,
+        MockResponse.conflict(
+          "This shop's short name is part of its web address and the codes it "
+          'has printed, so it cannot be changed. Turn custom branding off '
+          'first if it really has to move.',
+        ),
+      ),
     );
     expect(find.text('Edit Organization'), findsOneWidget);
   });
@@ -221,7 +226,9 @@ void main() {
     final h = await _open(tester, AdminSeed.layaliOrg);
     await _type(h, 'slug', 'qahwa-corner');
     await _save(h);
-    await h.expectToast("Slug 'qahwa-corner' is already taken");
+    await h.expectToast(
+      shown(h, MockResponse.conflict("Slug 'qahwa-corner' is already taken")),
+    );
     expect(h.server.callsTo('/orgs/{id}', method: 'PATCH').single.status, 409);
   });
 
@@ -369,7 +376,7 @@ void main() {
     expect(find.text('Modules'), findsNothing);
     await _save(h);
     expect(_patch(h).containsKey('modules'), isFalse);
-    await h.expectToast("You don't have permission to perform this action.");
+    await h.expectToast(h.t('errors.unauthorized'));
     expect(find.text('Edit Organization'), findsOneWidget);
   });
 

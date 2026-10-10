@@ -387,6 +387,46 @@ void main() {
       await tester.pump();
       expect(tester.getRect(find.text('page body')).left, 256 + 24);
     });
+
+    testWidgets('a page that fills the body keeps its panels\' scrolls: the '
+        'shell reads only a page that scrolls', (tester) async {
+      final heard = <Notification>[];
+      Widget shell(bool fill) => Scaffold(
+        body: NotificationListener<Notification>(
+          onNotification: (n) {
+            if (n is ScrollNotification || n is ScrollMetricsNotification) {
+              heard.add(n);
+            }
+            return false;
+          },
+          child: DashPageScaffold(
+            title: 'Branch setup',
+            fillBody: fill,
+            body: fill
+                ? const SingleChildScrollView(
+                    child: SizedBox(height: 4000, child: Text('panel')),
+                  )
+                : const SizedBox(height: 4000, child: Text('page body')),
+          ),
+        ),
+      );
+      await pumpDashApp(tester, shell(true));
+      await tester.drag(
+        find.byType(SingleChildScrollView).first,
+        const Offset(0, -300),
+      );
+      await tester.pumpAndSettle();
+      expect(heard, isEmpty);
+
+      await pumpDashApp(tester, shell(false));
+      heard.clear();
+      await tester.drag(
+        find.byType(SingleChildScrollView).first,
+        const Offset(0, -300),
+      );
+      await tester.pumpAndSettle();
+      expect(heard, isNotEmpty);
+    });
   });
 
   testWidgets('a DashSkeleton with no width fills its column; none in a '

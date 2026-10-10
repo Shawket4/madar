@@ -28,15 +28,6 @@ final Map<String, Strings> _stringsCache = {};
 
 /// The running app under test.
 class DashHarness {
-  /// Word the mock's refusals as real mode does ([RefusalWordingTransport]):
-  /// no "Conflict: " prefix, words for an uncoded 403/429, no server English
-  /// in Arabic, `errors.codes.*` for a coded one.
-  ///
-  /// ponytail: an area turns this on in its `flutter_test_config.dart` once
-  /// its tests assert worded refusals; when every area has, word always and
-  /// drop the flag.
-  static bool wordRefusals = false;
-
   DashHarness._({
     required this.tester,
     required this.server,
@@ -171,14 +162,14 @@ class DashHarness {
         sessionGatewayProvider.overrideWithValue(session),
         offlineStoreProvider.overrideWithValue(offlineStore),
         transportProvider.overrideWith(
+          // The mock's refusals worded as real mode words them: no
+          // "Conflict: " prefix, no server English on an Arabic screen.
           (ref) => dashTransport(
             ref,
-            wordRefusals
-                ? RefusalWordingTransport(
-                    session.transport,
-                    () => ref.read(tProvider),
-                  )
-                : session.transport,
+            RefusalWordingTransport(
+              session.transport,
+              () => ref.read(tProvider),
+            ),
           ),
         ),
         clockProvider.overrideWithValue(() => mockClock.now),
@@ -206,6 +197,7 @@ class DashHarness {
       shotArea: shotArea ?? (areas.length == 1 ? areas.single.key : 'shell'),
     );
 
+    session.refusalWords = () => container.read(tProvider);
     // Checks run first (tear-downs run last-registered first), then the
     // container goes.
     addTearDown(container.dispose);
@@ -336,9 +328,7 @@ class DashHarness {
   /// English on an Arabic screen).
   String refusalWords(MockResponse response) {
     final e = MockServer.toApiException(response);
-    return wordRefusals
-        ? wordRefusal(e, container.read(tProvider)).message
-        : e.message;
+    return wordRefusal(e, container.read(tProvider)).message;
   }
 
   /// Expects a toast saying [text]; then lets it expire (so no timer is

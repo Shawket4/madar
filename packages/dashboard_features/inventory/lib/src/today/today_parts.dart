@@ -214,111 +214,52 @@ class TodayKpiStrip extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final v = data.valuation.value;
     final due = data.countsDueCount;
-    return TodayReveal(
-      child: DashLedgerStrip(
-        items: [
-          DashLedgerItem(
-            key: 'value',
-            label: t('inventory.today.stockValue'),
-            icon: 'wallet',
-            value: v?.totalValue ?? 0,
-            format: DashStatFormat.money,
-            loading: data.valuation.awaitingFirst,
-            hint: v == null
-                ? null
-                : t('inventory.today.unknownCost', count: v.unknownCostCount),
-          ),
-          DashLedgerItem(
-            key: 'low',
-            label: t('inventory.today.lowStock'),
-            icon: 'alert-triangle',
-            tone: DashTone.warning,
-            value: data.lowRows.length,
-            format: DashStatFormat.number,
-            loading: data.lowStock.awaitingFirst,
-            hint: t('inventory.today.critical', count: data.criticalCount),
-          ),
-          DashLedgerItem(
-            key: 'deliveries',
-            label: t('inventory.today.deliveries'),
-            icon: 'truck',
-            value: data.arriving.length,
-            format: DashStatFormat.number,
-            loading: data.orders.awaitingFirst,
-            hint: t('inventory.today.arrivingToday'),
-          ),
-          DashLedgerItem(
-            key: 'counts',
-            label: t('inventory.today.countsDue'),
-            icon: 'calendar-clock',
-            value: due,
-            valueText: due == null ? '—' : null,
-            format: DashStatFormat.number,
-            loading: !data.allBranches && (data.stock?.awaitingFirst ?? false),
-            hint: t('inventory.today.countsOverdue'),
-          ),
-        ],
-      ),
+    // The kit staggers the cards in (the web's listItem): the one animate-in.
+    return DashLedgerStrip(
+      items: [
+        DashLedgerItem(
+          key: 'value',
+          label: t('inventory.today.stockValue'),
+          icon: 'wallet',
+          value: v?.totalValue ?? 0,
+          format: DashStatFormat.money,
+          loading: data.valuation.awaitingFirst,
+          hint: v == null
+              ? null
+              : t('inventory.today.unknownCost', count: v.unknownCostCount),
+        ),
+        DashLedgerItem(
+          key: 'low',
+          label: t('inventory.today.lowStock'),
+          icon: 'alert-triangle',
+          tone: DashTone.warning,
+          value: data.lowRows.length,
+          format: DashStatFormat.number,
+          loading: data.lowStock.awaitingFirst,
+          hint: t('inventory.today.critical', count: data.criticalCount),
+        ),
+        DashLedgerItem(
+          key: 'deliveries',
+          label: t('inventory.today.deliveries'),
+          icon: 'truck',
+          value: data.arriving.length,
+          format: DashStatFormat.number,
+          loading: data.orders.awaitingFirst,
+          hint: t('inventory.today.arrivingToday'),
+        ),
+        DashLedgerItem(
+          key: 'counts',
+          label: t('inventory.today.countsDue'),
+          icon: 'calendar-clock',
+          value: due,
+          valueText: due == null ? '—' : null,
+          format: DashStatFormat.number,
+          loading: !data.allBranches && (data.stock?.awaitingFirst ?? false),
+          hint: t('inventory.today.countsOverdue'),
+        ),
+      ],
     );
   }
-}
-
-/// Fades the strip up into place once, as the web's `listItem` (160 ms, a
-/// 6 px rise; the web staggers each card 50 ms, which the kit's strip cannot
-/// yet); still under reduced motion.
-class TodayReveal extends StatefulWidget {
-  const TodayReveal({required this.child, super.key});
-
-  final Widget child;
-
-  @override
-  State<TodayReveal> createState() => _TodayRevealState();
-}
-
-class _TodayRevealState extends State<TodayReveal>
-    with SingleTickerProviderStateMixin {
-  static const double _rise = Space.xs + DashMetrics.hair;
-
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: DashMotion.fast,
-  );
-  late final Animation<double> _shown = CurvedAnimation(
-    parent: _c,
-    curve: const Cubic(0.22, 1, 0.36, 1),
-  );
-  bool _started = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_started) return;
-    _started = true;
-    if (DashMotion.reduced(context)) {
-      _c.value = 1;
-    } else {
-      _c.forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => FadeTransition(
-    opacity: _shown,
-    child: AnimatedBuilder(
-      animation: _shown,
-      builder: (context, child) => Transform.translate(
-        offset: Offset(0, _rise * (1 - _shown.value)),
-        child: child,
-      ),
-      child: widget.child,
-    ),
-  );
 }
 
 // ── Low stock ───────────────────────────────────────────────────────────────

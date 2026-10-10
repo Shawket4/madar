@@ -88,6 +88,7 @@ Future<ProviderContainer> bootMock() async {
       linkOpenerProvider.overrideWithValue(openExternal),
     ],
   );
+  session.refusalWords = () => container.read(tProvider);
   await container.read(sessionProvider.future);
   return container;
 }

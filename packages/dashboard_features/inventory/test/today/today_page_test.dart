@@ -442,19 +442,23 @@ void main() {
         reducedMotion: false,
       );
       h.router.go(todayPath);
-      final fade = find.descendant(
-        of: find.byType(TodayReveal),
-        matching: find.byType(FadeTransition),
+      // The kit's card stagger is the one animate-in (the web's listItem):
+      // the strip adds no fade of its own.
+      final card = find.ancestor(
+        of: find.text('Stock value'),
+        matching: find.byType(DashEntrance),
       );
-      double opacity() =>
-          tester.widget<FadeTransition>(fade.first).opacity.value;
+      double opacity() => tester
+          .widget<Opacity>(
+            find
+                .descendant(of: card.first, matching: find.byType(Opacity))
+                .first,
+          )
+          .opacity;
       double rise() => tester
           .widget<Transform>(
             find
-                .descendant(
-                  of: find.byType(TodayReveal),
-                  matching: find.byType(Transform),
-                )
+                .descendant(of: card.first, matching: find.byType(Transform))
                 .first,
           )
           .transform
@@ -463,6 +467,8 @@ void main() {
       // The router lands the page a frame after `go`.
       await tester.pump();
       await tester.pump();
+      // The card's own entrance and the page's.
+      expect(card, findsNWidgets(2));
       expect(opacity(), lessThan(1));
       expect(rise(), greaterThan(0));
       expect(rise(), lessThanOrEqualTo(6));

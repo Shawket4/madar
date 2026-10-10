@@ -554,7 +554,11 @@ void main() {
         h.server.callsTo(DeliveryRoutes.zones, method: 'POST').single.status,
         409,
       );
-      await h.expectToast('A zone with this distance already exists');
+      await h.expectToast(
+        h.refusalWords(
+          MockResponse.conflict('A zone with this distance already exists'),
+        ),
+      );
       expect(_dialog(), findsOneWidget);
       expect(
         tester.widget<DashButton>(inDialog(byKey('dzn-save'))).loading,
