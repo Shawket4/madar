@@ -8,11 +8,20 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The wordmark at [height]; [reversed] draws it light, for the ink chrome.
+/// The wordmark at [height]; [reversed] draws it light, for the ink chrome,
+/// in paper only (the teal "d" is lost on the ink).
 class ShellWordmark extends ConsumerWidget {
-  const ShellWordmark({required this.height, this.reversed, super.key});
+  const ShellWordmark({
+    required this.height,
+    this.reversed,
+    this.animated = false,
+    super.key,
+  });
 
   final double height;
+
+  /// Lead with the POS rail's living symbol ([AnimatedBrandMark]).
+  final bool animated;
 
   /// Light-on-dark regardless of the theme (the sidebar, the brand panel).
   final bool? reversed;
@@ -26,29 +35,34 @@ class ShellWordmark extends ConsumerWidget {
     final c = context.madarColors;
     final light = reversed ?? Theme.of(context).brightness == Brightness.dark;
     final name = t('app.name', defaultValue: 'Madar');
-    Widget mark;
-    if (t.isRtl) {
-      mark = Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: height / 4,
-        children: [
-          MadarSymbol(size: height, reversed: light),
-          Text(
-            name,
-            style: MadarType.h2.copyWith(
-              fontSize: height * 0.82,
-              height: 1,
-              color: light ? c.onChrome : c.textPrimary,
-            ),
-          ),
-        ],
-      );
-    } else {
-      mark = Theme(
-        data: light ? MadarTheme.dark() : MadarTheme.light(),
-        child: MadarWordmark(width: height * latinAspect),
-      );
-    }
+    final ink = light ? c.onChrome : c.textPrimary;
+    final latin = Theme(
+      data: light ? MadarTheme.dark() : MadarTheme.light(),
+      child: MadarWordmark(width: height * latinAspect, mono: true),
+    );
+    final Widget mark = t.isRtl || animated
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: height / 4,
+            children: [
+              if (animated)
+                AnimatedBrandMark(symbolSize: height, wordmark: false, ink: ink)
+              else
+                MadarSymbol(size: height, reversed: light),
+              if (t.isRtl)
+                Text(
+                  name,
+                  style: MadarType.h2.copyWith(
+                    fontSize: height * 0.82,
+                    height: 1,
+                    color: ink,
+                  ),
+                )
+              else
+                latin,
+            ],
+          )
+        : latin;
     return Semantics(
       label: name,
       image: true,

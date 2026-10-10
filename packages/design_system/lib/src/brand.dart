@@ -104,15 +104,21 @@ class MadarSymbol extends StatelessWidget {
 /// the ambient [Theme] brightness is dark.
 class MadarWordmark extends StatelessWidget {
   /// Creates the Madar wordmark at [width] logical pixels wide.
-  const MadarWordmark({super.key, this.width = 160});
+  const MadarWordmark({super.key, this.width = 160, this.mono = false});
 
   /// Rendered width in logical pixels; height follows the asset's
   /// aspect ratio.
   final double width;
 
+  /// On dark, paper letters only: the teal "d" loses contrast on the ink
+  /// chrome (the dashboard's sidebar).
+  final bool mono;
+
   @override
   Widget build(BuildContext context) {
-    final variant = _isDark(context) ? 'reversed' : 'primary';
+    final variant = _isDark(context)
+        ? (mono ? 'mono_paper' : 'reversed')
+        : 'primary';
     return Image.asset(
       '$_brandPath/wordmark_$variant.png',
       package: _package,
