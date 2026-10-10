@@ -13,7 +13,6 @@
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
-import 'package:dashboard_inventory/src/mock/transfers_mock.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -524,28 +523,6 @@ void main() {
         r.api.replenishment(warehouseId: centralStore, branchId: centralStore),
         _refused(404),
       );
-    });
-
-    test('replenishSuggest is madar_inventory::replenish::suggest', () {
-      ({double need, double available, double suggested}) s(
-        double onHand,
-        double parMin,
-        double? parMax,
-        double wh,
-      ) => replenishSuggest(
-        onHand: onHand,
-        parMin: parMin,
-        parMax: parMax,
-        inTransit: 0,
-        openInbound: 0,
-        warehouseOnHand: wh,
-        warehouseDraftedOut: 0,
-      );
-      expect(s(2, 5, 20, 100).suggested, 18);
-      expect(s(2, 5, 20, 7.5).suggested, 7.5);
-      expect(s(2, 5, null, 100).suggested, 3);
-      expect(s(6, 5, 20, 100).need, 0);
-      expect(s(-3, 0, 20, 100).need, 0);
     });
   });
 }

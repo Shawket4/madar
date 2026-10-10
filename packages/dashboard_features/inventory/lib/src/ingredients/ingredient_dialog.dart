@@ -22,6 +22,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
@@ -361,7 +362,9 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
     final cats = ref.watch(ingredientCategoriesProvider(orgId)).value ?? [];
     final suppliers = ref.watch(inventorySuppliersProvider(orgId)).value ?? [];
     final category = _effectiveCategory(cats);
-    final unitOptions = _editing ? unitsForFamily(_item!.unit) : inventoryUnits;
+    final unitOptions = _editing
+        ? rules.unitsOf(base: _item!.unit)
+        : inventoryUnits;
 
     Widget pair(Widget a, Widget b) => Row(
       crossAxisAlignment: CrossAxisAlignment.start,

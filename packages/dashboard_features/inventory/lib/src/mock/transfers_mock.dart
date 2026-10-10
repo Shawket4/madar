@@ -27,34 +27,12 @@
 library;
 
 import 'package:dashboard_api/mock.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../area_seed.dart';
 import 'inventory_views.dart';
 
 const String _allBranches = '00000000-0000-0000-0000-000000000000';
-
-/// The step table (`madar_inventory::transfer::step`): status → action →
-/// (side is the source, next status).
-const Map<String, Map<String, (bool, String)>> _steps = {
-  'requested': {
-    'edit': (false, 'requested'),
-    'cancel': (false, 'cancelled'),
-    'accept': (true, 'draft'),
-    'decline': (true, 'cancelled'),
-  },
-  'draft': {
-    'edit': (true, 'draft'),
-    'dispatch': (true, 'dispatched'),
-    'cancel': (true, 'cancelled'),
-  },
-  'dispatched': {'receive': (false, 'received'), 'cancel': (true, 'cancelled')},
-};
-
-String _stepCap(String status, String action) => action == 'receive'
-    ? 'inventory.transfers.edit'
-    : action == 'cancel' && status == 'dispatched'
-    ? 'inventory.transfers.delete'
-    : 'inventory.transfers.create';
 
 String _past(String action) =>
     action.endsWith('e') ? '${action}d' : '${action}ed';
@@ -469,33 +447,6 @@ double _onHand(MockDb db, String branchId, String ingId) =>
         ?.toDouble() ??
     0;
 
-/// `madar_inventory::replenish::suggest`.
-({double need, double available, double suggested}) replenishSuggest({
-  required double onHand,
-  required double parMin,
-  required double? parMax,
-  required double inTransit,
-  required double openInbound,
-  required double warehouseOnHand,
-  required double warehouseDraftedOut,
-}) {
-  final hand = _milli(onHand), min = _milli(parMin);
-  var need = 0;
-  if (min > 0 && hand <= min) {
-    final max = parMax == null ? min : _milli(parMax);
-    final target = max > min ? max : min;
-    need = target - hand - _milli(inTransit) - _milli(openInbound);
-    if (need < 0) need = 0;
-  }
-  var available = _milli(warehouseOnHand) - _milli(warehouseDraftedOut);
-  if (available < 0) available = 0;
-  return (
-    need: need / 1000,
-    available: available / 1000,
-    suggested: (need < available ? need : available) / 1000,
-  );
-}
-
 void registerTransfersMocks(MockServer server, MockDb db) {
   _seed(db);
 
@@ -511,7 +462,8 @@ void registerTransfersMocks(MockServer server, MockDb db) {
     if (t == null) req.notFound('Transfer not found');
     req.requireSameOrg(t['org_id'] as String?);
     final status = t['status']! as String;
-    final step = _steps[status]?[action];
+    // The step table is madar-inventory's (`transfer::step`), through the core.
+    final step = rules.transferStep(status: status, action: action);
     if (step == null) {
       req.conflict(
         "A $status transfer can't be ${_past(action)}.",
@@ -519,12 +471,12 @@ void registerTransfersMocks(MockServer server, MockDb db) {
       );
     }
     req.requireCap(
-      _stepCap(status, action),
-      branchId: step.$1
+      step.cap,
+      branchId: step.side == 'source'
           ? t['source_branch_id']! as String
           : t['destination_branch_id']! as String,
     );
-    return (t, step.$2);
+    return (t, step.next);
   }
 
   /// `validate_lines` then the lines as stored (cost unset).
@@ -748,7 +700,7 @@ void registerTransfersMocks(MockServer server, MockDb db) {
             ing,
           );
           final whHand = _onHand(db, wh, ing);
-          final s = replenishSuggest(
+          final s = rules.replenishSuggest(
             onHand: (r['on_hand']! as num).toDouble(),
             parMin: (r['par_min']! as num).toDouble(),
             parMax: (r['par_max'] as num?)?.toDouble(),
@@ -901,10 +853,17 @@ void registerTransfersMocks(MockServer server, MockDb db) {
     for (final l in own) {
       final (q, note) = given[l['id']]!;
       if (!q.isFinite) req.badRequest('qty_received must be a number.');
-      if (_milli(q) < 0) {
+      final refused = rules
+          .checkReceiveLine(
+            sent: (l['qty_sent']! as num).toDouble(),
+            got: q,
+            note: note,
+          )
+          .refused;
+      if (refused == 'negative') {
         req.badRequest("A received quantity can't be negative.");
       }
-      if (_milli(q) > _milli(l['qty_sent']! as num) && note == null) {
+      if (refused == 'over_needs_note') {
         req.fail(
           MockResponse.error(
             400,

@@ -16,6 +16,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../shared/inventory_data.dart';
 import '../shared/inventory_lib.dart';
@@ -434,7 +435,9 @@ class _LineBox extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final ing = ingredient;
-    final units = ing == null ? const <String>[] : unitsForFamily(ing.unit);
+    final units = ing == null
+        ? const <String>[]
+        : rules.unitsOf(base: ing.unit);
     final unitCost = unitCostFromTotal(
       linePiastres,
       parseInputNumber(line.qty),
