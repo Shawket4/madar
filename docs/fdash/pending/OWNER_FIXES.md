@@ -129,3 +129,8 @@ Split:
     - ask the owner whether to merge the three branches (backend, web, Flutter). Nothing merges or pushes without the owner's word.
 - **Coordination:** madar-92 owns Step 1b (the offline cache → core SQLite) on feat/dashboard-offline-core. Stay out of the offline*/session/session_guard/harness/boot files and the frb rules/offline.rs and generated bindings.
 - **Open owner question:** Q1, whether to share the Dawam manager views or scrub them from Dawam.
+
+## DONE (2026-10-10, resumed after the pause)
+- **Flutter branch fix/owner-answers-flutter:** every F1, F2 and F3 item is committed. Local main is merged in up to 6dcdba3e, the offline cache in the core.
+- **Final pass:** `flutter analyze .` and the dart format check are clean. Tests: api 68, kit 219, core 182, app 165, admin 886, menu 1051, offers 540, inventory 900, overview 149, reports 1068, sell 763, setup 1135, team 1278 (8,404 in all).
+- **Waiting for the owner:** the merges of the three branches (wt-owner-api, wt-owner-dash, wt-owner-pos). Deploy order: the backend before any web or Flutter release, because a cleared count sends counted_qty:null, which the old backend refuses.
