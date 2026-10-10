@@ -1,0 +1,7 @@
+{
+  "about": "recipe_qty_vectors.json is a byte-for-byte copy of madar-shared's file at this ref (the backend runs the same rule from madar-units recipe_base_qty and usable_qty; the Flutter dashboard calls it through the core's bridge, rules.*). The ref is a commit sha, not a tag, until the next madar-shared tag; then move it to that tag. Copied from madar-shared directly: the web does not pin this file yet, so tool/sync_web_vectors.py would drop it until the web does.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c",
+  "path": "crates/madar-units/vectors/recipe_qty_vectors.json",
+  "sha256": "6f6ede68e1c335f1dc3cec33c11a2d2240f9f3785b96377eb64c69be8b306948"
+}

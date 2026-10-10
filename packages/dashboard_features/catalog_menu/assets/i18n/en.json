@@ -1,0 +1,14 @@
+{
+  "menu.addonGroupsNotReady": "The add-on groups haven't loaded yet, so the add-ons can't be saved. Try again in a moment.",
+  "menu.addonsEmpty": "No addons selected — the full org catalog applies.",
+  "menu.addonsHint": "Which addons customers can pick for this item",
+  "menu.groups.editor.notANumber": "Invalid input: expected number, received NaN",
+  "menu.groups.editor.priceMin": "Too small: expected number to be >=0",
+  "menu.noAddonsMatch": "No addons match",
+  "menu.sizeLabelPlaceholder": "Large",
+  "menu.studio.steps.noteAr": "Note (Arabic)",
+  "menu.studio.steps.noteEn": "Note (English)",
+  "menu.studio.steps.notePlaceholder": "For this drink — e.g. 40ml condensed milk",
+  "menu.studio.steps.notePlaceholderAr": "ملاحظة لهذا المشروب",
+  "recipes.builder.catalogFailed": "Couldn't load the ingredients"
+}

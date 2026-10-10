@@ -4,6 +4,7 @@
 /// `_reversed` variant that is picked automatically in dark theme.
 library;
 
+import 'package:design_system/src/tokens/colors.dart';
 import 'package:flutter/material.dart';
 
 const String _package = 'design_system';
@@ -21,8 +22,14 @@ bool _isDark(BuildContext context) =>
 /// kit's "THE ORBIT'S COLOURS"). The PNG marks below carry it baked in; a
 /// mark drawn in vector (`AnimatedBrandMark`) takes the satellite from here.
 abstract final class MadarBrandColors {
-  /// Madar Teal deep, #0D6273: the orbit's satellite on every ground.
+  /// Madar Teal deep, #0D6273: the orbit's satellite on a light ground.
   static const Color satellite = Color(0xFF0D6273);
+
+  /// The satellite beside [ink]: on a dark ground (light ink: the POS rail,
+  /// the dashboard sidebar) the dark theme's brand teal, as Teal deep is lost
+  /// on the ink there.
+  static Color satelliteFor(Color ink) =>
+      ink.computeLuminance() > 0.5 ? MadarColors.dark.brand : satellite;
 }
 
 /// The full Madar logo lockup (symbol + wordmark).
@@ -104,15 +111,21 @@ class MadarSymbol extends StatelessWidget {
 /// the ambient [Theme] brightness is dark.
 class MadarWordmark extends StatelessWidget {
   /// Creates the Madar wordmark at [width] logical pixels wide.
-  const MadarWordmark({super.key, this.width = 160});
+  const MadarWordmark({super.key, this.width = 160, this.mono = false});
 
   /// Rendered width in logical pixels; height follows the asset's
   /// aspect ratio.
   final double width;
 
+  /// On dark, paper letters only: the teal "d" loses contrast on the ink
+  /// chrome (the dashboard's sidebar).
+  final bool mono;
+
   @override
   Widget build(BuildContext context) {
-    final variant = _isDark(context) ? 'reversed' : 'primary';
+    final variant = _isDark(context)
+        ? (mono ? 'mono_paper' : 'reversed')
+        : 'primary';
     return Image.asset(
       '$_brandPath/wordmark_$variant.png',
       package: _package,

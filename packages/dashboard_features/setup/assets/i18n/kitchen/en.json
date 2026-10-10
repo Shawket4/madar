@@ -1,0 +1,9 @@
+{
+  "kitchen.category": "Category",
+  "kitchen.station": "Station",
+  "kitchen.item": "Item",
+  "kitchen.inheritedStation": "Inherited station",
+  "kitchen.overrideStation": "Override",
+  "kitchen.routedTo": "Routed to",
+  "kitchen.stationNamePlaceholder": "Grill"
+}

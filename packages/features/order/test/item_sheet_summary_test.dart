@@ -3,6 +3,8 @@
 // breakdown. The sheet computes neither: the fake core below answers both, and
 // the tests pin that the sheet shows them verbatim, in EN and AR.
 //
+// - nothing is chosen up front: the size (two of them) and the required milk
+//   wait for the teller (owner, 2026-10-08);
 // - a chip scrolls the sheet to its group;
 // - ✕ takes an OPTIONAL choice off (an extra, an optional field), never a
 //   required one (the milk) and never the size;
@@ -51,6 +53,8 @@ final _groups = [
     isRequired: true,
     minSelections: 1,
     maxSelections: 1,
+    // The recipe's milk: still never pre-picked in a required group.
+    defaultOptionId: 'full',
     options: [_opt('full', 'Full fat', 0), _opt('oat', 'Oat', 500)],
   ),
   ModifierGroupView(
@@ -183,6 +187,7 @@ Future<_Fake> _open(
   WidgetTester tester, {
   required bool ar,
   Size size = const Size(1194, 834),
+  bool answered = true,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = size;
@@ -227,6 +232,11 @@ Future<_Fake> _open(
   );
   await tester.tap(find.text('open'));
   await _settle(tester);
+  // The sheet opens with no size and no milk: answer both, as a teller must.
+  if (answered) {
+    await _tapOption(tester, 'Small');
+    await _tapOption(tester, 'Full fat');
+  }
   return fake;
 }
 
@@ -271,8 +281,12 @@ void main() {
     testWidgets('$lang: the summary shows the core words, in order', (
       tester,
     ) async {
-      await _open(tester, ar: ar);
-      // Opened on the defaults: the size and the recipe's milk.
+      await _open(tester, ar: ar, answered: false);
+      // Opened on nothing: no size, and the required milk is not pre-picked.
+      expect(_inSummary('Small'), findsNothing);
+      expect(_inSummary('Full fat'), findsNothing);
+      await _tapOption(tester, 'Small');
+      await _tapOption(tester, 'Full fat');
       expect(_inSummary('Small'), findsOneWidget);
       expect(_inSummary('Full fat'), findsOneWidget);
 

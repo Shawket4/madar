@@ -1,0 +1,14 @@
+{
+  "menu.addonGroupsNotReady": "لم تُحمَّل مجموعات الإضافات بعد، لذا لا يمكن حفظ الإضافات. حاول مرة أخرى بعد قليل.",
+  "menu.addonsEmpty": "لم تُختر أي إضافات — تُطبَّق كل إضافات المؤسسة.",
+  "menu.addonsHint": "الإضافات التي يمكن للعميل اختيارها لهذا الصنف",
+  "menu.groups.editor.notANumber": "إدخال غير صالح: أدخل رقمًا",
+  "menu.groups.editor.priceMin": "القيمة صغيرة جدًا: يجب أن تكون 0 أو أكثر",
+  "menu.noAddonsMatch": "لا توجد إضافات مطابقة",
+  "menu.sizeLabelPlaceholder": "كبير",
+  "menu.studio.steps.noteAr": "ملاحظة (بالعربية)",
+  "menu.studio.steps.noteEn": "ملاحظة (بالإنجليزية)",
+  "menu.studio.steps.notePlaceholder": "لهذا المشروب — مثلًا 40 مل حليب مكثف",
+  "menu.studio.steps.notePlaceholderAr": "ملاحظة لهذا المشروب",
+  "recipes.builder.catalogFailed": "تعذّر تحميل المكوّنات"
+}

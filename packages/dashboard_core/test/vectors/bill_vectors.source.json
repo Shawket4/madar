@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/bill_vectors.json is a byte-for-byte copy of madar-shared's file at this tag (the backend and the POS core resolve a discount with madar-money; features/public-ordering/pricing.test.ts runs the storefront's discount preview against it). A change is made there, released with a tag, and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "v0.6.0",
+  "path": "crates/madar-money/vectors/bill_vectors.json",
+  "sha256": "09a8600cd54304cc7b300d58e496b6764f97e5d54b4e4c5322aff1445fa49263"
+}

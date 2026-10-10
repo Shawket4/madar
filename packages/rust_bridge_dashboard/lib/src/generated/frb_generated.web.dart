@@ -8,8 +8,12 @@
 
 import 'api/bridge.dart';
 import 'api/error.dart';
+import 'api/offline.dart';
 import 'api/reports.dart';
+import 'api/rules.dart';
+import 'api/transport.dart';
 import 'api/types.dart';
+import 'api/xlsx.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -28,9 +32,22 @@ abstract class DashboardBridgeApiImplPlatform
   get rust_arc_decrement_strong_count_MadarBridgePtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge;
 
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_OfflineCachePtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache;
+
+  @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw);
+
   @protected
   MadarBridge
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+    dynamic raw,
+  );
+
+  @protected
+  OfflineCache
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
     dynamic raw,
   );
 
@@ -41,8 +58,25 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  OfflineCache
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    dynamic raw,
+  );
+
+  @protected
   MadarBridge
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+    dynamic raw,
+  );
+
+  @protected
+  OfflineCache
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    dynamic raw,
+  );
+
+  @protected
+  RustStreamSink<ApiStreamItem> dco_decode_StreamSink_api_stream_item_Sse(
     dynamic raw,
   );
 
@@ -53,19 +87,106 @@ abstract class DashboardBridgeApiImplPlatform
   ActiveScopeView dco_decode_active_scope_view(dynamic raw);
 
   @protected
+  ApiCall dco_decode_api_call(dynamic raw);
+
+  @protected
+  ApiFailure dco_decode_api_failure(dynamic raw);
+
+  @protected
+  ApiFailureKind dco_decode_api_failure_kind(dynamic raw);
+
+  @protected
+  ApiFile dco_decode_api_file(dynamic raw);
+
+  @protected
+  ApiPair dco_decode_api_pair(dynamic raw);
+
+  @protected
+  ApiReply dco_decode_api_reply(dynamic raw);
+
+  @protected
+  ApiStreamItem dco_decode_api_stream_item(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
 
   @protected
   ActiveScopeView dco_decode_box_autoadd_active_scope_view(dynamic raw);
 
   @protected
+  ApiCall dco_decode_box_autoadd_api_call(dynamic raw);
+
+  @protected
+  ApiFailure dco_decode_box_autoadd_api_failure(dynamic raw);
+
+  @protected
+  CacheRequest dco_decode_box_autoadd_cache_request(dynamic raw);
+
+  @protected
+  CacheScope dco_decode_box_autoadd_cache_scope(dynamic raw);
+
+  @protected
+  CachedAnswer dco_decode_box_autoadd_cached_answer(dynamic raw);
+
+  @protected
+  DayBounds dco_decode_box_autoadd_day_bounds(dynamic raw);
+
+  @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw);
+
+  @protected
+  FirstPay dco_decode_box_autoadd_first_pay(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  LocalParts dco_decode_box_autoadd_local_parts(dynamic raw);
+
+  @protected
   MadarConfig dco_decode_box_autoadd_madar_config(dynamic raw);
+
+  @protected
+  PayPeriod dco_decode_box_autoadd_pay_period(dynamic raw);
+
+  @protected
+  ReconcileRefusal dco_decode_box_autoadd_reconcile_refusal(dynamic raw);
+
+  @protected
+  SalaryRates dco_decode_box_autoadd_salary_rates(dynamic raw);
 
   @protected
   SessionSnapshot dco_decode_box_autoadd_session_snapshot(dynamic raw);
 
   @protected
+  TransferStep dco_decode_box_autoadd_transfer_step(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  UnitSpec dco_decode_box_autoadd_unit_spec(dynamic raw);
+
+  @protected
+  ZoneOf dco_decode_box_autoadd_zone_of(dynamic raw);
+
+  @protected
   BranchView dco_decode_branch_view(dynamic raw);
+
+  @protected
+  CacheRequest dco_decode_cache_request(dynamic raw);
+
+  @protected
+  CacheScope dco_decode_cache_scope(dynamic raw);
+
+  @protected
+  CachedAnswer dco_decode_cached_answer(dynamic raw);
+
+  @protected
+  CostLine dco_decode_cost_line(dynamic raw);
 
   @protected
   DashboardBranchRankView dco_decode_dashboard_branch_rank_view(dynamic raw);
@@ -90,13 +211,43 @@ abstract class DashboardBridgeApiImplPlatform
   DashboardTimePointView dco_decode_dashboard_time_point_view(dynamic raw);
 
   @protected
+  DayBounds dco_decode_day_bounds(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
+
+  @protected
+  FirstPay dco_decode_first_pay(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
+  LadderRung dco_decode_ladder_rung(dynamic raw);
+
+  @protected
+  LineAddon dco_decode_line_addon(dynamic raw);
+
+  @protected
+  LineCosts dco_decode_line_costs(dynamic raw);
+
+  @protected
+  List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<ApiFile> dco_decode_list_api_file(dynamic raw);
+
+  @protected
+  List<ApiPair> dco_decode_list_api_pair(dynamic raw);
+
+  @protected
   List<BranchView> dco_decode_list_branch_view(dynamic raw);
+
+  @protected
+  List<CostLine> dco_decode_list_cost_line(dynamic raw);
 
   @protected
   List<DashboardBranchRankView> dco_decode_list_dashboard_branch_rank_view(
@@ -123,7 +274,34 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  List<LadderRung> dco_decode_list_ladder_rung(dynamic raw);
+
+  @protected
+  List<LineAddon> dco_decode_list_line_addon(dynamic raw);
+
+  @protected
+  Int64List dco_decode_list_prim_i_64_strict(dynamic raw);
+
+  @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<ReconcileInput> dco_decode_list_reconcile_input(dynamic raw);
+
+  @protected
+  List<ReconcileTotal> dco_decode_list_reconcile_total(dynamic raw);
+
+  @protected
+  List<SalaryFrom> dco_decode_list_salary_from(dynamic raw);
+
+  @protected
+  LocalParts dco_decode_local_parts(dynamic raw);
+
+  @protected
+  LoyaltyCard dco_decode_loyalty_card(dynamic raw);
 
   @protected
   MadarConfig dco_decode_madar_config(dynamic raw);
@@ -138,10 +316,88 @@ abstract class DashboardBridgeApiImplPlatform
   ActiveScopeView? dco_decode_opt_box_autoadd_active_scope_view(dynamic raw);
 
   @protected
+  ApiFailure? dco_decode_opt_box_autoadd_api_failure(dynamic raw);
+
+  @protected
+  CachedAnswer? dco_decode_opt_box_autoadd_cached_answer(dynamic raw);
+
+  @protected
+  DayBounds? dco_decode_opt_box_autoadd_day_bounds(dynamic raw);
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
+
+  @protected
+  FirstPay? dco_decode_opt_box_autoadd_first_pay(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  LocalParts? dco_decode_opt_box_autoadd_local_parts(dynamic raw);
+
+  @protected
+  PayPeriod? dco_decode_opt_box_autoadd_pay_period(dynamic raw);
+
+  @protected
+  ReconcileRefusal? dco_decode_opt_box_autoadd_reconcile_refusal(dynamic raw);
+
+  @protected
+  SalaryRates? dco_decode_opt_box_autoadd_salary_rates(dynamic raw);
+
+  @protected
   SessionSnapshot? dco_decode_opt_box_autoadd_session_snapshot(dynamic raw);
 
   @protected
+  TransferStep? dco_decode_opt_box_autoadd_transfer_step(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  UnitSpec? dco_decode_opt_box_autoadd_unit_spec(dynamic raw);
+
+  @protected
+  ZoneOf? dco_decode_opt_box_autoadd_zone_of(dynamic raw);
+
+  @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  PayPeriod dco_decode_pay_period(dynamic raw);
+
+  @protected
+  ReceiveCheck dco_decode_receive_check(dynamic raw);
+
+  @protected
+  RecipeCost dco_decode_recipe_cost(dynamic raw);
+
+  @protected
+  ReconcileInput dco_decode_reconcile_input(dynamic raw);
+
+  @protected
+  ReconcileRefusal dco_decode_reconcile_refusal(dynamic raw);
+
+  @protected
+  ReconcileTotal dco_decode_reconcile_total(dynamic raw);
+
+  @protected
+  Replenish dco_decode_replenish(dynamic raw);
+
+  @protected
+  SalaryFrom dco_decode_salary_from(dynamic raw);
+
+  @protected
+  SalaryRates dco_decode_salary_rates(dynamic raw);
+
+  @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
+
+  @protected
+  TransferStep dco_decode_transfer_step(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -156,11 +412,26 @@ abstract class DashboardBridgeApiImplPlatform
   void dco_decode_unit(dynamic raw);
 
   @protected
+  UnitSpec dco_decode_unit_spec(dynamic raw);
+
+  @protected
   BigInt dco_decode_usize(dynamic raw);
+
+  @protected
+  ZoneOf dco_decode_zone_of(dynamic raw);
+
+  @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
   MadarBridge
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OfflineCache
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
     SseDeserializer deserializer,
   );
 
@@ -171,8 +442,25 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  OfflineCache
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MadarBridge
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OfflineCache
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<ApiStreamItem> sse_decode_StreamSink_api_stream_item_Sse(
     SseDeserializer deserializer,
   );
 
@@ -183,6 +471,27 @@ abstract class DashboardBridgeApiImplPlatform
   ActiveScopeView sse_decode_active_scope_view(SseDeserializer deserializer);
 
   @protected
+  ApiCall sse_decode_api_call(SseDeserializer deserializer);
+
+  @protected
+  ApiFailure sse_decode_api_failure(SseDeserializer deserializer);
+
+  @protected
+  ApiFailureKind sse_decode_api_failure_kind(SseDeserializer deserializer);
+
+  @protected
+  ApiFile sse_decode_api_file(SseDeserializer deserializer);
+
+  @protected
+  ApiPair sse_decode_api_pair(SseDeserializer deserializer);
+
+  @protected
+  ApiReply sse_decode_api_reply(SseDeserializer deserializer);
+
+  @protected
+  ApiStreamItem sse_decode_api_stream_item(SseDeserializer deserializer);
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
@@ -191,7 +500,55 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  ApiCall sse_decode_box_autoadd_api_call(SseDeserializer deserializer);
+
+  @protected
+  ApiFailure sse_decode_box_autoadd_api_failure(SseDeserializer deserializer);
+
+  @protected
+  CacheRequest sse_decode_box_autoadd_cache_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CacheScope sse_decode_box_autoadd_cache_scope(SseDeserializer deserializer);
+
+  @protected
+  CachedAnswer sse_decode_box_autoadd_cached_answer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DayBounds sse_decode_box_autoadd_day_bounds(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
+  FirstPay sse_decode_box_autoadd_first_pay(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  LocalParts sse_decode_box_autoadd_local_parts(SseDeserializer deserializer);
+
+  @protected
   MadarConfig sse_decode_box_autoadd_madar_config(SseDeserializer deserializer);
+
+  @protected
+  PayPeriod sse_decode_box_autoadd_pay_period(SseDeserializer deserializer);
+
+  @protected
+  ReconcileRefusal sse_decode_box_autoadd_reconcile_refusal(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SalaryRates sse_decode_box_autoadd_salary_rates(SseDeserializer deserializer);
 
   @protected
   SessionSnapshot sse_decode_box_autoadd_session_snapshot(
@@ -199,7 +556,33 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  TransferStep sse_decode_box_autoadd_transfer_step(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  UnitSpec sse_decode_box_autoadd_unit_spec(SseDeserializer deserializer);
+
+  @protected
+  ZoneOf sse_decode_box_autoadd_zone_of(SseDeserializer deserializer);
+
+  @protected
   BranchView sse_decode_branch_view(SseDeserializer deserializer);
+
+  @protected
+  CacheRequest sse_decode_cache_request(SseDeserializer deserializer);
+
+  @protected
+  CacheScope sse_decode_cache_scope(SseDeserializer deserializer);
+
+  @protected
+  CachedAnswer sse_decode_cached_answer(SseDeserializer deserializer);
+
+  @protected
+  CostLine sse_decode_cost_line(SseDeserializer deserializer);
 
   @protected
   DashboardBranchRankView sse_decode_dashboard_branch_rank_view(
@@ -232,13 +615,43 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  DayBounds sse_decode_day_bounds(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
+  FirstPay sse_decode_first_pay(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
+  LadderRung sse_decode_ladder_rung(SseDeserializer deserializer);
+
+  @protected
+  LineAddon sse_decode_line_addon(SseDeserializer deserializer);
+
+  @protected
+  LineCosts sse_decode_line_costs(SseDeserializer deserializer);
+
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<ApiFile> sse_decode_list_api_file(SseDeserializer deserializer);
+
+  @protected
+  List<ApiPair> sse_decode_list_api_pair(SseDeserializer deserializer);
+
+  @protected
   List<BranchView> sse_decode_list_branch_view(SseDeserializer deserializer);
+
+  @protected
+  List<CostLine> sse_decode_list_cost_line(SseDeserializer deserializer);
 
   @protected
   List<DashboardBranchRankView> sse_decode_list_dashboard_branch_rank_view(
@@ -265,7 +678,38 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  List<LadderRung> sse_decode_list_ladder_rung(SseDeserializer deserializer);
+
+  @protected
+  List<LineAddon> sse_decode_list_line_addon(SseDeserializer deserializer);
+
+  @protected
+  Int64List sse_decode_list_prim_i_64_strict(SseDeserializer deserializer);
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<ReconcileInput> sse_decode_list_reconcile_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ReconcileTotal> sse_decode_list_reconcile_total(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<SalaryFrom> sse_decode_list_salary_from(SseDeserializer deserializer);
+
+  @protected
+  LocalParts sse_decode_local_parts(SseDeserializer deserializer);
+
+  @protected
+  LoyaltyCard sse_decode_loyalty_card(SseDeserializer deserializer);
 
   @protected
   MadarConfig sse_decode_madar_config(SseDeserializer deserializer);
@@ -282,12 +726,106 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  ApiFailure? sse_decode_opt_box_autoadd_api_failure(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CachedAnswer? sse_decode_opt_box_autoadd_cached_answer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  DayBounds? sse_decode_opt_box_autoadd_day_bounds(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
+  FirstPay? sse_decode_opt_box_autoadd_first_pay(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  LocalParts? sse_decode_opt_box_autoadd_local_parts(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PayPeriod? sse_decode_opt_box_autoadd_pay_period(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ReconcileRefusal? sse_decode_opt_box_autoadd_reconcile_refusal(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SalaryRates? sse_decode_opt_box_autoadd_salary_rates(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SessionSnapshot? sse_decode_opt_box_autoadd_session_snapshot(
     SseDeserializer deserializer,
   );
 
   @protected
+  TransferStep? sse_decode_opt_box_autoadd_transfer_step(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  UnitSpec? sse_decode_opt_box_autoadd_unit_spec(SseDeserializer deserializer);
+
+  @protected
+  ZoneOf? sse_decode_opt_box_autoadd_zone_of(SseDeserializer deserializer);
+
+  @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  PayPeriod sse_decode_pay_period(SseDeserializer deserializer);
+
+  @protected
+  ReceiveCheck sse_decode_receive_check(SseDeserializer deserializer);
+
+  @protected
+  RecipeCost sse_decode_recipe_cost(SseDeserializer deserializer);
+
+  @protected
+  ReconcileInput sse_decode_reconcile_input(SseDeserializer deserializer);
+
+  @protected
+  ReconcileRefusal sse_decode_reconcile_refusal(SseDeserializer deserializer);
+
+  @protected
+  ReconcileTotal sse_decode_reconcile_total(SseDeserializer deserializer);
+
+  @protected
+  Replenish sse_decode_replenish(SseDeserializer deserializer);
+
+  @protected
+  SalaryFrom sse_decode_salary_from(SseDeserializer deserializer);
+
+  @protected
+  SalaryRates sse_decode_salary_rates(SseDeserializer deserializer);
+
+  @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
+
+  @protected
+  TransferStep sse_decode_transfer_step(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -302,15 +840,31 @@ abstract class DashboardBridgeApiImplPlatform
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
+  UnitSpec sse_decode_unit_spec(SseDeserializer deserializer);
+
+  @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
+  ZoneOf sse_decode_zone_of(SseDeserializer deserializer);
+
+  @protected
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  );
 
   @protected
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     MadarBridge self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    OfflineCache self,
     SseSerializer serializer,
   );
 
@@ -323,8 +877,28 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    OfflineCache self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     MadarBridge self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    OfflineCache self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_api_stream_item_Sse(
+    RustStreamSink<ApiStreamItem> self,
     SseSerializer serializer,
   );
 
@@ -338,11 +912,92 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_api_call(ApiCall self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_failure(ApiFailure self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_failure_kind(
+    ApiFailureKind self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_api_file(ApiFile self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_pair(ApiPair self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_reply(ApiReply self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_stream_item(ApiStreamItem self, SseSerializer serializer);
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_active_scope_view(
     ActiveScopeView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_api_call(ApiCall self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_api_failure(
+    ApiFailure self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cache_request(
+    CacheRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cache_scope(
+    CacheScope self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cached_answer(
+    CachedAnswer self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_day_bounds(
+    DayBounds self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_first_pay(
+    FirstPay self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_local_parts(
+    LocalParts self,
     SseSerializer serializer,
   );
 
@@ -353,13 +1008,61 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_pay_period(
+    PayPeriod self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_reconcile_refusal(
+    ReconcileRefusal self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_salary_rates(
+    SalaryRates self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_session_snapshot(
     SessionSnapshot self,
     SseSerializer serializer,
   );
 
   @protected
+  void sse_encode_box_autoadd_transfer_step(
+    TransferStep self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_unit_spec(
+    UnitSpec self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_zone_of(ZoneOf self, SseSerializer serializer);
+
+  @protected
   void sse_encode_branch_view(BranchView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cache_request(CacheRequest self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cache_scope(CacheScope self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cached_answer(CachedAnswer self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cost_line(CostLine self, SseSerializer serializer);
 
   @protected
   void sse_encode_dashboard_branch_rank_view(
@@ -398,16 +1101,46 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_day_bounds(DayBounds self, SseSerializer serializer);
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_first_pay(FirstPay self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ladder_rung(LadderRung self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_line_addon(LineAddon self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_line_costs(LineCosts self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_api_file(List<ApiFile> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_api_pair(List<ApiPair> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_branch_view(
     List<BranchView> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_cost_line(List<CostLine> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_dashboard_branch_rank_view(
@@ -440,10 +1173,55 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_list_ladder_rung(
+    List<LadderRung> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_line_addon(
+    List<LineAddon> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_i_64_strict(
+    Int64List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_reconcile_input(
+    List<ReconcileInput> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_reconcile_total(
+    List<ReconcileTotal> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_salary_from(
+    List<SalaryFrom> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_local_parts(LocalParts self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_loyalty_card(LoyaltyCard self, SseSerializer serializer);
 
   @protected
   void sse_encode_madar_config(MadarConfig self, SseSerializer serializer);
@@ -461,16 +1239,142 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_api_failure(
+    ApiFailure? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_cached_answer(
+    CachedAnswer? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_day_bounds(
+    DayBounds? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_first_pay(
+    FirstPay? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_local_parts(
+    LocalParts? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_pay_period(
+    PayPeriod? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_reconcile_refusal(
+    ReconcileRefusal? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_salary_rates(
+    SalaryRates? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_session_snapshot(
     SessionSnapshot? self,
     SseSerializer serializer,
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_transfer_step(
+    TransferStep? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_unit_spec(
+    UnitSpec? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_zone_of(
+    ZoneOf? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_pay_period(PayPeriod self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_receive_check(ReceiveCheck self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_recipe_cost(RecipeCost self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_reconcile_input(
+    ReconcileInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reconcile_refusal(
+    ReconcileRefusal self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reconcile_total(
+    ReconcileTotal self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_replenish(Replenish self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_salary_from(SalaryFrom self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_salary_rates(SalaryRates self, SseSerializer serializer);
+
+  @protected
   void sse_encode_session_snapshot(
     SessionSnapshot self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_transfer_step(TransferStep self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
@@ -485,10 +1389,13 @@ abstract class DashboardBridgeApiImplPlatform
   void sse_encode_unit(void self, SseSerializer serializer);
 
   @protected
+  void sse_encode_unit_spec(UnitSpec self, SseSerializer serializer);
+
+  @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
 
   @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
+  void sse_encode_zone_of(ZoneOf self, SseSerializer serializer);
 }
 
 // Section: wire_class
@@ -511,6 +1418,22 @@ class DashboardBridgeWire implements BaseWire {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
         ptr,
       );
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+        ptr,
+      );
 }
 
 @JS('wasm_bindgen')
@@ -526,6 +1449,16 @@ extension type DashboardBridgeWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
     int ptr,
   );
 }

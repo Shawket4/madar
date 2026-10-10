@@ -8,3 +8,5 @@
 //! deliberately absent, so this binary neither links nor exports them.
 pub mod api;
 mod frb_generated;
+/// The spreadsheet engine behind `api::xlsx` (not scanned by the codegen).
+pub mod xlsx;

@@ -22,6 +22,37 @@ madar-core = { path = "../madar-core" }
 # Exact pin: the cargo crate, Dart package, and codegen CLI must share one version.
 flutter_rust_bridge = "=2.13.0"
 thiserror = "2"
+# The api_stream cancel handle (a oneshot per open stream).
+tokio = { version = "1", features = ["sync"] }
+# Spreadsheet export / import (`xlsx_write` / `xlsx_read`), dashboard only — the
+# POS binary never links them. Both pure Rust, no default features.
+rust_xlsxwriter = "0.99"
+calamine = { version = "0.36", features = ["chrono"] }
+# The export's banner logo: an org logo is stored as WebP, which the writer
+# cannot embed, so it is re-encoded as PNG. Already linked through madar-core.
+image = { version = "0.25", default-features = false, features = ["png", "webp"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The business rules the dashboard shows (api/rules.rs): madar-shared's own
+# crates, the same tag as madar-core's (bump them together).
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono-tz = "0.10"
+# Dawam's salary money crosses as f64 and is read as the exact Decimal the
+# crate takes.
+rust_decimal = { version = "1", default-features = false }
+madar-time = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-units = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-dawam = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-ids = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-money = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-catalog = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-till = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-inventory = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.1" }
+
+[dev-dependencies]
+# Reads the written workbook's XML in the xlsx tests (rust_xlsxwriter's own zip).
+zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

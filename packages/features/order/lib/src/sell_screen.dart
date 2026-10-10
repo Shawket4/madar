@@ -220,9 +220,9 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   // ── quick-add ──────────────────────────────────────────────────────────────
 
   /// The rule: a sheet iff the item has a modifier group that is required
-  /// (or wants at least one pick). Everything else is one tap — an item with
-  /// sizes too: it lands at its base size ([baseSizeLabel]), and a tap on the
-  /// line changes it (owner decision, 2026-09-26).
+  /// (or wants at least one pick), or sells in more than one size: the teller
+  /// picks the size (owner, 2026-10-08; it used to land at its base size).
+  /// Everything else is one tap.
   ///
   /// Null when the options could not be read: nothing is added then (the
   /// notifier says why), and nothing is remembered, so the next tap asks
@@ -231,6 +231,7 @@ class _OrderScreenState extends ConsumerState<OrderScreen> {
   Future<bool?> _itemNeedsSheet(MenuItemView item) async {
     final known = _needsSheet[item.id];
     if (known != null) return known;
+    if (sizeMustBePicked(item)) return _needsSheet[item.id] = true;
     final groups = await _notifier.tryLoadItemModifierGroups(item.id);
     if (groups == null) return null;
     final needs = groups.any((g) => g.isRequired || g.minSelections > 0);

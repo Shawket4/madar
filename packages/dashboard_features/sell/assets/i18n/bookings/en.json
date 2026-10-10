@@ -1,0 +1,7 @@
+{
+  "bookings": {
+    "endsAt": "Ends",
+    "source": "Source",
+    "byPhone": "Taken here"
+  }
+}

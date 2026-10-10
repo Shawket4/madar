@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/dawam_vectors.json is a byte-for-byte copy of madar-shared's file at this tag (the backend runs the same rules from madar-dawam). A change is made there, released with a tag, and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it, and features/dawam/pay-period-vectors.test.ts runs the dashboard's pay-period rule against its periods.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "v0.6.0",
+  "path": "crates/madar-dawam/vectors/dawam_vectors.json",
+  "sha256": "9631461f1aa2f3a4c9360eac5ac3ed1069d7ddebe1494b1b9c8b6e596ff892f8"
+}

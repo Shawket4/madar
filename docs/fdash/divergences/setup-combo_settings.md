@@ -1,0 +1,15 @@
+# Setup / Combos and deals (`/settings/combos`): differences from the web
+
+One line per difference: what the web does, what Flutter does, why. Rows marked "question" port
+the web's behaviour as it is and ask the owner whether it is intended.
+
+| Row | Web | Flutter | Why |
+|---|---|---|---|
+| SET-CMB-018 | Saving a branch exception re-reads `GET /settings/combos`, and the form's `useEffect` resets the org switches and the margin to the server's values: unsaved edits above are silently discarded by any branch-cell change. | The org form re-seeds from a refreshed read only while it is untouched; edits survive a branch change and Save stays enabled. Test `SET-CMB-018 (divergence)`. | A lost edit is a defect (the brief: a form seeded from cached data re-seeds until the person has edited it). |
+| SET-CMB-017 (permissions loading) | While grants load, the read is disabled and the pane shows "Couldn't load the combo settings" with Retry. | The two-card skeleton until the grants are known; a failed grants read shows the shell's access error (`AuthzLoadError`). The no-organisation case is ported as the web has it (failure, no words, Retry asks and shows the server's refusal). | An error flashed during a normal load is a defect. Test `SET-CMB-017 (divergence)`. |
+| SET-CMB-010 | While `GET /branches` loads or after it fails, the card says "No branches yet." (the list is just empty). | A one-row skeleton while it loads; on failure the server's words with Retry; "No branches yet." only for a real answer with no selling branch. | Never show an empty state during a load or after a failure (brief). |
+| SET-CMB-012 | The row stays busy until the re-read finishes (`await q.refetch()` inside the try). | The same; the success toast shows when the write lands, before the re-read, as on the web. | Ported. |
+| SET-CMB-011 layout | Under 760 px the exceptions table keeps its 576 px minimum and scrolls sideways. | Under 760 px (the app's phone layout) one block per branch with a line per channel (label + select); from 760 px the web's table, scrolling sideways when the pane is narrower than 576 px. | SPEC 6.1: the phone layout is cards/rows, same data and actions. |
+| SET-CMB-002 / 003 | The skeleton and the load failure replace the whole pane, its header included. | The pane's title and description stay above the skeleton and the failure. | The settings panes' shared scaffold (same as Staff drinks); question if the owner wants the web's bare state. |
+| SET-SHL-018 | Enter in the margin box submits the form even with nothing changed (an idle PUT). | Enter saves only when Save is enabled (something changed, not already saving). | No idle write; the visible Save state is the rule. |
+| prefetch | `route-prefetch.ts` (af50aa63) has no case for `/settings/combos`. | No `prefetch:` on the route. | Ported (the orchestrator note said there was a case; there is none at af50aa63). |

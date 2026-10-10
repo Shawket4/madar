@@ -1,0 +1,5 @@
+# inventory/waste: verifier findings to fix (1 major, 3 minor)
+1 MAJOR (WST-005/007/029): on desktop and tablet cells are cut or wrap ("House Blend Be…", "× 2" alone on a line, "AM" alone); the web keeps them on one line and scrolls. In waste_page.dart lines(), give the sub-lines maxLines: 1, softWrap: false (as SourceBadge does), and raise the column floors: Date width ~ Space.xxl * 6 + Space.lg; Ingredient minWidth ~ Space.xxl * 6; By minWidth wide enough for "Approved by {name}". Re-shoot and check.
+2 minor (WST-022): add the third refusal to the mock and a test: 400 "This waste does not come to a real amount. Check the quantity and the ingredient's cost." (MadarRust inventory/handlers.rs:1352-1358). Assert the toast via h.refusalWords, and that the dialog stays open with its input.
+3 minor (INV-ALL-015): pin the report's realtime: emit till.closed, settle, assert one more report request and no new log request.
+4 minor (WST-012): the Date search text is the UTC ISO of the parsed time; the web searches the raw wire string. Search the raw occurred_at ?? created_at if the model keeps it, else log a platform-limit row.

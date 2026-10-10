@@ -1,0 +1,12 @@
+# team/payroll (NOT at parity: 3 major) + team/approvals (AT PARITY, minors)
+## payroll
+1 MAJOR (ALL-022/023): PayrollRefreshListener (payroll_page.dart:73) toasts during Riverpod's automatic retry (retrying: true). Drop the custom listener (the core cache no longer refetches on a rebuild's re-listen; query_cache.dart:52-75) and use the shared listenStaffRefreshFailure (shared/refresh_toast.dart, which skips retrying), plus a plain ref.listen for any _loadedAt bookkeeping. Add a ProviderContainer(retry: webRetry) test (PATTERNS §7). Update the TEAM-ALL-022 divergence reason (reply with the row).
+2 MAJOR (PAY-032/033/034, MNY-034/035/038): the Delete, Waive, Override and Undo-waiver dialogs show the raw server line label (payslip_sheet.dart:42,181,190,202). Pass the translated lineLabel(l, t), give me a divergence row (the web has the same bug), and add an Arabic test checking the waive dialog's title.
+3 MAJOR (MNY-039/038/032): money_dialogs.dart forms copy cached data once: ReviewAdvanceDialog (~1063; its "amount unchanged → null" check compares against the stale copy), OverrideDialog (~1022), MarkPaidDialog (~721). Watch payrollAdvancesProvider / payrollShownProvider, find the row by id, and re-seed until edited, as approvals/approvals_dialogs.dart:452-458 does. Test: a refetch updates an untouched form, and an edit survives a refetch.
+4 minor: one provider per request: payrollOlderSlipsProvider and payrollHistorySlipsProvider both GET …/periods/{id}/payslips (payroll_data.dart:46-66). Merge them.
+5 minor (ALL-008): the Refresh spinner (payroll_page.dart:244) also covers the active tab's list and the History sheet's read.
+6 minor tests: ALL-018 assert branch_id on the expense tab with a branch picked; MNY-031 assert the cleared tag's reason value; PAY-006 assert the period id in the generate path; intent tests for "Log an expense advance" and an unsettled History row.
+## approvals
+A1 minor: approvalsAdvancesProvider duplicates payroll's payrollAdvancesProvider (both GET /staff/payroll/advances), and approvalsRequestsProvider duplicates requests' requestsProvider((status:'pending', kind:null)). Reuse one provider per request: import payroll's and requests' providers (keep their APIs, and don't edit those units' files beyond exporting if needed).
+A2 minor: the approvals Refresh spinner (approvals_page.dart:551 anyFetching) also covers the own-employees read (/staff/employees).
+Run test/payroll, test/approvals, test/requests and test/shared.

@@ -1,0 +1,6 @@
+{
+  "orderStatus": {
+    "cancelled": "Cancelled",
+    "rejected": "Rejected"
+  }
+}

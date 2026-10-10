@@ -1140,7 +1140,7 @@ class _QueuedMarkPainter extends CustomPainter {
 /// on a slow revolution while the planet breathes and exhales a faint ring
 /// and the satellite twinkles (the picked "quiet pulse × living orbit" mix).
 /// The typed wordmark sits beneath. Theme-aware like the PNG marks (ink ↔
-/// paper); the satellite is [MadarBrandColors.satellite] on every ground.
+/// paper); the satellite is [MadarBrandColors.satelliteFor] the ink.
 class AnimatedBrandMark extends StatefulWidget {
   /// Creates the mark.
   const AnimatedBrandMark({
@@ -1257,7 +1257,9 @@ class _BrandMarkPainter extends CustomPainter {
       c + Offset(math.cos(angle), math.sin(angle)) * 44 * u,
       13 * u,
       Paint()
-        ..color = MadarBrandColors.satellite.withValues(alpha: 1 - 0.45 * wave),
+        ..color = MadarBrandColors.satelliteFor(
+          ink,
+        ).withValues(alpha: 1 - 0.45 * wave),
     );
 
     // The planet exhales a faint ring (stays inside the orbit)…
