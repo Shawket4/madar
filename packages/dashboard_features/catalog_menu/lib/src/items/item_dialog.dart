@@ -122,6 +122,9 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
       : [];
   List<CleanRow> _recipeRows = const [];
   List<RecipeRowInit> _initialRecipe = const [];
+
+  /// [_initialRecipe] as the builder shows it (before yield loss).
+  List<RecipeRowInit> _shownRecipe = const [];
   final Set<String> _allowed = {};
   String _seededAllowed = '';
 
@@ -167,7 +170,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
     String sig(Iterable<(String, String?, double)> r) =>
         ([for (final x in r) '${x.$1}|${x.$2}|${x.$3}']..sort()).join(';');
     final seeded = sig([
-      for (final r in _initialRecipe)
+      for (final r in _shownRecipe)
         if (r.quantityUsed > 0)
           (r.sizeLabel, r.orgIngredientId, r.quantityUsed),
     ]);
@@ -797,7 +800,10 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
                 RecipeBuilder(
                   orgId: widget.orgId,
                   sizes: _recipeSizes,
-                  initialRows: _initialRecipe,
+                  initialRows: _shownRecipe = usableRecipeRows(
+                    _initialRecipe,
+                    catalog,
+                  ),
                   catalog: catalog,
                   priceForSize: _priceForSize,
                   deferred: true,

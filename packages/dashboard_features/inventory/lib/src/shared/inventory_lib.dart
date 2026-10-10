@@ -57,34 +57,29 @@ const String inventoryAllBranchesId = allBranchesId;
 
 // ── Purchase costs: the invoice total is the truth ─────────────────────────
 
-/// A line's unit cost DERIVED from its total, in piastres per purchase unit,
-/// unrounded; null until both are known.
+/// A line's unit cost DERIVED from its total, in piastres per purchase unit
+/// (madar-inventory through the core: 8 dp, over the quantity as the column
+/// stores it); null until both are known.
 double? unitCostFromTotal(num linePiastres, num qty) =>
-    linePiastres.isFinite && linePiastres >= 0 && qty.isFinite && qty > 0
-    ? linePiastres / qty
+    linePiastres.isFinite && qty.isFinite
+    ? rules.unitCostFromTotal(line: linePiastres.round(), qty: qty.toDouble())
     : null;
 
-/// The catalog's estimate of a line's total in whole piastres; null when the
-/// catalog has no cost, the quantity is not positive, or the units don't
-/// convert (no figure rather than a wrong one).
+/// The catalog's estimate of a line's total in whole piastres (madar-inventory
+/// through the core: cost × quantity × unit factor, exact, rounded once); null
+/// when the catalog has no cost, the quantity is not positive, or the units
+/// don't convert (no figure rather than a wrong one).
 int? estimateLineTotal(
   num? catalogCostPerStockUnit,
   num qty,
   String purchaseUnit,
   String stockUnit,
-) {
-  if (catalogCostPerStockUnit == null || !qty.isFinite || qty <= 0) {
-    return null;
-  }
-  // madar-units through the core: the quantity in stock units (3 dp, as the
-  // server stores it), null across families or for an unknown unit.
-  final inStock = rules.unitConvert(
-    qty: qty.toDouble(),
-    fromUnit: purchaseUnit,
-    toUnit: stockUnit,
-  );
-  return inStock == null ? null : jsRound(catalogCostPerStockUnit * inStock);
-}
+) => rules.estimateLineTotal(
+  costPerStockUnit: catalogCostPerStockUnit?.toDouble(),
+  qty: qty.toDouble(),
+  purchaseUnit: purchaseUnit,
+  stockUnit: stockUnit,
+);
 
 /// Fraction digits a unit cost is shown with (EGP), always all of them.
 const int unitCostDigits = 6;
@@ -108,18 +103,18 @@ String jsNumberString(num n) {
   return d.toString();
 }
 
-/// `Math.round`: halves go up (also for negatives, unlike Dart's `round`).
-int jsRound(num v) => (v + 0.5).floor();
-
 // ── Stock counts ───────────────────────────────────────────────────────────
 
 /// A counted row is flagged when |counted − book| is at least [thresholdPct]
-/// percent of book stock, or when stock appears from / vanishes to zero.
-bool isVarianceFlagged(num book, num? counted, num thresholdPct) {
-  if (counted == null) return false;
-  if (book.abs() < 1e-9) return counted.abs() > 1e-9;
-  return (counted - book).abs() / book.abs() * 100 >= thresholdPct;
-}
+/// percent of book stock, or when stock appears from zero (madar-inventory
+/// through the core, exact in thousandths); an uncounted row never is.
+bool isVarianceFlagged(num book, num? counted, num thresholdPct) =>
+    counted != null &&
+    rules.isVarianceFlagged(
+      book: book.toDouble(),
+      counted: counted.toDouble(),
+      pct: thresholdPct.toDouble(),
+    );
 
 /// Parses a count input; blank or non-numeric means "not counted"
 /// (`parseFloat`: a leading number is read, `"12abc"` → 12).

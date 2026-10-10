@@ -51,6 +51,30 @@ double? unitConvert({
   toUnit: toUnit,
 );
 
+/// What a recipe line stores for `qty` typed in `unit`: in the ingredient's
+/// `base_unit` (through its density), grossed up by its yield, 3 dp; `None`
+/// when the units don't convert.
+double? recipeBaseQty({
+  required double qty,
+  required String unit,
+  required String baseUnit,
+  double? density,
+  double? yieldPct,
+}) => DashboardBridge.instance.api.crateApiRulesRecipeBaseQty(
+  qty: qty,
+  unit: unit,
+  baseUnit: baseUnit,
+  density: density,
+  yieldPct: yieldPct,
+);
+
+/// The usable amount of a stored recipe quantity (the amount typed, in the
+/// base unit), 3 dp.
+double usableQty({required double stored, double? yieldPct}) => DashboardBridge
+    .instance
+    .api
+    .crateApiRulesUsableQty(stored: stored, yieldPct: yieldPct);
+
 /// The canonical form of a phone number, or `None` when it isn't one.
 String? phoneCanonical({required String raw}) =>
     DashboardBridge.instance.api.crateApiRulesPhoneCanonical(raw: raw);
@@ -62,6 +86,31 @@ PlatformInt64 averageTicket({
 }) => DashboardBridge.instance.api.crateApiRulesAverageTicket(
   netSales: netSales,
   orderCount: orderCount,
+);
+
+/// A line's cost in whole piastres: `qty × cost_per_unit`, exact, half away
+/// from zero.
+PlatformInt64 lineCost({required double qty, required double costPerUnit}) =>
+    DashboardBridge.instance.api.crateApiRulesLineCost(
+      qty: qty,
+      costPerUnit: costPerUnit,
+    );
+
+RecipeCost recipeCost({required List<CostLine> lines}) =>
+    DashboardBridge.instance.api.crateApiRulesRecipeCost(lines: lines);
+
+/// `(price − cost) / price`; `None` unless the price is above 0.
+double? margin({required PlatformInt64 price, required PlatformInt64 cost}) =>
+    DashboardBridge.instance.api.crateApiRulesMargin(price: price, cost: cost);
+
+/// The food-cost band (`good` | `fair` | `poor`); `None` unless the price is
+/// above 0.
+String? foodCostBand({
+  required PlatformInt64 cost,
+  required PlatformInt64 price,
+}) => DashboardBridge.instance.api.crateApiRulesFoodCostBand(
+  cost: cost,
+  price: price,
 );
 
 /// `None` when the action is not open in this status.
@@ -97,6 +146,63 @@ Replenish replenishSuggest({
   openInbound: openInbound,
   warehouseOnHand: warehouseOnHand,
   warehouseDraftedOut: warehouseDraftedOut,
+);
+
+/// The order dialog's estimate of a line, in whole piastres: cost per stock
+/// unit × `qty` typed in `purchase_unit`, exact, rounded once; `None` with no
+/// cost, a quantity not above 0, or units that don't convert.
+PlatformInt64? estimateLineTotal({
+  double? costPerStockUnit,
+  required double qty,
+  required String purchaseUnit,
+  required String stockUnit,
+}) => DashboardBridge.instance.api.crateApiRulesEstimateLineTotal(
+  costPerStockUnit: costPerStockUnit,
+  qty: qty,
+  purchaseUnit: purchaseUnit,
+  stockUnit: stockUnit,
+);
+
+/// The unit cost a line total implies (piastres per unit, 8 dp); `None` for a
+/// negative total or a quantity that is 0 at 3 dp.
+double? unitCostFromTotal({required PlatformInt64 line, required double qty}) =>
+    DashboardBridge.instance.api.crateApiRulesUnitCostFromTotal(
+      line: line,
+      qty: qty,
+    );
+
+/// What one delivery costs, in whole piastres (half away from zero): the
+/// invoice total if given, else a unit cost × the quantity, else the ordered
+/// total pro rata; `None` when the server would refuse the costs.
+PlatformInt64? deliveryCost({
+  required double quantityReceived,
+  PlatformInt64? lineCost,
+  PlatformInt64? unitCost,
+  required PlatformInt64 orderedLineCost,
+  required double quantityOrdered,
+}) => DashboardBridge.instance.api.crateApiRulesDeliveryCost(
+  quantityReceived: quantityReceived,
+  lineCost: lineCost,
+  unitCost: unitCost,
+  orderedLineCost: orderedLineCost,
+  quantityOrdered: quantityOrdered,
+);
+
+/// A purchase quantity in whole thousandths, as the column stores it (half
+/// away from zero).
+PlatformInt64 quantityMilli({required double q}) =>
+    DashboardBridge.instance.api.crateApiRulesQuantityMilli(q: q);
+
+/// Whether a counted row needs a variance reason: it differs from the book by
+/// at least `pct` percent, or stock appears from zero (exact, in thousandths).
+bool isVarianceFlagged({
+  required double book,
+  required double counted,
+  required double pct,
+}) => DashboardBridge.instance.api.crateApiRulesIsVarianceFlagged(
+  book: book,
+  counted: counted,
+  pct: pct,
 );
 
 /// `None` when the live close would be accepted.
@@ -156,6 +262,26 @@ String comboQuote({
   picksJson: picksJson,
   n: n,
 );
+
+/// One recipe line: its quantity and its cost per unit (`None`: unknown; 0
+/// is known, free).
+class CostLine {
+  final double qty;
+  final double? costPerUnit;
+
+  const CostLine({required this.qty, this.costPerUnit});
+
+  @override
+  int get hashCode => qty.hashCode ^ costPerUnit.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CostLine &&
+          runtimeType == other.runtimeType &&
+          qty == other.qty &&
+          costPerUnit == other.costPerUnit;
+}
 
 /// A branch-local calendar day as an instant range: start inclusive, end
 /// exclusive (the next local midnight), DST days included.
@@ -217,6 +343,26 @@ class ReceiveCheck {
           arrival == other.arrival &&
           difference == other.difference &&
           refused == other.refused;
+}
+
+/// A recipe's cost: the known lines summed exactly and rounded once;
+/// `complete` is false when a line's cost is unknown.
+class RecipeCost {
+  final PlatformInt64 piastres;
+  final bool complete;
+
+  const RecipeCost({required this.piastres, required this.complete});
+
+  @override
+  int get hashCode => piastres.hashCode ^ complete.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RecipeCost &&
+          runtimeType == other.runtimeType &&
+          piastres == other.piastres &&
+          complete == other.complete;
 }
 
 /// What the person said about one method: `checked` or `disagreed`.

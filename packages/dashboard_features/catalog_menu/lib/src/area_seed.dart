@@ -20,6 +20,7 @@
 library;
 
 import 'package:dashboard_api/mock.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import 'shared/menu_text.dart';
 
@@ -635,6 +636,7 @@ abstract final class CatalogMenuSeed {
             'ingredient_id': ingId,
             'ingredient_name': data.ingredientName(ingId),
             'quantity': r.$2.toDouble(),
+            'usable_quantity': data.usableOf(ingId, r.$2),
             'unit': _unitOf(r.$1),
             'size_label': null,
           },
@@ -733,6 +735,48 @@ class CatalogMenuData {
 
   String ingredientName(String id) =>
       (ingredient(id)?['name'] as String?) ?? '';
+
+  double? _ingredientNum(Object? id, String key) =>
+      (ingredient('$id')?[key] as num?)?.toDouble();
+
+  /// `usable_quantity`, the server's way (madar-units through the core): a
+  /// stored quantity × its ingredient's yield, 3 dp.
+  double usableOf(Object? ingredientId, Object? stored) {
+    final q = jsNumber('$stored');
+    return rules.usableQty(
+      stored: q.isFinite ? q : 0,
+      yieldPct: _ingredientNum(ingredientId, 'yield_pct'),
+    );
+  }
+
+  /// What a recipe save stores (the server's `normalize_recipe_line`): [sent]
+  /// in [unit] converted to [baseUnit] (through the ingredient's density) and
+  /// grossed up by its yield, 3 dp. [prev], what the line stored before, is
+  /// kept exactly when [sent] is its usable form (a line sent back
+  /// unchanged). Null when the units don't convert.
+  double? storedOf(
+    String ingredientId,
+    num sent,
+    String unit,
+    String baseUnit,
+    num? prev,
+  ) {
+    final yieldPct = _ingredientNum(ingredientId, 'yield_pct');
+    double? base(double? y) => rules.recipeBaseQty(
+      qty: sent.toDouble(),
+      unit: unit,
+      baseUnit: baseUnit,
+      density: _ingredientNum(ingredientId, 'density_g_per_ml'),
+      yieldPct: y,
+    );
+    final inBase = unit == baseUnit ? sent.toDouble() : base(null);
+    if (prev != null &&
+        inBase ==
+            rules.usableQty(stored: prev.toDouble(), yieldPct: yieldPct)) {
+      return prev.toDouble();
+    }
+    return base(yieldPct);
+  }
 
   /// The item's sizes (active and inactive) by `sort`.
   List<MockRow> sizesOf(String itemId) =>

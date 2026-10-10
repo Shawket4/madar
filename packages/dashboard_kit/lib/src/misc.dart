@@ -1,5 +1,6 @@
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import 'buttons.dart';
 import 'controls.dart';
@@ -69,27 +70,26 @@ class DashExportButton extends StatelessWidget {
   }
 }
 
-/// The food-cost traffic light (the web's `FoodCostChip`): green under 30%,
-/// amber to 40%, red above.
+/// The food-cost traffic light (the web's `FoodCostChip`): madar-money's
+/// food-cost band through the core (green under 30%, amber to 40%, red
+/// above); nothing without a price above zero.
 class DashFoodCostChip extends StatelessWidget {
-  const DashFoodCostChip({required this.ratio, super.key});
+  const DashFoodCostChip({required this.cost, required this.price, super.key});
 
-  /// Cost over price (0.32 = 32%).
-  final double ratio;
+  /// Minor units.
+  final int cost;
+  final int price;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
-    final tone = ratio < 0.3
-        ? DashTone.success
-        : ratio <= 0.4
-        ? DashTone.warning
-        : DashTone.danger;
-    final icon = ratio < 0.3
-        ? 'check-circle-2'
-        : ratio <= 0.4
-        ? 'alert-triangle'
-        : 'alert-circle';
+    final (tone, icon) = switch (rules.foodCostBand(cost: cost, price: price)) {
+      'good' => (DashTone.success, 'check-circle-2'),
+      'fair' => (DashTone.warning, 'alert-triangle'),
+      'poor' => (DashTone.danger, 'alert-circle'),
+      _ => (null, ''),
+    };
+    if (tone == null) return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: Space.xs + DashMetrics.hair,
@@ -105,7 +105,7 @@ class DashFoodCostChip extends StatelessWidget {
         children: [
           DashIcon(icon, size: 12, color: tone.foreground(c)),
           Text(
-            dashFigure(context.dashFormats.percent(ratio)),
+            dashFigure(context.dashFormats.percent(cost / price)),
             style: DashType.smallStrong.copyWith(
               color: tone.foreground(c),
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -152,14 +152,16 @@ class DashSkuCost {
   const DashSkuCost({
     required this.sizeLabel,
     required this.cost,
-    this.foodCostRatio,
+    this.price,
     this.costMissing = false,
   });
   final String sizeLabel;
 
   /// Minor units, or null when unknown.
   final int? cost;
-  final double? foodCostRatio;
+
+  /// Minor units; a complete cost is graded against it.
+  final int? price;
   final bool costMissing;
 }
 
@@ -199,8 +201,8 @@ class DashItemCostCell extends StatelessWidget {
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
-              if (s.foodCostRatio != null)
-                DashFoodCostChip(ratio: s.foodCostRatio!),
+              if (s.cost != null && s.price != null && !s.costMissing)
+                DashFoodCostChip(cost: s.cost!, price: s.price!),
               if (s.costMissing && onFixMissing != null)
                 DashCostMissingLink(onOpen: onFixMissing!),
             ],
@@ -233,7 +235,6 @@ class DashAddonCostCell extends StatelessWidget {
     if (cost == null && !costMissing) {
       return Text('—', style: DashType.small.copyWith(color: c.textSecondary));
     }
-    final ratio = cost != null && price > 0 ? cost! / price : null;
     return Row(
       mainAxisSize: MainAxisSize.min,
       spacing: Space.xs + DashMetrics.hair,
@@ -245,7 +246,9 @@ class DashAddonCostCell extends StatelessWidget {
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
-        if (ratio != null) DashFoodCostChip(ratio: ratio),
+        // A partial cost is not graded.
+        if (cost != null && !costMissing)
+          DashFoodCostChip(cost: cost!, price: price),
         if (costMissing && onFixMissing != null)
           DashCostMissingLink(onOpen: onFixMissing!),
       ],

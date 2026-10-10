@@ -224,7 +224,7 @@ class ItemCostFooter extends StatelessWidget {
         DashSkuCost(
           sizeLabel: s.sizeLabel,
           cost: s.cost,
-          foodCostRatio: s.foodCostPct,
+          price: s.price,
           costMissing: s.costMissing,
         ),
     ],

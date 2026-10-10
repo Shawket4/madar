@@ -11,6 +11,7 @@ class AddonIngredient {
     this.orgIngredientId,
     required this.quantityUsed,
     required this.unit,
+    required this.usableQuantity,
     this.explicitNulls = const {},
   });
 
@@ -34,6 +35,10 @@ class AddonIngredient {
           'AddonIngredient.quantity_used',
         ),
         unit: decString(json['unit'], 'AddonIngredient.unit'),
+        usableQuantity: decDouble(
+          json['usable_quantity'],
+          'AddonIngredient.usable_quantity',
+        ),
       );
 
   final String addonItemId;
@@ -48,6 +53,11 @@ class AddonIngredient {
 
   final String unit;
 
+  /// The usable amount before yield loss: `quantity_used` × the linked
+  /// ingredient's yield, 3 dp (madar-units `usable_qty`). What an editor shows
+  /// and sends back; a line sent back unchanged keeps its stored quantity.
+  final double usableQuantity;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
@@ -60,6 +70,7 @@ class AddonIngredient {
       'org_ingredient_id': orgIngredientId,
     'quantity_used': quantityUsed,
     'unit': unit,
+    'usable_quantity': usableQuantity,
   };
 
   @override

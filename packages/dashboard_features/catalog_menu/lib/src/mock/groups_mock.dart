@@ -365,6 +365,10 @@ abstract final class GroupsSeed {
                       MenuSeedIds.ingredient(ing),
                     ),
                     'quantity': qty.toDouble(),
+                    'usable_quantity': data.usableOf(
+                      MenuSeedIds.ingredient(ing),
+                      qty,
+                    ),
                     'unit':
                         data.ingredient(MenuSeedIds.ingredient(ing))?['unit'] ??
                         'g',
@@ -748,7 +752,13 @@ class GroupsBackend {
         _bad("Linked ingredient not found in this organization's catalog");
       }
       final base = ing['unit'] as String;
-      final q = jsRound(_convert(qty.toDouble(), unit, base) * 1000) / 1000;
+      final prev = ((o['recipe'] as List?) ?? const [])
+          .cast<Map<String, Object?>>()
+          .where((l) => l['ingredient_id'] == ingId && l['size_label'] == label)
+          .firstOrNull?['quantity'];
+      final q =
+          _data.storedOf(ingId, qty, unit, base, prev as num?) ??
+          jsRound(_convert(qty.toDouble(), unit, base) * 1000) / 1000;
       if (qty > 0 && q <= 0) {
         _bad(
           'quantity $qty $unit is too small for base unit $base (rounds to 0)',
@@ -758,6 +768,7 @@ class GroupsBackend {
         'ingredient_id': ingId,
         'ingredient_name': ing['name'],
         'quantity': q,
+        'usable_quantity': _data.usableOf(ingId, q),
         'unit': base,
         'size_label': label,
       });
@@ -915,6 +926,7 @@ class GroupsBackend {
       'ingredient_id': ingId,
       'ingredient_name': _data.ingredientName(ingId),
       'quantity': jsNumber('${l['quantity']}'),
+      'usable_quantity': _data.usableOf(ingId, l['quantity']),
       'unit': l['unit'],
       'size_label': l['size_label'],
       'source': l['source'],

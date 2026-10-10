@@ -13,6 +13,7 @@ class RecipeBaseLineOut {
     this.sizeLabel,
     required this.sort,
     required this.unit,
+    required this.usableQuantity,
     this.explicitNulls = const {},
   });
 
@@ -34,6 +35,10 @@ class RecipeBaseLineOut {
         ),
         sort: decInt(json['sort'], 'RecipeBaseLineOut.sort'),
         unit: decString(json['unit'], 'RecipeBaseLineOut.unit'),
+        usableQuantity: decString(
+          json['usable_quantity'],
+          'RecipeBaseLineOut.usable_quantity',
+        ),
       );
 
   final String id;
@@ -53,6 +58,11 @@ class RecipeBaseLineOut {
 
   final String unit;
 
+  /// The usable amount before yield loss, like `RecipeLineOut::usable_quantity`:
+  /// what an editor shows and sends back (a line sent back unchanged keeps
+  /// its stored `quantity`).
+  final String usableQuantity;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
@@ -66,6 +76,7 @@ class RecipeBaseLineOut {
       'size_label': sizeLabel,
     'sort': sort,
     'unit': unit,
+    'usable_quantity': usableQuantity,
   };
 
   @override

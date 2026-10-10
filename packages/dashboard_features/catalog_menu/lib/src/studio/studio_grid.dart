@@ -332,7 +332,7 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
       final swap = r.source == LineSource.rule
           ? null
           : swapGroupFor(ing?.categorySlug, widget.swapGroups, slugOf);
-      final uncosted = ing != null && positiveUnitCost(ing) == null;
+      final uncosted = ing != null && ing.costPerUnit == null;
       final badges = [
         if (tag != null) _Tag(label: tag, icon: 'lock'),
         if (swap != null)
@@ -438,9 +438,18 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
       final text = switch (cost) {
         NoLines() => '—',
         CostIncomplete() => t('menu.studio.recipe.incomplete'),
-        CostKnown(:final piastres, :final estimated, :final margin) =>
+        CostKnown(
+          :final piastres,
+          :final estimated,
+          :final complete,
+          :final margin,
+        ) =>
           '${estimated ? '≈ ' : ''}${fmt.fmtMoney(piastres)}'
-              '${margin == null ? '' : ' · ${fmt.fmtPercent(margin)}'}',
+              '${!complete
+                  ? ' · ${t('menu.studio.recipe.incomplete')}'
+                  : margin == null
+                  ? ''
+                  : ' · ${fmt.fmtPercent(margin)}'}',
       };
       return SizedBox(
         width: double.infinity,

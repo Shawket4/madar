@@ -1,10 +1,14 @@
 // The recipe builder's arithmetic and the create-ingredient dialog's
 // conversions, checked by hand against the web's `recipe-builder.tsx` and
 // `create-ingredient-dialog.tsx`.
-import 'package:dashboard_api/dashboard_api.dart' show IngredientCategory;
+import 'package:dashboard_api/dashboard_api.dart'
+    show IngredientCategory, OrgIngredient;
 import 'package:dashboard_catalog_menu/src/recipes/create_ingredient_dialog.dart';
+import 'package:dashboard_catalog_menu/src/recipes/recipe_builder.dart'
+    show RecipeRowInit, usableRecipeRows;
 import 'package:dashboard_catalog_menu/src/recipes/recipe_model.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 var _id = 0;
 
@@ -22,6 +26,28 @@ RecipeDraftRow row(
   ingredientUnit: unit,
   quantity: qty,
 );
+
+OrgIngredient ingr(
+  String id,
+  double? cost, {
+  String unit = 'g',
+  double? yieldPct,
+  double? density,
+}) => OrgIngredient.fromJson({
+  'id': id,
+  'org_id': 'o1',
+  'name': id,
+  'category_id': 'c',
+  'category_name': 'c',
+  'category_slug': 'c',
+  'unit': unit,
+  'cost_per_unit': cost,
+  'yield_pct': yieldPct,
+  'density_g_per_ml': density,
+  'is_active': true,
+  'created_at': '2026-01-01T00:00:00Z',
+  'updated_at': '2026-01-01T00:00:00Z',
+});
 
 IngredientCategory cat(String id, String slug) => IngredientCategory(
   createdAt: DateTime.utc(2026),
@@ -80,55 +106,110 @@ void main() {
     expect(removed, [(sizeLabel: 'one_size', ingredientName: 'Milk')]);
   });
 
-  test('MENU-RCP-007 a size costs Σ unit cost × qty; any unknown cost or '
-      'quantity makes it unknown; no rows is unknown', () {
-    double? cost(String? id) => switch (id) {
-      'beans' => 95,
-      'milk' => 4.2,
-      _ => null,
+  test('MENU-RCP-007 a size costs Σ unit cost × qty (madar-money): rounded '
+      'once; an unknown cost or quantity leaves its partial sum, marked '
+      'incomplete (D4); no rows, or nothing known, is unknown', () {
+    final byId = {
+      'beans': ingr('beans', 95),
+      'milk': ingr('milk', 4.2, unit: 'ml'),
+      'pistachio': ingr('pistachio', null),
     };
+    OrgIngredient? of(String? id) => byId[id];
     // 18 g × 95 + 180 ml × 4.2 = 1710 + 756.
     expect(
       recipeSizeEstimate([
         row('Regular', 'Beans', '18', id: 'beans'),
-        row('Regular', 'Milk', '180', id: 'milk'),
-      ], cost),
-      closeTo(2466, 1e-9),
+        row('Regular', 'Milk', '180', id: 'milk', unit: 'ml'),
+      ], of),
+      const rules.RecipeCost(piastres: 2466, complete: true),
     );
     expect(
       recipeSizeEstimate([
         row('Regular', 'Beans', '18', id: 'beans'),
         row('Regular', 'Pistachio', '15', id: 'pistachio'),
-      ], cost),
-      isNull,
+      ], of),
+      const rules.RecipeCost(piastres: 1710, complete: false),
     );
+    // Nothing known at all: no figure, as the server's.
     expect(
-      recipeSizeEstimate([row('Regular', 'Beans', '', id: 'beans')], cost),
+      recipeSizeEstimate([row('Regular', 'Beans', '', id: 'beans')], of),
       isNull,
     );
-    expect(recipeSizeEstimate([], cost), isNull);
+    expect(recipeSizeEstimate([], of), isNull);
   });
 
-  test('MENU-RCP-011 a line costs unit cost × qty, else unknown', () {
-    expect(recipeLineCost(95, '18'), 1710);
-    expect(recipeLineCost(null, '18'), isNull);
-    expect(recipeLineCost(95, ''), isNull);
+  test('D2 a cost of 0 is known: free, not "cost incomplete"', () {
+    final water = ingr('water', 0);
+    expect(recipeLineCost(water, '250', 'g'), 0);
+    expect(
+      recipeSizeEstimate([
+        row('Regular', 'Water', '250', id: 'water'),
+      ], (_) => water),
+      const rules.RecipeCost(piastres: 0, complete: true),
+    );
   });
 
-  test(
-    'MENU-RCP-008 margin = (price − cost) / price; tones at 60 % / 30 %',
-    () {
-      expect(recipeMargin(2466, 11500), closeTo(0.78557, 1e-5));
-      expect(recipeMargin(null, 11500), isNull);
-      expect(recipeMargin(2466, 0), isNull);
-      expect(recipeMargin(2466, null), isNull);
-      expect(recipeMarginTone(0.6), RecipeMarginTone.good);
-      expect(recipeMarginTone(0.5999), RecipeMarginTone.fair);
-      expect(recipeMarginTone(0.3), RecipeMarginTone.fair);
-      expect(recipeMarginTone(0.2999), RecipeMarginTone.low);
-      expect(recipeMarginTone(-0.5), RecipeMarginTone.low);
-    },
-  );
+  test('D3 the amount typed is costed as the server stores it: through the '
+      "ingredient's yield and density", () {
+    // 100 g at yield 80 % stores 125 g: 125 × 2.
+    expect(recipeLineCost(ingr('fruit', 2, yieldPct: 80), '100', 'g'), 250);
+    // 250 ml of a g ingredient at 1.03 g/ml is 257.5 g: × 2.
+    expect(recipeLineCost(ingr('syrup', 2, density: 1.03), '250', 'ml'), 515);
+    // No density: ml does not convert into g, so the cost is unknown.
+    expect(recipeLineCost(ingr('syrup', 2), '250', 'ml'), isNull);
+  });
+
+  test('MENU-RCP-011 a line costs unit cost × qty in whole piastres, else '
+      'unknown', () {
+    expect(recipeLineCost(ingr('beans', 95), '18', 'g'), 1710);
+    expect(recipeLineCost(ingr('beans', 0.35), '10', 'g'), 4);
+    expect(recipeLineCost(ingr('x', null), '18', 'g'), isNull);
+    expect(recipeLineCost(ingr('beans', 95), '', 'g'), isNull);
+    expect(recipeLineCost(null, '18', 'g'), isNull);
+  });
+
+  test('MENU-RCP-008 margin = (price − cost) / price over the cost in whole '
+      'piastres (D4); tones are the food-cost bands (D5)', () {
+    const known = rules.RecipeCost(piastres: 2466, complete: true);
+    expect(recipeMargin(known, 11500), closeTo(0.78557, 1e-5));
+    // 230.4 + 170 = 400.4 rounds to 400 first: exactly 0.6.
+    final d4 = recipeSizeEstimate([
+      row('R', 'Beans', '18', id: 'b'),
+      row('R', 'Milk', '170', id: 'm'),
+    ], (id) => id == 'b' ? ingr('b', 12.8) : ingr('m', 1));
+    expect(d4, const rules.RecipeCost(piastres: 400, complete: true));
+    expect(recipeMargin(d4, 1000), 0.6);
+    expect(
+      recipeMargin(const rules.RecipeCost(piastres: 7, complete: false), 1000),
+      isNull,
+    );
+    expect(recipeMargin(null, 11500), isNull);
+    expect(recipeMargin(known, 0), isNull);
+    expect(recipeMargin(known, null), isNull);
+    expect(recipeMarginTone(299, 1000), RecipeMarginTone.good);
+    expect(recipeMarginTone(300, 1000), RecipeMarginTone.fair);
+    // Margin 65 % is food cost 35 %: amber, as the food-cost chip.
+    expect(recipeMarginTone(350, 1000), RecipeMarginTone.fair);
+    expect(recipeMarginTone(400, 1000), RecipeMarginTone.fair);
+    expect(recipeMarginTone(401, 1000), RecipeMarginTone.poor);
+    expect(recipeMarginTone(100, 0), isNull);
+  });
+
+  test("D3b an item's stored lines show before yield loss (the server's "
+      'usable_qty over the catalog yield); unknown ingredient: as stored', () {
+    RecipeRowInit stored(String? id, double q) => RecipeRowInit(
+      sizeLabel: 'Regular',
+      orgIngredientId: id,
+      ingredientName: '$id',
+      ingredientUnit: 'g',
+      quantityUsed: q,
+    );
+    final shown = usableRecipeRows(
+      [stored('fruit', 125), stored('beans', 18), stored(null, 7)],
+      [ingr('fruit', 2, yieldPct: 80), ingr('beans', 95)],
+    );
+    expect([for (final r in shown) r.quantityUsed], [100.0, 18.0, 7.0]);
+  });
 
   test('MENU-RCP-005 scaling: base rows × factor (3 dp); untouched = × 1; '
       'a cleared or zero factor keeps that size as it was', () {

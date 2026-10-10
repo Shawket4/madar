@@ -55,11 +55,17 @@ Map<String, Object?> size(
   'recipe': recipe,
 };
 
-Map<String, Object?> line(String ing, String qty, {String? source}) => {
+Map<String, Object?> line(
+  String ing,
+  String qty, {
+  String? source,
+  String? usable,
+}) => {
   'id': 'l-$ing',
   'ingredient_id': ing,
   'ingredient_name': ing,
   'quantity': qty,
+  'usable_quantity': usable ?? qty,
   'unit': 'ml',
   'source': source,
 };
@@ -342,6 +348,58 @@ void main() {
     });
   });
 
+  group('usable quantity (D3b)', () {
+    // 100 ml usable at yield 80 % is stored as 125: the server sends both.
+    final seeded = agg({
+      'sizes': [
+        size(
+          'a',
+          'Regular',
+          5000,
+          recipe: [line('milk', '125.000', usable: '100.000')],
+        ),
+      ],
+      'options': [
+        {
+          'id': 'o1',
+          'name': 'Extra milk',
+          'price': 500,
+          'is_active': true,
+          'cost_piastres': null,
+          'cost_incomplete': false,
+          'recipe': [line('milk', '62.500', usable: '50.000')],
+        },
+      ],
+    });
+
+    test('an untouched line shows and sends back its usable quantity, which '
+        'the server keeps as stored', () {
+      final blocks = toSizeBlocks(seeded);
+      expect(blocks.single.lines.single.quantity, '100');
+      final sent = recipePayload(blocks.single.lines).lines.single;
+      expect((sent.quantity, sent.unit), (100.0, 'ml'));
+      final rows = toOptionRows(seeded);
+      expect(rows.single.quantity, '50');
+      final opt = optionsPayload(rows).toJson();
+      expect(((opt['options']! as List).single as Map)['recipe'], [
+        {'ingredient_id': 'milk', 'quantity': 50.0, 'unit': 'ml'},
+      ]);
+    });
+
+    test('an edited line sends the amount typed', () {
+      final edited = toSizeBlocks(
+        seeded,
+      ).single.lines.single.withQuantity('90');
+      final sent = recipePayload([edited]).lines.single;
+      expect((sent.quantity, sent.unit), (90.0, 'ml'));
+      final row = toOptionRows(seeded).single.copyWith(quantity: '40');
+      final opt = optionsPayload([row]).toJson();
+      expect(((opt['options']! as List).single as Map)['recipe'], [
+        {'ingredient_id': 'milk', 'quantity': 40.0, 'unit': 'ml'},
+      ]);
+    });
+  });
+
   group('payloads', () {
     test('item: {} for an empty Arabic name; nulls kept', () {
       final j = itemPayload(
@@ -491,14 +549,45 @@ void main() {
       );
     });
 
-    test('an uncosted line: incomplete; no line: "—"; price 0: no margin', () {
+    test('an uncosted line: its partial cost, marked incomplete, no margin '
+        '(D4); the server with no figure: "Cost incomplete"; no line: "—"; '
+        'price 0: no margin', () {
+      final partial =
+          columnCost(
+                col([
+                  const GridLine(
+                    ingredientId: 'milk',
+                    quantity: '10',
+                    unit: 'ml',
+                  ),
+                  const GridLine(
+                    ingredientId: 'syrup',
+                    quantity: '5',
+                    unit: 'ml',
+                  ),
+                ]),
+                catalog,
+                recipeDirty: true,
+              )
+              as CostKnown;
+      expect(partial.piastres, 42);
+      expect(partial.complete, isFalse);
+      expect(partial.margin, isNull);
       expect(
         columnCost(
-          col([
-            const GridLine(ingredientId: 'syrup', quantity: '5', unit: 'g'),
-          ]),
+          SizeBlock(
+            key: 'a',
+            id: 'a',
+            label: 'R',
+            price: '115',
+            seededPrice: '115',
+            serverCost: (piastres: null, incomplete: true),
+            lines: const [
+              GridLine(ingredientId: 'syrup', quantity: '5', unit: 'ml'),
+            ],
+          ),
           catalog,
-          recipeDirty: true,
+          recipeDirty: false,
         ),
         isA<CostIncomplete>(),
       );

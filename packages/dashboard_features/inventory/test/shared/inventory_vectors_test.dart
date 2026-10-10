@@ -1,7 +1,9 @@
 // madar-shared's unit_vectors.json and inventory_vectors.json (the web's pinned
-// copies, synced by tool/sync_web_vectors.py) against the rules the dashboard
-// calls: madar-units and madar-inventory themselves, through the core's
-// bridge (the host library flutter_test_config.dart loads).
+// copies, synced by tool/sync_web_vectors.py), purchase_vectors.json and
+// count_vectors.json (copied from madar-shared, pinned by their .source.json)
+// against the rules the dashboard calls: madar-units and madar-inventory
+// themselves, through the core's bridge (the host library
+// flutter_test_config.dart loads).
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge_dashboard/rules.dart' as rules;
@@ -91,6 +93,86 @@ void main() {
           suggested: d(o['suggested']),
         ),
         reason: '$i',
+      );
+    }
+  });
+
+  final purchase = sharedVectors('purchase')! as Map;
+  double? d(Object? x) => (x as num?)?.toDouble();
+
+  test('a purchase quantity in thousandths, as the column stores it', () {
+    final cases = (purchase['quantity'] as List).cast<Map>();
+    expect(cases, isNotEmpty);
+    for (final v in cases) {
+      expect(
+        rules.quantityMilli(q: d(v['q'])!),
+        v['milli'],
+        reason: '${v['name']}',
+      );
+    }
+  });
+
+  test("the order dialog's estimate", () {
+    final cases = (purchase['estimate_line_total'] as List).cast<Map>();
+    expect(cases, isNotEmpty);
+    for (final v in cases) {
+      expect(
+        rules.estimateLineTotal(
+          costPerStockUnit: d(v['cost_per_stock_unit']),
+          qty: d(v['qty'])!,
+          purchaseUnit: v['purchase_unit'] as String,
+          stockUnit: v['stock_unit'] as String,
+        ),
+        v['expected'],
+        reason: '${v['name']}',
+      );
+    }
+  });
+
+  test('the unit cost a total implies', () {
+    final cases = (purchase['unit_cost_from_total'] as List).cast<Map>();
+    expect(cases, isNotEmpty);
+    for (final v in cases) {
+      expect(
+        rules.unitCostFromTotal(line: v['line'] as int, qty: d(v['qty'])!),
+        v['expected'],
+        reason: '${v['name']}',
+      );
+    }
+  });
+
+  test('what a delivery costs, in whole piastres (half away from zero)', () {
+    final cases = (purchase['delivery_cost'] as List).cast<Map>();
+    expect(cases, isNotEmpty);
+    for (final v in cases) {
+      final want = v['expected'] as String?;
+      expect(
+        rules.deliveryCost(
+          quantityReceived: d(v['quantity_received'])!,
+          lineCost: v['line_cost'] as int?,
+          unitCost: v['unit_cost'] as int?,
+          orderedLineCost: v['ordered_line_cost'] as int,
+          quantityOrdered: double.parse(v['quantity_ordered'] as String),
+        ),
+        want == null ? null : double.parse(want).round(),
+        reason: '${v['name']}',
+      );
+    }
+  });
+
+  test('a stock count row that needs a variance reason', () {
+    final cases = ((sharedVectors('count')! as Map)['cases'] as List)
+        .cast<Map>();
+    expect(cases, isNotEmpty);
+    for (final v in cases) {
+      expect(
+        rules.isVarianceFlagged(
+          book: d(v['book'])!,
+          counted: d(v['counted'])!,
+          pct: d(v['pct'])!,
+        ),
+        v['expected'],
+        reason: '${v['name']}',
       );
     }
   });

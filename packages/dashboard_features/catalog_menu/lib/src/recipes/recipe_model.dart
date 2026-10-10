@@ -7,7 +7,9 @@
 /// "removed" list.
 library;
 
+import 'package:dashboard_api/dashboard_api.dart' show OrgIngredient;
 import 'package:flutter/foundation.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../shared/menu_text.dart';
 
@@ -121,46 +123,78 @@ List<({String sizeLabel, String ingredientName})> removedRecipeRows(
   ];
 }
 
-/// A line's cost in piastres (unit cost × quantity), or null when the unit
-/// cost is unknown or the quantity is not a number (shown as "—").
-double? recipeLineCost(double? unitCost, String quantity) {
-  final q = jsParseFloat(quantity);
-  if (unitCost == null || !q.isFinite) return null;
-  return unitCost * q;
+/// A line as madar-money costs it: [qty] typed in [unit], as the line
+/// stores it (madar-units: through the ingredient's density, grossed up by
+/// its yield), at the ingredient's cost. The cost is unknown (null) without
+/// an ingredient or a cost, or when [qty] is not a number or does not
+/// convert; a cost of 0 is known (free).
+rules.CostLine recipeCostLine(OrgIngredient? ing, double qty, String unit) {
+  final stored = ing == null || !qty.isFinite
+      ? null
+      : rules.recipeBaseQty(
+          qty: qty,
+          unit: unit,
+          baseUnit: ing.unit,
+          density: ing.densityGPerMl,
+          yieldPct: ing.yieldPct,
+        );
+  return rules.CostLine(
+    qty: stored ?? 0,
+    costPerUnit: stored == null ? null : ing?.costPerUnit,
+  );
 }
 
-/// A size's estimate (`Σ unit cost × quantity`): null with no rows, or as
-/// soon as one row lacks a positive unit cost or a numeric quantity.
-double? recipeSizeEstimate(
+/// A line's cost in whole piastres (madar-money through the core), or null
+/// when it is unknown (shown as "—").
+int? recipeLineCost(OrgIngredient? ing, String quantity, String unit) {
+  final l = recipeCostLine(ing, jsParseFloat(quantity), unit);
+  final cost = l.costPerUnit;
+  return cost == null ? null : rules.lineCost(qty: l.qty, costPerUnit: cost);
+}
+
+/// madar-money's cost of [lines]: the known ones summed exactly and rounded
+/// once, `complete` false when one is unknown. Null when every line is
+/// unknown: the server has no figure then either.
+rules.RecipeCost? recipeCostOf(List<rules.CostLine> lines) =>
+    lines.isNotEmpty && lines.every((l) => l.costPerUnit == null)
+    ? null
+    : rules.recipeCost(lines: lines);
+
+/// A size's cost ([recipeCostOf]); null with no rows.
+rules.RecipeCost? recipeSizeEstimate(
   Iterable<RecipeDraftRow> rows,
-  double? Function(String? ingredientId) unitCostOf,
+  OrgIngredient? Function(String? ingredientId) ingredientOf,
 ) {
-  double? estimate;
-  var any = false;
-  for (final r in rows) {
-    any = true;
-    final cost = recipeLineCost(unitCostOf(r.orgIngredientId), r.quantity);
-    if (cost == null) return null;
-    estimate = (estimate ?? 0) + cost;
-  }
-  return any ? estimate ?? 0 : null;
+  final lines = [
+    for (final r in rows)
+      recipeCostLine(
+        ingredientOf(r.orgIngredientId),
+        jsParseFloat(r.quantity),
+        r.ingredientUnit,
+      ),
+  ];
+  return lines.isEmpty ? null : recipeCostOf(lines);
 }
 
-/// `(price − cost) / price`, shown only when the cost is known and the price
-/// is above zero.
-double? recipeMargin(double? estimate, int? price) {
-  if (estimate == null || price == null || price <= 0) return null;
-  return (price - estimate) / price;
-}
+/// `(price − cost) / price` over the cost in whole piastres (madar-money);
+/// only a complete cost with a price above zero has one.
+double? recipeMargin(rules.RecipeCost? estimate, int? price) =>
+    estimate == null || !estimate.complete || price == null
+    ? null
+    : rules.margin(price: price, cost: estimate.piastres);
 
-/// How a margin reads: green from 60 %, plain from 30 %, amber below.
-enum RecipeMarginTone { good, fair, low }
+/// How a margin reads: madar-money's food-cost band (good under 30 % food
+/// cost, fair to 40 %, poor above), the food-cost chip's colours.
+enum RecipeMarginTone { good, fair, poor }
 
-RecipeMarginTone recipeMarginTone(double margin) => margin >= 0.6
-    ? RecipeMarginTone.good
-    : margin >= 0.3
-    ? RecipeMarginTone.fair
-    : RecipeMarginTone.low;
+/// Null without a price above zero.
+RecipeMarginTone? recipeMarginTone(int cost, int price) =>
+    switch (rules.foodCostBand(cost: cost, price: price)) {
+      'good' => RecipeMarginTone.good,
+      'fair' => RecipeMarginTone.fair,
+      'poor' => RecipeMarginTone.poor,
+      _ => null,
+    };
 
 /// "Apply scaling": every non-base size whose factor is a number above zero
 /// gets the base size's rows with each quantity × factor, rounded to 3

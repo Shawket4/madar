@@ -129,6 +129,7 @@ void registerRecipesMocks(MockServer server, MockDb db) {
         'ingredient_name': data.ingredientName(ingredientId),
         'unit': l['unit'],
         'quantity_used': q is num ? q.toDouble() : jsParseFloat('$q'),
+        'usable_quantity': data.usableOf(ingredientId, q),
       });
     }
     lines.sort(

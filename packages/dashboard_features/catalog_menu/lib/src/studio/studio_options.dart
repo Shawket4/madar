@@ -12,6 +12,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../recipes/recipe_model.dart' show recipeLineCost;
 import '../shared/ingredient_options.dart';
 import '../shared/menu_providers.dart';
 import '../shared/menu_text.dart';
@@ -70,11 +71,8 @@ class StudioOptionsSection extends ConsumerWidget {
 
     Widget row(int i, OptionRow r) {
       final ing = r.ingredientId.isEmpty ? null : byId[r.ingredientId];
-      final unitCost = positiveUnitCost(ing);
-      final qty = jsParseFloat(r.quantity);
-      final lineCost = ing != null && unitCost != null && qty.isFinite
-          ? fmt.fmtMoney(unitCost * qty)
-          : null;
+      final cost = recipeLineCost(ing, r.quantity, r.unit);
+      final lineCost = cost == null ? null : fmt.fmtMoney(cost);
       return Container(
         key: ValueKey('studio-option-$i'),
         padding: const EdgeInsets.all(Space.md),

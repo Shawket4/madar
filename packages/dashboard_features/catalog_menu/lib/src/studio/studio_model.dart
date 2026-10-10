@@ -12,7 +12,9 @@ import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart' show egpToPiastres;
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
+import '../recipes/recipe_model.dart' show recipeCostLine, recipeCostOf;
 import '../shared/grid_model.dart';
 import '../shared/menu_text.dart';
 
@@ -159,9 +161,11 @@ List<SizeBlock> toSizeBlocks(StudioAggregate s) {
           baseId: z.baseId,
           lines: [
             for (final r in z.recipe)
+              // The amount before yield loss, in the base unit: sent back
+              // unchanged, the server keeps the stored line (D3b).
               GridLine(
                 ingredientId: r.ingredientId,
-                quantity: jsNumberText(jsParseFloat(r.quantity)),
+                quantity: jsNumberText(jsParseFloat(r.usableQuantity)),
                 unit: r.unit,
                 source: LineSource.fromWire(r.source),
               ),
@@ -205,32 +209,18 @@ List<SizeBlock> moveSizeBlock(List<SizeBlock> blocks, String key, int dir) {
   return next;
 }
 
-/// A positive unit cost of an ingredient (`costOf`), else null.
-double? unitCostOf(Map<String, OrgIngredient> catalog, String id) {
-  final v = catalog[id]?.costPerUnit;
-  return v != null && v > 0 ? v : null;
-}
-
-/// `estimateFor`: Σ unit cost × quantity over the lines with a quantity;
-/// incomplete when a line has no ingredient, no unit cost or a bad quantity.
-({double piastres, bool incomplete}) estimateLines(
+/// `estimateFor` ([recipeCostOf]): the lines with a quantity, costed as the
+/// server stores them ([recipeCostLine]); incomplete when a line has no
+/// ingredient, no cost, or a quantity that is not a number or does not
+/// convert; null when no line's cost is known.
+rules.RecipeCost? estimateLines(
   Map<String, OrgIngredient> catalog,
   List<GridLine> lines,
-) {
-  var sum = 0.0;
-  var incomplete = false;
-  for (final l in lines) {
-    if (l.quantity.trim().isEmpty) continue;
-    final qty = jsNumber(l.quantity);
-    final cost = unitCostOf(catalog, l.ingredientId);
-    if (l.ingredientId.isEmpty || cost == null || !qty.isFinite) {
-      incomplete = true;
-      continue;
-    }
-    sum += cost * qty;
-  }
-  return (piastres: sum, incomplete: incomplete);
-}
+) => recipeCostOf([
+  for (final l in lines)
+    if (l.quantity.trim().isNotEmpty)
+      recipeCostLine(catalog[l.ingredientId], jsNumber(l.quantity), l.unit),
+]);
 
 /// What the grid's footer shows for one column.
 sealed class ColumnCost {
@@ -242,26 +232,30 @@ class NoLines extends ColumnCost {
   const NoLines();
 }
 
-/// "Cost incomplete".
+/// "Cost incomplete": the server has no figure.
 class CostIncomplete extends ColumnCost {
   const CostIncomplete();
 }
 
-/// Money (prefixed "≈ " when [estimated]) and the margin when known.
+/// Money (prefixed "≈ " when [estimated]); a partial sum is marked
+/// incomplete and has no margin.
 class CostKnown extends ColumnCost {
   const CostKnown({
     required this.piastres,
     required this.estimated,
+    this.complete = true,
     this.margin,
   });
 
-  final double piastres;
+  final int piastres;
   final bool estimated;
+  final bool complete;
   final double? margin;
 }
 
 /// The footer's "Cost · margin" of [b]: a browser estimate while the column
-/// is new, recipe-dirty or re-priced, else the server's rollup.
+/// is new, recipe-dirty or re-priced, else the server's rollup. The margin
+/// is madar-money's, over the cost in whole piastres.
 ColumnCost columnCost(
   SizeBlock b,
   Map<String, OrgIngredient> catalog, {
@@ -269,23 +263,25 @@ ColumnCost columnCost(
 }) {
   if (b.lines.isEmpty) return const NoLines();
   final estimated = b.isNew || recipeDirty || b.price != b.seededPrice;
-  final bool incomplete;
-  final double? cost;
-  if (estimated) {
-    final est = estimateLines(catalog, b.lines);
-    incomplete = est.incomplete;
-    cost = est.piastres;
-  } else {
-    incomplete = b.serverCost?.incomplete ?? false;
-    cost = b.serverCost?.piastres?.toDouble();
-  }
-  if (incomplete || cost == null) return const CostIncomplete();
+  final server = b.serverCost;
+  final cost = estimated
+      ? estimateLines(catalog, b.lines)
+      : server?.piastres == null
+      ? null
+      : rules.RecipeCost(
+          piastres: server!.piastres!,
+          complete: !server.incomplete,
+        );
+  if (cost == null) return const CostIncomplete();
   final egp = jsNumber(b.price);
   final price = egp.isFinite ? egpToPiastres(egp) : 0;
   return CostKnown(
-    piastres: cost,
+    piastres: cost.piastres,
     estimated: estimated,
-    margin: price > 0 ? (price - cost) / price : null,
+    complete: cost.complete,
+    margin: cost.complete
+        ? rules.margin(price: price, cost: cost.piastres)
+        : null,
   );
 }
 
@@ -334,7 +330,7 @@ class AttachOption {
   final String name;
   final int price;
 
-  /// (ingredient name, quantity as the server wrote it, unit).
+  /// (ingredient name, usable quantity as the server wrote it, unit).
   final List<({String name, String quantity, String unit})>? recipe;
   final int? cost;
   final bool costIncomplete;
@@ -415,7 +411,7 @@ AttachDraft toAttachDraft(ModifierGroupOut g) {
         price: o.price,
         recipe: [
           for (final r in o.recipe)
-            (name: r.ingredientName, quantity: r.quantity, unit: r.unit),
+            (name: r.ingredientName, quantity: r.usableQuantity, unit: r.unit),
         ],
         cost: o.costPiastres,
         costIncomplete: o.costIncomplete,
@@ -531,7 +527,9 @@ List<OptionRow> toOptionRows(StudioAggregate s) => [
         price: egpText(o.price),
         isActive: o.isActive,
         ingredientId: line?.ingredientId ?? '',
-        quantity: line == null ? '' : jsNumberText(jsParseFloat(line.quantity)),
+        quantity: line == null
+            ? ''
+            : jsNumberText(jsParseFloat(line.usableQuantity)),
         unit: line?.unit ?? 'g',
       );
     }(),

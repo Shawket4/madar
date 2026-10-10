@@ -41,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 887648088;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1589467640;
 
 // Section: executor
 
@@ -1760,6 +1760,84 @@ fn wire__crate__api__rules__day_bounds_impl(
         },
     )
 }
+fn wire__crate__api__rules__delivery_cost_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "delivery_cost",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_quantity_received = <f64>::sse_decode(&mut deserializer);
+            let api_line_cost = <Option<i64>>::sse_decode(&mut deserializer);
+            let api_unit_cost = <Option<i64>>::sse_decode(&mut deserializer);
+            let api_ordered_line_cost = <i64>::sse_decode(&mut deserializer);
+            let api_quantity_ordered = <f64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::rules::delivery_cost(
+                    api_quantity_received,
+                    api_line_cost,
+                    api_unit_cost,
+                    api_ordered_line_cost,
+                    api_quantity_ordered,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__estimate_line_total_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "estimate_line_total",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_cost_per_stock_unit = <Option<f64>>::sse_decode(&mut deserializer);
+            let api_qty = <f64>::sse_decode(&mut deserializer);
+            let api_purchase_unit = <String>::sse_decode(&mut deserializer);
+            let api_stock_unit = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::rules::estimate_line_total(
+                    api_cost_per_stock_unit,
+                    api_qty,
+                    api_purchase_unit,
+                    api_stock_unit,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__bridge__ffi_surface_version_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1784,6 +1862,137 @@ fn wire__crate__api__bridge__ffi_surface_version_impl(
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let output_ok = Ok::<_, ()>(crate::api::bridge::ffi_surface_version())?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__food_cost_band_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "food_cost_band",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_cost = <i64>::sse_decode(&mut deserializer);
+            let api_price = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok =
+                    Ok::<_, ()>(crate::api::rules::food_cost_band(api_cost, api_price))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__is_variance_flagged_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "is_variance_flagged",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_book = <f64>::sse_decode(&mut deserializer);
+            let api_counted = <f64>::sse_decode(&mut deserializer);
+            let api_pct = <f64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::rules::is_variance_flagged(
+                    api_book,
+                    api_counted,
+                    api_pct,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__line_cost_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "line_cost",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_qty = <f64>::sse_decode(&mut deserializer);
+            let api_cost_per_unit = <f64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok =
+                    Ok::<_, ()>(crate::api::rules::line_cost(api_qty, api_cost_per_unit))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__margin_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "margin",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_price = <i64>::sse_decode(&mut deserializer);
+            let api_cost = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::rules::margin(api_price, api_cost))?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -1879,6 +2088,106 @@ fn wire__crate__api__rules__price_options_impl(
                     api_view_json,
                     api_selection_json,
                 ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__quantity_milli_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "quantity_milli",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_q = <f64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::rules::quantity_milli(api_q))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__recipe_base_qty_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "recipe_base_qty",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_qty = <f64>::sse_decode(&mut deserializer);
+            let api_unit = <String>::sse_decode(&mut deserializer);
+            let api_base_unit = <String>::sse_decode(&mut deserializer);
+            let api_density = <Option<f64>>::sse_decode(&mut deserializer);
+            let api_yield_pct = <Option<f64>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::rules::recipe_base_qty(
+                    api_qty,
+                    api_unit,
+                    api_base_unit,
+                    api_density,
+                    api_yield_pct,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__recipe_cost_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "recipe_cost",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_lines = <Vec<crate::api::rules::CostLine>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::rules::recipe_cost(api_lines))?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -2038,6 +2347,38 @@ fn wire__crate__api__rules__unit_convert_impl(
         },
     )
 }
+fn wire__crate__api__rules__unit_cost_from_total_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "unit_cost_from_total",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_line = <i64>::sse_decode(&mut deserializer);
+            let api_qty = <f64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok =
+                    Ok::<_, ()>(crate::api::rules::unit_cost_from_total(api_line, api_qty))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__rules__unit_price_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2125,6 +2466,38 @@ fn wire__crate__api__rules__units_of_impl(
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let output_ok = Ok::<_, ()>(crate::api::rules::units_of(api_base))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__usable_qty_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "usable_qty",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_stored = <f64>::sse_decode(&mut deserializer);
+            let api_yield_pct = <Option<f64>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok =
+                    Ok::<_, ()>(crate::api::rules::usable_qty(api_stored, api_yield_pct))?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -2595,6 +2968,18 @@ impl SseDecode for crate::api::offline::CachedAnswer {
     }
 }
 
+impl SseDecode for crate::api::rules::CostLine {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_qty = <f64>::sse_decode(deserializer);
+        let mut var_costPerUnit = <Option<f64>>::sse_decode(deserializer);
+        return crate::api::rules::CostLine {
+            qty: var_qty,
+            cost_per_unit: var_costPerUnit,
+        };
+    }
+}
+
 impl SseDecode for crate::api::reports::DashboardBranchRankView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2777,6 +3162,18 @@ impl SseDecode for Vec<crate::api::types::BranchView> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::types::BranchView>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::rules::CostLine> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::rules::CostLine>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -3161,6 +3558,18 @@ impl SseDecode for crate::api::rules::ReceiveCheck {
     }
 }
 
+impl SseDecode for crate::api::rules::RecipeCost {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_piastres = <i64>::sse_decode(deserializer);
+        let mut var_complete = <bool>::sse_decode(deserializer);
+        return crate::api::rules::RecipeCost {
+            piastres: var_piastres,
+            complete: var_complete,
+        };
+    }
+}
+
 impl SseDecode for crate::api::rules::ReconcileInput {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3374,8 +3783,8 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        49 => wire__crate__api__xlsx__xlsx_read_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__xlsx__xlsx_write_impl(port, ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__xlsx__xlsx_read_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__xlsx__xlsx_write_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3431,18 +3840,29 @@ fn pde_ffi_dispatcher_sync_impl(
         34 => wire__crate__api__rules__combo_slots_for_impl(ptr, rust_vec_len, data_len),
         35 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
         36 => wire__crate__api__rules__day_bounds_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__rules__pay_period_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__rules__phone_canonical_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__rules__price_options_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__rules__reconcile_refusal_impl(ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__rules__replenish_suggest_impl(ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__rules__transfer_step_impl(ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__rules__unit_convert_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__rules__unit_price_impl(ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__rules__unit_spec_impl(ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__rules__units_of_impl(ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__rules__week_start_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__rules__delivery_cost_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__rules__estimate_line_total_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__rules__food_cost_band_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__rules__is_variance_flagged_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__rules__line_cost_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__rules__margin_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__rules__pay_period_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__rules__phone_canonical_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__rules__price_options_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__rules__quantity_milli_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__rules__recipe_base_qty_impl(ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__rules__recipe_cost_impl(ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__rules__reconcile_refusal_impl(ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__rules__replenish_suggest_impl(ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__rules__transfer_step_impl(ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__rules__unit_convert_impl(ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__rules__unit_cost_from_total_impl(ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__rules__unit_price_impl(ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__rules__unit_spec_impl(ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__rules__units_of_impl(ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__rules__usable_qty_impl(ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__rules__week_start_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3757,6 +4177,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::offline::CachedAnswer>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::rules::CostLine {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.qty.into_into_dart().into_dart(),
+            self.cost_per_unit.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::rules::CostLine {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::rules::CostLine>
+    for crate::api::rules::CostLine
+{
+    fn into_into_dart(self) -> crate::api::rules::CostLine {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::reports::DashboardBranchRankView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -4029,6 +4467,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::rules::ReceiveCheck>
     for crate::api::rules::ReceiveCheck
 {
     fn into_into_dart(self) -> crate::api::rules::ReceiveCheck {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::rules::RecipeCost {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.piastres.into_into_dart().into_dart(),
+            self.complete.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::rules::RecipeCost {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::rules::RecipeCost>
+    for crate::api::rules::RecipeCost
+{
+    fn into_into_dart(self) -> crate::api::rules::RecipeCost {
         self
     }
 }
@@ -4404,6 +4860,14 @@ impl SseEncode for crate::api::offline::CachedAnswer {
     }
 }
 
+impl SseEncode for crate::api::rules::CostLine {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f64>::sse_encode(self.qty, serializer);
+        <Option<f64>>::sse_encode(self.cost_per_unit, serializer);
+    }
+}
+
 impl SseEncode for crate::api::reports::DashboardBranchRankView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4541,6 +5005,16 @@ impl SseEncode for Vec<crate::api::types::BranchView> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::BranchView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::rules::CostLine> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::rules::CostLine>::sse_encode(item, serializer);
         }
     }
 }
@@ -4847,6 +5321,14 @@ impl SseEncode for crate::api::rules::ReceiveCheck {
         <Option<String>>::sse_encode(self.arrival, serializer);
         <f64>::sse_encode(self.difference, serializer);
         <Option<String>>::sse_encode(self.refused, serializer);
+    }
+}
+
+impl SseEncode for crate::api::rules::RecipeCost {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.piastres, serializer);
+        <bool>::sse_encode(self.complete, serializer);
     }
 }
 

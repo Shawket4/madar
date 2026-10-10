@@ -26,6 +26,7 @@ library;
 import 'dart:convert';
 
 import 'package:dashboard_api/mock.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 /// The stored completion decisions: `{id: orgId, completed_at}`.
 const String onboardingTable = 'org_onboarding';
@@ -784,6 +785,46 @@ class _MenuBackend {
   static String _qtyText(double q) =>
       q == q.truncateToDouble() ? q.toInt().toString() : q.toString();
 
+  double? _ingNum(Object? id, String key) =>
+      (db[OnbTables.ingredients].find('$id')?[key] as num?)?.toDouble();
+
+  /// `usable_quantity`, the server's way (madar-units through the core): a
+  /// stored quantity × its ingredient's yield, 3 dp.
+  double _usable(Object? id, Object? stored) => rules.usableQty(
+    stored: double.parse('$stored'),
+    yieldPct: _ingNum(id, 'yield_pct'),
+  );
+
+  /// What a recipe save stores (the server's `normalize_recipe_line`): [sent]
+  /// in [unit] as [base], grossed up by the yield, 3 dp; [prev] kept exactly
+  /// when [sent] is its usable form (a line sent back unchanged).
+  double _stored(
+    Object? id,
+    double sent,
+    String unit,
+    String base,
+    Object? prev,
+  ) {
+    final inBase = _toBase(sent, unit, base);
+    final yieldPct = _ingNum(id, 'yield_pct');
+    if (prev != null &&
+        inBase ==
+            rules.usableQty(
+              stored: double.parse('$prev'),
+              yieldPct: yieldPct,
+            )) {
+      return double.parse('$prev');
+    }
+    return rules.recipeBaseQty(
+          qty: sent,
+          unit: unit,
+          baseUnit: base,
+          density: _ingNum(id, 'density_g_per_ml'),
+          yieldPct: yieldPct,
+        ) ??
+        inBase;
+  }
+
   Map<String, Object?> putSizeRecipe(
     MockRow item,
     MockRow size,
@@ -802,10 +843,16 @@ class _MenuBackend {
         _bad("Linked ingredient not found in this organization's catalog");
       }
       final base = ing['unit'] as String;
-      final q = _toBase(
+      final q = _stored(
+        id,
         (l['quantity']! as num).toDouble(),
         '${l['unit']}',
         base,
+        db[OnbTables.recipeLines].rows
+            .where(
+              (r) => r['size_id'] == size['id'] && r['ingredient_id'] == id,
+            )
+            .firstOrNull?['quantity'],
       );
       normalized.add({
         'id': db.newId(OnbTables.recipeLines),
@@ -854,6 +901,7 @@ class _MenuBackend {
         'ingredient_id': l['ingredient_id'],
         'ingredient_name': ing?['name'] ?? '',
         'quantity': l['quantity'],
+        'usable_quantity': _qtyText(_usable(l['ingredient_id'], l['quantity'])),
         'unit': l['unit'],
         'line_cost_piastres': line,
         'size_label': null,
@@ -1106,10 +1154,23 @@ class _MenuBackend {
         _bad("Linked ingredient not found in this organization's catalog");
       }
       final base = ing['unit'] as String;
+      final q = _stored(
+        ingId,
+        qty.toDouble(),
+        unit,
+        base,
+        ((o['recipe'] as List?) ?? const [])
+            .cast<Map<String, Object?>>()
+            .where(
+              (l) => l['ingredient_id'] == ingId && l['size_label'] == label,
+            )
+            .firstOrNull?['quantity'],
+      );
       lines.add({
         'ingredient_id': ingId,
         'ingredient_name': ing['name'],
-        'quantity': _toBase(qty.toDouble(), unit, base),
+        'quantity': q,
+        'usable_quantity': _usable(ingId, q),
         'unit': base,
         'size_label': label,
       });

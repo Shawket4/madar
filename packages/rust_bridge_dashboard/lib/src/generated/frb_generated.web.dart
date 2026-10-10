@@ -174,6 +174,9 @@ abstract class DashboardBridgeApiImplPlatform
   CachedAnswer dco_decode_cached_answer(dynamic raw);
 
   @protected
+  CostLine dco_decode_cost_line(dynamic raw);
+
+  @protected
   DashboardBranchRankView dco_decode_dashboard_branch_rank_view(dynamic raw);
 
   @protected
@@ -218,6 +221,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   List<BranchView> dco_decode_list_branch_view(dynamic raw);
+
+  @protected
+  List<CostLine> dco_decode_list_cost_line(dynamic raw);
 
   @protected
   List<DashboardBranchRankView> dco_decode_list_dashboard_branch_rank_view(
@@ -311,6 +317,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   ReceiveCheck dco_decode_receive_check(dynamic raw);
+
+  @protected
+  RecipeCost dco_decode_recipe_cost(dynamic raw);
 
   @protected
   ReconcileInput dco_decode_reconcile_input(dynamic raw);
@@ -501,6 +510,9 @@ abstract class DashboardBridgeApiImplPlatform
   CachedAnswer sse_decode_cached_answer(SseDeserializer deserializer);
 
   @protected
+  CostLine sse_decode_cost_line(SseDeserializer deserializer);
+
+  @protected
   DashboardBranchRankView sse_decode_dashboard_branch_rank_view(
     SseDeserializer deserializer,
   );
@@ -553,6 +565,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   List<BranchView> sse_decode_list_branch_view(SseDeserializer deserializer);
+
+  @protected
+  List<CostLine> sse_decode_list_cost_line(SseDeserializer deserializer);
 
   @protected
   List<DashboardBranchRankView> sse_decode_list_dashboard_branch_rank_view(
@@ -666,6 +681,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   ReceiveCheck sse_decode_receive_check(SseDeserializer deserializer);
+
+  @protected
+  RecipeCost sse_decode_recipe_cost(SseDeserializer deserializer);
 
   @protected
   ReconcileInput sse_decode_reconcile_input(SseDeserializer deserializer);
@@ -899,6 +917,9 @@ abstract class DashboardBridgeApiImplPlatform
   void sse_encode_cached_answer(CachedAnswer self, SseSerializer serializer);
 
   @protected
+  void sse_encode_cost_line(CostLine self, SseSerializer serializer);
+
+  @protected
   void sse_encode_dashboard_branch_rank_view(
     DashboardBranchRankView self,
     SseSerializer serializer,
@@ -960,6 +981,9 @@ abstract class DashboardBridgeApiImplPlatform
     List<BranchView> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_cost_line(List<CostLine> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_dashboard_branch_rank_view(
@@ -1104,6 +1128,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_encode_receive_check(ReceiveCheck self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_recipe_cost(RecipeCost self, SseSerializer serializer);
 
   @protected
   void sse_encode_reconcile_input(

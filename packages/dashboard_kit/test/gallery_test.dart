@@ -562,9 +562,9 @@ Widget _displayBoard(L l) => Builder(
                 small: true,
               ),
               DashBadge(l.s('3 selected', '3 محدد')),
-              const DashFoodCostChip(ratio: 0.27),
-              const DashFoodCostChip(ratio: 0.36),
-              const DashFoodCostChip(ratio: 0.48),
+              const DashFoodCostChip(cost: 27, price: 100),
+              const DashFoodCostChip(cost: 36, price: 100),
+              const DashFoodCostChip(cost: 48, price: 100),
             ],
           ),
           DashSectionHeader(
@@ -684,15 +684,11 @@ Widget _displayBoard(L l) => Builder(
                 DashItemCostCell(
                   onFixMissing: () {},
                   skus: [
-                    DashSkuCost(
-                      sizeLabel: l.small,
-                      cost: 1450,
-                      foodCostRatio: 0.24,
-                    ),
+                    DashSkuCost(sizeLabel: l.small, cost: 1450, price: 6000),
                     DashSkuCost(
                       sizeLabel: l.large,
                       cost: 2380,
-                      foodCostRatio: 0.41,
+                      price: 5800,
                       costMissing: true,
                     ),
                   ],

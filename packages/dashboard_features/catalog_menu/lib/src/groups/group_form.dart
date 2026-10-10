@@ -258,7 +258,9 @@ GroupDraft? seedGroupDraft(
             for (final l in o.recipe ?? const <GroupOptionRecipeLine>[])
               OptionLineDraft(
                 ingredientId: l.ingredientId,
-                quantity: jsNumberText(l.quantity),
+                // Before yield loss; sent back unchanged, the server keeps
+                // the stored line (D3b).
+                quantity: jsNumberText(l.usableQuantity),
                 unit: l.unit,
                 sizeLabel: l.sizeLabel,
               ),

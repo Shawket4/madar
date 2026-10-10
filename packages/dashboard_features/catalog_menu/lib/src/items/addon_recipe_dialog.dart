@@ -114,7 +114,9 @@ class AddonRecipeDialog extends ConsumerWidget {
                     orgIngredientId: r.orgIngredientId,
                     ingredientName: r.ingredientName,
                     ingredientUnit: r.unit,
-                    quantityUsed: r.quantityUsed,
+                    // Before yield loss: sent back unchanged, the server
+                    // keeps the stored line (D3b).
+                    quantityUsed: r.usableQuantity,
                   ),
               ],
               catalog: catalog,

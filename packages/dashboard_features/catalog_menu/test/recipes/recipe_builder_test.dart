@@ -120,8 +120,8 @@ void main() {
       expect(_inBuilder(find.text('one_size')), findsNothing);
     });
 
-    testWidgets('MENU-RCP-007/008/011 cost, line cost and margin (43 %, '
-        'plain) against the default price', (tester) async {
+    testWidgets('MENU-RCP-007/008/011 cost, line cost and margin (43 %, red: '
+        'food cost 57 %, D5) against the default price', (tester) async {
       final h = await pumpRecipeHost(tester);
       await openExtraShot(h);
       // The line and the section total.
@@ -131,7 +131,7 @@ void main() {
       final margin = inSection(0, find.text('43%'));
       expect(margin, findsOneWidget);
       final c = tester.element(find.byType(RecipeBuilder)).madarColors;
-      expect(_color(tester, margin), c.textPrimary);
+      expect(_color(tester, margin), DashTone.danger.foreground(c));
     });
 
     testWidgets('MENU-RCP-009 the ingredient picker: active ingredients, the '
@@ -200,9 +200,11 @@ void main() {
       await _pick(h, ingredientPicker(h, 'Ingredient'), 'Pistachio paste');
       await h.enterText(qtyBox(h, 'Pistachio paste', 'One size'), '10');
       // The blend line still costs; the paste has no unit cost, so the total
-      // is unknown.
-      expect(inSection(0, find.text('EGP 17.10')), findsOneWidget);
-      expect(inSection(0, find.text('—')), findsNWidgets(2));
+      // is the blend's, marked incomplete, with no margin (D4).
+      expect(inSection(0, find.text('EGP 17.10')), findsNWidgets(2));
+      expect(inSection(0, find.text('—')), findsOneWidget);
+      expect(inSection(0, find.text('Cost incomplete')), findsOneWidget);
+      expect(inSection(0, find.text('43%')), findsNothing);
       await h.tap(
         find.bySemanticsLabel(h.t('recipes.builder.removeIngredient')).first,
       );
@@ -241,8 +243,10 @@ void main() {
       expect(ingredientPicker(h, 'Ingredient'), findsOneWidget);
       expect(qtyText(tester, qtyBox(h, 'Ingredient', 'One size')), '');
       expect(_inBuilder(find.text('g')), findsNWidgets(2));
-      // An empty row has no cost: the total is unknown.
-      expect(inSection(0, find.text('—')), findsNWidgets(2));
+      // An empty row has no cost: the total is the rest, marked incomplete.
+      expect(inSection(0, find.text('—')), findsOneWidget);
+      expect(inSection(0, find.text('EGP 17.10')), findsNWidgets(2));
+      expect(inSection(0, find.text('Cost incomplete')), findsOneWidget);
     });
 
     testWidgets('MENU-RCP-016 the footer: Save disabled until a change, '
@@ -479,17 +483,19 @@ void main() {
       }
     });
 
-    testWidgets('MENU-RCP-008 plain from 30 %, amber below; a size without a '
-        'price uses the lowest', (tester) async {
+    testWidgets('MENU-RCP-008 / D5 the margin takes the food-cost band: green '
+        'under 30 % food cost, amber to 40 % (red above: the add-on case); a '
+        'size without a price uses the lowest', (tester) async {
       final h = await pumpRecipeHost(tester);
-      // Regular 5000: (5000 − 2466) / 5000 = 50.7 %. Large has no price of
-      // its own: the lowest (5000) gives (5000 − 3573) / 5000 = 28.5 %.
-      await openLatte(h, prices: const {'Regular': 5000});
+      // Regular 10000: food cost 2466 / 10000 = 24.7 %, margin 75.3 %. Large
+      // has no price of its own: the lowest (10000) gives food cost 35.7 %,
+      // margin 64.3 % (amber; the old margin tone read it green).
+      await openLatte(h, prices: const {'Regular': 10000});
       final c = tester.element(find.byType(RecipeBuilder)).madarColors;
-      final fair = inSection(0, find.text('50.7%'));
-      expect(_color(tester, fair), c.textPrimary);
-      final low = inSection(1, find.text('28.5%'));
-      expect(_color(tester, low), DashTone.warning.foreground(c));
+      final good = inSection(0, find.text('75.3%'));
+      expect(_color(tester, good), DashTone.success.foreground(c));
+      final fair = inSection(1, find.text('64.3%'));
+      expect(_color(tester, fair), DashTone.warning.foreground(c));
     });
 
     testWidgets('MENU-RCP-008 no price (or 0): no margin', (tester) async {

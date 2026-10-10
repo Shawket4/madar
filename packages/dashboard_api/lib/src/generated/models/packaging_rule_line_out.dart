@@ -10,6 +10,7 @@ class PackagingRuleLineOut {
     required this.quantity,
     required this.sort,
     required this.unit,
+    required this.usableQuantity,
   });
 
   factory PackagingRuleLineOut.fromJson(Map<String, Object?> json) =>
@@ -25,6 +26,10 @@ class PackagingRuleLineOut {
         quantity: decString(json['quantity'], 'PackagingRuleLineOut.quantity'),
         sort: decInt(json['sort'], 'PackagingRuleLineOut.sort'),
         unit: decString(json['unit'], 'PackagingRuleLineOut.unit'),
+        usableQuantity: decString(
+          json['usable_quantity'],
+          'PackagingRuleLineOut.usable_quantity',
+        ),
       );
 
   final String ingredientId;
@@ -38,12 +43,18 @@ class PackagingRuleLineOut {
 
   final String unit;
 
+  /// The usable amount before yield loss, like `RecipeLineOut::usable_quantity`:
+  /// what an editor shows and sends back (a line sent back unchanged keeps
+  /// its stored `quantity`).
+  final String usableQuantity;
+
   Map<String, Object?> toJson() => <String, Object?>{
     'ingredient_id': ingredientId,
     'ingredient_name': ingredientName,
     'quantity': quantity,
     'sort': sort,
     'unit': unit,
+    'usable_quantity': usableQuantity,
   };
 
   @override

@@ -22,6 +22,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import 'ingredient_options.dart';
 import 'menu_reads.dart' show ingredientsById;
@@ -51,6 +52,34 @@ class RecipeRowInit {
   String toString() =>
       'RecipeRowInit($sizeLabel, $orgIngredientId, $ingredientName, '
       '$quantityUsed $ingredientUnit)';
+}
+
+/// [rows] (stored quantities) as an editor shows them: each before its
+/// ingredient's yield loss, in the base unit (madar-units `usable_qty`
+/// through the core, the server's `usable_quantity`). Sent back unchanged,
+/// the server keeps the stored line.
+// ponytail: MenuItemRecipe (GET /menu/items/{id}) has no usable_quantity
+// yet, so this runs the server's rule over the catalog's yield (a row loaded
+// before the catalog shows its stored amount until it lands). Read the field
+// once the backend sends it.
+List<RecipeRowInit> usableRecipeRows(
+  Iterable<RecipeRowInit> rows,
+  Iterable<OrgIngredient> catalog,
+) {
+  final byId = ingredientsById(catalog);
+  return [
+    for (final r in rows)
+      RecipeRowInit(
+        sizeLabel: r.sizeLabel,
+        orgIngredientId: r.orgIngredientId,
+        ingredientName: r.ingredientName,
+        ingredientUnit: r.ingredientUnit,
+        quantityUsed: rules.usableQty(
+          stored: r.quantityUsed,
+          yieldPct: byId[r.orgIngredientId]?.yieldPct,
+        ),
+      ),
+  ];
 }
 
 /// A row that counts: a name and a finite quantity above zero (`CleanRow`).
@@ -315,8 +344,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
     final phone = DashBreakpoints.isPhone(context);
     final byId = ingredientsById(widget.catalog);
     final options = ingredientOptions(widget.catalog, t);
-    double? unitCostOf(String? id) =>
-        id == null ? null : positiveUnitCost(byId[id]);
+    OrgIngredient? ingredientOf(String? id) => id == null ? null : byId[id];
 
     final toolbar = _toolbar(t, c);
     return Column(
@@ -335,7 +363,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
             c: c,
             phone: phone,
             options: options,
-            unitCostOf: unitCostOf,
+            ingredientOf: ingredientOf,
           ),
         if (!widget.deferred) _footer(t, c),
       ],
@@ -509,14 +537,15 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
     required MadarColors c,
     required bool phone,
     required List<DashOption<String>> options,
-    required double? Function(String?) unitCostOf,
+    required OrgIngredient? Function(String?) ingredientOf,
   }) {
     final rows = [
       for (final r in _rows)
         if (r.sizeLabel == size) r,
     ];
-    final estimate = recipeSizeEstimate(rows, unitCostOf);
-    final margin = recipeMargin(estimate, widget.priceForSize?.call(size));
+    final estimate = recipeSizeEstimate(rows, ingredientOf);
+    final price = widget.priceForSize?.call(size);
+    final margin = recipeMargin(estimate, price);
     final figure = DashType.bodyStrong.copyWith(
       color: c.textPrimary,
       fontFeatures: const [FontFeature.tabularFigures()],
@@ -536,13 +565,14 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
         Text(value, style: figure.copyWith(color: color, height: 1.3)),
       ],
     );
-    final marginColor = margin == null
-        ? c.textPrimary
-        : switch (recipeMarginTone(margin)) {
-            RecipeMarginTone.good => DashTone.success.foreground(c),
-            RecipeMarginTone.fair => c.textPrimary,
-            RecipeMarginTone.low => DashTone.warning.foreground(c),
-          };
+    final marginColor = switch (margin == null
+        ? null
+        : recipeMarginTone(estimate!.piastres, price!)) {
+      RecipeMarginTone.good => DashTone.success.foreground(c),
+      RecipeMarginTone.fair => DashTone.warning.foreground(c),
+      RecipeMarginTone.poor => DashTone.danger.foreground(c),
+      null => c.textPrimary,
+    };
 
     final header = Container(
       padding: const EdgeInsetsDirectional.symmetric(
@@ -583,10 +613,17 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
             children: [
               stat(
                 t('recipes.builder.estimate'),
-                estimate == null ? '—' : format.fmtMoney(estimate),
+                estimate == null ? '—' : format.fmtMoney(estimate.piastres),
                 c.textPrimary,
               ),
-              if (margin != null)
+              // A partial cost is shown, marked: no margin is graded on it.
+              if (estimate != null && !estimate.complete)
+                stat(
+                  t('recipes.builder.margin'),
+                  t('menu.studio.recipe.incomplete'),
+                  DashTone.warning.foreground(c),
+                )
+              else if (margin != null)
                 stat(
                   t('recipes.builder.margin'),
                   format.fmtPercent(margin),
@@ -626,7 +663,7 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
                       c: c,
                       phone: phone,
                       options: options,
-                      unitCost: unitCostOf(r.orgIngredientId),
+                      ingredient: ingredientOf(r.orgIngredientId),
                     ),
                   _AddRowButton(
                     label: t('recipes.addIngredient'),
@@ -649,9 +686,9 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
     required MadarColors c,
     required bool phone,
     required List<DashOption<String>> options,
-    required double? unitCost,
+    required OrgIngredient? ingredient,
   }) {
-    final lineCost = recipeLineCost(unitCost, r.quantity);
+    final lineCost = recipeLineCost(ingredient, r.quantity, r.ingredientUnit);
     final costText = lineCost == null ? '—' : format.fmtMoney(lineCost);
     final sizeText = sizeLabelText(size, t('recipes.oneSize'));
     final picker = DashSelect<String>(
