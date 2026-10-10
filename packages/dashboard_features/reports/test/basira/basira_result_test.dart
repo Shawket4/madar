@@ -475,6 +475,40 @@ void main() {
       expect(_inCard(find.byType(BasiraTable), 1), findsOneWidget);
       await h.shot('basira/heatmap');
     });
+
+    testWidgets('REP-BAS-032 Arabic: the heatmap stays left to right, labels '
+        'on the left, hours running left to right', (tester) async {
+      final h = await pumpBasira(tester, locale: 'ar');
+      await _answer(h, [
+        _block(
+          viz: 'heatmap',
+          columns: [
+            _col('day', 'Day', 'label'),
+            _col('hour', 'Hour', 'label'),
+            _col('orders', 'Orders', 'count'),
+          ],
+          rows: [
+            {'day': 'Sat', 'hour': '08', 'orders': 4},
+            {'day': 'Sat', 'hour': '09', 'orders': 9},
+          ],
+        ),
+      ]);
+      final heat = _inCard(find.byType(BasiraHeatmap));
+      Finder text(String s) =>
+          find.descendant(of: heat, matching: find.text(s));
+      expect(
+        Directionality.of(
+          tester.element(
+            find.descendant(of: heat, matching: find.byType(Table)),
+          ),
+        ),
+        TextDirection.ltr,
+      );
+      final x = tester.getCenter;
+      expect(x(text('Sat')).dx, lessThan(x(text('08')).dx));
+      expect(x(text('08')).dx, lessThan(x(text('09')).dx));
+      await h.shot('basira/heatmap-ar');
+    });
   });
 
   group('rules', () {
