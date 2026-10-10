@@ -85,6 +85,60 @@ void main() {
       expect(validateProgram(ok.set('balance_cap', '')), isEmpty);
     });
 
+    test('SET-LOY-083 visibleValues: hidden fields never block Save', () {
+      final base = programFromWire(
+        _saved(),
+      ).set('balance_cap_enabled', false).set('birthday_enabled', false);
+      expect(programHiddenFields(base), [
+        'earn_egp_per_point',
+        'balance_cap',
+        'birthday_reward_amount',
+        'winback_reward_amount',
+      ]);
+      expect(
+        programHiddenFields(
+          base
+              .set('mode', 'points')
+              .set('balance_cap_enabled', true)
+              .set('birthday_enabled', true)
+              .set('winback_enabled', true),
+        ),
+        isEmpty,
+      );
+      // Hidden invalid values pass, and the cap and gifts are blanked.
+      final bad = base
+          .set('balance_cap', 'abc')
+          .set('birthday_reward_amount', '0')
+          .set('winback_reward_amount', '-3');
+      expect(validateProgram(bad), isNotEmpty);
+      final out = programVisibleValues(bad, _saved());
+      expect(validateProgram(out), isEmpty);
+      for (final k in [
+        'balance_cap',
+        'birthday_reward_amount',
+        'winback_reward_amount',
+      ]) {
+        expect(out.text(k), '', reason: k);
+      }
+      // What is shown is still checked.
+      expect(
+        validateProgram(
+          programVisibleValues(bad.set('balance_cap_enabled', true), _saved()),
+        ).keys,
+        ['balance_cap'],
+      );
+      // A hidden earn rate keeps a valid edit, else the saved rate; a shown
+      // one is left for validation to refuse.
+      String rate(ProgramValues v) =>
+          programVisibleValues(v, _saved()).text('earn_egp_per_point');
+      expect(rate(base.set('earn_egp_per_point', '3')), '3');
+      expect(rate(base.set('earn_egp_per_point', '')), '10');
+      expect(
+        rate(base.set('mode', 'points').set('earn_egp_per_point', '0')),
+        '0',
+      );
+    });
+
     test('toWire: the saved row with the form on top', () {
       final v = programFromWire(_saved())
           .set('program_name', '  Bean Club+  ')

@@ -174,8 +174,7 @@ int? intOrNull(String v) {
   return n.toInt();
 }
 
-/// The optional whole-number fields, validated whether or not they show
-/// (SET-LOY-083: a hidden invalid value still blocks Save).
+/// The optional whole-number fields.
 const List<String> programOptionalInts = [
   'balance_cap',
   'max_rewards_per_order',
@@ -206,6 +205,31 @@ Map<String, String> validateProgram(ProgramValues v) {
     }
   }
   return e;
+}
+
+/// `hiddenFields`: the checked fields the form hides for these values
+/// (SET-LOY-083).
+List<String> programHiddenFields(ProgramValues v) => [
+  if (v.mode != 'points') 'earn_egp_per_point',
+  if (!v.flag('balance_cap_enabled')) 'balance_cap',
+  if (!v.flag('birthday_enabled')) 'birthday_reward_amount',
+  if (!v.flag('winback_enabled')) 'winback_reward_amount',
+];
+
+/// `visibleValues`: what Save validates and sends, the form as shown, so a
+/// hidden field never blocks Save. The cap and the two gifts are blanked
+/// ([programToWire] sends them as null anyway); a hidden earn rate that
+/// would not pass keeps the saved one.
+ProgramValues programVisibleValues(ProgramValues v, LoyaltySettings saved) {
+  var out = v;
+  for (final k in programHiddenFields(v)) {
+    if (k != 'earn_egp_per_point') {
+      out = out.set(k, '');
+    } else if (validateProgram(v).containsKey(k)) {
+      out = out.set(k, _egp(saved.earnPiastresPerPoint));
+    }
+  }
+  return out;
 }
 
 /// Every nullable key a settings body carries as an explicit null (the web

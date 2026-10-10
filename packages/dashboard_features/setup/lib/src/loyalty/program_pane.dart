@@ -57,15 +57,17 @@ class _ProgramPaneState extends ConsumerState<ProgramPane> {
   Future<void> _save(LoyaltySettings saved) async {
     final t = ref.read(tProvider);
     setState(() => _submitted = true);
-    if (validateProgram(_values!).isNotEmpty) return;
     final values = _values!;
+    // Only what the form shows is checked and sent (SET-LOY-083).
+    final shown = programVisibleValues(values, saved);
+    if (validateProgram(shown).isNotEmpty) return;
     final api = ref.read(apiProvider);
     final bus = ref.read(realtimeBusProvider);
     setState(() => _saving = true);
     try {
       await api.loyalty.putLoyaltySettings(
         body: programToWire(
-          values,
+          shown,
           orgId: widget.orgId,
           branchId: widget.branchId,
           saved: saved,
@@ -153,7 +155,10 @@ class _ProgramPaneState extends ConsumerState<ProgramPane> {
     _sync(saved);
     final v = _values!;
     final inherited = settingsInherited(saved, widget.branchId);
-    final errors = _submitted ? validateProgram(v) : const <String, String>{};
+    // A field hidden after a failed Save no longer counts (SET-LOY-083).
+    final errors = _submitted
+        ? validateProgram(programVisibleValues(v, saved))
+        : const <String, String>{};
     String? err(String key) => errors[key] == null ? null : t(errors[key]!);
     // A read-only viewer cannot half-edit a form they cannot save.
     ValueChanged<bool>? toggle(String key) =>
