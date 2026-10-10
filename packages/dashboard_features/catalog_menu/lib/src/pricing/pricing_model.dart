@@ -4,8 +4,11 @@
 /// builders). MENU-PRC-014..018, -025..029 and the area's computation 17.
 library;
 
+import 'dart:convert';
+
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../shared/menu_text.dart';
 
@@ -96,23 +99,26 @@ typedef PricedSize = ({
   int? branchPrice,
 });
 
-/// `unitPrice` (unit-price.ts, pinned by catalog_vectors.json): what one unit
-/// costs at [label] as the server and the till price it: the branch's price
-/// for the size, else its catalogue price while it is active, else the item's
-/// branch price, else the item's lowest active catalogue price. Null when no
-/// active size has a price.
-int? unitPrice(List<PricedSize> sizes, String? label, [int? itemBranchPrice]) {
-  final active = [
-    for (final s in sizes)
-      if (s.isActive && s.price != null) s.price!,
-  ];
-  if (active.isEmpty) return null;
-  final fallback = itemBranchPrice ?? active.reduce((a, b) => a < b ? a : b);
-  if (label == null) return fallback;
-  return sizes.where((s) => s.label == label).firstOrNull?.branchPrice ??
-      sizes.where((s) => s.label == label && s.isActive).firstOrNull?.price ??
-      fallback;
-}
+/// What one unit costs at [label] as the server and the till price it:
+/// madar-catalog's `unit_price` over the sizes as its `ItemView`. Null when
+/// no active size has a price.
+int? unitPrice(List<PricedSize> sizes, String? label, [int? itemBranchPrice]) =>
+    rules.unitPrice(
+      itemJson: jsonEncode({
+        'id': '',
+        'branch_price': itemBranchPrice,
+        'sizes': [
+          for (final s in sizes)
+            {
+              'label': s.label,
+              'price': s.price,
+              'is_active': s.isActive,
+              'branch_price': s.branchPrice,
+            },
+        ],
+      }),
+      sizeLabel: label,
+    );
 
 /// One editable cell resolved (`ResolvedCell`).
 class ResolvedCell {

@@ -638,7 +638,7 @@ void main() {
       'name_translations': <String, Object?>{},
       'sort': 0,
       'min': min,
-      'max': 1,
+      'max': min,
       'default_item_id': def,
       'default_size_label': defSize,
       'choices': [for (final c in choices) c.toJson()],
