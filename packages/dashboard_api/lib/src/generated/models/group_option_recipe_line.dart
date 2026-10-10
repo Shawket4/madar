@@ -11,6 +11,7 @@ class GroupOptionRecipeLine {
     required this.quantity,
     this.sizeLabel,
     required this.unit,
+    required this.usableQuantity,
     this.explicitNulls = const {},
   });
 
@@ -30,6 +31,10 @@ class GroupOptionRecipeLine {
           'GroupOptionRecipeLine.size_label',
         ),
         unit: decString(json['unit'], 'GroupOptionRecipeLine.unit'),
+        usableQuantity: decDouble(
+          json['usable_quantity'],
+          'GroupOptionRecipeLine.usable_quantity',
+        ),
       );
 
   final String ingredientId;
@@ -44,6 +49,11 @@ class GroupOptionRecipeLine {
 
   final String unit;
 
+  /// The usable amount before yield loss: `quantity` × the ingredient's yield,
+  /// 3 dp (madar-units `usable_qty`). What the editor shows and sends back; a
+  /// line sent back unchanged keeps its stored `quantity`.
+  final double usableQuantity;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
@@ -55,6 +65,7 @@ class GroupOptionRecipeLine {
     if (sizeLabel != null || explicitNulls.contains('size_label'))
       'size_label': sizeLabel,
     'unit': unit,
+    'usable_quantity': usableQuantity,
   };
 
   @override

@@ -14,6 +14,7 @@ class RecipeLineOut {
     this.sizeLabel,
     this.source,
     required this.unit,
+    required this.usableQuantity,
     this.explicitNulls = const {},
   });
 
@@ -35,6 +36,10 @@ class RecipeLineOut {
     sizeLabel: decStringN(json['size_label'], 'RecipeLineOut.size_label'),
     source: decStringN(json['source'], 'RecipeLineOut.source'),
     unit: decString(json['unit'], 'RecipeLineOut.unit'),
+    usableQuantity: decString(
+      json['usable_quantity'],
+      'RecipeLineOut.usable_quantity',
+    ),
   );
 
   final String id;
@@ -61,6 +66,12 @@ class RecipeLineOut {
 
   final String unit;
 
+  /// The usable amount in the base unit, before yield loss: `quantity` × the
+  /// ingredient's yield, 3 dp (madar-units `usable_qty`; 100 g at 80 % yield
+  /// stores 125, shows 100). What an editor shows and sends back; a line sent
+  /// back unchanged keeps its stored `quantity`.
+  final String usableQuantity;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
@@ -77,6 +88,7 @@ class RecipeLineOut {
       'size_label': sizeLabel,
     if (source != null || explicitNulls.contains('source')) 'source': source,
     'unit': unit,
+    'usable_quantity': usableQuantity,
   };
 
   @override
