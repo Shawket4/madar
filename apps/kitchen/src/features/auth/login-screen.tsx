@@ -8,16 +8,15 @@ import { backend } from "@/data/backend";
 import { radius, space } from "@/theme/tokens";
 import { useColors } from "@/theme/use-theme";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/input";
 import { Txt } from "@/components/ui/text";
 import { DeviceFrame } from "@/components/app/device-frame";
 
 const LEN = 6;
 
 /**
- * Staff sign-in (DV-2): the POS teller login — a 6-digit PIN that submits
- * itself (the name is optional: the server finds the person by PIN alone),
- * a shake on a refusal. A cook signs in at the start of a shift.
+ * Staff sign-in (DV-2): a 6-digit PIN alone — the server (and, offline, the
+ * cached bundle) finds the person by it. It submits itself and shakes on a
+ * refusal. A cook signs in at the start of a shift.
  */
 export function LoginScreen() {
   const { t } = useTranslation();
@@ -26,7 +25,6 @@ export function LoginScreen() {
   const signIn = useKitchen((s) => s.signIn);
   const resetDevice = useKitchen((s) => s.resetDevice);
   const storeError = useKitchen((s) => s.error);
-  const [name, setName] = useState("");
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +33,7 @@ export function LoginScreen() {
   const submit = async (code: string) => {
     setBusy(true);
     try {
-      await signIn(name, code);
+      await signIn("", code);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setPin("");
@@ -63,8 +61,6 @@ export function LoginScreen() {
       width={440}
       trailing={<Button variant="chrome" icon={Wrench} onPress={resetDevice}>{t("auth.changeBranch")}</Button>}
     >
-      <Field label={t("auth.name")} value={name} onChangeText={setName} autoCapitalize="words" autoCorrect={false} textContentType="name" />
-
       <View style={{ gap: space.md }}>
         <Txt size={14} weight="semibold">{t("auth.pin")}</Txt>
         <Animated.View style={{ flexDirection: "row", justifyContent: "center", gap: 14, transform: [{ translateX: shake }] }}>

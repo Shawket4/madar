@@ -33,3 +33,7 @@ uuid = "1"
 [[test]]
 name = "lan_offline"
 required-features = ["backend-tests"]
+
+[[test]]
+name = "lan_ipad"
+required-features = ["backend-tests"]

@@ -15,12 +15,11 @@
   },
   "auth": {
     "switch": "Switch cook",
-    "body": "Your name and Madar staff PIN.",
+    "body": "Your Madar staff PIN.",
     "mockHint": "Mock PINs: cook 111111 · 222222, manager 999999",
     "delete": "Delete",
     "signOut": "Sign out {{name}}",
     "title": "Sign in to the kitchen",
-    "name": "Name (optional)",
     "pin": "PIN",
     "checking": "Checking…",
     "changeBranch": "Change branch"
