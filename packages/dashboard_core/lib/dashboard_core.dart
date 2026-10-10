@@ -22,7 +22,6 @@ export 'src/format/format.dart';
 export 'src/format/tz.dart'
     show
         appTimezone,
-        ensureTimeZones,
         inZone,
         isKnownTimezone,
         isoString,

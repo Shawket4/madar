@@ -1,51 +1,42 @@
-/// Time zones (IANA, from the `timezone` package's bundled database) and the
-/// day-boundary arithmetic the web does with `@date-fns/tz`'s `TZDate`.
+/// Time zones and the wall-clock reading the web does with `@date-fns/tz`'s
+/// `TZDate`: madar-time's `local_parts` / `local_instant` through the core,
+/// over the zone database the server and the POS read (chrono-tz).
 library;
 
-import 'package:timezone/data/latest_all.dart' as tzdata;
-import 'package:timezone/timezone.dart' as tz;
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 /// The web's `APP_TZ`: the zone used until the scope's own is known.
 const String appTimezone = 'Africa/Cairo';
 
-bool _loaded = false;
-
-/// Loads the zone database once (cheap after the first call).
-void ensureTimeZones() {
-  if (_loaded) return;
-  tzdata.initializeTimeZones();
-  _loaded = true;
-}
-
-/// The location for [name], falling back to [appTimezone] for an unknown one.
-tz.Location tzLocation(String? name) {
-  ensureTimeZones();
-  if (name == null || name.isEmpty) return tz.getLocation(appTimezone);
-  try {
-    return tz.getLocation(name);
-  } on Object {
-    return tz.getLocation(appTimezone);
-  }
-}
-
 /// Whether [name] is a zone the database knows.
-bool isKnownTimezone(String name) {
-  ensureTimeZones();
-  try {
-    tz.getLocation(name);
-    return true;
-  } on Object {
-    return false;
-  }
+bool isKnownTimezone(String name) =>
+    rules.localParts(tzName: name, atMs: 0) != null;
+
+/// [instant] read on the wall clock of [zone] (an unknown zone reads as
+/// [appTimezone]). The answer is a UTC [DateTime] carrying the wall clock's
+/// fields (and the instant's own seconds), not the instant itself.
+DateTime inZone(DateTime instant, String zone) {
+  final u = instant.toUtc();
+  final ms = u.millisecondsSinceEpoch;
+  final p =
+      rules.localParts(tzName: zone, atMs: ms) ??
+      rules.localParts(tzName: appTimezone, atMs: ms)!;
+  final d = p.date.split('-').map(int.parse).toList();
+  return DateTime.utc(
+    d[0],
+    d[1],
+    d[2],
+    p.hour,
+    p.minute,
+    u.second,
+    u.millisecond,
+  );
 }
 
-/// [instant] read on the wall clock of [zone].
-tz.TZDateTime inZone(DateTime instant, String zone) =>
-    tz.TZDateTime.from(instant, tzLocation(zone));
-
-/// `new TZDate(y, m, d, h, mi, s, ms, zone)`: a wall-clock time in [zone]
-/// (month 0-based, overflow normalised like JavaScript's `Date`), as an
-/// instant.
+/// `new TZDate(y, m, d, h, mi, zone)`: a wall-clock time in [zone] (month
+/// 0-based, out-of-range parts rolling over as JavaScript's `Date` does; an
+/// unknown zone reads as [appTimezone]), as an instant. A time the clocks
+/// skip moves forward by the gap; one they repeat is the earlier.
 DateTime wallClock(
   String zone,
   int year,
@@ -53,30 +44,21 @@ DateTime wallClock(
   int day, [
   int hour = 0,
   int minute = 0,
-  int second = 0,
-  int millisecond = 0,
 ]) {
-  final loc = tzLocation(zone);
-  // Normalise the parts first (day 0, day -5, month 12 …) as Date does.
-  final n = DateTime.utc(
-    year,
-    month0 + 1,
-    day,
-    hour,
-    minute,
-    second,
-    millisecond,
-  );
-  return tz.TZDateTime(
-    loc,
-    n.year,
-    n.month,
-    n.day,
-    n.hour,
-    n.minute,
-    n.second,
-    n.millisecond,
-  ).toUtc();
+  final n = DateTime.utc(year, month0 + 1, day);
+  final ymd =
+      '${n.year.toString().padLeft(4, '0')}-'
+      '${n.month.toString().padLeft(2, '0')}-'
+      '${n.day.toString().padLeft(2, '0')}';
+  final ms =
+      rules.localInstant(tzName: zone, date: ymd, hour: hour, minute: minute) ??
+      rules.localInstant(
+        tzName: appTimezone,
+        date: ymd,
+        hour: hour,
+        minute: minute,
+      )!;
+  return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
 }
 
 /// `Date#toISOString()`: UTC, milliseconds, `Z`.

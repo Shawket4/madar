@@ -30,8 +30,6 @@ TillSessionRow _till({
 const _cairo = 'Africa/Cairo';
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('meanTimeOfDay', () {
     test('averages ordinary times the obvious way', () {
       expect(meanTimeOfDay([8 * 60, 10 * 60]), 9 * 60);

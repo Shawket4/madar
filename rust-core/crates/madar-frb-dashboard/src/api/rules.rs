@@ -3,12 +3,16 @@
 //! returns its answer, so the Flutter dashboard computes none of them itself
 //! (one copy, the one the POS core and the backend run).
 //!
-//! Dates cross as `YYYY-MM-DD`, instants as epoch milliseconds. madar-catalog's
+//! Dates cross as `YYYY-MM-DD`, instants as epoch milliseconds, and the
+//! Decimal figures madar-dawam takes (working days, a rung's value) as f64,
+//! read as the decimal they print as (`26.5` is 26.5). madar-catalog's
 //! views cross as their own JSON (the shape the backend serves), and its
 //! answers come back as JSON: `{"Ok": …}` or `{"Err": …}`.
 
 use chrono::{DateTime, NaiveDate, Utc};
 use flutter_rust_bridge::frb;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Serialize, de::DeserializeOwned};
 
 fn ymd(s: &str) -> Option<NaiveDate> {
@@ -17,6 +21,14 @@ fn ymd(s: &str) -> Option<NaiveDate> {
 
 fn zone(name: &str) -> Option<chrono_tz::Tz> {
     name.parse().ok()
+}
+
+/// `x` as the decimal it prints as; `None` for NaN or an infinity.
+fn dec(x: f64) -> Option<Decimal> {
+    if !x.is_finite() {
+        return None;
+    }
+    x.to_string().parse().ok()
 }
 
 /// A snake_case enum from its word (`"dispatched"`), as its serde reads it.
@@ -72,6 +84,34 @@ pub fn week_start(date: String) -> Option<String> {
     Some(madar_time::week_start(ymd(&date)?).to_string())
 }
 
+/// An instant on a zone's wall clock: its date (`YYYY-MM-DD`), hour (0–23)
+/// and minute.
+pub struct LocalParts {
+    pub date: String,
+    pub hour: u32,
+    pub minute: u32,
+}
+
+/// `None` for an unknown zone or instant.
+#[frb(sync)]
+pub fn local_parts(tz_name: String, at_ms: i64) -> Option<LocalParts> {
+    let at = DateTime::<Utc>::from_timestamp_millis(at_ms)?;
+    let p = madar_time::local_parts(zone(&tz_name)?, at);
+    Some(LocalParts {
+        date: p.date.to_string(),
+        hour: p.hour,
+        minute: p.minute,
+    })
+}
+
+/// `date` at `hour`:`minute` on the zone's wall clock, in epoch ms (past its
+/// range an hour or minute rolls over; a repeated time is the earliest, a
+/// skipped one moves forward by the gap); `None` for an unknown zone or date.
+#[frb(sync)]
+pub fn local_instant(tz_name: String, date: String, hour: u32, minute: u32) -> Option<i64> {
+    Some(madar_time::local_instant(zone(&tz_name)?, ymd(&date)?, hour, minute).timestamp_millis())
+}
+
 // ── Pay period (madar-dawam) ──────────────────────────────────────────
 
 /// The pay period holding a day, both ends inclusive.
@@ -87,6 +127,168 @@ pub fn pay_period(day: String, start_day: i64) -> Option<PayPeriod> {
         from: from.to_string(),
         to: to.to_string(),
     })
+}
+
+// ── Salary and the late ladder (madar-dawam) ──────────────────────────
+
+/// A salary as a month, a day and an hour, in piastres.
+pub struct SalaryRates {
+    pub monthly: i64,
+    pub daily: i64,
+    pub hourly: i64,
+}
+
+/// The three rates from the one typed (`monthly` | `daily` | `hourly`, in
+/// piastres), over `working_days` a month of `day_minutes` each; `None` for
+/// another word or working days that are not a number.
+#[frb(sync)]
+pub fn salary_rates(typed: String, value: i64, working_days: f64, day_minutes: i64) -> Option<SalaryRates> {
+    use madar_dawam::salary::Typed;
+    let typed = match typed.as_str() {
+        "monthly" => Typed::Monthly(value),
+        "daily" => Typed::Daily(value),
+        "hourly" => Typed::Hourly(value),
+        _ => return None,
+    };
+    let r = madar_dawam::salary::rates(typed, dec(working_days)?, day_minutes);
+    Some(SalaryRates {
+        monthly: r.monthly,
+        daily: r.daily,
+        hourly: r.hourly,
+    })
+}
+
+/// A joiner's first pay: from the hire date to the end of the pay period
+/// holding it (both `YYYY-MM-DD`), the days employed in it, the period's days
+/// and the pay, in piastres.
+pub struct FirstPay {
+    pub from: String,
+    pub to: String,
+    pub days: i64,
+    pub period_days: i64,
+    pub piastres: i64,
+}
+
+#[frb(sync)]
+pub fn first_pay(monthly: i64, hire_date: String, start_day: i64) -> Option<FirstPay> {
+    let p = madar_dawam::salary::first_pay(monthly, ymd(&hire_date)?, start_day);
+    Some(FirstPay {
+        from: p.from.to_string(),
+        to: p.to.to_string(),
+        days: p.days,
+        period_days: p.period_days,
+        piastres: p.piastres,
+    })
+}
+
+/// A salary from a day on (`YYYY-MM-DD`), in piastres.
+pub struct SalaryFrom {
+    pub from: String,
+    pub salary: i64,
+}
+
+/// Base pay for a window (both ends `YYYY-MM-DD`, inclusive), pro rata by
+/// calendar days at each day's salary (the newest `history` row at or before
+/// the day, else `fallback_salary`), paid from `paid_from` to `paid_to`;
+/// `None` for a date that does not exist.
+#[frb(sync)]
+pub fn prorated_base(
+    history: Vec<SalaryFrom>,
+    fallback_salary: i64,
+    window_start: String,
+    window_end: String,
+    paid_from: String,
+    paid_to: String,
+) -> Option<i64> {
+    let history = history
+        .iter()
+        .map(|h| Some((ymd(&h.from)?, h.salary)))
+        .collect::<Option<Vec<_>>>()?;
+    Some(madar_dawam::salary::prorated_base(
+        &history,
+        fallback_salary,
+        ymd(&window_start)?,
+        ymd(&window_end)?,
+        ymd(&paid_from)?,
+        ymd(&paid_to)?,
+    ))
+}
+
+/// `percent` % of a salary, in piastres (a bonus line, the advance cap);
+/// `None` for a percent that is not a number.
+#[frb(sync)]
+pub fn percent_of_salary(salary: i64, percent: f64) -> Option<i64> {
+    Some(madar_dawam::pay::percent_of_salary(salary, dec(percent)?))
+}
+
+/// One rung of the late ladder: both ends inclusive, `to_minutes` `None` the
+/// open top rung.
+pub struct LadderRung {
+    pub from_minutes: i32,
+    pub to_minutes: Option<i32>,
+}
+
+/// The index of the FIRST rung `late_minutes` falls on; `None` on time or
+/// past a ladder that stops.
+#[frb(sync)]
+pub fn select_late_tier(rungs: Vec<LadderRung>, late_minutes: i64) -> Option<u32> {
+    use madar_dawam::ladder::{LateDeductionKind, LateTier, select_late_tier};
+    // The kind and value do not enter the choice.
+    let tiers: Vec<LateTier> = rungs
+        .iter()
+        .map(|r| LateTier {
+            from_minutes: r.from_minutes,
+            to_minutes: r.to_minutes,
+            kind: LateDeductionKind::Piastres,
+            value: Decimal::ZERO,
+        })
+        .collect();
+    let hit = select_late_tier(&tiers, late_minutes)?;
+    let i = tiers.iter().position(|t| std::ptr::eq(t, hit))?;
+    u32::try_from(i).ok()
+}
+
+/// What a rung of `kind` (`minutes` | `piastres` | `day_fraction`) and
+/// `value` docks at a monthly `salary` over `working_days` of `day_minutes`,
+/// in piastres; `None` for another kind or a figure that is not a number.
+#[frb(sync)]
+pub fn late_deduction_piastres(
+    kind: String,
+    value: f64,
+    salary: i64,
+    working_days: f64,
+    day_minutes: i64,
+) -> Option<i64> {
+    use madar_dawam::ladder::{LateTier, late_deduction_piastres};
+    use madar_dawam::salary::PayRates;
+    let tier = LateTier {
+        from_minutes: 0,
+        to_minutes: None,
+        kind: from_word(&kind)?,
+        value: dec(value)?,
+    };
+    let rates = PayRates::from_base(salary, dec(working_days)?, day_minutes);
+    Some(late_deduction_piastres(&tier, &rates))
+}
+
+/// What `days_absent` absent days at `deduction_days` docked each cost at a
+/// monthly `salary` over `working_days`, in piastres; `None` for a figure
+/// that is not a number.
+#[frb(sync)]
+pub fn absence_deduction_piastres(
+    salary: i64,
+    working_days: f64,
+    days_absent: f64,
+    deduction_days: f64,
+) -> Option<i64> {
+    use madar_dawam::salary::PayRates;
+    // A day's pay does not read the day's minutes.
+    let rates = PayRates::from_base(salary, dec(working_days)?, 0);
+    Some(madar_dawam::ladder::absence_deduction_piastres(
+        &rates,
+        dec(days_absent)?,
+        dec(deduction_days)?,
+    ))
 }
 
 // ── Units (madar-units) ───────────────────────────────────────────────
@@ -137,6 +339,13 @@ pub fn recipe_base_qty(
 #[frb(sync)]
 pub fn usable_qty(stored: f64, yield_pct: Option<f64>) -> f64 {
     madar_units::usable_qty(stored, yield_pct)
+}
+
+/// A recipe quantity copied to another size × `factor`, 3 dp (half away from
+/// zero).
+#[frb(sync)]
+pub fn scale_qty(qty: f64, factor: f64) -> f64 {
+    madar_units::scale_qty(qty, factor)
 }
 
 // ── Phone (madar-ids) ─────────────────────────────────────────────────
@@ -289,6 +498,14 @@ pub fn replenish_suggest(
     }
 }
 
+/// A transfer quantity in whole thousandths, as the server compares them
+/// (`madar_inventory::milli`; a purchase's column grain is
+/// [`quantity_milli`]).
+#[frb(sync)]
+pub fn milli(q: f64) -> i64 {
+    madar_inventory::milli(q)
+}
+
 // ── Purchases and counts (madar-inventory) ────────────────────────────
 
 /// The order dialog's estimate of a line, in whole piastres: cost per stock
@@ -309,6 +526,34 @@ pub fn estimate_line_total(
 #[frb(sync)]
 pub fn unit_cost_from_total(line: i64, qty: f64) -> Option<f64> {
     madar_inventory::purchase::unit_cost_from_total(line, qty)
+}
+
+/// A purchase line's costs as the server stores them: the line total, the
+/// unit cost (whole piastres) and the exact unit cost (8 dp); or `refused`,
+/// the server's words for a 400.
+pub struct LineCosts {
+    pub line_cost: i64,
+    pub unit_cost: i64,
+    pub unit_cost_exact: f64,
+    pub refused: Option<String>,
+}
+
+#[frb(sync)]
+pub fn line_costs(quantity_ordered: f64, line_cost: Option<i64>, unit_cost: Option<i64>) -> LineCosts {
+    match madar_inventory::purchase::line_costs(quantity_ordered, line_cost, unit_cost) {
+        Ok((line, exact)) => LineCosts {
+            line_cost: line,
+            unit_cost: madar_money::cost::round_piastres(exact),
+            unit_cost_exact: exact.to_f64().unwrap_or(0.0),
+            refused: None,
+        },
+        Err(e) => LineCosts {
+            line_cost: 0,
+            unit_cost: 0,
+            unit_cost_exact: 0.0,
+            refused: Some(e.to_string()),
+        },
+    }
 }
 
 /// What one delivery costs, in whole piastres (half away from zero): the

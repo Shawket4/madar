@@ -40,8 +40,6 @@ void _expectExportRead(MockCall c) {
 }
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('REP-ALL-010 the export is a menu: "Export Excel" with a '
       'chevron, then Excel and CSV', (tester) async {
     final h = await pumpOps(tester);

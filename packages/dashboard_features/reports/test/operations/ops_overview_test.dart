@@ -86,8 +86,6 @@ String _excludedPref(List<String> ids) =>
     '[${ids.map((i) => '"$i"').join(',')}]';
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('REP-OPS-034 branch sales for the period: the sentinel with '
       'All branches, no exclude_items', (tester) async {
     final h = await _overview(tester);

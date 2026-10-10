@@ -31,8 +31,6 @@ MarginLedgerRow row(
 );
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   test('REP-FIN-011 the trend ratio; none when prev is 0 or missing', () {
     expect(finTrend(120, 100), closeTo(0.2, 1e-12));
     expect(finTrend(80, 100), closeTo(-0.2, 1e-12));

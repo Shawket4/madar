@@ -35,8 +35,6 @@ Future<void> pickClass(DashHarness h, String label) async {
 }
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('REP-FIN-007 one ledger for the period: the sentinel with All '
       'branches, from/to, no cost basis', (tester) async {
     final h = await pumpFin(tester);

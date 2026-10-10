@@ -43,8 +43,6 @@ String stamp(DashHarness h) =>
     isoString(h.container.read(clockProvider)()).substring(0, 10);
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('valuation', () {
     testWidgets('REP-FIN-066 the KPIs and the value by catalog category, '
         'largest first; archived stock is Uncategorized', (t) async {

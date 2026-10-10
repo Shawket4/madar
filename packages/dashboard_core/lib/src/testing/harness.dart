@@ -204,7 +204,6 @@ class DashHarness {
     addTearDown(h._verify);
 
     size.apply(tester);
-    ensureTimeZones();
     // The kept session is restored before the first frame, as the app's
     // boot does.
     await tester.runAsync(() => container.read(sessionProvider.future));

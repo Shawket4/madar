@@ -41,8 +41,6 @@ class _Tz extends Notifier<String> {
 final _tzProvider = NotifierProvider<_Tz, String>(_Tz.new);
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('capabilities and scope', () {
     test('every route needs inventory.read', () async {
       final s = todayServer(persona: Persona.limited);

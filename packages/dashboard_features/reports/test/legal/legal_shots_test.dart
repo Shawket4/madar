@@ -4,7 +4,6 @@
 // phone-ar-light. Written only with FDASH_SHOTS set; the pages still render
 // (and must not overflow) without.
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/legal/legal_page.dart';
@@ -47,8 +46,6 @@ const _states = [
 ];
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   for (final size in DashSize.values) {
     for (final (lang, dark) in [('en', false), ('ar', true)]) {
       testWidgets('default (Tax), ${size.name} $lang', (tester) async {

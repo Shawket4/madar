@@ -1,0 +1,7 @@
+{
+  "about": "salary_vectors.json is a byte-for-byte copy of madar-shared's file at this ref (the backend runs the same rule from madar-dawam salary (rates, first_pay, prorated_base); the Flutter dashboard calls it through the core's bridge, rules.*). The ref is a commit sha, not a tag, until the next madar-shared tag; then move it to that tag. Copied from madar-shared directly: the web does not pin this file yet, so tool/sync_web_vectors.py would drop it until the web does.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "c1cb69e0d31bd6113d7462299853fb5c6a53b793",
+  "path": "crates/madar-dawam/vectors/salary_vectors.json",
+  "sha256": "1f80a1397828343fe4193bb48224cf00f12d9df73f242504ff485b1f41e80f7c"
+}

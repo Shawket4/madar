@@ -35,8 +35,6 @@ DashButton button(WidgetTester t, String label) =>
 Finder get trigger => find.byKey(const ValueKey('fin-target-trigger'));
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('flags', () {
     testWidgets('REP-FIN-029/034/035 a flag is a toned pill; its popover '
         'says why and offers Fix, Dismiss and Snooze', (t) async {

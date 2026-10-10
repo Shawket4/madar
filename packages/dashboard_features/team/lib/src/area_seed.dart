@@ -36,6 +36,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 /// The table names the team units share.
 abstract final class TeamTables {
@@ -835,13 +836,22 @@ class TeamSeed {
   }();
 
   /// [tierPiastres] for a "minutes of pay" rung: salary × minutes /
-  /// (26 working days × a 480-minute shift).
+  /// (26 working days × a 480-minute shift), madar-dawam's ladder.
   static int minutesOfPay(int salaryPiastres, int minutes) =>
-      (salaryPiastres * minutes / (26 * 480)).round();
+      _rung('minutes', minutes.toDouble(), salaryPiastres);
 
   /// A day-fraction rung: salary × fraction / 26.
   static int dayFractionOfPay(int salaryPiastres, double fraction) =>
-      (salaryPiastres * fraction / 26).round();
+      _rung('day_fraction', fraction, salaryPiastres);
+
+  static int _rung(String kind, double value, int salary) =>
+      rules.lateDeductionPiastres(
+        kind: kind,
+        value: value,
+        salary: salary,
+        workingDays: 26,
+        dayMinutes: 480,
+      )!;
 
   /// The late-arrival deduction the seeded ladder charges for [lateMinutes]
   /// (15–30 → 30 minutes of pay, 30–60 → a quarter day, 60+ → half a day);

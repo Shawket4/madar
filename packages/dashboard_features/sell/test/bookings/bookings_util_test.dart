@@ -47,8 +47,6 @@ BookingView _b({
 );
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('SELL-BKG-005 booking day', () {
     test('puts 00:30 on its own calendar date and rolls over at midnight', () {
       expect(

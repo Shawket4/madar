@@ -44,8 +44,6 @@ void _expectRange(DashHarness h, MockCall call) {
 }
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('Items', () {
     testWidgets('REP-OPS-047 combined item sales, top 50: Name and Total '
         'sold, 50 a page, no Columns menu, frameless', (tester) async {

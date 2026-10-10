@@ -3,7 +3,6 @@
 // The class filter, Flagged only, the Table / Quadrant view and the tables'
 // pagers read nothing (they work on rows already loaded).
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
@@ -42,8 +41,6 @@ int withQuery(DashHarness h, String route, String key, String? value) => [
 ].length;
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('the page tabs warm the tab they open: Channel, Revenue '
       '(the picked granularity), Valuation (stock and catalog)', (t) async {
     final h = await pumpFin(t);

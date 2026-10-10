@@ -6,7 +6,7 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `from_word`, `json`, `parse_err`, `word`, `ymd`, `zone`
+// These functions are ignored because they are not marked as `pub`: `dec`, `from_word`, `json`, `parse_err`, `word`, `ymd`, `zone`
 
 /// The branch-local date of an instant, `YYYY-MM-DD`; `None` for an unknown
 /// zone or instant.
@@ -26,11 +26,130 @@ DayBounds? dayBounds({required String tzName, required String date}) =>
 String? weekStart({required String date}) =>
     DashboardBridge.instance.api.crateApiRulesWeekStart(date: date);
 
+/// `None` for an unknown zone or instant.
+LocalParts? localParts({required String tzName, required PlatformInt64 atMs}) =>
+    DashboardBridge.instance.api.crateApiRulesLocalParts(
+      tzName: tzName,
+      atMs: atMs,
+    );
+
+/// `date` at `hour`:`minute` on the zone's wall clock, in epoch ms (past its
+/// range an hour or minute rolls over; a repeated time is the earliest, a
+/// skipped one moves forward by the gap); `None` for an unknown zone or date.
+PlatformInt64? localInstant({
+  required String tzName,
+  required String date,
+  required int hour,
+  required int minute,
+}) => DashboardBridge.instance.api.crateApiRulesLocalInstant(
+  tzName: tzName,
+  date: date,
+  hour: hour,
+  minute: minute,
+);
+
 PayPeriod? payPeriod({required String day, required PlatformInt64 startDay}) =>
     DashboardBridge.instance.api.crateApiRulesPayPeriod(
       day: day,
       startDay: startDay,
     );
+
+/// The three rates from the one typed (`monthly` | `daily` | `hourly`, in
+/// piastres), over `working_days` a month of `day_minutes` each; `None` for
+/// another word or working days that are not a number.
+SalaryRates? salaryRates({
+  required String typed,
+  required PlatformInt64 value,
+  required double workingDays,
+  required PlatformInt64 dayMinutes,
+}) => DashboardBridge.instance.api.crateApiRulesSalaryRates(
+  typed: typed,
+  value: value,
+  workingDays: workingDays,
+  dayMinutes: dayMinutes,
+);
+
+FirstPay? firstPay({
+  required PlatformInt64 monthly,
+  required String hireDate,
+  required PlatformInt64 startDay,
+}) => DashboardBridge.instance.api.crateApiRulesFirstPay(
+  monthly: monthly,
+  hireDate: hireDate,
+  startDay: startDay,
+);
+
+/// Base pay for a window (both ends `YYYY-MM-DD`, inclusive), pro rata by
+/// calendar days at each day's salary (the newest `history` row at or before
+/// the day, else `fallback_salary`), paid from `paid_from` to `paid_to`;
+/// `None` for a date that does not exist.
+PlatformInt64? proratedBase({
+  required List<SalaryFrom> history,
+  required PlatformInt64 fallbackSalary,
+  required String windowStart,
+  required String windowEnd,
+  required String paidFrom,
+  required String paidTo,
+}) => DashboardBridge.instance.api.crateApiRulesProratedBase(
+  history: history,
+  fallbackSalary: fallbackSalary,
+  windowStart: windowStart,
+  windowEnd: windowEnd,
+  paidFrom: paidFrom,
+  paidTo: paidTo,
+);
+
+/// `percent` % of a salary, in piastres (a bonus line, the advance cap);
+/// `None` for a percent that is not a number.
+PlatformInt64? percentOfSalary({
+  required PlatformInt64 salary,
+  required double percent,
+}) => DashboardBridge.instance.api.crateApiRulesPercentOfSalary(
+  salary: salary,
+  percent: percent,
+);
+
+/// The index of the FIRST rung `late_minutes` falls on; `None` on time or
+/// past a ladder that stops.
+int? selectLateTier({
+  required List<LadderRung> rungs,
+  required PlatformInt64 lateMinutes,
+}) => DashboardBridge.instance.api.crateApiRulesSelectLateTier(
+  rungs: rungs,
+  lateMinutes: lateMinutes,
+);
+
+/// What a rung of `kind` (`minutes` | `piastres` | `day_fraction`) and
+/// `value` docks at a monthly `salary` over `working_days` of `day_minutes`,
+/// in piastres; `None` for another kind or a figure that is not a number.
+PlatformInt64? lateDeductionPiastres({
+  required String kind,
+  required double value,
+  required PlatformInt64 salary,
+  required double workingDays,
+  required PlatformInt64 dayMinutes,
+}) => DashboardBridge.instance.api.crateApiRulesLateDeductionPiastres(
+  kind: kind,
+  value: value,
+  salary: salary,
+  workingDays: workingDays,
+  dayMinutes: dayMinutes,
+);
+
+/// What `days_absent` absent days at `deduction_days` docked each cost at a
+/// monthly `salary` over `working_days`, in piastres; `None` for a figure
+/// that is not a number.
+PlatformInt64? absenceDeductionPiastres({
+  required PlatformInt64 salary,
+  required double workingDays,
+  required double daysAbsent,
+  required double deductionDays,
+}) => DashboardBridge.instance.api.crateApiRulesAbsenceDeductionPiastres(
+  salary: salary,
+  workingDays: workingDays,
+  daysAbsent: daysAbsent,
+  deductionDays: deductionDays,
+);
 
 UnitSpec? unitSpec({required String unit}) =>
     DashboardBridge.instance.api.crateApiRulesUnitSpec(unit: unit);
@@ -74,6 +193,14 @@ double usableQty({required double stored, double? yieldPct}) => DashboardBridge
     .instance
     .api
     .crateApiRulesUsableQty(stored: stored, yieldPct: yieldPct);
+
+/// A recipe quantity copied to another size × `factor`, 3 dp (half away from
+/// zero).
+double scaleQty({required double qty, required double factor}) =>
+    DashboardBridge.instance.api.crateApiRulesScaleQty(
+      qty: qty,
+      factor: factor,
+    );
 
 /// The canonical form of a phone number, or `None` when it isn't one.
 String? phoneCanonical({required String raw}) =>
@@ -148,6 +275,12 @@ Replenish replenishSuggest({
   warehouseDraftedOut: warehouseDraftedOut,
 );
 
+/// A transfer quantity in whole thousandths, as the server compares them
+/// (`madar_inventory::milli`; a purchase's column grain is
+/// [`quantity_milli`]).
+PlatformInt64 milli({required double q}) =>
+    DashboardBridge.instance.api.crateApiRulesMilli(q: q);
+
 /// The order dialog's estimate of a line, in whole piastres: cost per stock
 /// unit × `qty` typed in `purchase_unit`, exact, rounded once; `None` with no
 /// cost, a quantity not above 0, or units that don't convert.
@@ -170,6 +303,16 @@ double? unitCostFromTotal({required PlatformInt64 line, required double qty}) =>
       line: line,
       qty: qty,
     );
+
+LineCosts lineCosts({
+  required double quantityOrdered,
+  PlatformInt64? lineCost,
+  PlatformInt64? unitCost,
+}) => DashboardBridge.instance.api.crateApiRulesLineCosts(
+  quantityOrdered: quantityOrdered,
+  lineCost: lineCost,
+  unitCost: unitCost,
+);
 
 /// What one delivery costs, in whole piastres (half away from zero): the
 /// invoice total if given, else a unit cost × the quantity, else the ordered
@@ -301,6 +444,124 @@ class DayBounds {
           runtimeType == other.runtimeType &&
           startMs == other.startMs &&
           endMs == other.endMs;
+}
+
+/// A joiner's first pay: from the hire date to the end of the pay period
+/// holding it (both `YYYY-MM-DD`), the days employed in it, the period's days
+/// and the pay, in piastres.
+class FirstPay {
+  final String from;
+  final String to;
+  final PlatformInt64 days;
+  final PlatformInt64 periodDays;
+  final PlatformInt64 piastres;
+
+  const FirstPay({
+    required this.from,
+    required this.to,
+    required this.days,
+    required this.periodDays,
+    required this.piastres,
+  });
+
+  @override
+  int get hashCode =>
+      from.hashCode ^
+      to.hashCode ^
+      days.hashCode ^
+      periodDays.hashCode ^
+      piastres.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FirstPay &&
+          runtimeType == other.runtimeType &&
+          from == other.from &&
+          to == other.to &&
+          days == other.days &&
+          periodDays == other.periodDays &&
+          piastres == other.piastres;
+}
+
+/// One rung of the late ladder: both ends inclusive, `to_minutes` `None` the
+/// open top rung.
+class LadderRung {
+  final int fromMinutes;
+  final int? toMinutes;
+
+  const LadderRung({required this.fromMinutes, this.toMinutes});
+
+  @override
+  int get hashCode => fromMinutes.hashCode ^ toMinutes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LadderRung &&
+          runtimeType == other.runtimeType &&
+          fromMinutes == other.fromMinutes &&
+          toMinutes == other.toMinutes;
+}
+
+/// A purchase line's costs as the server stores them: the line total, the
+/// unit cost (whole piastres) and the exact unit cost (8 dp); or `refused`,
+/// the server's words for a 400.
+class LineCosts {
+  final PlatformInt64 lineCost;
+  final PlatformInt64 unitCost;
+  final double unitCostExact;
+  final String? refused;
+
+  const LineCosts({
+    required this.lineCost,
+    required this.unitCost,
+    required this.unitCostExact,
+    this.refused,
+  });
+
+  @override
+  int get hashCode =>
+      lineCost.hashCode ^
+      unitCost.hashCode ^
+      unitCostExact.hashCode ^
+      refused.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LineCosts &&
+          runtimeType == other.runtimeType &&
+          lineCost == other.lineCost &&
+          unitCost == other.unitCost &&
+          unitCostExact == other.unitCostExact &&
+          refused == other.refused;
+}
+
+/// An instant on a zone's wall clock: its date (`YYYY-MM-DD`), hour (0–23)
+/// and minute.
+class LocalParts {
+  final String date;
+  final int hour;
+  final int minute;
+
+  const LocalParts({
+    required this.date,
+    required this.hour,
+    required this.minute,
+  });
+
+  @override
+  int get hashCode => date.hashCode ^ hour.hashCode ^ minute.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LocalParts &&
+          runtimeType == other.runtimeType &&
+          date == other.date &&
+          hour == other.hour &&
+          minute == other.minute;
 }
 
 /// The pay period holding a day, both ends inclusive.
@@ -477,6 +738,50 @@ class Replenish {
           need == other.need &&
           available == other.available &&
           suggested == other.suggested;
+}
+
+/// A salary from a day on (`YYYY-MM-DD`), in piastres.
+class SalaryFrom {
+  final String from;
+  final PlatformInt64 salary;
+
+  const SalaryFrom({required this.from, required this.salary});
+
+  @override
+  int get hashCode => from.hashCode ^ salary.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SalaryFrom &&
+          runtimeType == other.runtimeType &&
+          from == other.from &&
+          salary == other.salary;
+}
+
+/// A salary as a month, a day and an hour, in piastres.
+class SalaryRates {
+  final PlatformInt64 monthly;
+  final PlatformInt64 daily;
+  final PlatformInt64 hourly;
+
+  const SalaryRates({
+    required this.monthly,
+    required this.daily,
+    required this.hourly,
+  });
+
+  @override
+  int get hashCode => monthly.hashCode ^ daily.hashCode ^ hourly.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SalaryRates &&
+          runtimeType == other.runtimeType &&
+          monthly == other.monthly &&
+          daily == other.daily &&
+          hourly == other.hourly;
 }
 
 /// Who takes an action on a transfer, the capability it needs and the status

@@ -10,6 +10,8 @@ library;
 
 import 'dart:convert';
 
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
+
 import 'menu_text.dart';
 
 /// Where a stored size recipe line came from. Legacy rows (`null`) are own.
@@ -246,11 +248,14 @@ List<B> removeRow<B extends GridBlock>(List<B> blocks, String ingredientId) => [
 ];
 
 /// `scaleQty`: blanks stay blank, numbers are multiplied and rounded to 3
-/// decimals, anything else is kept as typed.
+/// decimals (madar-units' `scale_qty` through the core), anything else is
+/// kept as typed.
 String scaleQty(String quantity, double factor) {
   if (quantity.trim().isEmpty) return quantity;
   final n = jsNumber(quantity);
-  return n.isFinite ? fmtQty(n * factor) : quantity;
+  return n.isFinite
+      ? jsNumberText(rules.scaleQty(qty: n, factor: factor))
+      : quantity;
 }
 
 /// `copyColumn`: replaces the own lines of [toKey] with those of [fromKey]

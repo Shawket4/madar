@@ -35,7 +35,6 @@ const String _environment = String.fromEnvironment(
 /// Boots the core and returns the app's provider container, with the kept
 /// session already restored.
 Future<ProviderContainer> bootReal() async {
-  ensureTimeZones();
   final dir = await getApplicationSupportDirectory();
   final sep = Platform.pathSeparator;
   final prefs = await FilePreferences.open(

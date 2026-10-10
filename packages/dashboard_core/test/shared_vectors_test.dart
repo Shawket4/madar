@@ -1,7 +1,8 @@
 // The core's copies of madar-shared rules, run over the vectors the web pins
 // (src/lib/*_vectors.json, copied by tool/sync_web_vectors.py into test/vectors/):
-// day bounds and business date (madar-time), the average ticket (madar-money).
-// The web's lib/madar-time.test.ts and lib/average-ticket.test.ts.
+// day bounds, business date and the wall clock (madar-time; wallclock copied
+// from madar-shared, pinned by its .source.json), the average ticket
+// (madar-money). The web's lib/madar-time.test.ts and lib/average-ticket.test.ts.
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,6 +51,40 @@ void main() {
         f.cairoParts(v['at']! as String),
         _parts(v['business_date']! as String),
         reason: '${v['tz']} ${v['at']}',
+      );
+    }
+  });
+
+  test('inZone and wallClock: wallclock vectors', () {
+    final m = sharedVectors('wallclock')! as Map;
+    final parts = _cases(m['parts']);
+    expect(parts, isNotEmpty);
+    for (final v in parts) {
+      final z = inZone(DateTime.parse(v['at']! as String), v['tz']! as String);
+      final d = _parts(v['date']! as String);
+      expect(
+        (y: z.year, m: z.month - 1, d: z.day, h: z.hour, mi: z.minute),
+        (y: d.y, m: d.m, d: d.d, h: v['hour'], mi: v['minute']),
+        reason: '${v['note']}',
+      );
+    }
+    final instants = _cases(m['instants']);
+    expect(instants, isNotEmpty);
+    for (final v in instants) {
+      final d = _parts(v['date']! as String);
+      expect(
+        isoString(
+          wallClock(
+            v['tz']! as String,
+            d.y,
+            d.m,
+            d.d,
+            v['hour']! as int,
+            v['minute']! as int,
+          ),
+        ),
+        _iso(v['at']! as String),
+        reason: '${v['note']}',
       );
     }
   });

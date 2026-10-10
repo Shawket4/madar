@@ -3,15 +3,12 @@
 import 'dart:typed_data';
 
 import 'package:dashboard_api/dashboard_api.dart' show ApiException;
-import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/rig.dart';
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('the image uploader shows a refusal as its sentence', (
     tester,
   ) async {

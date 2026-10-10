@@ -1,7 +1,6 @@
 // Intent warming on Legal (owner rule, SPEC 6.1): pointing at a tab warms
 // the report it shows, so the press asks nothing more. The exports read
 // nothing (they write what is on screen).
-import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
 import 'package:dashboard_reports/src/legal/legal_words.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,8 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'legal_support.dart';
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('a tab warms its report; pressing it asks nothing more', (
     tester,
   ) async {

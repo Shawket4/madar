@@ -34,8 +34,6 @@ List<DecisionOut> shownDecisions(DashHarness h, {String? branchId}) => h
     .requireValue;
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('repricing', () {
     testWidgets('REP-FIN-046 read on open, for the scope branch', (t) async {
       final h = await pumpFin(t, branchId: SeedIds.newCairo);

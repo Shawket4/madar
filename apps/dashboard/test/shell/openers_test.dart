@@ -42,8 +42,6 @@ Map<String, String> _at(String branchId) => {
 };
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('operations: a sitting\'s customer opens sell\'s read-only '
       'customer sheet, warmed; an order in it opens sell\'s order sheet', (
     tester,

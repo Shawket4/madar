@@ -40,8 +40,6 @@ int _sum(Iterable<MockRow> rows, String field) =>
 Future<void> _open(DashHarness h, LegalTab tab) => tapTab(h, h.t(tab.labelKey));
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('REP-LEG-013 an audit tab: Export at the end, then the KPIs, '
       'then the cards', (tester) async {
     final h = await pumpLegal(tester);

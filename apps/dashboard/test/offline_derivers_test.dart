@@ -77,8 +77,6 @@ void main() {
   late MockServer server;
   late OfflineCache cache;
 
-  setUpAll(ensureTimeZones);
-
   setUp(() {
     final db = MockDb.seeded();
     server = MockServer(persona: Persona.owner, clock: db.clock);

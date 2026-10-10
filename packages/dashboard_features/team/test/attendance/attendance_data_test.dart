@@ -1,6 +1,5 @@
 // The Attendance page's browser-side rules (`attendance_data.dart`).
 import 'package:dashboard_api/dashboard_api.dart';
-import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
 import 'package:dashboard_team/src/attendance/attendance_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,8 +9,6 @@ AttendanceRecord rec(Map<String, Object?> row) =>
     AttendanceRecord.fromJson(row);
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   test('zoned input: an instant on a branch clock and back (AT-1)', () {
     final at = DateTime.parse('2026-09-22T06:02:00Z');
     expect(toZonedInput(at, 'Africa/Cairo'), '2026-09-22T09:02');

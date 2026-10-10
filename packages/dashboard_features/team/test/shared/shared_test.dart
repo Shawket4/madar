@@ -3,8 +3,7 @@
 // itself, and the shared mock reads.
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart'
-    show DashFormat, ensureTimeZones;
+import 'package:dashboard_core/dashboard_core.dart' show DashFormat;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_team/dashboard_team.dart';
 import 'package:dashboard_team/src/area_seed.dart';
@@ -84,7 +83,6 @@ void main() {
     test('isoDaysFromToday is the zone calendar day', () {
       // 23:30 UTC on 7 Oct is already 8 Oct in Cairo.
       final late = DateTime.utc(2026, 10, 7, 23, 30);
-      ensureTimeZones();
       expect(
         isoDaysFromToday(0, timezone: 'Africa/Cairo', now: late),
         '2026-10-08',
@@ -104,13 +102,6 @@ void main() {
       expect(readPounds(''), isNull);
       expect(readPounds('abc'), isNull);
       expect(readPounds('-5'), isNull);
-    });
-
-    test('rdiv rounds half away from zero', () {
-      expect(rdiv(5, 2), 3);
-      expect(rdiv(-5, 2), -3);
-      expect(rdiv(310000 * 16, 31), 160000);
-      expect(rdiv(1, 0), 0);
     });
 
     test('ladder pricing: one copy for Rules and Set-up (tierPiastres)', () {

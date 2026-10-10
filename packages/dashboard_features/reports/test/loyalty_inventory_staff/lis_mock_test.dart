@@ -5,7 +5,6 @@ import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
 import 'package:dashboard_reports/src/area_seed.dart';
 import 'package:dashboard_reports/src/mock/loyalty_inventory_staff_mock.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,8 +43,6 @@ const _to = '2026-10-08T20:59:59.999Z';
 const _range = {'from': _from, 'to': _to};
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('loyalty', () {
     test('behaviour: the ledger\'s sums, org-wide counts kept', () async {
       final s = _server();

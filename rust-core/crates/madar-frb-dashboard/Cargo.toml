@@ -34,6 +34,9 @@ serde_json = "1"
 # crates, the same rev as madar-core's (bump them together).
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 chrono-tz = "0.10"
+# Dawam's salary money crosses as f64 and is read as the exact Decimal the
+# crate takes.
+rust_decimal = { version = "1", default-features = false }
 madar-time = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
 madar-units = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
 madar-dawam = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }

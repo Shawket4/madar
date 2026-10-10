@@ -2135,6 +2135,7 @@ dependencies = [
  "madar-till",
  "madar-time",
  "madar-units",
+ "rust_decimal",
  "rust_xlsxwriter",
  "serde",
  "serde_json",

@@ -80,14 +80,6 @@ void main() {
   });
 
   group('the salary calculator', () {
-    test('roundDiv rounds half away from zero', () {
-      expect(roundDiv(5, 2), 3);
-      expect(roundDiv(-5, 2), -3);
-      expect(roundDiv(4, 3), 1);
-      expect(roundDiv(5, 3), 2);
-      expect(roundDiv(0, 7), 0);
-    });
-
     test('26 days of 480 minutes: EGP 6,500 is 250 a day, 31.25 an hour', () {
       expect(defaultPayBasis, (workingDays: 26, dayMinutes: 480));
       const want = (monthly: 650000, daily: 25000, hourly: 3125);
@@ -122,9 +114,33 @@ void main() {
         to: '2026-10-31',
         piastres: 160000,
       ));
-      expect(firstPay(650000, '2026-09-26', 26).piastres, 650000);
-      expect(firstPay(100001, '2026-10-11', 26).piastres, 50001);
+      expect(firstPay(650000, '2026-09-26', 26)!.piastres, 650000);
+      expect(firstPay(100001, '2026-10-11', 26)!.piastres, 50001);
+      expect(firstPay(100001, '2026-02-30', 26), isNull);
     });
+
+    test(
+      'the server\'s rates: a zero divisor or a negative salary reads 0',
+      () {
+        // The old Dart copy threw IntegerDivisionByZeroException here.
+        expect(ratesFrom((workingDays: 0, dayMinutes: 480), monthly: 1200000), (
+          monthly: 1200000,
+          daily: 0,
+          hourly: 0,
+        ));
+        expect(ratesFrom((workingDays: 26, dayMinutes: 0), daily: 40000), (
+          monthly: 1040000,
+          daily: 40000,
+          hourly: 0,
+        ));
+        expect(ratesFrom(defaultPayBasis, monthly: -1200000), (
+          monthly: 0,
+          daily: 0,
+          hourly: 0,
+        ));
+        expect(firstPay(-1200000, '2026-09-10', 26)!.piastres, 0);
+      },
+    );
   });
 
   group('the import', () {

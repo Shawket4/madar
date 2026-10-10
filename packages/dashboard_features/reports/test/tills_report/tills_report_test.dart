@@ -42,8 +42,6 @@ String cellText(WidgetTester tester, String id, String column) {
 }
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('the gate', () {
     testWidgets('REP-TIL-001 till.read alone: Restricted with the reports\' '
         'words, no tabs, the sessions never asked for', (tester) async {
