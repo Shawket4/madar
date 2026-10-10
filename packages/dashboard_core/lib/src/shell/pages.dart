@@ -155,7 +155,6 @@ class DashCrashPanel extends StatelessWidget {
     final t = DashI18n.maybeOf(context);
     // Above the app's words and theme: Flutter's own error box.
     if (t == null) return ErrorWidget(details.exception);
-    final router = GoRouter.maybeOf(context);
     return ClipRect(
       child: Center(
         child: FittedBox(
@@ -166,13 +165,16 @@ class DashCrashPanel extends StatelessWidget {
               icon: 'alert-triangle',
               title: t('errors.boundaryTitle'),
               description: t('errors.boundaryDescription'),
-              action: router == null
-                  ? null
-                  : DashButton(
-                      label: t('errors.boundaryRetry'),
-                      variant: DashButtonVariant.outline,
-                      onPressed: router.refresh,
-                    ),
+              action: DashButton(
+                label: t('errors.boundaryRetry'),
+                variant: DashButtonVariant.outline,
+                // The boundary's reset: the widget that failed (this panel's
+                // parent) builds again.
+                onPressed: () => context.visitAncestorElements((e) {
+                  e.markNeedsBuild();
+                  return false;
+                }),
+              ),
             ),
           ),
         ),

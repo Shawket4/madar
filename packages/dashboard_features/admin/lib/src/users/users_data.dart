@@ -10,7 +10,6 @@ library;
 import 'package:dashboard_api/dashboard_api.dart'
     show
         CapabilityAccess,
-        LinkableUser,
         RoleView,
         UserAccess,
         UserBranch,
@@ -59,19 +58,6 @@ final accessRolesProvider = FutureProvider.autoDispose<List<RoleView>>((ref) {
   ref.webCache();
   ref.watch(realtimeEpochProvider('/authz/roles'));
   return ref.watch(apiProvider).authz.listRoles();
-});
-
-/// `GET /staff/employees/linkable` (linkableUsers): the accounts that are
-/// not employees yet, read only when Make employee can show (ADM-USR-014).
-/// The team dialog reads the same list through its own provider (warmed by
-/// `AddEmployeeOpener.warm`): admin cannot import team, so the web's one
-/// shared query is two here (logged in docs/fdash/divergences/admin-users.md).
-final linkableUsersProvider = FutureProvider.autoDispose<List<LinkableUser>>((
-  ref,
-) {
-  ref.webCache();
-  ref.watch(realtimeEpochProvider('/staff/employees/linkable'));
-  return ref.watch(apiProvider).staff.linkableUsers();
 });
 
 /// The web's `invalidateUsers()`: every read whose key starts with `/users`

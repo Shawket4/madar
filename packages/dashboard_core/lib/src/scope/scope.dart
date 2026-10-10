@@ -117,6 +117,9 @@ final orgIdProvider = Provider<String?>((ref) {
 
 /// The org's branches (`GET /branches?org_id=`); null without an org.
 final branchesProvider = FutureProvider<List<Branch>?>((ref) async {
+  // The web's one `/branches` query: its fetch time kept, and refetched when
+  // a page opens on it after the stale time, as `orgsProvider`.
+  ref.webCache();
   final orgId = ref.watch(orgIdProvider);
   if (orgId == null) return null;
   // `branch.settings_changed` and `resync` refetch it (use-branch-realtime.ts).

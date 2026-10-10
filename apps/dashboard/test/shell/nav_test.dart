@@ -291,7 +291,8 @@ void main() {
       expect(h.prefs.values[sidebarPrefKey], 'true');
       await ctrlB();
       expect(h.container.read(sidebarCollapsedProvider), isFalse);
-      expect(h.prefs.values[sidebarPrefKey], 'false');
+      // Unfolded is the default: the pref is cleared.
+      expect(h.prefs.values[sidebarPrefKey], isNull);
       // The edge along the sidebar (the header's button comes first).
       await h.tap(labelled('Toggle Sidebar').last);
       expect(h.container.read(sidebarCollapsedProvider), isTrue);

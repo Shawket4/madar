@@ -55,12 +55,15 @@ void main() {
     expect(fetches, 1);
   });
 
-  test('stale after 30 s: a visit refetches in the background', () async {
-    expect(await visit('a'), 1);
-    now = now.add(kQueryStaleTime);
-    expect(await visit('a'), 2);
-    expect(fetches, 2);
-  });
+  test(
+    'ADM-APP-116: stale after 30 s: a visit refetches in the background',
+    () async {
+      expect(await visit('a'), 1);
+      now = now.add(kQueryStaleTime);
+      expect(await visit('a'), 2);
+      expect(fetches, 2);
+    },
+  );
 
   test('a rebuild re-listening (close, then listen again in the same turn) '
       'is not a new mount: no refetch, even when stale', () async {
@@ -156,29 +159,32 @@ void main() {
     shown.close();
   });
 
-  test('a refresh waits for the reads it set off, and names a failure', () async {
-    final server = _SlowServer();
-    final transport = c.read(queryCacheProvider).track(server);
-    final remote = FutureProvider.autoDispose<int>((ref) async {
-      ref.webCache();
-      await transport.send(const ApiRequest(method: 'GET', path: '/x'));
-      return server.answered;
-    });
-    final shown = c.listen(remote, (_, _) {});
-    expect(await c.read(remote.future), 1);
+  test(
+    'a refresh waits for the reads it set off, and names a failure',
+    () async {
+      final server = _SlowServer();
+      final transport = c.read(queryCacheProvider).track(server);
+      final remote = FutureProvider.autoDispose<int>((ref) async {
+        ref.webCache();
+        await transport.send(const ApiRequest(method: 'GET', path: '/x'));
+        return server.answered;
+      });
+      final shown = c.listen(remote, (_, _) {});
+      expect(await c.read(remote.future), 1);
 
-    expect(await c.read(queryCacheProvider).refetchActive(), isNull);
-    expect(c.read(remote).value, 2);
+      expect(await c.read(queryCacheProvider).refetchActive(), isNull);
+      expect(c.read(remote).value, 2);
 
-    server.fail = true;
-    final failure = await c.read(queryCacheProvider).refetchActive();
-    expect(failure, isA<ApiException>());
-    // What was shown stays.
-    expect(c.read(remote).value, 2);
-    shown.close();
-  });
+      server.fail = true;
+      final failure = await c.read(queryCacheProvider).refetchActive();
+      expect(failure, isA<ApiException>());
+      // What was shown stays.
+      expect(c.read(remote).value, 2);
+      shown.close();
+    },
+  );
 
-  test('the web retry policy', () {
+  test('ADM-APP-116: the web retry policy', () {
     ApiException e(int s) => ApiException(status: s, message: '');
     for (final s in [401, 403, 404, 422]) {
       expect(webRetry(0, e(s)), isNull, reason: '$s');

@@ -20,7 +20,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../employees/add_employee_dialog.dart';
-import '../employees/employees_providers.dart' show linkableUsersProvider;
 import '../employees/import_people_dialog.dart';
 import '../shared/page_gate.dart';
 import '../shared/refresh_button.dart';
@@ -214,7 +213,7 @@ class _SetupBodyState extends ConsumerState<_SetupBody> {
         employees: data.employees ?? const [],
         canCreate: authz.can(Cap.hrStaffCreate),
         onAddOne: () => showAddEmployeeDialog(context),
-        onAddIntent: () => ref.warm(linkableUsersProvider),
+        onAddIntent: () => ref.warm(staffLinkableUsersProvider),
         onImport: () => showImportPeopleDialog(context),
       ),
       SetupStep.shifts => SetupShiftsStep(

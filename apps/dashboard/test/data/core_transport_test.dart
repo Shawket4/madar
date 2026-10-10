@@ -144,7 +144,7 @@ void main() {
       expect(formFieldsOf(null), isEmpty);
     });
 
-    test('the branch event stream asks like the web', () {
+    test('ADM-APP-087: the branch event stream asks like the web', () {
       final r = realtimeRequest(
         branchId: 'b1',
         topics: 'floor,tickets',
@@ -182,7 +182,7 @@ void main() {
       expect(utf8.decode(r.bodyBytes), '{"id":"x"}');
     });
 
-    test('a refusal keeps its status, code, words and envelope', () {
+    test('ADM-APP-121: a refusal keeps its status, code, words and envelope', () {
       final body =
           '{"error":"Bad request: name is required","code":"FIELD_REQUIRED","vars":{"field":"name"}}';
       final e = apiExceptionOf(failure(code: 'FIELD_REQUIRED', body: body));
@@ -197,22 +197,25 @@ void main() {
       });
     });
 
-    test('the web\'s sentence for a code wins when the host has one', () {
-      final body =
-          '{"error":"x","code":"SHIFTS_OVERLAP","vars":{"a":"Morning"}}';
-      String? words(String code, Map<String, Object?> vars) =>
-          code == 'SHIFTS_OVERLAP' ? 'Overlaps ${vars['a']}' : null;
-      final e = apiExceptionOf(
-        failure(status: 409, code: 'SHIFTS_OVERLAP', body: body),
-        refusalWords: words,
-      );
-      expect(e.message, 'Overlaps Morning');
-      final unknown = apiExceptionOf(
-        failure(code: 'NEW_CODE', body: '{"code":"NEW_CODE"}'),
-        refusalWords: words,
-      );
-      expect(unknown.message, 'name is required');
-    });
+    test(
+      'ADM-APP-117: the web\'s sentence for a code wins when the host has one',
+      () {
+        final body =
+            '{"error":"x","code":"SHIFTS_OVERLAP","vars":{"a":"Morning"}}';
+        String? words(String code, Map<String, Object?> vars) =>
+            code == 'SHIFTS_OVERLAP' ? 'Overlaps ${vars['a']}' : null;
+        final e = apiExceptionOf(
+          failure(status: 409, code: 'SHIFTS_OVERLAP', body: body),
+          refusalWords: words,
+        );
+        expect(e.message, 'Overlaps Morning');
+        final unknown = apiExceptionOf(
+          failure(code: 'NEW_CODE', body: '{"code":"NEW_CODE"}'),
+          refusalWords: words,
+        );
+        expect(unknown.message, 'name is required');
+      },
+    );
 
     test('nothing from our server reads as status 0, never a refusal', () {
       String words(String code, Map<String, Object?> vars) => 'refused';

@@ -40,7 +40,7 @@ const AddEmployeeOpener addEmployeeOpener = AddEmployeeOpener(
 /// The dialog's first reads: the linkable accounts, and the pay rules behind
 /// the salary calculator for someone who may set a salary.
 void _warmAddEmployee(WidgetRef ref) {
-  ref.warm(linkableUsersProvider);
+  ref.warm(staffLinkableUsersProvider);
   if (ref.read(authzProvider).canEverywhere(Cap.hrPayrollEdit)) {
     ref.warm(staffAttendanceSettingsProvider);
   }
@@ -80,7 +80,7 @@ class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
     // A linked person's number defaults to their account's, whenever the
     // picked person or the list changes (the web's effect): a preset user's
     // too, once the list answers.
-    ref.listenManual(linkableUsersProvider, (_, next) {
+    ref.listenManual(staffLinkableUsersProvider, (_, next) {
       if (mounted) setState(() => _fillPhone(next.value));
     }, fireImmediately: true);
   }
@@ -186,7 +186,7 @@ class _AddEmployeeDialogState extends ConsumerState<AddEmployeeDialog> {
       authzProvider.select((a) => a.canEverywhere(Cap.hrPayrollEdit)),
     );
     final branches = ref.watch(branchesProvider).value ?? const <Branch>[];
-    final linkableRead = ref.watch(linkableUsersProvider);
+    final linkableRead = ref.watch(staffLinkableUsersProvider);
     final linkable = linkableRead.value ?? const <LinkableUser>[];
     final preset = widget.userId != null;
 

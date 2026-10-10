@@ -107,7 +107,7 @@ void main() {
     });
   });
 
-  group('Authz (use-authz.test.ts)', () {
+  group('ADM-APP-022: Authz (use-authz.test.ts)', () {
     MyAuthz me(List<String> caps, {List<String>? everywhere}) => MyAuthz(
       userId: 'u',
       epoch: 0,
@@ -172,7 +172,7 @@ void main() {
       web = json.decode(r.stdout as String) as Map<String, Object?>;
     });
 
-    test('the sidebar is the web NAV, entry for entry', () {
+    test('ADM-APP-032: the sidebar is the web NAV, entry for entry', () {
       if (web == null) return markTestSkipped('web repo not on this machine');
       final icons = (web!['icons']! as Map).cast<String, String>();
       final groups = (web!['nav']! as List).cast<Map<String, Object?>>();
@@ -237,7 +237,7 @@ void main() {
       }
     });
 
-    test('module routes are the web MODULE_ROUTES', () {
+    test('ADM-APP-077: module routes are the web MODULE_ROUTES', () {
       if (web == null) return markTestSkipped('web repo not on this machine');
       final wr = [
         for (final r in (web!['moduleRoutes']! as List).cast<List<Object?>>())
@@ -246,17 +246,20 @@ void main() {
       expect(moduleRoutes, wr);
     });
 
-    test('the 25 legacy redirects, each with the query it keeps', () {
-      if (web == null) return markTestSkipped('web repo not on this machine');
-      final wr = (web!['redirects']! as List).cast<Map<String, Object?>>();
-      expect(legacyRedirects, hasLength(25));
-      expect(legacyRedirects.map((r) => r.from), wr.map((r) => r['from']));
-      expect(legacyRedirects.map((r) => r.to), wr.map((r) => r['to']));
-      expect(
-        legacyRedirects.map((r) => r.query.name),
-        wr.map((r) => r['query']),
-      );
-    });
+    test(
+      'ADM-APP-091..115: the 25 legacy redirects, each with the query it keeps',
+      () {
+        if (web == null) return markTestSkipped('web repo not on this machine');
+        final wr = (web!['redirects']! as List).cast<Map<String, Object?>>();
+        expect(legacyRedirects, hasLength(25));
+        expect(legacyRedirects.map((r) => r.from), wr.map((r) => r['from']));
+        expect(legacyRedirects.map((r) => r.to), wr.map((r) => r['to']));
+        expect(
+          legacyRedirects.map((r) => r.query.name),
+          wr.map((r) => r['query']),
+        );
+      },
+    );
 
     test('the generated file is current (gen_dashboard_nav.mjs --check)', () {
       if (web == null) return markTestSkipped('web repo not on this machine');
@@ -501,36 +504,39 @@ void main() {
   });
 
   group('legacy redirects', () {
-    test('land where the web sends them, with the query they keep', () {
-      expect(
-        resolveLegacyRedirect(Uri.parse('/analytics?x=1')),
-        Uri.parse('/reports/operations'),
-      );
-      expect(
-        resolveLegacyRedirect(Uri.parse('/inventory/')),
-        Uri.parse('/inventory/today'),
-      );
-      expect(
-        resolveLegacyRedirect(Uri.parse('/permissions?user=u9&branchId=b')),
-        Uri.parse('/access/roles?user=u9'),
-      );
-      expect(
-        resolveLegacyRedirect(Uri.parse('/users?edit=e1&branches=b1&zzz=1')),
-        Uri.parse('/access/users?edit=e1&branches=b1'),
-      );
-      expect(
-        resolveLegacyRedirect(Uri.parse('/shifts?branchId=b1&preset=7d')),
-        Uri.parse('/tills?branchId=b1&preset=7d'),
-      );
-      expect(
-        legacyRedirects.firstWhere((r) => r.from == '/shifts').replace,
-        isTrue,
-      );
-      expect(resolveLegacyRedirect(Uri.parse('/orders')), isNull);
-      // A redirect never lands on another redirect.
-      for (final r in legacyRedirects) {
-        expect(resolveLegacyRedirect(Uri.parse(r.to)), isNull, reason: r.to);
-      }
-    });
+    test(
+      'ADM-APP-091..115: land where the web sends them, with the query they keep',
+      () {
+        expect(
+          resolveLegacyRedirect(Uri.parse('/analytics?x=1')),
+          Uri.parse('/reports/operations'),
+        );
+        expect(
+          resolveLegacyRedirect(Uri.parse('/inventory/')),
+          Uri.parse('/inventory/today'),
+        );
+        expect(
+          resolveLegacyRedirect(Uri.parse('/permissions?user=u9&branchId=b')),
+          Uri.parse('/access/roles?user=u9'),
+        );
+        expect(
+          resolveLegacyRedirect(Uri.parse('/users?edit=e1&branches=b1&zzz=1')),
+          Uri.parse('/access/users?edit=e1&branches=b1'),
+        );
+        expect(
+          resolveLegacyRedirect(Uri.parse('/shifts?branchId=b1&preset=7d')),
+          Uri.parse('/tills?branchId=b1&preset=7d'),
+        );
+        expect(
+          legacyRedirects.firstWhere((r) => r.from == '/shifts').replace,
+          isTrue,
+        );
+        expect(resolveLegacyRedirect(Uri.parse('/orders')), isNull);
+        // A redirect never lands on another redirect.
+        for (final r in legacyRedirects) {
+          expect(resolveLegacyRedirect(Uri.parse(r.to)), isNull, reason: r.to);
+        }
+      },
+    );
   });
 }

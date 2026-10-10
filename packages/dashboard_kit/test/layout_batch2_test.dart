@@ -189,11 +189,20 @@ void main() {
         label: lang == 'ar' ? 'الملغاة' : 'Voided',
         value: 3,
       ),
+      // Five, as on Orders: dense, the web's p-4.
+      DashLedgerItem(
+        key: 'e',
+        label: lang == 'ar' ? 'الخصومات' : 'Discounts',
+        value: 12,
+      ),
     ];
 
     testWidgets('the cards fade in 50 ms apart; at once under reduced '
         'motion', (tester) async {
-      await pumpDashApp(tester, Scaffold(body: DashLedgerStrip(items: items())));
+      await pumpDashApp(
+        tester,
+        Scaffold(body: DashLedgerStrip(items: items())),
+      );
       double card(String k) => _opacity(tester, find.byKey(ValueKey(k)));
       expect(card('a'), 0);
       await tester.pump(const Duration(milliseconds: 100));
@@ -203,7 +212,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(card('d'), greaterThan(0));
       await tester.pumpAndSettle();
-      expect([for (final k in ['a', 'b', 'c', 'd']) card(k)], [1, 1, 1, 1]);
+      expect(
+        [
+          for (final k in ['a', 'b', 'c', 'd']) card(k),
+        ],
+        [1, 1, 1, 1],
+      );
       expect(find.bySemanticsLabel('Revenue'), findsOneWidget);
 
       await pumpDashApp(
@@ -244,8 +258,6 @@ void main() {
       final label = tester.renderObject<RenderParagraph>(
         find.text('الأصناف المباعة'),
       );
-      // ignore: avoid_print
-      print('LABEL ${label.size} intrinsic ${label.getMaxIntrinsicWidth(double.infinity)} card ${a.width}');
       expect(label.didExceedMaxLines, isFalse);
       expect(
         tester.getSize(find.byType(DashIconButton)),
@@ -343,10 +355,8 @@ void main() {
   });
 
   group('DashPageScaffold', () {
-    Widget page() => const DashPageScaffold(
-      title: 'Purchasing',
-      body: Text('page body'),
-    );
+    Widget page() =>
+        const DashPageScaffold(title: 'Purchasing', body: Text('page body'));
 
     testWidgets('fades in (its words read from the first frame); at once '
         'under reduced motion', (tester) async {
@@ -430,5 +440,14 @@ void main() {
     );
     expect(tester.getSize(find.byKey(const ValueKey('six'))).height, 6);
     expect(tester.getSize(find.byKey(const ValueKey('eight'))).height, 8);
+  });
+
+  test('28 a summary of several names reads by its first strong letter', () {
+    // The transfers Items cell: pass the joined summary to
+    // dashTextDirectionOf, or give the column `text:` (which does).
+    expect(dashTextDirectionOf('Milk, حليب, سكر'), TextDirection.ltr);
+    expect(dashTextDirectionOf('حليب، Milk'), TextDirection.rtl);
+    expect(dashTextDirectionOf('7Up · 2 كجم'), TextDirection.ltr);
+    expect(dashTextDirectionOf('— · 2'), isNull);
   });
 }

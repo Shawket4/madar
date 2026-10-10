@@ -10,7 +10,9 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Object? _vectors(String name) => json.decode(
-  File('../dashboard_core/test/vectors/${name}_vectors.json').readAsStringSync(),
+  File(
+    '../dashboard_core/test/vectors/${name}_vectors.json',
+  ).readAsStringSync(),
 );
 
 void main() {
@@ -39,9 +41,9 @@ void main() {
       final day = dashParseYmd(v['date']! as String)!;
       final r = dashQuickRange(DashQuickRange.thisWeek, today: day);
       expect(dashYmd(r.from), v['week_start'], reason: '${v['date']}');
-      final into = DateTime.parse(v['date']! as String)
-          .difference(DateTime.parse(v['week_start']! as String))
-          .inDays;
+      final into = DateTime.parse(
+        v['date']! as String,
+      ).difference(DateTime.parse(v['week_start']! as String)).inDays;
       expect(dashDaysIntoWeek(day), into, reason: '${v['date']}');
     }
     // Across a spring-forward (Beirut, Sun 2026-03-29): run with TZ=Asia/Beirut.

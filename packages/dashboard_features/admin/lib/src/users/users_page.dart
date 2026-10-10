@@ -181,7 +181,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     final canMakeEmployee =
         makeEmployee != null && dawam && authz.can(Cap.hrStaffCreate);
     final linkable = canMakeEmployee
-        ? ref.watch(linkableUsersProvider).value
+        ? ref.watch(staffLinkableUsersProvider).value
         : null;
     final linkableIds = {for (final l in linkable ?? const []) l.userId};
 

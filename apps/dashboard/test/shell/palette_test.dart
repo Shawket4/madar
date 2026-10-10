@@ -39,7 +39,7 @@ void main() {
     expect(text('Jump to any page'), findsNothing);
     expect(
       tester.getSemantics(find.byType(DashCommandPalette)),
-      containsSemantics(label: 'Search', hint: 'Jump to any page'),
+      isSemantics(label: 'Search', hint: 'Jump to any page'),
     );
     expect(
       find.descendant(

@@ -307,8 +307,7 @@ Future<List<AuditRow>> _audit(
     for (final c in h.server.calls.skip(mark)) {
       final line = _call(c);
       final webRead =
-          c.method == 'GET' &&
-          (webWarm?[path]?.contains(c.template) ?? false);
+          c.method == 'GET' && (webWarm?[path]?.contains(c.template) ?? false);
       if (warmed.contains(line) || webRead) {
         row.refetched.add(line);
       } else {
@@ -390,49 +389,58 @@ void _check(String name, List<AuditRow> rows, Map<String, List<String>>? web) {
 }
 
 void main() {
-  testWidgets('owner, a branch picked: every warmed page opens from the cache', (
+  testWidgets(
+    'ADM-APP-039: owner, a branch picked: every warmed page opens from the cache',
+    (tester) async {
+      final rows = await _audit(
+        tester,
+        persona: Persona.owner,
+        prefs: {
+          ScopePrefKeys.branch: jsonEncode({
+            'org': SeedIds.sabahOrg,
+            'branch': SeedIds.heliopolis,
+          }),
+        },
+        webWarm: webWarmBranch,
+      );
+      _check('owner, Heliopolis', rows, webWarmBranch);
+    },
+  );
+
+  testWidgets(
+    'ADM-APP-074: owner, a branch picked, from the palette: the same',
+    (tester) async {
+      final rows = await _audit(
+        tester,
+        persona: Persona.owner,
+        prefs: {
+          ScopePrefKeys.branch: jsonEncode({
+            'org': SeedIds.sabahOrg,
+            'branch': SeedIds.heliopolis,
+          }),
+        },
+        webWarm: webWarmBranch,
+        palette: true,
+      );
+      _check('owner, Heliopolis, palette', rows, webWarmBranch);
+    },
+  );
+
+  testWidgets(
+    'ADM-APP-039: owner, all branches: what is warmed is not asked again',
+    (tester) async {
+      final rows = await _audit(
+        tester,
+        persona: Persona.owner,
+        prefs: const {},
+      );
+      _check('owner, all branches', rows, null);
+    },
+  );
+
+  testWidgets('ADM-APP-039: platform admin, an org picked: the same', (
     tester,
   ) async {
-    final rows = await _audit(
-      tester,
-      persona: Persona.owner,
-      prefs: {
-        ScopePrefKeys.branch: jsonEncode({
-          'org': SeedIds.sabahOrg,
-          'branch': SeedIds.heliopolis,
-        }),
-      },
-      webWarm: webWarmBranch,
-    );
-    _check('owner, Heliopolis', rows, webWarmBranch);
-  });
-
-  testWidgets('owner, a branch picked, from the palette: the same', (
-    tester,
-  ) async {
-    final rows = await _audit(
-      tester,
-      persona: Persona.owner,
-      prefs: {
-        ScopePrefKeys.branch: jsonEncode({
-          'org': SeedIds.sabahOrg,
-          'branch': SeedIds.heliopolis,
-        }),
-      },
-      webWarm: webWarmBranch,
-      palette: true,
-    );
-    _check('owner, Heliopolis, palette', rows, webWarmBranch);
-  });
-
-  testWidgets('owner, all branches: what is warmed is not asked again', (
-    tester,
-  ) async {
-    final rows = await _audit(tester, persona: Persona.owner, prefs: const {});
-    _check('owner, all branches', rows, null);
-  });
-
-  testWidgets('platform admin, an org picked: the same', (tester) async {
     final rows = await _audit(
       tester,
       persona: Persona.platform,

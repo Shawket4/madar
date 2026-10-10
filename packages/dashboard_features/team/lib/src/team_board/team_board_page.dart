@@ -194,7 +194,7 @@ class _TeamBoardState extends ConsumerState<TeamBoard> {
         DashButton(
           label: t('dawam.addEmployee'),
           icon: 'user-round-plus',
-          onIntent: () => ref.warm(linkableUsersProvider),
+          onIntent: () => ref.warm(staffLinkableUsersProvider),
           onPressed: () => showAddEmployeeDialog(context),
         ),
     ];

@@ -126,7 +126,7 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
       label: t('dawam.addEmployee'),
       icon: 'plus',
       onIntent: () {
-        ref.warm(linkableUsersProvider);
+        ref.warm(staffLinkableUsersProvider);
         if (canSetPay) ref.warm(staffAttendanceSettingsProvider);
       },
       onPressed: () => showAddEmployeeDialog(context),

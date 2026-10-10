@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('parseSseFrames (sse.test.ts)', () {
+  group('ADM-APP-090: parseSseFrames (sse.test.ts)', () {
     test('returns complete frames and carries the partial tail', () {
       final r = parseSseFrames(
         'id: 7\nevent: booking.created\ndata: {"id":1}\n\nevent: table.status_changed\ndata: {"t',
@@ -39,7 +39,7 @@ void main() {
     });
   });
 
-  group('invalidationsFor (use-branch-realtime.test.ts)', () {
+  group('ADM-APP-088: invalidationsFor (use-branch-realtime.test.ts)', () {
     test('booking events reach the bookings list AND the floor', () {
       expect(invalidationsFor('booking.created'), ['/bookings', '/floor']);
       expect(invalidationsFor('booking.arriving'), ['/bookings', '/floor']);
@@ -74,42 +74,44 @@ void main() {
   });
 
   group('the connection loop', () {
-    testWidgets('backs off 1, 2, 5, 10, 30 s; resets once a stream opens', (
-      tester,
-    ) async {
-      final gw = MockRealtimeGateway()..refuse(6);
-      final bus = RealtimeBus();
-      final rt = BranchRealtime(gateway: gw, branchId: 'b1', bus: bus)..start();
-      await tester.pump();
-      expect(rt.attempt, 1);
-      for (final (wait, attempt) in [
-        (1, 2),
-        (2, 3),
-        (5, 4),
-        (10, 5),
-        (30, 6),
-      ]) {
-        await tester.pump(
-          Duration(seconds: wait) - const Duration(milliseconds: 1),
-        );
-        expect(rt.attempt, attempt - 1, reason: 'not before $wait s');
-        await tester.pump(const Duration(milliseconds: 1));
-        expect(rt.attempt, attempt);
-      }
-      // Still capped at 30 s.
-      await tester.pump(const Duration(seconds: 30));
-      expect(gw.connections, hasLength(1));
-      expect(rt.attempt, 0);
-      expect(gw.current!.branchId, 'b1');
-      expect(gw.current!.topics, realtimeTopics);
-      rt.stop();
-      // Closing a stream controller completes on a microtask the fake clock
-      // only runs on a pump: never await it inside testWidgets.
-      unawaited(bus.dispose());
-      await tester.pump();
-    });
+    testWidgets(
+      'ADM-APP-089: backs off 1, 2, 5, 10, 30 s; resets once a stream opens',
+      (tester) async {
+        final gw = MockRealtimeGateway()..refuse(6);
+        final bus = RealtimeBus();
+        final rt = BranchRealtime(gateway: gw, branchId: 'b1', bus: bus)
+          ..start();
+        await tester.pump();
+        expect(rt.attempt, 1);
+        for (final (wait, attempt) in [
+          (1, 2),
+          (2, 3),
+          (5, 4),
+          (10, 5),
+          (30, 6),
+        ]) {
+          await tester.pump(
+            Duration(seconds: wait) - const Duration(milliseconds: 1),
+          );
+          expect(rt.attempt, attempt - 1, reason: 'not before $wait s');
+          await tester.pump(const Duration(milliseconds: 1));
+          expect(rt.attempt, attempt);
+        }
+        // Still capped at 30 s.
+        await tester.pump(const Duration(seconds: 30));
+        expect(gw.connections, hasLength(1));
+        expect(rt.attempt, 0);
+        expect(gw.current!.branchId, 'b1');
+        expect(gw.current!.topics, realtimeTopics);
+        rt.stop();
+        // Closing a stream controller completes on a microtask the fake clock
+        // only runs on a pump: never await it inside testWidgets.
+        unawaited(bus.dispose());
+        await tester.pump();
+      },
+    );
 
-    testWidgets('resumes from the last id; events reach the bus', (
+    testWidgets('ADM-APP-087: resumes from the last id; events reach the bus', (
       tester,
     ) async {
       final gw = MockRealtimeGateway();
@@ -191,7 +193,7 @@ void main() {
     });
 
     test(
-      'one connection for the selected branch; none for all branches',
+      'ADM-APP-087: one connection for the selected branch; none for all branches',
       () async {
         final db = MockDb.seeded();
         final server = MockServer(clock: db.clock);

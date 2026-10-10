@@ -7,7 +7,14 @@ library;
 import 'dart:async';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ApiException, AttendanceSettings, Branch, Employee, MyAuthz, WorkShift;
+    show
+        ApiException,
+        AttendanceSettings,
+        Branch,
+        Employee,
+        LinkableUser,
+        MyAuthz,
+        WorkShift;
 import 'package:dashboard_core/src/api_provider.dart';
 import 'package:dashboard_core/src/authz/authz.dart';
 import 'package:dashboard_core/src/data/query_cache.dart';
@@ -316,6 +323,16 @@ final staffWorkShiftsProvider = FutureProvider.autoDispose<List<WorkShift>>((
   ref.watch(realtimeEpochProvider('/staff/work-shifts'));
   return ref.watch(apiProvider).staff.listWorkShifts();
 });
+
+/// `GET /staff/employees/linkable`: the Madar users who are not employees
+/// yet. One read for the Users page's Make employee rows and team's Add
+/// employee dialog, so opening the dialog from Users asks nothing more.
+final staffLinkableUsersProvider =
+    FutureProvider.autoDispose<List<LinkableUser>>((ref) {
+      ref.webCache();
+      ref.watch(realtimeEpochProvider('/staff/employees/linkable'));
+      return ref.watch(apiProvider).staff.linkableUsers();
+    });
 
 /// `GET /staff/attendance/settings` (the business's rules).
 final staffAttendanceSettingsProvider =

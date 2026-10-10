@@ -161,8 +161,10 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('users: Make employee opens team\'s Add employee dialog for '
-      'that person, warmed', (tester) async {
+  testWidgets('ADM-USR-014 users: Make employee opens team\'s Add employee '
+      'dialog for that person, on the page\'s own linkable read', (
+    tester,
+  ) async {
     final db = MockDb.seeded();
     final server = MockServer(persona: Persona.owner, clock: db.clock);
     registerAppMocks(server, db);
@@ -192,10 +194,11 @@ void main() {
     expect(action, findsOneWidget);
     final reads = h.server.callsTo('/staff/employees/linkable').length;
     await _rest(tester, h, action);
+    expect(reads, 1, reason: 'the page reads the list once');
     expect(
       h.server.callsTo('/staff/employees/linkable'),
-      hasLength(reads + 1),
-      reason: 'the dialog\'s list is warmed',
+      hasLength(reads),
+      reason: 'the warm finds the page\'s read',
     );
     await h.tap(action);
     final dialog = _type('AddEmployeeDialog');
@@ -203,8 +206,8 @@ void main() {
     expect((tester.widget(dialog) as dynamic).userId, mariam['id']);
     expect(
       h.server.callsTo('/staff/employees/linkable'),
-      hasLength(reads + 1),
-      reason: 'opened from the warmed read',
+      hasLength(reads),
+      reason: 'one read for the page and the dialog (web: one query)',
     );
   });
 }

@@ -43,16 +43,6 @@ final staffDepartmentsProvider = FutureProvider.autoDispose<List<Department>>((
   return ref.watch(apiProvider).staff.listDepartments();
 });
 
-/// `GET /staff/employees/linkable`: the Madar users who are not employees
-/// yet (the Add dialog's "Madar user" kind).
-final linkableUsersProvider = FutureProvider.autoDispose<List<LinkableUser>>((
-  ref,
-) {
-  ref.webCache();
-  watchStaffPath(ref, '/staff/employees/linkable');
-  return ref.watch(apiProvider).staff.linkableUsers();
-});
-
 /// The web's invalidation helpers (`invalidateEmployees`, `invalidateStaff`,
 /// `invalidateDepartments`). Read it BEFORE a write's `await` and call it
 /// after, whatever became of the widget meanwhile: the web's query client

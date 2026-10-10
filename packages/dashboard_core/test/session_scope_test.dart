@@ -91,17 +91,20 @@ void main() {
   setUpAll(ensureTimeZones);
 
   group('session', () {
-    test('restores the signed-in persona through /auth/me', () async {
-      final r = Rig(as: Persona.owner);
-      addTearDown(r.dispose);
-      await r.ready();
-      final s = r.c.read(currentSessionProvider)!;
-      expect(s.user.name, 'Nour El-Sayed');
-      expect(s.user.role, 'org_admin');
-      expect(s.user.orgId, SeedIds.sabahOrg);
-      expect(s.currencyCode, 'EGP');
-      expect(s.isPlatform, isFalse);
-    });
+    test(
+      'ADM-APP-020: restores the signed-in persona through /auth/me',
+      () async {
+        final r = Rig(as: Persona.owner);
+        addTearDown(r.dispose);
+        await r.ready();
+        final s = r.c.read(currentSessionProvider)!;
+        expect(s.user.name, 'Nour El-Sayed');
+        expect(s.user.role, 'org_admin');
+        expect(s.user.orgId, SeedIds.sabahOrg);
+        expect(s.currencyCode, 'EGP');
+        expect(s.isPlatform, isFalse);
+      },
+    );
 
     test('signs in with email and password; a wrong one is refused', () async {
       final r = Rig();
@@ -152,7 +155,7 @@ void main() {
       expect(r.c.read(authzProvider).ready, isFalse);
     });
 
-    test('a 401 storm signs out exactly once', () async {
+    test('ADM-APP-019: a 401 storm signs out exactly once', () async {
       final r = Rig(as: Persona.owner);
       addTearDown(r.dispose);
       await r.ready();
@@ -167,7 +170,7 @@ void main() {
     });
 
     test(
-      'an expired token signs out before anything asks (requireAuth)',
+      'ADM-APP-017 ADM-APP-018: an expired token signs out before anything asks (requireAuth)',
       () async {
         final now = DateTime.utc(2026, 10, 8, 7);
         final expired = _jwt(now.subtract(const Duration(minutes: 5)));
@@ -195,17 +198,20 @@ void main() {
   });
 
   group('authz', () {
-    test('the owner: /authz/me, remembered for next time', () async {
-      final r = Rig(as: Persona.owner);
-      addTearDown(r.dispose);
-      await r.ready();
-      final a = r.c.read(authzProvider);
-      expect(a.ready, isTrue);
-      expect(a.owner, isTrue);
-      expect(a.can(Cap.ordersVoid), isTrue);
-      expect(a.can(Cap.platformOrgsCreate), isFalse);
-      expect(r.prefs.values[authzPrefKey(SeedIds.owner)], isNotNull);
-    });
+    test(
+      'ADM-APP-021: the owner: /authz/me, remembered for next time',
+      () async {
+        final r = Rig(as: Persona.owner);
+        addTearDown(r.dispose);
+        await r.ready();
+        final a = r.c.read(authzProvider);
+        expect(a.ready, isTrue);
+        expect(a.owner, isTrue);
+        expect(a.can(Cap.ordersVoid), isTrue);
+        expect(a.can(Cap.platformOrgsCreate), isFalse);
+        expect(r.prefs.values[authzPrefKey(SeedIds.owner)], isNotNull);
+      },
+    );
 
     test(
       'a manager holds the registry manager defaults, not the owner ones',
@@ -292,25 +298,28 @@ void main() {
   });
 
   group('modules, onboarding, set-up', () {
-    test('a two-module org; a Dawam-only org; no org = every module', () async {
-      final owner = Rig(as: Persona.owner);
-      addTearDown(owner.dispose);
-      await owner.ready();
-      expect(owner.c.read(orgModulesProvider).known, isTrue);
-      expect(owner.c.read(orgModulesProvider).modules, ['pos', 'dawam']);
+    test(
+      'ADM-APP-044 ADM-APP-076: a two-module org; a Dawam-only org; no org = every module',
+      () async {
+        final owner = Rig(as: Persona.owner);
+        addTearDown(owner.dispose);
+        await owner.ready();
+        expect(owner.c.read(orgModulesProvider).known, isTrue);
+        expect(owner.c.read(orgModulesProvider).modules, ['pos', 'dawam']);
 
-      final dawam = Rig(as: Persona.dawamOnly);
-      addTearDown(dawam.dispose);
-      await dawam.ready();
-      expect(dawam.c.read(orgModulesProvider).modules, ['dawam']);
+        final dawam = Rig(as: Persona.dawamOnly);
+        addTearDown(dawam.dispose);
+        await dawam.ready();
+        expect(dawam.c.read(orgModulesProvider).modules, ['dawam']);
 
-      final platform = Rig(as: Persona.platform);
-      addTearDown(platform.dispose);
-      await platform.ready();
-      final m = platform.c.read(orgModulesProvider);
-      expect(m.known, isTrue);
-      expect(m.modules, OrgModule.all);
-    });
+        final platform = Rig(as: Persona.platform);
+        addTearDown(platform.dispose);
+        await platform.ready();
+        final m = platform.c.read(orgModulesProvider);
+        expect(m.known, isTrue);
+        expect(m.modules, OrgModule.all);
+      },
+    );
 
     test('modules that cannot be read are not guessed', () async {
       final r = Rig(as: Persona.owner);
@@ -330,7 +339,7 @@ void main() {
       expect(r.c.read(orgModulesProvider).known, isTrue);
     });
 
-    test('the onboarding gate (gate.ts)', () async {
+    test('ADM-APP-084 ADM-APP-085: the onboarding gate (gate.ts)', () async {
       expect(
         sendsToOnboarding(
           role: 'org_admin',
@@ -463,6 +472,51 @@ void main() {
         expect(m.server.callsTo('/staff/work-shifts'), isEmpty);
       },
     );
+
+    test('ADM-USR-014 linkable accounts: one read for every reader, a staff '
+        'write refetches it', () async {
+      final r = Rig();
+      addTearDown(r.dispose);
+      r.server.on(
+        'GET',
+        '/staff/employees/linkable',
+        (_) => MockResponse.ok([
+          const LinkableUser(name: 'Mariam', role: 'cashier', userId: 'u1'),
+        ]),
+      );
+      await r.ready();
+      final sub = r.c.listen(staffLinkableUsersProvider, (_, _) {});
+      final again = r.c.listen(staffLinkableUsersProvider, (_, _) {});
+      addTearDown(sub.close);
+      addTearDown(again.close);
+      final users = await r.c.read(staffLinkableUsersProvider.future);
+      expect(users.single.userId, 'u1');
+      expect(r.server.callsTo('/staff/employees/linkable'), hasLength(1));
+      r.c.read(realtimeBusProvider).invalidate(const ['/staff/employees']);
+      await settle();
+      expect(r.server.callsTo('/staff/employees/linkable'), hasLength(2));
+    });
+
+    test('branches: a page opening on them after the stale time refetches, '
+        'the list kept meanwhile (webCache)', () async {
+      final r = Rig(as: Persona.owner);
+      addTearDown(r.dispose);
+      await r.ready();
+      final first = await r.c.read(branchesProvider.future);
+      expect(first, isNotEmpty);
+      final reads = r.server.callsTo('/branches').length;
+      // Fresh: a new page reads the cache.
+      r.c.listen(branchesProvider, (_, _) {}).close();
+      await settle();
+      expect(r.server.callsTo('/branches'), hasLength(reads));
+      r.db.clock.advance(kQueryStaleTime + const Duration(seconds: 1));
+      final page = r.c.listen(branchesProvider, (_, _) {});
+      addTearDown(page.close);
+      expect(r.c.read(branchesProvider).value, first);
+      await settle();
+      expect(r.server.callsTo('/branches'), hasLength(reads + 1));
+      expect(r.c.read(branchesProvider).value, hasLength(first!.length));
+    });
 
     test('setupProgress counts real data only', () {
       Branch b(String id, {double? lat, double? lng, int? r}) =>
@@ -688,18 +742,21 @@ void main() {
       expect(r.c.read(formatProvider).timezone, 'Africa/Cairo');
     });
 
-    test('resolveTimezone: branch, org, the first branch zone, Cairo', () {
-      expect(
-        resolveTimezone(branchTz: 'Asia/Dubai', orgTz: 'UTC'),
-        'Asia/Dubai',
-      );
-      expect(resolveTimezone(orgTz: 'UTC'), 'UTC');
-      expect(
-        resolveTimezone(branchZones: [null, '', 'Asia/Riyadh']),
-        'Asia/Riyadh',
-      );
-      expect(resolveTimezone(), appTimezone);
-    });
+    test(
+      'ADM-APP-062: resolveTimezone: branch, org, the first branch zone, Cairo',
+      () {
+        expect(
+          resolveTimezone(branchTz: 'Asia/Dubai', orgTz: 'UTC'),
+          'Asia/Dubai',
+        );
+        expect(resolveTimezone(orgTz: 'UTC'), 'UTC');
+        expect(
+          resolveTimezone(branchZones: [null, '', 'Asia/Riyadh']),
+          'Asia/Riyadh',
+        );
+        expect(resolveTimezone(), appTimezone);
+      },
+    );
   });
 
   group('warehouse scope (af50aa63 scope-bar.tsx)', () {

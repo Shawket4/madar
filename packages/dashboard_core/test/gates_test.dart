@@ -71,31 +71,32 @@ void main() {
   group('ModuleGate', () {
     for (final (lang, dark) in [('en', false), ('ar', true)]) {
       for (final size in ShotSize.values) {
-        testWidgets('a POS page in a Dawam-only org, $lang ${size.name}', (
-          tester,
-        ) async {
-          final rig = CoreRig(persona: Persona.dawamOnly);
-          await pumpCore(
-            tester,
-            rig,
-            const ModuleGate(path: '/orders', child: _page),
-            lang: lang,
-            dark: dark,
-            size: size,
-          );
-          final words = lang == 'en' ? _en : _ar;
-          expect(find.text('PAGE BODY'), findsNothing);
-          expect(find.text(words('dawam.moduleOffTitle')), findsOneWidget);
-          expect(find.text(words('dawam.modulePosOff')), findsOneWidget);
-          await shot(
-            tester,
-            'gates',
-            'module-off',
-            size: size,
-            lang: lang,
-            dark: dark,
-          );
-        });
+        testWidgets(
+          'ADM-APP-080: a POS page in a Dawam-only org, $lang ${size.name}',
+          (tester) async {
+            final rig = CoreRig(persona: Persona.dawamOnly);
+            await pumpCore(
+              tester,
+              rig,
+              const ModuleGate(path: '/orders', child: _page),
+              lang: lang,
+              dark: dark,
+              size: size,
+            );
+            final words = lang == 'en' ? _en : _ar;
+            expect(find.text('PAGE BODY'), findsNothing);
+            expect(find.text(words('dawam.moduleOffTitle')), findsOneWidget);
+            expect(find.text(words('dawam.modulePosOff')), findsOneWidget);
+            await shot(
+              tester,
+              'gates',
+              'module-off',
+              size: size,
+              lang: lang,
+              dark: dark,
+            );
+          },
+        );
       }
     }
 
@@ -119,7 +120,9 @@ void main() {
       expect(find.text(_en('dawam.moduleDawamOff')), findsOneWidget);
     });
 
-    testWidgets('pages of a switched-on module open', (tester) async {
+    testWidgets('ADM-APP-076: pages of a switched-on module open', (
+      tester,
+    ) async {
       await pumpCore(
         tester,
         CoreRig(),
@@ -128,7 +131,7 @@ void main() {
       expect(find.text('PAGE BODY'), findsOneWidget);
     });
 
-    testWidgets('untagged pages open in any org', (tester) async {
+    testWidgets('ADM-APP-077: untagged pages open in any org', (tester) async {
       await pumpCore(
         tester,
         CoreRig(persona: Persona.dawamOnly),
@@ -137,7 +140,9 @@ void main() {
       expect(find.text('PAGE BODY'), findsOneWidget);
     });
 
-    testWidgets('nothing on a guess while the modules load', (tester) async {
+    testWidgets('ADM-APP-079: nothing on a guess while the modules load', (
+      tester,
+    ) async {
       final rig = CoreRig();
       final gate = rig.server.hold('GET', '/orgs/{id}/modules');
       await pumpCore(
@@ -157,7 +162,7 @@ void main() {
       ('ar', false, ShotSize.phone),
     ]) {
       testWidgets(
-        'says so when the modules cannot be read, then retries, $lang',
+        'ADM-APP-078: says so when the modules cannot be read, then retries, $lang',
         (tester) async {
           final rig = CoreRig();
           rig.server.fail(
@@ -287,8 +292,12 @@ void main() {
   test('stale refusals: the web\'s whole STALE_CODES, coded ones only', () {
     ApiException refusal(String? code) =>
         ApiException(status: 409, message: 'x', code: code);
-    for (final code in ['ALREADY_DECIDED', 'PAYSLIP_ALREADY_PAID',
-        'TRANSFER_CHANGED', 'TRANSFER_STEP_NOT_OPEN']) {
+    for (final code in [
+      'ALREADY_DECIDED',
+      'PAYSLIP_ALREADY_PAID',
+      'TRANSFER_CHANGED',
+      'TRANSFER_STEP_NOT_OPEN',
+    ]) {
       expect(isStaleRefusal(refusal(code)), isTrue, reason: code);
     }
     expect(staleRefusalCodes, hasLength(17));

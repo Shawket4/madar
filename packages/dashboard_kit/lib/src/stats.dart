@@ -384,10 +384,12 @@ class DashStatCard extends StatelessWidget {
         ConstrainedBox(
           constraints: const BoxConstraints(minHeight: Space.card),
           child: Row(
-            spacing: Space.sm,
             children: [
-              if (icon != null)
+              // The web's gap-1.5 by the glyph, gap-2 before the action.
+              if (icon != null) ...[
                 DashIcon(icon!, size: IconSize.sm, color: glyphColor),
+                const SizedBox(width: Space.xs + 2),
+              ],
               Expanded(
                 child: MadarClippedText(
                   label,
@@ -399,7 +401,7 @@ class DashStatCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (action != null) const SizedBox(width: actionSlot),
+              if (action != null) const SizedBox(width: Space.sm + actionSlot),
             ],
           ),
         ),
