@@ -163,7 +163,8 @@ void main() {
     });
 
     test(
-      'needs org.settings.read: a manager and a reader are refused',
+      'needs org.settings.read or menu.combos.edit (B5): a manager and a '
+      'reader hold neither and are refused; the refusal names the first',
       () async {
         for (final p in [Persona.manager, Persona.limited]) {
           final a = await _send(cmbServer(persona: p), 'GET', cmbSettings);

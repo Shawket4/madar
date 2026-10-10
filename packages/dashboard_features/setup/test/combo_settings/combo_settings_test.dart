@@ -86,6 +86,17 @@ void main() {
       }
     });
 
+    testWidgets('B5 menu.combos.edit alone opens the editor: the read is '
+        'answered, no read-only note, Save offered', (tester) async {
+      final m = cmbServer();
+      grantOnly(m.server, const ['menu.combos.edit']);
+      final h = await pumpCombos(tester, backend: m);
+      expect(byKey('cmb-channels'), findsOneWidget);
+      expect(paneText(h.t('combos.settings.readOnly')), findsNothing);
+      expect(byKey('cmb-save'), findsOneWidget);
+      expect(h.server.callsTo(cmbSettings), hasLength(1));
+    });
+
     testWidgets('SET-CMB-017 no org picked: the load-failed state with no '
         'words; Retry asks and shows the server\'s answer', (tester) async {
       final h = await pumpCombos(

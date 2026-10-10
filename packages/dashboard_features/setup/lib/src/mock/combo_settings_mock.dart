@@ -1,9 +1,10 @@
 /// The mock backend for Combos and deals settings (`/settings/combos`,
 /// SET-CMB rows), as MadarRust `src/combos/handlers.rs` answers:
 ///
-/// - `GET /settings/combos`: `org.settings.read`; the caller's org (a
-///   platform admin with none picked is refused: "A super admin must scope
-///   this to an org"). The org's four switches (on unless switched off), the
+/// - `GET /settings/combos`: `org.settings.read` or `menu.combos.edit` (B5;
+///   the refusal names the first); the caller's org (a platform admin with
+///   none picked is refused: "A super admin must scope this to an org").
+///   The org's four switches (on unless switched off), the
 ///   minimum margin, and every branch that overrides a switch, by branch
 ///   name, each with what it resolves to.
 /// - `PUT /settings/combos`: `menu.combos.edit`; the margin is replaced
@@ -148,7 +149,8 @@ void registerComboSettingsMocks(MockServer server, MockDb db) {
 
   server
     ..on('GET', '/settings/combos', (req) {
-      req.requireCap('org.settings.read');
+      // B5: whoever may change combos may read the settings they are judged by.
+      req.requireAnyCap(const ['org.settings.read', 'menu.combos.edit']);
       return MockResponse.ok(ComboSettingsMock.wire(db, org(req)));
     })
     ..on('PUT', '/settings/combos', (req) {
