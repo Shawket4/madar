@@ -6,6 +6,7 @@
 import 'api/bridge.dart';
 import 'api/error.dart';
 import 'api/reports.dart';
+import 'api/rules.dart';
 import 'api/transport.dart';
 import 'api/types.dart';
 import 'api/xlsx.dart';
@@ -94,10 +95,34 @@ abstract class DashboardBridgeApiImplPlatform
   ApiFailure dco_decode_box_autoadd_api_failure(dynamic raw);
 
   @protected
+  DayBounds dco_decode_box_autoadd_day_bounds(dynamic raw);
+
+  @protected
+  double dco_decode_box_autoadd_f_64(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
   MadarConfig dco_decode_box_autoadd_madar_config(dynamic raw);
 
   @protected
+  PayPeriod dco_decode_box_autoadd_pay_period(dynamic raw);
+
+  @protected
+  ReconcileRefusal dco_decode_box_autoadd_reconcile_refusal(dynamic raw);
+
+  @protected
   SessionSnapshot dco_decode_box_autoadd_session_snapshot(dynamic raw);
+
+  @protected
+  TransferStep dco_decode_box_autoadd_transfer_step(dynamic raw);
+
+  @protected
+  UnitSpec dco_decode_box_autoadd_unit_spec(dynamic raw);
 
   @protected
   BranchView dco_decode_branch_view(dynamic raw);
@@ -125,6 +150,9 @@ abstract class DashboardBridgeApiImplPlatform
   DashboardTimePointView dco_decode_dashboard_time_point_view(dynamic raw);
 
   @protected
+  DayBounds dco_decode_day_bounds(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -132,6 +160,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  List<String> dco_decode_list_String(dynamic raw);
 
   @protected
   List<ApiFile> dco_decode_list_api_file(dynamic raw);
@@ -173,6 +204,12 @@ abstract class DashboardBridgeApiImplPlatform
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<ReconcileInput> dco_decode_list_reconcile_input(dynamic raw);
+
+  @protected
+  List<ReconcileTotal> dco_decode_list_reconcile_total(dynamic raw);
+
+  @protected
   MadarConfig dco_decode_madar_config(dynamic raw);
 
   @protected
@@ -188,13 +225,58 @@ abstract class DashboardBridgeApiImplPlatform
   ApiFailure? dco_decode_opt_box_autoadd_api_failure(dynamic raw);
 
   @protected
+  DayBounds? dco_decode_opt_box_autoadd_day_bounds(dynamic raw);
+
+  @protected
+  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  PayPeriod? dco_decode_opt_box_autoadd_pay_period(dynamic raw);
+
+  @protected
+  ReconcileRefusal? dco_decode_opt_box_autoadd_reconcile_refusal(dynamic raw);
+
+  @protected
   SessionSnapshot? dco_decode_opt_box_autoadd_session_snapshot(dynamic raw);
+
+  @protected
+  TransferStep? dco_decode_opt_box_autoadd_transfer_step(dynamic raw);
+
+  @protected
+  UnitSpec? dco_decode_opt_box_autoadd_unit_spec(dynamic raw);
 
   @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  PayPeriod dco_decode_pay_period(dynamic raw);
+
+  @protected
+  ReceiveCheck dco_decode_receive_check(dynamic raw);
+
+  @protected
+  ReconcileInput dco_decode_reconcile_input(dynamic raw);
+
+  @protected
+  ReconcileRefusal dco_decode_reconcile_refusal(dynamic raw);
+
+  @protected
+  ReconcileTotal dco_decode_reconcile_total(dynamic raw);
+
+  @protected
+  Replenish dco_decode_replenish(dynamic raw);
+
+  @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
+
+  @protected
+  TransferStep dco_decode_transfer_step(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -207,6 +289,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void dco_decode_unit(dynamic raw);
+
+  @protected
+  UnitSpec dco_decode_unit_spec(dynamic raw);
 
   @protected
   BigInt dco_decode_usize(dynamic raw);
@@ -279,12 +364,40 @@ abstract class DashboardBridgeApiImplPlatform
   ApiFailure sse_decode_box_autoadd_api_failure(SseDeserializer deserializer);
 
   @protected
+  DayBounds sse_decode_box_autoadd_day_bounds(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
   MadarConfig sse_decode_box_autoadd_madar_config(SseDeserializer deserializer);
+
+  @protected
+  PayPeriod sse_decode_box_autoadd_pay_period(SseDeserializer deserializer);
+
+  @protected
+  ReconcileRefusal sse_decode_box_autoadd_reconcile_refusal(
+    SseDeserializer deserializer,
+  );
 
   @protected
   SessionSnapshot sse_decode_box_autoadd_session_snapshot(
     SseDeserializer deserializer,
   );
+
+  @protected
+  TransferStep sse_decode_box_autoadd_transfer_step(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UnitSpec sse_decode_box_autoadd_unit_spec(SseDeserializer deserializer);
 
   @protected
   BranchView sse_decode_branch_view(SseDeserializer deserializer);
@@ -320,6 +433,9 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  DayBounds sse_decode_day_bounds(SseDeserializer deserializer);
+
+  @protected
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
@@ -327,6 +443,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
   List<ApiFile> sse_decode_list_api_file(SseDeserializer deserializer);
@@ -368,6 +487,16 @@ abstract class DashboardBridgeApiImplPlatform
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<ReconcileInput> sse_decode_list_reconcile_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ReconcileTotal> sse_decode_list_reconcile_total(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MadarConfig sse_decode_madar_config(SseDeserializer deserializer);
 
   @protected
@@ -387,15 +516,68 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  DayBounds? sse_decode_opt_box_autoadd_day_bounds(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  PayPeriod? sse_decode_opt_box_autoadd_pay_period(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ReconcileRefusal? sse_decode_opt_box_autoadd_reconcile_refusal(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SessionSnapshot? sse_decode_opt_box_autoadd_session_snapshot(
     SseDeserializer deserializer,
   );
 
   @protected
+  TransferStep? sse_decode_opt_box_autoadd_transfer_step(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UnitSpec? sse_decode_opt_box_autoadd_unit_spec(SseDeserializer deserializer);
+
+  @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  PayPeriod sse_decode_pay_period(SseDeserializer deserializer);
+
+  @protected
+  ReceiveCheck sse_decode_receive_check(SseDeserializer deserializer);
+
+  @protected
+  ReconcileInput sse_decode_reconcile_input(SseDeserializer deserializer);
+
+  @protected
+  ReconcileRefusal sse_decode_reconcile_refusal(SseDeserializer deserializer);
+
+  @protected
+  ReconcileTotal sse_decode_reconcile_total(SseDeserializer deserializer);
+
+  @protected
+  Replenish sse_decode_replenish(SseDeserializer deserializer);
+
+  @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
+
+  @protected
+  TransferStep sse_decode_transfer_step(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -408,6 +590,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  UnitSpec sse_decode_unit_spec(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
@@ -497,14 +682,56 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_day_bounds(
+    DayBounds self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_madar_config(
     MadarConfig self,
     SseSerializer serializer,
   );
 
   @protected
+  void sse_encode_box_autoadd_pay_period(
+    PayPeriod self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_reconcile_refusal(
+    ReconcileRefusal self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_session_snapshot(
     SessionSnapshot self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_transfer_step(
+    TransferStep self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_unit_spec(
+    UnitSpec self,
     SseSerializer serializer,
   );
 
@@ -548,6 +775,9 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_day_bounds(DayBounds self, SseSerializer serializer);
+
+  @protected
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
@@ -555,6 +785,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_api_file(List<ApiFile> self, SseSerializer serializer);
@@ -608,6 +841,18 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_list_reconcile_input(
+    List<ReconcileInput> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_reconcile_total(
+    List<ReconcileTotal> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_madar_config(MadarConfig self, SseSerializer serializer);
 
   @protected
@@ -629,8 +874,50 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_day_bounds(
+    DayBounds? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_pay_period(
+    PayPeriod? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_reconcile_refusal(
+    ReconcileRefusal? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_session_snapshot(
     SessionSnapshot? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_transfer_step(
+    TransferStep? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_unit_spec(
+    UnitSpec? self,
     SseSerializer serializer,
   );
 
@@ -641,10 +928,40 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_pay_period(PayPeriod self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_receive_check(ReceiveCheck self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_reconcile_input(
+    ReconcileInput self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reconcile_refusal(
+    ReconcileRefusal self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_reconcile_total(
+    ReconcileTotal self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_replenish(Replenish self, SseSerializer serializer);
+
+  @protected
   void sse_encode_session_snapshot(
     SessionSnapshot self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_transfer_step(TransferStep self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
@@ -657,6 +974,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_unit_spec(UnitSpec self, SseSerializer serializer);
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
