@@ -104,7 +104,9 @@ class _BaseEditorDialogState extends ConsumerState<BaseEditorDialog> {
           (
             sizeLabel: l.sizeLabel,
             ingredientId: l.ingredientId,
-            quantity: l.quantity,
+            // Before yield loss: sent back unchanged, the server keeps the
+            // stored line.
+            quantity: l.usableQuantity,
             unit: l.unit,
           ),
       ],

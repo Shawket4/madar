@@ -22,6 +22,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import 'ingredient_options.dart';
 import 'menu_reads.dart' show ingredientsById;
@@ -51,6 +52,34 @@ class RecipeRowInit {
   String toString() =>
       'RecipeRowInit($sizeLabel, $orgIngredientId, $ingredientName, '
       '$quantityUsed $ingredientUnit)';
+}
+
+/// [rows] (stored quantities) as an editor shows them: each before its
+/// ingredient's yield loss, in the base unit (madar-units `usable_qty`
+/// through the core, the server's `usable_quantity`). Sent back unchanged,
+/// the server keeps the stored line.
+// ponytail: MenuItemRecipe (GET /menu/items/{id}) has no usable_quantity
+// yet, so this runs the server's rule over the catalog's yield (a row loaded
+// before the catalog shows its stored amount until it lands). Read the field
+// once the backend sends it.
+List<RecipeRowInit> usableRecipeRows(
+  Iterable<RecipeRowInit> rows,
+  Iterable<OrgIngredient> catalog,
+) {
+  final byId = ingredientsById(catalog);
+  return [
+    for (final r in rows)
+      RecipeRowInit(
+        sizeLabel: r.sizeLabel,
+        orgIngredientId: r.orgIngredientId,
+        ingredientName: r.ingredientName,
+        ingredientUnit: r.ingredientUnit,
+        quantityUsed: rules.usableQty(
+          stored: r.quantityUsed,
+          yieldPct: byId[r.orgIngredientId]?.yieldPct,
+        ),
+      ),
+  ];
 }
 
 /// A row that counts: a name and a finite quantity above zero (`CleanRow`).

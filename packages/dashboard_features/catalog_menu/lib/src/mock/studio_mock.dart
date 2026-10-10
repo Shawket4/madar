@@ -403,6 +403,7 @@ class StudioBackend {
       'ingredient_id': ingId,
       'ingredient_name': _data.ingredientName(ingId),
       'quantity': q.isFinite ? q.toStringAsFixed(3) : '0.000',
+      'usable_quantity': _data.usableOf(ingId, q).toStringAsFixed(3),
       'unit': l['unit'],
       'size_label': l['size_label'],
       'source': l['source'],
@@ -749,6 +750,15 @@ class StudioBackend {
       final q = l['quantity'];
       if (q is! num || q <= 0) _bad('Quantity must be more than 0');
     }
+    // What each own line stores now: one sent back unchanged keeps it.
+    final before = {
+      for (final l in _lines.where(
+        (l) =>
+            l['size_id'] == sizeId &&
+            (l['source'] == null || l['source'] == 'own'),
+      ))
+        l['ingredient_id']: jsNumber('${l['quantity']}'),
+    };
     _lines.removeWhere(
       (l) =>
           l['size_id'] == sizeId &&
@@ -761,7 +771,16 @@ class StudioBackend {
         'size_id': sizeId,
         'menu_item_id': item['id'],
         'ingredient_id': l['ingredient_id'],
-        'quantity': fmtQty(l['quantity']! as num),
+        'quantity': fmtQty(
+          _data.storedOf(
+                l['ingredient_id']! as String,
+                l['quantity']! as num,
+                '${l['unit']}',
+                '${l['unit']}',
+                before[l['ingredient_id']],
+              ) ??
+              l['quantity']! as num,
+        ),
         'unit': l['unit'],
         'source': 'own',
         'sort': n,
@@ -940,17 +959,38 @@ class StudioBackend {
         ..['sort'] = n;
       final recipe = (o['recipe'] as List?)?.cast<Map<String, Object?>>();
       if (recipe != null) {
+        final before = ((row['recipe'] as List?) ?? const [])
+            .cast<Map<String, Object?>>();
         row['recipe'] = [
           for (final l in recipe)
-            {
-              'ingredient_id': l['ingredient_id'],
-              'ingredient_name': _data.ingredientName(
-                l['ingredient_id']! as String,
-              ),
-              'quantity': (l['quantity'] as num?)?.toDouble() ?? 0,
-              'unit': l['unit'],
-              'size_label': l['size_label'],
-            },
+            () {
+              final id = l['ingredient_id']! as String;
+              final sent = (l['quantity'] as num?)?.toDouble() ?? 0;
+              final prev = before
+                  .where(
+                    (b) =>
+                        b['ingredient_id'] == id &&
+                        b['size_label'] == l['size_label'],
+                  )
+                  .firstOrNull?['quantity'];
+              final q =
+                  _data.storedOf(
+                    id,
+                    sent,
+                    '${l['unit']}',
+                    '${l['unit']}',
+                    prev as num?,
+                  ) ??
+                  sent;
+              return <String, Object?>{
+                'ingredient_id': id,
+                'ingredient_name': _data.ingredientName(id),
+                'quantity': q,
+                'usable_quantity': _data.usableOf(id, q),
+                'unit': l['unit'],
+                'size_label': l['size_label'],
+              };
+            }(),
         ];
       }
       kept.add(row);

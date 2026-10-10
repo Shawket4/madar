@@ -118,6 +118,7 @@ void registerBasesMocks(MockServer server, MockDb db) {
       data,
       row['org_id'] as String,
       req.json['lines'],
+      row['lines'] as List? ?? const [],
     );
     row
       ..['lines'] = _storedBaseLines(db, row['id'] as String, lines)
@@ -224,7 +225,13 @@ void registerBasesMocks(MockServer server, MockDb db) {
     final name = b['name'] == null ? null : _cleanName(req, b['name']);
     final lines = b['lines'] == null
         ? null
-        : _ruleLines(req, data, org, b['lines']);
+        : _ruleLines(
+            req,
+            data,
+            org,
+            b['lines'],
+            row['lines'] as List? ?? const [],
+          );
     row
       ..['match_category_id'] = cat
       ..['match_size_label'] = label
@@ -453,8 +460,9 @@ List<Map<String, Object?>> _baseLines(
   MockRequest req,
   CatalogMenuData data,
   String org,
-  Object? raw,
-) {
+  Object? raw, [
+  List<Object?> before = const [],
+]) {
   if (raw is! List) {
     req.badRequest('Json deserialize error: missing field `lines`');
   }
@@ -467,7 +475,13 @@ List<Map<String, Object?>> _baseLines(
         if (!seen.add('$label|$ing')) {
           req.badRequest('Duplicate ingredient for the same size in base');
         }
-        final (unit, q) = _normalize(req, data, org, l);
+        final (unit, q) = _normalize(
+          req,
+          data,
+          org,
+          l,
+          _prevQty(before, ing, (l) => _cleanOpt(l['size_label']) == label),
+        );
         return <String, Object?>{
           'size_label': label,
           'ingredient_id': ing,
@@ -485,8 +499,9 @@ List<Map<String, Object?>> _ruleLines(
   MockRequest req,
   CatalogMenuData data,
   String org,
-  Object? raw,
-) {
+  Object? raw, [
+  List<Object?> before = const [],
+]) {
   if (raw is! List) {
     req.badRequest('Json deserialize error: missing field `lines`');
   }
@@ -496,7 +511,13 @@ List<Map<String, Object?>> _ruleLines(
       () {
         final ing = '${l['ingredient_id']}';
         if (!seen.add(ing)) req.badRequest('Duplicate ingredient in rule');
-        final (unit, q) = _normalize(req, data, org, l);
+        final (unit, q) = _normalize(
+          req,
+          data,
+          org,
+          l,
+          _prevQty(before, ing, (_) => true),
+        );
         return <String, Object?>{
           'ingredient_id': ing,
           'quantity': q,
@@ -507,14 +528,30 @@ List<Map<String, Object?>> _ruleLines(
   ];
 }
 
-/// `normalize_recipe_unit`: the org's own live ingredient, the quantity
-/// converted to its unit and rounded to 3 decimals (as decimal text).
+/// What a saved line of [ingredientId] stored before (matching [same]).
+num? _prevQty(
+  List<Object?> before,
+  String ingredientId,
+  bool Function(Map<String, Object?> l) same,
+) {
+  for (final l in before.cast<Map<String, Object?>>()) {
+    if (l['ingredient_id'] == ingredientId && same(l)) {
+      return jsNumber('${l['quantity']}');
+    }
+  }
+  return null;
+}
+
+/// `normalize_recipe_line`: the org's own live ingredient, the quantity
+/// converted to its unit, grossed up by its yield and rounded to 3 decimals
+/// (as decimal text); a line sent back unchanged keeps [prev].
 (String, String) _normalize(
   MockRequest req,
   CatalogMenuData data,
   String org,
-  Map<String, Object?> l,
-) {
+  Map<String, Object?> l, [
+  num? prev,
+]) {
   final q = l['quantity'];
   if (q is! num || !q.isFinite || q < 0) {
     req.badRequest('quantity must be >= 0');
@@ -527,7 +564,9 @@ List<Map<String, Object?>> _ruleLines(
   }
   final from = '${l['unit']}';
   final to = ing['unit'] as String;
-  final base = jsRound(_convert(req, q.toDouble(), from, to) * 1000) / 1000;
+  final base =
+      data.storedOf('${l['ingredient_id']}', q, from, to, prev) ??
+      jsRound(_convert(req, q.toDouble(), from, to) * 1000) / 1000;
   if (q > 0 && base <= 0) {
     req.badRequest(
       'quantity ${jsNumberText(q)} $from is too small for base unit $to (rounds to 0)',
@@ -590,6 +629,9 @@ Map<String, Object?> _ruleOut(CatalogMenuData data, MockRow r) {
             ...l,
             'ingredient_name': data.ingredientName(
               l['ingredient_id'] as String,
+            ),
+            'usable_quantity': fmtQty(
+              data.usableOf(l['ingredient_id'], l['quantity']),
             ),
           },
       ]..sort((a, b) {

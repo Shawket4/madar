@@ -4,6 +4,8 @@
 import 'package:dashboard_api/dashboard_api.dart'
     show IngredientCategory, OrgIngredient;
 import 'package:dashboard_catalog_menu/src/recipes/create_ingredient_dialog.dart';
+import 'package:dashboard_catalog_menu/src/recipes/recipe_builder.dart'
+    show RecipeRowInit, usableRecipeRows;
 import 'package:dashboard_catalog_menu/src/recipes/recipe_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rust_bridge_dashboard/rules.dart' as rules;
@@ -106,7 +108,7 @@ void main() {
 
   test('MENU-RCP-007 a size costs Σ unit cost × qty (madar-money): rounded '
       'once; an unknown cost or quantity leaves its partial sum, marked '
-      'incomplete (D4); no rows is unknown', () {
+      'incomplete (D4); no rows, or nothing known, is unknown', () {
     final byId = {
       'beans': ingr('beans', 95),
       'milk': ingr('milk', 4.2, unit: 'ml'),
@@ -128,9 +130,10 @@ void main() {
       ], of),
       const rules.RecipeCost(piastres: 1710, complete: false),
     );
+    // Nothing known at all: no figure, as the server's.
     expect(
       recipeSizeEstimate([row('Regular', 'Beans', '', id: 'beans')], of),
-      const rules.RecipeCost(piastres: 0, complete: false),
+      isNull,
     );
     expect(recipeSizeEstimate([], of), isNull);
   });
@@ -190,6 +193,22 @@ void main() {
     expect(recipeMarginTone(400, 1000), RecipeMarginTone.fair);
     expect(recipeMarginTone(401, 1000), RecipeMarginTone.poor);
     expect(recipeMarginTone(100, 0), isNull);
+  });
+
+  test("D3b an item's stored lines show before yield loss (the server's "
+      'usable_qty over the catalog yield); unknown ingredient: as stored', () {
+    RecipeRowInit stored(String? id, double q) => RecipeRowInit(
+      sizeLabel: 'Regular',
+      orgIngredientId: id,
+      ingredientName: '$id',
+      ingredientUnit: 'g',
+      quantityUsed: q,
+    );
+    final shown = usableRecipeRows(
+      [stored('fruit', 125), stored('beans', 18), stored(null, 7)],
+      [ingr('fruit', 2, yieldPct: 80), ingr('beans', 95)],
+    );
+    expect([for (final r in shown) r.quantityUsed], [100.0, 18.0, 7.0]);
   });
 
   test('MENU-RCP-005 scaling: base rows × factor (3 dp); untouched = × 1; '

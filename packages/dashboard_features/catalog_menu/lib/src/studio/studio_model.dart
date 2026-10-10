@@ -161,9 +161,11 @@ List<SizeBlock> toSizeBlocks(StudioAggregate s) {
           baseId: z.baseId,
           lines: [
             for (final r in z.recipe)
+              // The amount before yield loss, in the base unit: sent back
+              // unchanged, the server keeps the stored line (D3b).
               GridLine(
                 ingredientId: r.ingredientId,
-                quantity: jsNumberText(jsParseFloat(r.quantity)),
+                quantity: jsNumberText(jsParseFloat(r.usableQuantity)),
                 unit: r.unit,
                 source: LineSource.fromWire(r.source),
               ),
@@ -328,7 +330,7 @@ class AttachOption {
   final String name;
   final int price;
 
-  /// (ingredient name, quantity as the server wrote it, unit).
+  /// (ingredient name, usable quantity as the server wrote it, unit).
   final List<({String name, String quantity, String unit})>? recipe;
   final int? cost;
   final bool costIncomplete;
@@ -409,7 +411,7 @@ AttachDraft toAttachDraft(ModifierGroupOut g) {
         price: o.price,
         recipe: [
           for (final r in o.recipe)
-            (name: r.ingredientName, quantity: r.quantity, unit: r.unit),
+            (name: r.ingredientName, quantity: r.usableQuantity, unit: r.unit),
         ],
         cost: o.costPiastres,
         costIncomplete: o.costIncomplete,
@@ -525,7 +527,9 @@ List<OptionRow> toOptionRows(StudioAggregate s) => [
         price: egpText(o.price),
         isActive: o.isActive,
         ingredientId: line?.ingredientId ?? '',
-        quantity: line == null ? '' : jsNumberText(jsParseFloat(line.quantity)),
+        quantity: line == null
+            ? ''
+            : jsNumberText(jsParseFloat(line.usableQuantity)),
         unit: line?.unit ?? 'g',
       );
     }(),

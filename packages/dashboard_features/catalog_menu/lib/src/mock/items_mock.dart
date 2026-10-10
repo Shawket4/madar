@@ -718,6 +718,7 @@ class ItemsBackend {
       'ingredient_id': ingId,
       'ingredient_name': data.ingredientName(ingId),
       'quantity': fmtQty(jsNumber('${l['quantity']}')),
+      'usable_quantity': fmtQty(data.usableOf(ingId, l['quantity'])),
       'unit': l['unit'],
       'size_label': l['size_label'],
       'source': l['source'],

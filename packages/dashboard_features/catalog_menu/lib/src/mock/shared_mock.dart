@@ -10,6 +10,7 @@ library;
 import 'package:dashboard_api/mock.dart';
 
 import '../area_seed.dart';
+import '../shared/menu_text.dart';
 
 void registerSharedMenuMocks(MockServer server, MockDb db) {
   // GET /inventory/orgs/{org_id}/catalog (require_org_access).
@@ -136,6 +137,9 @@ Map<String, Object?> recipeBaseOut(
         {
           ...l,
           'ingredient_name': data.ingredientName(l['ingredient_id'] as String),
+          'usable_quantity': fmtQty(
+            data.usableOf(l['ingredient_id'], l['quantity']),
+          ),
         },
     ],
     'created_at': b['created_at'],

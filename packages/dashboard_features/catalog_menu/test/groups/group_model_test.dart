@@ -464,6 +464,7 @@ void main() {
                   ingredientId: 'eth',
                   ingredientName: 'Ethiopia',
                   quantity: 1,
+                  usableQuantity: 1,
                   unit: 'g',
                 ),
               ],
@@ -510,6 +511,56 @@ void main() {
         expect(seedGroupDraft(null, null)!.pick, PickKind.any);
       },
     );
+  });
+
+  group('usable quantity (D3b)', () {
+    // 100 ml usable at yield 80 % is stored as 125: the server sends both.
+    final g = _group(
+      options: const [
+        GroupOptionOut(
+          id: 'o',
+          name: 'Extra milk',
+          nameTranslations: null,
+          price: 500,
+          isDefault: false,
+          isActive: true,
+          sort: 0,
+          recipe: [
+            GroupOptionRecipeLine(
+              ingredientId: 'milk',
+              ingredientName: 'Milk',
+              quantity: 125,
+              usableQuantity: 100,
+              unit: 'ml',
+            ),
+          ],
+        ),
+      ],
+    );
+    List<OptionWireLine> sent(List<OptionLineDraft> lines) => optionRecipeLines(
+      GroupEffect.adds,
+      swapIngredientId: '',
+      lines: lines,
+      unitOf: (_) => 'ml',
+    );
+
+    test('an untouched line shows and sends back its usable quantity', () {
+      final lines = seedGroupDraft(g, null)!.options.single.lines;
+      expect(lines.single.quantity, '100');
+      expect(sent(lines), [
+        (ingredientId: 'milk', quantity: 100.0, unit: 'ml', sizeLabel: null),
+      ]);
+    });
+
+    test('an edited line sends the amount typed', () {
+      final line = seedGroupDraft(
+        g,
+        null,
+      )!.options.single.lines.single.copyWith(quantity: '90');
+      expect(sent([line]), [
+        (ingredientId: 'milk', quantity: 90.0, unit: 'ml', sizeLabel: null),
+      ]);
+    });
   });
 
   group('the list', () {

@@ -375,7 +375,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
         : const <String, String>{};
     final twoUp = !DashBreakpoints.isPhone(context);
 
-    final initialRecipe = [
+    final initialRecipe = usableRecipeRows([
       for (final r in live?.recipes ?? const <MenuItemRecipe>[])
         RecipeRowInit(
           sizeLabel: r.sizeLabel,
@@ -384,7 +384,7 @@ class _MenuItemDialogState extends ConsumerState<MenuItemDialog> {
           ingredientUnit: r.ingredientUnit,
           quantityUsed: r.quantityUsed,
         ),
-    ];
+    ], catalog);
     final labels = [
       for (final s in _sizes)
         if (s.label.isNotEmpty) s.label,

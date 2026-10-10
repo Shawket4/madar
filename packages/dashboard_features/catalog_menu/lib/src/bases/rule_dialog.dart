@@ -126,7 +126,8 @@ class _RuleDialogState extends ConsumerState<RuleDialog> {
           for (final l in _rule?.lines ?? const <PackagingRuleLineOut>[])
             GridLine(
               ingredientId: l.ingredientId,
-              quantity: jsNumberText(jsNumber(l.quantity)),
+              // Before yield loss: sent back unchanged, the server keeps it.
+              quantity: jsNumberText(jsNumber(l.usableQuantity)),
               unit: l.unit,
             ),
         ],
