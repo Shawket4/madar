@@ -491,14 +491,45 @@ void main() {
       );
     });
 
-    test('an uncosted line: incomplete; no line: "—"; price 0: no margin', () {
+    test('an uncosted line: its partial cost, marked incomplete, no margin '
+        '(D4); the server with no figure: "Cost incomplete"; no line: "—"; '
+        'price 0: no margin', () {
+      final partial =
+          columnCost(
+                col([
+                  const GridLine(
+                    ingredientId: 'milk',
+                    quantity: '10',
+                    unit: 'ml',
+                  ),
+                  const GridLine(
+                    ingredientId: 'syrup',
+                    quantity: '5',
+                    unit: 'ml',
+                  ),
+                ]),
+                catalog,
+                recipeDirty: true,
+              )
+              as CostKnown;
+      expect(partial.piastres, 42);
+      expect(partial.complete, isFalse);
+      expect(partial.margin, isNull);
       expect(
         columnCost(
-          col([
-            const GridLine(ingredientId: 'syrup', quantity: '5', unit: 'g'),
-          ]),
+          SizeBlock(
+            key: 'a',
+            id: 'a',
+            label: 'R',
+            price: '115',
+            seededPrice: '115',
+            serverCost: (piastres: null, incomplete: true),
+            lines: const [
+              GridLine(ingredientId: 'syrup', quantity: '5', unit: 'ml'),
+            ],
+          ),
           catalog,
-          recipeDirty: true,
+          recipeDirty: false,
         ),
         isA<CostIncomplete>(),
       );

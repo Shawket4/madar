@@ -19,6 +19,7 @@
 library;
 
 import 'package:dashboard_api/mock.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../area_seed.dart';
 import 'inventory_views.dart';
@@ -42,10 +43,9 @@ bool _isOpen(MockRow st) =>
 /// Postgres `round()`: halves away from zero.
 int _pgRound(num v) => v < 0 ? -((-v) + 0.5).floor() : (v + 0.5).floor();
 
-/// The backend's `is_variance_flagged`.
-bool _flagged(double book, double counted, double pct) => book.abs() < 1e-9
-    ? counted.abs() > 1e-9
-    : (counted - book).abs() / book.abs() * 100 >= pct;
+/// The backend's `is_variance_flagged` (madar-inventory, through the core).
+bool _flagged(double book, double counted, double pct) =>
+    rules.isVarianceFlagged(book: book, counted: counted, pct: pct);
 
 void registerCountsMocks(MockServer server, MockDb db) {
   final stocktakes = db.table(InvTables.stocktakes);

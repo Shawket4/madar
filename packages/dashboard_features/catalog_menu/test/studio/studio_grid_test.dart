@@ -570,11 +570,11 @@ void main() {
       expect(footerHas('≈ EGP 27.90 · 75.7%'), findsOneWidget);
     });
 
-    testWidgets('MENU-STUDIO-048 an uncosted line: "Cost incomplete"; no '
-        'line at all: "—"', (tester) async {
+    testWidgets('MENU-STUDIO-048 an uncosted line: its partial cost, marked '
+        '"Cost incomplete" (D4); no line at all: "—"', (tester) async {
       final h = await pumpStudio(tester, key: 'pistachio_latte');
       expect(
-        studioText(h.t('menu.studio.recipe.incomplete')),
+        studioHas(' · ${h.t('menu.studio.recipe.incomplete')}'),
         findsNWidgets(2),
       );
       await h.go(studioPath('cookie'));

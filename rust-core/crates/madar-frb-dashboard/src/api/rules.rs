@@ -118,6 +118,27 @@ pub fn unit_convert(qty: f64, from_unit: String, to_unit: String) -> Option<f64>
     madar_units::convert(qty, &from_unit, &to_unit).ok()
 }
 
+/// What a recipe line stores for `qty` typed in `unit`: in the ingredient's
+/// `base_unit` (through its density), grossed up by its yield, 3 dp; `None`
+/// when the units don't convert.
+#[frb(sync)]
+pub fn recipe_base_qty(
+    qty: f64,
+    unit: String,
+    base_unit: String,
+    density: Option<f64>,
+    yield_pct: Option<f64>,
+) -> Option<f64> {
+    madar_units::recipe_base_qty(qty, &unit, &base_unit, density, yield_pct).ok()
+}
+
+/// The usable amount of a stored recipe quantity (the amount typed, in the
+/// base unit), 3 dp.
+#[frb(sync)]
+pub fn usable_qty(stored: f64, yield_pct: Option<f64>) -> f64 {
+    madar_units::usable_qty(stored, yield_pct)
+}
+
 // ── Phone (madar-ids) ─────────────────────────────────────────────────
 
 /// The canonical form of a phone number, or `None` when it isn't one.
@@ -132,6 +153,58 @@ pub fn phone_canonical(raw: String) -> Option<String> {
 #[frb(sync)]
 pub fn average_ticket(net_sales: i64, order_count: i64) -> i64 {
     madar_money::metrics::average_ticket(net_sales, order_count)
+}
+
+// ── Recipe cost (madar-money `cost`) ──────────────────────────────────
+
+/// A line's cost in whole piastres: `qty × cost_per_unit`, exact, half away
+/// from zero.
+#[frb(sync)]
+pub fn line_cost(qty: f64, cost_per_unit: f64) -> i64 {
+    madar_money::cost::line_cost(qty, cost_per_unit)
+}
+
+/// One recipe line: its quantity and its cost per unit (`None`: unknown; 0
+/// is known, free).
+pub struct CostLine {
+    pub qty: f64,
+    pub cost_per_unit: Option<f64>,
+}
+
+/// A recipe's cost: the known lines summed exactly and rounded once;
+/// `complete` is false when a line's cost is unknown.
+pub struct RecipeCost {
+    pub piastres: i64,
+    pub complete: bool,
+}
+
+#[frb(sync)]
+pub fn recipe_cost(lines: Vec<CostLine>) -> RecipeCost {
+    let lines: Vec<madar_money::cost::CostLine> = lines
+        .into_iter()
+        .map(|l| madar_money::cost::CostLine {
+            qty: l.qty,
+            cost_per_unit: l.cost_per_unit,
+        })
+        .collect();
+    let c = madar_money::cost::recipe_cost(&lines);
+    RecipeCost {
+        piastres: c.piastres,
+        complete: c.complete,
+    }
+}
+
+/// `(price − cost) / price`; `None` unless the price is above 0.
+#[frb(sync)]
+pub fn margin(price: i64, cost: i64) -> Option<f64> {
+    madar_money::cost::margin(price, cost)
+}
+
+/// The food-cost band (`good` | `fair` | `poor`); `None` unless the price is
+/// above 0.
+#[frb(sync)]
+pub fn food_cost_band(cost: i64, price: i64) -> Option<String> {
+    madar_money::cost::food_cost_band(cost, price).map(|b| word(&b))
 }
 
 // ── Stock transfers (madar-inventory) ─────────────────────────────────
@@ -214,6 +287,65 @@ pub fn replenish_suggest(
         available: s.available,
         suggested: s.suggested,
     }
+}
+
+// ── Purchases and counts (madar-inventory) ────────────────────────────
+
+/// The order dialog's estimate of a line, in whole piastres: cost per stock
+/// unit × `qty` typed in `purchase_unit`, exact, rounded once; `None` with no
+/// cost, a quantity not above 0, or units that don't convert.
+#[frb(sync)]
+pub fn estimate_line_total(
+    cost_per_stock_unit: Option<f64>,
+    qty: f64,
+    purchase_unit: String,
+    stock_unit: String,
+) -> Option<i64> {
+    madar_inventory::purchase::estimate_line_total(cost_per_stock_unit, qty, &purchase_unit, &stock_unit)
+}
+
+/// The unit cost a line total implies (piastres per unit, 8 dp); `None` for a
+/// negative total or a quantity that is 0 at 3 dp.
+#[frb(sync)]
+pub fn unit_cost_from_total(line: i64, qty: f64) -> Option<f64> {
+    madar_inventory::purchase::unit_cost_from_total(line, qty)
+}
+
+/// What one delivery costs, in whole piastres (half away from zero): the
+/// invoice total if given, else a unit cost × the quantity, else the ordered
+/// total pro rata; `None` when the server would refuse the costs.
+#[frb(sync)]
+pub fn delivery_cost(
+    quantity_received: f64,
+    line_cost: Option<i64>,
+    unit_cost: Option<i64>,
+    ordered_line_cost: i64,
+    quantity_ordered: f64,
+) -> Option<i64> {
+    use madar_inventory::purchase::{delivery_cost, quantity_dec};
+    let cost = delivery_cost(
+        quantity_received,
+        line_cost,
+        unit_cost,
+        ordered_line_cost,
+        quantity_dec(quantity_ordered),
+    )
+    .ok()?;
+    Some(madar_money::cost::round_piastres(cost))
+}
+
+/// A purchase quantity in whole thousandths, as the column stores it (half
+/// away from zero).
+#[frb(sync)]
+pub fn quantity_milli(q: f64) -> i64 {
+    madar_inventory::purchase::milli(q)
+}
+
+/// Whether a counted row needs a variance reason: it differs from the book by
+/// at least `pct` percent, or stock appears from zero (exact, in thousandths).
+#[frb(sync)]
+pub fn is_variance_flagged(book: f64, counted: f64, pct: f64) -> bool {
+    madar_inventory::count::is_variance_flagged(book, counted, pct)
 }
 
 // ── Till close (madar-till) ───────────────────────────────────────────

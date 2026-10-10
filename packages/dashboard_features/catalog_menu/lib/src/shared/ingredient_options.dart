@@ -26,9 +26,3 @@ List<DashOption<String>> ingredientOptions(
         keywords: c.categoryName,
       ),
 ];
-
-/// A positive unit cost (piastres per unit), else null (`costOf`).
-double? positiveUnitCost(OrgIngredient? c) {
-  final v = c?.costPerUnit;
-  return v != null && v > 0 ? v : null;
-}

@@ -20,6 +20,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../shared/inventory_data.dart';
 import '../shared/inventory_lib.dart';
@@ -269,14 +270,17 @@ class _ReceiveLines extends ConsumerWidget {
     }
 
     /// What the order says [l] costs for what is arriving: its total, pro
-    /// rata; null until a positive quantity is typed.
+    /// rata (madar-inventory's delivery cost, the server's sum); "—" until a
+    /// positive quantity is typed.
     String expected(PurchaseOrderLine l) {
       final arriving = parseInputNumber(receiving[l.id] ?? '');
-      if (!arriving.isFinite || arriving <= 0 || l.quantityOrdered <= 0) {
-        return '—';
-      }
-      final p = jsRound(l.lineCost * arriving / l.quantityOrdered);
-      return piastresToEgpFixed(p);
+      if (!arriving.isFinite || arriving <= 0) return '—';
+      final p = rules.deliveryCost(
+        quantityReceived: arriving,
+        orderedLineCost: l.lineCost,
+        quantityOrdered: l.quantityOrdered,
+      );
+      return p == null ? '—' : piastresToEgpFixed(p);
     }
 
     Widget figure(String text) => Text(

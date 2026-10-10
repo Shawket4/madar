@@ -16,6 +16,11 @@ void main() {
       expect(isVarianceFlagged(0, 0, 10), isFalse);
       expect(isVarianceFlagged(100, null, 10), isFalse);
     });
+
+    test('D1: exact in thousandths (1 counted 0.9 at 10 % is flagged)', () {
+      expect(isVarianceFlagged(1, 0.9, 10), isTrue);
+      expect(isVarianceFlagged(0, 0.0004, 10), isFalse);
+    });
   });
 
   group('buildCountPayload', () {
@@ -159,6 +164,9 @@ void main() {
       expect(unitCostFromTotal(54816, 0), isNull);
       expect(unitCostFromTotal(-1, 10), isNull);
       expect(unitCostFromTotal(double.nan, 10), isNull);
+      // D7: over the quantity as the column stores it (0.063), 8 dp.
+      expect(unitCostFromTotal(1000, 0.0625), 15873.01587302);
+      expect(unitCostFromTotal(1000, 0.0004), isNull);
     });
 
     test('a unit cost shows all six decimals', () {
@@ -178,6 +186,8 @@ void main() {
       expect(estimateLineTotal(4.568, 12, 'kg', 'ml'), isNull);
       expect(estimateLineTotal(4.568, 12, 'case', 'pcs'), isNull);
       expect(estimateLineTotal(90000, 500, 'g', 'kg'), 45000);
+      // D6: rounded once at the end (1.5 g is not rounded to 0.002 kg first).
+      expect(estimateLineTotal(50000, 1.5, 'g', 'kg'), 75);
     });
   });
 }
