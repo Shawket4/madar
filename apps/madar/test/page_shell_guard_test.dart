@@ -33,7 +33,9 @@ void main() {
             // apps/rescue/README.md and the root analysis_options exclude):
             // it cannot use the page shell, and it must never depend on it.
             path.contains('/apps/rescue/') ||
-            path.endsWith('design_system/lib/src/page.dart')) {
+            path.endsWith('design_system/lib/src/page.dart') ||
+            // The Flutter dashboard's own page shell: its phone drawer.
+            path.endsWith('dashboard_core/lib/src/shell/frame.dart')) {
           continue;
         }
         final lines = f.readAsLinesSync();
