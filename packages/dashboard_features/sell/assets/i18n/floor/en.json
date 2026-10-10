@@ -1,0 +1,6 @@
+{
+  "floor": {
+    "errSeats": "Seats must be a whole number from 0 to 99",
+    "hint": "Drag to move · Alt ignores the grid · Ctrl/Cmd+C/V · pinch to zoom"
+  }
+}

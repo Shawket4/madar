@@ -1,0 +1,4 @@
+{
+  "menu.groups.editor.priceMin": "Too small: expected number to be >=0",
+  "menu.groups.editor.notANumber": "Invalid input: expected number, received NaN"
+}

@@ -1,0 +1,9 @@
+{
+  "kitchen.category": "الفئة",
+  "kitchen.station": "المحطة",
+  "kitchen.item": "الصنف",
+  "kitchen.inheritedStation": "المحطة الموروثة",
+  "kitchen.overrideStation": "المحطة المخصّصة",
+  "kitchen.routedTo": "يُوجَّه إلى",
+  "kitchen.stationNamePlaceholder": "الشواية"
+}

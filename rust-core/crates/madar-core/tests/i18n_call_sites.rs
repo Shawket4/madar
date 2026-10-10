@@ -56,6 +56,11 @@ fn dart_files(dir: &Path, out: &mut Vec<PathBuf>) {
             ) {
                 continue;
             }
+            // The Flutter dashboard's packages word themselves from their own
+            // JSON catalogues, like `apps/dashboard`, never from i18n.rs.
+            if name.starts_with("dashboard_") {
+                continue;
+            }
             dart_files(&p, out);
         } else if name.ends_with(".dart") && !name.ends_with("_test.dart") {
             out.push(p);

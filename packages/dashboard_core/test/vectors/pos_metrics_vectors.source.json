@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/pos_metrics_vectors.json is a byte-for-byte copy of madar-shared's file at this tag (the backend and the till average a ticket with madar-money::metrics::average_ticket; lib/average-ticket.test.ts runs the dashboard's average against its windows). A change is made there, released with a tag, and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "v0.6.0",
+  "path": "crates/madar-money/vectors/pos_metrics_vectors.json",
+  "sha256": "a35f666eaf282594101ade340ddc5311daa819e514d0965750d5a9e783c45333"
+}

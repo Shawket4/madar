@@ -1,0 +1,8 @@
+# inventory/transfers: verifier findings (3 major intent, 4 minor)
+1 MAJOR (TRF-020/035/036): the drawer's Edit and Accept warm nothing (transfer_drawer.dart step() ~140-155; buttons 296-321). Give step() an onIntent. Edit: tr.status == 'requested' ? warm(inventoryCatalogProvider(orgId)) : warm(branchStockProvider(tr.sourceBranchId)). Accept: warm(branchStockProvider(tr.sourceBranchId)). Test: rest on Edit of TR-7, press → one stock call.
+2 MAJOR (TRF-040): "Review transfer" (replenish_dialog.dart:160-167): onIntent: picked.isEmpty ? null : () => ref..warm(branchStockProvider(widget.warehouse.id))..warm(authzAtProvider(branchId!)). Add a test.
+3 MAJOR (TRF-026): the Send/Request switch (transfer_dialog.dart:383-404): onIntent: (v) { if (v) { if (orgId != null) ref.warm(inventoryCatalogProvider(orgId)); } else if (dst.isNotEmpty) { ref.warm(branchStockProvider(dst)); } }. Add a test.
+4 minor (TRF-017): Arabic stamps glue the day to a Latin name (transfer_drawer.dart:168): '⁨${s.byName}⁩ · ${f.fmtDateTime(s.at)}'. Divergence row (web bug, transfer-drawer.tsx:93) in your reply, plus an Arabic test.
+5 minor (TRF-008): at tablet, Direction wraps and Items is cut while Date has room. Narrow Date (~Space.xxl * 5) or keep the route on one line; re-shoot tablet.
+6 minor (rule 6): replenish_dialog.dart:64-72 seeds once per branch. Keep an edited flag and re-seed from newer rows until the first edit.
+7 minor tests: INV-TRF-034 assert the resumed PATCH's lines[0].quantity == 90 (transfers_dialog_test.dart:385-422); INV-TRF-007 assert walk isNotEmpty and the offset (transfers_page_test.dart:214-260).

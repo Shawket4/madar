@@ -1,0 +1,5 @@
+# inventory/purchasing: verifier findings (the blocker is fixed in shared already)
+1 Add one retry test per table (orders, suppliers, Reorder, Delivery history): fail the read, clear the failure, hold the GET, tap Retry, pump once → no empty-state words (the error stays).
+2 minor (027/036/063): purchase_order_dialog.dart:106-135 prefilled lines take unit and estimate from the catalog once. When the watched catalog changes, re-fill untouched lines (!totalTouched, empty purchaseUnit) and re-run _withEstimate; test by opening "Create PO" before the catalog lands.
+3 Use the core awaitingFirst/failedFirst in any of your files that hand-write the loading check.
+4 Intent warming (owner rule): purchaseOrderProvider(id) on order rows, Receive / Receive remaining, "View order"; poReceiptsProvider(id) on the Delivery history tab; reorderSuggestionsProvider(branchId) on the Reorder tab; purchaseOrdersProvider((branchId, status)) on each status filter option (onOptionIntent). Today's "Arriving → Receive" lives in Today's files: report it, don't edit. Test per kind.

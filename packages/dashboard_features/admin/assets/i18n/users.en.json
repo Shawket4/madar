@@ -1,0 +1,7 @@
+{
+  "access.lockedReasons.self": "You can't change your own access.",
+  "access.lockedReasons.owner": "Only an owner can change an owner's access.",
+  "access.lockedReasons.not_dominant": "This person can do things you can't, so you can't change their access.",
+  "access.lockedReasons.not_above": "You can only change people whose role is below yours.",
+  "access.lockedReasons.missing_authority": "You don't have permission to change access."
+}

@@ -1,0 +1,14 @@
+# Setup / Loyalty (`/settings/loyalty`): differences from the web
+
+One line per difference: what the web does, what Flutter does, why. Rows marked "question" port
+the web's behaviour as it is and ask the owner whether it is intended.
+
+| Row | Web | Flutter | Why |
+|---|---|---|---|
+| SET-LOY-062 integration seam | A member row opens the sell area's whole customer sheet (`CustomerDetailSheet`: the customer half, then `MemberSection`), and orders opened from it show the order sheet. | A member row opens a local `MemberSheet` (`lib/src/loyalty/member_sheet.dart`): name, phone, the member section, actions and ledger (SET-LOY-064 … 075, 084). A ledger order link closes the card and opens `/orders?order=<id>` (the Orders page with that order's sheet). | `dashboard_setup` cannot depend on `dashboard_sell`. Seam: when the shell can open the sell area's customer sheet by id (a core-level opener), the row should call it and this sheet becomes that sheet's member section. |
+| SET-LOY-074 integration seam | The Google Wallet object dialog lives in `features/loyalty/admin/members` and is shared by the customer sheet and the order sheet's member view. | Built locally (`google_object_dialog.dart`), opened from the member row's wallet action and the card. | Same package boundary; the sell area may reuse it through the same seam. |
+| SET-LOY-081 | With an INACTIVE branch in scope, the label and hint read "Whole organisation" while the button says "Counter code" and requests that branch's code. | The label, hint and button all follow the organisation (the org code). | The card contradicted itself; the label's own rule (active branches only) is the intent. Pinned by "SET-LOY-081 (divergence)…". |
+| SET-LOY-029 | The provider tile names are hard-coded English in both languages ("Apple push (updates)"). | Supplement keys `loyalty.walletApple`, `loyalty.walletApns`, `loyalty.walletGoogle`; Arabic "إشعارات Apple (التحديثات)", brand names kept. | No hard-coded UI text; English words inside the Arabic UI are a web bug (SPEC 6.3). |
+| SET-LOY-004 caching | The code button asks the server on every press (a plain call). | The code is a cached read (`loyaltyQrProvider`, keyed by org and branch), warmed on the button's intent; a refusal is not kept (the next press asks again), and a programme save re-reads it. | The owner's intent-warming rule; the code is a fixed address, so the cache shows the same thing. |
+| SET-LOY-074 intent | n/a | The Google object dialog's read is not warmed on intent. | The web reads it live and never caches it (`staleTime: 0, gcTime: 0`); a warmed copy would be a cached one. |
+| SET-LOY-083 | A value left invalid in a field that is now hidden (cap switched off, a gift after switching birthdays/win-back off) still blocks Save, showing only the summary. | Ported as is. | question: the summary points at fields that are not on screen; the intent may be to skip hidden fields. |

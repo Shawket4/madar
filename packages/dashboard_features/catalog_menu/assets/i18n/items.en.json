@@ -1,0 +1,7 @@
+{
+  "menu.addonsHint": "Which addons customers can pick for this item",
+  "menu.addonsEmpty": "No addons selected — the full org catalog applies.",
+  "menu.noAddonsMatch": "No addons match",
+  "menu.sizeLabelPlaceholder": "Large",
+  "menu.addonGroupsNotReady": "The add-on groups haven't loaded yet, so the add-ons can't be saved. Try again in a moment."
+}

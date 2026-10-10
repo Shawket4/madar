@@ -1,0 +1,12 @@
+{
+  "inventory.settings.ingredientCount_one": "{{count}} ingredient",
+  "inventory.settings.ingredientCount_two": "{{count}} ingredients",
+  "inventory.settings.ingredientCount_few": "{{count}} ingredients",
+  "inventory.settings.ingredientCount_many": "{{count}} ingredients",
+  "inventory.settings.ingredientCount_other": "{{count}} ingredients",
+  "inventory.settings.deleteCategoryReassign_one": "{{count}} ingredient uses this category. Choose where it should move.",
+  "inventory.settings.deleteCategoryReassign_two": "{{count}} ingredients use this category. Choose where they should move.",
+  "inventory.settings.deleteCategoryReassign_few": "{{count}} ingredients use this category. Choose where they should move.",
+  "inventory.settings.deleteCategoryReassign_many": "{{count}} ingredients use this category. Choose where they should move.",
+  "inventory.settings.deleteCategoryReassign_other": "{{count}} ingredients use this category. Choose where they should move."
+}

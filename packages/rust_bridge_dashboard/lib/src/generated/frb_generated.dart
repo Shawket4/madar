@@ -6,7 +6,9 @@
 import 'api/bridge.dart';
 import 'api/error.dart';
 import 'api/reports.dart';
+import 'api/transport.dart';
 import 'api/types.dart';
+import 'api/xlsx.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -73,7 +75,7 @@ class DashboardBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1848179496;
+  int get rustContentHash => 1680944628;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -88,6 +90,22 @@ class DashboardBridge
 abstract class DashboardBridgeApi extends BaseApi {
   ActiveScopeView? crateApiBridgeMadarBridgeActiveScope({
     required MadarBridge that,
+  });
+
+  Future<ApiReply> crateApiBridgeMadarBridgeApiRequest({
+    required MadarBridge that,
+    required ApiCall call,
+  });
+
+  Stream<ApiStreamItem> crateApiBridgeMadarBridgeApiStream({
+    required MadarBridge that,
+    required ApiCall call,
+    required String streamId,
+  });
+
+  void crateApiBridgeMadarBridgeApiStreamCancel({
+    required MadarBridge that,
+    required String streamId,
   });
 
   SessionSnapshot? crateApiBridgeMadarBridgeCurrentSession({
@@ -168,6 +186,13 @@ abstract class DashboardBridgeApi extends BaseApi {
 
   int crateApiBridgeFfiSurfaceVersion();
 
+  Future<String> crateApiXlsxXlsxRead({required List<int> bytes});
+
+  Future<Uint8List> crateApiXlsxXlsxWrite({
+    required String specJson,
+    Uint8List? logo,
+  });
+
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_MadarBridge;
 
@@ -218,6 +243,122 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       );
 
   @override
+  Future<ApiReply> crateApiBridgeMadarBridgeApiRequest({
+    required MadarBridge that,
+    required ApiCall call,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_box_autoadd_api_call(call, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_api_reply,
+          decodeErrorData: sse_decode_api_failure,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeApiRequestConstMeta,
+        argValues: [that, call],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeApiRequestConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_api_request",
+        argNames: ["that", "call"],
+      );
+
+  @override
+  Stream<ApiStreamItem> crateApiBridgeMadarBridgeApiStream({
+    required MadarBridge that,
+    required ApiCall call,
+    required String streamId,
+  }) {
+    final sink = RustStreamSink<ApiStreamItem>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+              that,
+              serializer,
+            );
+            sse_encode_box_autoadd_api_call(call, serializer);
+            sse_encode_String(streamId, serializer);
+            sse_encode_StreamSink_api_stream_item_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 3,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: null,
+          ),
+          constMeta: kCrateApiBridgeMadarBridgeApiStreamConstMeta,
+          argValues: [that, call, streamId, sink],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeApiStreamConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_api_stream",
+        argNames: ["that", "call", "streamId", "sink"],
+      );
+
+  @override
+  void crateApiBridgeMadarBridgeApiStreamCancel({
+    required MadarBridge that,
+    required String streamId,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_String(streamId, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeApiStreamCancelConstMeta,
+        argValues: [that, streamId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeApiStreamCancelConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_api_stream_cancel",
+        argNames: ["that", "streamId"],
+      );
+
+  @override
   SessionSnapshot? crateApiBridgeMadarBridgeCurrentSession({
     required MadarBridge that,
   }) {
@@ -229,7 +370,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_session_snapshot,
@@ -269,7 +410,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 6,
             port: port_,
           );
         },
@@ -309,7 +450,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 7,
             port: port_,
           );
         },
@@ -352,7 +493,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 8,
             port: port_,
           );
         },
@@ -389,7 +530,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           );
           sse_encode_String(resource, serializer);
           sse_encode_String(action, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -418,7 +559,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -447,7 +588,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -478,7 +619,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 12,
             port: port_,
           );
         },
@@ -509,7 +650,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -542,7 +683,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 14,
             port: port_,
           );
         },
@@ -575,7 +716,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 15,
             port: port_,
           );
         },
@@ -609,7 +750,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 16,
             port: port_,
           );
         },
@@ -642,7 +783,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_box_autoadd_session_snapshot,
@@ -677,7 +818,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
           );
           sse_encode_opt_String(orgId, serializer);
           sse_encode_opt_String(branchId, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -710,7 +851,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(locale, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -743,7 +884,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
             serializer,
           );
           sse_encode_String(key, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -768,7 +909,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
@@ -790,7 +931,7 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_u_32,
@@ -806,6 +947,68 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   TaskConstMeta get kCrateApiBridgeFfiSurfaceVersionConstMeta =>
       const TaskConstMeta(debugName: "ffi_surface_version", argNames: []);
 
+  @override
+  Future<String> crateApiXlsxXlsxRead({required List<int> bytes}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_8_loose(bytes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 23,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiXlsxXlsxReadConstMeta,
+        argValues: [bytes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiXlsxXlsxReadConstMeta =>
+      const TaskConstMeta(debugName: "xlsx_read", argNames: ["bytes"]);
+
+  @override
+  Future<Uint8List> crateApiXlsxXlsxWrite({
+    required String specJson,
+    Uint8List? logo,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(specJson, serializer);
+          sse_encode_opt_list_prim_u_8_strict(logo, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_madar_error,
+        ),
+        constMeta: kCrateApiXlsxXlsxWriteConstMeta,
+        argValues: [specJson, logo],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiXlsxXlsxWriteConstMeta => const TaskConstMeta(
+    debugName: "xlsx_write",
+    argNames: ["specJson", "logo"],
+  );
+
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_MadarBridge => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge;
@@ -813,6 +1016,12 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   RustArcDecrementStrongCountFnType
   get rust_arc_decrement_strong_count_MadarBridge => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge;
+
+  @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AnyhowException(raw as String);
+  }
 
   @protected
   MadarBridge
@@ -842,6 +1051,14 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  RustStreamSink<ApiStreamItem> dco_decode_StreamSink_api_stream_item_Sse(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
@@ -860,6 +1077,98 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  ApiCall dco_decode_api_call(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return ApiCall(
+      method: dco_decode_String(arr[0]),
+      path: dco_decode_String(arr[1]),
+      query: dco_decode_list_api_pair(arr[2]),
+      headers: dco_decode_list_api_pair(arr[3]),
+      jsonBody: dco_decode_opt_String(arr[4]),
+      formFields: dco_decode_list_api_pair(arr[5]),
+      files: dco_decode_list_api_file(arr[6]),
+    );
+  }
+
+  @protected
+  ApiFailure dco_decode_api_failure(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ApiFailure(
+      status: dco_decode_u_16(arr[0]),
+      code: dco_decode_opt_String(arr[1]),
+      message: dco_decode_String(arr[2]),
+      kind: dco_decode_api_failure_kind(arr[3]),
+      body: dco_decode_opt_String(arr[4]),
+    );
+  }
+
+  @protected
+  ApiFailureKind dco_decode_api_failure_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ApiFailureKind.values[raw as int];
+  }
+
+  @protected
+  ApiFile dco_decode_api_file(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ApiFile(
+      field: dco_decode_String(arr[0]),
+      filename: dco_decode_String(arr[1]),
+      contentType: dco_decode_opt_String(arr[2]),
+      bytes: dco_decode_list_prim_u_8_strict(arr[3]),
+    );
+  }
+
+  @protected
+  ApiPair dco_decode_api_pair(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return ApiPair(
+      key: dco_decode_String(arr[0]),
+      value: dco_decode_String(arr[1]),
+    );
+  }
+
+  @protected
+  ApiReply dco_decode_api_reply(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ApiReply(
+      status: dco_decode_u_16(arr[0]),
+      headers: dco_decode_list_api_pair(arr[1]),
+      body: dco_decode_list_prim_u_8_strict(arr[2]),
+    );
+  }
+
+  @protected
+  ApiStreamItem dco_decode_api_stream_item(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ApiStreamItem(
+      opened: dco_decode_bool(arr[0]),
+      event: dco_decode_String(arr[1]),
+      data: dco_decode_String(arr[2]),
+      id: dco_decode_opt_String(arr[3]),
+      failure: dco_decode_opt_box_autoadd_api_failure(arr[4]),
+    );
+  }
+
+  @protected
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
@@ -869,6 +1178,18 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   ActiveScopeView dco_decode_box_autoadd_active_scope_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_active_scope_view(raw);
+  }
+
+  @protected
+  ApiCall dco_decode_box_autoadd_api_call(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_api_call(raw);
+  }
+
+  @protected
+  ApiFailure dco_decode_box_autoadd_api_failure(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_api_failure(raw);
   }
 
   @protected
@@ -995,9 +1316,27 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
   PlatformInt64 dco_decode_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeI64(raw);
+  }
+
+  @protected
+  List<ApiFile> dco_decode_list_api_file(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_api_file).toList();
+  }
+
+  @protected
+  List<ApiPair> dco_decode_list_api_pair(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_api_pair).toList();
   }
 
   @protected
@@ -1053,6 +1392,12 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     return (raw as List<dynamic>)
         .map(dco_decode_dashboard_time_point_view)
         .toList();
+  }
+
+  @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as List<int>;
   }
 
   @protected
@@ -1122,9 +1467,21 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  ApiFailure? dco_decode_opt_box_autoadd_api_failure(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_api_failure(raw);
+  }
+
+  @protected
   SessionSnapshot? dco_decode_opt_box_autoadd_session_snapshot(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_session_snapshot(raw);
+  }
+
+  @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_prim_u_8_strict(raw);
   }
 
   @protected
@@ -1181,6 +1538,13 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_String(deserializer);
+    return AnyhowException(inner);
+  }
+
+  @protected
   MadarBridge
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     SseDeserializer deserializer,
@@ -1217,6 +1581,14 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  RustStreamSink<ApiStreamItem> sse_decode_StreamSink_api_stream_item_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
@@ -1232,6 +1604,100 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  ApiCall sse_decode_api_call(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_method = sse_decode_String(deserializer);
+    var var_path = sse_decode_String(deserializer);
+    var var_query = sse_decode_list_api_pair(deserializer);
+    var var_headers = sse_decode_list_api_pair(deserializer);
+    var var_jsonBody = sse_decode_opt_String(deserializer);
+    var var_formFields = sse_decode_list_api_pair(deserializer);
+    var var_files = sse_decode_list_api_file(deserializer);
+    return ApiCall(
+      method: var_method,
+      path: var_path,
+      query: var_query,
+      headers: var_headers,
+      jsonBody: var_jsonBody,
+      formFields: var_formFields,
+      files: var_files,
+    );
+  }
+
+  @protected
+  ApiFailure sse_decode_api_failure(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_status = sse_decode_u_16(deserializer);
+    var var_code = sse_decode_opt_String(deserializer);
+    var var_message = sse_decode_String(deserializer);
+    var var_kind = sse_decode_api_failure_kind(deserializer);
+    var var_body = sse_decode_opt_String(deserializer);
+    return ApiFailure(
+      status: var_status,
+      code: var_code,
+      message: var_message,
+      kind: var_kind,
+      body: var_body,
+    );
+  }
+
+  @protected
+  ApiFailureKind sse_decode_api_failure_kind(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ApiFailureKind.values[inner];
+  }
+
+  @protected
+  ApiFile sse_decode_api_file(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_field = sse_decode_String(deserializer);
+    var var_filename = sse_decode_String(deserializer);
+    var var_contentType = sse_decode_opt_String(deserializer);
+    var var_bytes = sse_decode_list_prim_u_8_strict(deserializer);
+    return ApiFile(
+      field: var_field,
+      filename: var_filename,
+      contentType: var_contentType,
+      bytes: var_bytes,
+    );
+  }
+
+  @protected
+  ApiPair sse_decode_api_pair(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_key = sse_decode_String(deserializer);
+    var var_value = sse_decode_String(deserializer);
+    return ApiPair(key: var_key, value: var_value);
+  }
+
+  @protected
+  ApiReply sse_decode_api_reply(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_status = sse_decode_u_16(deserializer);
+    var var_headers = sse_decode_list_api_pair(deserializer);
+    var var_body = sse_decode_list_prim_u_8_strict(deserializer);
+    return ApiReply(status: var_status, headers: var_headers, body: var_body);
+  }
+
+  @protected
+  ApiStreamItem sse_decode_api_stream_item(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_opened = sse_decode_bool(deserializer);
+    var var_event = sse_decode_String(deserializer);
+    var var_data = sse_decode_String(deserializer);
+    var var_id = sse_decode_opt_String(deserializer);
+    var var_failure = sse_decode_opt_box_autoadd_api_failure(deserializer);
+    return ApiStreamItem(
+      opened: var_opened,
+      event: var_event,
+      data: var_data,
+      id: var_id,
+      failure: var_failure,
+    );
+  }
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
@@ -1243,6 +1709,18 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_active_scope_view(deserializer));
+  }
+
+  @protected
+  ApiCall sse_decode_box_autoadd_api_call(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_api_call(deserializer));
+  }
+
+  @protected
+  ApiFailure sse_decode_box_autoadd_api_failure(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_api_failure(deserializer));
   }
 
   @protected
@@ -1397,9 +1875,39 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
+  }
+
+  @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getPlatformInt64();
+  }
+
+  @protected
+  List<ApiFile> sse_decode_list_api_file(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ApiFile>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_api_file(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ApiPair> sse_decode_list_api_pair(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ApiPair>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_api_pair(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -1481,6 +1989,13 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
       ans_.add(sse_decode_dashboard_time_point_view(deserializer));
     }
     return ans_;
+  }
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getUint8List(len_);
   }
 
   @protected
@@ -1572,6 +2087,19 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  ApiFailure? sse_decode_opt_box_autoadd_api_failure(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_api_failure(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   SessionSnapshot? sse_decode_opt_box_autoadd_session_snapshot(
     SseDeserializer deserializer,
   ) {
@@ -1579,6 +2107,17 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_session_snapshot(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_prim_u_8_strict(deserializer));
     } else {
       return null;
     }
@@ -1647,9 +2186,12 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
+  void sse_encode_AnyhowException(
+    AnyhowException self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
+    sse_encode_String(self.message, serializer);
   }
 
   @protected
@@ -1692,6 +2234,23 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_StreamSink_api_stream_item_Sse(
+    RustStreamSink<ApiStreamItem> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_api_stream_item,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
@@ -1708,6 +2267,74 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_api_call(ApiCall self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.method, serializer);
+    sse_encode_String(self.path, serializer);
+    sse_encode_list_api_pair(self.query, serializer);
+    sse_encode_list_api_pair(self.headers, serializer);
+    sse_encode_opt_String(self.jsonBody, serializer);
+    sse_encode_list_api_pair(self.formFields, serializer);
+    sse_encode_list_api_file(self.files, serializer);
+  }
+
+  @protected
+  void sse_encode_api_failure(ApiFailure self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_16(self.status, serializer);
+    sse_encode_opt_String(self.code, serializer);
+    sse_encode_String(self.message, serializer);
+    sse_encode_api_failure_kind(self.kind, serializer);
+    sse_encode_opt_String(self.body, serializer);
+  }
+
+  @protected
+  void sse_encode_api_failure_kind(
+    ApiFailureKind self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_api_file(ApiFile self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.field, serializer);
+    sse_encode_String(self.filename, serializer);
+    sse_encode_opt_String(self.contentType, serializer);
+    sse_encode_list_prim_u_8_strict(self.bytes, serializer);
+  }
+
+  @protected
+  void sse_encode_api_pair(ApiPair self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.key, serializer);
+    sse_encode_String(self.value, serializer);
+  }
+
+  @protected
+  void sse_encode_api_reply(ApiReply self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_16(self.status, serializer);
+    sse_encode_list_api_pair(self.headers, serializer);
+    sse_encode_list_prim_u_8_strict(self.body, serializer);
+  }
+
+  @protected
+  void sse_encode_api_stream_item(
+    ApiStreamItem self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.opened, serializer);
+    sse_encode_String(self.event, serializer);
+    sse_encode_String(self.data, serializer);
+    sse_encode_opt_String(self.id, serializer);
+    sse_encode_opt_box_autoadd_api_failure(self.failure, serializer);
+  }
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
@@ -1720,6 +2347,21 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_active_scope_view(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_api_call(ApiCall self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_call(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_api_failure(
+    ApiFailure self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_api_failure(self, serializer);
   }
 
   @protected
@@ -1831,9 +2473,33 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
+  }
+
+  @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putPlatformInt64(self);
+  }
+
+  @protected
+  void sse_encode_list_api_file(List<ApiFile> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_api_file(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_api_pair(List<ApiPair> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_api_pair(item, serializer);
+    }
   }
 
   @protected
@@ -1906,6 +2572,18 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     for (final item in self) {
       sse_encode_dashboard_time_point_view(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(
+    List<int> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putUint8List(
+      self is Uint8List ? self : Uint8List.fromList(self),
+    );
   }
 
   @protected
@@ -1988,6 +2666,19 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_api_failure(
+    ApiFailure? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_api_failure(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_session_snapshot(
     SessionSnapshot? self,
     SseSerializer serializer,
@@ -1997,6 +2688,19 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_session_snapshot(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_prim_u_8_strict(self, serializer);
     }
   }
 
@@ -2049,12 +2753,6 @@ class DashboardBridgeApiImpl extends DashboardBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
   }
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
-  }
 }
 
 @sealed
@@ -2085,6 +2783,34 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
   /// The current explicit scope override (may be empty / partial).
   ActiveScopeView? activeScope() => DashboardBridge.instance.api
       .crateApiBridgeMadarBridgeActiveScope(that: this);
+
+  /// One API call on the core's client. A non-2xx answer (or no answer) is
+  /// an [`ApiFailure`] worded in the active language.
+  Future<ApiReply> apiRequest({required ApiCall call}) => DashboardBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeApiRequest(that: this, call: call);
+
+  /// Open a server-sent-event stream: an `opened` item arrives once the
+  /// server accepted it, then each frame; a failure (refused at open, or the
+  /// connection lost) arrives as a last item with `failure`, then the stream
+  /// closes. It also closes when
+  /// the server ends it, or when the host calls [`Self::api_stream_cancel`]
+  /// with the same `stream_id` (the host's own unique name for it).
+  Stream<ApiStreamItem> apiStream({
+    required ApiCall call,
+    required String streamId,
+  }) => DashboardBridge.instance.api.crateApiBridgeMadarBridgeApiStream(
+    that: this,
+    call: call,
+    streamId: streamId,
+  );
+
+  /// Stop the stream opened under `stream_id` (idempotent).
+  void apiStreamCancel({required String streamId}) => DashboardBridge
+      .instance
+      .api
+      .crateApiBridgeMadarBridgeApiStreamCancel(that: this, streamId: streamId);
 
   SessionSnapshot? currentSession() => DashboardBridge.instance.api
       .crateApiBridgeMadarBridgeCurrentSession(that: this);

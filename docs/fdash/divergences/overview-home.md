@@ -1,0 +1,17 @@
+# Overview / home (`/`): differences from the web
+
+One line per difference: what the web does, what Flutter does, why. Rows marked "question" port
+the web's behaviour (or the kit's) as it is and ask the owner. Rows marked "kit" are behaviour of a
+shared `dashboard_kit` widget the home uses; the overview cannot change it (shared packages are
+frozen) and the tests pin what the kit does today.
+
+| Row | Web | Flutter | Why |
+|---|---|---|---|
+| OVW-HOME-007 bare entry | A bare `/` rewrites the URL in place with the last-used `branchId` and `preset`. | The scope is app state restored from preferences (last branch for this org, last preset; a stored `custom` opens as Last 30 days); the address stays `/`. | Platform: the shell holds the scope in app state, not the URL (deep links with `?branchId=&preset=` still set it). Pinned by `home_frame_test` "OVW-HOME-007 …". |
+| OVW-HOME-048, -092 links drop the scope | "View all" (`/tills`) and "Menu profitability" pass no search params, so the target opens on All branches + Last 30 days and the stored branch resets. | The scope is app state, so the target opens on the same branch and period. | Platform (the scope is not in the URL); losing the picked branch on a link also reads as a web slip. Question for the owner. |
+| OVW-HOME-064 trend tooltip (kit) | Hover, or a tap on touch, shows a tooltip that stays. | Hover shows it; on touch it shows while the finger is down (fl_chart). The tooltip's colour dot is the text "●". | Kit. The "●" draws as an empty box in the test fonts (screenshot `trend-tooltip`); reported to the kit owner. |
+| OVW-HOME-072 payment tooltip | A floating tooltip whose series name is the raw method key (`talabat_online`) beside "<translated>: <money>". | Pointing at a slice names it in the donut's centre: the translated method and its money. No raw key. | A raw code shown to people is a web bug (SPEC 6.3); the kit's donut has no floating tooltip. |
+| OVW-HOME-071 payment legend in a narrow card | One row per method at every width (dot, name, money, share); in a narrow card the name truncates to almost nothing. | Below 288 px of card width (the 1024 tablet's one-third column, a phone is wider) the money and share go on a second line under the name; one row otherwise. | A method name cut to a few letters is unreadable; same data, same order. Pinned by the tablet screenshots. |
+| OVW-HOME-070, -113 chart colours | `--chart-violet` and the two Talabat oranges are their own OKLCH tokens (light and dark). | Mixed from the theme's roles (violet = info↔danger, Talabat = warning↔danger), so they follow light/dark. | `design_system` has no violet or Talabat tokens and shared packages are frozen; no raw hex allowed. Kit/design-system request: add the tokens. |
+| OVW-HOME-109 page fade (kit) | Every page fades in over 160 ms (`<Page>`). | The home's sections fade up with the web's timings (KPIs, the trend + payment pair 60 ms apart, branch rows 40 ms apart); the header does not fade. | The page fade belongs in `DashPageScaffold` for every page; reported to the kit owner. |
+| OVW-HOME-026 dismiss storage | `sessionStorage` (per browser tab). | In memory for the app session. | Platform; as the inventory notes. |

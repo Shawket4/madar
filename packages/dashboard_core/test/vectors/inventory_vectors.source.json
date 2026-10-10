@@ -1,0 +1,7 @@
+{
+  "about": "src/lib/inventory_vectors.json is a byte-for-byte copy of madar-shared's file at this tag (the backend runs the same rules from madar-inventory). A change is made there, released with a tag, and copied here with the tag and hash below updated; scripts/check-shared-vectors.sh (CI) and shared_vectors.test.ts check it, and features/inventory/lib.test.ts runs the dashboard's transfer rules against it.",
+  "repo": "Shawket4/madar-shared",
+  "tag": "v0.6.0",
+  "path": "crates/madar-inventory/vectors/inventory_vectors.json",
+  "sha256": "776223b5505a18adc311537a6cba0de8758a311687f940f04b5e56ed40d120b7"
+}

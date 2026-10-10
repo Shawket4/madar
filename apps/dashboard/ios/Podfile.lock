@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - rust_bridge_dashboard (0.1.0):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - rust_bridge_dashboard (from `.symlinks/plugins/rust_bridge_dashboard/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  rust_bridge_dashboard:
+    :path: ".symlinks/plugins/rust_bridge_dashboard/ios"
+
+SPEC CHECKSUMS:
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  rust_bridge_dashboard: df048d763993e1e1ec46c8c59646b9f7390f5974
+
+PODFILE CHECKSUM: 3ba3a73b1b12adcf321a227a745625fe0888cc82
+
+COCOAPODS: 1.16.2

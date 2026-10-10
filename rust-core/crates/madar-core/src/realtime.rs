@@ -686,17 +686,18 @@ fn compute_stream_backoff_ms(attempt: i64, seed: i64) -> i64 {
 
 /// One fully-parsed SSE event (after a blank-line dispatch).
 #[derive(Debug, PartialEq, Eq)]
-struct SseFrame {
-    event_type: String,
-    data: String,
-    id: Option<String>,
+pub(crate) struct SseFrame {
+    pub(crate) event_type: String,
+    pub(crate) data: String,
+    pub(crate) id: Option<String>,
 }
 
 /// A minimal, chunk-tolerant SSE parser (WHATWG event-stream subset we need). Feed
 /// it arbitrary byte chunks (frames may split anywhere); it buffers the incomplete
 /// tail and emits a frame per blank line. Handles `event:`/`data:`/`id:` fields,
 /// `\n` and `\r\n` line endings, multi-`data:` joining, and `:`-comment keepalives.
-struct SseParser {
+/// Shared with the dashboard's generic streams (`crate::api_raw`).
+pub(crate) struct SseParser {
     /// Raw bytes after the last newline — an incomplete line awaiting more chunks.
     /// Kept as BYTES (not a String) so a multi-byte UTF-8 char (e.g. Arabic) split
     /// across a chunk boundary isn't decoded prematurely into replacement chars.
@@ -713,7 +714,7 @@ struct SseParser {
 }
 
 impl SseParser {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             tail: Vec::new(),
             data: String::new(),
@@ -724,7 +725,7 @@ impl SseParser {
     }
 
     /// Feed a chunk; return any events completed by it.
-    fn push(&mut self, bytes: &[u8]) -> Vec<SseFrame> {
+    pub(crate) fn push(&mut self, bytes: &[u8]) -> Vec<SseFrame> {
         self.tail.extend_from_slice(bytes);
         let mut out = Vec::new();
         // Process every COMPLETE line (terminated by '\n'); keep the remainder as

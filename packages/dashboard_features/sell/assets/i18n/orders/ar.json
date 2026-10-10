@@ -1,0 +1,6 @@
+{
+  "orderStatus": {
+    "cancelled": "ملغي",
+    "rejected": "مرفوض"
+  }
+}
