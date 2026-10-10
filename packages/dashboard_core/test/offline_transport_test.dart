@@ -1,16 +1,19 @@
-// The offline seam below the pages: the saved-answer store (its owner, its
-// size bound, its index) and OfflineTransport (what is saved, what is served
-// and when, the derivations online and offline, the refusal of a write).
+// The offline seam below the pages: OfflineTransport over the core's saved
+// answers (what is saved, what is served and when, the derivations online
+// and offline, the refusal of a write). The cache itself (its owner, its size
+// bound, the keys and the derivers) is tested in madar-core `api_cache`.
 import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rust_bridge_dashboard/rust_bridge_dashboard.dart'
+    show ApiPair, CacheRequest;
 
 class _Host implements OfflineHost {
   @override
-  OfflineScope? scope = const OfflineScope('u1', org: 'o1');
+  CacheScope? scope = const CacheScope(user: 'u1', org: 'o1');
   DateTime clock = DateTime.utc(2026, 10, 8, 7);
   final List<DateTime> shown = [];
   int reached = 0;
@@ -56,7 +59,7 @@ List<Map<String, Object?>> _tills() => [
 void main() {
   late _Host host;
   late MockServer server;
-  late OfflineStore store;
+  late OfflineCache cache;
   late OfflineTransport t;
   var items = <String>['a', 'b'];
 
@@ -81,78 +84,27 @@ void main() {
         ]);
       })
       ..onStream('GET', '/stream', (req) => Stream.value('x'));
-    store = await OfflineStore.open(MemoryBlobs(), clock: () => host.clock);
-    await store.claim('u1');
-    t = OfflineTransport(server, store: store, host: host);
+    cache = memoryOfflineCache()..claim(userId: 'u1');
+    t = OfflineTransport(server, cache: cache, host: host);
   });
 
-  group('the store', () {
-    test('past its bound the least recently used answers go', () async {
-      final s = await OfflineStore.open(
-        MemoryBlobs(),
-        maxBytes: 100,
-        clock: () => host.clock,
-      );
-      await s.claim('u1');
-      for (var i = 0; i < 4; i++) {
-        host.clock = host.clock.add(const Duration(minutes: 1));
-        await s.write('u1', 'k$i', List.filled(30, i), host.clock);
-      }
-      // 120 bytes > 100: the oldest went, down to 90 % of the bound.
-      expect(s.bytes, lessThanOrEqualTo(90));
-      expect(s.savedAt('k0'), isNull);
-      expect(s.savedAt('k3'), isNotNull);
-      // A read makes an answer recent: the next eviction spares it.
-      host.clock = host.clock.add(const Duration(minutes: 1));
-      expect(await s.read('k1'), isNotNull);
-      host.clock = host.clock.add(const Duration(minutes: 1));
-      await s.write('u1', 'k4', List.filled(30, 4), host.clock);
-      expect(s.savedAt('k1'), isNotNull);
-      expect(s.savedAt('k2'), isNull);
-      // One answer bigger than the whole bound is never saved.
-      await s.write('u1', 'big', List.filled(101, 0), host.clock);
-      expect(s.savedAt('big'), isNull);
-    });
-
-    test('one person at a time; reopened from its index', () async {
-      final blobs = MemoryBlobs();
-      final s = await OfflineStore.open(blobs, clock: () => host.clock);
-      await s.claim('u1');
-      await s.write('u1', 'k', utf8.encode('[1]'), host.clock);
-      // A late answer for someone else is dropped.
-      await s.write('u2', 'k2', utf8.encode('[2]'), host.clock);
-      expect(s.length, 1);
-      final again = await OfflineStore.open(blobs, clock: () => host.clock);
-      expect(again.owner, 'u1');
-      expect(utf8.decode((await again.read('k'))!.body), '[1]');
-      expect((await again.read('k'))!.savedAt, host.clock);
-      // Another person: everything of the first goes.
-      await again.claim('u2');
-      expect(again.length, 0);
-      expect(blobs.files.keys, ['index.json']);
-      await again.wipe();
-      expect(again.owner, isNull);
-      expect(blobs.files, isEmpty);
-    });
-
-    test('an unreadable index starts empty; stray files go', () async {
-      final blobs = MemoryBlobs()
-        ..files['index.json'] = utf8.encode('{nope')
-        ..files['a0.json'] = utf8.encode('[1]');
-      final s = await OfflineStore.open(blobs);
-      expect(s.length, 0);
-      expect(blobs.files, isEmpty);
-      final b2 = MemoryBlobs()..files['a9.json'] = utf8.encode('[1]');
-      await OfflineStore.open(b2);
-      expect(b2.files, isEmpty);
-    });
-  });
+  /// Whether an answer to [path] is saved for u1.
+  bool kept(String path) =>
+      cache.saved(
+        scope: const CacheScope(user: 'u1', org: 'o1'),
+        request: CacheRequest(
+          method: 'GET',
+          path: path,
+          query: const <ApiPair>[],
+          headers: const <ApiPair>[],
+        ),
+      ) !=
+      null;
 
   group('the transport', () {
     test('online: every GET answer is saved, never served instead', () async {
       expect(_json(await t.send(_get('/probe'))), ['a', 'b']);
-      await pumpEventQueue();
-      expect(store.length, 1);
+      expect(kept('/probe'), isTrue);
       items = ['c'];
       // The saved answer is older; online, the server's answer stands.
       expect(_json(await t.send(_get('/probe'))), ['c']);
@@ -164,7 +116,6 @@ void main() {
     test('offline: the saved answer, with when it was saved', () async {
       final savedAt = host.clock;
       await t.send(_get('/probe'));
-      await pumpEventQueue();
       host.clock = host.clock.add(const Duration(hours: 2));
       server.offline = true;
       expect(_json(await t.send(_get('/probe'))), ['a', 'b']);
@@ -185,7 +136,6 @@ void main() {
 
     test('a 403 without the envelope is offline; with it, a refusal', () async {
       await t.send(_get('/probe'));
-      await pumpEventQueue();
       server.fail('GET', '/probe', const MockResponse(403));
       expect(_json(await t.send(_get('/probe'))), ['a', 'b']);
       expect(host.shown, hasLength(1));
@@ -205,13 +155,13 @@ void main() {
         await t.stream(_get('/stream')).toList();
         await t.send(const ApiRequest(method: 'POST', path: '/probe'));
         await expectLater(t.send(_get('/gone')), throwsA(isA<ApiException>()));
-        await pumpEventQueue();
-        expect(store.length, 0);
+        for (final p in ['/probe', '/auth/me', '/stream', '/gone']) {
+          expect(kept(p), isFalse, reason: p);
+        }
         // And signed out, nothing either.
         host.scope = null;
         await t.send(_get('/probe'));
-        await pumpEventQueue();
-        expect(store.length, 0);
+        expect(kept('/probe'), isFalse);
       },
     );
 
@@ -260,7 +210,7 @@ void main() {
           );
           server.offline = false;
           // What the server itself says for the narrow range.
-          final t2 = OfflineTransport(server, store: null, host: host);
+          final t2 = OfflineTransport(server, cache: null, host: host);
           expect(derived, _json(await t2.send(_get(path, query: narrow))));
           expect(derived, hasLength(4));
           expect(host.shown, isEmpty);
@@ -305,7 +255,6 @@ void main() {
       test('offline: from a saved wide answer, the later saved wins', () async {
         final wideAt = host.clock;
         await t.send(_get(path, query: wide));
-        await pumpEventQueue();
         server.offline = true;
         host.clock = host.clock.add(const Duration(hours: 1));
         final derived = _json(await t.send(_get(path, query: narrow)));
@@ -315,7 +264,6 @@ void main() {
         server.offline = false;
         host.clock = host.clock.add(const Duration(hours: 1));
         await t.send(_get(path, query: narrow));
-        await pumpEventQueue();
         final narrowAt = host.clock;
         server.offline = true;
         await t.send(_get(path, query: narrow));
@@ -325,7 +273,6 @@ void main() {
         host.clock = host.clock.add(const Duration(hours: 1));
         final laterWideAt = host.clock;
         await t.send(_get(path, query: wide));
-        await pumpEventQueue();
         // Past 30 s, so the narrow one is not a fresh hit on the wide one.
         host.clock = host.clock.add(const Duration(minutes: 1));
         server.offline = true;

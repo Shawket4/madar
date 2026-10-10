@@ -17,20 +17,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// The transport every boot puts over the network one (the core's in real
 /// mode, the mock server's otherwise): the offline seam ([OfflineTransport],
-/// when [offlineStoreProvider] holds a store) inside the 401 funnel, its
+/// when [offlineCacheProvider] holds a cache) inside the 401 funnel, its
 /// reads counted for a manual refresh ([QueryCache.refetchActive]).
 ///
 /// ```dart
 /// transportProvider.overrideWith((ref) => dashTransport(ref, network)),
 /// ```
 ApiTransport dashTransport(Ref ref, ApiTransport network) {
-  final store = ref.watch(offlineStoreProvider);
+  final offlineCache = ref.watch(offlineCacheProvider);
   final cache = ref.read(queryCacheProvider);
   var inner = network;
-  if (store != null) {
+  if (offlineCache != null) {
     final offline = OfflineTransport(
       network,
-      store: store,
+      cache: offlineCache,
       host: RefOfflineHost(ref),
     );
     inner = offline;

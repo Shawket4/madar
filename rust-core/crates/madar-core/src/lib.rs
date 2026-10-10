@@ -78,6 +78,8 @@ pub mod net;
 /// The management dashboard's generic API pass-through (any method/path, raw
 /// bytes back, refusals worded EN/AR) and its event streams. Dashboard-only.
 pub mod api_raw;
+/// The management dashboard's saved API answers (offline relaunch).
+pub mod api_cache;
 /// Crash + background-error reporting (Sentry) with a disk-backed offline
 /// transport. Errors raised inside the core's 8 background tasks never cross the
 /// FFI, so this is the ONLY way they become visible. No DSN configured => fully

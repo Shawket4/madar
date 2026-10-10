@@ -317,6 +317,22 @@ pub fn price_options(view_json: String, selection_json: String) -> String {
     json(&madar_catalog::price_options(&view, &selection))
 }
 
+/// The ids of the combo's slots that take the item (madar-catalog's
+/// `combo::choice_for`: its own item choice, else its category's), in order;
+/// none for a combo that does not parse.
+#[frb(sync)]
+pub fn combo_slots_for(combo_json: String, menu_item_id: String, category_id: Option<String>) -> Vec<String> {
+    let Ok(combo) = serde_json::from_str::<madar_catalog::combo::ComboView>(&combo_json) else {
+        return Vec::new();
+    };
+    combo
+        .slots
+        .into_iter()
+        .filter(|s| madar_catalog::combo::choice_for(s, &menu_item_id, category_id.as_deref()).is_some())
+        .map(|s| s.id)
+        .collect()
+}
+
 /// A combo's quote for `n` of it: `{"Ok": ComboQuote}` or `{"Err":
 /// ComboRefusal}`.
 #[frb(sync)]

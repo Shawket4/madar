@@ -132,6 +132,19 @@ String priceOptions({
   selectionJson: selectionJson,
 );
 
+/// The ids of the combo's slots that take the item (madar-catalog's
+/// `combo::choice_for`: its own item choice, else its category's), in order;
+/// none for a combo that does not parse.
+List<String> comboSlotsFor({
+  required String comboJson,
+  required String menuItemId,
+  String? categoryId,
+}) => DashboardBridge.instance.api.crateApiRulesComboSlotsFor(
+  comboJson: comboJson,
+  menuItemId: menuItemId,
+  categoryId: categoryId,
+);
+
 /// A combo's quote for `n` of it: `{"Ok": ComboQuote}` or `{"Err":
 /// ComboRefusal}`.
 String comboQuote({

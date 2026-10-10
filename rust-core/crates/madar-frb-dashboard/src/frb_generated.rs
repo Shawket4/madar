@@ -28,6 +28,7 @@
 // Section: imports
 
 use crate::api::bridge::*;
+use crate::api::offline::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
@@ -40,7 +41,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1156061335;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 887648088;
 
 // Section: executor
 
@@ -850,6 +851,54 @@ fn wire__crate__api__bridge__MadarBridge_new_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_offline_cache_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_offline_cache",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_fresh_ms = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::error::MadarError>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok =
+                    crate::api::bridge::MadarBridge::offline_cache(&*api_that_guard, api_fresh_ms)?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_refresh_connectivity_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1109,6 +1158,376 @@ fn wire__crate__api__bridge__MadarBridge_tr_impl(
         },
     )
 }
+fn wire__crate__api__offline__OfflineCache_claim_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OfflineCache_claim",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>,
+            >>::sse_decode(&mut deserializer);
+            let api_user_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::error::MadarError>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok =
+                    crate::api::offline::OfflineCache::claim(&*api_that_guard, api_user_id)?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__offline__OfflineCache_forget_recent_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OfflineCache_forget_recent",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>({
+                    crate::api::offline::OfflineCache::forget_recent(&*api_that_guard);
+                })?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__offline__OfflineCache_in_memory_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OfflineCache_in_memory",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_fresh_ms = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::error::MadarError>((move || {
+                let output_ok = crate::api::offline::OfflineCache::in_memory(api_fresh_ms)?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__offline__OfflineCache_recent_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OfflineCache_recent",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>,
+            >>::sse_decode(&mut deserializer);
+            let api_scope = <crate::api::offline::CacheScope>::sse_decode(&mut deserializer);
+            let api_request = <crate::api::offline::CacheRequest>::sse_decode(&mut deserializer);
+            let api_now_ms = <i64>::sse_decode(&mut deserializer);
+            let api_zone = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(crate::api::offline::OfflineCache::recent(
+                    &*api_that_guard,
+                    api_scope,
+                    api_request,
+                    api_now_ms,
+                    api_zone,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__offline__OfflineCache_save_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OfflineCache_save",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>,
+            >>::sse_decode(&mut deserializer);
+            let api_scope = <crate::api::offline::CacheScope>::sse_decode(&mut deserializer);
+            let api_request = <crate::api::offline::CacheRequest>::sse_decode(&mut deserializer);
+            let api_headers = <Vec<crate::api::transport::ApiPair>>::sse_decode(&mut deserializer);
+            let api_body = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_at_ms = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::error::MadarError>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = crate::api::offline::OfflineCache::save(
+                    &*api_that_guard,
+                    api_scope,
+                    api_request,
+                    api_headers,
+                    api_body,
+                    api_at_ms,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__offline__OfflineCache_saved_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OfflineCache_saved",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>,
+            >>::sse_decode(&mut deserializer);
+            let api_scope = <crate::api::offline::CacheScope>::sse_decode(&mut deserializer);
+            let api_request = <crate::api::offline::CacheRequest>::sse_decode(&mut deserializer);
+            let api_zone = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::error::MadarError>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = crate::api::offline::OfflineCache::saved(
+                    &*api_that_guard,
+                    api_scope,
+                    api_request,
+                    api_zone,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__offline__OfflineCache_wipe_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OfflineCache_wipe",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::error::MadarError>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = crate::api::offline::OfflineCache::wipe(&*api_that_guard)?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__offline__OfflineCache_zone_of_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "OfflineCache_zone_of",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_path = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::offline::OfflineCache::zone_of(api_path))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__rules__average_ticket_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -1239,6 +1658,42 @@ fn wire__crate__api__rules__combo_quote_impl(
                     api_combo_json,
                     api_picks_json,
                     api_n,
+                ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__rules__combo_slots_for_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "combo_slots_for",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_combo_json = <String>::sse_decode(&mut deserializer);
+            let api_menu_item_id = <String>::sse_decode(&mut deserializer);
+            let api_category_id = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>(crate::api::rules::combo_slots_for(
+                    api_combo_json,
+                    api_menu_item_id,
+                    api_category_id,
                 ))?;
                 std::result::Result::Ok(output_ok)
             })())
@@ -1870,6 +2325,9 @@ const _: fn() = || {
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>
 );
+flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>
+);
 
 // Section: dart2rust
 
@@ -1891,8 +2349,28 @@ impl SseDecode for MadarBridge {
     }
 }
 
+impl SseDecode for OfflineCache {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>,
+        >>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
+
 impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <usize>::sse_decode(deserializer);
+        return decode_rust_opaque_moi(inner);
+    }
+}
+
+impl SseDecode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2071,6 +2549,48 @@ impl SseDecode for crate::api::types::BranchView {
             name: var_name,
             is_active: var_isActive,
             org_logo_url: var_orgLogoUrl,
+        };
+    }
+}
+
+impl SseDecode for crate::api::offline::CacheRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_method = <String>::sse_decode(deserializer);
+        let mut var_path = <String>::sse_decode(deserializer);
+        let mut var_query = <Vec<crate::api::transport::ApiPair>>::sse_decode(deserializer);
+        let mut var_headers = <Vec<crate::api::transport::ApiPair>>::sse_decode(deserializer);
+        return crate::api::offline::CacheRequest {
+            method: var_method,
+            path: var_path,
+            query: var_query,
+            headers: var_headers,
+        };
+    }
+}
+
+impl SseDecode for crate::api::offline::CacheScope {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_user = <String>::sse_decode(deserializer);
+        let mut var_org = <Option<String>>::sse_decode(deserializer);
+        let mut var_branch = <Option<String>>::sse_decode(deserializer);
+        return crate::api::offline::CacheScope {
+            user: var_user,
+            org: var_org,
+            branch: var_branch,
+        };
+    }
+}
+
+impl SseDecode for crate::api::offline::CachedAnswer {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_body = <Vec<u8>>::sse_decode(deserializer);
+        let mut var_savedAtMs = <i64>::sse_decode(deserializer);
+        return crate::api::offline::CachedAnswer {
+            body: var_body,
+            saved_at_ms: var_savedAtMs,
         };
     }
 }
@@ -2477,6 +2997,19 @@ impl SseDecode for Option<crate::api::transport::ApiFailure> {
     }
 }
 
+impl SseDecode for Option<crate::api::offline::CachedAnswer> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::offline::CachedAnswer>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::rules::DayBounds> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2574,6 +3107,17 @@ impl SseDecode for Option<crate::api::rules::UnitSpec> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::rules::UnitSpec>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::offline::ZoneOf> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::offline::ZoneOf>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -2770,6 +3314,16 @@ impl SseDecode for usize {
     }
 }
 
+impl SseDecode for crate::api::offline::ZoneOf {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_branchId = <Option<String>>::sse_decode(deserializer);
+        return crate::api::offline::ZoneOf {
+            branch_id: var_branchId,
+        };
+    }
+}
+
 fn pde_ffi_dispatcher_primary_impl(
     func_id: i32,
     port: flutter_rust_bridge::for_generated::MessagePort,
@@ -2814,14 +3368,14 @@ fn pde_ffi_dispatcher_primary_impl(
         ),
         14 => wire__crate__api__bridge__MadarBridge_logout_impl(port, ptr, rust_vec_len, data_len),
         15 => wire__crate__api__bridge__MadarBridge_new_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__bridge__MadarBridge_refresh_connectivity_impl(
+        17 => wire__crate__api__bridge__MadarBridge_refresh_connectivity_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__xlsx__xlsx_read_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__xlsx__xlsx_write_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__xlsx__xlsx_read_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__xlsx__xlsx_write_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2849,34 +3403,46 @@ fn pde_ffi_dispatcher_sync_impl(
         }
         11 => wire__crate__api__bridge__MadarBridge_is_rtl_impl(ptr, rust_vec_len, data_len),
         13 => wire__crate__api__bridge__MadarBridge_locale_impl(ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__bridge__MadarBridge_restore_session_cached_impl(
+        16 => wire__crate__api__bridge__MadarBridge_offline_cache_impl(ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__bridge__MadarBridge_restore_session_cached_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        18 => {
+        19 => {
             wire__crate__api__bridge__MadarBridge_set_active_scope_impl(ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__rules__average_ticket_impl(ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__rules__business_date_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__rules__check_receive_line_impl(ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__rules__combo_quote_impl(ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__rules__day_bounds_impl(ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__rules__pay_period_impl(ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__rules__phone_canonical_impl(ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__rules__price_options_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__rules__reconcile_refusal_impl(ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__rules__replenish_suggest_impl(ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__rules__transfer_step_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__rules__unit_convert_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__rules__unit_price_impl(ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__rules__unit_spec_impl(ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__rules__units_of_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__rules__week_start_impl(ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__offline__OfflineCache_claim_impl(ptr, rust_vec_len, data_len),
+        23 => {
+            wire__crate__api__offline__OfflineCache_forget_recent_impl(ptr, rust_vec_len, data_len)
+        }
+        24 => wire__crate__api__offline__OfflineCache_in_memory_impl(ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__offline__OfflineCache_recent_impl(ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__offline__OfflineCache_save_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__offline__OfflineCache_saved_impl(ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__offline__OfflineCache_wipe_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__offline__OfflineCache_zone_of_impl(ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__rules__average_ticket_impl(ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__rules__business_date_impl(ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__rules__check_receive_line_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__rules__combo_quote_impl(ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__rules__combo_slots_for_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__rules__day_bounds_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__rules__pay_period_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__rules__phone_canonical_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__rules__price_options_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__rules__reconcile_refusal_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__rules__replenish_suggest_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__rules__transfer_step_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__rules__unit_convert_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__rules__unit_price_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__rules__unit_spec_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__rules__units_of_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__rules__week_start_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2894,6 +3460,21 @@ impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<
 
 impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<MadarBridge>> for MadarBridge {
     fn into_into_dart(self) -> FrbWrapper<MadarBridge> {
+        self.into()
+    }
+}
+
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<OfflineCache> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
+            .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<OfflineCache> {}
+
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<OfflineCache>> for OfflineCache {
+    fn into_into_dart(self) -> FrbWrapper<OfflineCache> {
         self.into()
     }
 }
@@ -3107,6 +3688,72 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::BranchView>
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::types::BranchView> {
         self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::offline::CacheRequest {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.method.into_into_dart().into_dart(),
+            self.path.into_into_dart().into_dart(),
+            self.query.into_into_dart().into_dart(),
+            self.headers.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::offline::CacheRequest
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::offline::CacheRequest>
+    for crate::api::offline::CacheRequest
+{
+    fn into_into_dart(self) -> crate::api::offline::CacheRequest {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::offline::CacheScope {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.user.into_into_dart().into_dart(),
+            self.org.into_into_dart().into_dart(),
+            self.branch.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::offline::CacheScope
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::offline::CacheScope>
+    for crate::api::offline::CacheScope
+{
+    fn into_into_dart(self) -> crate::api::offline::CacheScope {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::offline::CachedAnswer {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.body.into_into_dart().into_dart(),
+            self.saved_at_ms.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::offline::CachedAnswer
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::offline::CachedAnswer>
+    for crate::api::offline::CachedAnswer
+{
+    fn into_into_dart(self) -> crate::api::offline::CachedAnswer {
+        self
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -3544,6 +4191,20 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::rules::UnitSpec>
         self
     }
 }
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::offline::ZoneOf {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.branch_id.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::offline::ZoneOf {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::offline::ZoneOf>
+    for crate::api::offline::ZoneOf
+{
+    fn into_into_dart(self) -> crate::api::offline::ZoneOf {
+        self
+    }
+}
 
 impl SseEncode for flutter_rust_bridge::for_generated::anyhow::Error {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -3559,8 +4220,26 @@ impl SseEncode for MadarBridge {
     }
 }
 
+impl SseEncode for OfflineCache {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+    }
+}
+
 impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        let (ptr, size) = self.sse_encode_raw();
+        <usize>::sse_encode(ptr, serializer);
+        <i32>::sse_encode(size, serializer);
+    }
+}
+
+impl SseEncode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3695,6 +4374,33 @@ impl SseEncode for crate::api::types::BranchView {
         <String>::sse_encode(self.name, serializer);
         <bool>::sse_encode(self.is_active, serializer);
         <Option<String>>::sse_encode(self.org_logo_url, serializer);
+    }
+}
+
+impl SseEncode for crate::api::offline::CacheRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.method, serializer);
+        <String>::sse_encode(self.path, serializer);
+        <Vec<crate::api::transport::ApiPair>>::sse_encode(self.query, serializer);
+        <Vec<crate::api::transport::ApiPair>>::sse_encode(self.headers, serializer);
+    }
+}
+
+impl SseEncode for crate::api::offline::CacheScope {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.user, serializer);
+        <Option<String>>::sse_encode(self.org, serializer);
+        <Option<String>>::sse_encode(self.branch, serializer);
+    }
+}
+
+impl SseEncode for crate::api::offline::CachedAnswer {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<u8>>::sse_encode(self.body, serializer);
+        <i64>::sse_encode(self.saved_at_ms, serializer);
     }
 }
 
@@ -4007,6 +4713,16 @@ impl SseEncode for Option<crate::api::transport::ApiFailure> {
     }
 }
 
+impl SseEncode for Option<crate::api::offline::CachedAnswer> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::offline::CachedAnswer>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::rules::DayBounds> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -4093,6 +4809,16 @@ impl SseEncode for Option<crate::api::rules::UnitSpec> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::rules::UnitSpec>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::offline::ZoneOf> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::offline::ZoneOf>::sse_encode(value, serializer);
         }
     }
 }
@@ -4234,6 +4960,13 @@ impl SseEncode for usize {
     }
 }
 
+impl SseEncode for crate::api::offline::ZoneOf {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.branch_id, serializer);
+    }
+}
+
 #[cfg(not(target_family = "wasm"))]
 mod io {
     // This file is automatically generated, so please do not edit it.
@@ -4243,6 +4976,7 @@ mod io {
 
     use super::*;
     use crate::api::bridge::*;
+    use crate::api::offline::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
@@ -4266,6 +5000,20 @@ mod io {
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>>::decrement_strong_count(ptr as _);
     }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_rust_bridge_dashboard_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>>::increment_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_rust_bridge_dashboard_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>>::decrement_strong_count(ptr as _);
+    }
 }
 #[cfg(not(target_family = "wasm"))]
 pub use io::*;
@@ -4280,6 +5028,7 @@ mod web {
 
     use super::*;
     use crate::api::bridge::*;
+    use crate::api::offline::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
@@ -4304,6 +5053,20 @@ mod web {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>>::decrement_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>>::increment_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<OfflineCache>>::decrement_strong_count(ptr as _);
     }
 }
 #[cfg(target_family = "wasm")]

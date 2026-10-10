@@ -730,13 +730,21 @@ void main() {
     MealItem? lookup(String id) =>
         {'latte': latte, 'croissant': croissant, 'juice': juice}[id];
 
-    test('the item\'s own choice wins over its category', () {
+    test('a slot takes the item by its own choice or its category', () {
       final s = slot('d', [
         choice(null, 'hot'),
         choice('latte', null, surcharge: 500),
       ]);
-      expect(choiceFor(s, 'latte', 'hot')?.surcharge, 500);
+      expect(
+        [
+          for (final x in slotsAdmitting(combo([s]), 'latte', 'hot')) x.id,
+        ],
+        ['d'],
+      );
       expect(slotsAdmitting(combo([s]), 'tea', 'tea'), isEmpty);
+      // A choice naming another item is not a category choice.
+      final other = slot('e', [choice('mocha', 'hot')]);
+      expect(slotsAdmitting(combo([other]), 'latte', 'hot'), isEmpty);
     });
 
     test('+X: the combo with defaults minus the item alone', () {
