@@ -427,8 +427,12 @@ class _NavRow extends StatelessWidget {
   }
 }
 
+/// Off by the owner's call (2026-10-10): the sidebar always shows Madar's
+/// mark. Flip to bring back a shop's own logo on the branding tier.
+const bool kShopLogoInSidebar = false;
+
 /// The sidebar's head: the shop's own logo on the branding tier, Madar's
-/// lockup otherwise; a tap goes home.
+/// living mark and wordmark otherwise; a tap goes home.
 class _SidebarBrand extends ConsumerWidget {
   const _SidebarBrand({required this.onTap});
   final VoidCallback onTap;
@@ -439,8 +443,15 @@ class _SidebarBrand extends ConsumerWidget {
     final brand = ref.watch(publicBrandProvider).value;
     final logo = brand?.logoUrl?.trim();
     final own =
-        (brand?.customBranding ?? false) && logo != null && logo.isNotEmpty;
-    const madar = ShellWordmark(height: Space.xxl - Space.xs, reversed: true);
+        kShopLogoInSidebar &&
+        (brand?.customBranding ?? false) &&
+        logo != null &&
+        logo.isNotEmpty;
+    const madar = ShellWordmark(
+      height: Space.xxl - Space.xs,
+      reversed: true,
+      animated: true,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(Space.sm, Space.sm, Space.sm, 0),
       child: DashPressable(

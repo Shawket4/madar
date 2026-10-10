@@ -300,6 +300,8 @@ void main() {
       expect(h.container.read(sidebarCollapsedProvider), isFalse);
     });
 
+    // The shop's logo is off by the owner's call (kShopLogoInSidebar); this
+    // pins whichever way the flag points.
     testWidgets('ADM-APP-033: a shop on its own branding wears its logo', (
       tester,
     ) async {
@@ -317,11 +319,11 @@ void main() {
               (w.image as NetworkImage).url == logo,
         ),
       );
-      expect(image, findsOneWidget);
+      expect(image, kShopLogoInSidebar ? findsOneWidget : findsNothing);
       expect(
         find.descendant(
           of: find.byType(DashSidebar),
-          matching: labelled('Sabah Coffee'),
+          matching: labelled(kShopLogoInSidebar ? 'Sabah Coffee' : 'Madar'),
         ),
         findsOneWidget,
       );
