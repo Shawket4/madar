@@ -16,6 +16,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import 'open_till_dialog.dart' show parseAmount;
 import 'tills_data.dart';
@@ -62,7 +63,20 @@ class CheckRow {
     if (declared.trim().isNotEmpty && !(n != null && n.isFinite && n >= 0)) {
       return false;
     }
-    return reconcileRefusal([(method: method, isCash: false)], [toInput()]) ==
+    // The cash count never refuses a close, so a row is checked on its own.
+    return reconcileRefusal(
+          [
+            rules.ReconcileTotal(
+              method: method,
+              isCash: false,
+              systemTotal: 0,
+              orderCount: 0,
+            ),
+          ],
+          [toInput()],
+          closingCashDeclared: 0,
+          closingCashSystem: 0,
+        ) ==
         null;
   }
 
