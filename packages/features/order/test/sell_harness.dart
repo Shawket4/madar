@@ -13,27 +13,41 @@ const Size _phone = Size(390, 844);
 
 // ── fixtures ───────────────────────────────────────────────────────────────
 
-MenuItemView _item(String id, String name, int price, {String cat = 'hot'}) =>
-    MenuItemView(
-      kind: 'item',
-      id: id,
-      name: name,
-      categoryId: cat,
-      basePriceMinor: price,
-      isActive: true,
-      allowedAddonIds: const [],
-      sizes: const [],
-      addonSlots: const [],
-      optionalFields: const [],
-      recipes: const [],
-      recipeSteps: const [],
-    );
+MenuItemView _item(
+  String id,
+  String name,
+  int price, {
+  String cat = 'hot',
+  List<ItemSizeView> sizes = const [],
+}) => MenuItemView(
+  kind: 'item',
+  id: id,
+  name: name,
+  categoryId: cat,
+  basePriceMinor: price,
+  isActive: true,
+  allowedAddonIds: const [],
+  sizes: sizes,
+  addonSlots: const [],
+  optionalFields: const [],
+  recipes: const [],
+  recipeSteps: const [],
+);
 
 final _items = <MenuItemView>[
   _item('espresso', 'Espresso', 3500),
   _item('latte', 'Latte', 4500),
   _item('flat', 'Flat white', 5000),
-  _item('mocha', 'Mocha', 5500),
+  // Two sizes: the teller always picks one (owner, 2026-10-08).
+  _item(
+    'mocha',
+    'Mocha',
+    5500,
+    sizes: const [
+      ItemSizeView(id: 'ms', label: 'Small', priceMinor: 5500, isActive: true),
+      ItemSizeView(id: 'ml', label: 'Large', priceMinor: 6500, isActive: true),
+    ],
+  ),
   _item('cappuccino', 'Cappuccino', 4800),
   _item('americano', 'Americano', 4000),
   _item('iced-latte', 'Iced latte', 5000, cat: 'cold'),
@@ -454,6 +468,9 @@ class _FakeBridge implements MadarBridge {
   /// Every combo the Sell screen asked for a one-tap draft.
   final List<String> oneTapAsked = [];
 
+  /// The size each configured add was asked for.
+  final List<String?> addedSizes = [];
+
   /// The core offers the staff-drink action on every counter line.
   bool staffOffered = false;
 
@@ -790,6 +807,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #cartAddConfigured) {
       final id = invocation.namedArguments[#itemId] as String;
+      addedSizes.add(invocation.namedArguments[#sizeLabel] as String?);
       final item = _items.firstWhere((i) => i.id == id);
       _cartOf(invocation).add(_cartLine(id, item.name, item.basePriceMinor, 1));
       return Future<List<CartLineView>>.value(List.of(_cartOf(invocation)));
