@@ -1,7 +1,8 @@
 /// The editor's preview (SET-LNK-023): the shop's public links page
 /// (`features/links/public/links-page.tsx`) as a customer gets it, reading
-/// what is SAVED (`GET /public/orgs/links?org_id=`), at the page's narrow
-/// layout. Buttons, socials, directions and calls open outside the app as
+/// what is SAVED (`GET /public/orgs/links?org_id=`). Its narrow layout, or
+/// its wide one once the frame is 768 px across (the page's `@3xl`
+/// container query: the preview stacked under a wide form). Buttons, socials, directions and calls open outside the app as
 /// the page's links do; the page's share / theme / language controls are
 /// drawn, not live (they would act on the dashboard, see the divergences).
 library;
@@ -60,7 +61,38 @@ abstract final class LinksPreviewMetrics {
   /// The footer badge's Madar symbol (`size-[26px]`) and wordmark height.
   static const double symbol = 26;
   static const double wordmark = 16;
+
+  /// `@3xl`: the wide layout from a 768 px container.
+  static const double wideFrom = 768;
+
+  /// The wide layout's sizes: `max-w-[1040px]`, the cover's `h-60`, the
+  /// plate's `size-32` and `rounded-[34px]`, the `-mt-16` overlap, the name's
+  /// `pt-[76px]` (it starts below the cover) and `text-[40px]`.
+  static const double wideColumn = 1040;
+  static const double wideCover = 240;
+  static const double widePlate = 128;
+  static const double widePlateRadius = 34;
+  static const double wideOverlap = 64;
+  static const double wideNameDrop = 76;
+  static const double wideName = 40;
+
+  /// `360px`: Visit us, beside the buttons.
+  static const double wideSide = 360;
+
+  /// `min-h-[132px]`: a card; `min-h-[80px]`: a lone last button's row.
+  static const double card = 132;
+  static const double wideRow = 80;
+
+  /// The wide layout's text: the tagline (`text-base`), a button's title
+  /// (`text-[17px]`) and its hint (`text-sm`).
+  static const double wideTagline = 16;
+  static const double wideTitle = 17;
+  static const double wideHint = 14;
 }
+
+/// How a button is drawn: a row on a phone; on a desktop a card, or a row
+/// across the grid for a last button with no partner.
+enum _Shape { row, wideRow, card }
 
 /// The glyph per button (`ICON`).
 const Map<String, String> _glyph = {
@@ -134,7 +166,12 @@ class _PublicPage extends ConsumerWidget {
   final PublicLinksPage page;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, WidgetRef ref) => LayoutBuilder(
+    builder: (context, box) =>
+        _page(context, ref, wide: box.maxWidth >= LinksPreviewMetrics.wideFrom),
+  );
+
+  Widget _page(BuildContext context, WidgetRef ref, {required bool wide}) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -151,17 +188,68 @@ class _PublicPage extends ConsumerWidget {
     );
     final cover = page.coverImageUrl;
     final open = ref.read(linkOpenerProvider);
+    final gutter = wide ? Space.xxl : Space.card;
 
     Widget column(Widget child) => Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: LinksPreviewMetrics.column),
+        constraints: BoxConstraints(
+          maxWidth: wide
+              ? LinksPreviewMetrics.wideColumn
+              : LinksPreviewMetrics.column,
+        ),
         child: child,
       ),
     );
 
+    Widget button(PublicLinksItem item, _Shape shape) => _LinkRow(
+      item: item,
+      accent: accent,
+      loyaltyMode: page.loyaltyMode,
+      shape: shape,
+      onTap: () => open(Uri.parse(item.href)),
+    );
+
+    final items = page.items;
+    final buttons = Semantics(
+      container: true,
+      label: t('links.navLabel', args: {'name': brand.name}),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.md,
+        children: [
+          if (!wide)
+            for (final item in items) button(item, _Shape.row)
+          else
+            // Two cards a line, as tall as each other; a last card with no
+            // partner spans the line as a row.
+            for (var i = 0; i < items.length; i += 2)
+              if (i + 1 < items.length)
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: Space.md,
+                    children: [
+                      Expanded(child: button(items[i], _Shape.card)),
+                      Expanded(child: button(items[i + 1], _Shape.card)),
+                    ],
+                  ),
+                )
+              else
+                button(items[i], _Shape.wideRow),
+        ],
+      ),
+    );
+    final socials = page.socials.any((s) => _safe(s.url))
+        ? _Socials(page: page, accent: accent)
+        : null;
+    final visit = page.branches.isEmpty
+        ? null
+        : _VisitUs(branches: page.branches, accent: accent);
+    final lead = [if (items.isNotEmpty) buttons, ?socials];
+
     final main = column(
       Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Space.card),
+        padding: EdgeInsets.symmetric(horizontal: gutter),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -172,36 +260,33 @@ class _PublicPage extends ConsumerWidget {
               logoUrl: brand.logoUrl,
               plate: hexColor(bandBg),
               initialColor: hexColor(bandFg),
+              wide: wide,
+              overlap: cover != null,
             ),
-            const SizedBox(height: Space.xl + Space.xs),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.xl + Space.xs,
-              children: [
-                if (page.items.isNotEmpty)
-                  Semantics(
-                    container: true,
-                    label: t('links.navLabel', args: {'name': brand.name}),
+            SizedBox(height: wide ? Space.xxl + Space.sm : Space.xl + Space.xs),
+            if (wide)
+              // The buttons and the socials, with Visit us beside them in
+              // its own 360 px column (kept even when there is no branch).
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: Space.xxl,
+                children: [
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: Space.md,
-                      children: [
-                        for (final item in page.items)
-                          _LinkRow(
-                            item: item,
-                            accent: accent,
-                            loyaltyMode: page.loyaltyMode,
-                            onTap: () => open(Uri.parse(item.href)),
-                          ),
-                      ],
+                      spacing: Space.xl + Space.xs,
+                      children: lead,
                     ),
                   ),
-                if (page.socials.any((s) => _safe(s.url)))
-                  _Socials(page: page, accent: accent),
-                if (page.branches.isNotEmpty)
-                  _VisitUs(branches: page.branches, accent: accent),
-              ],
-            ),
+                  SizedBox(width: LinksPreviewMetrics.wideSide, child: visit),
+                ],
+              )
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: Space.xl + Space.xs,
+                children: [...lead, ?visit],
+              ),
             const _Footer(),
           ],
         ),
@@ -215,7 +300,9 @@ class _PublicPage extends ConsumerWidget {
         children: [
           if (cover != null)
             SizedBox(
-              height: LinksPreviewMetrics.cover,
+              height: wide
+                  ? LinksPreviewMetrics.wideCover
+                  : LinksPreviewMetrics.cover,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -242,14 +329,21 @@ class _PublicPage extends ConsumerWidget {
                   Align(
                     alignment: Alignment.topCenter,
                     child: column(
-                      const Padding(
-                        padding: EdgeInsetsDirectional.fromSTEB(
-                          Space.lg,
-                          Space.md + DashMetrics.hair,
-                          Space.lg,
-                          0,
-                        ),
-                        child: _Controls(),
+                      Padding(
+                        padding: wide
+                            ? const EdgeInsetsDirectional.fromSTEB(
+                                Space.xxl,
+                                Space.card,
+                                Space.xxl,
+                                0,
+                              )
+                            : const EdgeInsetsDirectional.fromSTEB(
+                                Space.lg,
+                                Space.md + DashMetrics.hair,
+                                Space.lg,
+                                0,
+                              ),
+                        child: const _Controls(),
                       ),
                     ),
                   ),
@@ -258,25 +352,30 @@ class _PublicPage extends ConsumerWidget {
             )
           else
             column(
-              const Padding(
+              Padding(
                 padding: EdgeInsetsDirectional.fromSTEB(
-                  Space.card,
-                  Space.lg,
-                  Space.card,
+                  gutter,
+                  wide ? Space.xl : Space.lg,
+                  gutter,
                   0,
                 ),
-                child: _Controls(),
+                child: const _Controls(),
               ),
             ),
           if (cover != null)
-            // The mark rides half over the cover's edge (`-mt-12`).
+            // The mark rides half over the cover's edge (`-mt-12`, `-mt-16`).
             Transform.translate(
-              offset: const Offset(0, -LinksPreviewMetrics.overlap),
+              offset: Offset(
+                0,
+                -(wide
+                    ? LinksPreviewMetrics.wideOverlap
+                    : LinksPreviewMetrics.overlap),
+              ),
               child: main,
             )
           else
             Padding(
-              padding: const EdgeInsets.only(top: Space.sm),
+              padding: EdgeInsets.only(top: wide ? Space.lg : Space.sm),
               child: main,
             ),
         ],
@@ -330,6 +429,8 @@ class _Identity extends ConsumerWidget {
     required this.logoUrl,
     required this.plate,
     required this.initialColor,
+    required this.wide,
+    required this.overlap,
   });
 
   final String name;
@@ -338,6 +439,12 @@ class _Identity extends ConsumerWidget {
   final String? logoUrl;
   final Color plate;
   final Color initialColor;
+
+  /// The wide layout: the mark beside the name.
+  final bool wide;
+
+  /// Under a cover (the mark rides over its edge).
+  final bool overlap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -349,77 +456,107 @@ class _Identity extends ConsumerWidget {
         ? ''
         : name.trim().characters.first.toUpperCase();
     final logo = logoUrl;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Space.md + DashMetrics.hair,
-      children: [
-        Container(
-          width: LinksPreviewMetrics.plate,
-          height: LinksPreviewMetrics.plate,
-          clipBehavior: Clip.antiAlias,
-          padding: logo != null ? const EdgeInsets.all(Space.md) : null,
-          decoration: BoxDecoration(
-            // White plate, the card's rule: a logo on its own colour vanishes.
-            color: logo != null ? Colors.white : plate,
-            borderRadius: BorderRadius.circular(
-              LinksPreviewMetrics.plateRadius,
-            ),
-            border: Border.all(color: c.bg, width: Space.xs),
-            boxShadow: elevationShadows(context, MadarElevation.raised),
-          ),
-          alignment: Alignment.center,
-          child: logo != null
-              ? brandImage(logo, fit: BoxFit.contain)
-              : Text(
-                  initial,
-                  style: MadarType.h1.copyWith(
-                    fontSize: LinksPreviewMetrics.initial,
-                    fontWeight: FontWeight.w600,
-                    color: initialColor,
-                  ),
-                ),
+    final side = wide
+        ? LinksPreviewMetrics.widePlate
+        : LinksPreviewMetrics.plate;
+    final mark = Container(
+      width: side,
+      height: side,
+      clipBehavior: Clip.antiAlias,
+      padding: logo != null ? EdgeInsets.all(wide ? Space.lg : Space.md) : null,
+      decoration: BoxDecoration(
+        // White plate, the card's rule: a logo on its own colour vanishes.
+        color: logo != null ? Colors.white : plate,
+        borderRadius: BorderRadius.circular(
+          wide
+              ? LinksPreviewMetrics.widePlateRadius
+              : LinksPreviewMetrics.plateRadius,
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: Space.xs + DashMetrics.hair,
-          children: [
-            Text(
-              name,
+        border: Border.all(color: c.bg, width: Space.xs),
+        boxShadow: elevationShadows(context, MadarElevation.raised),
+      ),
+      alignment: Alignment.center,
+      child: logo != null
+          ? brandImage(logo, fit: BoxFit.contain)
+          : Text(
+              initial,
               style: MadarType.h1.copyWith(
-                fontSize: LinksPreviewMetrics.name,
-                height: 1.1,
+                fontSize: LinksPreviewMetrics.initial,
                 fontWeight: FontWeight.w600,
-                color: c.textPrimary,
+                color: initialColor,
               ),
             ),
-            if (line.isNotEmpty)
-              Text(
-                line,
-                style: MadarType.body.copyWith(
-                  fontWeight: FontWeight.w400,
-                  height: 1.6,
-                  color: c.textSecondary,
-                ),
-              ),
-          ],
+    );
+    final words = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: Space.xs + DashMetrics.hair,
+      children: [
+        Text(
+          name,
+          style: MadarType.h1.copyWith(
+            fontSize: wide
+                ? LinksPreviewMetrics.wideName
+                : LinksPreviewMetrics.name,
+            height: 1.1,
+            fontWeight: FontWeight.w600,
+            color: c.textPrimary,
+          ),
+        ),
+        if (line.isNotEmpty)
+          Text(
+            line,
+            style: MadarType.body.copyWith(
+              fontSize: wide ? LinksPreviewMetrics.wideTagline : null,
+              fontWeight: FontWeight.w400,
+              height: 1.6,
+              color: c.textSecondary,
+            ),
+          ),
+      ],
+    );
+    if (!wide) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: Space.md + DashMetrics.hair,
+        children: [mark, words],
+      );
+    }
+    // Beside the mark; under a cover the name starts below its edge, so only
+    // the mark crosses it.
+    return Row(
+      crossAxisAlignment: overlap
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.center,
+      spacing: Space.xl,
+      children: [
+        mark,
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(
+              top: overlap ? LinksPreviewMetrics.wideNameDrop : 0,
+            ),
+            child: words,
+          ),
         ),
       ],
     );
   }
 }
 
-/// A button: a row (the narrow layout).
+/// A button: a row on a phone, a card in a two-column grid on a desktop.
 class _LinkRow extends ConsumerWidget {
   const _LinkRow({
     required this.item,
     required this.accent,
     required this.loyaltyMode,
+    required this.shape,
     required this.onTap,
   });
 
   final PublicLinksItem item;
   final Color accent;
   final String? loyaltyMode;
+  final _Shape shape;
   final VoidCallback onTap;
 
   @override
@@ -428,65 +565,95 @@ class _LinkRow extends ConsumerWidget {
     final c = context.madarColors;
     final custom = item.kind == LinksItemKind.custom;
     final text = linksItemText(item, loyaltyMode, t, arabic: t.isRtl);
+    final wide = shape != _Shape.row;
+    final card = shape == _Shape.card;
+    final tile = Container(
+      width: LinksPreviewMetrics.tile,
+      height: LinksPreviewMetrics.tile,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: custom ? null : accent.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(Radii.md),
+      ),
+      child: DashIcon(
+        _glyph[item.kind.value] ?? 'link-2',
+        size: IconSize.lg,
+        color: custom ? c.textMuted : accent,
+      ),
+    );
+    final words = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MadarClippedText(
+          text.title,
+          style: MadarType.title.copyWith(
+            fontSize: wide ? LinksPreviewMetrics.wideTitle : null,
+            color: c.textPrimary,
+          ),
+          maxLines: 1,
+          // `truncate`, `line-clamp-2`.
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (text.hint.isNotEmpty)
+          MadarClippedText(
+            text.hint,
+            style: MadarType.bodySm.copyWith(
+              fontSize: wide ? LinksPreviewMetrics.wideHint : null,
+              fontWeight: FontWeight.w400,
+              color: c.textSecondary,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+      ],
+    );
     return DashPressable(
       onTap: onTap,
       semanticLabel: '${text.title}, ${text.hint}',
       excludeChildSemantics: true,
       pressScale: false,
       builder: (context, s) => Container(
-        constraints: const BoxConstraints(minHeight: LinksPreviewMetrics.row),
-        padding: const EdgeInsets.all(Space.md + DashMetrics.hair),
+        constraints: BoxConstraints(
+          minHeight: switch (shape) {
+            _Shape.row => LinksPreviewMetrics.row,
+            _Shape.wideRow => LinksPreviewMetrics.wideRow,
+            _Shape.card => LinksPreviewMetrics.card,
+          },
+        ),
+        padding: switch (shape) {
+          _Shape.row => const EdgeInsets.all(Space.md + DashMetrics.hair),
+          _Shape.wideRow => const EdgeInsets.symmetric(
+            horizontal: Space.card,
+            vertical: Space.md + DashMetrics.hair,
+          ),
+          _Shape.card => const EdgeInsets.all(Space.card),
+        },
         decoration: BoxDecoration(
           color: c.surface,
           borderRadius: BorderRadius.circular(Radii.card),
           border: Border.all(color: s.highlighted ? c.textMuted : c.border),
           boxShadow: elevationShadows(context, MadarElevation.card),
         ),
-        child: Row(
-          spacing: Space.md + DashMetrics.hair,
-          children: [
-            Container(
-              width: LinksPreviewMetrics.tile,
-              height: LinksPreviewMetrics.tile,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: custom ? null : accent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(Radii.md),
-              ),
-              child: DashIcon(
-                _glyph[item.kind.value] ?? 'link-2',
-                size: IconSize.lg,
-                color: custom ? c.textMuted : accent,
-              ),
-            ),
-            Expanded(
-              child: Column(
+        // A card: the glyph on top, the words at the foot, no arrow.
+        child: card
+            ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                spacing: Space.md + DashMetrics.hair,
+                children: [tile, words],
+              )
+            : Row(
+                spacing: Space.md + DashMetrics.hair,
                 children: [
-                  MadarClippedText(
-                    text.title,
-                    style: MadarType.title.copyWith(color: c.textPrimary),
-                    maxLines: 1,
+                  tile,
+                  Expanded(child: words),
+                  DashIcon(
+                    custom ? 'external-link' : DashIcon.forward(context),
+                    size: IconSize.lg,
+                    color: c.textMuted,
                   ),
-                  if (text.hint.isNotEmpty)
-                    MadarClippedText(
-                      text.hint,
-                      style: MadarType.bodySm.copyWith(
-                        fontWeight: FontWeight.w400,
-                        color: c.textSecondary,
-                      ),
-                      maxLines: 2,
-                    ),
                 ],
               ),
-            ),
-            DashIcon(
-              custom ? 'external-link' : DashIcon.forward(context),
-              size: IconSize.lg,
-              color: c.textMuted,
-            ),
-          ],
-        ),
       ),
     );
   }

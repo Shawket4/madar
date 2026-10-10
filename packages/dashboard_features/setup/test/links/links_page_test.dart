@@ -2,6 +2,7 @@
 // SET-LNK row (row ids first in the names), plus refusal, loading and error.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show sidebarCollapsedProvider;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart' show Space;
@@ -9,6 +10,7 @@ import 'package:dashboard_setup/src/area_seed.dart';
 import 'package:dashboard_setup/src/brand_appearance/brand_data.dart'
     show orgBrandKey;
 import 'package:dashboard_setup/src/links/links_page.dart';
+import 'package:dashboard_setup/src/links/links_preview.dart';
 import 'package:dashboard_setup/src/mock/links_mock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -678,6 +680,82 @@ void main() {
     await _show(h, call);
     await h.tap(call);
     expect(h.openedLinks.last.scheme, 'tel');
+  });
+
+  testWidgets('SET-LNK-023 the preview\'s layout follows its frame: rows '
+      'beside the form; under it, with the sidebar on its rail, the wide '
+      'page (two cards a line, a lone last row, Visit us beside them)', (
+    tester,
+  ) async {
+    Rect at(String text) => tester.getRect(
+      find
+          .ancestor(
+            of: inPreview(find.text(text)),
+            matching: find.byType(DashPressable),
+          )
+          .first,
+    );
+
+    // Beside the form the frame is 400 across: one button a line.
+    await pumpLinks(tester);
+    expect(at('Menu').top, greaterThan(at('Order now').bottom));
+    expect(at('Menu').left, at('Order now').left);
+
+    // Under the form on a 1000 px window (no settings list beside the pane)
+    // with the sidebar on its rail, the frame passes 768.
+    final h = await pumpLinks(tester, size: DashSize.tablet);
+    tester.view.physicalSize = const Size(1000, 900) * DashSize.pixelRatio;
+    await h.container.read(sidebarCollapsedProvider.notifier).set(true);
+    await h.settle();
+    final frame = tester.getRect(byKey('links-preview-0'));
+    expect(frame.width, greaterThanOrEqualTo(LinksPreviewMetrics.wideFrom));
+    await _show(h, inPreview(find.text('Book a table')));
+    final order = at('Order now');
+    final menu = at('Menu');
+    final catering = at('Catering and events');
+    final rewards = at('Rewards card');
+    final book = at('Book a table');
+    // Pairs share a line and a height; a card is at least 132 tall.
+    expect(menu.top, order.top);
+    expect(menu.left, greaterThan(order.right));
+    expect(menu.height, order.height);
+    expect(order.height, greaterThanOrEqualTo(LinksPreviewMetrics.card));
+    expect(rewards.top, catering.top);
+    expect(catering.top, greaterThan(order.bottom));
+    // Five buttons: the fifth spans the line as an 80 tall row.
+    expect(book.left, order.left);
+    expect(book.right, menu.right);
+    expect(book.height, greaterThanOrEqualTo(LinksPreviewMetrics.wideRow));
+    expect(book.height, lessThan(LinksPreviewMetrics.card));
+    // Cards drop the arrow; the row keeps it.
+    expect(
+      find.descendant(
+        of: find
+            .ancestor(
+              of: inPreview(find.text('Order now')),
+              matching: find.byType(DashPressable),
+            )
+            .first,
+        matching: find.byType(DashIcon),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find
+            .ancestor(
+              of: inPreview(find.text('Book a table')),
+              matching: find.byType(DashPressable),
+            )
+            .first,
+        matching: find.byType(DashIcon),
+      ),
+      findsNWidgets(2),
+    );
+    // Visit us in its 360 column beside the buttons.
+    final visit = tester.getRect(inPreview(find.text('Visit us')));
+    expect(visit.left, greaterThan(menu.right));
+    expect(visit.top, lessThan(book.bottom));
   });
 
   testWidgets('SET-LNK-023 a failed preview says so and retries', (
