@@ -6,6 +6,7 @@
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 /// The label of the single size that carries a simple item's price (the web's
 /// `ONE_SIZE`). An item with exactly this one size reads as "one price": the
@@ -96,8 +97,10 @@ String jsNumberText(num n) {
   return n.toString();
 }
 
-/// `fmtQty`: rounded to the 3 decimals the quantity inputs accept.
-String fmtQty(num q) => jsNumberText(jsRound(q * 1000) / 1000);
+/// `fmtQty`: rounded to the 3 decimals the quantity inputs accept
+/// (madar-units' `scale_qty` × 1 through the core: half away from zero).
+String fmtQty(num q) =>
+    jsNumberText(rules.scaleQty(qty: q.toDouble(), factor: 1));
 
 /// A price typed in pounds as the editors show it: an integer, or up to two
 /// decimals with trailing zeros trimmed (`45`, `12.5`). Used for placeholders

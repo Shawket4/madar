@@ -100,72 +100,48 @@ typedef PayBasis = ({num workingDays, int dayMinutes});
 /// 26 working days of 8 hours, unless the rules say otherwise.
 const PayBasis defaultPayBasis = (workingDays: 26, dayMinutes: 480);
 
-/// Integer division rounding half away from zero (b > 0).
-int roundDiv(int a, int b) {
-  final sign = a < 0 ? -1 : 1;
-  final abs = a.abs();
-  final q = abs ~/ b;
-  final r = abs - q * b;
-  return sign * (2 * r >= b ? q + 1 : q);
-}
-
 typedef Rates = ({int monthly, int daily, int hourly});
 
-/// The three rates from whichever one was typed, in piastres (`rates`).
+/// The three rates from whichever one was typed, in piastres (`rates`):
+/// madar-dawam's `salary::rates` through the core (the server's `PayRates`;
+/// a negative figure or a zero divisor reads as 0).
 Rates ratesFrom(PayBasis basis, {int? monthly, int? daily, int? hourly}) {
-  final d100 = (basis.workingDays * 100).round();
-  final mins = basis.dayMinutes;
-  if (monthly != null) {
-    return (
-      monthly: monthly,
-      daily: roundDiv(monthly * 100, d100),
-      hourly: roundDiv(monthly * 100 * 60, d100 * mins),
-    );
-  }
-  if (daily != null) {
-    return (
-      monthly: roundDiv(daily * d100, 100),
-      daily: daily,
-      hourly: roundDiv(daily * 60, mins),
-    );
-  }
-  final h = hourly!;
-  return (
-    monthly: roundDiv(h * mins * d100, 6000),
-    daily: roundDiv(h * mins, 60),
-    hourly: h,
-  );
+  final (typed, value) = monthly != null
+      ? ('monthly', monthly)
+      : daily != null
+      ? ('daily', daily)
+      : ('hourly', hourly!);
+  final r = rules.salaryRates(
+    typed: typed,
+    value: value,
+    workingDays: basis.workingDays.toDouble(),
+    dayMinutes: basis.dayMinutes,
+  )!;
+  return (monthly: r.monthly, daily: r.daily, hourly: r.hourly);
 }
 
-DateTime _utc(String iso) {
-  final p = iso.split('-').map(int.parse).toList();
-  return DateTime.utc(p[0], p[1], p[2]);
+/// The first pay of someone hired on [hireDate] (`firstPay`): the monthly
+/// salary × days employed ÷ the period's days, over the pay period holding
+/// the hire date (periods opening on [startDay], the 26th meaning 26th–25th):
+/// madar-dawam's `salary::first_pay` through the core. Null for a date that
+/// does not exist.
+({String from, String to, int piastres})? firstPay(
+  int monthly,
+  String hireDate,
+  int startDay,
+) {
+  final p = rules.firstPay(
+    monthly: monthly,
+    hireDate: hireDate,
+    startDay: startDay,
+  );
+  return p == null ? null : (from: p.from, to: p.to, piastres: p.piastres);
 }
 
 String _iso(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-'
     '${d.month.toString().padLeft(2, '0')}-'
     '${d.day.toString().padLeft(2, '0')}';
-
-int _dayDiff(String a, String b) => _utc(b).difference(_utc(a)).inDays;
-
-/// The first pay of someone hired on [hireDate]: the monthly salary × days
-/// employed ÷ the period's days (`firstPay`). The pay period holding the hire
-/// date (periods opening on [startDay], the 26th meaning 26th–25th) is
-/// madar-dawam's `pay::period_window` through the core.
-({String from, String to, int piastres}) firstPay(
-  int monthly,
-  String hireDate,
-  int startDay,
-) {
-  final p = rules.payPeriod(day: hireDate, startDay: startDay)!;
-  final days = _dayDiff(hireDate, p.to) + 1;
-  return (
-    from: hireDate,
-    to: p.to,
-    piastres: roundDiv(monthly * days, _dayDiff(p.from, p.to) + 1),
-  );
-}
 
 /// `yyyy-mm-dd`, the only hire date the calculator reads.
 bool isIsoDate(String? s) =>

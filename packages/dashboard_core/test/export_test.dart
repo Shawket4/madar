@@ -24,8 +24,6 @@ Strings _strings() => Strings({
 });
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   final now = DateTime.utc(2026, 10, 8, 7, 30);
   final strings = _strings();
   late RecordingExportGateway exports;

@@ -47,8 +47,6 @@ Future<Finder> _customerLink(DashHarness h) async {
 }
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('REP-OPS-032 seam not wired: the local read-only panel', (
     tester,
   ) async {

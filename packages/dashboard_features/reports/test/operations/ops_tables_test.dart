@@ -64,8 +64,6 @@ Future<void> _openRow(DashHarness h, String label) async {
 }
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('REP-OPS-006 the request', () {
     testWidgets('one POST with the three widgets, the period and the '
         'language; the branch rides the header, not the body', (tester) async {

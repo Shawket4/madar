@@ -1,5 +1,7 @@
 // The web's `recipe/grid-model.test.ts`, ported.
 import 'package:dashboard_catalog_menu/src/shared/grid_model.dart';
+import 'package:dashboard_catalog_menu/src/shared/menu_text.dart';
+import 'package:dashboard_core/testing.dart' show sharedVectors;
 import 'package:flutter_test/flutter_test.dart';
 
 GridBlock cup() => const GridBlock(
@@ -176,6 +178,26 @@ void main() {
         lines: [GridLine(ingredientId: 'a', quantity: '1', unit: 'g')],
       );
       expect(scaleColumn([one], 'k', 0.3333)[0].lines[0].quantity, '0.333');
+    });
+
+    // madar-shared's scale_vectors.json (copied into dashboard_core's
+    // test/vectors, pinned by its .source.json) through the editors' edge:
+    // madar-units `scale_qty` runs in Rust. A negative half now rounds away
+    // from zero (-0.0005 → -0.001; the old Dart gave 0).
+    test('scale_vectors through scaleQty', () {
+      final cases = ((sharedVectors('scale')! as Map)['cases']! as List)
+          .cast<Map>();
+      expect(cases, isNotEmpty);
+      for (final v in cases) {
+        expect(
+          scaleQty(
+            jsNumberText(v['qty']! as num),
+            (v['factor']! as num).toDouble(),
+          ),
+          jsNumberText(v['expected']! as num),
+          reason: '${v['name']}',
+        );
+      }
     });
 
     test('copy onto itself with a factor scales', () {

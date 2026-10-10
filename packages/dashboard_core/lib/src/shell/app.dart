@@ -3,7 +3,6 @@
 /// i18n and kit scopes every page reads its words from.
 library;
 
-import 'package:dashboard_core/src/format/tz.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/kit/kit_l10n.dart';
 import 'package:dashboard_core/src/session/session.dart';
@@ -29,7 +28,6 @@ class DashApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ensureTimeZones();
     final router = ref.watch(dashRouterProvider);
     final lang = ref.watch(localeProvider);
     final pref = ref.watch(themePrefProvider);

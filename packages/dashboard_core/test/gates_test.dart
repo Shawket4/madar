@@ -13,8 +13,6 @@ String _ar(String key) => syncedStrings().table('ar')[key]!;
 const _page = Text('PAGE BODY');
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('Restricted', () {
     for (final (lang, dark) in [('en', false), ('ar', true)]) {
       for (final size in ShotSize.values) {

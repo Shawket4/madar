@@ -3351,7 +3351,7 @@ dependencies = [
 [[package]]
 name = "madar-authz"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "argon2",
  "chrono",
@@ -3362,7 +3362,7 @@ dependencies = [
 [[package]]
 name = "madar-catalog"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "madar-money",
  "madar-units",
@@ -3415,7 +3415,7 @@ dependencies = [
 [[package]]
 name = "madar-dawam"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -3427,7 +3427,7 @@ dependencies = [
 [[package]]
 name = "madar-ids"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "serde",
 ]
@@ -3447,7 +3447,7 @@ dependencies = [
 [[package]]
 name = "madar-loyalty"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "serde",
 ]
@@ -3455,7 +3455,7 @@ dependencies = [
 [[package]]
 name = "madar-money"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -3468,7 +3468,7 @@ dependencies = [
 [[package]]
 name = "madar-sync"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "serde",
  "serde_json",
@@ -3479,7 +3479,7 @@ dependencies = [
 [[package]]
 name = "madar-till"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "chrono",
  "madar-money",
@@ -3489,7 +3489,7 @@ dependencies = [
 [[package]]
 name = "madar-time"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -3499,7 +3499,7 @@ dependencies = [
 [[package]]
 name = "madar-units"
 version = "0.6.0"
-source = "git+https://github.com/Shawket4/madar-shared?rev=70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c#70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c"
+source = "git+https://github.com/Shawket4/madar-shared?rev=c1cb69e0d31bd6113d7462299853fb5c6a53b793#c1cb69e0d31bd6113d7462299853fb5c6a53b793"
 dependencies = [
  "serde",
 ]

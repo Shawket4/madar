@@ -184,7 +184,9 @@ int lineValue(MockRow a, int salary) {
   final amount = a['amount_piastres'] as num?;
   if (amount != null) return amount.round();
   final p = a['percent_of_base'] as num?;
-  return p == null ? 0 : (salary * p / 100).round();
+  return p == null
+      ? 0
+      : rules.percentOfSalary(salary: salary, percent: p.toDouble()) ?? 0;
 }
 
 /// `compute_payslips` for [org] over [from]–[to]: a `ComputedPayslip` JSON
@@ -215,7 +217,16 @@ List<MockRow> computePayslips(MockDb db, String org, String from, String to) {
     final hired = (e['hire_date'] as String?) ?? from;
     final start = hired.compareTo(from) > 0 ? hired : from;
     final paidDays = _d(to).difference(_d(start)).inDays + 1;
-    final base = (salary * paidDays / window).round();
+    final base =
+        rules.proratedBase(
+          history: const [],
+          fallbackSalary: salary,
+          windowStart: from,
+          windowEnd: to,
+          paidFrom: start,
+          paidTo: to,
+        ) ??
+        0;
 
     final records = db[TeamTables.attendance].rows.where(
       (r) =>
@@ -506,7 +517,10 @@ String? _trimmed(Object? v) {
 
 // ── advances ─────────────────────────────────────────────────────────────
 
-int _capOfEmployee(MockRow e) => (_int(e['base_salary_piastres']) * 50) ~/ 100;
+int _capOfEmployee(MockRow e) => rules.percentOfSalary(
+  salary: _int(e['base_salary_piastres']),
+  percent: 50,
+)!;
 
 int _outstanding(MockDb db, String employeeId) => db[TeamTables.advances].rows
     .where(
@@ -1038,7 +1052,10 @@ void registerPayrollMocks(MockServer server, MockDb db) {
         kind == 'bonus' &&
         percent > 0 &&
         percent <= 100) {
-      value = (salary * percent / 100).round();
+      value = rules.percentOfSalary(
+        salary: salary,
+        percent: percent.toDouble(),
+      )!;
     } else if (amount == null && percent != null && kind == 'deduction') {
       req.badRequest(
         'A deduction is an amount, not a percentage',

@@ -1,7 +1,6 @@
 // Legal's nine audit tabs one by one (REP-LEG-028…036), with the reason
 // wording (REP-LEG-022) and the Discounts extras (REP-LEG-023, 024).
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/area_seed.dart' show isSold;
@@ -52,8 +51,6 @@ List<MockRow> _discounted(MockDb db) => [
 ];
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('REP-LEG-028 Refunds: refunds-audit; a person\'s own reason as '
       'typed, money, By reason', (tester) async {
     final s = legalServer();

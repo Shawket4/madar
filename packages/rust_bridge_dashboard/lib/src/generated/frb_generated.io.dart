@@ -133,10 +133,16 @@ abstract class DashboardBridgeApiImplPlatform
   double dco_decode_box_autoadd_f_64(dynamic raw);
 
   @protected
+  FirstPay dco_decode_box_autoadd_first_pay(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  LocalParts dco_decode_box_autoadd_local_parts(dynamic raw);
 
   @protected
   MadarConfig dco_decode_box_autoadd_madar_config(dynamic raw);
@@ -148,10 +154,16 @@ abstract class DashboardBridgeApiImplPlatform
   ReconcileRefusal dco_decode_box_autoadd_reconcile_refusal(dynamic raw);
 
   @protected
+  SalaryRates dco_decode_box_autoadd_salary_rates(dynamic raw);
+
+  @protected
   SessionSnapshot dco_decode_box_autoadd_session_snapshot(dynamic raw);
 
   @protected
   TransferStep dco_decode_box_autoadd_transfer_step(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
   UnitSpec dco_decode_box_autoadd_unit_spec(dynamic raw);
@@ -203,10 +215,19 @@ abstract class DashboardBridgeApiImplPlatform
   double dco_decode_f_64(dynamic raw);
 
   @protected
+  FirstPay dco_decode_first_pay(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
+
+  @protected
+  LadderRung dco_decode_ladder_rung(dynamic raw);
+
+  @protected
+  LineCosts dco_decode_line_costs(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
@@ -248,6 +269,9 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  List<LadderRung> dco_decode_list_ladder_rung(dynamic raw);
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
@@ -258,6 +282,12 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   List<ReconcileTotal> dco_decode_list_reconcile_total(dynamic raw);
+
+  @protected
+  List<SalaryFrom> dco_decode_list_salary_from(dynamic raw);
+
+  @protected
+  LocalParts dco_decode_local_parts(dynamic raw);
 
   @protected
   MadarConfig dco_decode_madar_config(dynamic raw);
@@ -284,10 +314,16 @@ abstract class DashboardBridgeApiImplPlatform
   double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
 
   @protected
+  FirstPay? dco_decode_opt_box_autoadd_first_pay(dynamic raw);
+
+  @protected
   int? dco_decode_opt_box_autoadd_i_32(dynamic raw);
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  LocalParts? dco_decode_opt_box_autoadd_local_parts(dynamic raw);
 
   @protected
   PayPeriod? dco_decode_opt_box_autoadd_pay_period(dynamic raw);
@@ -296,10 +332,16 @@ abstract class DashboardBridgeApiImplPlatform
   ReconcileRefusal? dco_decode_opt_box_autoadd_reconcile_refusal(dynamic raw);
 
   @protected
+  SalaryRates? dco_decode_opt_box_autoadd_salary_rates(dynamic raw);
+
+  @protected
   SessionSnapshot? dco_decode_opt_box_autoadd_session_snapshot(dynamic raw);
 
   @protected
   TransferStep? dco_decode_opt_box_autoadd_transfer_step(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
   @protected
   UnitSpec? dco_decode_opt_box_autoadd_unit_spec(dynamic raw);
@@ -330,6 +372,12 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   Replenish dco_decode_replenish(dynamic raw);
+
+  @protected
+  SalaryFrom dco_decode_salary_from(dynamic raw);
+
+  @protected
+  SalaryRates dco_decode_salary_rates(dynamic raw);
 
   @protected
   SessionSnapshot dco_decode_session_snapshot(dynamic raw);
@@ -463,10 +511,16 @@ abstract class DashboardBridgeApiImplPlatform
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
+  FirstPay sse_decode_box_autoadd_first_pay(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  LocalParts sse_decode_box_autoadd_local_parts(SseDeserializer deserializer);
 
   @protected
   MadarConfig sse_decode_box_autoadd_madar_config(SseDeserializer deserializer);
@@ -480,6 +534,9 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  SalaryRates sse_decode_box_autoadd_salary_rates(SseDeserializer deserializer);
+
+  @protected
   SessionSnapshot sse_decode_box_autoadd_session_snapshot(
     SseDeserializer deserializer,
   );
@@ -488,6 +545,9 @@ abstract class DashboardBridgeApiImplPlatform
   TransferStep sse_decode_box_autoadd_transfer_step(
     SseDeserializer deserializer,
   );
+
+  @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
   UnitSpec sse_decode_box_autoadd_unit_spec(SseDeserializer deserializer);
@@ -547,10 +607,19 @@ abstract class DashboardBridgeApiImplPlatform
   double sse_decode_f_64(SseDeserializer deserializer);
 
   @protected
+  FirstPay sse_decode_first_pay(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+  @protected
+  LadderRung sse_decode_ladder_rung(SseDeserializer deserializer);
+
+  @protected
+  LineCosts sse_decode_line_costs(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
@@ -592,6 +661,9 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  List<LadderRung> sse_decode_list_ladder_rung(SseDeserializer deserializer);
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
@@ -606,6 +678,12 @@ abstract class DashboardBridgeApiImplPlatform
   List<ReconcileTotal> sse_decode_list_reconcile_total(
     SseDeserializer deserializer,
   );
+
+  @protected
+  List<SalaryFrom> sse_decode_list_salary_from(SseDeserializer deserializer);
+
+  @protected
+  LocalParts sse_decode_local_parts(SseDeserializer deserializer);
 
   @protected
   MadarConfig sse_decode_madar_config(SseDeserializer deserializer);
@@ -640,10 +718,18 @@ abstract class DashboardBridgeApiImplPlatform
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
+  FirstPay? sse_decode_opt_box_autoadd_first_pay(SseDeserializer deserializer);
+
+  @protected
   int? sse_decode_opt_box_autoadd_i_32(SseDeserializer deserializer);
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  LocalParts? sse_decode_opt_box_autoadd_local_parts(
+    SseDeserializer deserializer,
+  );
 
   @protected
   PayPeriod? sse_decode_opt_box_autoadd_pay_period(
@@ -656,6 +742,11 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  SalaryRates? sse_decode_opt_box_autoadd_salary_rates(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SessionSnapshot? sse_decode_opt_box_autoadd_session_snapshot(
     SseDeserializer deserializer,
   );
@@ -664,6 +755,9 @@ abstract class DashboardBridgeApiImplPlatform
   TransferStep? sse_decode_opt_box_autoadd_transfer_step(
     SseDeserializer deserializer,
   );
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
   UnitSpec? sse_decode_opt_box_autoadd_unit_spec(SseDeserializer deserializer);
@@ -694,6 +788,12 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   Replenish sse_decode_replenish(SseDeserializer deserializer);
+
+  @protected
+  SalaryFrom sse_decode_salary_from(SseDeserializer deserializer);
+
+  @protected
+  SalaryRates sse_decode_salary_rates(SseDeserializer deserializer);
 
   @protected
   SessionSnapshot sse_decode_session_snapshot(SseDeserializer deserializer);
@@ -855,11 +955,23 @@ abstract class DashboardBridgeApiImplPlatform
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_first_pay(
+    FirstPay self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_i_64(
     PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_local_parts(
+    LocalParts self,
     SseSerializer serializer,
   );
 
@@ -882,6 +994,12 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_salary_rates(
+    SalaryRates self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_session_snapshot(
     SessionSnapshot self,
     SseSerializer serializer,
@@ -892,6 +1010,9 @@ abstract class DashboardBridgeApiImplPlatform
     TransferStep self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_unit_spec(
@@ -960,10 +1081,19 @@ abstract class DashboardBridgeApiImplPlatform
   void sse_encode_f_64(double self, SseSerializer serializer);
 
   @protected
+  void sse_encode_first_pay(FirstPay self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ladder_rung(LadderRung self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_line_costs(LineCosts self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
@@ -1014,6 +1144,12 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_list_ladder_rung(
+    List<LadderRung> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
@@ -1033,6 +1169,15 @@ abstract class DashboardBridgeApiImplPlatform
     List<ReconcileTotal> self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_salary_from(
+    List<SalaryFrom> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_local_parts(LocalParts self, SseSerializer serializer);
 
   @protected
   void sse_encode_madar_config(MadarConfig self, SseSerializer serializer);
@@ -1071,11 +1216,23 @@ abstract class DashboardBridgeApiImplPlatform
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_first_pay(
+    FirstPay? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_i_32(int? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_i_64(
     PlatformInt64? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_local_parts(
+    LocalParts? self,
     SseSerializer serializer,
   );
 
@@ -1092,6 +1249,12 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_salary_rates(
+    SalaryRates? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_session_snapshot(
     SessionSnapshot? self,
     SseSerializer serializer,
@@ -1102,6 +1265,9 @@ abstract class DashboardBridgeApiImplPlatform
     TransferStep? self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_unit_spec(
@@ -1150,6 +1316,12 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_encode_replenish(Replenish self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_salary_from(SalaryFrom self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_salary_rates(SalaryRates self, SseSerializer serializer);
 
   @protected
   void sse_encode_session_snapshot(

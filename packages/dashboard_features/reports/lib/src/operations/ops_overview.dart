@@ -68,9 +68,7 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
     final d = q.value;
     final loading = q.awaitingFirst;
     final failed = q.failed;
-    final aov = d != null && d.totalOrders > 0
-        ? (d.totalRevenue / d.totalOrders).round()
-        : 0;
+    final aov = d == null ? 0 : averageTicket(d.totalRevenue, d.totalOrders);
     final payments = opsPaymentSlices(d);
     final byCategory = [
       for (final cat in d?.byCategory ?? const [])

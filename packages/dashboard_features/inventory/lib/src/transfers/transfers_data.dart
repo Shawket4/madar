@@ -165,11 +165,8 @@ Set<TransferAction> transferActions(
 };
 
 /// A quantity in whole thousandths, as the server compares them
-/// (`madar_inventory::milli`).
-int milli(num q) {
-  final m = (q.abs() * 1000).round();
-  return q < 0 ? -m : m;
-}
+/// (`madar_inventory::milli` through the core).
+int milli(num q) => rules.milli(q: q.toDouble());
 
 /// `TRANSFER_TONES` (an unknown status is neutral).
 DashTone transferTone(String status) => switch (status) {

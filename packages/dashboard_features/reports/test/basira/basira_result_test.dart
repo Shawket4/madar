@@ -512,7 +512,6 @@ void main() {
   });
 
   group('rules', () {
-    setUpAll(ensureTimeZones);
     final en = Translator(_strings, 'en');
     final ar = Translator(_strings, 'ar');
     final fmtEn = DashFormat(lang: 'en');

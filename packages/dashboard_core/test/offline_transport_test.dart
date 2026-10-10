@@ -64,7 +64,6 @@ void main() {
   var items = <String>['a', 'b'];
 
   setUp(() async {
-    ensureTimeZones();
     host = _Host();
     server = MockServer();
     items = ['a', 'b'];

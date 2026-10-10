@@ -3,8 +3,7 @@
 // The section filter, the charts and the tables' pagers read nothing (they
 // work on rows already loaded).
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart'
-    show ensureTimeZones, excludedItemsPrefKey;
+import 'package:dashboard_core/dashboard_core.dart' show excludedItemsPrefKey;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_reports/src/area_seed.dart';
 import 'package:dashboard_reports/src/operations/ops_tables.dart';
@@ -42,8 +41,6 @@ int _sales(DashHarness h, String? exclude) => [
 ].length;
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('the tabs warm what they show: Overview, Items (items and '
       'add-ons), Tellers, Waiters, Branches', (tester) async {
     final h = await pumpOps(tester);

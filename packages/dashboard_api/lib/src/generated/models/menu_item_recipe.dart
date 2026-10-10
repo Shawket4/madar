@@ -11,6 +11,7 @@ class MenuItemRecipe {
     this.orgIngredientId,
     required this.quantityUsed,
     required this.sizeLabel,
+    required this.usableQuantity,
     this.explicitNulls = const {},
   });
 
@@ -33,6 +34,10 @@ class MenuItemRecipe {
       'MenuItemRecipe.quantity_used',
     ),
     sizeLabel: decString(json['size_label'], 'MenuItemRecipe.size_label'),
+    usableQuantity: decDouble(
+      json['usable_quantity'],
+      'MenuItemRecipe.usable_quantity',
+    ),
   );
 
   final String category;
@@ -47,6 +52,11 @@ class MenuItemRecipe {
 
   final String sizeLabel;
 
+  /// The usable amount before yield loss: `quantity_used` × the linked
+  /// ingredient's yield, 3 dp (madar-units `usable_qty`). What the catalog
+  /// item dialog shows.
+  final double usableQuantity;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
@@ -59,6 +69,7 @@ class MenuItemRecipe {
       'org_ingredient_id': orgIngredientId,
     'quantity_used': quantityUsed,
     'size_label': sizeLabel,
+    'usable_quantity': usableQuantity,
   };
 
   @override

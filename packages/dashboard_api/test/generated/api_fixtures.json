@@ -2315,7 +2315,8 @@
      "ingredient_unit": "text",
      "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "quantity_used": 1.5,
-     "size_label": "text"
+     "size_label": "text",
+     "usable_quantity": 1.5
     }
    ],
    "sizes": [
@@ -5252,7 +5253,8 @@
      "ingredient_unit": "text",
      "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "quantity_used": 1.5,
-     "size_label": "text"
+     "size_label": "text",
+     "usable_quantity": 1.5
     }
    ],
    "sizes": [
@@ -20238,7 +20240,8 @@
      "ingredient_unit": "text",
      "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "quantity_used": 1.5,
-     "size_label": "text"
+     "size_label": "text",
+     "usable_quantity": 1.5
     }
    ],
    "sizes": [
@@ -20258,7 +20261,8 @@
    "ingredient_unit": "text",
    "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "quantity_used": 1.5,
-   "size_label": "text"
+   "size_label": "text",
+   "usable_quantity": 1.5
   },
   "MenuItemWithCosts": {
    "base_price": 7,

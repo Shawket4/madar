@@ -25,7 +25,6 @@ import '../real/preferences.dart';
 const Duration mockLatency = Duration(milliseconds: 120);
 
 Future<ProviderContainer> bootMock() async {
-  ensureTimeZones();
   final dir = await getApplicationSupportDirectory();
   final sep = Platform.pathSeparator;
   final prefs = await FilePreferences.open(

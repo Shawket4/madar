@@ -23,6 +23,7 @@
 library;
 
 import 'package:dashboard_api/mock.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../area_seed.dart';
 import 'inventory_views.dart';
@@ -178,23 +179,14 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
           : const <String, Object?>{};
       final qty = (l['quantity_ordered'] as num?)?.toDouble() ?? 0;
       if (qty <= 0) req.badRequest('quantity_ordered must be greater than 0');
-      final lineCost = (l['line_cost'] as num?)?.toInt();
-      final unitCost = (l['unit_cost'] as num?)?.toInt();
-      final int cost;
-      final double exact;
-      if (lineCost != null) {
-        if (lineCost < 0) req.badRequest('line_cost cannot be negative');
-        cost = lineCost;
-        exact = _dp6(lineCost / qty);
-      } else if (unitCost != null) {
-        if (unitCost < 0) req.badRequest('unit_cost cannot be negative');
-        cost = _roundPiastres(unitCost * qty);
-        exact = unitCost.toDouble();
-      } else {
-        req.badRequest(
-          'each line needs its cost: line_cost (the invoice total for the line)',
-        );
-      }
+      // The server's `line_costs` (madar-inventory, through the core).
+      final costs = rules.lineCosts(
+        quantityOrdered: qty,
+        lineCost: (l['line_cost'] as num?)?.toInt(),
+        unitCost: (l['unit_cost'] as num?)?.toInt(),
+      );
+      final refused = costs.refused;
+      if (refused != null) req.badRequest(refused);
       final ing = db[InvTables.ingredients].find(
         (l['org_ingredient_id'] as String?) ?? '',
       );
@@ -239,9 +231,9 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
         'units_per_purchase_unit': factor,
         'quantity_ordered': qty,
         'quantity_received': 0.0,
-        'unit_cost': _roundPiastres(exact),
-        'unit_cost_exact': exact,
-        'line_cost': cost,
+        'unit_cost': costs.unitCost,
+        'unit_cost_exact': costs.unitCostExact,
+        'line_cost': costs.lineCost,
       });
     }
 

@@ -3,7 +3,6 @@
 // `holidays.rs`, `src/staff/schedules.rs`).
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
 import 'package:dashboard_team/dashboard_team.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,8 +26,6 @@ void main() {
 
   Future<RosterView> week0([Persona p = Persona.owner]) =>
       api(p).roster(branchId: SeedIds.zamalek, from: week, to: wd(6));
-
-  setUpAll(ensureTimeZones);
   setUp(() => TeamSeed.loadInto(db = MockDb.seeded()));
 
   test('the roster: Zamalek\'s staff by name, the pattern, the date sets, '

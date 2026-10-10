@@ -113,8 +113,6 @@ Object? _run(Map<String, Object?> v) {
 }
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('money (POS shape)', () {
     test('English: label first, grouped, two decimals, true minus', () {
       final f = _f('en');

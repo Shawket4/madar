@@ -41,8 +41,6 @@ List<String> lineLabels(List<FinTipLine> lines) => [
 ];
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('revenue', () {
     testWidgets('REP-FIN-054 the granularity control: Peak Hours, Peak Days, '
         'Daily (picked), Monthly', (t) async {

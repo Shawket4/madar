@@ -59,14 +59,6 @@ int? readPounds(String text) {
   return egpToPiastres(n);
 }
 
-/// Integer division rounding half away from zero (`rd` in the salary
-/// calculator; multiply before dividing).
-int rdiv(int a, int b) {
-  if (b == 0) return 0;
-  final q = a / b;
-  return q.isNegative ? -((-q) + 0.5).floor() : (q + 0.5).floor();
-}
-
 /// Who is covering [employeeId]'s shift on [date] (`coveredBy`, owner
 /// decision D1): a colleague's record naming them, with the cover pending or
 /// confirmed (a rejected cover blocks nothing), on the same shift when

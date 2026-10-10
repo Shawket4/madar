@@ -10,8 +10,6 @@ import 'package:dashboard_reports/src/shared/report_shared.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('area seed', () {
     test('the sold-set sums agree with each other', () {
       final db = MockDb.seeded();

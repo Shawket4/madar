@@ -124,7 +124,7 @@ TillSalesStats salesStats(List<TillSessionRow> rows) {
     orders: orders,
     sales: sales,
     avgOrderValue: averageTicket(sales, orders),
-    avgSalesPerTill: rows.isNotEmpty ? jsRound(sales / rows.length) : 0,
+    avgSalesPerTill: averageTicket(sales, rows.length),
   );
 }
 

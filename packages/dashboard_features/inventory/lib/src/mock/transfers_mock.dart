@@ -38,10 +38,7 @@ String _past(String action) =>
     action.endsWith('e') ? '${action}d' : '${action}ed';
 
 /// A quantity in whole thousandths (`madar_inventory::milli`).
-int _milli(num q) {
-  final m = (q.abs() * 1000).round();
-  return q < 0 ? -m : m;
-}
+int _milli(num q) => rules.milli(q: q.toDouble());
 
 double _round3(num q) => _milli(q) / 1000;
 

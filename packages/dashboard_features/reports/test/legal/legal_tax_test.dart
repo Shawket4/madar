@@ -52,8 +52,6 @@ DashStatCard _kpi(WidgetTester tester, String key) =>
 }
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   testWidgets('REP-LEG-008 loading: a 112 px skeleton, no figures', (
     tester,
   ) async {

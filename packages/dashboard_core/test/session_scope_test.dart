@@ -88,8 +88,6 @@ class _ExpiredGateway implements SessionGateway {
 }
 
 void main() {
-  setUpAll(ensureTimeZones);
-
   group('session', () {
     test(
       'ADM-APP-020: restores the signed-in persona through /auth/me',

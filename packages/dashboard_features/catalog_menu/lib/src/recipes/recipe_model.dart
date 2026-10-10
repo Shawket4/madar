@@ -228,7 +228,9 @@ List<RecipeDraftRow> scaleRecipeRows(
           id: nextId(),
           sizeLabel: size,
           quantity: jsParseFloat(r.quantity).isFinite
-              ? fmtQty(jsParseFloat(r.quantity) * f)
+              ? jsNumberText(
+                  rules.scaleQty(qty: jsParseFloat(r.quantity), factor: f),
+                )
               : '',
         ),
   ];

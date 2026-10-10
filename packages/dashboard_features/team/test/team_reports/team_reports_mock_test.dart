@@ -2,7 +2,6 @@
 // backend's gates (MadarRust src/staff/dawam/reports.rs).
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
-import 'package:dashboard_core/dashboard_core.dart' show ensureTimeZones;
 import 'package:dashboard_team/dashboard_team.dart';
 import 'package:dashboard_team/src/area_seed.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,7 +21,6 @@ void main() {
     return DashboardApi(s).staff;
   }
 
-  setUpAll(ensureTimeZones);
   setUp(() => TeamSeed.loadInto(db = MockDb.seeded()));
 
   group('every report', () {
