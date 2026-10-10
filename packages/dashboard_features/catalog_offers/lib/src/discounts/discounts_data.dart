@@ -72,10 +72,10 @@ num discountExportValue(Discount d) => d.dtype == DiscountType.percentage
 
 /// The table's global search (TanStack `includesString`): a case-insensitive
 /// substring of the raw English name, the type code or the legacy integer
-/// value; the query is not trimmed, an empty one matches everything.
+/// value; the query is trimmed (W1), and an empty one matches everything.
 bool discountMatches(Discount d, String query) {
-  if (query.isEmpty) return true;
-  final q = query.toLowerCase();
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
   return d.name.toLowerCase().contains(q) ||
       d.dtype.toLowerCase().contains(q) ||
       '${d.value}'.contains(q);

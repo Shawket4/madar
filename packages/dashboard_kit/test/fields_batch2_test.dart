@@ -584,6 +584,14 @@ void main() {
         '',
       );
     });
+
+    test('W1 a searchable select (combobox, item pickers) filters on the '
+        'trimmed text; spaces alone filter nothing', () {
+      const latte = DashOption(value: 1, label: 'Iced Latte');
+      expect(latte.matches(' latte '), isTrue);
+      expect(latte.matches('   '), isTrue);
+      expect(latte.matches(' mocha '), isFalse);
+    });
   });
 
   testWidgets('16 in an open popover, the first Esc closes the popover', (

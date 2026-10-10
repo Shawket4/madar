@@ -641,6 +641,22 @@ void main() {
       expect(pageButton('New combo'), findsNothing);
     });
 
+    testWidgets('W1 a search of spaces alone is no filter: nothing sent, the '
+        'plain empty state', (tester) async {
+      final s = combosServer();
+      clearCombos(s.db);
+      final h = await pumpCombos(tester, seeded: s);
+      final asked = callsTo(h, combosApi).length;
+      await h.enterText(searchBox(), '   ');
+      await afterDebounce(h);
+      expect(callsTo(h, combosApi), hasLength(asked));
+      expect(pageText('No combos yet'), findsOneWidget);
+      expect(pageText('No combo matches these filters'), findsNothing);
+      await h.enterText(searchBox(), ' lunch ');
+      await afterDebounce(h);
+      expect(lastQuery(h)['q'], ['lunch']);
+    });
+
     testWidgets('OFFR-CMB-026 nothing matches the filters: one line, no '
         'button', (tester) async {
       final h = await pumpCombos(tester);
