@@ -35,7 +35,11 @@ void main() {
             p.contains('/.dart_tool/') ||
             p.contains('/build/') ||
             p.contains('/test/') ||
-            p.endsWith('.g.dart')) {
+            p.endsWith('.g.dart') ||
+            // The Flutter dashboard follows the web's date rules, through
+            // dashboard_core's own zone-aware format layer.
+            p.contains('/apps/dashboard/') ||
+            p.contains('/packages/dashboard_')) {
           continue;
         }
         final lines = f.readAsLinesSync();
