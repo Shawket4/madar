@@ -11,7 +11,6 @@ use std::sync::{Arc, OnceLock};
 
 use madar_core::error::CoreError;
 use madar_core::realtime::{EventListener, RealtimeEvent, RealtimePlayer};
-use madar_core::session::{LoginMode, LoginRequest};
 use madar_core::{MadarConfig, MadarCore};
 
 uniffi::setup_scaffolding!();
@@ -80,14 +79,15 @@ fn internal(message: impl ToString) -> KitchenError {
 
 #[derive(uniffi::Record)]
 pub struct KitchenState {
-    /// `setup` (no branch) · `login` (nobody signed in) · `sections` (pick what
-    /// this screen shows) · `board`.
+    /// `setup` (not activated yet) · `sections` (pick what this screen shows)
+    /// · `board`.
     pub route: String,
     pub branch_id: Option<String>,
     pub branch_name: Option<String>,
     /// `sections` | `expo`
     pub mode: String,
     pub section_ids: Vec<String>,
+    /// The screen's own name (its branch-plan slot, e.g. "Grill screen").
     pub user_name: Option<String>,
     pub user_role: Option<String>,
     /// Bumps (and other writes) still in the outbox (KB-7).
@@ -219,10 +219,8 @@ impl KitchenCore {
         let cfg = self.core.device_config();
         let session = self.core.current_session();
         let binding = read_binding(&self.binding_path);
-        let route = if cfg.branch_id.as_deref().unwrap_or("").is_empty() {
+        let route = if cfg.branch_id.as_deref().unwrap_or("").is_empty() || session.is_none() {
             "setup"
-        } else if session.is_none() {
-            "login"
         } else if binding.is_none() {
             "sections"
         } else {
@@ -241,59 +239,42 @@ impl KitchenCore {
         }
     }
 
-    /// Device setup, step 1 (DV-1): a manager's email sign-in, then the org's branches.
-    pub async fn manager_login(&self, email: String, password: String) -> Result<Vec<Branch>, KitchenError> {
+    /// Device setup (DV-1), the only sign-in a kitchen ever does: the
+    /// activation code a manager made for this screen in the dashboard's
+    /// branch plan. It binds the branch, keeps the screen's own credential,
+    /// and signs the screen in with it. Online-only. No person, no account.
+    pub async fn activate(&self, code: String) -> Result<Branch, KitchenError> {
         let core = self.core.clone();
+        let path = self.binding_path.clone();
         on_rt(async move {
-            core.login(LoginRequest {
-                mode: LoginMode::Email,
-                email: Some(email.trim().to_string()),
-                password: Some(password),
-                name: None,
-                pin: None,
-                branch_id: None,
-                org_id: None,
-            })
-            .await
-            .map_err(|e| human(&core, &e))?;
-            let branches = core.list_branches().await.map_err(|e| human(&core, &e))?;
-            Ok(branches.into_iter().filter(|b| b.is_active).map(|b| Branch { id: b.id, name: b.name }).collect())
+            let branch = core.activate_device(code).await.map_err(|e| human(&core, &e))?;
+            let _ = std::fs::remove_file(&path);
+            core.device_sign_in().await.map_err(|e| human(&core, &e))?;
+            Ok(Branch { id: branch.id, name: branch.name })
         })
         .await?
     }
 
-    /// Device setup, step 2: bind the branch; the manager is signed out and the
-    /// device goes to the staff PIN screen.
-    pub fn choose_branch(&self, id: String, name: String) -> Result<(), KitchenError> {
-        self.core.set_device_branch(id, Some(name)).map_err(|e| human(&self.core, &e))?;
-        let _ = std::fs::remove_file(&self.binding_path);
-        self.core.logout(false).map_err(|e| human(&self.core, &e))
-    }
-
-    /// Staff sign-in with name + PIN on the bound branch (DV-2).
-    pub async fn sign_in(&self, name: String, pin: String) -> Result<(), KitchenError> {
+    /// Keep the screen signed in: when its session is missing, close to
+    /// expiry or refused, mint a new one from the device credential. Cheap to
+    /// call on every refresh; offline it fails quietly and the board keeps
+    /// working from local rows until the network is back.
+    pub async fn ensure_session(&self) -> Result<(), KitchenError> {
         let core = self.core.clone();
         on_rt(async move {
-            let branch_id = core.device_config().branch_id;
-            core.sign_in(LoginRequest {
-                mode: LoginMode::Pin,
-                name: Some(name.trim().to_string()),
-                pin: Some(pin),
-                branch_id,
-                email: None,
-                password: None,
-                org_id: None,
-            })
-            .await
-            .map(|_| ())
-            .map_err(|e| human(&core, &e))
+            if !core.device_session_due() {
+                return Ok(());
+            }
+            core.device_sign_in().await.map(|_| ()).map_err(|e| human(&core, &e))
         })
         .await?
     }
 
-    pub fn sign_out(&self) -> Result<(), KitchenError> {
-        self.core.unsubscribe_realtime();
-        self.core.logout(false).map_err(|e| human(&self.core, &e))
+    /// Hand Firebase's token to the server (FCM, `app = kds`): the fallback
+    /// that reaches this screen when neither the LAN nor the live stream does.
+    pub async fn set_push_token(&self, token: String, locale: String, platform: String) -> Result<(), KitchenError> {
+        let core = self.core.clone();
+        on_rt(async move { core.set_kitchen_push_token(token, locale, platform).await.map_err(|e| human(&core, &e)) }).await?
     }
 
     /// The branch's sections (`kitchen_stations`), from the synced settings.
@@ -423,19 +404,11 @@ impl KitchenCore {
     // board with no internet, and bumps go back the same way. The LAN is a
     // delivery path only — every bump is still outbox-first and synced later.
 
-    /// Start the relay for the signed-in branch. Idempotent. The LAN key comes
-    /// only to a registered device, so the first start registers this screen
-    /// (online) and fetches it; the host's retry covers a start made offline.
+    /// Start the relay for the branch. Idempotent; needs the LAN key, which
+    /// the screen's sign-in caches (an activated screen is a registered device).
     pub async fn lan_start(&self) -> Result<(), KitchenError> {
         let core = self.core.clone();
-        on_rt(async move {
-            if core.lan_start().await.is_ok() {
-                return Ok(());
-            }
-            core.register_kitchen_screen().await.map_err(|e| human(&core, &e))?;
-            core.lan_start().await.map_err(|e| human(&core, &e))
-        })
-        .await?
+        on_rt(async move { core.lan_start().await.map_err(|e| human(&core, &e)) }).await?
     }
 
     pub fn lan_stop(&self) {

@@ -3634,41 +3634,6 @@ impl MadarCore {
 }
 
 impl MadarCore {
-    /// A kitchen screen joins its branch's LAN: register this install as the
-    /// branch's `kds` device (the kitchen account may), then fetch the org's
-    /// offline-auth bundle. The LAN key rides that bundle, and the server gives
-    /// it only to a registered device or someone who works a till — a cook does
-    /// neither, so without this a kitchen screen never hears a LAN fire.
-    pub async fn register_kitchen_screen(&self) -> Result<(), CoreError> {
-        use madar_api::apis::{devices_api, orgs_api};
-        use madar_api::models;
-        let session = self.current_session().ok_or_else(|| CoreError::Unauthenticated {
-            detail: "sign in before registering the screen".into(),
-        })?;
-        let (org_id, _) = self.org_branch()?;
-        let branch_id = self.session_branch_id()?;
-        let bad = |field: &str| CoreError::Validation { field: field.into(), detail: "not a uuid".into() };
-        let id = uuid::Uuid::parse_str(&self.lan_device_id()).map_err(|_| bad("device_id"))?;
-        let branch = uuid::Uuid::parse_str(&branch_id).map_err(|_| bad("branch_id"))?;
-        let code = format!("K{}", &id.simple().to_string()[..5]).to_uppercase();
-        let mut request = models::RegisterDeviceRequest::new(branch, code, id, models::DeviceKind::Kds);
-        request.platform = Some(Some(std::env::consts::OS.to_string()));
-        request.app_version = Some(Some(net::app_version(self.config.app_version.as_deref())));
-        let config = self.api.config();
-        ledger_ops::within(devices_api::register_device(
-            &config,
-            devices_api::RegisterDeviceParams { register_device_request: request },
-        ))
-        .await?;
-        let bundle = ledger_ops::within(orgs_api::offline_auth_bundle(
-            &config,
-            orgs_api::OfflineAuthBundleParams { id: org_id },
-        ))
-        .await?;
-        session::cache_bundle(&self.store, &bundle, &session);
-        Ok(())
-    }
-
     async fn lan_start_inner(&self) -> Result<(), CoreError> {
         if self.lan.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
             return Ok(());
@@ -6416,7 +6381,6 @@ impl MadarCore {
         &self,
         req: session::LoginRequest,
     ) -> Result<session::SessionSnapshot, CoreError> {
-        use madar_api::apis::{auth_api, orgs_api};
 
         let wire = session::wire_login_request(&req)?;
         // Tell the server which open shifts THIS device is already closing (queued
@@ -6453,8 +6417,22 @@ impl MadarCore {
                 return Err(self.sign_in_refusal(e).await);
             }
         };
+        self.finish_login(&body, req.branch_id.clone()).await
+    }
+
+    /// Install a signed-in session from the server's login answer (the body of
+    /// `/auth/login`, or of `/auth/device-session` for a kitchen screen, which
+    /// answers the same shape): the token, the person, their permissions, the
+    /// offline bundle, the authz snapshot, then a drain and the till.
+    /// `branch_id` is the device branch a PIN sign-in carried (None for email).
+    async fn finish_login(
+        &self,
+        body: &str,
+        branch_id: Option<String>,
+    ) -> Result<session::SessionSnapshot, CoreError> {
+        use madar_api::apis::{auth_api, orgs_api};
         let resp: madar_api::models::LoginResponse =
-            serde_json::from_str(&body).map_err(|e| CoreError::Internal {
+            serde_json::from_str(body).map_err(|e| CoreError::Internal {
                 detail: format!("decode: {e}"),
             })?;
 
@@ -6468,8 +6446,6 @@ impl MadarCore {
         self.borrowed_token
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
-        // PIN login carries the device branch; email login has none.
-        let branch_id = req.branch_id.clone();
         let mut snapshot = session::snapshot_from_login(&resp, branch_id);
         // Sign-in is the live server check for the person's open till (decision
         // 4a): keep its answer so opening stays verified if the next call fails.
@@ -6779,13 +6755,56 @@ impl MadarCore {
         })
     }
 
+    /// A kitchen screen's sign-in, with no person (owner, 2026-10-11): the
+    /// device credential [`Self::activate_device`] stored mints the screen's
+    /// own session (`POST /auth/device-session`), installed exactly like a
+    /// login. Online-only; call it after activation and whenever
+    /// [`Self::device_session_due`] says so, and the kitchen never signs in.
+    pub async fn device_sign_in(&self) -> Result<session::SessionSnapshot, CoreError> {
+        let credential = self.device_credential().ok_or_else(|| CoreError::Unauthenticated {
+            detail: "activate this screen with a code first".into(),
+        })?;
+        let branch_id = self.device_config().branch_id.filter(|b| !b.is_empty());
+        let body = self
+            .api
+            .post_with_header(
+                "/auth/device-session",
+                &serde_json::json!({}),
+                &[("X-Madar-Device-Token", credential.as_str())],
+            )
+            .await?;
+        self.finish_login(&body, branch_id).await
+    }
+
+    /// Whether a device-credential screen should mint a fresh session now: it
+    /// holds a credential, and has no token, a token within two hours of
+    /// expiring, or a token the server refused (the outbox is parked).
+    pub fn device_session_due(&self) -> bool {
+        if self.device_credential().is_none() {
+            return false;
+        }
+        if self.auth_paused.load(std::sync::atomic::Ordering::Relaxed) {
+            return true;
+        }
+        let token = self
+            .session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .and_then(|s| s.token.clone());
+        match token {
+            None => true,
+            Some(t) => token_is_expired(&t, chrono::Utc::now().timestamp() + 2 * 3600),
+        }
+    }
+
     /// List the org's active branches — for the device-setup picker. Requires a
     /// live (manager) session; online-only.
     pub async fn list_branches(&self) -> Result<Vec<session::BranchView>, CoreError> {
         use madar_api::apis::branches_api;
         let (org_id, _) = self.org_branch()?;
         let config = self.api.config();
-        let branches = ledger_ops::within(branches_api::list_branches(&config, branches_api::ListBranchesParams { org_id })).await?;
+        let branches = ledger_ops::within(branches_api::list_branches(&config, branches_api::ListBranchesParams { org_id, include_warehouses: None, kind: None })).await?;
         Ok(branches
             .into_iter()
             .filter(|b| b.is_active)

@@ -48,10 +48,9 @@ export function nativeBackend(): Backend {
         pending: s.pending,
       };
     },
-    managerLogin: (email, password) => call(() => core.managerLogin(email, password)),
-    chooseBranch: (b) => sync(() => core.chooseBranch(b.id, b.name)),
-    signIn: (name, pin) => call(() => core.signIn(name, pin)),
-    signOut: () => sync(() => core.signOut()),
+    activate: (code) => call(() => core.activate(code)),
+    ensureSession: () => call(() => core.ensureSession()),
+    setPushToken: (token, locale, platform) => call(() => core.setPushToken(token, locale, platform)),
     stations: () => call(() => core.stations()),
     setSections: (mode, ids) => sync(() => core.setSections(mode, ids)),
     clearSections: () => sync(() => core.clearSections()),

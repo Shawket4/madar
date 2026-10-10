@@ -17,7 +17,6 @@ import { useColors } from "@/theme/use-theme";
 import { BoardScreen } from "@/features/board/board-screen";
 import { ExpoScreen } from "@/features/expo/expo-screen";
 import { SetupScreen } from "@/features/setup/setup-screen";
-import { LoginScreen } from "@/features/auth/login-screen";
 import { SectionsScreen } from "@/features/setup/sections-screen";
 import { SettingsSheet } from "@/features/settings/settings-sheet";
 
@@ -68,7 +67,6 @@ export default function App() {
       {/* Arabic mirrors here, live, without the app restart I18nManager.forceRTL needs. */}
       <View key={lang} style={{ flex: 1, direction: lang === "ar" ? "rtl" : "ltr", backgroundColor: c.background }}>
         {device.route === "setup" ? <SetupScreen />
-          : device.route === "login" ? <LoginScreen />
           : device.route === "sections" ? <SectionsScreen />
           : device.mode === "expo" ? <ExpoScreen /> : <BoardScreen />}
         {device.route === "board" ? <SettingsSheet /> : null}

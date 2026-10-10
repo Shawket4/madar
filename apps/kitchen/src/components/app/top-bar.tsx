@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { ChefHat, LogOut, Router, Settings, Wifi, WifiOff } from "lucide-react-native";
+import { ChefHat, Router, Settings, Wifi, WifiOff } from "lucide-react-native";
 
 import { useKitchen } from "@/data/store";
 import { useNet } from "@/lib/net";
@@ -13,15 +13,14 @@ import { Txt } from "@/components/ui/text";
 
 /**
  * The chrome: one ink bar, dark in both themes (the dashboard's sidebar role).
- * Station · branch · live dot · open count · who's signed in · settings.
+ * Station · branch · live dot · open count · this screen's name · settings.
  */
 export function TopBar({ title, subtitle, count, actions }: { title: string; subtitle: string; count?: number; actions?: ReactNode }) {
   const { t } = useTranslation();
   const c = useColors();
   const insets = useSafeAreaInsets();
   const net = useNet();
-  const userName = useKitchen((s) => s.device.userName);
-  const signOut = useKitchen((s) => s.signOut);
+  const screenName = useKitchen((s) => s.device.userName);
   const setK = useKitchen((s) => s.set);
 
   const netLook = {
@@ -55,15 +54,11 @@ export function TopBar({ title, subtitle, count, actions }: { title: string; sub
           <Txt size={14} weight="medium" color={c.chromeForeground}>{netLook.label}</Txt>
         </View>
         {actions}
-        <Pressable
-          onPress={signOut}
-          accessibilityRole="button"
-          accessibilityLabel={t("auth.switch")}
-          style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, height: 44, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: pressed ? c.chromeAccent : c.chromeRaised })}
-        >
-          <Txt size={15} weight="medium" color={c.chromeForeground} numberOfLines={1}>{userName?.split(" ")[0] ?? ""}</Txt>
-          <LogOut size={18} color={c.chromeMuted} />
-        </Pressable>
+        {screenName ? (
+          <View style={{ height: 44, justifyContent: "center", paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: c.chromeRaised }}>
+            <Txt size={15} weight="medium" color={c.chromeForeground} numberOfLines={1}>{screenName}</Txt>
+          </View>
+        ) : null}
         <Button variant="chrome" size="icon" icon={Settings} label={t("settings.title")} onPress={() => setK("settingsOpen", true)} />
       </View>
     </View>

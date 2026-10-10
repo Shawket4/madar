@@ -12,7 +12,7 @@
 //!      lines once, the bump on the right line, and the board shows it once
 //!
 //! Needs a local backend and the test kitchen from
-//! `apps/kitchen/scripts/dev-kitchen-demo.py` (its sections, cook, waiter and
+//! `apps/kitchen/scripts/dev-kitchen-demo.py` (its sections, waiter and
 //! open shift), with that script's environment:
 //!
 //! ```sh
@@ -105,10 +105,6 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
         env("MADAR_IT_WAITER", "Waiter Karim"),
         env("MADAR_IT_WAITER_PIN", "112233"),
     );
-    let (cook, cook_pin) = (
-        env("MADAR_IT_COOK", "Chef Mona"),
-        env("MADAR_IT_COOK_PIN", "357913"),
-    );
 
     let (db, conn) = tokio_postgres::connect(
         &env("DATABASE_URL", "postgres://madar@localhost:5432/madar"),
@@ -135,7 +131,6 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
         "en".into(),
     )
     .expect("kitchen core");
-    // The manager's sign-in only lists branches to pick from; bind the branch directly.
     let branch_id: String = db
         .query_opt(
             "SELECT id::text FROM branches WHERE name = $1",
@@ -145,10 +140,24 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
         .unwrap()
         .unwrap_or_else(|| panic!("no branch named {branch_name} (run dev-kitchen-demo.py)"))
         .get(0);
-    kitchen
-        .choose_branch(branch_id.clone(), branch_name.clone())
-        .expect("bind branch");
-    kitchen.sign_in(cook, cook_pin).await.expect("cook sign-in");
+    // Each device is set up the way the shop does it: an activation code from
+    // the dashboard's branch plan. The kitchen has no account: the code is
+    // its only sign-in.
+    let mint = |kind: &'static str| {
+        let (db, branch_id) = (&db, branch_id.clone());
+        async move {
+            let code = format!("{:08}", uuid::Uuid::new_v4().as_u128() % 100_000_000);
+            db.execute(
+                "INSERT INTO device_activation_codes (org_id, branch_id, code, kind) \
+                 SELECT org_id, id, $2, $3 FROM branches WHERE id = $1::text::uuid",
+                &[&branch_id, &code, &kind],
+            )
+            .await
+            .expect("mint an activation code");
+            code
+        }
+    };
+    kitchen.activate(mint("kds").await).await.expect("activate the kitchen screen");
     let sections: Vec<String> = kitchen
         .stations()
         .await
@@ -171,17 +180,7 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
         app_version: None,
     })
     .expect("pos core");
-    // A POS is set up the way the shop does it: an activation code minted in
-    // the dashboard, which makes it a registered device of the branch.
-    let code = format!("{:08}", uuid::Uuid::new_v4().as_u128() % 100_000_000);
-    db.execute(
-        "INSERT INTO device_activation_codes (org_id, branch_id, code, kind) \
-         SELECT org_id, id, $2, 'pos' FROM branches WHERE id = $1::text::uuid",
-        &[&branch_id, &code],
-    )
-    .await
-    .expect("mint an activation code");
-    pos.activate_device(code).await.expect("activate the POS");
+    pos.activate_device(mint("pos").await).await.expect("activate the POS");
     pos.login(LoginRequest {
         mode: LoginMode::Pin,
         name: Some(waiter),

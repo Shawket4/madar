@@ -10,12 +10,15 @@ import type { Branch, DeviceMode, DeviceState, Section, Ticket } from "./types";
 export interface Backend extends LanBackend {
   readonly mock: boolean;
   state(): DeviceState;
-  /** Device setup (DV-1): a manager's email sign-in → the org's branches. */
-  managerLogin(email: string, password: string): Promise<Branch[]>;
-  chooseBranch(branch: Branch): void;
-  /** Staff name + PIN (DV-2). */
-  signIn(name: string, pin: string): Promise<void>;
-  signOut(): void;
+  /**
+   * Device setup (DV-1), the only sign-in a kitchen does: the activation code
+   * made for this screen in the dashboard's branch plan. No person, no account.
+   */
+  activate(code: string): Promise<Branch>;
+  /** Re-mint the screen's session from its device credential when it is due. */
+  ensureSession(): Promise<void>;
+  /** Firebase's token, for the push that reaches a screen off the LAN and stream. */
+  setPushToken(token: string, locale: string, platform: string): Promise<void>;
   stations(): Promise<Section[]>;
   setSections(mode: DeviceMode, sectionIds: string[]): void;
   clearSections(): void;

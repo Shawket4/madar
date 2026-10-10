@@ -116,8 +116,8 @@ const FfiConverterTypeBranch = (() => {
 
 export type KitchenState = {
     /**
-     * `setup` (no branch) · `login` (nobody signed in) · `sections` (pick what
-     * this screen shows) · `board`.
+     * `setup` (not activated yet) · `sections` (pick what this screen shows)
+     * · `board`.
      */
     route: string,
     branchId?: string,
@@ -127,6 +127,9 @@ export type KitchenState = {
      */
     mode: string,
     sectionIds: Array<string>,
+    /**
+     * The screen's own name (its branch-plan slot, e.g. "Grill screen").
+     */
     userName?: string,
     userRole?: string,
     /**
@@ -836,18 +839,27 @@ const uniffiCallbackInterfaceKitchenListener: { vtable: any; register: () => voi
 export interface KitchenCoreLike {
     
 /**
+ * Device setup (DV-1), the only sign-in a kitchen ever does: the
+ * activation code a manager made for this screen in the dashboard's
+ * branch plan. It binds the branch, keeps the screen's own credential,
+ * and signs the screen in with it. Online-only. No person, no account.
+ */
+    activate(code: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<Branch>;
+/**
  * Bump a line: outbox first, then drained (offline-safe, AT-2).
  */
     bump(itemId: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
 /**
- * Device setup, step 2: bind the branch; the manager is signed out and the
- * device goes to the staff PIN screen.
- */
-    chooseBranch(id: string, name: string) /*throws*/: void;
-/**
  * Back to choosing sections (keeps the branch and the signed-in person).
  */
     clearSections() /*throws*/: void;
+/**
+ * Keep the screen signed in: when its session is missing, close to
+ * expiry or refused, mint a new one from the device credential. Cheap to
+ * call on every refresh; offline it fails quietly and the board keeps
+ * working from local rows until the network is back.
+ */
+    ensureSession(asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
 /**
  * What to advertise over the system's Bonjour (`_madar._tcp`); `None`
  * while the relay is down. iOS blocks the core's own multicast discovery
@@ -860,17 +872,12 @@ export interface KitchenCoreLike {
  */
     lanNotePeer(deviceId: string, branchId: string, host: string, port: number, role: string, stationId: string | undefined, deviceCode: string | undefined): boolean;
 /**
- * Start the relay for the signed-in branch. Idempotent. The LAN key comes
- * only to a registered device, so the first start registers this screen
- * (online) and fetches it; the host's retry covers a start made offline.
+ * Start the relay for the branch. Idempotent; needs the LAN key, which
+ * the screen's sign-in caches (an activated screen is a registered device).
  */
     lanStart(asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
     lanStatus(): LanStatus;
     lanStop(): void;
-/**
- * Device setup, step 1 (DV-1): a manager's email sign-in, then the org's branches.
- */
-    managerLogin(email: string, password: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<Array<Branch>>;
 /**
  * Full reset to a first launch (new branch). The core refuses while work is unsynced.
  */
@@ -880,15 +887,15 @@ export interface KitchenCoreLike {
  */
     setLocale(locale: string): void;
 /**
+ * Hand Firebase's token to the server (FCM, `app = kds`): the fallback
+ * that reaches this screen when neither the LAN nor the live stream does.
+ */
+    setPushToken(token: string, locale: string, platform: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
+/**
  * What this screen shows (KB-1, EX-1). The core keeps one station; for expo
  * it is the first id given (the default section).
  */
     setSections(mode: string, sectionIds: Array<string>) /*throws*/: void;
-/**
- * Staff sign-in with name + PIN on the bound branch (DV-2).
- */
-    signIn(name: string, pin: string, asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
-    signOut() /*throws*/: void;
 /**
  * Subscribe to the branch's realtime stream. Idempotent in the core.
  */
@@ -948,6 +955,53 @@ export class KitchenCore extends UniffiAbstractObject implements KitchenCoreLike
 
     
 /**
+ * Device setup (DV-1), the only sign-in a kitchen ever does: the
+ * activation code a manager made for this screen in the dashboard's
+ * branch plan. It binds the branch, keeps the screen's own credential,
+ * and signs the screen in with it. Online-only. No person, no account.
+ */
+    async activate(code: string, asyncOpts_?: { signal: AbortSignal }): Promise<Branch> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_activate(
+                    uniffiTypeKitchenCoreObjectFactory.clonePointer(this),FfiConverterString.lower(code, nativeModule().rustbuffer_alloc)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_poll_rust_buffer,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_cancel_rust_buffer,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_complete_rust_buffer,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_free_rust_buffer,
+            // Async returns always go through the JS-side converter: the
+            // FFI symbol returns the future handle (u64), and the user-level
+            // RustBuffer comes back via the shared `rust_future_complete_*`
+            // export. The bytes the runtime hands back must be deserialized
+            // here using the per-callable return-type converter.
+            // Borrowed view over foreign memory: the call site owns the free,
+            // as on the sync paths. Unconditional — a no-op where buffers are
+            // already JS-owned.
+            /*liftFunc:*/ (__rb) => {
+                try {
+                    return FfiConverterTypeBranch.lift(__rb);
+                } finally {
+                    nativeModule().rustbuffer_free(__rb);
+                }
+            },
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeKitchenError.lift.bind(FfiConverterTypeKitchenError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
+    }
+    
+/**
  * Bump a line: outbox first, then drained (offline-safe, AT-2).
  */
     async bump(itemId: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
@@ -978,22 +1032,6 @@ export class KitchenCore extends UniffiAbstractObject implements KitchenCoreLike
     }
     
 /**
- * Device setup, step 2: bind the branch; the manager is signed out and the
- * device goes to the staff PIN screen.
- */
-    chooseBranch(id: string, name: string): void /*throws*/ {uniffiCaller.rustCallWithError(
-            /*liftError:*/ FfiConverterTypeKitchenError.lift.bind(FfiConverterTypeKitchenError),
-            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_choose_branch(
-                uniffiTypeKitchenCoreObjectFactory.clonePointer(this),
-        FfiConverterString.lower(id, nativeModule().rustbuffer_alloc),
-        FfiConverterString.lower(name, nativeModule().rustbuffer_alloc),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-    );
-    }
-    
-/**
  * Back to choosing sections (keeps the branch and the signed-in person).
  */
     clearSections(): void /*throws*/ {uniffiCaller.rustCallWithError(
@@ -1004,6 +1042,39 @@ export class KitchenCore extends UniffiAbstractObject implements KitchenCoreLike
             },
             /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
     );
+    }
+    
+/**
+ * Keep the screen signed in: when its session is missing, close to
+ * expiry or refused, mint a new one from the device credential. Cheap to
+ * call on every refresh; offline it fails quietly and the board keeps
+ * working from local rows until the network is back.
+ */
+    async ensureSession(asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    const __stack = uniffiIsDebug ? new Error().stack : undefined;
+    try {
+        return await uniffiRustCallAsync(
+            /*rustCaller:*/ uniffiCaller,
+            /*rustFutureFunc:*/ () => {
+                return nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_ensure_session(
+                    uniffiTypeKitchenCoreObjectFactory.clonePointer(this)
+                );
+            },
+            /*pollFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_poll_void,
+            /*cancelFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_cancel_void,
+            /*completeFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_complete_void,
+            /*freeFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_free_void,
+            /*liftFunc:*/ (_v) => {},
+            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
+            /*asyncOpts:*/ asyncOpts_,
+            /*errorHandler:*/ FfiConverterTypeKitchenError.lift.bind(FfiConverterTypeKitchenError)
+        );
+    } catch (__error: any) {
+        if (uniffiIsDebug && __error instanceof Error) {
+            __error.stack = __stack;
+        }
+        throw __error;
+    }
     }
     
 /**
@@ -1050,9 +1121,8 @@ export class KitchenCore extends UniffiAbstractObject implements KitchenCoreLike
     }
     
 /**
- * Start the relay for the signed-in branch. Idempotent. The LAN key comes
- * only to a registered device, so the first start registers this screen
- * (online) and fetches it; the host's retry covers a start made offline.
+ * Start the relay for the branch. Idempotent; needs the LAN key, which
+ * the screen's sign-in caches (an activated screen is a registered device).
  */
     async lanStart(asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
@@ -1107,50 +1177,6 @@ export class KitchenCore extends UniffiAbstractObject implements KitchenCoreLike
     }
     
 /**
- * Device setup, step 1 (DV-1): a manager's email sign-in, then the org's branches.
- */
-    async managerLogin(email: string, password: string, asyncOpts_?: { signal: AbortSignal }): Promise<Array<Branch>> /*throws*/ {
-    const __stack = uniffiIsDebug ? new Error().stack : undefined;
-    try {
-        return await uniffiRustCallAsync(
-            /*rustCaller:*/ uniffiCaller,
-            /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login(
-                    uniffiTypeKitchenCoreObjectFactory.clonePointer(this),FfiConverterString.lower(email, nativeModule().rustbuffer_alloc),FfiConverterString.lower(password, nativeModule().rustbuffer_alloc)
-                );
-            },
-            /*pollFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_poll_rust_buffer,
-            /*cancelFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_cancel_rust_buffer,
-            /*completeFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_complete_rust_buffer,
-            /*freeFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_free_rust_buffer,
-            // Async returns always go through the JS-side converter: the
-            // FFI symbol returns the future handle (u64), and the user-level
-            // RustBuffer comes back via the shared `rust_future_complete_*`
-            // export. The bytes the runtime hands back must be deserialized
-            // here using the per-callable return-type converter.
-            // Borrowed view over foreign memory: the call site owns the free,
-            // as on the sync paths. Unconditional — a no-op where buffers are
-            // already JS-owned.
-            /*liftFunc:*/ (__rb) => {
-                try {
-                    return FfiConverterSequenceTypeBranch.lift(__rb);
-                } finally {
-                    nativeModule().rustbuffer_free(__rb);
-                }
-            },
-            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-            /*asyncOpts:*/ asyncOpts_,
-            /*errorHandler:*/ FfiConverterTypeKitchenError.lift.bind(FfiConverterTypeKitchenError)
-        );
-    } catch (__error: any) {
-        if (uniffiIsDebug && __error instanceof Error) {
-            __error.stack = __stack;
-        }
-        throw __error;
-    }
-    }
-    
-/**
  * Full reset to a first launch (new branch). The core refuses while work is unsynced.
  */
     resetDevice(): void /*throws*/ {uniffiCaller.rustCallWithError(
@@ -1177,32 +1203,17 @@ export class KitchenCore extends UniffiAbstractObject implements KitchenCoreLike
     }
     
 /**
- * What this screen shows (KB-1, EX-1). The core keeps one station; for expo
- * it is the first id given (the default section).
+ * Hand Firebase's token to the server (FCM, `app = kds`): the fallback
+ * that reaches this screen when neither the LAN nor the live stream does.
  */
-    setSections(mode: string, sectionIds: Array<string>): void /*throws*/ {uniffiCaller.rustCallWithError(
-            /*liftError:*/ FfiConverterTypeKitchenError.lift.bind(FfiConverterTypeKitchenError),
-            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections(
-                uniffiTypeKitchenCoreObjectFactory.clonePointer(this),
-        FfiConverterString.lower(mode, nativeModule().rustbuffer_alloc),
-        FfiConverterSequenceString.lower(sectionIds, nativeModule().rustbuffer_alloc),
-                callStatus);
-            },
-            /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
-    );
-    }
-    
-/**
- * Staff sign-in with name + PIN on the bound branch (DV-2).
- */
-    async signIn(name: string, pin: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
+    async setPushToken(token: string, locale: string, platform: string, asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
     try {
         return await uniffiRustCallAsync(
             /*rustCaller:*/ uniffiCaller,
             /*rustFutureFunc:*/ () => {
-                return nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_in(
-                    uniffiTypeKitchenCoreObjectFactory.clonePointer(this),FfiConverterString.lower(name, nativeModule().rustbuffer_alloc),FfiConverterString.lower(pin, nativeModule().rustbuffer_alloc)
+                return nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_push_token(
+                    uniffiTypeKitchenCoreObjectFactory.clonePointer(this),FfiConverterString.lower(token, nativeModule().rustbuffer_alloc),FfiConverterString.lower(locale, nativeModule().rustbuffer_alloc),FfiConverterString.lower(platform, nativeModule().rustbuffer_alloc)
                 );
             },
             /*pollFunc:*/ nativeModule().ubrn_ffi_madar_kitchen_ffi_rust_future_poll_void,
@@ -1222,10 +1233,16 @@ export class KitchenCore extends UniffiAbstractObject implements KitchenCoreLike
     }
     }
     
-    signOut(): void /*throws*/ {uniffiCaller.rustCallWithError(
+/**
+ * What this screen shows (KB-1, EX-1). The core keeps one station; for expo
+ * it is the first id given (the default section).
+ */
+    setSections(mode: string, sectionIds: Array<string>): void /*throws*/ {uniffiCaller.rustCallWithError(
             /*liftError:*/ FfiConverterTypeKitchenError.lift.bind(FfiConverterTypeKitchenError),
-            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_out(
+            /*caller:*/ (callStatus) => { nativeModule().ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections(
                 uniffiTypeKitchenCoreObjectFactory.clonePointer(this),
+        FfiConverterString.lower(mode, nativeModule().rustbuffer_alloc),
+        FfiConverterSequenceString.lower(sectionIds, nativeModule().rustbuffer_alloc),
                 callStatus);
             },
             /*liftString:*/ FfiConverterString.lift.bind(FfiConverterString),
@@ -1516,9 +1533,6 @@ const FfiConverterSequenceTypeLine = new FfiConverterArray(FfiConverterTypeLine)
 // FfiConverter for LanAdvert | undefined
 const FfiConverterOptionalTypeLanAdvert = new FfiConverterOptional(FfiConverterTypeLanAdvert);
 
-// FfiConverter for Array<Branch>
-const FfiConverterSequenceTypeBranch = new FfiConverterArray(FfiConverterTypeBranch);
-
 // FfiConverter for Array<Station>
 const FfiConverterSequenceTypeStation = new FfiConverterArray(FfiConverterTypeStation);
 
@@ -1547,14 +1561,17 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_constructor_kitchencore_new() !== 54013) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_constructor_kitchencore_new");
     }
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_activate() !== 54705) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_activate");
+    }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump() !== 20525) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump");
     }
-    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch() !== 56974) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch");
-    }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections() !== 387) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections");
+    }
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_ensure_session() !== 32572) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_ensure_session");
     }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert() !== 26821) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert");
@@ -1562,7 +1579,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer() !== 14297) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer");
     }
-    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start() !== 37498) {
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start() !== 3257) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start");
     }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status() !== 27207) {
@@ -1571,23 +1588,17 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop() !== 44942) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop");
     }
-    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login() !== 27944) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login");
-    }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_reset_device() !== 14793) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_reset_device");
     }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_locale() !== 16945) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_locale");
     }
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_push_token() !== 48620) {
+        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_push_token");
+    }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_sections() !== 41166) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_sections");
-    }
-    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_in() !== 45810) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_in");
-    }
-    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_out() !== 19730) {
-        throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_out");
     }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_start_realtime() !== 32481) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_start_realtime");

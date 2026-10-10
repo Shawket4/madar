@@ -88,7 +88,7 @@ pub(crate) fn grants_for(body: &SnapshotBody, user_id: &str) -> Option<AuthzGran
 }
 
 impl MadarCore {
-    fn device_credential(&self) -> Option<String> {
+    pub(crate) fn device_credential(&self) -> Option<String> {
         self.store
             .kv_get(crate::K_DEVICE_CREDENTIAL)
             .ok()

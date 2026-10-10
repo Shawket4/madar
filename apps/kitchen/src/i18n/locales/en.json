@@ -13,17 +13,6 @@
     "pending_one": "{{count}} bump waiting to sync",
     "pending_other": "{{count}} bumps waiting to sync"
   },
-  "auth": {
-    "switch": "Switch cook",
-    "body": "Your Madar staff PIN.",
-    "mockHint": "Mock PINs: cook 111111 · 222222, manager 999999",
-    "delete": "Delete",
-    "signOut": "Sign out {{name}}",
-    "title": "Sign in to the kitchen",
-    "pin": "PIN",
-    "checking": "Checking…",
-    "changeBranch": "Change branch"
-  },
   "source": {
     "table": "Table {{table}}",
     "takeaway": "Takeaway",
@@ -67,8 +56,8 @@
     "reprint": "Reprint chit"
   },
   "setup": {
-    "title": "Set up this kitchen device",
-    "subtitle": "A manager signs in with their Madar account and picks the branch. Cooks never change this.",
+    "title": "Set up this kitchen screen",
+    "subtitle": "Enter the code for this screen from the branch plan in the dashboard. You do this once; the screen stays signed in.",
     "mode": "This screen shows",
     "modeSections": "A section",
     "modeSectionsBody": "The orders one section cooks — or several, for a cook covering two.",
@@ -78,16 +67,14 @@
     "sectionsHint": "Sections and their categories are set in the dashboard.",
     "default": "Default",
     "confirm": "Open the board",
-    "email": "Manager email",
-    "password": "Password",
-    "managerSignIn": "Sign in",
-    "signingIn": "Signing in…",
-    "branch": "Which branch is this kitchen in?",
-    "noBranches": "This account has no active branches.",
-    "mockNote": "Mock data — nothing here reaches the server. Any email and password work.",
+    "mockNote": "Mock data — nothing here reaches the server. Any 8 digits work.",
     "sectionsTitle": "What does this screen show?",
     "sectionsSubtitle": "Sections and their categories are set in the dashboard.",
-    "noSections": "This branch has no kitchen sections yet. Add them in the dashboard under Kitchen."
+    "noSections": "This branch has no kitchen sections yet. Add them in the dashboard under Kitchen.",
+    "code": "Activation code",
+    "codeHint": "8 digits, valid for a day.",
+    "activating": "Activating…",
+    "delete": "Delete"
   },
   "settings": {
     "title": "Settings",
@@ -100,10 +87,10 @@
     "on": "On",
     "off": "Off",
     "device": "This device",
-    "signedInAs": "Signed in as {{name}}",
     "syncNow": "Sync now",
     "changeSections": "Change sections",
-    "resetDevice": "Reset device (new branch)"
+    "resetDevice": "Reset device (new branch)",
+    "screen": "This screen: {{name}}"
   },
   "mock": {
     "title": "Mock tools",

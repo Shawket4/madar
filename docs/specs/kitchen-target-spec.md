@@ -2,6 +2,8 @@
 
 2026-09-24 · draft for the owner
 
+v3, 2026-10-11: a kitchen has **no accounts**. A kitchen screen is activated once with the code its branch-plan slot gives in the dashboard and stays signed in with its own device credential; nobody types a PIN or an email on it. New work reaches a screen three ways, in order: the branch LAN, the live stream, then a Firebase (FCM) push. Changed rows: DV-1, DV-2, DV-4, DV-5, new DV-7 and NT-1 to NT-4, the compatibility table, open question 2 and the decision log.
+
 v2, 2026-10-08: the UI stack moves from Flutter to **React Native** on the shared Rust core, styled and structured after the React dashboard (`MadarDashboard`). The design ships first on mock data for review, before any backend wiring. Changed rows: PS-1, PS-4, new PS-8, DV-5, APP-1 to APP-4, APP-9 to APP-11, AT-6, AT-7, the compatibility table and the decision log.
 
 ## How to read this spec
@@ -122,12 +124,22 @@ The branch's internet is not trusted. On the local network the POS, the kitchen 
 
 | ID | Requirement | Status |
 | --- | --- | --- |
-| DV-1 | A manager sets up a kitchen device once: branch, then section(s) or expo (`device.rs` `station_id`). Only a manager can change it. | Proposed |
-| DV-2 | Kitchen staff sign in on the device with their Madar staff PIN at the start of a shift and sign out at the end. Several people can share a device, switching by PIN. | Locked |
-| DV-3 | Every bump, recall and hand-off records who did it, on which device, and when. | Proposed |
-| DV-4 | Kitchen staff are ordinary Madar users with a kitchen role, the same people as in Dawam. Signing in on the kitchen device doesn't clock them in; Dawam stays the clock. | Proposed |
-| DV-5 | The board needs a signed-in person: the core reads and syncs the kitchen feed under a staff session, so with nobody signed in the device shows the PIN screen, not tickets. | Proposed |
+| DV-1 | A kitchen screen is part of the branch plan: the owner adds it to the branch in the dashboard's branch builder, which gives an 8-digit code (single use, valid a day). The screen is set up once by typing that code; it binds the branch and the slot, then section(s) or expo are picked. Resetting the device is the only way to change it. | Locked |
+| DV-2 | There are no kitchen accounts. After activation the screen signs itself in with its own device credential (`POST /auth/device-session`) and stays signed in: a new session is minted from the credential whenever the last one is close to running out. Nobody types a PIN, an email or a password on a kitchen screen, ever. | Locked |
+| DV-3 | Every bump, recall and hand-off records which screen did it, and when. | Proposed |
+| DV-4 | The dashboard no longer gives anyone the kitchen role; people who already have it keep it. A kitchen screen's session belongs to the screen itself: one principal per screen (`users.device_id`), role kitchen at the screen's branch, never shown in a staff list, unable to sign in any other way. | Locked |
+| DV-5 | The board never waits for a person: the screen's own session reads and syncs the feed. Offline, it keeps showing local rows until the network returns and the session is renewed. | Locked |
 | DV-6 | The kitchen app's capabilities come from Madar's authz crate (the existing kitchen permissions plus any new ones). The server checks them; the app only hides what the server would refuse. | Proposed |
+| DV-7 | Retiring the device in the dashboard ends its sign-in at once: the credential stops working and the screen goes back to setup. | Proposed |
+
+## How new work reaches a screen
+
+| ID | Requirement | Status |
+| --- | --- | --- |
+| NT-1 | On the same Wi-Fi as a POS or waiter tablet of the branch, a fire arrives over the LAN at once, with or without internet (LN-*). | Locked |
+| NT-2 | Otherwise it arrives on the live stream (`kitchen.fired`, SSE). | Locked |
+| NT-3 | A screen whose live stream is down (closed, backgrounded, reconnecting) gets a Firebase Cloud Messaging push (`app = kds`), in the screen's language, checked when the round commits and again after a short grace window so a reconnecting screen isn't rung twice. A screen with a live stream is never pushed. | Locked |
+| NT-4 | However many paths deliver one fire, the board shows it once (LN-5, AT-3); a push only makes the board re-read. | Locked |
 
 ## App and design
 
@@ -172,7 +184,8 @@ What already exists, and what has to change so the kitchen app, the POS app and 
 | Expo | None; the every-station view doubles as one | An expo device mode with per-section status | EX-1 |
 | LAN delivery | `lan.rs` foundation: envelope, HMAC, peer registry, relay | Finish the relay server and discovery on every platform, and add the kitchen app as a peer | LN-1..5 |
 | Device binding | `DeviceConfig.station_id` (one) | Allow several sections or expo | DV-1, KB-1 |
-| PIN sign-in | Teller PIN login in the POS | Reuse it for kitchen staff on a kitchen-role device | DV-2 |
+| Screen sign-in | Activation codes from the branch plan (`/auth/activate-device`, `devices.credential_hash`) | Done 11 Oct: `POST /auth/device-session` mints the screen's session from its credential | DV-1, DV-2 |
+| Push | FCM sender and `push_devices` (POS and Dawam), project `dawam-by-madar` | Done 11 Oct: `push::kitchen`, Firebase apps for `cloud.madar.kitchen`, per-topic stream presence | NT-3 |
 | React Native binding | flutter_rust_bridge crates for the Flutter apps; Slint links the core directly | A new `uniffi-bindgen-react-native` binding crate over `madar-core` for the kitchen app; uniffi annotations on the kitchen-facing API | APP-1 |
 | Permissions | Kitchen permissions migration `20260625006000`, kitchen role `20260625009000` | Map to authz capabilities; refusal test per action | DV-6 |
 | Shared contract | Sync contract moved to `madar-shared` (24 Sep) | New kitchen types go in `madar-shared` so server and core stay in step | All |
@@ -192,7 +205,7 @@ What already exists, and what has to change so the kitchen app, the POS app and 
 ## Open questions
 
 1. PR-2: with several printers in one section, does each chit print on all of them, or are they shared out?
-2. DV-5: should a device with nobody signed in still show tickets? Today the core needs a session to read the feed (DV-5 is drafted that way).
+2. ~~DV-5: should a device with nobody signed in still show tickets?~~ Answered 11 Oct: there is no person to sign in; the screen's own session reads the feed.
 3. APP-5: the accent color and icon (after the logo work).
 4. EX-3: is 60 seconds the right wait before a ready alert goes to every till?
 5. KB-3: are 5 and 10 minutes right, and should they be per section (a grill is slower than drinks)?
@@ -214,7 +227,7 @@ Answers given on 24 Sep 2026.
 | Online orders | Accepted on the POS first, then sent to the kitchen |
 | Ready | Expo screen (optional) and a waiter alert on the POS |
 | Offline | LAN fallback: the POS sends straight to kitchen devices and printers |
-| Sign-in | Staff PIN per shift |
+| Sign-in | Staff PIN per shift (superseded 11 Oct 2026) |
 | Identity | Madar family, own accent and icon; name Madar Kitchen, مطبخ مدار |
 | Spec location | Markdown in the repo, `madar/docs/specs/kitchen-target-spec.md` |
 
@@ -226,3 +239,12 @@ Answers given on 8 Oct 2026.
 | Design | Patterns, tokens and type from the React dashboard |
 | Build order | Design on mock data first, reviewed by the owner, then the real backend |
 | Wiring | Done the same day: `rust-core/crates/madar-kitchen-ffi` (uniffi) → `apps/kitchen/modules/madar-kitchen-core` (ubrn turbo module). Verified on an iPad simulator against a local backend: manager setup, staff PIN, live board, bump, realtime |
+
+Answers given on 11 Oct 2026.
+
+| Topic | Decision |
+| --- | --- |
+| Sign-in | No kitchen accounts. A screen is activated once with the code from the dashboard's branch plan and stays signed in with its device credential |
+| Delivery | LAN first (same Wi-Fi as a POS or waiter tablet), then the live stream, then an FCM push |
+| Push | Firebase Cloud Messaging through the same project as the POS and Dawam (`dawam-by-madar`), set up with the Firebase CLI |
+| Dashboard | Changes go in the React dashboard app (`MadarDashboard`) |

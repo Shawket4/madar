@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { ColorScheme } from "@/theme/tokens";
 import { backend, KitchenFailure, type LanStatus } from "./backend";
 import type { LanBonjour } from "@/lib/lan-bonjour";
-import type { Branch, DeviceMode, DeviceState, KitchenLine, KitchenPart, Section, Ticket } from "./types";
+import type { DeviceMode, DeviceState, KitchenLine, KitchenPart, Section, Ticket } from "./types";
 import { toParts } from "@/features/board/logic";
 
 /*
@@ -37,10 +37,8 @@ interface KitchenState {
 
   boot(): Promise<void>;
   refresh(): Promise<void>;
-  managerLogin(email: string, password: string): Promise<Branch[]>;
-  chooseBranch(b: Branch): void;
-  signIn(name: string, pin: string): Promise<void>;
-  signOut(): void;
+  /** The one-time setup: the activation code from the dashboard's branch plan. */
+  activate(code: string): Promise<void>;
   chooseSections(mode: DeviceMode, ids: string[]): void;
   changeSections(): void;
   resetDevice(): void;
@@ -57,6 +55,9 @@ const say = (e: unknown) => (e instanceof KitchenFailure || e instanceof Error ?
 let bonjour: LanBonjour | null = null;
 let lastLanTry = 0;
 const LAN_RETRY_MS = 30_000;
+/** The screen's session is re-minted from its device credential, never typed. */
+let lastSessionCheck = 0;
+const SESSION_CHECK_MS = 60_000;
 
 export const useKitchen = create<KitchenState>((set, get) => {
   /** Start the LAN relay and its Bonjour discovery; retried by refresh until it runs. */
@@ -109,6 +110,10 @@ export const useKitchen = create<KitchenState>((set, get) => {
     }
     void backend().syncNow().catch(() => {});
     void startLan();
+    if (!backend().mock) {
+      // The last of the three ways new work arrives (LAN, stream, push).
+      require("@/lib/push").startPush(backend(), get().lang, () => void get().refresh());
+    }
     await get().refresh();
   };
 
@@ -161,6 +166,11 @@ export const useKitchen = create<KitchenState>((set, get) => {
       readState();
       if (get().device.route === "sections") return loadSections();
       if (get().device.route !== "board") return;
+      if (Date.now() - lastSessionCheck > SESSION_CHECK_MS) {
+        lastSessionCheck = Date.now();
+        // Offline this fails quietly: the board reads local rows meanwhile.
+        void backend().ensureSession().catch(() => {});
+      }
       const lan = backend().lanStatus();
       set({ lan });
       if (!lan.running && Date.now() - lastLanTry > LAN_RETRY_MS) void startLan();
@@ -172,25 +182,10 @@ export const useKitchen = create<KitchenState>((set, get) => {
       }
     },
 
-    managerLogin: (email, password) => backend().managerLogin(email, password),
-
-    chooseBranch(b) {
-      backend().chooseBranch(b);
-      readState();
-    },
-
-    async signIn(name, pin) {
-      await backend().signIn(name, pin);
+    async activate(code) {
+      await backend().activate(code);
       set({ error: null });
       await get().boot();
-    },
-
-    signOut() {
-      stopLan();
-      backend().stopRealtime();
-      backend().signOut();
-      set({ settingsOpen: false, tickets: [], parts: [] });
-      readState();
     },
 
     chooseSections(mode, ids) {

@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Layers, LogOut, Plus, RefreshCw, RotateCcw, Wrench } from "lucide-react-native";
+import { Layers, Plus, RefreshCw, RotateCcw, Wrench } from "lucide-react-native";
 
 import { useKitchen } from "@/data/store";
 import { backend } from "@/data/backend";
@@ -41,11 +41,10 @@ export function SettingsSheet() {
       <View style={{ height: 1, backgroundColor: c.border }} />
       <SectionHeader title={t("settings.device")} />
       <Txt size={15}>{`${device.branchName ?? ""} · ${where}`}</Txt>
-      <Txt size={13} muted>{t("settings.signedInAs", { name: device.userName ?? "—" })} · {t("net.pending", { count: device.pending })}</Txt>
+      <Txt size={13} muted>{t("settings.screen", { name: device.userName ?? "—" })} · {t("net.pending", { count: device.pending })}</Txt>
       <View style={{ flexDirection: "row", gap: space.sm, flexWrap: "wrap" }}>
         <Button variant="outline" icon={RefreshCw} onPress={() => void backend().syncNow().then(s.refresh, (e) => s.set("error", String(e?.message ?? e)))}>{t("settings.syncNow")}</Button>
         <Button variant="outline" icon={Layers} onPress={s.changeSections}>{t("settings.changeSections")}</Button>
-        <Button variant="outline" icon={LogOut} onPress={s.signOut}>{t("auth.signOut", { name: device.userName ?? "" })}</Button>
       </View>
       <Button variant="ghost" icon={Wrench} onPress={s.resetDevice} style={{ alignSelf: "flex-start" }}>{t("settings.resetDevice")}</Button>
 

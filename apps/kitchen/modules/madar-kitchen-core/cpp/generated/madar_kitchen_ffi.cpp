@@ -166,19 +166,20 @@ extern "C" {
         RustBuffer locale, 
         RustCallStatus *uniffi_out_err
     );
+    /*handle*/ uint64_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_activate(
+        /*handle*/ uint64_t ptr, 
+        RustBuffer code
+    );
     /*handle*/ uint64_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_bump(
         /*handle*/ uint64_t ptr, 
         RustBuffer item_id
     );
-    void uniffi_madar_kitchen_ffi_fn_method_kitchencore_choose_branch(
-        /*handle*/ uint64_t ptr, 
-        RustBuffer id, 
-        RustBuffer name, 
-        RustCallStatus *uniffi_out_err
-    );
     void uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections(
         /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
+    );
+    /*handle*/ uint64_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_ensure_session(
+        /*handle*/ uint64_t ptr
     );
     RustBuffer uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert(
         /*handle*/ uint64_t ptr, 
@@ -206,11 +207,6 @@ extern "C" {
         /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
-    /*handle*/ uint64_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login(
-        /*handle*/ uint64_t ptr, 
-        RustBuffer email, 
-        RustBuffer password
-    );
     void uniffi_madar_kitchen_ffi_fn_method_kitchencore_reset_device(
         /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
@@ -220,19 +216,16 @@ extern "C" {
         RustBuffer locale, 
         RustCallStatus *uniffi_out_err
     );
+    /*handle*/ uint64_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_push_token(
+        /*handle*/ uint64_t ptr, 
+        RustBuffer token, 
+        RustBuffer locale, 
+        RustBuffer platform
+    );
     void uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections(
         /*handle*/ uint64_t ptr, 
         RustBuffer mode, 
         RustBuffer section_ids, 
-        RustCallStatus *uniffi_out_err
-    );
-    /*handle*/ uint64_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_in(
-        /*handle*/ uint64_t ptr, 
-        RustBuffer name, 
-        RustBuffer pin
-    );
-    void uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_out(
-        /*handle*/ uint64_t ptr, 
         RustCallStatus *uniffi_out_err
     );
     /*handle*/ uint64_t uniffi_madar_kitchen_ffi_fn_method_kitchencore_start_realtime(
@@ -482,11 +475,13 @@ extern "C" {
         /*handle*/ uint64_t handle, 
         RustCallStatus *uniffi_out_err
     );
+    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_activate(
+    );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump(
     );
-    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch(
-    );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(
+    );
+    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_ensure_session(
     );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert(
     );
@@ -498,17 +493,13 @@ extern "C" {
     );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop(
     );
-    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login(
-    );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_reset_device(
     );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_locale(
     );
+    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_push_token(
+    );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_sections(
-    );
-    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_in(
-    );
-    uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_out(
     );
     uint16_t uniffi_madar_kitchen_ffi_checksum_method_kitchencore_start_realtime(
     );
@@ -2722,6 +2713,14 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_uniffi_madar_kitchen_ffi_fn_constructor_kitchencore_new(rt, thisVal, args, count);
         }
     );
+    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_activate"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_activate"),
+        2,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_activate(rt, thisVal, args, count);
+        }
+    );
     props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_bump"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_bump"),
@@ -2730,20 +2729,20 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_bump(rt, thisVal, args, count);
         }
     );
-    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_choose_branch"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_choose_branch"),
-        3,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_choose_branch(rt, thisVal, args, count);
-        }
-    );
     props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections"),
         1,
         [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_ensure_session"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_ensure_session"),
+        1,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_ensure_session(rt, thisVal, args, count);
         }
     );
     props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert"] = jsi::Function::createFromHostFunction(
@@ -2786,14 +2785,6 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_stop(rt, thisVal, args, count);
         }
     );
-    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login"),
-        3,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login(rt, thisVal, args, count);
-        }
-    );
     props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_reset_device"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_reset_device"),
@@ -2810,28 +2801,20 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_locale(rt, thisVal, args, count);
         }
     );
+    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_push_token"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_push_token"),
+        4,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_push_token(rt, thisVal, args, count);
+        }
+    );
     props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections"),
         3,
         [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections(rt, thisVal, args, count);
-        }
-    );
-    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_in"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_in"),
-        3,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_in(rt, thisVal, args, count);
-        }
-    );
-    props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_out"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_out"),
-        1,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_out(rt, thisVal, args, count);
         }
     );
     props["ubrn_uniffi_madar_kitchen_ffi_fn_method_kitchencore_start_realtime"] = jsi::Function::createFromHostFunction(
@@ -3322,6 +3305,14 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_ffi_madar_kitchen_ffi_rust_future_complete_void(rt, thisVal, args, count);
         }
     );
+    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_activate"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_activate"),
+        0,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_activate(rt, thisVal, args, count);
+        }
+    );
     props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump"),
@@ -3330,20 +3321,20 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump(rt, thisVal, args, count);
         }
     );
-    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch"),
-        0,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch(rt, thisVal, args, count);
-        }
-    );
     props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections"),
         0,
         [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(rt, thisVal, args, count);
+        }
+    );
+    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_ensure_session"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_ensure_session"),
+        0,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_ensure_session(rt, thisVal, args, count);
         }
     );
     props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_advert"] = jsi::Function::createFromHostFunction(
@@ -3386,14 +3377,6 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_stop(rt, thisVal, args, count);
         }
     );
-    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login"),
-        0,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login(rt, thisVal, args, count);
-        }
-    );
     props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_reset_device"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_reset_device"),
@@ -3410,28 +3393,20 @@ NativeMadarKitchenFfi::NativeMadarKitchenFfi(
             return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_locale(rt, thisVal, args, count);
         }
     );
+    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_push_token"] = jsi::Function::createFromHostFunction(
+        rt,
+        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_push_token"),
+        0,
+        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
+            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_push_token(rt, thisVal, args, count);
+        }
+    );
     props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_sections"] = jsi::Function::createFromHostFunction(
         rt,
         jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_sections"),
         0,
         [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
             return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_sections(rt, thisVal, args, count);
-        }
-    );
-    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_in"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_in"),
-        0,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_in(rt, thisVal, args, count);
-        }
-    );
-    props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_out"] = jsi::Function::createFromHostFunction(
-        rt,
-        jsi::PropNameID::forAscii(rt, "ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_out"),
-        0,
-        [this](jsi::Runtime &rt, const jsi::Value &thisVal, const jsi::Value *args, size_t count) -> jsi::Value {
-            return this->cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_out(rt, thisVal, args, count);
         }
     );
     props["ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_start_realtime"] = jsi::Function::createFromHostFunction(
@@ -3754,22 +3729,19 @@ jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_constructor_ki
         
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_activate(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_activate(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
+        );
+
+        
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
+}
 jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_bump(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_bump(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1])
         );
 
         
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_choose_branch(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_madar_kitchen_ffi_fn_method_kitchencore_choose_branch(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), 
-            &status
-        );
-        uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
-
-        
-        return jsi::Value::undefined();
 }
 jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_clear_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
@@ -3780,6 +3752,13 @@ jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchen
 
         
         return jsi::Value::undefined();
+}
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_ensure_session(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_ensure_session(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0])
+        );
+
+        
+        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
 jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_lan_advert(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
@@ -3828,13 +3807,6 @@ jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchen
         
         return jsi::Value::undefined();
 }
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_manager_login(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2])
-        );
-
-        
-        return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
-}
 jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_reset_device(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
         uniffi_madar_kitchen_ffi_fn_method_kitchencore_reset_device(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
@@ -3855,26 +3827,16 @@ jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchen
         
         return jsi::Value::undefined();
 }
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), 
-            &status
-        );
-        uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
-
-        
-        return jsi::Value::undefined();
-}
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_in(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_in(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2])
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_push_token(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_push_token(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[3])
         );
 
         
         return uniffi_jsi::Bridging</*handle*/ uint64_t>::toJs(rt, callInvoker, value);
 }
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_out(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         RustCallStatus status = uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::rustSuccess(rt);
-        uniffi_madar_kitchen_ffi_fn_method_kitchencore_sign_out(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), 
+        uniffi_madar_kitchen_ffi_fn_method_kitchencore_set_sections(uniffi_jsi::Bridging</*handle*/ uint64_t>::fromJs(rt, callInvoker, args[0]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[1]), uniffi::madar_kitchen_ffi::Bridging<RustBuffer>::fromJs(rt, callInvoker, args[2]), 
             &status
         );
         uniffi::madar_kitchen_ffi::Bridging<RustCallStatus>::copyIntoJs(rt, callInvoker, status, args[count - 1]);
@@ -4376,6 +4338,13 @@ jsi::Value NativeMadarKitchenFfi::cpp_ffi_madar_kitchen_ffi_rust_future_complete
         
         return jsi::Value::undefined();
 }
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_activate(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_activate(
+        );
+
+        
+        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
 jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_bump(
         );
@@ -4383,15 +4352,15 @@ jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_k
         
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_choose_branch(
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(
         );
 
         
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_clear_sections(
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_ensure_session(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_ensure_session(
         );
 
         
@@ -4432,13 +4401,6 @@ jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_k
         
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_manager_login(
-        );
-
-        
-        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
 jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_reset_device(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_reset_device(
         );
@@ -4453,22 +4415,15 @@ jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_k
         
         return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
 }
+jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_push_token(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
+        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_push_token(
+        );
+
+        
+        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
+}
 jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_sections(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
         auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_set_sections(
-        );
-
-        
-        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_in(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_in(
-        );
-
-        
-        return uniffi_jsi::Bridging<uint16_t>::toJs(rt, callInvoker, value);
-}
-jsi::Value NativeMadarKitchenFfi::cpp_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_out(jsi::Runtime& rt, const jsi::Value& thisVal, const jsi::Value* args, size_t count) {
-        auto value = uniffi_madar_kitchen_ffi_checksum_method_kitchencore_sign_out(
         );
 
         

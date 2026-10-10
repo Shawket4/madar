@@ -7,8 +7,7 @@ import type { Branch, DeviceMode, Line, NetState, Section, Ticket } from "./type
  * core, in memory. Times are relative to load, so the board always shows a
  * spread of ages: fresh, amber (≥5 min) and red (≥10 min).
  *
- * Mock sign-in: any email/password for the manager; staff PINs 111111, 222222
- * (cooks) and 999999 (manager), any name.
+ * Mock setup: any 8-digit activation code binds the first branch.
  */
 
 type Tr = [en: string, ar: string];
@@ -24,12 +23,6 @@ const SECTIONS: { id: string; name: Tr; isDefault: boolean }[] = [
   { id: "s-drinks", name: ["Drinks", "المشروبات"], isDefault: false },
   { id: "s-bakery", name: ["Bakery", "المخبوزات"], isDefault: false },
 ];
-
-const STAFF: Record<string, { name: string; role: string }> = {
-  "111111": { name: "Ahmed", role: "kitchen" },
-  "222222": { name: "Mona", role: "kitchen" },
-  "999999": { name: "Omar", role: "manager" },
-};
 
 const DISHES: Record<string, { name: Tr; section: string; mods?: Tr[][] }> = {
   mixedGrill: { name: ["Mixed grill", "مشويات مشكلة"], section: "s-grill", mods: [[["Well done", "مستوية جيدًا"]], [["Extra bread", "خبز إضافي"]]] },
@@ -90,8 +83,7 @@ export interface MockTools {
 export function mockBackend(): Backend & { tools: MockTools } {
   let tickets = seed();
   let branch: Branch | undefined;
-  let manager = false;
-  let user: { name: string; role: string } | undefined;
+  let screenName: string | undefined;
   let binding: { mode: DeviceMode; sectionIds: string[] } | undefined;
   let ar = true;
   let pending = 0;
@@ -123,7 +115,7 @@ export function mockBackend(): Backend & { tools: MockTools } {
   };
 
   const write = (lineId: string, bumped: boolean) => {
-    if (!user) throw new KitchenFailure(ar ? "سجّل الدخول أولًا" : "Sign in first");
+    if (!branch) throw new KitchenFailure(ar ? "فعّل الشاشة أولًا" : "Activate this screen first");
     for (const t of tickets) for (const l of t.lines) if (l.id === lineId) l.bumped = bumped;
     if (tools.net !== "online") pending++;
   };
@@ -133,35 +125,26 @@ export function mockBackend(): Backend & { tools: MockTools } {
     tools,
     state() {
       return {
-        route: !branch ? "setup" : !user ? "login" : !binding ? "sections" : "board",
+        route: !branch ? "setup" : !binding ? "sections" : "board",
         branchId: branch?.id,
         branchName: branch?.name,
         mode: binding?.mode ?? "sections",
         sectionIds: binding?.sectionIds ?? [],
-        userName: user?.name,
-        userRole: user?.role,
+        userName: screenName,
+        userRole: branch ? "kitchen" : undefined,
         pending,
       };
     },
-    async managerLogin(email, password) {
-      if (!email.includes("@") || !password) throw new KitchenFailure(ar ? "أدخل البريد وكلمة المرور" : "Enter your email and password");
-      manager = true;
-      return BRANCHES.map((b) => ({ id: b.id, name: tr(b.name) }));
-    },
-    chooseBranch(b) {
-      if (!manager) throw new KitchenFailure("Manager sign-in required");
-      branch = b;
-      manager = false;
+    async activate(code) {
+      if (!/^\d{8}$/.test(code.trim())) throw new KitchenFailure(ar ? "هذا الرمز غير صالح. اطلب رمزًا جديدًا." : "That code is not valid. Ask for a new one.");
+      const b = BRANCHES[0];
+      branch = { id: b.id, name: tr(b.name) };
+      screenName = ar ? "شاشة المشويات" : "Grill screen";
       binding = undefined;
+      return branch;
     },
-    async signIn(name, pin) {
-      const who = STAFF[pin];
-      if (!who) throw new KitchenFailure(ar ? "الاسم أو الرمز غير صحيح" : "Wrong name or PIN");
-      user = { name: name.trim() || who.name, role: who.role };
-    },
-    signOut() {
-      user = undefined;
-    },
+    async ensureSession() {},
+    async setPushToken() {},
     async stations(): Promise<Section[]> {
       return SECTIONS.map((s) => ({ id: s.id, name: tr(s.name), isDefault: s.isDefault, isActive: true }));
     },
@@ -174,7 +157,7 @@ export function mockBackend(): Backend & { tools: MockTools } {
     resetDevice() {
       if (pending) throw new KitchenFailure(ar ? "هناك إنهاءات لم تُزامن بعد" : "Some bumps haven't synced yet");
       branch = undefined;
-      user = undefined;
+      screenName = undefined;
       binding = undefined;
     },
     async tickets(): Promise<Ticket[]> {
@@ -223,7 +206,7 @@ export function mockBackend(): Backend & { tools: MockTools } {
     // The mock's network switch stands in for the LAN: "LAN only" has a peer.
     async lanStart() {},
     lanStop() {},
-    lanStatus: () => ({ running: !!user, peerCount: tools.net === "lan" ? 1 : 0 }),
+    lanStatus: () => ({ running: !!binding, peerCount: tools.net === "lan" ? 1 : 0 }),
     lanAdvert: () => undefined,
     lanNotePeer: () => false,
   };

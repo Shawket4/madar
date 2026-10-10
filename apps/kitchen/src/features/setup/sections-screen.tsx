@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { ChefHat, HandPlatter, Layers, LogOut } from "lucide-react-native";
+import { ChefHat, HandPlatter, Layers } from "lucide-react-native";
 
 import { useKitchen } from "@/data/store";
 import type { DeviceMode } from "@/data/types";
@@ -19,7 +19,6 @@ export function SectionsScreen() {
   const sections = useKitchen((s) => s.sections);
   const device = useKitchen((s) => s.device);
   const choose = useKitchen((s) => s.chooseSections);
-  const signOut = useKitchen((s) => s.signOut);
   const [mode, setMode] = useState<DeviceMode>("sections");
   const [ids, setIds] = useState<string[]>([]);
 
@@ -33,7 +32,6 @@ export function SectionsScreen() {
       <DeviceFrame
         title={t("setup.sectionsTitle")}
         subtitle={`${device.branchName ?? ""} · ${t("setup.sectionsSubtitle")}`}
-        trailing={<Button variant="chrome" icon={LogOut} onPress={signOut}>{device.userName ?? ""}</Button>}
       >
         <View style={{ gap: space.md }}>
           <SectionHeader title={t("setup.mode")} />
