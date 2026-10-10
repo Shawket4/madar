@@ -69,9 +69,7 @@ Future<ProviderContainer> bootMock() async {
       sessionGatewayProvider.overrideWithValue(session),
       // In memory: mock mode derives narrower ranges like real mode, and
       // keeps nothing on disk.
-      offlineStoreProvider.overrideWithValue(
-        await OfflineStore.open(MemoryBlobs()),
-      ),
+      offlineCacheProvider.overrideWithValue(memoryOfflineCache()),
       // Refusals worded as real mode words them (the core's rules).
       transportProvider.overrideWith(
         (ref) => dashTransport(

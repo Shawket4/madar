@@ -5,6 +5,7 @@
 
 import '../frb_generated.dart';
 import 'error.dart';
+import 'offline.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'reports.dart';
 import 'transport.dart';
@@ -82,6 +83,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// restore is a separate explicit step.
   static Future<MadarBridge> newInstance({required MadarConfig config}) =>
       DashboardBridge.instance.api.crateApiBridgeMadarBridgeNew(config: config);
+
+  /// The saved answers, in this core's own store.
+  OfflineCache offlineCache({required PlatformInt64 freshMs});
 
   /// Ping /health; updates the online flag. True when reachable.
   Future<bool> refreshConnectivity();

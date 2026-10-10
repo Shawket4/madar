@@ -56,27 +56,27 @@ Map<String, MealItem> mealItemsOf(List<MenuItemFull> full) => {
       ),
 };
 
-/// The choice in [slot] that admits the item: its own item choice first,
-/// else its category's.
-ComboChoice? choiceFor(ComboSlot slot, String itemId, String? categoryId) {
-  for (final c in slot.choices) {
-    if (c.menuItemId == itemId) return c;
-  }
-  if (categoryId == null) return null;
-  for (final c in slot.choices) {
-    if (c.categoryId != null && c.categoryId == categoryId) return c;
-  }
-  return null;
-}
+/// [combo] in madar-catalog's `ComboView` shape. The windows are not a
+/// quote's business, nor in its shape.
+String _comboJson(Combo combo) =>
+    jsonEncode({...combo.toJson(), 'windows': const <Object?>[]});
 
-List<ComboSlot> slotsAdmitting(
-  Combo combo,
-  String itemId,
-  String? categoryId,
-) => [
-  for (final s in combo.slots)
-    if (choiceFor(s, itemId, categoryId) != null) s,
-];
+/// The slots of [combo] that take the item: madar-catalog's
+/// `combo::choice_for` through the core (its own item choice, else a
+/// category choice for its category).
+List<ComboSlot> slotsAdmitting(Combo combo, String itemId, String? categoryId) {
+  final ids = rules
+      .comboSlotsFor(
+        comboJson: _comboJson(combo),
+        menuItemId: itemId,
+        categoryId: categoryId,
+      )
+      .toSet();
+  return [
+    for (final s in combo.slots)
+      if (ids.contains(s.id)) s,
+  ];
+}
 
 /// One pick for [mealQuote]: [item] in [slotId] at [sizeLabel] (null: the
 /// size the combo includes), [quantity] per combo.
@@ -91,8 +91,7 @@ typedef MealPick = ({
 /// null when it refuses them.
 Map<String, Object?>? mealQuote(Combo combo, List<MealPick> picks) {
   final answer = rules.comboQuote(
-    // The windows are not the quote's business, nor in its shape.
-    comboJson: jsonEncode({...combo.toJson(), 'windows': const <Object?>[]}),
+    comboJson: _comboJson(combo),
     picksJson: jsonEncode([
       for (final p in picks)
         {

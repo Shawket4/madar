@@ -5,6 +5,7 @@
 
 import 'api/bridge.dart';
 import 'api/error.dart';
+import 'api/offline.dart';
 import 'api/reports.dart';
 import 'api/rules.dart';
 import 'api/transport.dart';
@@ -29,6 +30,10 @@ abstract class DashboardBridgeApiImplPlatform
   get rust_arc_decrement_strong_count_MadarBridgePtr => wire
       ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridgePtr;
 
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_OfflineCachePtr => wire
+      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCachePtr;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
 
@@ -39,14 +44,32 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  OfflineCache
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    dynamic raw,
+  );
+
+  @protected
   MadarBridge
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     dynamic raw,
   );
 
   @protected
+  OfflineCache
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    dynamic raw,
+  );
+
+  @protected
   MadarBridge
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+    dynamic raw,
+  );
+
+  @protected
+  OfflineCache
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
     dynamic raw,
   );
 
@@ -95,6 +118,15 @@ abstract class DashboardBridgeApiImplPlatform
   ApiFailure dco_decode_box_autoadd_api_failure(dynamic raw);
 
   @protected
+  CacheRequest dco_decode_box_autoadd_cache_request(dynamic raw);
+
+  @protected
+  CacheScope dco_decode_box_autoadd_cache_scope(dynamic raw);
+
+  @protected
+  CachedAnswer dco_decode_box_autoadd_cached_answer(dynamic raw);
+
+  @protected
   DayBounds dco_decode_box_autoadd_day_bounds(dynamic raw);
 
   @protected
@@ -125,7 +157,19 @@ abstract class DashboardBridgeApiImplPlatform
   UnitSpec dco_decode_box_autoadd_unit_spec(dynamic raw);
 
   @protected
+  ZoneOf dco_decode_box_autoadd_zone_of(dynamic raw);
+
+  @protected
   BranchView dco_decode_branch_view(dynamic raw);
+
+  @protected
+  CacheRequest dco_decode_cache_request(dynamic raw);
+
+  @protected
+  CacheScope dco_decode_cache_scope(dynamic raw);
+
+  @protected
+  CachedAnswer dco_decode_cached_answer(dynamic raw);
 
   @protected
   DashboardBranchRankView dco_decode_dashboard_branch_rank_view(dynamic raw);
@@ -225,6 +269,9 @@ abstract class DashboardBridgeApiImplPlatform
   ApiFailure? dco_decode_opt_box_autoadd_api_failure(dynamic raw);
 
   @protected
+  CachedAnswer? dco_decode_opt_box_autoadd_cached_answer(dynamic raw);
+
+  @protected
   DayBounds? dco_decode_opt_box_autoadd_day_bounds(dynamic raw);
 
   @protected
@@ -250,6 +297,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   UnitSpec? dco_decode_opt_box_autoadd_unit_spec(dynamic raw);
+
+  @protected
+  ZoneOf? dco_decode_opt_box_autoadd_zone_of(dynamic raw);
 
   @protected
   Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
@@ -297,11 +347,20 @@ abstract class DashboardBridgeApiImplPlatform
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
+  ZoneOf dco_decode_zone_of(dynamic raw);
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
   MadarBridge
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OfflineCache
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
     SseDeserializer deserializer,
   );
 
@@ -312,8 +371,20 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  OfflineCache
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MadarBridge
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  OfflineCache
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
     SseDeserializer deserializer,
   );
 
@@ -364,6 +435,19 @@ abstract class DashboardBridgeApiImplPlatform
   ApiFailure sse_decode_box_autoadd_api_failure(SseDeserializer deserializer);
 
   @protected
+  CacheRequest sse_decode_box_autoadd_cache_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CacheScope sse_decode_box_autoadd_cache_scope(SseDeserializer deserializer);
+
+  @protected
+  CachedAnswer sse_decode_box_autoadd_cached_answer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DayBounds sse_decode_box_autoadd_day_bounds(SseDeserializer deserializer);
 
   @protected
@@ -400,7 +484,19 @@ abstract class DashboardBridgeApiImplPlatform
   UnitSpec sse_decode_box_autoadd_unit_spec(SseDeserializer deserializer);
 
   @protected
+  ZoneOf sse_decode_box_autoadd_zone_of(SseDeserializer deserializer);
+
+  @protected
   BranchView sse_decode_branch_view(SseDeserializer deserializer);
+
+  @protected
+  CacheRequest sse_decode_cache_request(SseDeserializer deserializer);
+
+  @protected
+  CacheScope sse_decode_cache_scope(SseDeserializer deserializer);
+
+  @protected
+  CachedAnswer sse_decode_cached_answer(SseDeserializer deserializer);
 
   @protected
   DashboardBranchRankView sse_decode_dashboard_branch_rank_view(
@@ -516,6 +612,11 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  CachedAnswer? sse_decode_opt_box_autoadd_cached_answer(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   DayBounds? sse_decode_opt_box_autoadd_day_bounds(
     SseDeserializer deserializer,
   );
@@ -551,6 +652,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   UnitSpec? sse_decode_opt_box_autoadd_unit_spec(SseDeserializer deserializer);
+
+  @protected
+  ZoneOf? sse_decode_opt_box_autoadd_zone_of(SseDeserializer deserializer);
 
   @protected
   Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -598,6 +702,9 @@ abstract class DashboardBridgeApiImplPlatform
   BigInt sse_decode_usize(SseDeserializer deserializer);
 
   @protected
+  ZoneOf sse_decode_zone_of(SseDeserializer deserializer);
+
+  @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
     SseSerializer serializer,
@@ -612,6 +719,13 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    OfflineCache self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     MadarBridge self,
     SseSerializer serializer,
@@ -619,8 +733,22 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    OfflineCache self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
     MadarBridge self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    OfflineCache self,
     SseSerializer serializer,
   );
 
@@ -682,6 +810,24 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_cache_request(
+    CacheRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cache_scope(
+    CacheScope self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_cached_answer(
+    CachedAnswer self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_day_bounds(
     DayBounds self,
     SseSerializer serializer,
@@ -736,7 +882,19 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_box_autoadd_zone_of(ZoneOf self, SseSerializer serializer);
+
+  @protected
   void sse_encode_branch_view(BranchView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cache_request(CacheRequest self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cache_scope(CacheScope self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_cached_answer(CachedAnswer self, SseSerializer serializer);
 
   @protected
   void sse_encode_dashboard_branch_rank_view(
@@ -874,6 +1032,12 @@ abstract class DashboardBridgeApiImplPlatform
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_cached_answer(
+    CachedAnswer? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_day_bounds(
     DayBounds? self,
     SseSerializer serializer,
@@ -918,6 +1082,12 @@ abstract class DashboardBridgeApiImplPlatform
   @protected
   void sse_encode_opt_box_autoadd_unit_spec(
     UnitSpec? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_zone_of(
+    ZoneOf? self,
     SseSerializer serializer,
   );
 
@@ -980,6 +1150,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_zone_of(ZoneOf self, SseSerializer serializer);
 }
 
 // Section: wire_class
@@ -1028,5 +1201,39 @@ class DashboardBridgeWire implements BaseWire {
       );
   late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge =
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridgePtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCachePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_rust_bridge_dashboard_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache',
+      );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCachePtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCachePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'frbgen_rust_bridge_dashboard_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache',
+      );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCache =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOfflineCachePtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 }
