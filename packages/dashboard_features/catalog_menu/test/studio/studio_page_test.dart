@@ -665,9 +665,10 @@ void main() {
       expect(steps[0], {
         'kind': 'preset',
         'preset_slug': 'pull-espresso',
-        // The library's note comes back as the step's (the server's read).
-        'note': '18 g in, 36 g out in 25 to 30 seconds',
-        'note_ar': '18 جم بن تعطي 36 جم في 25 إلى 30 ثانية',
+        // The server answers the library's note as the step's; the box
+        // leaves it as the placeholder, so the step keeps following it.
+        'note': null,
+        'note_ar': null,
       });
       expect(steps[1], {
         'kind': 'custom',

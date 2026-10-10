@@ -1442,12 +1442,20 @@ void main() {
     );
 
     testWidgets(
-      'SELL-FLR-060 seats commit when a whole 0–99; anything else stays, unsent',
+      'SELL-FLR-060 seats commit when a whole 0–99; anything else stays, '
+      'unsent, marked invalid, with the reason under the row; typing clears it',
       (tester) async {
         final h = await pumpFloor(tester);
         await _edit(h);
         await h.tap(tableBox('T4'));
         final field = find.byKey(ValueKey('floor-seats-${_id('T4')}'));
+        bool invalid() => tester
+            .widget<DashTextInput>(
+              find.descendant(of: field, matching: find.byType(DashTextInput)),
+            )
+            .invalid;
+        final reason = _inspector(find.text(h.t('floor.errSeats')));
+        expect(reason, findsNothing);
         await h.enterText(field, '120');
         await tester.testTextInput.receiveAction(TextInputAction.done);
         await h.settle();
@@ -1459,7 +1467,11 @@ void main() {
           find.descendant(of: field, matching: find.text('120')),
           findsOneWidget,
         );
+        expect(reason, findsOneWidget);
+        expect(invalid(), isTrue);
         await h.enterText(field, '3');
+        expect(reason, findsNothing);
+        expect(invalid(), isFalse);
         await tester.testTextInput.receiveAction(TextInputAction.done);
         await h.settle();
         expect(
@@ -1467,8 +1479,44 @@ void main() {
           {'seats': 3},
         );
         expect(_inspector(find.text('3 seats')), findsOneWidget);
+        expect(reason, findsNothing);
       },
     );
+
+    testWidgets('SELL-FLR-060 a cleared Seats box is refused, never 0 seats', (
+      tester,
+    ) async {
+      final h = await pumpFloor(tester);
+      await _edit(h);
+      await h.tap(tableBox('T4'));
+      final field = find.byKey(ValueKey('floor-seats-${_id('T4')}'));
+      await h.enterText(field, '');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await h.settle();
+      expect(h.server.callsTo('/floor/tables/{id}', method: 'PATCH'), isEmpty);
+      expect(_inspector(find.text(h.t('floor.errSeats'))), findsOneWidget);
+    });
+
+    testWidgets('SELL-FLR-060 Arabic: the Seats reason in Arabic', (
+      tester,
+    ) async {
+      final h = await pumpFloor(tester, locale: 'ar');
+      await _edit(h);
+      await h.tap(tableBox('T4'));
+      await h.enterText(
+        find.byKey(ValueKey('floor-seats-${_id('T4')}')),
+        '2.5',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await h.settle();
+      expect(h.server.callsTo('/floor/tables/{id}', method: 'PATCH'), isEmpty);
+      expect(
+        _inspector(
+          find.text('يجب أن يكون عدد المقاعد رقمًا صحيحًا من 0 إلى 99'),
+        ),
+        findsOneWidget,
+      );
+    });
 
     testWidgets(
       'SELL-FLR-059/048 a renamed table can then be moved: the save carries '

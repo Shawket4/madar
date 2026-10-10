@@ -597,6 +597,35 @@ void main() {
       expect(itemRow(s.db, openNewCairo, 'turkish')['counted_qty'], 990);
     });
 
+    testWidgets('INV-CNT-041 (B2) clearing a figure the server holds '
+        'un-counts it: sent once as counted_qty null; a row never counted '
+        'is never sent', (tester) async {
+      final s = countsServer();
+      final h = await pumpOpen(tester, s: s);
+      await typeCount(h, 'sugar', '');
+      await typeCount(h, 'decaf', '5');
+      await typeCount(h, 'decaf', '');
+      await waitAutosave(h);
+      final items = (lastBody(h, itemsRoute, 'PUT')! as Map)['items']! as List;
+      expect(items, hasLength(9));
+      expect(
+        [
+          for (final i in items)
+            if ((i as Map)['counted_qty'] == null) i,
+        ],
+        [
+          {'counted_qty': null, 'org_ingredient_id': _id('sugar')},
+        ],
+      );
+      expect(itemRow(s.db, openNewCairo, 'sugar')['counted_qty'], isNull);
+      expect(inEditor(find.text('8/25 done')), findsOneWidget);
+      // The server no longer holds it: the next save leaves it out.
+      await typeCount(h, 'turkish', '990');
+      await waitAutosave(h);
+      final next = (lastBody(h, itemsRoute, 'PUT')! as Map)['items']! as List;
+      expect(next.where((i) => (i as Map)['counted_qty'] == null), isEmpty);
+    });
+
     testWidgets('INV-CNT-041/036/060 a refused save toasts the server\'s '
         'words and stays due: a negative figure, a closed count', (
       tester,
@@ -920,6 +949,33 @@ void main() {
       expect(
         s.db[InvTables.stocktakes].find(openNewCairo)!['status'],
         'finalized',
+      );
+    });
+
+    testWidgets('INV-CNT-046 (B2) a flagged figure cleared: Finalize\'s own '
+        'save un-counts it, so the count closes without it', (tester) async {
+      final s = countsServer();
+      final h = await pumpOpen(tester, s: s);
+      expect(_canFinalize(tester), isFalse);
+      final movesBefore = s.db[InvTables.movements].length;
+      await typeCount(h, 'croissant', '');
+      expect(_canFinalize(tester), isTrue);
+      await h.tap(_finalize);
+      expect(
+        ((lastBody(h, itemsRoute, 'PUT')! as Map)['items']! as List).where(
+          (i) => (i as Map)['org_ingredient_id'] == _id('croissant'),
+        ),
+        [
+          {'counted_qty': null, 'org_ingredient_id': _id('croissant')},
+        ],
+      );
+      expect(h.server.callsTo(finalizeRoute), hasLength(1));
+      expect(report, findsOneWidget);
+      expect(
+        s.db[InvTables.movements].rows
+            .sublist(movesBefore)
+            .where((m) => m['org_ingredient_id'] == _id('croissant')),
+        isEmpty,
       );
     });
 

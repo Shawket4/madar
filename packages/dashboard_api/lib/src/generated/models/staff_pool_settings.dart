@@ -10,6 +10,7 @@ class StaffPoolSettings {
     this.dailyAllowance,
     this.eligibleItemIds,
     this.enabled,
+    this.inherited,
     required this.orgId,
     this.explicitNulls = const {},
   });
@@ -27,6 +28,7 @@ class StaffPoolSettings {
           (e) => decString(e, 'StaffPoolSettings.eligible_item_ids[]'),
         ),
         enabled: decBoolN(json['enabled'], 'StaffPoolSettings.enabled'),
+        inherited: decBoolN(json['inherited'], 'StaffPoolSettings.inherited'),
         orgId: decString(json['org_id'], 'StaffPoolSettings.org_id'),
       );
 
@@ -41,6 +43,11 @@ class StaffPoolSettings {
 
   /// The owner's master switch for this scope.
   final bool? enabled;
+
+  /// Read only. `true` when a branch has no override of its own and these
+  /// are the organisation's settings (or the off default) it follows;
+  /// `branch_id` still names the branch asked about. Ignored on PUT.
+  final bool? inherited;
 
   final String orgId;
 
@@ -57,6 +64,8 @@ class StaffPoolSettings {
       'eligible_item_ids': eligibleItemIds,
     if (enabled != null || explicitNulls.contains('enabled'))
       'enabled': enabled,
+    if (inherited != null || explicitNulls.contains('inherited'))
+      'inherited': inherited,
     'org_id': orgId,
   };
 

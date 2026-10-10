@@ -588,23 +588,36 @@ class StepDraft {
 
 /// `toStepDrafts`: a written step whose Arabic name equals its English one
 /// seeds the Arabic box empty (saving must not invent an Arabic name).
-List<StepDraft> toStepDrafts(StudioAggregate s) => [
-  for (final st in s.recipeSteps)
-    st.kind == 'preset'
-        ? StepDraft(
-            kind: 'preset',
-            presetSlug: st.presetSlug,
-            note: st.note ?? '',
-            noteAr: st.noteAr ?? '',
-          )
-        : StepDraft(
-            kind: 'custom',
-            title: st.name,
-            titleAr: st.nameAr == st.name ? '' : st.nameAr,
-            note: st.note ?? '',
-            noteAr: st.noteAr ?? '',
-          ),
-];
+///
+/// A preset step's box holds only this drink's own note. The server answers
+/// the step's note, else the library's, per language; one equal to the
+/// library's [presets] note is the library's, so the box stays empty (that
+/// note is its placeholder) and Save never copies it onto the drink.
+List<StepDraft> toStepDrafts(
+  StudioAggregate s, [
+  List<RecipeStepPreset> presets = const [],
+]) {
+  final library = {for (final p in presets) p.slug: p};
+  String own(String? note, String? libraryNote) =>
+      note != null && note.isNotEmpty && note != libraryNote ? note : '';
+  return [
+    for (final st in s.recipeSteps)
+      st.kind == 'preset'
+          ? StepDraft(
+              kind: 'preset',
+              presetSlug: st.presetSlug,
+              note: own(st.note, library[st.presetSlug]?.note),
+              noteAr: own(st.noteAr, library[st.presetSlug]?.noteAr),
+            )
+          : StepDraft(
+              kind: 'custom',
+              title: st.name,
+              titleAr: st.nameAr == st.name ? '' : st.nameAr,
+              note: st.note ?? '',
+              noteAr: st.noteAr ?? '',
+            ),
+  ];
+}
 
 /// `stepsSig`.
 String stepsSig(List<StepDraft> steps) => jsonEncode([

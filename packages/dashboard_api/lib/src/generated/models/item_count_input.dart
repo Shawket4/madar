@@ -13,7 +13,7 @@ class ItemCountInput {
   });
 
   factory ItemCountInput.fromJson(Map<String, Object?> json) => ItemCountInput(
-    countedQty: decDouble(json['counted_qty'], 'ItemCountInput.counted_qty'),
+    countedQty: decDoubleN(json['counted_qty'], 'ItemCountInput.counted_qty'),
     note: decStringN(json['note'], 'ItemCountInput.note'),
     orgIngredientId: decString(
       json['org_ingredient_id'],
@@ -25,7 +25,10 @@ class ItemCountInput {
     ),
   );
 
-  final double countedQty;
+  /// The figure counted. `null` un-counts the line: its figure, reason and
+  /// counter are cleared and finalize treats it as not counted. Required
+  /// (omitting it is refused), so no client un-counts by accident.
+  final double? countedQty;
 
   final String? note;
 

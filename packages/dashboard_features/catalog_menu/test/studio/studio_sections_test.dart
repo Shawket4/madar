@@ -363,6 +363,47 @@ void main() {
       );
     });
 
+    testWidgets('MENU-STUDIO-065/067/018 a preset step\'s note box is empty, '
+        'the library\'s note its placeholder; a late library empties it', (
+      tester,
+    ) async {
+      final s = studioServer();
+      final gate = s.server.hold('GET', '/recipes/step-presets');
+      final h = await pumpStudio(tester, key: 'spanish', seeded: s);
+      DashTextInput box(String label) => tester.widget<DashTextInput>(
+        find.descendant(
+          of: stepRow(0),
+          matching: find.byWidgetPredicate(
+            (w) => w is DashTextInput && w.semanticLabel == h.t(label),
+          ),
+        ),
+      );
+      const en = '18 g in, 36 g out in 25 to 30 seconds';
+      const ar = '18 جم بن تعطي 36 جم في 25 إلى 30 ثانية';
+      // Before the library answers, the server's words fill the box.
+      expect(box('menu.studio.steps.noteEn').value, en);
+      gate.release();
+      await h.settle();
+      expect(box('menu.studio.steps.noteEn').value, isEmpty);
+      expect(box('menu.studio.steps.noteEn').placeholder, en);
+      expect(box('menu.studio.steps.noteAr').value, isEmpty);
+      expect(box('menu.studio.steps.noteAr').placeholder, ar);
+      // Re-seeding an untouched section leaves nothing to save.
+      expect(find.byKey(const ValueKey('studio-save-bar')), findsNothing);
+      // A written step keeps the generic placeholder.
+      expect(
+        tester
+            .widgetList<DashTextInput>(
+              find.descendant(
+                of: stepRow(1),
+                matching: find.byType(DashTextInput),
+              ),
+            )
+            .map((w) => w.placeholder),
+        contains(h.t('menu.studio.steps.notePlaceholder')),
+      );
+    });
+
     testWidgets('MENU-STUDIO-066/067 a written step: two names, two notes', (
       tester,
     ) async {
@@ -1093,27 +1134,55 @@ void main() {
       expect(fieldWithText('25'), findsOneWidget);
     });
 
-    testWidgets('MENU-STUDIO-112 ungated: a manager may stage an option; the '
-        'server refuses the save', (tester) async {
-      final h = await pumpStudio(tester, persona: Persona.manager);
-      await h.tap(studioText(h.t('menu.studio.options.add')));
-      await h.enterText(
+    testWidgets('MENU-STUDIO-112 gated: without menu.items.edit the options '
+        'show and nothing edits', (tester) async {
+      final s = studioServer(persona: Persona.manager);
+      seedItemOptions(s, 'latte', [
+        {
+          'name': 'Affogato style',
+          'price': 2500,
+          'is_active': true,
+          'recipe': [
+            {
+              'ingredient_id': _ing('vanilla_syrup'),
+              'quantity': 10,
+              'unit': 'ml',
+            },
+          ],
+        },
+      ]);
+      final h = await pumpStudio(tester, persona: Persona.manager, seeded: s);
+      final row = optionRow(0);
+      expect(fieldWithText('Affogato style'), findsOneWidget);
+      Iterable<T> inRow<T extends Widget>() => tester.widgetList<T>(
+        find.descendant(of: row, matching: find.byType(T)),
+      );
+      expect(inRow<DashTextInput>(), hasLength(3));
+      expect(inRow<DashTextInput>().every((w) => !w.enabled), isTrue);
+      expect(inRow<DashSwitch>().single.enabled, isFalse);
+      expect(inRow<DashSelect<String>>().single.enabled, isFalse);
+      expect(
         find.descendant(
-          of: optionRow(0),
-          matching: find.bySemanticsLabel(h.t('common.name')),
+          of: row,
+          matching: find.bySemanticsLabel(h.t('common.remove')),
         ),
-        'Extra foam',
+        findsNothing,
       );
-      await tapSave(h);
-      await h.expectToast(
-        h.t(
-          'menu.studio.saveFailedIn',
-          args: {
-            'section': h.t('menu.studio.tabs.options'),
-            'error': h.refusalWords(MockResponse.denied('menu.items.edit')),
-          },
-        ),
+      expect(
+        find.descendant(of: row, matching: find.text(h.t('common.clear'))),
+        findsNothing,
       );
+      expect(studioText(h.t('menu.studio.options.add')), findsNothing);
+      expect(studioText(h.t('menu.studio.options.empty')), findsNothing);
+    });
+
+    testWidgets('MENU-STUDIO-112 gated and empty: "No options yet", no add', (
+      tester,
+    ) async {
+      final h = await pumpStudio(tester, persona: Persona.manager);
+      expect(optionRow(0), findsNothing);
+      expect(studioText(h.t('menu.studio.options.empty')), findsOneWidget);
+      expect(studioText(h.t('menu.studio.options.add')), findsNothing);
     });
   });
 

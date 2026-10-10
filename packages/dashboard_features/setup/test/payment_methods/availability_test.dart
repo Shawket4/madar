@@ -543,28 +543,65 @@ void main() {
       expect(inPage(find.text('Karim Adel')), findsNothing);
     });
 
-    testWidgets('SET-PAY-039 the people and devices reads have no state of '
-        'their own: a failure reads as nobody', (tester) async {
+    int? count(WidgetTester tester, String title) => tester
+        .widget<DashSectionHeader>(
+          inPage(
+            find.byWidgetPredicate(
+              (w) => w is DashSectionHeader && w.title == title,
+            ),
+          ),
+        )
+        .count;
+
+    testWidgets('SET-PAY-039 the tellers and devices each show a skeleton '
+        'while they load, and the count waits for the data', (tester) async {
       final m = setupMockServer();
-      m.server.fail(
-        'GET',
-        PmRoutes.users,
-        MockResponse.error(500, 'down'),
-        times: null,
-      );
-      m.server.fail(
-        'GET',
-        PmRoutes.devices,
-        MockResponse.error(500, 'down'),
-        times: null,
-      );
-      await _open(tester, backend: m);
-      expect(inPage(find.text('No tellers at this branch')), findsOneWidget);
+      final users = m.server.hold('GET', PmRoutes.users);
+      final devices = m.server.hold('GET', PmRoutes.devices);
+      final h = await _open(tester, backend: m);
+      for (final k in ['pm-tellers-loading', 'pm-devices-loading']) {
+        expect(inPage(find.byKey(ValueKey(k))), findsOneWidget, reason: k);
+      }
+      expect(inPage(find.text('No tellers at this branch')), findsNothing);
+      expect(inPage(find.text('No devices at this branch yet')), findsNothing);
+      expect(count(tester, 'Tellers'), isNull);
+      expect(count(tester, 'Devices'), isNull);
+      expect(editor(_branch), findsOneWidget);
+      users.release();
+      devices.release();
+      await h.settle();
+      expect(inPage(find.byType(DashSkeleton)), findsNothing);
+      expect(editor(_user('karim')), findsOneWidget);
+      expect(count(tester, 'Tellers'), isNotNull);
+      expect(count(tester, 'Devices'), isNotNull);
+    });
+
+    testWidgets('SET-PAY-039 a failed read shows "Couldn\'t load this", the '
+        'server\'s words and a Retry for that list only', (tester) async {
+      final m = setupMockServer();
+      final boom = MockResponse.error(500, 'down');
+      m.server.fail('GET', PmRoutes.users, boom, times: null);
+      final h = await _open(tester, backend: m);
+      final error = inPage(find.byKey(const ValueKey('pm-tellers-error')));
+      expect(error, findsOneWidget);
       expect(
-        inPage(find.text('No devices at this branch yet')),
+        find.descendant(of: error, matching: find.text("Couldn't load this")),
         findsOneWidget,
       );
-      expect(editor(_branch), findsOneWidget);
+      expect(
+        find.descendant(of: error, matching: find.text(h.refusalWords(boom))),
+        findsOneWidget,
+      );
+      expect(inPage(find.text('No tellers at this branch')), findsNothing);
+      expect(count(tester, 'Tellers'), isNull);
+      // The devices answered: their editors show.
+      expect(editor(_device('T2')), findsOneWidget);
+      final devices = h.server.callsTo(PmRoutes.devices).length;
+      m.server.clearFailures();
+      await h.tap(find.descendant(of: error, matching: find.text('Retry')));
+      expect(editor(_user('karim')), findsOneWidget);
+      expect(error, findsNothing);
+      expect(h.server.callsTo(PmRoutes.devices), hasLength(devices));
     });
 
     testWidgets('SET-PAY-040 narrower editors offer the branch\'s methods, '

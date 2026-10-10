@@ -125,17 +125,10 @@ void main() {
     expect(tester.widget<DashIconButton>(x.first).onPressed, isNull);
   });
 
-  testWidgets('SET-SPL-006 a branch following the organisation: the note, '
-      'Save offered untouched, no Revert', (tester) async {
+  testWidgets('SET-SPL-006 a branch following the organisation (the '
+      'server\'s inherited, under the branch\'s id): the note, Save offered '
+      'untouched, no Revert; saved, it has its own', (tester) async {
     final m = splServer();
-    // The answer a branch without its own row would carry if the server
-    // said so (divergence SET-SPL-006: the real one reports the branch).
-    m.server.fail(
-      'GET',
-      splSettings,
-      MockResponse.ok(StaffPoolSettingsMock.wire(savedRow(m.db, null)!)),
-      times: null,
-    );
     final h = await pumpStaffPool(
       tester,
       backend: m,
@@ -144,12 +137,13 @@ void main() {
     expect(paneText(h.t('staffPool.inheritedHint')), findsOneWidget);
     expect(_key('spl-revert'), findsNothing);
     expect(buttonAt(tester, 'spl-save').onPressed, isNotNull);
-    m.server.clearFailures();
     await h.tap(_key('spl-save'));
     final put = h.server.callsTo(splSettings, method: 'PUT').single;
     expect((put.body as Map)['branch_id'], SeedIds.maadi);
     expect(savedRow(m.db, SeedIds.maadi)?['daily_allowance'], 3);
     await h.expectToast('Staff drinks saved');
+    expect(paneText(h.t('staffPool.inheritedHint')), findsNothing);
+    expect(_key('spl-revert'), findsOneWidget);
   });
 
   testWidgets('SET-SPL-006 an own row and the organisation scope show no '

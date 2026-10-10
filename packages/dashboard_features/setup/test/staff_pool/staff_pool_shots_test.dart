@@ -123,12 +123,6 @@ void main() {
 
     testWidgets('inherited, $tag', (tester) async {
       final m = splServer();
-      m.server.fail(
-        'GET',
-        splSettings,
-        MockResponse.ok(StaffPoolSettingsMock.wire(savedRow(m.db, null)!)),
-        times: null,
-      );
       final h = await pump(tester, backend: m, query: atBranch(SeedIds.maadi));
       await _shootPage(h, 'inherited');
     });

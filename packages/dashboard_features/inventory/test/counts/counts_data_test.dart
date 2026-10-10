@@ -62,7 +62,7 @@ void main() {
     );
   });
 
-  test('search: case-insensitive, not trimmed, only with a visible '
+  test('search: case-insensitive, trimmed (W1), only with a visible '
       'character', () {
     final rows = [row('a', name: 'Oat Milk'), row('b', name: 'Sugar')];
     List<String> v(String q) => [
@@ -78,7 +78,7 @@ void main() {
     ];
     expect(v('MILK'), ['a']);
     expect(v('  '), ['a', 'b']);
-    expect(v(' oat'), isEmpty, reason: 'the space is part of the query');
+    expect(v(' oat '), ['a'], reason: 'outer spaces are ignored');
   });
 
   test('filters: to count, counted, flagged (at the threshold)', () {

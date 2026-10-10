@@ -5,6 +5,7 @@
 // 115, so the till offers "Make it a meal +EGP 35.00".
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_catalog_menu/src/area_seed.dart';
+import 'package:dashboard_catalog_menu/src/studio/studio_preview.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/material.dart';
@@ -508,13 +509,22 @@ void main() {
       await h.shot('studio/preview-phone');
     });
 
-    testWidgets('MENU-STUDIO-113 raw labels: "one_size", raw group names', (
-      tester,
-    ) async {
+    testWidgets('MENU-STUDIO-113 a single-price item: no Size row, never the '
+        'raw one_size; groups keep their stored names', (tester) async {
       final h = await pumpStudio(tester, key: 'cortado', locale: 'ar');
-      expect(chip('one_size'), findsOneWidget);
+      final preview = find.byType(StudioPreviewPanel);
+      expect(
+        find.descendant(of: preview, matching: find.text('one_size')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: preview,
+          matching: find.text(h.t('modeling.preview.size')),
+        ),
+        findsNothing,
+      );
       expect(studioText('Milk'), findsWidgets);
-      expect(h.t('modeling.preview.size'), isNotEmpty);
     });
   });
 }

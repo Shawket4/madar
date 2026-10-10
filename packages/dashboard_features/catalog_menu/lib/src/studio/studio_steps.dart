@@ -107,12 +107,17 @@ class StudioStepsSection extends ConsumerWidget {
                 onChanged: (v) => set(i, step.copyWith(titleAr: v)),
               ),
             ),
+          // On a preset the library's note is the placeholder: left empty,
+          // that wording shows, and Save never copies it onto the drink.
           pair(
             DashTextInput(
               value: step.note,
               enabled: !readOnly,
               maxLength: 280,
-              placeholder: t('menu.studio.steps.notePlaceholder'),
+              placeholder: _orElse(
+                preset?.note,
+                t('menu.studio.steps.notePlaceholder'),
+              ),
               semanticLabel: t('menu.studio.steps.noteEn'),
               onChanged: (v) => set(i, step.copyWith(note: v)),
             ),
@@ -121,7 +126,10 @@ class StudioStepsSection extends ConsumerWidget {
               enabled: !readOnly,
               maxLength: 280,
               textDirection: TextDirection.rtl,
-              placeholder: t('menu.studio.steps.notePlaceholderAr'),
+              placeholder: _orElse(
+                preset?.noteAr,
+                t('menu.studio.steps.notePlaceholderAr'),
+              ),
               semanticLabel: t('menu.studio.steps.noteAr'),
               onChanged: (v) => set(i, step.copyWith(noteAr: v)),
             ),
@@ -260,6 +268,9 @@ class StudioStepsSection extends ConsumerWidget {
     );
   }
 }
+
+/// The web's `a || b` on a string.
+String _orElse(String? a, String b) => a == null || a.isEmpty ? b : a;
 
 /// The library picker: resolves with the step to append (a preset, or an
 /// empty written step), or null when closed.

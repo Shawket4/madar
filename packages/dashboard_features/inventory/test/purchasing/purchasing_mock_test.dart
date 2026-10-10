@@ -72,22 +72,34 @@ void main() {
       );
     });
 
-    test('PATCH keeps a field sent as null (COALESCE); delete hides it but '
-        'its orders keep the name', () async {
+    test('PATCH (B1): an absent contact field is kept, null or blank '
+        'clears it, a value is trimmed; delete hides it but its orders keep '
+        'the name', () async {
       final b = backend();
       final id = PurIds.supplier('golden-bakery');
+      final phone = b.db[InvTables.suppliers].find(id)!['phone'];
+      expect(phone, isNotNull);
       final s = await b.api.purchasing.updateSupplier(
         id: id,
         body: const UpdateSupplierRequest(
           name: 'Golden Bakery',
           contactName: null,
+          email: '  ',
           isActive: false,
           explicitNulls: {'contact_name'},
         ),
       );
       expect(s.name, 'Golden Bakery');
-      expect(s.contactName, 'Sherif Nabil');
+      expect(s.contactName, isNull);
+      expect(s.email, isNull);
+      expect(s.phone, phone);
       expect(s.isActive, isFalse);
+      final trimmed = await b.api.purchasing.updateSupplier(
+        id: id,
+        body: const UpdateSupplierRequest(contactName: ' Sherif '),
+      );
+      expect(trimmed.contactName, 'Sherif');
+      expect(trimmed.isActive, isFalse);
       await b.api.purchasing.deleteSupplier(id: id);
       final left = await b.api.purchasing.listSuppliers(orgId: org);
       expect(left.map((x) => x.id), isNot(contains(id)));

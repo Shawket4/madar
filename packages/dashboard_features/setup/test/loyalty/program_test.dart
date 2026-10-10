@@ -547,22 +547,43 @@ void main() {
       expect(_puts(h), isEmpty);
     });
 
-    testWidgets('SET-LOY-083 a value left invalid in a hidden field still '
-        'blocks Save, with only the summary', (tester) async {
+    testWidgets('SET-LOY-083 a value left invalid in a hidden field never '
+        'blocks Save: the cap goes as null', (tester) async {
       final h = await pumpLoyalty(tester);
       await h.tap(toggle('Stop collecting at a maximum'));
       await _type(h, 'balance_cap', '0');
       await h.tap(toggle('Stop collecting at a maximum'));
       await _save(h);
+      expect(find.byKey(const ValueKey('loyalty-fix-errors')), findsNothing);
+      final body = bodyOf(_puts(h).single);
+      expect(body['balance_cap_enabled'], false);
+      expect(body['balance_cap'], isNull);
+      await h.expectToast('Program saved');
+    });
+
+    testWidgets('SET-LOY-083 a field hidden after a failed Save drops out of '
+        'the summary; a hidden bad earn rate sends the saved one', (
+      tester,
+    ) async {
+      final m = loyaltyServer();
+      final h = await pumpLoyalty(tester, backend: m);
+      final savedRate = settingsRow(m.db)['earn_piastres_per_point'];
+      await h.tap(inPage(find.text('Points on spend')));
+      await _type(h, 'earn_egp_per_point', '0');
+      await _save(h);
       expect(
         pageText('Fix the highlighted fields before saving.'),
         findsOneWidget,
       );
-      expect(
-        pageText('Enter a whole number above zero, or leave it empty.'),
-        findsNothing,
-      );
       expect(_puts(h), isEmpty);
+      // Stamps mode hides the rate: the summary goes and Save goes through.
+      await h.tap(inPage(find.text(h.t('loyalty.modeVisits'))));
+      expect(find.byKey(const ValueKey('loyalty-fix-errors')), findsNothing);
+      await _save(h);
+      final body = bodyOf(_puts(h).single);
+      expect(body['mode'], 'visits');
+      expect(body['earn_piastres_per_point'], savedRate);
+      await h.expectToast('Program saved');
     });
 
     testWidgets('SET-LOY-031 Save sends the saved settings with the form on '

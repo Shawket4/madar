@@ -2,9 +2,9 @@
 /// (`features/staff-pool/use-staff-pool.ts`, `form-schema.ts`).
 ///
 /// The org row is the default every branch runs on; a branch row REPLACES it
-/// wholesale. The API answers a branch query with the settings IN FORCE, so
-/// "inherited" is told only by the `branch_id` that came back
-/// (`isInheritedScope`).
+/// wholesale. The API answers a branch query with the settings IN FORCE,
+/// under the branch's id either way; its `inherited` flag says whether they
+/// are the organisation's.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'

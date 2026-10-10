@@ -101,9 +101,11 @@ class _StudioPreviewPanelState extends ConsumerState<StudioPreviewPanel> {
     String plus(num p) =>
         fmt.fmtMoney(p, currency: false, fractionDigits: 0, signed: true);
     final groups = _groups;
+    // A single-price item's `one_size` is where its price lives, not a size
+    // anyone picks: no chip, so such an item shows no Size row.
     final sizes = [
       for (final s in widget.studio.sizes)
-        if (s.isActive) s,
+        if (s.isActive && s.label != oneSize) s,
     ]..sort((a, b) => a.sort - b.sort);
     final optionals = [
       for (final o in widget.studio.options)

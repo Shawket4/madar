@@ -4,8 +4,8 @@
 ///
 /// Reads: the methods list, `GET /users?org_id=` (org-wide, filtered here),
 /// the branch's availability and its devices. The tellers and devices reads
-/// have no loading or error state of their own (SET-PAY-039): until they
-/// answer, their sections say there is nobody.
+/// each have their own skeleton and failure with Retry (SET-PAY-039), so a
+/// slow or failed read never says there is nobody.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -161,58 +161,91 @@ class _AvailabilityTabState extends ConsumerState<AvailabilityTab> {
           header: DashSectionHeader(
             icon: 'users',
             title: t('paymentMethods.availability.tellers'),
-            count: tellers.length,
+            count: usersQ?.hasValue == true ? tellers.length : null,
             description: t('paymentMethods.availability.tellersHint'),
           ),
-          child: tellers.isEmpty
-              ? DashEmptyState(
-                  key: const ValueKey('pm-no-tellers'),
-                  icon: 'users',
-                  title: t('paymentMethods.availability.noTellers'),
-                )
-              : grid([
-                  for (final u in tellers)
-                    AllowListEditor(
-                      key: ValueKey('allow-list-user-${u.id}'),
-                      title: u.name,
-                      value: allowListFor(av, PmOwner.users, u.id),
-                      source: av,
-                      methods: branchMethods,
-                      pending: pending,
-                      onSave: (v) => _save(PmOwner.users, u.id, v),
-                    ),
-                ]),
+          child:
+              _peopleRead(
+                'tellers',
+                usersQ,
+                () => ref.invalidate(pmUsersProvider(orgId!)),
+              ) ??
+              (tellers.isEmpty
+                  ? DashEmptyState(
+                      key: const ValueKey('pm-no-tellers'),
+                      icon: 'users',
+                      title: t('paymentMethods.availability.noTellers'),
+                    )
+                  : grid([
+                      for (final u in tellers)
+                        AllowListEditor(
+                          key: ValueKey('allow-list-user-${u.id}'),
+                          title: u.name,
+                          value: allowListFor(av, PmOwner.users, u.id),
+                          source: av,
+                          methods: branchMethods,
+                          pending: pending,
+                          onSave: (v) => _save(PmOwner.users, u.id, v),
+                        ),
+                    ])),
         ),
         _Section(
           header: DashSectionHeader(
             icon: 'tablet',
             title: t('paymentMethods.availability.devices'),
-            count: devices.length,
+            count: devicesQ.hasValue ? devices.length : null,
             description: t('paymentMethods.availability.devicesHint'),
           ),
-          child: devices.isEmpty
-              ? DashEmptyState(
-                  key: const ValueKey('pm-no-devices'),
-                  icon: 'tablet',
-                  title: t('paymentMethods.availability.noDevices'),
-                )
-              : grid([
-                  for (final d in devices)
-                    AllowListEditor(
-                      key: ValueKey('allow-list-device-${d.id}'),
-                      title: (d.label ?? '').isEmpty
-                          ? d.code
-                          : '${d.code} · ${d.label}',
-                      mono: true,
-                      value: allowListFor(av, PmOwner.devices, d.id),
-                      source: av,
-                      methods: branchMethods,
-                      pending: pending,
-                      onSave: (v) => _save(PmOwner.devices, d.id, v),
-                    ),
-                ]),
+          child:
+              _peopleRead(
+                'devices',
+                devicesQ,
+                () => ref.invalidate(pmDevicesProvider(branchId)),
+              ) ??
+              (devices.isEmpty
+                  ? DashEmptyState(
+                      key: const ValueKey('pm-no-devices'),
+                      icon: 'tablet',
+                      title: t('paymentMethods.availability.noDevices'),
+                    )
+                  : grid([
+                      for (final d in devices)
+                        AllowListEditor(
+                          key: ValueKey('allow-list-device-${d.id}'),
+                          title: (d.label ?? '').isEmpty
+                              ? d.code
+                              : '${d.code} · ${d.label}',
+                          mono: true,
+                          value: allowListFor(av, PmOwner.devices, d.id),
+                          source: av,
+                          methods: branchMethods,
+                          pending: pending,
+                          onSave: (v) => _save(PmOwner.devices, d.id, v),
+                        ),
+                    ])),
         ),
       ],
+    );
+  }
+
+  /// A secondary read's own state (SET-PAY-039): a skeleton while it loads,
+  /// the failure with a Retry for this read only, else null (the content). A
+  /// failed refetch keeps what is on screen.
+  Widget? _peopleRead(String name, AsyncValue<Object?>? q, VoidCallback retry) {
+    if (q == null) return null;
+    if (q.awaitingFirst) {
+      return DashSkeleton(
+        key: ValueKey('pm-$name-loading'),
+        height: _skeletonHeight,
+        radius: Radii.card,
+      );
+    }
+    if (!q.failedFirst) return null;
+    return DashErrorState(
+      key: ValueKey('pm-$name-error'),
+      message: errorMessage(q.error, ref.read(tProvider)),
+      retrying: q.isLoading,
+      onRetry: retry,
     );
   }
 }

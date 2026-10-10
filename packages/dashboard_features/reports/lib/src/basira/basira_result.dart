@@ -494,73 +494,85 @@ class BasiraHeatmap extends ConsumerWidget {
     );
     const cell = Space.xl;
     // The grid fills the card (`w-full`) and scrolls sideways once its
-    // cells would go under their 24 minimum.
-    return LayoutBuilder(
-      builder: (context, box) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: math.max(
-            box.maxWidth,
-            Space.xxl * 2 + grid.cols.length * (cell + DashMetrics.hair),
-          ),
-          child: Table(
-            columnWidths: const {0: IntrinsicColumnWidth()},
-            defaultColumnWidth: const FlexColumnWidth(),
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              TableRow(
-                children: [
-                  const SizedBox.shrink(),
-                  for (final col in grid.cols)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: Space.xs),
-                      child: Text(
-                        col,
-                        textAlign: TextAlign.center,
-                        style: label,
-                      ),
-                    ),
-                ],
-              ),
-              for (final row in grid.rows)
+    // cells would go under their 24 minimum. Left to right in Arabic too,
+    // like the charts (REP-ALL-020): labels on the left, hours left to right.
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: LayoutBuilder(
+        builder: (context, box) => SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: math.max(
+              box.maxWidth,
+              Space.xxl * 2 + grid.cols.length * (cell + DashMetrics.hair),
+            ),
+            child: Table(
+              columnWidths: const {0: IntrinsicColumnWidth()},
+              defaultColumnWidth: const FlexColumnWidth(),
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: [
                 TableRow(
                   children: [
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(end: Space.sm),
-                      child: Text(row, textAlign: TextAlign.end, style: label),
-                    ),
+                    const SizedBox.shrink(),
                     for (final col in grid.cols)
-                      Builder(
-                        builder: (context) {
-                          final v = grid.value(row, col);
-                          final words =
-                              '$row · $col · ${basiraCell(v, measure.kind, fmt, t)}';
-                          return Tooltip(
-                            message: words,
-                            child: Semantics(
-                              label: words,
-                              child: Container(
-                                margin: const EdgeInsets.all(
-                                  DashMetrics.hair / 2,
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: cell,
-                                  minHeight: cell,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: hue.withValues(alpha: grid.opacity(v)),
-                                  borderRadius: BorderRadius.circular(
-                                    DashMetrics.hair,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: Space.xs),
+                        child: Text(
+                          col,
+                          textAlign: TextAlign.center,
+                          style: label,
+                        ),
                       ),
                   ],
                 ),
-            ],
+                for (final row in grid.rows)
+                  TableRow(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          end: Space.sm,
+                        ),
+                        child: Text(
+                          row,
+                          textAlign: TextAlign.end,
+                          style: label,
+                        ),
+                      ),
+                      for (final col in grid.cols)
+                        Builder(
+                          builder: (context) {
+                            final v = grid.value(row, col);
+                            final words =
+                                '$row · $col · ${basiraCell(v, measure.kind, fmt, t)}';
+                            return Tooltip(
+                              message: words,
+                              child: Semantics(
+                                label: words,
+                                child: Container(
+                                  margin: const EdgeInsets.all(
+                                    DashMetrics.hair / 2,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: cell,
+                                    minHeight: cell,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: hue.withValues(
+                                      alpha: grid.opacity(v),
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      DashMetrics.hair,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+              ],
+            ),
           ),
         ),
       ),

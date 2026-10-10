@@ -65,6 +65,10 @@ class _CountEditorState extends ConsumerState<CountEditor> {
   /// The rows' ids as last built: what a save sends.
   List<String> _rowIds = const [];
 
+  /// Rows the server holds a figure for, as far as this screen has seeded
+  /// or sent: clearing one un-counts it (B2).
+  Set<String> _held = {};
+
   /// The client of the last edit, for a save still due when the editor
   /// closes.
   DashboardApi? _api;
@@ -108,6 +112,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
         if (it.countedQty != null)
           it.orgIngredientId: countInputText(it.countedQty!),
     };
+    _held = _counts.keys.toSet();
     _reasons = {
       for (final it in d.items)
         if ((it.varianceReason ?? '').isNotEmpty)
@@ -135,7 +140,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     }
     if (!_dirty) return true;
     _dirty = false;
-    final items = buildCountPayload(_rowIds, _counts, _reasons);
+    final items = buildCountPayload(_rowIds, _counts, _reasons, _held);
     if (items.isEmpty) return true;
     if (mounted) setState(() => _saving = true);
     final save = api.stocktakes
@@ -144,7 +149,14 @@ class _CountEditorState extends ConsumerState<CountEditor> {
           body: UpsertItemsRequest(items: items),
         )
         .then<bool>(
-          (_) => true,
+          (_) {
+            for (final it in items) {
+              it.countedQty == null
+                  ? _held.remove(it.orgIngredientId)
+                  : _held.add(it.orgIngredientId);
+            }
+            return true;
+          },
           onError: (Object e) {
             _dirty = true;
             if (mounted) DashToast.error(context, errorMessage(e, t));
@@ -223,7 +235,7 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     // A save still due goes out (the web drops it on leaving the page).
     if (_debounce?.isActive ?? false) {
       _debounce!.cancel();
-      final items = buildCountPayload(_rowIds, _counts, _reasons);
+      final items = buildCountPayload(_rowIds, _counts, _reasons, _held);
       if (_dirty && items.isNotEmpty) {
         _api?.stocktakes
             .upsertItems(

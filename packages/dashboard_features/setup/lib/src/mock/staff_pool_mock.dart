@@ -4,7 +4,8 @@
 /// - `GET /staff-pool/settings[?branch_id]`: `orders.staff_drink.record` (the
 ///   till's own capability: whoever may record a drink may read the rule).
 ///   A branch answers with what it RUNS ON (`load_effective`): its own row,
-///   else the org's reported under the branch, else off.
+///   else the org's reported under the branch, else off; `inherited` is true
+///   unless the branch has a row of its own.
 /// - `PUT /staff-pool/settings`: `org.settings.edit`; the org comes from the
 ///   body's branch (or the caller), never the body's `org_id`; a negative
 ///   allowance and an item not live on the org's menu are 400s.
@@ -69,21 +70,24 @@ abstract final class StaffPoolSettingsMock {
       .firstWhere((r) => r['org_id'] == orgId && r['branch_id'] == branchId);
 
   /// The row as the API states it (`COLS`).
+  /// [branchId] reports the org's row under that branch (inherited).
   static Map<String, Object?> wire(MockRow r, {String? branchId}) => {
     'org_id': r['org_id'],
     'branch_id': branchId ?? r['branch_id'],
     'enabled': r['enabled'] ?? false,
     'daily_allowance': r['daily_allowance'] ?? 0,
     'eligible_item_ids': [...(r['eligible_item_ids'] as List? ?? const [])],
+    'inherited': branchId != null,
   };
 
-  /// `StaffPoolSettings::defaults`: off, nothing allowed.
+  /// `StaffPoolSettings::defaults`: off, nothing allowed; a branch follows.
   static Map<String, Object?> defaults(String orgId, String? branchId) => {
     'org_id': orgId,
     'branch_id': branchId,
     'enabled': false,
     'daily_allowance': 0,
     'eligible_item_ids': const <String>[],
+    'inherited': branchId != null,
   };
 }
 

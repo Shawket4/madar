@@ -387,7 +387,7 @@ void main() {
           ReceiveTransferLine(lineId: cro, qtyReceived: 11),
           ReceiveTransferLine(lineId: van, qtyReceived: 300),
         ]),
-        _refused(400, 'OVER_RECEIVE_NEEDS_NOTE'),
+        _refused(409, 'OVER_RECEIVE_NEEDS_NOTE'),
       );
       final heli = onHand(r.db, SeedIds.heliopolis, 'croissant');
       final got = await receive([

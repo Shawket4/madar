@@ -1284,8 +1284,14 @@ void main() {
         s.db[InvTables.suppliers].find(PurIds.supplier('metro'))!['is_active'],
         isFalse,
       );
-      // The server keeps a contact it is sent null for (COALESCE).
-      expect(inSuppliers(find.text('Laila Farouk')), findsOneWidget);
+      // B1: the server clears a contact it is sent null for.
+      expect(
+        s.db[InvTables.suppliers].find(
+          PurIds.supplier('metro'),
+        )!['contact_name'],
+        isNull,
+      );
+      expect(inSuppliers(find.text('Laila Farouk')), findsNothing);
     });
 
     testWidgets('INV-PUR-056 / INV-ALL-010 closed while saving: the list '

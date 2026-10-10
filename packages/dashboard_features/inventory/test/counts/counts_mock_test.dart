@@ -278,6 +278,53 @@ void main() {
       );
     });
 
+    test('B2 counted_qty null un-counts the line (figure, reason, counter); '
+        'finalize skips it; omitting it is refused', () async {
+      final b = backend();
+      await b.api.stocktakes.upsertItems(
+        id: openNewCairo,
+        body: UpsertItemsRequest(items: [line('croissant', 37, 'spoilage')]),
+      );
+      final movesBefore = b.db[InvTables.movements].length;
+      final saved = await b.api.stocktakes.upsertItems(
+        id: openNewCairo,
+        body: UpsertItemsRequest(
+          items: [
+            ItemCountInput(orgIngredientId: ing('croissant'), countedQty: null),
+            // Never a row here: nothing to do.
+            ItemCountInput(orgIngredientId: mockUuid('x'), countedQty: null),
+          ],
+        ),
+      );
+      final croissant = saved.items.firstWhere(
+        (i) => i.orgIngredientId == ing('croissant'),
+      );
+      expect(croissant.countedQty, isNull);
+      expect(croissant.varianceReason, isNull);
+      expect(itemRow(b.db, openNewCairo, 'croissant')['counted_by'], isNull);
+      expect(saved.items, hasLength(25));
+      await b.api.stocktakes.finalizeStocktake(id: openNewCairo);
+      final moves = b.db[InvTables.movements].rows.sublist(movesBefore);
+      expect(
+        moves.where((m) => m['org_ingredient_id'] == ing('croissant')),
+        isEmpty,
+      );
+      await expectLater(
+        countsServer().server.send(
+          ApiRequest(
+            method: 'PUT',
+            path: '/stocktakes/$openNewCairo/items',
+            body: {
+              'items': [
+                {'org_ingredient_id': ing('croissant')},
+              ],
+            },
+          ),
+        ),
+        refused(400, 'Json deserialize error: counted_qty'),
+      );
+    });
+
     test('one bad line refuses the whole save', () async {
       final b = backend();
       final before = itemRow(b.db, openNewCairo, 'sugar')['counted_qty'];

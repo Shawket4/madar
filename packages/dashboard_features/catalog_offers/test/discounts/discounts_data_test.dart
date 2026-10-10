@@ -110,8 +110,8 @@ void main() {
     expect(discountExportValue(_d('B', 'fixed', 5000, 5000)), 50);
   });
 
-  test('OFFR-DSC-041 the search: name, type code, legacy value; untrimmed; '
-      'never the Arabic name', () {
+  test('OFFR-DSC-041 the search: name, type code, legacy value; trimmed '
+      '(W1); never the Arabic name', () {
     final d = _d('Corporate: Vodafone', 'percentage', 0.125, 13);
     expect(discountMatches(d, ''), isTrue);
     expect(discountMatches(d, 'VODA'), isTrue);
@@ -119,7 +119,8 @@ void main() {
     expect(discountMatches(d, '13'), isTrue);
     expect(discountMatches(d, '12.5'), isFalse);
     expect(discountMatches(d, ' vodafone'), isTrue);
-    expect(discountMatches(d, 'vodafone '), isFalse);
+    expect(discountMatches(d, ' vodafone '), isTrue);
+    expect(discountMatches(d, '   '), isTrue);
     expect(discountMatches(d, 'خصم'), isFalse);
   });
 

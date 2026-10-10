@@ -117,10 +117,18 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
     req.requireCap('purchasing.suppliers.edit');
     final s = supplier(req);
     final body = req.json;
-    // `COALESCE($n, column)`: a field left out (or null) keeps its value.
+    // Name and active: `COALESCE`, a field left out (or null) keeps its
+    // value. Contact fields (B1): left out keeps; null or blank clears; a
+    // value is stored trimmed.
     final patch = <String, Object?>{
-      for (final k in ['name', 'contact_name', 'phone', 'email', 'is_active'])
+      for (final k in ['name', 'is_active'])
         if (body[k] != null) k: body[k],
+      for (final k in ['contact_name', 'phone', 'email'])
+        if (body.containsKey(k))
+          k: switch ((body[k] as String?)?.trim()) {
+            null || '' => null,
+            final v => v,
+          },
     };
     return MockResponse.ok(suppliers.update(s['id']! as String, patch));
   });

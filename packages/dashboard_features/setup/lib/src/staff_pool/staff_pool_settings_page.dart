@@ -211,10 +211,8 @@ class _StaffPoolSettingsFormState extends ConsumerState<StaffPoolSettingsForm> {
     _follow(settings);
     final f = _form!;
     final canEdit = authz.can(Cap.orgSettingsEdit);
-    final inherited = isInheritedScope(
-      scopeBranchId: widget.branchId,
-      rowBranchId: settings.branchId,
-    );
+    // The server's flag: an inherited row comes back under the branch's id.
+    final inherited = widget.branchId != null && settings.inherited == true;
     final allowanceError = _submitted && !allowanceOk(f.allowance)
         ? t('staffPool.errors.allowance')
         : null;

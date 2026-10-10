@@ -152,26 +152,56 @@ void main() {
   group('mock: the org routes behave like orgs::handlers', () {
     final sabah = '/orgs/${SeedIds.sabahOrg}';
 
-    test('PATCH: an owner is refused (super admin only); a manager lacks '
-        'org.settings.edit', () async {
+    test('PATCH (B3): an owner saves their own org\'s links and clears its '
+        'logo; any other field, another org, or no org.settings.edit is '
+        'refused', () async {
       final owner = setupMockServer();
-      final r = await _send(
+      final ok = await _send(
         owner.server,
         'PATCH',
         sabah,
         body: {
           'social_links': {'x': 'https://x.com/a'},
+          'logo_url': null,
+          'name': null,
         },
       );
-      expect(r.status, 403);
-      final manager = setupMockServer(persona: Persona.manager);
-      final m = await _send(
-        manager.server,
-        'PATCH',
-        sabah,
-        body: {'social_links': const {}},
+      expect(ok.status, 200);
+      final row = owner.db['orgs'].get(SeedIds.sabahOrg);
+      expect(row['social_links'], {'x': 'https://x.com/a'});
+      expect(row['logo_url'], isNull);
+
+      Future<String?> refusal(
+        ({MockServer server, MockDb db}) m,
+        String path,
+        Map<String, Object?> body,
+      ) async {
+        final r = await _send(m.server, 'PATCH', path, body: body);
+        expect(r.status, 403, reason: '$body');
+        return (r.json! as Map)['error'] as String?;
+      }
+
+      String words(MockResponse r) => MockServer.toApiException(r).message;
+
+      const links = {'social_links': <String, Object?>{}};
+      for (final extra in [
+        {'name': 'Sabah'},
+        {'custom_branding': false},
+        {'max_warehouses': null},
+      ]) {
+        expect(
+          await refusal(owner, sabah, {...links, ...extra}),
+          words(MockResponse.forbidden('Super admin access required')),
+        );
+      }
+      expect(
+        await refusal(owner, '/orgs/${SeedIds.nakhlaOrg}', links),
+        words(MockResponse.forbidden('Access to this org is not allowed')),
       );
-      expect(m.status, 403);
+      expect(
+        await refusal(setupMockServer(persona: Persona.manager), sabah, links),
+        words(MockResponse.denied('org.settings.edit')),
+      );
     });
 
     test('PATCH social_links: the closed list, https only, stored cleaned '
