@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/customer_link.dart';
 import '../shared/invalidate.dart';
+import 'floor_dialogs.dart' show parseSeats;
 import 'floor_providers.dart';
 import 'floor_util.dart';
 import '../shared/error_text.dart';
@@ -116,53 +117,10 @@ class FloorInspector extends ConsumerWidget {
                 ],
               ),
               if (single != null && g != null) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: Space.sm,
-                  children: [
-                    Expanded(
-                      child: _Labelled(
-                        label: t('floor.tableLabel'),
-                        child: _CommitInput(
-                          key: ValueKey('floor-label-${single.id}'),
-                          value: single.label,
-                          semanticLabel: t('floor.tableLabel'),
-                          onCommit: (v) {
-                            if (v.trim().isEmpty) return;
-                            _patch(
-                              context,
-                              ref,
-                              single,
-                              UpdateFloorTableRequest(label: v.trim()),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: _seatsWidth,
-                      child: _Labelled(
-                        label: t('floor.seats'),
-                        child: _CommitInput(
-                          key: ValueKey('floor-seats-${single.id}'),
-                          value: '${single.seats}',
-                          semanticLabel: t('floor.seats'),
-                          number: true,
-                          onCommit: (v) {
-                            // Anything but a whole 0–99 is ignored (the web).
-                            final n = int.tryParse(v.trim());
-                            if (n == null || n < 0 || n > 99) return;
-                            _patch(
-                              context,
-                              ref,
-                              single,
-                              UpdateFloorTableRequest(seats: n),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
+                _LabelSeatsRow(
+                  key: ValueKey('floor-label-seats-${single.id}'),
+                  table: single,
+                  onPatch: (body) => _patch(context, ref, single, body),
                 ),
                 _Labelled(
                   label: t('floor.shape'),
@@ -335,6 +293,90 @@ class _Labelled extends StatelessWidget {
   );
 }
 
+/// The label and Seats row. Seats takes a whole number from 0 to 99: anything
+/// else (blank included) stays in the box, marked invalid, with
+/// `floor.errSeats` under the row (the seats column is too narrow for a
+/// sentence), and nothing is sent. Typing clears it (SELL-FLR-060).
+class _LabelSeatsRow extends ConsumerStatefulWidget {
+  const _LabelSeatsRow({required this.table, required this.onPatch, super.key});
+
+  final FloorTable table;
+  final ValueChanged<UpdateFloorTableRequest> onPatch;
+
+  @override
+  ConsumerState<_LabelSeatsRow> createState() => _LabelSeatsRowState();
+}
+
+class _LabelSeatsRowState extends ConsumerState<_LabelSeatsRow> {
+  bool _seatsInvalid = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(tProvider);
+    final table = widget.table;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.xs,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: Space.sm,
+          children: [
+            Expanded(
+              child: _Labelled(
+                label: t('floor.tableLabel'),
+                child: _CommitInput(
+                  key: ValueKey('floor-label-${table.id}'),
+                  value: table.label,
+                  semanticLabel: t('floor.tableLabel'),
+                  onCommit: (v) {
+                    if (v.trim().isEmpty) return;
+                    widget.onPatch(UpdateFloorTableRequest(label: v.trim()));
+                  },
+                ),
+              ),
+            ),
+            SizedBox(
+              width: _seatsWidth,
+              child: _Labelled(
+                label: t('floor.seats'),
+                child: _CommitInput(
+                  key: ValueKey('floor-seats-${table.id}'),
+                  value: '${table.seats}',
+                  semanticLabel: t('floor.seats'),
+                  number: true,
+                  invalid: _seatsInvalid,
+                  onDraft: () {
+                    if (_seatsInvalid) setState(() => _seatsInvalid = false);
+                  },
+                  onCommit: (v) {
+                    // Blank is not 0 here (the add form's zod reads it so).
+                    final n = v.trim().isEmpty ? null : parseSeats(v);
+                    setState(() => _seatsInvalid = n == null);
+                    if (n != null) {
+                      widget.onPatch(UpdateFloorTableRequest(seats: n));
+                    }
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_seatsInvalid)
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              t('floor.errSeats'),
+              style: DashType.meta.copyWith(
+                color: context.madarColors.errorText,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// A field that keeps its own draft and commits on blur or Enter, when
 /// changed (`CommitInput`). A new [value] from the server replaces the draft.
 class _CommitInput extends StatefulWidget {
@@ -343,6 +385,8 @@ class _CommitInput extends StatefulWidget {
     required this.onCommit,
     required this.semanticLabel,
     this.number = false,
+    this.invalid = false,
+    this.onDraft,
     super.key,
   });
 
@@ -350,6 +394,10 @@ class _CommitInput extends StatefulWidget {
   final ValueChanged<String> onCommit;
   final String semanticLabel;
   final bool number;
+  final bool invalid;
+
+  /// Every keystroke (e.g. to clear an error).
+  final VoidCallback? onDraft;
 
   @override
   State<_CommitInput> createState() => _CommitInputState();
@@ -381,9 +429,13 @@ class _CommitInputState extends State<_CommitInput> {
   Widget build(BuildContext context) => DashTextInput(
     value: _draft,
     semanticLabel: widget.semanticLabel,
+    invalid: widget.invalid,
     keyboardType: widget.number ? TextInputType.number : null,
     textDirection: widget.number ? TextDirection.ltr : null,
-    onChanged: (v) => setState(() => _draft = v),
+    onChanged: (v) {
+      setState(() => _draft = v);
+      widget.onDraft?.call();
+    },
     onSubmitted: (_) => _commit(),
     onFocusChange: (focused) {
       // Back in the field: a failed save may be sent again.
