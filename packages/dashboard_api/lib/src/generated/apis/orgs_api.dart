@@ -90,6 +90,10 @@ class OrgsApi {
     );
   }
 
+  /// Super admin only, except a body carrying nothing but `social_links` and/or
+  /// `logo_url: null`: the org's own people with `org.settings.edit` may save
+  /// that for their own org.
+  ///
   /// `PATCH /orgs/{id}` (update_org)
   Future<Org> updateOrg({
     required String id,

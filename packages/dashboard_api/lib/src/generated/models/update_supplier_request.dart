@@ -2,6 +2,8 @@
 // ignore_for_file: type=lint
 part of '../models.dart';
 
+/// A PATCH: an absent field is left as it is. For the contact fields, `null`
+/// or a blank value clears them.
 @immutable
 class UpdateSupplierRequest {
   const UpdateSupplierRequest({

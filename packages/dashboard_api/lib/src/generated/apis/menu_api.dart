@@ -1498,6 +1498,8 @@ class MenuApi {
     );
   }
 
+  /// Needs `org.settings.read` or `menu.combos.edit`.
+  ///
   /// `GET /settings/combos` (get_settings)
   Future<ComboSettings> getSettings() async {
     final response = await _transport.send(
