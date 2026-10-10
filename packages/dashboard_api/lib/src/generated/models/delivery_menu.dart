@@ -10,6 +10,7 @@ class DeliveryMenu {
     required this.deals,
     this.discount,
     required this.items,
+    required this.optionPricing,
     this.explicitNulls = const {},
   });
 
@@ -44,6 +45,15 @@ class DeliveryMenu {
       'DeliveryMenu.items',
       (e) => decObject(e, 'DeliveryMenu.items[]', DeliveryMenuItem.fromJson),
     ),
+    optionPricing: decList<DeliveryOptionPricing>(
+      json['option_pricing'],
+      'DeliveryMenu.option_pricing',
+      (e) => decObject(
+        e,
+        'DeliveryMenu.option_pricing[]',
+        DeliveryOptionPricing.fromJson,
+      ),
+    ),
   );
 
   /// Org-wide addon catalog (global, POS model): channel-effective, grouped by
@@ -60,6 +70,11 @@ class DeliveryMenu {
 
   final List<DeliveryMenuItem> items;
 
+  /// Every option the menu offers (the add-on catalog and each item's
+  /// groups), as the pricing rule reads it; see `DeliveryMenuItem.pricing`.
+  /// Additive.
+  final List<DeliveryOptionPricing> optionPricing;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
@@ -71,6 +86,7 @@ class DeliveryMenu {
     if (discount != null || explicitNulls.contains('discount'))
       'discount': discount?.toJson(),
     'items': items.map((e) => e.toJson()).toList(),
+    'option_pricing': optionPricing.map((e) => e.toJson()).toList(),
   };
 
   @override

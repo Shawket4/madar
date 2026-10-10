@@ -10694,7 +10694,18 @@
      },
      "optionals": [],
      "price": 7,
+     "pricing": {
+      "a": 1
+     },
      "sizes": []
+    }
+   ],
+   "option_pricing": [
+    {
+     "channel_price": 7,
+     "view": {
+      "a": 1
+     }
     }
    ]
   },
@@ -10891,7 +10902,18 @@
      },
      "optionals": [],
      "price": 7,
+     "pricing": {
+      "a": 1
+     },
      "sizes": []
+    }
+   ],
+   "option_pricing": [
+    {
+     "channel_price": 7,
+     "view": {
+      "a": 1
+     }
     }
    ]
   },
@@ -18085,7 +18107,18 @@
      },
      "optionals": [],
      "price": 7,
+     "pricing": {
+      "a": 1
+     },
      "sizes": []
+    }
+   ],
+   "option_pricing": [
+    {
+     "channel_price": 7,
+     "view": {
+      "a": 1
+     }
     }
    ]
   },
@@ -18168,6 +18201,9 @@
     }
    ],
    "price": 7,
+   "pricing": {
+    "a": 1
+   },
    "sizes": [
     {
      "label": "text",
@@ -18208,6 +18244,12 @@
    },
    "option_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "price": 7
+  },
+  "DeliveryOptionPricing": {
+   "channel_price": 7,
+   "view": {
+    "a": 1
+   }
   },
   "DeliveryOptionalField": {
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",

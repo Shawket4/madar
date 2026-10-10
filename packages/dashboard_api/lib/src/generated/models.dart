@@ -241,6 +241,7 @@ part 'models/delivery_menu_item.dart';
 part 'models/delivery_menu_size.dart';
 part 'models/delivery_modifier_group.dart';
 part 'models/delivery_modifier_option.dart';
+part 'models/delivery_option_pricing.dart';
 part 'models/delivery_optional_field.dart';
 part 'models/delivery_order.dart';
 part 'models/delivery_order_input.dart';

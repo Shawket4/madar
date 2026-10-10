@@ -19,6 +19,7 @@ class DeliveryMenuItem {
     required this.nameTranslations,
     required this.optionals,
     required this.price,
+    this.pricing,
     required this.sizes,
     this.explicitNulls = const {},
   });
@@ -73,6 +74,7 @@ class DeliveryMenuItem {
       ),
     ),
     price: decInt(json['price'], 'DeliveryMenuItem.price'),
+    pricing: decJsonMapN(json['pricing'], 'DeliveryMenuItem.pricing'),
     sizes: decList<DeliveryMenuSize>(
       json['sizes'],
       'DeliveryMenuItem.sizes',
@@ -123,6 +125,12 @@ class DeliveryMenuItem {
 
   final int price;
 
+  /// A kind=item row: madar-catalog's view of it at this branch (sizes, the
+  /// recipe's swap categories and bases, groups), so the storefront prices a
+  /// swap over the recipe's own choice exactly as the order is charged.
+  /// No quantities or costs. Additive.
+  final Map<String, Object?>? pricing;
+
   final List<DeliveryMenuSize> sizes;
 
   /// Wire names of optional fields to send as an explicit `null` when unset
@@ -150,6 +158,8 @@ class DeliveryMenuItem {
     'name_translations': nameTranslations,
     'optionals': optionals.map((e) => e.toJson()).toList(),
     'price': price,
+    if (pricing != null || explicitNulls.contains('pricing'))
+      'pricing': pricing,
     'sizes': sizes.map((e) => e.toJson()).toList(),
   };
 

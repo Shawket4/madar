@@ -231,6 +231,7 @@ final Map<String, Object Function(Map<String, Object?> json)> schemaDecoders = {
   'DeliveryMenuSize': DeliveryMenuSize.fromJson,
   'DeliveryModifierGroup': DeliveryModifierGroup.fromJson,
   'DeliveryModifierOption': DeliveryModifierOption.fromJson,
+  'DeliveryOptionPricing': DeliveryOptionPricing.fromJson,
   'DeliveryOptionalField': DeliveryOptionalField.fromJson,
   'DeliveryOrder': DeliveryOrder.fromJson,
   'DeliveryOrderInput': DeliveryOrderInput.fromJson,
