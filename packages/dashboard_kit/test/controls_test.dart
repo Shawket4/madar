@@ -610,6 +610,23 @@ void main() {
           periodStartDay: 26,
         );
         expect((p.from, p.to), (DateTime(2026, 2, 26), DateTime(2026, 3, 25)));
+        final lp = dashQuickRange(
+          DashQuickRange.lastPeriod,
+          today: t,
+          periodStartDay: 26,
+        );
+        expect(
+          (lp.from, lp.to),
+          (DateTime(2026, 1, 26), DateTime(2026, 2, 25)),
+        );
+        final lw = dashQuickRange(
+          DashQuickRange.lastWeek,
+          today: DateTime(2026, 10, 8),
+        );
+        expect(
+          (lw.from, lw.to),
+          (DateTime(2026, 9, 26), DateTime(2026, 10, 2)),
+        );
         final w = dashQuickRange(
           DashQuickRange.thisWeek,
           today: DateTime(2026, 10, 8),

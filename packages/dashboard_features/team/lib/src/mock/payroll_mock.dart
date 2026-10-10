@@ -40,6 +40,7 @@
 library;
 
 import 'package:dashboard_api/mock.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import '../area_seed.dart';
 import 'team_reads_mock.dart';
@@ -68,16 +69,6 @@ const List<String> _mon = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
-
-/// The pay window holding [day] from [startDay] (`period_window`).
-(String, String) payWindow(String day, int startDay) {
-  final d = _d(day);
-  final start = d.day >= startDay
-      ? DateTime.utc(d.year, d.month, startDay)
-      : DateTime.utc(d.year, d.month - 1, startDay);
-  final end = DateTime.utc(start.year, start.month + 1, startDay - 1);
-  return (_iso(start), _iso(end));
-}
 
 // ── seed ─────────────────────────────────────────────────────────────────
 
@@ -151,8 +142,12 @@ MockRow currentPeriod(MockDb db, String org) {
         (p['end_date']! as String).compareTo(day) >= 0,
   );
   if (hit != null) return hit;
-  final startDay = _int(_settingsOf(db, org)['period_start_day']).clamp(1, 28);
-  final (start, end) = payWindow(day, startDay);
+  // The server's `period_window`, through the core.
+  final window = rules.payPeriod(
+    day: day,
+    startDay: _int(_settingsOf(db, org)['period_start_day']),
+  )!;
+  final (start, end) = (window.from, window.to);
   final s = _d(start), e = _d(end);
   String two(int v) => v.toString().padLeft(2, '0');
   return db[TeamTables.payrollPeriods].insert({

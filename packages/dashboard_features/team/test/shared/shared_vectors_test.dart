@@ -1,5 +1,6 @@
 // madar-shared's vectors as the web pins them (src/lib/*_vectors.json, copied by
-// tool/sync_web_vectors.py), against the team unit's ports of each rule.
+// tool/sync_web_vectors.py), against the team unit's calls into each rule: the
+// rules run in Rust (madar-frb-dashboard's rules), so this checks the wiring.
 import 'package:dashboard_core/testing.dart' show sharedVectors;
 import 'package:dashboard_team/src/employees/employees_data.dart';
 import 'package:dashboard_team/src/shared/team_format.dart';
@@ -10,15 +11,20 @@ List<Map<String, Object?>> _rows(Object? v) =>
     (v! as List).cast<Map<String, Object?>>();
 
 void main() {
-  test('pay period (dawam_vectors periods): periodOf, firstPay', () {
+  test('pay period (dawam_vectors periods): firstPay', () {
     final periods = (sharedVectors('dawam')! as Map)['periods'];
     for (final v in _rows(periods)) {
       final day = v['day']! as String;
       final startDay = v['start_day']! as int;
       final why = '$day, start day $startDay';
-      final p = periodOf(day, startDay);
-      expect((p.start, p.end), (v['start'], v['end']), reason: why);
       expect(firstPay(0, day, startDay).to, v['end'], reason: why);
+      // Hired on the first day: the whole period, so the whole salary.
+      final start = v['start']! as String;
+      expect(firstPay(1000, start, startDay), (
+        from: start,
+        to: v['end'],
+        piastres: 1000,
+      ), reason: why);
     }
   });
 

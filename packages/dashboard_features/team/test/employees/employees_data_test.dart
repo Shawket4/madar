@@ -116,29 +116,6 @@ void main() {
       },
     );
 
-    test('periodOf: calendar months, 26th–25th, across the year', () {
-      expect(periodOf('2026-10-16', 1), (
-        start: '2026-10-01',
-        end: '2026-10-31',
-        days: 31,
-      ));
-      expect(periodOf('2026-10-27', 26), (
-        start: '2026-10-26',
-        end: '2026-11-25',
-        days: 31,
-      ));
-      expect(periodOf('2026-10-10', 26), (
-        start: '2026-09-26',
-        end: '2026-10-25',
-        days: 30,
-      ));
-      expect(periodOf('2027-01-05', 26), (
-        start: '2026-12-26',
-        end: '2027-01-25',
-        days: 31,
-      ));
-    });
-
     test('firstPay: 310,000 × 16/31 = 160,000; a whole period; half up', () {
       expect(firstPay(310000, '2026-10-16', 1), (
         from: '2026-10-16',

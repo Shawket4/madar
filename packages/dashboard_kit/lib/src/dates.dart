@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 import 'buttons.dart';
 import 'foundation/l10n.dart';
@@ -28,9 +29,22 @@ DateTime? dashParseYmd(String? s) {
   );
 }
 
-/// Columns before the 1st of a month in a week that starts on Saturday.
-int dashDaysIntoWeek(DateTime firstOfMonth) =>
-    (firstOfMonth.weekday - DateTime.saturday) % 7;
+/// The first day of [day]'s week: madar-time's `week_start` through the core
+/// (weeks start on Saturday).
+DateTime _weekStart(DateTime day) =>
+    dashParseYmd(rules.weekStart(date: dashYmd(day)))!;
+
+/// Days from the start of [day]'s week to [day]: the columns before the 1st
+/// on a month's calendar.
+int dashDaysIntoWeek(DateTime day) {
+  final s = _weekStart(day);
+  // UTC days: a DST change between the two would shorten a local day.
+  return DateTime.utc(
+    day.year,
+    day.month,
+    day.day,
+  ).difference(DateTime.utc(s.year, s.month, s.day)).inDays;
+}
 
 /// One month of days on the app's calendar: Saturday first, today ringed,
 /// the chosen day (or the ends of a range) inked, the days between washed.
@@ -763,15 +777,22 @@ enum DashQuickRange {
     case DashQuickRange.lastWeek:
       // Calendar days, not 24-hour durations: a DST change in the device's
       // zone would otherwise land on 23:00 of the day before.
+      final w = _weekStart(today);
       final off = kind == DashQuickRange.thisWeek ? 0 : -7;
-      final s = DateTime(y, m, today.day - dashDaysIntoWeek(today) + off);
+      final s = DateTime(w.year, w.month, w.day + off);
       return (from: s, to: DateTime(s.year, s.month, s.day + 6));
     case DashQuickRange.thisPeriod:
     case DashQuickRange.lastPeriod:
-      final start = math.min(28, math.max(1, periodStartDay));
-      var sm = today.day >= start ? m : m - 1;
-      if (kind == DashQuickRange.lastPeriod) sm -= 1;
-      return (from: DateTime(y, sm, start), to: DateTime(y, sm + 1, start - 1));
+      // madar-dawam's `pay::period_window` through the core; the period
+      // before is the one holding the day before this one opens.
+      rules.PayPeriod period(DateTime day) =>
+          rules.payPeriod(day: dashYmd(day), startDay: periodStartDay)!;
+      var p = period(today);
+      if (kind == DashQuickRange.lastPeriod) {
+        final open = dashParseYmd(p.from)!;
+        p = period(DateTime(open.year, open.month, open.day - 1));
+      }
+      return (from: dashParseYmd(p.from)!, to: dashParseYmd(p.to)!);
   }
 }
 

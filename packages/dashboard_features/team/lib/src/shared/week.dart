@@ -8,6 +8,7 @@
 library;
 
 import 'package:dashboard_kit/dashboard_kit.dart' show DashKitFormats;
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 /// The first day of the week: Saturday, as a DOW number.
 const int weekStartDow = 6;
@@ -88,8 +89,9 @@ String addDays(String iso, int n) =>
 /// 0 = Sunday … 6 = Saturday, the backend's weekday numbering.
 int weekdayOf(String iso) => _toDate(iso).weekday % 7;
 
-/// The Saturday on or before [iso].
-String weekStartOf(String iso) => addDays(iso, -((weekdayOf(iso) + 1) % 7));
+/// The Saturday on or before [iso]: madar-time's `week_start` through the
+/// core.
+String weekStartOf(String iso) => rules.weekStart(date: iso)!;
 
 /// The seven ISO dates of the week starting [start].
 List<String> weekDays(String start) => [
