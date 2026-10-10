@@ -982,6 +982,7 @@ class _MenuBackend {
                     ingredients.find('${l['ingredient_id']}')?['name'] ?? '',
                 'ingredient_unit': l['unit'],
                 'quantity_used': double.parse('${l['quantity']}'),
+                'usable_quantity': _usable(l['ingredient_id'], l['quantity']),
                 'category':
                     ingredients.find(
                       '${l['ingredient_id']}',

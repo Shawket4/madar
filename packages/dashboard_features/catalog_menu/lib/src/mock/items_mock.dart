@@ -628,6 +628,10 @@ class ItemsBackend {
                     {
                       'org_ingredient_id': l['ingredient_id'],
                       'quantity_used': jsNumber('${l['quantity']}'),
+                      'usable_quantity': d.usableOf(
+                        l['ingredient_id'],
+                        l['quantity'],
+                      ),
                       'ingredient_name': d.ingredientName(
                         l['ingredient_id'] as String,
                       ),
