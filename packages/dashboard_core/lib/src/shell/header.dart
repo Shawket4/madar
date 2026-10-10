@@ -124,7 +124,16 @@ class DashPhoneBar extends ConsumerWidget {
             paper: Theme.of(paperContext),
             Row(
               children: [
-                const MadarSymbol(size: Space.xxl - Space.xs, reversed: true),
+                // The POS rail's living mark, as the sidebar leads with.
+                Semantics(
+                  label: t('app.name'),
+                  image: true,
+                  child: AnimatedBrandMark(
+                    symbolSize: Space.xxl - Space.xs,
+                    wordmark: false,
+                    ink: c.onChrome,
+                  ),
+                ),
                 const SizedBox(width: Space.xs),
                 DashIconButton(
                   icon: 'search',
