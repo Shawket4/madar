@@ -34,14 +34,14 @@ serde_json = "1"
 # crates, the same rev as madar-core's (bump them together).
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 chrono-tz = "0.10"
-madar-time = { git = "https://github.com/Shawket4/madar-shared", rev = "70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c" }
-madar-units = { git = "https://github.com/Shawket4/madar-shared", rev = "70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c" }
-madar-dawam = { git = "https://github.com/Shawket4/madar-shared", rev = "70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c" }
-madar-ids = { git = "https://github.com/Shawket4/madar-shared", rev = "70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c" }
-madar-money = { git = "https://github.com/Shawket4/madar-shared", rev = "70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c" }
-madar-catalog = { git = "https://github.com/Shawket4/madar-shared", rev = "70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c" }
-madar-till = { git = "https://github.com/Shawket4/madar-shared", rev = "70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c" }
-madar-inventory = { git = "https://github.com/Shawket4/madar-shared", rev = "70f8bc3e754c3aeb3f8fa4534eb3b63f8f373b0c" }
+madar-time = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
+madar-units = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
+madar-dawam = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
+madar-ids = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
+madar-money = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
+madar-catalog = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
+madar-till = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
+madar-inventory = { git = "https://github.com/Shawket4/madar-shared", rev = "c1cb69e0d31bd6113d7462299853fb5c6a53b793" }
 
 [dev-dependencies]
 # Reads the written workbook's XML in the xlsx tests (rust_xlsxwriter's own zip).
