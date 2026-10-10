@@ -222,7 +222,7 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
       Navigator.of(context).pop(tr);
     } on Object catch (e) {
       // Part of it went through, or the transfer moved on: say so.
-      if (tr != null || isStaleTransferRefusal(e)) {
+      if (tr != null || isStaleRefusal(e)) {
         bus.invalidate(inventoryPathFamilies);
       }
       if (!mounted) return;

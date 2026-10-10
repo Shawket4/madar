@@ -201,7 +201,10 @@ class DashHarness {
     await tester.runAsync(() => container.read(sessionProvider.future));
     await tester.pumpWidget(
       _CrashPanels(
+        // A fresh subtree per start: a second start in one test unmounts the
+        // first app below its own scope, never after it.
         child: UncontrolledProviderScope(
+          key: ObjectKey(container),
           container: container,
           child: DashApp(
             localizationsDelegates: dashTestLocalizationsDelegates,

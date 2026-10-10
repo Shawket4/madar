@@ -41,6 +41,9 @@ class DashSurface extends StatelessWidget {
     this.description,
     this.actions = const [],
     this.headerTrailing,
+    this.titleTrailing,
+    this.footerLeading,
+    this.wrapActions = false,
     this.onClose,
     this.scrollable = true,
     this.bodyPadding,
@@ -59,6 +62,18 @@ class DashSurface extends StatelessWidget {
   /// Extra header controls beside the close ×.
   final Widget? headerTrailing;
 
+  /// Right after the title on its line (a badge, a status pill).
+  final Widget? titleTrailing;
+
+  /// The footer's start, across from [actions] (the web's
+  /// `sm:justify-between`: "Download again" · "Done", or a note). Under the
+  /// stacked actions on a phone.
+  final Widget? footerLeading;
+
+  /// On a phone, keep [actions] in one wrapping row (a sheet's
+  /// `flex-row flex-wrap` footer) instead of stacking them full width.
+  final bool wrapActions;
+
   /// Defaults to popping the route.
   final VoidCallback? onClose;
   final bool scrollable;
@@ -75,6 +90,27 @@ class DashSurface extends StatelessWidget {
     final pad = mode == DashSurfaceMode.dialog
         ? Space.xl
         : (full ? Space.lg : Space.card);
+
+    Widget titleLine = Semantics(
+      header: true,
+      child: Text(
+        title,
+        style:
+            (mode == DashSurfaceMode.panel
+                    ? DashType.sectionTitle
+                    : DashType.paneTitle)
+                .copyWith(color: c.textPrimary),
+      ),
+    );
+    if (titleTrailing != null) {
+      titleLine = Row(
+        spacing: Space.sm,
+        children: [
+          Flexible(child: titleLine),
+          titleTrailing!,
+        ],
+      );
+    }
 
     final header = Padding(
       padding: EdgeInsetsDirectional.fromSTEB(
@@ -106,17 +142,7 @@ class DashSurface extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 spacing: Space.xs,
                 children: [
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      title,
-                      style:
-                          (mode == DashSurfaceMode.panel
-                                  ? DashType.sectionTitle
-                                  : DashType.paneTitle)
-                              .copyWith(color: c.textPrimary),
-                    ),
-                  ),
+                  titleLine,
                   if (description != null)
                     Text(
                       description!,
@@ -145,7 +171,13 @@ class DashSurface extends StatelessWidget {
         : Padding(padding: bodyInsets, child: body);
 
     Widget? footer;
-    if (actions.isNotEmpty) {
+    if (actions.isNotEmpty || footerLeading != null) {
+      final row = Wrap(
+        alignment: WrapAlignment.end,
+        spacing: Space.sm,
+        runSpacing: Space.sm,
+        children: actions,
+      );
       footer = Container(
         padding: EdgeInsetsDirectional.fromSTEB(
           pad,
@@ -158,17 +190,29 @@ class DashSurface extends StatelessWidget {
             : BoxDecoration(
                 border: Border(top: BorderSide(color: c.hairline)),
               ),
-        child: full
+        child: full && !wrapActions
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: Space.sm,
-                children: [for (final a in actions.reversed) a],
+                children: [for (final a in actions.reversed) a, ?footerLeading],
               )
-            : Wrap(
-                alignment: WrapAlignment.end,
+            : footerLeading == null
+            ? row
+            : Row(
                 spacing: Space.sm,
-                runSpacing: Space.sm,
-                children: actions,
+                children: [
+                  Flexible(
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: footerLeading,
+                    ),
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: Space.sm,
+                    children: actions,
+                  ),
+                ],
               ),
       );
     }

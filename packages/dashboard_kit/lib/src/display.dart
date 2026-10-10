@@ -423,7 +423,11 @@ class DashSectionHeader extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: Space.xxl),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        // A one-line header centres its trailing control (a 44 pt target) on
+        // the title line; with a description it sits at the bottom (web).
+        crossAxisAlignment: trailing != null && description == null
+            ? CrossAxisAlignment.center
+            : CrossAxisAlignment.end,
         spacing: Space.md,
         children: [
           Expanded(
@@ -499,11 +503,16 @@ class DashProgressBar extends StatelessWidget {
     required this.semanticLabel,
     this.max = 100,
     this.tone = DashTone.accent,
+    this.height = DashMetrics.progress,
     super.key,
   });
 
   final double value;
   final double max;
+
+  /// The track: the web's `h-1.5` (6); `h-2` (8) where a page widens it
+  /// (the inventory and loyalty reports).
+  final double height;
 
   /// What the bar measures, for a screen reader.
   final String semanticLabel;
@@ -518,7 +527,7 @@ class DashProgressBar extends StatelessWidget {
       label: semanticLabel,
       value: '${(frac * 100).round()}%',
       child: Container(
-        height: DashMetrics.progress,
+        height: height,
         decoration: BoxDecoration(
           color: c.muted,
           borderRadius: BorderRadius.circular(Radii.pill),
@@ -809,7 +818,9 @@ class DashSummaryLine extends StatelessWidget {
   }
 }
 
-/// A loading placeholder bar (the web's `Skeleton`).
+/// A loading placeholder bar (the web's `Skeleton`). With no [width] it
+/// fills the width it is given (a block `div`), and none in an unbounded
+/// one (a flex row).
 class DashSkeleton extends StatelessWidget {
   const DashSkeleton({
     this.width,
@@ -822,6 +833,14 @@ class DashSkeleton extends StatelessWidget {
   final double radius;
 
   @override
-  Widget build(BuildContext context) =>
-      SkeletonBlock(width: width, height: height, corner: radius);
+  Widget build(BuildContext context) => width != null
+      ? SkeletonBlock(width: width, height: height, corner: radius)
+      : LimitedBox(
+          maxWidth: 0,
+          child: SkeletonBlock(
+            width: double.infinity,
+            height: height,
+            corner: radius,
+          ),
+        );
 }

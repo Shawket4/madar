@@ -23,7 +23,6 @@ import 'till_report_sheet.dart';
 import 'tills_data.dart';
 import 'tills_sections.dart';
 import '../shared/error_text.dart';
-import '../shared/export_logo.dart';
 
 class TillsPage extends ConsumerStatefulWidget {
   const TillsPage({this.query = const {}, super.key});
@@ -199,7 +198,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
       final title = t('nav.tills');
       final config = ExcelConfig(
         filename: 'Madar-Tills',
-        logoUrl: exportLogoOf(ref.read(publicBrandProvider).value),
+        logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
         sheets: [
           ExcelSheet<Till>(
             name: title,

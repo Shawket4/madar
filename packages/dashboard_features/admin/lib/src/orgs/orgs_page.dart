@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/org_errors.dart';
-import '../shared/export_logo.dart';
 import '../shared/row_action.dart';
 import '../shared/tax_rate.dart';
 import '../shared/url_params.dart';

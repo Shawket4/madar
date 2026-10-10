@@ -33,7 +33,6 @@ import 'bookings_providers.dart';
 import 'bookings_timeline.dart';
 import 'bookings_util.dart';
 import '../shared/error_text.dart';
-import '../shared/export_logo.dart';
 
 class BookingsPage extends ConsumerStatefulWidget {
   const BookingsPage({this.date, this.bookingId, super.key});
@@ -254,7 +253,7 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
       final outcome = await exporter.exportToExcel(
         ExcelConfig(
           filename: 'Madar-Bookings-$date',
-          logoUrl: exportLogoOf(brand),
+          logoUrl: exportLogoUrl(brand),
           meta: date,
           sheets: [
             ExcelSheet<BookingView>(

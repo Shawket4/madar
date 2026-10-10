@@ -17,6 +17,7 @@ import 'package:dashboard_api/dashboard_api.dart'
         TellerStats,
         WaiterStats;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -340,7 +341,7 @@ class _OpsExportButtonState extends ConsumerState<OpsExportButton> {
       final outcome = await exporter.exportToExcel(
         ExcelConfig(
           filename: _filename,
-          logoUrl: exportLogoUrl(ref),
+          logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
           meta: t(scope.preset.labelKey, defaultValue: scope.preset.fallback),
           sheets: sheets,
         ),

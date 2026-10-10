@@ -2,8 +2,11 @@
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:madar_dashboard/areas.dart';
 
 import 'support.dart';
 
@@ -24,7 +27,8 @@ void main() {
       modules: modules,
     );
 
-    test('legacy paths land on their replacement, query as the web keeps', () {
+    test('ADM-APP-091..115: legacy paths land on their replacement, query '
+        'as the web keeps', () {
       expect(r('/analytics'), '/reports/operations');
       expect(r('/inventory'), '/inventory/today');
       expect(r('/menu/'), '/menu/items');
@@ -37,7 +41,8 @@ void main() {
       expect(r('/qr?x=1'), '/settings/qr');
     });
 
-    test('signed out: every page goes to sign-in with the way back', () {
+    test('ADM-APP-017: signed out: every page goes to sign-in with the way '
+        'back', () {
       expect(
         r('/orders?order=7', s: SessionStatus.signedOut),
         '/login?redirect=%2Forders%3Forder%3D7',
@@ -46,7 +51,7 @@ void main() {
       expect(r('/login', s: SessionStatus.signedOut), isNull);
     });
 
-    test('signing out on purpose opens a bare sign-in', () {
+    test('ADM-APP-066: signing out on purpose opens a bare sign-in', () {
       expect(
         r('/orders', s: SessionStatus.signedOut, why: SignOutReason.requested),
         '/login',
@@ -61,12 +66,13 @@ void main() {
       );
     });
 
-    test('nothing is decided while the session restores', () {
+    test('ADM-APP-017: nothing is decided while the session restores', () {
       expect(r('/orders', s: SessionStatus.loading), isNull);
       expect(r('/login', s: SessionStatus.loading), isNull);
     });
 
-    test('signed in, /login goes on to a safe redirect or home', () {
+    test('ADM-APP-001 ADM-APP-002: signed in, /login goes on to a safe '
+        'redirect or home', () {
       expect(r('/login'), '/');
       expect(r('/login?redirect=%2Ftills%3Fx%3D1'), '/tills?x=1');
       expect(r('/login?redirect=https%3A%2F%2Fevil.test'), '/');
@@ -74,20 +80,22 @@ void main() {
       expect(r('/login?redirect=%2Flogin'), '/');
     });
 
-    test('the onboarding gate and a Dawam-only home', () {
-      expect(r('/orders', onboarding: true), '/onboarding');
-      expect(r('/onboarding', onboarding: true), isNull);
-      const dawam = OrgModulesState(modules: ['dawam'], known: true);
-      expect(r('/', modules: dawam), '/staff/team');
-      expect(r('/', modules: const OrgModulesState()), isNull);
-      expect(r('/'), isNull);
-    });
+    test(
+      'ADM-APP-082 ADM-APP-084: the onboarding gate and a Dawam-only home',
+      () {
+        expect(r('/orders', onboarding: true), '/onboarding');
+        expect(r('/onboarding', onboarding: true), isNull);
+        const dawam = OrgModulesState(modules: ['dawam'], known: true);
+        expect(r('/', modules: dawam), '/staff/team');
+        expect(r('/', modules: const OrgModulesState()), isNull);
+        expect(r('/'), isNull);
+      },
+    );
   });
 
   group('in the app', () {
-    testWidgets('signed out at a page: sign-in, then back to that page', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-002 ADM-APP-017: signed out at a page: sign-in, '
+        'then back to that page', (tester) async {
       final h = await pumpShell(tester, path: '/tills', persona: null);
       expect(h.location.path, '/login');
       expect(h.location.queryParameters['redirect'], '/tills');
@@ -104,20 +112,21 @@ void main() {
       expect(text('Tills'), findsWidgets);
     });
 
-    testWidgets('a legacy link lands on the page that replaced it', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-091..115: a legacy link lands on the page that '
+        'replaced it', (tester) async {
       final h = await pumpShell(tester, path: '/users?edit=x&tab=y');
       expect(h.location.path, '/access/users');
       expect(h.location.queryParameters, {'edit': 'x'});
     });
 
-    testWidgets('signed in, /login goes home', (tester) async {
+    testWidgets('ADM-APP-001: signed in, /login goes home', (tester) async {
       final h = await pumpShell(tester, path: '/login');
       expect(h.location.path, '/');
     });
 
-    testWidgets('a page of a switched-off module says so', (tester) async {
+    testWidgets('ADM-APP-080: a page of a switched-off module says so', (
+      tester,
+    ) async {
       final h = await pumpShell(
         tester,
         path: '/orders',
@@ -133,12 +142,14 @@ void main() {
       await h.shot('gates/module-off');
     });
 
-    testWidgets('a Dawam-only home is the team', (tester) async {
+    testWidgets('ADM-APP-082: a Dawam-only home is the team', (tester) async {
       final h = await pumpShell(tester, persona: Persona.dawamOnly);
       expect(h.location.path, '/staff/team');
     });
 
-    testWidgets('a page without the capability is Restricted', (tester) async {
+    testWidgets('ADM-APP-080: a page without the capability is Restricted', (
+      tester,
+    ) async {
       final h = await pumpShell(
         tester,
         path: '/inventory/today',
@@ -160,9 +171,8 @@ void main() {
       },
     );
 
-    testWidgets('an unknown path is the not-found page, inside the frame', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-122: an unknown path is the not-found page, inside '
+        'the frame', (tester) async {
       final h = await pumpShell(tester, path: '/no/such/page');
       expect(text('Page not found'), findsOneWidget);
       expect(text('Dashboard'), findsWidgets); // the sidebar is there
@@ -171,7 +181,9 @@ void main() {
       expect(h.location.path, '/');
     });
 
-    testWidgets('a 401 signs out once and keeps the way back', (tester) async {
+    testWidgets('ADM-APP-019: a 401 signs out once and keeps the way back', (
+      tester,
+    ) async {
       final h = await pumpShell(tester, path: '/tills');
       final api = h.container.read(apiProvider);
       h.server.fail(
@@ -192,13 +204,50 @@ void main() {
       expect(h.location.queryParameters['redirect'], '/tills');
     });
 
-    testWidgets('sign out from the user menu opens a bare sign-in', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-065 ADM-APP-066: sign out from the user menu opens '
+        'a bare sign-in', (tester) async {
       final h = await pumpShell(tester, path: '/tills');
       await h.tap(labelled('Account'));
       await h.tapText('Sign Out');
       expect(h.location.toString(), '/login');
+    });
+
+    testWidgets('ADM-APP-029: a page that fails to build shows the crash '
+        'panel; Try again builds it again', (tester) async {
+      var broken = true;
+      final crash = DashArea(
+        key: 'crash',
+        routes: [
+          DashRoute(
+            path: '/crash',
+            builder: (context, state) {
+              if (broken) throw StateError('the page broke');
+              return const Text('The page came back');
+            },
+          ),
+        ],
+      );
+      final h = await DashHarness.pump(
+        tester,
+        areas: [...dashboardAreas, crash],
+        path: '/crash',
+        shotArea: 'shell',
+        overrides: [areaOpenersProvider.overrideWithValue(dashboardOpeners)],
+      );
+      expect(tester.takeException(), isStateError);
+      final panel = find.byType(DashCrashPanel);
+      expect(panel, findsOneWidget);
+      expect(
+        find.descendant(of: panel, matching: text('Something went wrong')),
+        findsOneWidget,
+      );
+      // The frame stays around it.
+      expect(find.byType(DashSidebar), findsOneWidget);
+      await h.shot('crash');
+      broken = false;
+      await h.tapText('Try again');
+      expect(panel, findsNothing);
+      expect(text('The page came back'), findsOneWidget);
     });
   });
 }

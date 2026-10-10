@@ -19,7 +19,6 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/export_logo.dart';
 import '../shared/pick_org_state.dart';
 import '../shared/row_action.dart';
 import '../shared/url_params.dart';

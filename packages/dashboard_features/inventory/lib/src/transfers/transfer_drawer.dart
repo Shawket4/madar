@@ -86,7 +86,7 @@ class _TransferDrawerState extends ConsumerState<TransferDrawer> {
       DashToast.success(context, done);
       _show(next);
     } on Object catch (e) {
-      if (isStaleTransferRefusal(e)) bus.invalidate(inventoryPathFamilies);
+      if (isStaleRefusal(e)) bus.invalidate(inventoryPathFamilies);
       if (mounted) DashToast.error(context, errorMessage(e, t));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -508,7 +508,7 @@ class _ReceiveTransferDialogState extends ConsumerState<ReceiveTransferDialog> {
       DashToast.success(context, t('inventory.transfers.receivedToast'));
       Navigator.of(context).pop(next);
     } on Object catch (e) {
-      if (isStaleTransferRefusal(e)) bus.invalidate(inventoryPathFamilies);
+      if (isStaleRefusal(e)) bus.invalidate(inventoryPathFamilies);
       if (!mounted) return;
       setState(() => _busy = false);
       DashToast.error(context, errorMessage(e, t));
@@ -723,7 +723,7 @@ class _CloseTransferDialogState extends ConsumerState<CloseTransferDialog> {
       );
       Navigator.of(context).pop(next);
     } on Object catch (e) {
-      if (isStaleTransferRefusal(e)) bus.invalidate(inventoryPathFamilies);
+      if (isStaleRefusal(e)) bus.invalidate(inventoryPathFamilies);
       if (!mounted) return;
       setState(() => _busy = false);
       DashToast.error(context, errorMessage(e, t));

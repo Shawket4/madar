@@ -3,14 +3,12 @@
 // dialog, and the area's i18n supplements in both languages.
 import 'dart:ui' as ui;
 
-import 'package:dashboard_api/dashboard_api.dart' show PublicBrand;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart' show DashSize;
 import 'package:dashboard_kit/dashboard_kit.dart' show DashBadge;
 import 'package:dashboard_setup/src/area_seed.dart';
 import 'package:dashboard_setup/src/brand_appearance/settings_shell.dart';
 import 'package:dashboard_setup/src/mock/support.dart';
-import 'package:dashboard_setup/src/shared/export_logo.dart';
 import 'package:dashboard_setup/src/shared/qr_preview_dialog.dart';
 import 'package:dashboard_setup/src/shared/scope.dart';
 import 'package:dashboard_setup/src/shared/social_links.dart';
@@ -169,24 +167,5 @@ void main() {
     expect(h.t('qr.copyLink'), 'نسخ الرابط');
     expect(h.t('kitchen.routedTo'), 'يُوجَّه إلى');
     expect(h.t('legal.retention'), 'الاحتفاظ بالبيانات');
-  });
-
-  test('export logo: the shop\'s own on the branding tier, trimmed; blank or '
-      'not on the tier → none (use-brand.ts)', () {
-    PublicBrand brand(String? logo, {bool own = true}) => PublicBrand(
-      accentColor: '#000000',
-      backgroundColor: '#ffffff',
-      customBranding: own,
-      foregroundColor: '#000000',
-      logoIsMark: false,
-      logoUrl: logo,
-      name: 'Drops',
-      orgId: 'org',
-    );
-    expect(exportLogoUrl(brand(' https://x/l.png ')), 'https://x/l.png');
-    expect(exportLogoUrl(brand('   ')), isNull);
-    expect(exportLogoUrl(brand(null)), isNull);
-    expect(exportLogoUrl(brand('https://x/l.png', own: false)), isNull);
-    expect(exportLogoUrl(null), isNull);
   });
 }

@@ -8,7 +8,6 @@ import 'package:dashboard_core/dashboard_core.dart'
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_team/dashboard_team.dart';
 import 'package:dashboard_team/src/area_seed.dart';
-import 'package:dashboard_team/src/shared/export_logo.dart';
 import 'package:dashboard_team/src/shared/ladder_pricing.dart';
 import 'package:dashboard_team/src/shared/rules_banner.dart';
 import 'package:dashboard_team/src/shared/setup_data.dart';
@@ -136,43 +135,6 @@ void main() {
       expect(rungPiastres('piastres', double.nan, ex), isNaN);
       expect(dayPiastres(ex), 40000);
       expect(dayPiastres(ex, 0.5), 20000);
-    });
-
-    test('export logo: the own brand only, trimmed, blank is none', () {
-      PublicBrand brand({required bool own, String? logo}) => PublicBrand(
-        accentColor: '#000000',
-        backgroundColor: '#ffffff',
-        customBranding: own,
-        foregroundColor: '#000000',
-        logoIsMark: false,
-        logoUrl: logo,
-        name: 'Sabah',
-        orgId: 'org',
-      );
-      expect(teamExportLogo(null), isNull);
-      expect(
-        teamExportLogo(brand(own: true, logo: ' https://x/l.png ')),
-        'https://x/l.png',
-      );
-      expect(teamExportLogo(brand(own: true, logo: '   ')), isNull);
-      expect(teamExportLogo(brand(own: true)), isNull);
-      expect(
-        teamExportLogo(brand(own: false, logo: 'https://x/l.png')),
-        isNull,
-      );
-    });
-
-    test('stale refusals', () {
-      expect(
-        isStaleRefusal(
-          const ApiException(status: 409, code: 'FLAG_HANDLED', message: 'x'),
-        ),
-        isTrue,
-      );
-      expect(
-        isStaleRefusal(const ApiException(status: 409, message: 'x')),
-        isFalse,
-      );
     });
   });
 

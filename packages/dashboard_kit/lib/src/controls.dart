@@ -408,12 +408,17 @@ class _DashSearchInputState extends State<DashSearchInput> {
       clearable: true,
       autofocus: widget.autofocus,
       textInputAction: TextInputAction.search,
-      // Esc empties a search with text in it (the browser's `type=search`);
-      // an empty one lets Esc through to close the dialog around it.
+      // Esc empties a search with text in it (the browser's `type=search`),
+      // unless a popover or dialog around it takes Esc first (Radix: the
+      // first Esc closes the layer); an empty one lets Esc through too.
       onKeyEvent: (node, e) {
         if (e is! KeyDownEvent ||
             e.logicalKey != LogicalKeyboardKey.escape ||
             _text.isEmpty) {
+          return KeyEventResult.ignored;
+        }
+        final layer = Actions.maybeFind<DismissIntent>(context);
+        if (layer != null && layer.isEnabled(const DismissIntent())) {
           return KeyEventResult.ignored;
         }
         _changed('');

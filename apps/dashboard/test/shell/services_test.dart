@@ -26,9 +26,8 @@ MyAuthz _me({
 
 void main() {
   group('live updates', () {
-    testWidgets('one connection for the picked branch; events refresh paths', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-086 ADM-APP-088: one connection for the picked '
+        'branch; events refresh paths', (tester) async {
       final h = await pumpShell(
         tester,
         prefs: {
@@ -50,7 +49,27 @@ void main() {
       expect(h.realtime.connections, hasLength(1));
     });
 
-    testWidgets('all branches: no connection', (tester) async {
+    testWidgets('ADM-APP-086: the full-screen onboarding has no connection; '
+        'the frame coming back reconnects', (tester) async {
+      final h = await pumpShell(
+        tester,
+        prefs: {
+          ScopePrefKeys.branch:
+              '{"org":"${SeedIds.sabahOrg}","branch":"${SeedIds.zamalek}"}',
+        },
+      );
+      final first = h.realtime.current!;
+      expect(first.hasListener, isTrue);
+      await h.go('/onboarding');
+      expect(find.byType(DashShell), findsNothing);
+      expect(first.hasListener, isFalse);
+      await h.go('/tills');
+      expect(h.realtime.connections, hasLength(2));
+      expect(h.realtime.current!.branchId, SeedIds.zamalek);
+      expect(h.realtime.current!.hasListener, isTrue);
+    });
+
+    testWidgets('ADM-APP-086: all branches: no connection', (tester) async {
       final h = await pumpShell(tester);
       expect(h.realtime.connections, isEmpty);
     });
@@ -58,7 +77,7 @@ void main() {
 
   group('the 401 guard', () {
     final req = ApiRequest(method: 'GET', path: '/orders');
-    test('ends the session only for an authenticated request', () {
+    test('ADM-APP-019: ends the session only for an authenticated request', () {
       const e401 = ApiException(status: 401, message: 'x');
       expect(SessionGuardTransport.endsSession(req, e401), isTrue);
       expect(
@@ -86,7 +105,7 @@ void main() {
   });
 
   group('ask a manager', () {
-    test('held: offered, never waits under the limit', () {
+    test('ADM-APP-075: held: offered, never waits under the limit', () {
       final a = AskManager(
         Authz.from(
           _me(
@@ -101,19 +120,21 @@ void main() {
       expect(a.waits(Cap.hrDeductionsCreate, amount: 6000), isTrue);
     });
 
-    test('askable: offered, only by asking, always waits', () {
+    test('ADM-APP-075: askable: offered, only by asking, always waits', () {
       final a = AskManager(Authz.from(_me(ask: [Cap.hrDeductionsCreate])));
       expect(a.offers(Cap.hrDeductionsCreate), isTrue);
       expect(a.onlyByAsking(Cap.hrDeductionsCreate), isTrue);
       expect(a.waits(Cap.hrDeductionsCreate), isTrue);
     });
 
-    test('neither: not offered', () {
+    test('ADM-APP-075: neither: not offered', () {
       final a = AskManager(Authz.from(_me()));
       expect(a.offers(Cap.hrDeductionsCreate), isFalse);
     });
 
-    testWidgets('the waiting notice uses the web\'s words', (tester) async {
+    testWidgets('ADM-APP-075: the waiting notice uses the web\'s words', (
+      tester,
+    ) async {
       final h = await pumpShell(tester);
       showAwaitingApproval(tester.element(find.byType(DashSidebar)));
       await h.settle(rounds: 2);

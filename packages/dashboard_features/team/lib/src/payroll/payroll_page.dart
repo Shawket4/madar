@@ -19,7 +19,6 @@ import '../shared/refresh_button.dart';
 import '../shared/refresh_toast.dart';
 import '../shared/rules_banner.dart';
 import '../shared/staff_query.dart';
-import '../shared/export_logo.dart';
 import '../shared/team_format.dart';
 import 'money_dialogs.dart';
 import 'money_errors.dart';
@@ -130,7 +129,7 @@ class _PayrollBodyState extends ConsumerState<_PayrollBody> {
           rows: s.rows,
           people: s.people,
           period: s.period,
-          logoUrl: teamExportLogo(ref.read(publicBrandProvider).value),
+          logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
         ),
       );
     } on Object catch (e) {

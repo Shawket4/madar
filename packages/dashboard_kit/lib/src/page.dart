@@ -238,12 +238,12 @@ class DashPageScaffold extends StatelessWidget {
     final shellRefresh = onRefresh == null
         ? DashPageRefresh.maybeOf(context)
         : null;
-    return LayoutBuilder(
+    final page = LayoutBuilder(
       builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final phone = DashBreakpoints.isPhoneWidth(
-          MediaQuery.sizeOf(context).width,
-        );
+        // The web's px-4 sm:px-6 lg:px-8 / pt-3 lg:pt-4: media queries, so
+        // the window's width, not the pane's.
+        final w = MediaQuery.sizeOf(context).width;
+        final phone = DashBreakpoints.isPhoneWidth(w);
         final gutter = embedded ? 0.0 : DashBreakpoints.gutter(w);
         final unbounded = !constraints.hasBoundedHeight;
         final header = DashPageHeader(
@@ -320,6 +320,8 @@ class DashPageScaffold extends StatelessWidget {
         return scroll;
       },
     );
+    // The web's page fadeIn; an embedded page shows in its host at once.
+    return embedded ? page : DashEntrance(child: page);
   }
 }
 
@@ -524,9 +526,13 @@ class DashTab<T> {
     required this.label,
     this.count,
     this.enabled = true,
+    this.icon,
   });
   final T value;
   final String label;
+
+  /// A 16 px glyph before the label, in the label's colour.
+  final String? icon;
 
   /// A small count after the label.
   final int? count;
@@ -641,6 +647,8 @@ class _TabButton<T> extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             spacing: Space.xs + DashMetrics.hair,
             children: [
+              if (tab.icon != null)
+                DashIcon(tab.icon!, size: IconSize.sm, color: fg),
               Text(tab.label, style: DashType.bodyMedium.copyWith(color: fg)),
               if (tab.count != null)
                 Container(

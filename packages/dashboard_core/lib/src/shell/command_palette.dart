@@ -191,41 +191,45 @@ class _PaletteState extends ConsumerState<DashCommandPalette> {
               ),
             ),
           )
-        : ListView(
+        // Every row built (a few dozen): a lazy list never builds the row
+        // below the fold, so the highlight could not be scrolled to.
+        : SingleChildScrollView(
             controller: _scroll,
-            shrinkWrap: !phone,
             padding: const EdgeInsets.all(Space.xs),
-            children: [
-              for (final g in groups) ...[
-                Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(
-                    Space.sm,
-                    Space.sm,
-                    Space.sm,
-                    Space.xs,
-                  ),
-                  child: Semantics(
-                    header: true,
-                    child: Text(
-                      g.$1,
-                      style: DashType.smallMedium.copyWith(
-                        color: c.textSecondary,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final g in groups) ...[
+                  Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      Space.sm,
+                      Space.sm,
+                      Space.sm,
+                      Space.xs,
+                    ),
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        g.$1,
+                        style: DashType.smallMedium.copyWith(
+                          color: c.textSecondary,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                for (final item in g.$2)
-                  PrefetchOnIntent(
-                    to: item.to,
-                    child: _PaletteRow(
-                      key: index == _cursor ? _cursorKey : null,
-                      item: item,
-                      selected: index++ == _cursor,
-                      onTap: () => _open(item.to),
+                  for (final item in g.$2)
+                    PrefetchOnIntent(
+                      to: item.to,
+                      child: _PaletteRow(
+                        key: index == _cursor ? _cursorKey : null,
+                        item: item,
+                        selected: index++ == _cursor,
+                        onTap: () => _open(item.to),
+                      ),
                     ),
-                  ),
+                ],
               ],
-            ],
+            ),
           );
     // The title and the hint are for screen readers only, as on the web
     // (`DialogHeader className="sr-only"`); the close × sits beside the field.

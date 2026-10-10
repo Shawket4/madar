@@ -398,8 +398,23 @@ final RegExp _arabicScript = RegExp('[؀-ۿ]');
 /// already carries its own isolate or an Arabic word (the Arabic money
 /// shape, `1,234.50 ج.م` with the figure isolated) as it is — nesting isolates mis-measures the line, which
 /// either wraps the currency or drops it.
+///
+/// A Text that is ONLY a figure takes [dashFigureDirection] instead: in a
+/// right-to-left line the isolate marks are runs of their own, which the
+/// paragraph's intrinsic width counts a negative letter-spacing on
+/// (statFigure's tracking) but its line breaking does not. Laid out at its
+/// intrinsic width (a FittedBox, an unbounded Row, any end-aligned Text
+/// given infinite room) the line is that spacing short, the last digit
+/// wraps and maxLines drops it: Arabic "32" shows "3".
 String dashFigure(String s) =>
     _isolates.hasMatch(s) || _arabicScript.hasMatch(s) ? s : MadarFormat.ltr(s);
+
+/// The direction for a Text that is only the figure [s] (passed as is, no
+/// [dashFigure] marks): left to right, so it reads like an isolated figure
+/// and measures its own width exactly. Null when [s] carries Arabic (the
+/// Arabic money shape), which keeps the line's direction.
+TextDirection? dashFigureDirection(String s) =>
+    _arabicScript.hasMatch(s) ? null : TextDirection.ltr;
 
 /// The direction free text reads in, from its first strong letter (the
 /// web's `dir="auto"`): ".Delta Dairy Co" is left to right in an Arabic

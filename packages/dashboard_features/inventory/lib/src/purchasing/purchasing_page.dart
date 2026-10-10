@@ -11,6 +11,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show PurchaseOrder, Supplier;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,7 +49,7 @@ class _PurchasingPageState extends ConsumerState<PurchasingPage> {
     required List<Supplier> suppliers,
   }) async {
     final t = ref.read(tProvider);
-    final logo = inventoryExportLogo(ref);
+    final logo = exportLogoUrl(ref.read(publicBrandProvider).value);
     // Both lists are whole (unpaged), and the orders already carry the
     // status filter: what the tab shows is what the file holds. The Reorder
     // tab exports the suppliers, as the web does.

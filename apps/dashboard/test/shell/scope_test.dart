@@ -7,7 +7,8 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
-import 'package:dashboard_kit/dashboard_kit.dart' show DashOptionList;
+import 'package:dashboard_kit/dashboard_kit.dart'
+    show DashErrorState, DashOptionList;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -31,9 +32,8 @@ Finder inMenu(String text) => find.descendant(
 );
 
 void main() {
-  testWidgets('owner picks a branch: scope, header, realtime, remembered', (
-    tester,
-  ) async {
+  testWidgets('ADM-APP-020 ADM-APP-045 ADM-APP-047 ADM-APP-048: owner picks '
+      'a branch: scope, header, realtime, remembered', (tester) async {
     final h = await pumpShell(tester);
     expect(h.container.read(scopeProvider).branchId, isNull);
     expect(h.realtime.connections, isEmpty);
@@ -57,17 +57,15 @@ void main() {
     expect(h.session.branchId, isNull);
   });
 
-  testWidgets('a branch manager has no branch picker (scoped by the server)', (
-    tester,
-  ) async {
+  testWidgets('ADM-APP-045: a branch manager has no branch picker (scoped by '
+      'the server)', (tester) async {
     final h = await pumpShell(tester, persona: Persona.manager);
     expect(text('All branches'), findsNothing);
     expect(h.session.branchId, SeedIds.zamalek);
   });
 
-  testWidgets('the period: presets, remembered; custom never is', (
-    tester,
-  ) async {
+  testWidgets('ADM-APP-052 ADM-APP-060 ADM-APP-061: the period: presets, '
+      'remembered; custom never is', (tester) async {
     final h = await pumpShell(tester);
     await h.tapText('Last 30 days');
     await h.shot('scope/period-open');
@@ -79,13 +77,16 @@ void main() {
     expect(range.to, '2026-10-08T20:59:59.999Z');
   });
 
-  testWidgets('a stored custom period restores as the default', (tester) async {
+  testWidgets('ADM-APP-059 ADM-APP-060: a stored custom period restores as '
+      'the default', (tester) async {
     final h = await pumpShell(tester, prefs: {ScopePrefKeys.preset: 'custom'});
     expect(h.container.read(scopeProvider).preset, ScopePreset.last30Days);
     expect(text('Last 30 days'), findsOneWidget);
   });
 
-  testWidgets('a deep link carries its scope', (tester) async {
+  testWidgets('ADM-APP-058 ADM-APP-061: a deep link carries its scope', (
+    tester,
+  ) async {
     final h = await pumpShell(
       tester,
       path: '/tills?branchId=${SeedIds.heliopolis}&preset=yesterday',
@@ -94,7 +95,9 @@ void main() {
     expect(h.container.read(scopeProvider).preset, ScopePreset.yesterday);
   });
 
-  testWidgets('theme: Light / Dark / System, remembered', (tester) async {
+  testWidgets('ADM-APP-067: theme: Light / Dark / System, remembered', (
+    tester,
+  ) async {
     final h = await pumpShell(tester);
     await h.tap(labelled('Toggle theme'));
     await h.shot('scope/theme-menu');
@@ -104,9 +107,8 @@ void main() {
     expect(Theme.of(ctx).brightness, Brightness.dark);
   });
 
-  testWidgets('language: one tap to Arabic, right to left, remembered', (
-    tester,
-  ) async {
+  testWidgets('ADM-APP-024 ADM-APP-068: language: one tap to Arabic, right '
+      'to left, remembered', (tester) async {
     final h = await pumpShell(tester);
     await h.tap(labelled('Switch language'));
     expect(h.container.read(localeProvider), 'ar');
@@ -118,7 +120,8 @@ void main() {
     );
   });
 
-  testWidgets('the user menu: who, language, theme, sign out', (tester) async {
+  testWidgets('ADM-APP-063 ADM-APP-064: the user menu: who, language, '
+      'theme, sign out', (tester) async {
     final h = await pumpShell(tester);
     await h.tap(labelled('Account'));
     expect(text('Nour El-Sayed'), findsOneWidget);
@@ -130,9 +133,8 @@ void main() {
   });
 
   group('platform admin', () {
-    testWidgets('picks a shop: org header, its branches, its modules', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-040 ADM-APP-041 ADM-APP-042 ADM-APP-043: picks a '
+        'shop: org header, its branches, its modules', (tester) async {
       final h = await pumpShell(tester, persona: Persona.platform);
       expect(h.container.read(orgIdProvider), isNull);
       await h.tapText('Select a shop');
@@ -144,35 +146,32 @@ void main() {
       expect(find.text('Zamalek'), findsWidgets);
     });
 
-    testWidgets(
-      'switching shop drops the branch (the "Branch not found" bug)',
-      (tester) async {
-        final h = await pumpShell(tester, persona: Persona.platform);
-        await h.tapText('Select a shop');
-        await h.tap(find.text('Sabah Coffee').last);
-        await pickBranch(h, 'All branches', 'Zamalek');
-        expect(h.session.branchId, SeedIds.zamalek);
-        await h.tapText('Sabah Coffee');
-        await h.tap(find.text('Nakhla Bakery').last);
-        expect(h.container.read(orgIdProvider), SeedIds.nakhlaOrg);
-        expect(h.container.read(scopeProvider).branchId, isNull);
-        expect(h.session.branchId, isNull);
-        expect(text('All branches'), findsOneWidget);
-        // No later request carries Sabah's branch into Nakhla.
-        final since = h.server.calls.length;
-        await h.go('/branches');
-        final later = h.server.calls.skip(since);
-        expect(
-          later.where((c) => c.headers['X-Branch-Id'] == SeedIds.zamalek),
-          isEmpty,
-        );
-      },
-    );
+    testWidgets('ADM-APP-043 ADM-APP-049: switching shop drops the branch (the '
+        '"Branch not found" bug)', (tester) async {
+      final h = await pumpShell(tester, persona: Persona.platform);
+      await h.tapText('Select a shop');
+      await h.tap(find.text('Sabah Coffee').last);
+      await pickBranch(h, 'All branches', 'Zamalek');
+      expect(h.session.branchId, SeedIds.zamalek);
+      await h.tapText('Sabah Coffee');
+      await h.tap(find.text('Nakhla Bakery').last);
+      expect(h.container.read(orgIdProvider), SeedIds.nakhlaOrg);
+      expect(h.container.read(scopeProvider).branchId, isNull);
+      expect(h.session.branchId, isNull);
+      expect(text('All branches'), findsOneWidget);
+      // No later request carries Sabah's branch into Nakhla.
+      final since = h.server.calls.length;
+      await h.go('/branches');
+      final later = h.server.calls.skip(since);
+      expect(
+        later.where((c) => c.headers['X-Branch-Id'] == SeedIds.zamalek),
+        isEmpty,
+      );
+    });
   });
 
-  testWidgets('a stored branch of another org is dropped at start', (
-    tester,
-  ) async {
+  testWidgets('ADM-APP-049: a stored branch of another org is dropped at '
+      'start', (tester) async {
     final h = await pumpShell(
       tester,
       prefs: {
@@ -190,9 +189,8 @@ void main() {
     expect(lastBranchHeader(h), isNull);
   });
 
-  testWidgets('a stored branch this org no longer has heals to all branches', (
-    tester,
-  ) async {
+  testWidgets('ADM-APP-049: a stored branch this org no longer has heals to '
+      'all branches', (tester) async {
     final h = await pumpShell(
       tester,
       prefs: {
@@ -206,12 +204,95 @@ void main() {
     expect(h.session.branchId, isNull);
   });
 
-  testWidgets('signing out forgets the scope', (tester) async {
+  testWidgets('ADM-APP-065: signing out forgets the scope', (tester) async {
     final h = await pumpShell(tester);
     await pickBranch(h, 'All branches', 'Zamalek');
     await h.tap(labelled('Account'));
     await h.tapText('Sign Out');
     expect(h.prefs.values[ScopePrefKeys.branch], isNull);
     expect(h.session.branchId, isNull);
+  });
+
+  testWidgets('ADM-APP-063: the avatar shows the initials', (tester) async {
+    await pumpShell(tester);
+    // Nour El-Sayed.
+    expect(
+      find.descendant(of: labelled('Account'), matching: text('NE')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('ADM-APP-046: while the branches load, "Loading…"', (
+    tester,
+  ) async {
+    final db = MockDb.seeded();
+    final server = MockServer(persona: Persona.owner, clock: db.clock);
+    registerAppMocks(server, db);
+    final gate = server.hold('GET', '/branches');
+    final h = await pumpShell(tester, server: server, db: db);
+    final picker = find.byType(DashBranchPicker);
+    expect(
+      find.descendant(of: picker, matching: text('Loading…')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: picker, matching: text('All branches')),
+      findsNothing,
+    );
+    gate.release();
+    await h.settle();
+    expect(
+      find.descendant(of: picker, matching: text('All branches')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('ADM-APP-130: the branch list fails: only All branches, no '
+      'error', (tester) async {
+    final db = MockDb.seeded();
+    final server = MockServer(persona: Persona.owner, clock: db.clock);
+    registerAppMocks(server, db);
+    server.fail(
+      'GET',
+      '/branches',
+      MockResponse.error(500, 'The branches could not be read'),
+      times: null,
+    );
+    final h = await pumpShell(tester, server: server, db: db);
+    final picker = find.byType(DashBranchPicker);
+    expect(
+      find.descendant(of: picker, matching: text('All branches')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: picker, matching: find.byType(DashErrorState)),
+      findsNothing,
+    );
+    await h.tapText('All branches');
+    expect(inMenu('All branches'), findsOneWidget);
+    expect(inMenu('Zamalek'), findsNothing);
+  });
+
+  testWidgets('ADM-APP-051 ADM-APP-057: a custom range from the link: the '
+      'trigger shows its days, the calendar opens on them', (tester) async {
+    final h = await pumpShell(
+      tester,
+      path:
+          '/tills?preset=custom&from=2026-09-02T21:00:00.000Z'
+          '&to=2026-09-05T20:59:59.999Z',
+    );
+    final f = h.container.read(formatProvider);
+    final label =
+        '${f.fmtDate('2026-09-02T21:00:00.000Z')} → '
+        '${f.fmtDate('2026-09-05T20:59:59.999Z')}';
+    expect(text(label), findsOneWidget);
+    await h.tapText(label);
+    await h.shot('scope/custom-open');
+    // From and To are the link's days, on September's page.
+    expect(
+      find.textContaining(f.fmtDate('2026-09-02T21:00:00.000Z')),
+      findsWidgets,
+    );
+    expect(find.textContaining('September 2026'), findsOneWidget);
   });
 }

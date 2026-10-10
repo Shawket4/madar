@@ -23,13 +23,19 @@ const String languagePrefKey = 'madar.lang';
 /// The language to start in when none was chosen yet: the device's first
 /// language the dashboard supports, regions stripped (the web's
 /// `navigatorLanguageOnly` detector), else English.
-final initialLocaleProvider = Provider<String>((ref) {
-  for (final l in PlatformDispatcher.instance.locales) {
+final initialLocaleProvider = Provider<String>(
+  (ref) => firstSupportedLanguage(PlatformDispatcher.instance.locales),
+);
+
+/// The first of the device's [locales], in order, that the dashboard speaks
+/// (an `en-GB, ar` device gets English), else English.
+String firstSupportedLanguage(Iterable<Locale> locales) {
+  for (final l in locales) {
     final code = l.languageCode.toLowerCase();
     if (supportedLanguages.contains(code)) return code;
   }
   return 'en';
-});
+}
 
 /// Told about every language change, so real mode can word the core's
 /// refusals in the same language. The app overrides it; the default does

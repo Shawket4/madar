@@ -13,7 +13,6 @@ import '../customers/customers_data.dart' show apiWithHeaders;
 import '../customers/customers_list.dart' show runExcelExport;
 import 'export_data.dart';
 import 'orders_providers.dart';
-import '../shared/export_logo.dart';
 
 /// The sheet's width from `sm` (`sm:max-w-lg`).
 const double ordersExportWidth = 512;
@@ -112,7 +111,7 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
           filename: _filename.isEmpty ? defaultName : _filename,
           sheets: sheets,
           meta: exportMeta(t: t, fmt: fmt, branchName: branchName, f: m),
-          logoUrl: exportLogoOf(brand),
+          logoUrl: exportLogoUrl(brand),
         ),
       );
       if (mounted) Navigator.of(context).pop();

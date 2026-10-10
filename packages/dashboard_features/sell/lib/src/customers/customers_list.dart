@@ -17,7 +17,6 @@ import 'customers_data.dart';
 import 'google_object_dialog.dart';
 import 'people_widgets.dart';
 import '../shared/error_text.dart';
-import '../shared/export_logo.dart';
 
 class CustomersList extends ConsumerStatefulWidget {
   const CustomersList({
@@ -379,7 +378,7 @@ class _CustomersListState extends ConsumerState<CustomersList> {
       // `useExportLogo`: the brand the shell already holds, no extra read
       // (an export-header read would spend the export budget).
       final brand = ref.read(publicBrandProvider).value;
-      final logo = exportLogoOf(brand);
+      final logo = exportLogoUrl(brand);
       if (!mounted) return;
       await runExcelExport(
         context,

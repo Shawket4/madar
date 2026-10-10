@@ -310,6 +310,9 @@ double? dashParseNumber(String raw) {
   return double.tryParse(s);
 }
 
+/// A negative figure isolated: "-5" in Arabic text reads "5-" otherwise.
+String _signed(String figure, num n) => n < 0 ? dashFigure(figure) : figure;
+
 double _roundTo(double n, int decimals) {
   final f = math.pow(10, decimals);
   return (n * f).round() / f;
@@ -456,8 +459,7 @@ class _DashNumberInputState extends State<DashNumberInput> {
 
   String _range(DashKitStrings t, DashKitFormats f) {
     final u = widget.unitWord == null ? '' : ' ${widget.unitWord}';
-    // Isolated: "-5" in an Arabic sentence would read "5-".
-    String fig(double n) => dashFigure(f.figure(n));
+    String fig(double n) => _signed(f.figure(n), n);
     return widget.max != null
         ? t.between(fig(widget.min), fig(widget.max!), u)
         : t.atLeast(fig(widget.min), u);
@@ -627,7 +629,7 @@ class _DashNumberInputState extends State<DashNumberInput> {
             children: [
               for (final p in widget.presets)
                 DashChoiceChip(
-                  label: widget.presetLabel?.call(p) ?? dashFigure(f.figure(p)),
+                  label: widget.presetLabel?.call(p) ?? _signed(f.figure(p), p),
                   selected: widget.value == p,
                   enabled: widget.enabled,
                   onTap: () => _accept(p),

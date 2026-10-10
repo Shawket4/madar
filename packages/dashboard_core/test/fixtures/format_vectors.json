@@ -9757,6 +9757,114 @@
    "out": "0m"
   },
   {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-01-15T10:00:00.000Z"
+   ],
+   "out": "15 Jan 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-02-15T10:00:00.000Z"
+   ],
+   "out": "15 Feb 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-03-15T10:00:00.000Z"
+   ],
+   "out": "15 Mar 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-04-15T10:00:00.000Z"
+   ],
+   "out": "15 Apr 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-05-15T10:00:00.000Z"
+   ],
+   "out": "15 May 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-06-15T10:00:00.000Z"
+   ],
+   "out": "15 Jun 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-07-15T10:00:00.000Z"
+   ],
+   "out": "15 Jul 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-08-15T10:00:00.000Z"
+   ],
+   "out": "15 Aug 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-09-15T10:00:00.000Z"
+   ],
+   "out": "15 Sept 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-10-15T10:00:00.000Z"
+   ],
+   "out": "15 Oct 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-11-15T10:00:00.000Z"
+   ],
+   "out": "15 Nov 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "en",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-12-15T10:00:00.000Z"
+   ],
+   "out": "15 Dec 2026"
+  },
+  {
    "fn": "fmtHour",
    "lang": "en",
    "tz": "Africa/Cairo",
@@ -19841,6 +19949,114 @@
     "2026-09-12T15:00:00Z"
    ],
    "out": "⁦0 د⁩"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-01-15T10:00:00.000Z"
+   ],
+   "out": "15 يناير 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-02-15T10:00:00.000Z"
+   ],
+   "out": "15 فبراير 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-03-15T10:00:00.000Z"
+   ],
+   "out": "15 مارس 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-04-15T10:00:00.000Z"
+   ],
+   "out": "15 أبريل 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-05-15T10:00:00.000Z"
+   ],
+   "out": "15 مايو 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-06-15T10:00:00.000Z"
+   ],
+   "out": "15 يونيو 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-07-15T10:00:00.000Z"
+   ],
+   "out": "15 يوليو 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-08-15T10:00:00.000Z"
+   ],
+   "out": "15 أغسطس 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-09-15T10:00:00.000Z"
+   ],
+   "out": "15 سبتمبر 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-10-15T10:00:00.000Z"
+   ],
+   "out": "15 أكتوبر 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-11-15T10:00:00.000Z"
+   ],
+   "out": "15 نوفمبر 2026"
+  },
+  {
+   "fn": "fmtDate",
+   "lang": "ar",
+   "tz": "Africa/Cairo",
+   "args": [
+    "2026-12-15T10:00:00.000Z"
+   ],
+   "out": "15 ديسمبر 2026"
   },
   {
    "fn": "fmtHour",

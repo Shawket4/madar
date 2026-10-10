@@ -18,7 +18,6 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/export_logo.dart';
 import 'google_object_dialog.dart';
 import 'loyalty_data.dart';
 import 'member_sheet.dart';

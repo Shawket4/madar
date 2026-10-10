@@ -1,6 +1,6 @@
 /// Small rules several team pages share (`staff/util.ts`,
-/// `dawam/money-dialogs.tsx` `readPounds`, `data/api/errors.ts`
-/// `isStaleRefusal`): status tones, typed money, stale refusals, covers.
+/// `dawam/money-dialogs.tsx` `readPounds`): status tones, typed money,
+/// covers. Stale refusals are core's `isStaleRefusal`.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart';
@@ -66,31 +66,6 @@ int rdiv(int a, int b) {
   final q = a / b;
   return q.isNegative ? -((-q) + 0.5).floor() : (q + 0.5).floor();
 }
-
-/// Refusals that mean the screen is stale: someone else decided, claimed or
-/// handled it first (TEAM-ALL-015). The page toasts the words AND refreshes
-/// `/staff` so the list says what is true.
-const Set<String> staleRefusalCodes = {
-  'REQUEST_ALREADY_DECIDED',
-  'ALREADY_DECIDED',
-  'FLAG_HANDLED',
-  'ALREADY_CLAIMED',
-  'CLAIM_ALREADY_DECIDED',
-  'NO_PENDING_CLAIM',
-  'SWAP_STALE',
-  'SUGGESTION_STALE',
-  'NO_CLAIM_WAITING',
-  'NO_SWAP_WAITING',
-  'NO_SWAP_TO_CANCEL',
-  'OPEN_SHIFT_CLOSED',
-  'NO_COVER_WAITING',
-  'NO_OVERTIME_WAITING',
-  'PAYSLIP_ALREADY_PAID',
-};
-
-/// Whether [error] is a stale refusal (`isStaleRefusal`).
-bool isStaleRefusal(Object? error) =>
-    error is ApiException && staleRefusalCodes.contains(error.code);
 
 /// Who is covering [employeeId]'s shift on [date] (`coveredBy`, owner
 /// decision D1): a colleague's record naming them, with the cover pending or

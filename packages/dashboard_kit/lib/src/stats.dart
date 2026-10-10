@@ -522,7 +522,8 @@ class DashLedgerItem {
 /// A row of KPIs (the web's `LedgerStrip`): a responsive grid of
 /// [DashStatCard]s — two up on a phone, then by count (4 → 2·4, 5 → 3·5,
 /// 6 → 3·6) at the WINDOW's sm / lg widths, as the web's media queries —
-/// every card in a row the same height. Dense from five items.
+/// every card in a row the same height. Dense from five items. The cards
+/// fade in 50 ms apart.
 class DashLedgerStrip extends StatelessWidget {
   const DashLedgerStrip({required this.items, this.dense, super.key});
   final List<DashLedgerItem> items;
@@ -560,23 +561,28 @@ class DashLedgerStrip extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: gap,
             children: [
-              for (final it in slice)
+              for (final (j, it) in slice.indexed)
                 Expanded(
-                  child: DashStatCard(
-                    key: ValueKey(it.key),
-                    label: it.label,
-                    value: it.value,
-                    valueText: it.valueText,
-                    valueWidget: it.valueWidget,
-                    format: it.format,
-                    icon: it.icon,
-                    tone: it.tone,
-                    trend: it.trend,
-                    hint: it.hint,
-                    loading: it.loading,
-                    action: it.action,
-                    dense: isDense,
-                    reserveFooter: footer,
+                  // The web's staggerContainer(0.05) over listItem.
+                  child: DashEntrance(
+                    delay: Duration(milliseconds: 50 * (i + j)),
+                    rise: Space.xs + 2,
+                    child: DashStatCard(
+                      key: ValueKey(it.key),
+                      label: it.label,
+                      value: it.value,
+                      valueText: it.valueText,
+                      valueWidget: it.valueWidget,
+                      format: it.format,
+                      icon: it.icon,
+                      tone: it.tone,
+                      trend: it.trend,
+                      hint: it.hint,
+                      loading: it.loading,
+                      action: it.action,
+                      dense: isDense,
+                      reserveFooter: footer,
+                    ),
                   ),
                 ),
               for (var k = slice.length; k < cols; k++)
@@ -594,9 +600,9 @@ class DashLedgerStrip extends StatelessWidget {
   }
 }
 
-/// A value that shows its concise form on a phone (or when [forceCompact])
-/// and reveals the full value on press; wide screens show the full value
-/// (the web's `ConciseValue`).
+/// A value that shows its concise form below the web's `md` (768, its
+/// `useIsMobile`) or when [forceCompact], and reveals the full value on
+/// press; wider screens show the full value (the web's `ConciseValue`).
 class DashConciseValue extends StatelessWidget {
   const DashConciseValue({
     required this.full,
@@ -613,9 +619,9 @@ class DashConciseValue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
-    final phone = DashBreakpoints.isPhone(context);
+    final mobile = MediaQuery.sizeOf(context).width < DashBreakpoints.md;
     final base = style ?? DefaultTextStyle.of(context).style;
-    if ((!phone && !forceCompact) || compact == null) {
+    if ((!mobile && !forceCompact) || compact == null) {
       return Text(full, style: base);
     }
     return DashPopover(

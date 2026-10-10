@@ -6,12 +6,13 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/report_shared.dart' show ReportAsync, exportLogoUrl;
+import '../shared/report_shared.dart' show ReportAsync;
 import 'lis_providers.dart';
 import 'lis_support.dart';
 
@@ -42,7 +43,7 @@ class _InventoryLowStockTabState extends ConsumerState<InventoryLowStockTab> {
     const text = ExcelColumnType.text, number = ExcelColumnType.number;
     return ExcelConfig(
       filename: 'Madar-$title',
-      logoUrl: exportLogoUrl(ref),
+      logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
       sheets: [
         ExcelSheet<LowStockRow>(
           name: title,

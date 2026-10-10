@@ -10,12 +10,13 @@ library;
 import 'package:dashboard_api/dashboard_api.dart'
     show AuditReport, DeductionOverrideEvent;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/report_shared.dart' show ReportAsync, exportLogoUrl;
+import '../shared/report_shared.dart' show ReportAsync;
 import 'audit_cards.dart';
 import 'legal_export.dart';
 import 'legal_providers.dart';
@@ -54,7 +55,7 @@ class _LegalAuditTabState extends ConsumerState<LegalAuditTab> {
     final title = t(widget.tab.labelKey);
     return ExcelConfig(
       filename: 'Madar-$title',
-      logoUrl: exportLogoUrl(ref),
+      logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
       sheets: auditSheets(
         t: t,
         report: d,

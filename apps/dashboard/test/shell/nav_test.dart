@@ -4,6 +4,7 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,15 +24,15 @@ final Set<String> allLeaves = {for (final l in navLeaves()) l.to};
 
 void main() {
   group('navActive (useIsActive)', () {
-    test('home only on home', () {
+    test('ADM-APP-036: home only on home', () {
       expect(navActive('/', '/'), isTrue);
       expect(navActive('/', '/orders'), isFalse);
     });
-    test('a page below a leaf keeps it active', () {
+    test('ADM-APP-036: a page below a leaf keeps it active', () {
       expect(navActive('/menu/items', '/menu/items/abc'), isTrue);
       expect(navActive('/orders', '/orders/'), isTrue);
     });
-    test('the most specific leaf wins', () {
+    test('ADM-APP-036: the most specific leaf wins', () {
       expect(navActive('/reports/staff', '/reports/staff-pool'), isFalse);
       expect(navActive('/reports/staff-pool', '/reports/staff-pool'), isTrue);
       expect(navActive('/settings', '/settings/loyalty'), isFalse);
@@ -41,9 +42,8 @@ void main() {
   });
 
   group('who sees what', () {
-    testWidgets('owner: everything but platform-only and a finished set-up', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-031 ADM-APP-032: owner: everything but '
+        'platform-only and a finished set-up', (tester) async {
       final h = await pumpShell(tester);
       expect(visibleLeaves(h), allLeaves.difference({'/orgs', '/staff/setup'}));
       expect(navText('Organizations'), findsNothing);
@@ -51,14 +51,15 @@ void main() {
     });
 
     testWidgets(
-      'platform admin with no shop picked: every module, Organizations',
+      'ADM-APP-032: platform admin with no shop picked: every module, '
+      'Organizations',
       (tester) async {
         final h = await pumpShell(tester, persona: Persona.platform);
         expect(visibleLeaves(h), allLeaves.difference({'/staff/setup'}));
       },
     );
 
-    testWidgets('limited: only the pages its capabilities open', (
+    testWidgets('ADM-APP-031: limited: only the pages its capabilities open', (
       tester,
     ) async {
       final h = await pumpShell(tester, persona: Persona.limited);
@@ -82,9 +83,8 @@ void main() {
       expect(text('Floor'), findsNothing);
     });
 
-    testWidgets('manager: the registry defaults, nothing platform-only', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-031: manager: the registry defaults, nothing '
+        'platform-only', (tester) async {
       final h = await pumpShell(tester, persona: Persona.manager);
       final v = visibleLeaves(h);
       expect(v, containsAll(['/', '/orders', '/floor', '/tills']));
@@ -97,7 +97,9 @@ void main() {
       }
     });
 
-    testWidgets('Dawam-only org: no POS page, the team pages', (tester) async {
+    testWidgets('ADM-APP-083: Dawam-only org: no POS page, the team pages', (
+      tester,
+    ) async {
       final h = await pumpShell(tester, persona: Persona.dawamOnly);
       final v = visibleLeaves(h);
       for (final l in navLeaves()) {
@@ -111,9 +113,8 @@ void main() {
       expect(text('Orders'), findsNothing);
     });
 
-    testWidgets('modules not known yet: nothing module-tagged shows', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-083: modules not known yet: nothing module-tagged '
+        'shows', (tester) async {
       final db = MockDb.seeded();
       final server = MockServer(clock: db.clock);
       registerAppMocks(server, db);
@@ -135,7 +136,8 @@ void main() {
     });
 
     testWidgets(
-      'an unfinished Dawam set-up shows Set-up to whoever sets rules',
+      'ADM-APP-031: an unfinished Dawam set-up shows Set-up to whoever sets '
+      'rules',
       (tester) async {
         final db = MockDb.seeded();
         final server = MockServer(clock: db.clock);
@@ -158,9 +160,8 @@ void main() {
   });
 
   group('the sidebar', () {
-    testWidgets('a group past four folds the rest behind "N more"', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-034: a group past four folds the rest behind "N '
+        'more"', (tester) async {
       final h = await pumpShell(tester);
       expect(text('Customers'), findsNothing);
       expect(text('1 more'), findsOneWidget);
@@ -171,16 +172,14 @@ void main() {
       expect(text('Customers'), findsNothing);
     });
 
-    testWidgets('the page in a folded entry keeps its group open', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-034: the page in a folded entry keeps its group '
+        'open', (tester) async {
       await pumpShell(tester, path: '/customers');
       expect(text('Customers'), findsWidgets);
     });
 
-    testWidgets('a parent opens to its children; open at first on its page', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-035: a parent opens to its children; open at '
+        'first on its page', (tester) async {
       var h = await pumpShell(tester);
       expect(text('Choice groups'), findsNothing);
       await h.tapText('Menu');
@@ -191,15 +190,14 @@ void main() {
       expect(h.location.path, '/menu/items');
     });
 
-    testWidgets('a leaf navigates', (tester) async {
+    testWidgets('ADM-APP-037: a leaf navigates', (tester) async {
       final h = await pumpShell(tester);
       await h.tapText('Tills');
       expect(h.location.path, '/tills');
     });
 
-    testWidgets('the rail: folds to icons, remembered, a parent unfolds it', (
-      tester,
-    ) async {
+    testWidgets('ADM-APP-027 ADM-APP-038: the rail: folds to icons, '
+        'remembered, a parent unfolds it', (tester) async {
       final h = await pumpShell(tester);
       await h.tap(labelled('Toggle Sidebar'));
       expect(h.prefs.values[sidebarPrefKey], 'true');
@@ -211,13 +209,17 @@ void main() {
         ),
         findsOneWidget,
       );
+      // On the rail the fold's row says what it does (its words are hidden).
+      expect(find.byTooltip('Show more'), findsWidgets);
       await h.shot('frame/rail');
       await h.tap(labelled('Menu'));
       expect(h.container.read(sidebarCollapsedProvider), isFalse);
       expect(text('Choice groups'), findsOneWidget);
     });
 
-    testWidgets('a deep link brings its row into sight', (tester) async {
+    testWidgets('ADM-APP-036: a deep link brings its row into sight', (
+      tester,
+    ) async {
       ScrollPosition sidebarScroll() => tester
           .state<ScrollableState>(
             find
@@ -236,7 +238,9 @@ void main() {
       expect(row.top, greaterThanOrEqualTo(box.top));
     });
 
-    testWidgets('a row in view stays put when it is opened', (tester) async {
+    testWidgets('ADM-APP-037: a row in view stays put when it is opened', (
+      tester,
+    ) async {
       ScrollPosition sidebarScroll() => tester
           .state<ScrollableState>(
             find
@@ -264,10 +268,67 @@ void main() {
       expect(sidebarScroll().pixels, 0);
     });
 
-    testWidgets('the rail is restored from preferences', (tester) async {
+    testWidgets('ADM-APP-027: the rail is restored from preferences', (
+      tester,
+    ) async {
       final h = await pumpShell(tester, prefs: {sidebarPrefKey: 'true'});
       expect(h.container.read(sidebarCollapsedProvider), isTrue);
       expect(navText('Orders'), findsNothing);
+    });
+
+    testWidgets('ADM-APP-027: Ctrl/Cmd+B and the thin edge fold and unfold '
+        'it, remembered', (tester) async {
+      final h = await pumpShell(tester);
+      Future<void> ctrlB() async {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyB);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await h.settle();
+      }
+
+      await ctrlB();
+      expect(h.container.read(sidebarCollapsedProvider), isTrue);
+      expect(h.prefs.values[sidebarPrefKey], 'true');
+      await ctrlB();
+      expect(h.container.read(sidebarCollapsedProvider), isFalse);
+      expect(h.prefs.values[sidebarPrefKey], 'false');
+      // The edge along the sidebar (the header's button comes first).
+      await h.tap(labelled('Toggle Sidebar').last);
+      expect(h.container.read(sidebarCollapsedProvider), isTrue);
+      await h.tap(labelled('Toggle Sidebar').last);
+      expect(h.container.read(sidebarCollapsedProvider), isFalse);
+    });
+
+    testWidgets('ADM-APP-033: a shop on its own branding wears its logo', (
+      tester,
+    ) async {
+      const logo = 'https://cdn.madar.test/sabah-logo.png';
+      final h = await pumpShell(tester);
+      h.db!['orgs'].update(SeedIds.sabahOrg, {'logo_url': logo});
+      h.container.invalidate(publicBrandProvider);
+      await h.settle();
+      final image = find.descendant(
+        of: find.byType(DashSidebar),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Image &&
+              w.image is NetworkImage &&
+              (w.image as NetworkImage).url == logo,
+        ),
+      );
+      expect(image, findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(DashSidebar),
+          matching: labelled('Sabah Coffee'),
+        ),
+        findsOneWidget,
+      );
+      // Off the branding tier: Madar's own mark.
+      h.db!['orgs'].update(SeedIds.sabahOrg, {'custom_branding': false});
+      h.container.invalidate(publicBrandProvider);
+      await h.settle();
+      expect(image, findsNothing);
     });
   });
 }

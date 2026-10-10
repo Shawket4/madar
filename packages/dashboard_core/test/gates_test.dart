@@ -1,3 +1,4 @@
+import 'package:dashboard_api/dashboard_api.dart' show ApiException;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -281,5 +282,19 @@ void main() {
       expect(k.selectedCount(1), t('grid.selectedCount', count: 1));
       expect(k.page(2, 9), t('common.page', args: {'current': 2, 'total': 9}));
     });
+  });
+
+  test('stale refusals: the web\'s whole STALE_CODES, coded ones only', () {
+    ApiException refusal(String? code) =>
+        ApiException(status: 409, message: 'x', code: code);
+    for (final code in ['ALREADY_DECIDED', 'PAYSLIP_ALREADY_PAID',
+        'TRANSFER_CHANGED', 'TRANSFER_STEP_NOT_OPEN']) {
+      expect(isStaleRefusal(refusal(code)), isTrue, reason: code);
+    }
+    expect(staleRefusalCodes, hasLength(17));
+    expect(isStaleRefusal(refusal('INSUFFICIENT_STOCK')), isFalse);
+    expect(isStaleRefusal(refusal(null)), isFalse);
+    expect(isStaleRefusal(StateError('ALREADY_DECIDED')), isFalse);
+    expect(isStaleRefusal(null), isFalse);
   });
 }

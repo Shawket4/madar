@@ -8,6 +8,7 @@
 /// core's xlsx writer in real mode, a recorder in tests).
 library;
 
+import 'package:dashboard_api/dashboard_api.dart' show PublicBrand;
 import 'package:dashboard_core/src/format/format.dart';
 import 'package:dashboard_core/src/format/icu_number.dart';
 import 'package:dashboard_core/src/format/tz.dart';
@@ -109,6 +110,14 @@ class ExcelConfig {
   /// The banner logo; null = Madar's.
   final String? logoUrl;
   final List<ExcelSheet<Object?>> sheets;
+}
+
+/// The logo an export wears (`useExportLogo` over `use-brand.ts`): the shop's
+/// own only on the branding tier, trimmed, and a blank one none; null means
+/// Madar's. Pass `ref.read(publicBrandProvider).value`.
+String? exportLogoUrl(PublicBrand? brand) {
+  final logo = brand?.logoUrl?.trim() ?? '';
+  return brand?.customBranding == true && logo.isNotEmpty ? logo : null;
 }
 
 /// The workbook palette (`PALETTE`, ARGB).

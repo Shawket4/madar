@@ -185,6 +185,8 @@ try {
       ["nope", "2026-09-12T16:05:00Z"],
       ["2026-09-12T16:00:00Z", "2026-09-12T15:00:00Z"],
     ], (a, b) => m.fmtDuration(a, b));
+    // Every month's short name, both languages (en-GB's September is "Sept").
+    add("fmtDate", lang, "Africa/Cairo", [...Array(12).keys()].map((mo) => [new Date(Date.UTC(2026, mo, 15, 10)).toISOString()]), (v) => m.fmtDate(v));
     add("fmtHour", lang, "Africa/Cairo", [...Array(24).keys(), 24, -1, 25].map((h) => [h]), (h) => m.fmtHour(h));
     add("fmtWireTime", lang, "Africa/Cairo", [["00:05"], ["18:02"], ["9:30"], ["12:00"], ["23:59:59"], ["24:00"], ["12:60"], [""], ["nope"], ["07:00 extra"]], (s) => m.fmtWireTime(s));
   }

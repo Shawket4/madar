@@ -1,21 +1,11 @@
 /// The spreadsheet export every inventory page shares (INV-ALL-012/013):
-/// the logo the workbook wears and `exportToExcel` with the web's toasts.
+/// `exportToExcel` with the web's toasts.
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-/// The logo a generated spreadsheet wears (`useExportLogo`): the shop's own
-/// on the branding tier, else null (Madar's).
-String? inventoryExportLogo(WidgetRef ref) {
-  final brand = ref.read(publicBrandProvider).value;
-  final logo = brand?.logoUrl?.trim();
-  if (brand == null || !brand.customBranding) return null;
-  return logo == null || logo.isEmpty ? null : logo;
-}
 
 /// `exportToExcel(config)` with the web's toasts (INV-ALL-013): nothing →
 /// "Nothing to export"; else "Gathering data…" that turns into "Exported N

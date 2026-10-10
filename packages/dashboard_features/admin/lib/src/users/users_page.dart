@@ -23,7 +23,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../branches/branches_data.dart' show adminBranchesProvider;
 import '../orgs/orgs_providers.dart' show orgsListProvider;
 import '../shared/access_tabs.dart';
-import '../shared/export_logo.dart';
 import '../shared/org_errors.dart' show orgErrorWords;
 import '../shared/pick_org_state.dart';
 import '../shared/row_action.dart';

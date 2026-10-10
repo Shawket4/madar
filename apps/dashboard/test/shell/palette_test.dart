@@ -132,22 +132,21 @@ void main() {
     final h = await pumpShell(tester);
     await ctrlK(tester);
     await h.settle();
-    // ignore: avoid_print
-    print('DBG0 ${FocusManager.instance.primaryFocus?.context?.widget.runtimeType} ${FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<DashCommandPalette>() != null} ${FocusManager.instance.primaryFocus?.context?.findAncestorWidgetOfExactType<EditableText>() != null}');
     for (var i = 0; i < 20; i++) {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
       await h.settle(rounds: 1);
     }
     final palette = find.byType(DashCommandPalette);
-    final list = find.descendant(of: palette, matching: find.byType(ListView));
+    final list = find.descendant(
+      of: palette,
+      matching: find.byType(SingleChildScrollView),
+    );
     final row = find.descendant(
       of: palette,
       matching: find.byWidgetPredicate(
         (w) => w is DashPressable && w.selected == true,
       ),
     );
-    // ignore: avoid_print
-    print('DBG ${find.descendant(of: palette, matching: find.byType(DashPressable)).evaluate().length} ${tester.state<ScrollableState>(find.descendant(of: list, matching: find.byType(Scrollable)).first).position.pixels} focus=${FocusManager.instance.primaryFocus}');
     final view = tester.getRect(list);
     final r = tester.getRect(row);
     expect(r.top, greaterThanOrEqualTo(view.top - 0.5));

@@ -7,6 +7,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show BundlesRow;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
@@ -295,7 +296,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
       final config = ExcelConfig(
         filename:
             'Madar-Bundles-${_combos ? 'Combos' : 'Deals'}-${query.from}_${query.to}',
-        logoUrl: exportLogoUrl(ref),
+        logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
         sheets: [
           ExcelSheet<BundlesRow>(
             name: _combos

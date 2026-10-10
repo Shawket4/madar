@@ -24,7 +24,6 @@ import '../shared/attendance_errors.dart';
 import '../shared/refresh_button.dart';
 import '../shared/refresh_toast.dart';
 import '../shared/staff_query.dart';
-import '../shared/export_logo.dart';
 import '../shared/team_format.dart';
 import '../shared/team_util.dart';
 import '../shared/week.dart' show addDays;
@@ -139,7 +138,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
           from: key.from,
           to: key.to,
           status: key.status,
-          logoUrl: teamExportLogo(ref.read(publicBrandProvider).value),
+          logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
         ),
       );
       toast.update(

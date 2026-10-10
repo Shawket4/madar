@@ -18,6 +18,25 @@ String errorMessage(Object? error, Translator t) {
   return t('errors.unknown', defaultValue: 'An unexpected error occurred.');
 }
 
+/// Refusals that mean the screen is stale: someone else decided, claimed or
+/// handled it first (`STALE_CODES`, `data/api/errors.ts`). The page toasts
+/// the words AND refreshes so the list says what is true.
+const Set<String> staleRefusalCodes = {
+  'REQUEST_ALREADY_DECIDED', 'ALREADY_DECIDED', 'FLAG_HANDLED', //
+  'ALREADY_CLAIMED', 'CLAIM_ALREADY_DECIDED', 'NO_PENDING_CLAIM',
+  'SWAP_STALE', 'SUGGESTION_STALE',
+  // Nothing waiting any more: decided, withdrawn, filled or cancelled.
+  'NO_CLAIM_WAITING', 'NO_SWAP_WAITING', 'NO_SWAP_TO_CANCEL',
+  'OPEN_SHIFT_CLOSED', 'NO_COVER_WAITING', 'NO_OVERTIME_WAITING',
+  'PAYSLIP_ALREADY_PAID',
+  // A stock transfer moved on under this person (another side acted first).
+  'TRANSFER_CHANGED', 'TRANSFER_STEP_NOT_OPEN',
+};
+
+/// Whether [error] is a stale refusal (`isStaleRefusal`).
+bool isStaleRefusal(Object? error) =>
+    error is ApiException && staleRefusalCodes.contains(error.code);
+
 /// A page somebody reached that is not theirs to use (`<Restricted>`): the
 /// page's title and a calm "not available on this account". The backend
 /// refuses these routes regardless; this exists so nobody is shown a door

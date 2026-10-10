@@ -385,6 +385,15 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
     widget.onSelectionChanged?.call(next);
   }
 
+  bool _sameRows(List<T> a, List<T> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (widget.rowKey(a[i]) != widget.rowKey(b[i])) return false;
+    }
+    return true;
+  }
+
   void _goPage(int p) {
     if (_manualPaging) {
       widget.onPageChanged!(p);
@@ -396,6 +405,9 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
   @override
   void didUpdateWidget(DashDataTable<T> old) {
     super.didUpdateWidget(old);
+    // The web's autoResetPageIndex: other rows (a filter, a search) start
+    // on page 1; the same rows refreshed keep the page.
+    if (_page != 0 && !_sameRows(old.rows, widget.rows)) _page = 0;
     // Drop selected keys whose rows are gone.
     if (widget.selectedKeys == null && _ownSelection.isNotEmpty) {
       final keys = {for (final r in widget.rows) widget.rowKey(r)};

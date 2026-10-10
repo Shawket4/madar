@@ -268,7 +268,22 @@ void main() {
       expect(warnings, hasLength(1));
     });
 
-    test('language: stored, then the device, switching remembers it', () async {
+    test('ADM-APP-123: the device\'s languages in order, regions stripped, '
+        'first of English and Arabic', () {
+      expect(
+        firstSupportedLanguage(const [Locale('en', 'GB'), Locale('ar')]),
+        'en',
+      );
+      expect(
+        firstSupportedLanguage(const [Locale('ar', 'EG'), Locale('en')]),
+        'ar',
+      );
+      expect(firstSupportedLanguage(const [Locale('fr'), Locale('ar')]), 'ar');
+      expect(firstSupportedLanguage(const [Locale('fr')]), 'en');
+    });
+
+    test('ADM-APP-123: language: stored, then the device, switching remembers '
+        'it', () async {
       final prefs = MemoryPreferences({languagePrefKey: 'ar'});
       final sinks = <String>[];
       final c = ProviderContainer(

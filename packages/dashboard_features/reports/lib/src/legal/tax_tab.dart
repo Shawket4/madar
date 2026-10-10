@@ -5,12 +5,13 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show TaxReport;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/report_shared.dart' show ReportAsync, exportLogoUrl;
+import '../shared/report_shared.dart' show ReportAsync;
 import 'legal_export.dart';
 import 'legal_providers.dart';
 import 'legal_sheets.dart';
@@ -98,7 +99,7 @@ class _LegalTaxTabState extends ConsumerState<LegalTaxTab> {
     );
     return ExcelConfig(
       filename: t('reports.legal.tabs.tax'),
-      logoUrl: exportLogoUrl(ref),
+      logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
       sheets: [
         taxSheet(t, note, [
           for (final k in _kpis(t, d, false))

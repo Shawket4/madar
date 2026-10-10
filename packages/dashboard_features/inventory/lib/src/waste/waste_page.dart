@@ -8,6 +8,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show StockMovement;
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -80,7 +81,7 @@ class _WastePageState extends ConsumerState<WastePage> {
     );
     return ExcelConfig(
       filename: 'Madar-Waste',
-      logoUrl: inventoryExportLogo(ref),
+      logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
       sheets: [
         ExcelSheet<Object?>(
           name: t('inventory.waste.title'),

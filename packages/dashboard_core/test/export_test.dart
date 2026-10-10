@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dashboard_api/dashboard_api.dart' show PublicBrand;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/mock.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -295,5 +296,27 @@ void main() {
       );
       expect((out as ExportDone).savedTo, isNull);
     });
+  });
+
+  test('export logo: the own brand only, trimmed, blank is none '
+      '(use-brand.ts, use-export-logo.ts)', () {
+    PublicBrand brand({required bool own, String? logo}) => PublicBrand(
+      accentColor: '#000000',
+      backgroundColor: '#ffffff',
+      customBranding: own,
+      foregroundColor: '#000000',
+      logoIsMark: false,
+      logoUrl: logo,
+      name: 'Sabah',
+      orgId: 'org',
+    );
+    expect(exportLogoUrl(null), isNull); // null = Madar's logo
+    expect(
+      exportLogoUrl(brand(own: true, logo: ' https://x/l.png ')),
+      'https://x/l.png',
+    );
+    expect(exportLogoUrl(brand(own: true, logo: '   ')), isNull);
+    expect(exportLogoUrl(brand(own: true)), isNull);
+    expect(exportLogoUrl(brand(own: false, logo: 'https://x/l.png')), isNull);
   });
 }

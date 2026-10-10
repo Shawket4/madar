@@ -10,6 +10,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +29,7 @@ Future<void> finExcel(
 }) async {
   final t = ref.read(tProvider);
   final exporter = ref.read(exporterProvider);
-  final logo = exportLogoUrl(ref);
+  final logo = exportLogoUrl(ref.read(publicBrandProvider).value);
   try {
     final s = await sheets();
     if (!context.mounted) return;

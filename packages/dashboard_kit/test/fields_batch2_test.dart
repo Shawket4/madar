@@ -549,6 +549,40 @@ void main() {
     });
   });
 
+  testWidgets('16 in an open popover, the first Esc closes the popover', (
+    tester,
+  ) async {
+    final got = <String>[];
+    await pumpDashApp(
+      tester,
+      _host(
+        Align(
+          alignment: Alignment.topLeft,
+          child: DashPopover(
+            anchor: (context, c) =>
+                DashButton(label: 'Filter', onPressed: c.toggle),
+            content: (context, c) => Padding(
+              padding: const EdgeInsets.all(8),
+              child: DashSearchInput(
+                value: '',
+                placeholder: 'Search items',
+                onChanged: got.add,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Filter'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'latte');
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(DashSearchInput), findsNothing, reason: 'closed');
+    expect(got.last, 'latte', reason: 'the query is kept');
+  });
+
   testWidgets('17 a forced-LTR placeholder reads LTR in Arabic', (
     tester,
   ) async {
