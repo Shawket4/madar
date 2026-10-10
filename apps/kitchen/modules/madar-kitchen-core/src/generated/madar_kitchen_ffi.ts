@@ -860,8 +860,9 @@ export interface KitchenCoreLike {
  */
     lanNotePeer(deviceId: string, branchId: string, host: string, port: number, role: string, stationId: string | undefined, deviceCode: string | undefined): boolean;
 /**
- * Start the relay for the signed-in branch. Idempotent; needs a session
- * and the branch's LAN key, which an online sign-in caches.
+ * Start the relay for the signed-in branch. Idempotent. The LAN key comes
+ * only to a registered device, so the first start registers this screen
+ * (online) and fetches it; the host's retry covers a start made offline.
  */
     lanStart(asyncOpts_?: { signal: AbortSignal }) /*throws*/: Promise<void>;
     lanStatus(): LanStatus;
@@ -1049,8 +1050,9 @@ export class KitchenCore extends UniffiAbstractObject implements KitchenCoreLike
     }
     
 /**
- * Start the relay for the signed-in branch. Idempotent; needs a session
- * and the branch's LAN key, which an online sign-in caches.
+ * Start the relay for the signed-in branch. Idempotent. The LAN key comes
+ * only to a registered device, so the first start registers this screen
+ * (online) and fetches it; the host's retry covers a start made offline.
  */
     async lanStart(asyncOpts_?: { signal: AbortSignal }): Promise<void> /*throws*/ {
     const __stack = uniffiIsDebug ? new Error().stack : undefined;
@@ -1560,7 +1562,7 @@ function uniffiEnsureInitialized() {
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer() !== 14297) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_note_peer");
     }
-    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start() !== 34820) {
+    if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start() !== 37498) {
         throw new UniffiInternalError.ApiChecksumMismatch("uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_start");
     }
     if (nativeModule().ubrn_uniffi_madar_kitchen_ffi_checksum_method_kitchencore_lan_status() !== 27207) {
