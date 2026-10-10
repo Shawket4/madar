@@ -699,7 +699,6 @@ class _RecipeBuilderState extends ConsumerState<RecipeBuilder> {
           ? r.ingredientName
           : t('recipes.ingredient'),
       semanticLabel: t('recipes.ingredient'),
-      sheetTitle: t('recipes.ingredient'),
       searchPlaceholder: t('common.search'),
       emptyText: t('common.noResults'),
       onChanged: (id) {

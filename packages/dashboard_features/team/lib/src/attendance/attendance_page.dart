@@ -624,7 +624,6 @@ class _Filters extends ConsumerWidget {
                 children: [
                   DashSelect<String>(
                     semanticLabel: t('staff.employee'),
-                    sheetTitle: t('staff.employee'),
                     width: AttendanceMetrics.picker,
                     expand: false,
                     searchable: true,

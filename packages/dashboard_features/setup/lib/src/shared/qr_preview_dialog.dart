@@ -28,7 +28,6 @@ Future<void> showQrPreview(
   context,
   width: QrPreviewDialog.width,
   // A small card on every screen, as on the web (never edge to edge).
-  phoneFullScreen: false,
   builder: (_) => QrPreviewDialog(qr: qr, title: title),
 );
 

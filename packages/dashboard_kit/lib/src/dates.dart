@@ -354,7 +354,6 @@ class _DashDateFieldState extends State<DashDateField> {
                   DashSelect<int>(
                     expand: false,
                     semanticLabel: widget.yearLabel,
-                    sheetTitle: widget.yearLabel,
                     value: _month.year,
                     options: [
                       for (
@@ -451,30 +450,17 @@ class _DashDateFieldState extends State<DashDateField> {
     );
     void done(DateTime? d) =>
         d == null ? widget.onCleared?.call() : widget.onChanged(d);
-    final phone = DashBreakpoints.isPhone(context);
-    final field = phone
-        ? trigger(
-            () => showDashPickerSheet<void>(
-              context,
-              title: widget.semanticLabel ?? t.pickDate,
-              builder: (sheet) => _panel(sheet, (d) {
-                Navigator.of(sheet).pop();
-                done(d);
-              }),
-            ),
-          )
-        : DashPopover(
-            // Wider with Clear, so the footer keeps the day whole.
-            width:
-                DashMetrics.popover +
-                Space.xxl * (widget.onCleared == null ? 1 : 2),
-            maxHeight: 440,
-            anchor: (context, ctl) => trigger(ctl.toggle),
-            content: (context, ctl) => _panel(context, (d) {
-              ctl.close();
-              done(d);
-            }),
-          );
+    final field = DashPopover(
+      // Wider with Clear, so the footer keeps the day whole.
+      width:
+          DashMetrics.popover + Space.xxl * (widget.onCleared == null ? 1 : 2),
+      maxHeight: 440,
+      anchor: (context, ctl) => trigger(ctl.toggle),
+      content: (context, ctl) => _panel(context, (d) {
+        ctl.close();
+        done(d);
+      }),
+    );
     if (!pastSelected) return field;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -527,6 +513,7 @@ class DashDateRangePicker extends StatefulWidget {
     this.to,
     this.today,
     this.align = DashPopoverAlign.end,
+    this.expand = false,
     super.key,
   });
 
@@ -540,6 +527,9 @@ class DashDateRangePicker extends StatefulWidget {
   final void Function(DateTime from, DateTime to) onApplyCustom;
   final DateTime? today;
   final DashPopoverAlign align;
+
+  /// Span the width it is given (the phone filters card).
+  final bool expand;
 
   @override
   State<DashDateRangePicker> createState() => _DashDateRangePickerState();
@@ -701,25 +691,16 @@ class _DashDateRangePickerState extends State<DashDateRangePicker> {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.dashStrings;
     Widget trigger(VoidCallback onTap) => DashButton(
       label: _label(context),
       icon: 'calendar',
       variant: DashButtonVariant.outline,
+      expand: widget.expand,
       onPressed: () {
         _seed();
         onTap();
       },
     );
-    if (DashBreakpoints.isPhone(context)) {
-      return trigger(
-        () => showDashPickerSheet<void>(
-          context,
-          title: t.custom,
-          builder: (sheet) => _panel(sheet, () => Navigator.of(sheet).pop()),
-        ),
-      );
-    }
     return DashPopover(
       width: DashMetrics.popover + Space.xxl,
       maxHeight: 640,

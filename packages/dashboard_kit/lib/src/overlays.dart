@@ -87,6 +87,10 @@ class DashSurface extends StatelessWidget {
     final mode = DashSurfaceScope.maybeOf(context) ?? DashSurfaceMode.dialog;
     final close = onClose ?? () => Navigator.of(context).maybePop();
     final full = mode == DashSurfaceMode.fullScreen;
+    // A dialog on a phone reads as the web's there: the title centred and
+    // the buttons stacked full width, the main one on top.
+    final phoneDialog =
+        mode == DashSurfaceMode.dialog && DashBreakpoints.isPhone(context);
     final pad = mode == DashSurfaceMode.dialog
         ? Space.xl
         : (full ? Space.lg : Space.card);
@@ -95,6 +99,7 @@ class DashSurface extends StatelessWidget {
       header: true,
       child: Text(
         title,
+        textAlign: phoneDialog ? TextAlign.center : null,
         style:
             (mode == DashSurfaceMode.panel
                     ? DashType.sectionTitle
@@ -138,7 +143,9 @@ class DashSurface extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.only(top: full ? 0 : Space.xs),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: phoneDialog
+                    ? CrossAxisAlignment.center
+                    : CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 spacing: Space.xs,
                 children: [
@@ -146,6 +153,7 @@ class DashSurface extends StatelessWidget {
                   if (description != null)
                     Text(
                       description!,
+                      textAlign: phoneDialog ? TextAlign.center : null,
                       style: DashType.body.copyWith(color: c.textSecondary),
                     ),
                 ],
@@ -190,7 +198,7 @@ class DashSurface extends StatelessWidget {
             : BoxDecoration(
                 border: Border(top: BorderSide(color: c.hairline)),
               ),
-        child: full && !wrapActions
+        child: (full || phoneDialog) && !wrapActions
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: Space.sm,
@@ -240,13 +248,7 @@ abstract final class DashDialog {
     BuildContext context, {
     required WidgetBuilder builder,
     double width = DashMetrics.dialog,
-    bool phoneFullScreen = true,
-  }) => showDashDialog<T>(
-    context,
-    builder: builder,
-    width: width,
-    phoneFullScreen: phoneFullScreen,
-  );
+  }) => showDashDialog<T>(context, builder: builder, width: width);
 }
 
 /// The end-side panel by its name: `DashSidePanel.show(context, ...)`.
@@ -258,7 +260,7 @@ abstract final class DashSidePanel {
   }) => showDashSidePanel<T>(context, builder: builder, width: width);
 }
 
-/// The phone's full-screen form by its name: `DashSheet.show(context, ...)`.
+/// The form dialog by its name: `DashSheet.show(context, ...)`.
 abstract final class DashSheet {
   static Future<T?> show<T>(
     BuildContext context, {
@@ -267,18 +269,14 @@ abstract final class DashSheet {
 }
 
 /// Shows [builder]'s [DashSurface] as a centred dialog (the web's `Dialog`),
-/// or — below 760 wide, unless [phoneFullScreen] is off — as a full-screen
-/// page.
+/// on a phone too: a card 16 px in from the screen's edges, lifted over the
+/// keyboard, as the web shows it there.
 Future<T?> showDashDialog<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   double width = DashMetrics.dialog,
-  bool phoneFullScreen = true,
   bool barrierDismissible = true,
 }) {
-  if (phoneFullScreen && DashBreakpoints.isPhone(context)) {
-    return _pushFullScreen<T>(context, builder);
-  }
   final c = context.madarColors;
   return showGeneralDialog<T>(
     context: context,
@@ -290,7 +288,9 @@ Future<T?> showDashDialog<T>(
     pageBuilder: (ctx, a, b) => SafeArea(
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(Space.lg),
+          padding: const EdgeInsets.all(
+            Space.lg,
+          ).add(EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom)),
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: width),
             child: Material(
@@ -327,17 +327,14 @@ Future<T?> showDashDialog<T>(
 }
 
 /// Shows [builder]'s [DashSurface] as a panel on the end side (the web's
-/// `Sheet side="right"` — record detail, edit forms), or full screen on a
-/// phone.
+/// `Sheet side="right"` — record detail, edit forms), on a phone too, as the
+/// web slides it in from the side there.
 Future<T?> showDashSidePanel<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   double width = DashMetrics.sidePanel,
   bool barrierDismissible = true,
 }) {
-  if (DashBreakpoints.isPhone(context)) {
-    return _pushFullScreen<T>(context, builder);
-  }
   final c = context.madarColors;
   return showGeneralDialog<T>(
     context: context,
@@ -386,43 +383,12 @@ Future<T?> showDashSidePanel<T>(
   );
 }
 
-/// A phone's full-screen form (and, on a wide screen, the same form as a
-/// dialog).
+/// A form as a centred dialog (the phone's too, as on the web).
 Future<T?> showDashSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   double width = DashMetrics.dialog,
 }) => showDashDialog<T>(context, builder: builder, width: width);
-
-Future<T?> _pushFullScreen<T>(BuildContext context, WidgetBuilder builder) {
-  return Navigator.of(context, rootNavigator: true).push<T>(
-    PageRouteBuilder<T>(
-      fullscreenDialog: true,
-      transitionDuration: DashMotion.of(context, DashMotion.slow),
-      reverseTransitionDuration: DashMotion.of(context, DashMotion.base),
-      pageBuilder: (ctx, a, b) => Material(
-        color: ctx.madarColors.bg,
-        child: SafeArea(
-          bottom: false,
-          child: DashSurfaceScope(
-            mode: DashSurfaceMode.fullScreen,
-            child: Builder(builder: builder),
-          ),
-        ),
-      ),
-      transitionsBuilder: (ctx, anim, _, child) {
-        final curved = CurvedAnimation(parent: anim, curve: DashMotion.ease);
-        return SlideTransition(
-          position: Tween(
-            begin: const Offset(0, 1),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        );
-      },
-    ),
-  );
-}
 
 /// The web's `useConfirm()`: name what is lost in [title] ("Delete the
 /// Zamalek branch?"), the consequence in [description]. Resolves true on
@@ -446,7 +412,9 @@ Future<bool> showDashConfirm(
     pageBuilder: (ctx, a, b) => SafeArea(
       child: Center(
         child: Padding(
-          padding: const EdgeInsets.all(Space.lg),
+          padding: const EdgeInsets.all(
+            Space.lg,
+          ).add(EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom)),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: DashMetrics.dialog),
             child: Material(

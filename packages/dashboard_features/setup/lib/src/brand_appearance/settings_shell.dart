@@ -104,7 +104,6 @@ class SettingsShell extends ConsumerWidget {
                     value: current?.to,
                     placeholder: t('nav.settings'),
                     semanticLabel: t('settings.pickPane'),
-                    sheetTitle: t('settings.pickPane'),
                     width: viewport >= DashBreakpoints.sm ? pickerWidth : null,
                     onChanged: (to) => context.go(to),
                     onOptionIntent: ref.prefetchRoute,
