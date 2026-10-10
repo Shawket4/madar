@@ -4,6 +4,7 @@ import 'package:dashboard_admin/src/mock/roles_mock.dart' show RolesSeed;
 import 'package:dashboard_admin/src/roles/role_dialog.dart';
 import 'package:dashboard_admin/src/roles/roles_data.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -276,14 +277,10 @@ void main() {
     );
   });
 
-  testWidgets('ADM-ROL-017 phone: the dialog is a full-screen sheet', (
-    tester,
-  ) async {
+  testWidgets('ADM-ROL-017 phone: the dialog is a centred card, its '
+      'buttons stacked', (tester) async {
     await _openNew(tester, size: DashSize.phone);
-    expect(
-      tester.getSize(surface).width,
-      tester.view.physicalSize.width / tester.view.devicePixelRatio,
-    );
+    expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
     expect(inSurface('New role'), findsOneWidget);
   });
 

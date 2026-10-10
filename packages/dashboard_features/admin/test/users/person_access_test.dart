@@ -4,6 +4,7 @@
 import 'package:dashboard_admin/src/mock/users_mock.dart';
 import 'package:dashboard_admin/src/users/person_access_sheet.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,9 +68,9 @@ void main() {
     expect(box.right, closeTo(1440, 1), reason: 'the end edge');
   });
 
-  testWidgets('ADM-USR-037 phone: full screen', (tester) async {
+  testWidgets('ADM-USR-037 phone: a panel from the end side', (tester) async {
     await _open(tester, size: DashSize.phone);
-    expect(tester.getRect(_sheet).width, 390);
+    expectPhonePanel(tester);
   });
 
   testWidgets('ADM-USR-038 reads the access at All branches and the org\'s '

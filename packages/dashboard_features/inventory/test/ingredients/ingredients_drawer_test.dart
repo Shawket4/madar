@@ -546,13 +546,9 @@ void main() {
     );
     await openDrawer(h, 'Oat Milk');
     expect(
-      tester
-          .widget<DashSurfaceScope>(
-            find.ancestor(of: drawer, matching: find.byType(DashSurfaceScope)),
-          )
-          .mode,
-      DashSurfaceMode.fullScreen,
+      find.ancestor(of: drawer, matching: find.byType(DashSurfaceScope)),
+      findsOneWidget,
     );
-    expect(tester.getSize(drawer).width, DashSize.phone.size.width);
+    expectPhonePanel(tester);
   });
 }

@@ -761,7 +761,8 @@ void main() {
   });
 
   testWidgets(
-    'SELL-ORD-035 phone: the sheet is full screen, close at the start',
+    'SELL-ORD-035 phone: the sheet slides in from the end side, close at '
+    'the end',
     (tester) async {
       final h = await _open(
         tester,
@@ -770,10 +771,7 @@ void main() {
         locale: 'ar',
       );
       expect(find.byType(OrderSheet), findsOneWidget);
-      expect(
-        tester.getSize(find.byType(OrderSheet)).width,
-        DashSize.phone.size.width,
-      );
+      expectPhonePanel(tester);
       await h.shot('orders/sheet');
     },
   );

@@ -513,10 +513,16 @@ void main() {
     await h.expectToast(h.refusalWords(denied));
   });
 
-  testWidgets('INV-TRF-025 phone: the dialog is full screen', (tester) async {
+  testWidgets('INV-TRF-025 phone: the dialog is a centred card', (
+    tester,
+  ) async {
     final h = await _open(tester, size: DashSize.phone);
     expect(dialog, findsOneWidget);
-    expect(tester.getSize(dialog).width, closeTo(DashSize.phone.size.width, 1));
+    expectPhoneDialog(
+      tester,
+      primary: tester.widget<DashButton>(byKey('transfer-send')).label,
+      secondary: h.t('common.cancel'),
+    );
     await h.tap(inDialog(byKey('transfer-cancel')));
     expect(dialog, findsNothing);
   });

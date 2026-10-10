@@ -442,7 +442,8 @@ void main() {
   });
 
   testWidgets(
-    'SELL-BKG-059 desktop: at most 672 wide; phone: full screen, one column',
+    'SELL-BKG-059 desktop: at most 672 wide; phone: a centred card, one '
+    'column',
     (tester) async {
       await _openNew(tester);
       expect(
@@ -455,12 +456,11 @@ void main() {
     },
   );
 
-  testWidgets('SELL-BKG-059 phone: one column, full screen', (tester) async {
+  testWidgets('SELL-BKG-059 phone: one column in a centred card', (
+    tester,
+  ) async {
     await _openNew(tester, size: DashSize.phone);
-    expect(
-      tester.getSize(find.byType(BookingDialog)).width,
-      DashSize.phone.size.width,
-    );
+    expectPhoneDialog(tester, primary: 'Confirm booking', secondary: 'Cancel');
     final name = tester.getTopLeft(_k('booking-name'));
     final phone = tester.getTopLeft(_k('booking-phone'));
     expect(phone.dy, greaterThan(name.dy));

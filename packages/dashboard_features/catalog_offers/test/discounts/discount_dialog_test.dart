@@ -3,6 +3,7 @@
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_catalog_offers/src/area_seed.dart';
 import 'package:dashboard_core/dashboard_core.dart';
+import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -377,21 +378,14 @@ void main() {
     expect(inTable(find.text('Staff Meal')), findsOneWidget);
   });
 
-  testWidgets('OFFR-DSC-038 phone: a full-screen sheet; the names stack, '
+  testWidgets('OFFR-DSC-038 phone: a centred card; the names stack, '
       'Type and Value stay side by side', (tester) async {
     final h = await pumpDiscounts(tester, path: _new, size: DashSize.phone);
     expect(
       find.ancestor(of: dialog, matching: find.byType(DashSurfaceScope)),
       findsOneWidget,
     );
-    expect(
-      tester
-          .widget<DashSurfaceScope>(
-            find.ancestor(of: dialog, matching: find.byType(DashSurfaceScope)),
-          )
-          .mode,
-      DashSurfaceMode.fullScreen,
-    );
+    expectPhoneDialog(tester, primary: 'Create', secondary: 'Cancel');
     final en = tester.getTopLeft(dialogField('Discount name'));
     final ar = tester.getTopLeft(dialogField('Discount name (ع)'));
     expect(ar.dy, greaterThan(en.dy), reason: 'stacked below 640');

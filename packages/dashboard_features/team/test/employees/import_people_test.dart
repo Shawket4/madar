@@ -308,13 +308,21 @@ void main() {
     await h.expectToast('0 of 1 added');
   });
 
-  testWidgets('TEAM-EMP-050/073 phone: the import full screen, rows as '
-      'cards', (tester) async {
+  testWidgets('TEAM-EMP-050/073 phone: the import in a centred card, rows '
+      'as cards', (tester) async {
     final h = await openImport(tester, size: DashSize.phone, locale: 'ar');
     await choose(h, csv(_sheet));
-    expect(
-      DashSurfaceScope.maybeOf(tester.element(find.byType(ImportPeopleDialog))),
-      DashSurfaceMode.fullScreen,
+    expect(find.byType(ImportPeopleDialog), findsOneWidget);
+    expectPhoneDialog(
+      tester,
+      primary: tester
+          .widget<DashButton>(
+            find.byWidgetPredicate(
+              (w) => w is DashButton && w.icon == 'upload',
+            ),
+          )
+          .label,
+      secondary: h.t('common.close'),
     );
     expect(
       find.descendant(of: rowOf(2), matching: find.byType(DashCard)),

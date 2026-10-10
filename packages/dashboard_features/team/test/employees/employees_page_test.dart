@@ -393,17 +393,15 @@ void main() {
   });
 
   testWidgets('TEAM-EMP-073 phone: each person a card titled by name and job '
-      'title, actions on the card; the profile full screen', (tester) async {
+      'title, actions on the card; the profile a centred card', (tester) async {
     final h = await pumpEmployees(tester, size: DashSize.phone);
     expect(inPage(find.byType(DashCard)), findsNWidgets(10));
     expect(row('Mariam Fathy'), findsOneWidget);
     expect(inPage(find.bySemanticsLabel('End employment')), findsNWidgets(10));
     expect(inPage(find.text('Columns')), findsNothing);
     await h.tap(row('Adham Reda'));
-    expect(
-      DashSurfaceScope.maybeOf(tester.element(find.byType(EmployeeDialog))),
-      DashSurfaceMode.fullScreen,
-    );
+    expect(find.byType(EmployeeDialog), findsOneWidget);
+    expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
   });
 
   // ── area-wide rows on this page ─────────────────────────────────────────

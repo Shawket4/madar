@@ -546,11 +546,14 @@ void main() {
       }
     });
 
-    testWidgets('INV-PUR-061 on a phone the dialog is full screen and the '
+    testWidgets('INV-PUR-061 on a phone the dialog is a centred card and the '
         'line keeps its three fields in a row', (tester) async {
       final h = await openNewPo(tester, size: DashSize.phone);
-      final screen = tester.getSize(find.byType(DashSurface).first);
-      expect(screen.width, closeTo(DashSize.phone.size.width, 1));
+      expectPhoneDialog(
+        tester,
+        primary: h.t('inventory.purchasing.order'),
+        secondary: h.t('common.cancel'),
+      );
       final unit = tester.getTopLeft(byKey('po-line-unit-0')).dy;
       expect(tester.getTopLeft(byKey('po-line-qty-0')).dy, unit);
       expect(tester.getTopLeft(byKey('po-line-total-0')).dy, unit);

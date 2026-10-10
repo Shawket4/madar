@@ -602,17 +602,18 @@ void main() {
     expect(n(branchesRoute), greaterThan(0));
   });
 
-  testWidgets('INV-ING-051 phone: the dialog is a full-screen sheet with its '
+  testWidgets('INV-ING-051 phone: the dialog is a centred card with its '
       'field pairs side by side', (tester) async {
     final h = await pumpIngredients(tester, size: DashSize.phone, locale: 'ar');
     await openCreate(h);
     expect(
-      tester
-          .widget<DashSurfaceScope>(
-            find.ancestor(of: dialog, matching: find.byType(DashSurfaceScope)),
-          )
-          .mode,
-      DashSurfaceMode.fullScreen,
+      find.ancestor(of: dialog, matching: find.byType(DashSurfaceScope)),
+      findsOneWidget,
+    );
+    expectPhoneDialog(
+      tester,
+      primary: h.t('common.save'),
+      secondary: h.t('common.cancel'),
     );
     final cat = tester.getRect(inDialog(byKey('ingredient-category')));
     final unit = tester.getRect(inDialog(byKey('ingredient-unit')));

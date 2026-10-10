@@ -42,9 +42,9 @@ Future<DashHarness> _openNada(
   return h;
 }
 
-Finder _stat(String label) => inSheet(
-  find.ancestor(of: find.text(label), matching: find.byType(Container)).first,
-);
+Finder _stat(String label) => find
+    .ancestor(of: inSheet(find.text(label)), matching: find.byType(Container))
+    .first;
 
 String _statValue(WidgetTester tester, String label) {
   final texts = tester.widgetList<Text>(
@@ -87,10 +87,10 @@ void main() {
       expect(inSheet(find.text('+20 100 123 4567')), findsOneWidget);
     });
 
-    testWidgets('SET-LOY-064 phone: two stats a row, the card full screen', (
-      tester,
-    ) async {
+    testWidgets('SET-LOY-064 phone: two stats a row, the card slides in '
+        'from the end side', (tester) async {
       await _openNada(tester, size: DashSize.phone);
+      expectPhonePanel(tester);
       final tops = {
         for (final l in [
           'Balance',

@@ -333,7 +333,7 @@ void main() {
     });
 
     testWidgets('SET-DZN-020 phone: one card per ring with its figures; a '
-        'card tap opens the editor full screen', (tester) async {
+        'card tap opens the editor in a centred card', (tester) async {
       final h = await _pump(tester, query: _helio, size: DashSize.phone);
       expect(_rings(tester), hasLength(3));
       for (final w in ['Max distance', 'Fee', 'Status']) {
@@ -344,10 +344,7 @@ void main() {
       expect(inZones(byKey('dzn-delete-$id')), findsOneWidget);
       await h.tap(inZones(find.text('Korba & Merghany')));
       expect(inDialog(find.text('Edit zone')), findsOneWidget);
-      expect(
-        tester.getSize(_dialog()).width,
-        tester.view.physicalSize.width / tester.view.devicePixelRatio,
-      );
+      expectPhoneDialog(tester, primary: 'Save', secondary: 'Cancel');
     });
 
     testWidgets('SET-DZN-020 a Dawam-only org meets the module gate', (

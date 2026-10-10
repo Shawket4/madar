@@ -564,10 +564,10 @@ void main() {
     expect(tester.widget<DashSwitch>(_switch()).value, isFalse);
   });
 
-  testWidgets('SET-SPL-011 phone: a pick in the open sheet keeps a refresh '
+  testWidgets('SET-SPL-011 phone: a pick in the open card keeps a refresh '
       'that landed after it opened', (tester) async {
     final h = await pumpStaffPool(tester, size: DashSize.phone);
-    await h.tap(_key('spl-items-trigger'));
+    await _openPhonePicker(h);
     savedRow(h.db!, null)!['daily_allowance'] = 11;
     h.container.invalidate(staffPoolSettingsProvider(null));
     await h.settle();
@@ -576,12 +576,14 @@ void main() {
     expect(tester.widget<DashTextField>(_key('spl-allowance')).value, '11');
   });
 
-  testWidgets('phone: the list opens as a sheet and follows each toggle', (
-    tester,
-  ) async {
+  testWidgets('phone: the list opens in a card over the page and follows '
+      'each toggle', (tester) async {
     final h = await pumpStaffPool(tester, size: DashSize.phone);
-    await h.tap(_key('spl-items-trigger'));
-    expect(_key('spl-picker'), findsOneWidget);
+    await _openPhonePicker(h);
+    expect(
+      find.descendant(of: dashPopoverCard, matching: _key('spl-picker')),
+      findsOneWidget,
+    );
     await h.tap(inPicker(find.text(itemName('latte'))));
     expect(
       tester
@@ -595,4 +597,20 @@ void main() {
     await h.tap(inPicker(_key('spl-items-clear')));
     expect(inPicker(_key('spl-items-clear')), findsNothing);
   });
+}
+
+/// Opens the items card on a phone and scrolls its list to the latte, as a
+/// thumb would: the card shows a handful of rows at a time.
+Future<void> _openPhonePicker(DashHarness h) async {
+  await h.tap(_key('spl-items-trigger'));
+  await h.scrollUntilVisible(
+    inPicker(find.text(itemName('latte'))),
+    delta: 100,
+    scrollable: find
+        .descendant(
+          of: inPicker(find.byType(ListView)),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
 }

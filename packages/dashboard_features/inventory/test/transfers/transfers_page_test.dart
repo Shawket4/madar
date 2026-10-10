@@ -515,8 +515,8 @@ void main() {
     expect(inDiffs(find.text('Everything arrived as sent')), findsOneWidget);
   });
 
-  testWidgets('INV-TRF-012 phone: cards led by the reference; a tap opens '
-      'the drawer full screen', (tester) async {
+  testWidgets('INV-TRF-012 phone: cards led by the reference; a tap slides '
+      'the drawer in from the end side', (tester) async {
     final h = await pumpTransfers(
       tester,
       size: DashSize.phone,
@@ -528,7 +528,7 @@ void main() {
     expect(inTable(find.text('Columns')), findsNothing);
     await h.tap(inTable(find.text('TR-6')));
     expect(drawer, findsOneWidget);
-    expect(tester.getSize(drawer).width, closeTo(DashSize.phone.size.width, 1));
+    expectPhonePanel(tester);
   });
 
   testWidgets('INV-TRF-012 the Columns menu lists the five columns', (

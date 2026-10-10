@@ -519,9 +519,8 @@ void main() {
     expect(topText(h.t('dawam.estimateHint')), findsOneWidget);
   });
 
-  testWidgets('TEAM-PAY-062 phone: cards, 2×2 stats, full-screen payslip', (
-    tester,
-  ) async {
+  testWidgets('TEAM-PAY-062 phone: cards, 2×2 stats, the payslip from the '
+      'end side', (tester) async {
     final h = await pumpPayroll(tester, size: DashSize.phone);
     final net = tester.getTopLeft(pageText('Net pay'));
     final people = tester.getTopLeft(pageText('People'));
@@ -531,8 +530,8 @@ void main() {
     expect(pageText('NAME'), findsNothing);
     await openSlip(h, 'Ali Hassan');
     expect(topText(h.t('dawam.estimateHint')), findsOneWidget);
-    final sheet = tester.getSize(find.byType(PayslipSheet));
-    expect(sheet.width, DashSize.phone.size.width);
+    expect(find.byType(PayslipSheet), findsOneWidget);
+    expectPhonePanel(tester);
   });
 
   testWidgets(
