@@ -1,8 +1,9 @@
-// The launcher icon, the splash and the name (owner, 2026-10-10: the POS's
-// icons and splash; apps/madar/test/launcher_icon_test.dart is the same test
-// for the POS): Android's adaptive icon has a themed (monochrome) layer, no
+// The launcher icon, the splash and the name (owner, 2026-10-10: the
+// dashboard's own "exploded core" mark from the design system's last board,
+// exported by its tools/build_dashboard.py; apps/madar/test/launcher_icon_test.dart
+// is the same test for the POS): Android's adaptive icon has a themed (monochrome) layer, no
 // platform ships Flutter's template icon, the iOS icons are opaque 1024s with
-// dark and tinted appearances, both splash generations draw the orbit at the
+// dark and tinted appearances, both splash generations draw the mark at the
 // sizes the kit sets, and every platform names the app "Madar Dashboard",
 // never the package name. These live in native project files no widget test
 // renders, so this test reads them.
@@ -86,7 +87,7 @@ void main() {
       expect(_fnv('$res/mipmap-mdpi/ic_launcher.png'), isNot(0xf1553769));
     });
 
-    test('the splash: the orbit before and from Android 12, day and night', () {
+    test('the splash: the mark before and from Android 12, day and night', () {
       for (final night in ['', 'night-']) {
         for (final MapEntry(key: dpi, value: d) in _densities.entries) {
           final splash = _png('$res/drawable-$night$dpi/splash.png');
@@ -135,7 +136,7 @@ void main() {
       expect(looks, {'any', 'dark', 'tinted'});
     });
 
-    test('the launch image is the 150 pt orbit, light and dark', () {
+    test('the launch image is the 150 pt mark, light and dark', () {
       for (final dark in ['', 'Dark']) {
         for (final (suffix, scale) in [('', 1), ('@2x', 2), ('@3x', 3)]) {
           final png = _png(
@@ -151,7 +152,7 @@ void main() {
   });
 
   group('desktop', () {
-    test('the macOS icon set is the orbit, not the template', () {
+    test('the macOS icon set is the mark, not the template', () {
       const set = 'macos/Runner/Assets.xcassets/AppIcon.appiconset';
       final json =
           jsonDecode(_read('$set/Contents.json')) as Map<String, dynamic>;
