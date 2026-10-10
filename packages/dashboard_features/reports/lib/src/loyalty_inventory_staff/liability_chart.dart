@@ -81,136 +81,139 @@ class LiabilityChart extends StatelessWidget {
                 return math.max(w, width);
               });
               final every = math.max(1, ((widest + Space.sm) / slot).ceil());
-              return BarChart(
-                duration: DashMotion.of(context, DashMotion.slow),
-                BarChartData(
-                  minY: minY,
-                  maxY: maxY,
-                  alignment: BarChartAlignment.spaceAround,
-                  borderData: FlBorderData(show: false),
-                  gridData: FlGridData(
-                    drawVerticalLine: false,
-                    horizontalInterval: step,
-                    getDrawingHorizontalLine: (_) => FlLine(
-                      color: c.hairline,
-                      strokeWidth: 1,
-                      dashArray: const [3, 3],
-                    ),
+              final data = BarChartData(
+                minY: minY,
+                maxY: maxY,
+                alignment: BarChartAlignment.spaceAround,
+                borderData: FlBorderData(show: false),
+                gridData: FlGridData(
+                  drawVerticalLine: false,
+                  horizontalInterval: step,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: c.hairline,
+                    strokeWidth: 1,
+                    dashArray: const [3, 3],
                   ),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(),
-                    rightTitles: const AxisTitles(),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: yAxis,
-                        interval: step,
-                        getTitlesWidget: (v, meta) => SideTitleWidget(
-                          meta: meta,
-                          child: Text(
-                            dashFigure(formatAxis(v)),
-                            style: style,
-                            maxLines: 1,
-                            softWrap: false,
-                          ),
+                ),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: yAxis,
+                      interval: step,
+                      getTitlesWidget: (v, meta) => SideTitleWidget(
+                        meta: meta,
+                        child: Text(
+                          dashFigure(formatAxis(v)),
+                          style: style,
+                          maxLines: 1,
+                          softWrap: false,
                         ),
                       ),
                     ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: Space.xl + Space.xs,
-                        interval: 1,
-                        getTitlesWidget: (v, meta) {
-                          final i = v.round();
-                          if ((v - i).abs() > 0.01 ||
-                              i < 0 ||
-                              i >= labels.length ||
-                              (labels.length - 1 - i) % every != 0) {
-                            return const SizedBox.shrink();
-                          }
-                          return SideTitleWidget(
-                            meta: meta,
-                            fitInside: SideTitleFitInsideData.fromTitleMeta(
-                              meta,
-                              distanceFromEdge: 0,
-                            ),
-                            child: SizedBox(
-                              width: math.min(widest + Space.sm, slot * every),
-                              child: Directionality(
-                                textDirection: textDir,
-                                child: MadarClippedText(
-                                  labels[i],
-                                  style: style,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: Space.xl + Space.xs,
+                      interval: 1,
+                      getTitlesWidget: (v, meta) {
+                        final i = v.round();
+                        if ((v - i).abs() > 0.01 ||
+                            i < 0 ||
+                            i >= labels.length ||
+                            (labels.length - 1 - i) % every != 0) {
+                          return const SizedBox.shrink();
+                        }
+                        return SideTitleWidget(
+                          meta: meta,
+                          fitInside: SideTitleFitInsideData.fromTitleMeta(
+                            meta,
+                            distanceFromEdge: 0,
+                          ),
+                          child: SizedBox(
+                            width: math.min(widest + Space.sm, slot * every),
+                            child: Directionality(
+                              textDirection: textDir,
+                              child: MadarClippedText(
+                                labels[i],
+                                style: style,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
                               ),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                  barTouchData: BarTouchData(
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipColor: (_) => c.card,
-                      tooltipBorder: BorderSide(color: c.hairline),
-                      tooltipBorderRadius: BorderRadius.circular(Radii.xs),
-                      tooltipPadding: const EdgeInsets.symmetric(
-                        horizontal: Space.md,
-                        vertical: Space.sm,
-                      ),
-                      fitInsideHorizontally: true,
-                      fitInsideVertically: true,
-                      maxContentWidth: 240,
-                      getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
-                        '${labels[gi]}\n',
-                        DashType.smallMedium.copyWith(color: c.textPrimary),
-                        textAlign: TextAlign.start,
-                        textDirection: textDir,
-                        children: [
-                          TextSpan(
-                            text: '● ',
-                            style: DashType.small.copyWith(color: color),
+                ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => c.card,
+                    tooltipBorder: BorderSide(color: c.hairline),
+                    tooltipBorderRadius: BorderRadius.circular(Radii.xs),
+                    tooltipPadding: const EdgeInsets.symmetric(
+                      horizontal: Space.md,
+                      vertical: Space.sm,
+                    ),
+                    fitInsideHorizontally: true,
+                    fitInsideVertically: true,
+                    maxContentWidth: 240,
+                    getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
+                      '${labels[gi]}\n',
+                      DashType.smallMedium.copyWith(color: c.textPrimary),
+                      textAlign: TextAlign.start,
+                      textDirection: textDir,
+                      children: [
+                        TextSpan(
+                          text: '● ',
+                          style: DashType.small.copyWith(color: color),
+                        ),
+                        TextSpan(
+                          text: tooltip(gi),
+                          style: DashType.small.copyWith(
+                            color: c.textSecondary,
                           ),
-                          TextSpan(
-                            text: tooltip(gi),
-                            style: DashType.small.copyWith(
-                              color: c.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                  barGroups: [
-                    for (var i = 0; i < labels.length; i++)
-                      BarChartGroupData(
-                        x: i,
-                        barRods: [
-                          BarChartRodData(
-                            fromY: 0,
-                            toY: i < values.length ? values[i] : 0,
-                            width: bar,
-                            color: color,
-                            borderRadius: BorderRadius.vertical(
-                              top: Radius.circular(
-                                (i < values.length ? values[i] : 0) < 0
-                                    ? 0
-                                    : Space.xs,
-                              ),
-                              bottom: Radius.circular(
-                                (i < values.length ? values[i] : 0) < 0
-                                    ? Space.xs
-                                    : 0,
-                              ),
+                ),
+                barGroups: [
+                  for (var i = 0; i < labels.length; i++)
+                    BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(
+                          fromY: 0,
+                          toY: i < values.length ? values[i] : 0,
+                          width: bar,
+                          color: color,
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(
+                              (i < values.length ? values[i] : 0) < 0
+                                  ? 0
+                                  : Space.xs,
+                            ),
+                            bottom: Radius.circular(
+                              (i < values.length ? values[i] : 0) < 0
+                                  ? Space.xs
+                                  : 0,
                             ),
                           ),
-                        ],
-                      ),
-                  ],
+                        ),
+                      ],
+                    ),
+                ],
+              );
+              return DashChartSelection<(int, int)>(
+                builder: (context, at, touch) => BarChart(
+                  duration: DashMotion.of(context, DashMotion.slow),
+                  dashBarSelected(data, at, touch),
                 ),
               );
             },

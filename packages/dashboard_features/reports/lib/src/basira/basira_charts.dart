@@ -203,101 +203,104 @@ class BasiraAreaChart extends StatelessWidget {
                 .map((l) => _textWidth(context, l, style))
                 .fold<double>(0, math.max);
             final every = math.max(1, ((widest + Space.xl) / slot).ceil());
-            return LineChart(
-              duration: DashMotion.of(context, DashMotion.slow),
-              LineChartData(
-                minX: 0,
-                maxX: math.max(1, n - 1).toDouble(),
-                minY: b.min,
-                maxY: b.max,
-                borderData: FlBorderData(show: false),
-                gridData: _grid(context, step),
-                titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(),
-                  rightTitles: const AxisTitles(),
-                  leftTitles: _valueTitles(context, step, basiraValueAxis),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: Space.xl + Space.xs,
-                      interval: 1,
-                      getTitlesWidget: (v, meta) {
-                        final i = v.round();
-                        if ((v - i).abs() > 0.01 ||
-                            i < 0 ||
-                            i >= n ||
-                            i % every != 0) {
-                          return const SizedBox.shrink();
-                        }
-                        return SideTitleWidget(
-                          meta: meta,
-                          child: Text(
-                            labels[i],
-                            style: style,
-                            maxLines: 1,
-                            softWrap: false,
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                lineTouchData: LineTouchData(
-                  touchTooltipData: LineTouchTooltipData(
-                    getTooltipColor: (_) => c.card,
-                    tooltipBorder: BorderSide(color: c.hairline),
-                    tooltipBorderRadius: BorderRadius.circular(Radii.xs),
-                    fitInsideHorizontally: true,
-                    fitInsideVertically: true,
-                    maxContentWidth: 240,
-                    getTooltipItems: (spots) {
-                      final sorted = [...spots]
-                        ..sort((a, b) => a.barIndex.compareTo(b.barIndex));
-                      return [
-                        for (final (k, s) in sorted.indexed)
-                          LineTooltipItem(
-                            k == 0 ? '${labels[s.x.round()]}\n' : '',
-                            _tipTitle(context),
-                            textAlign: TextAlign.start,
-                            children: _tipLine(
-                              context,
-                              series[s.barIndex],
-                              colors[s.barIndex],
-                              s.y,
-                            ),
-                          ),
-                      ];
+            final data = LineChartData(
+              minX: 0,
+              maxX: math.max(1, n - 1).toDouble(),
+              minY: b.min,
+              maxY: b.max,
+              borderData: FlBorderData(show: false),
+              gridData: _grid(context, step),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(),
+                rightTitles: const AxisTitles(),
+                leftTitles: _valueTitles(context, step, basiraValueAxis),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: Space.xl + Space.xs,
+                    interval: 1,
+                    getTitlesWidget: (v, meta) {
+                      final i = v.round();
+                      if ((v - i).abs() > 0.01 ||
+                          i < 0 ||
+                          i >= n ||
+                          i % every != 0) {
+                        return const SizedBox.shrink();
+                      }
+                      return SideTitleWidget(
+                        meta: meta,
+                        child: Text(
+                          labels[i],
+                          style: style,
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      );
                     },
                   ),
                 ),
-                lineBarsData: [
-                  for (final (si, s) in series.indexed)
-                    LineChartBarData(
-                      // A gap is a day with no data: never joined across.
-                      spots: [
-                        for (var i = 0; i < n && i < s.values.length; i++)
-                          s.values[i] == null
-                              ? FlSpot.nullSpot
-                              : FlSpot(i.toDouble(), s.values[i]!),
-                      ],
-                      isCurved: true,
-                      preventCurveOverShooting: true,
-                      color: colors[si],
-                      barWidth: 2,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            colors[si].withValues(alpha: 0.28),
-                            colors[si].withValues(alpha: 0.02),
-                          ],
+              ),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => c.card,
+                  tooltipBorder: BorderSide(color: c.hairline),
+                  tooltipBorderRadius: BorderRadius.circular(Radii.xs),
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  maxContentWidth: 240,
+                  getTooltipItems: (spots) {
+                    final sorted = [...spots]
+                      ..sort((a, b) => a.barIndex.compareTo(b.barIndex));
+                    return [
+                      for (final (k, s) in sorted.indexed)
+                        LineTooltipItem(
+                          k == 0 ? '${labels[s.x.round()]}\n' : '',
+                          _tipTitle(context),
+                          textAlign: TextAlign.start,
+                          children: _tipLine(
+                            context,
+                            series[s.barIndex],
+                            colors[s.barIndex],
+                            s.y,
+                          ),
                         ),
+                    ];
+                  },
+                ),
+              ),
+              lineBarsData: [
+                for (final (si, s) in series.indexed)
+                  LineChartBarData(
+                    // A gap is a day with no data: never joined across.
+                    spots: [
+                      for (var i = 0; i < n && i < s.values.length; i++)
+                        s.values[i] == null
+                            ? FlSpot.nullSpot
+                            : FlSpot(i.toDouble(), s.values[i]!),
+                    ],
+                    isCurved: true,
+                    preventCurveOverShooting: true,
+                    color: colors[si],
+                    barWidth: 2,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          colors[si].withValues(alpha: 0.28),
+                          colors[si].withValues(alpha: 0.02),
+                        ],
                       ),
                     ),
-                ],
+                  ),
+              ],
+            );
+            return DashChartSelection<int>(
+              builder: (context, at, touch) => LineChart(
+                duration: DashMotion.of(context, DashMotion.slow),
+                dashLineSelected(data, at, touch),
               ),
             );
           },
@@ -382,70 +385,73 @@ class BasiraBarChart extends StatelessWidget {
                 },
               ),
             );
-            return BarChart(
-              duration: DashMotion.of(context, DashMotion.slow),
-              BarChartData(
-                rotationQuarterTurns: horizontal ? 1 : 0,
-                minY: b.min,
-                maxY: b.max,
-                alignment: BarChartAlignment.spaceAround,
-                borderData: FlBorderData(show: false),
-                gridData: _grid(context, step),
-                titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(),
-                  // Turned a quarter, the right axis reads along the bottom.
-                  rightTitles: horizontal
-                      ? _valueTitles(context, step, Space.xl)
-                      : const AxisTitles(),
-                  leftTitles: horizontal
-                      ? const AxisTitles()
-                      : _valueTitles(context, step, basiraValueAxis),
-                  bottomTitles: categories,
-                ),
-                barTouchData: BarTouchData(
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipColor: (_) => c.card,
-                    tooltipBorder: BorderSide(color: c.hairline),
-                    tooltipBorderRadius: BorderRadius.circular(Radii.xs),
-                    fitInsideHorizontally: true,
-                    fitInsideVertically: true,
-                    maxContentWidth: 240,
-                    getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
-                      '${labels[gi]}\n',
-                      _tipTitle(context),
-                      textAlign: TextAlign.start,
-                      children: [
-                        for (final (si, s) in series.indexed) ...[
-                          if (si > 0) const TextSpan(text: '\n'),
-                          ..._tipLine(
-                            context,
-                            s,
-                            colors[si],
-                            gi < s.values.length ? s.values[gi] ?? 0 : 0,
-                          ),
-                        ],
+            final data = BarChartData(
+              rotationQuarterTurns: horizontal ? 1 : 0,
+              minY: b.min,
+              maxY: b.max,
+              alignment: BarChartAlignment.spaceAround,
+              borderData: FlBorderData(show: false),
+              gridData: _grid(context, step),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(),
+                // Turned a quarter, the right axis reads along the bottom.
+                rightTitles: horizontal
+                    ? _valueTitles(context, step, Space.xl)
+                    : const AxisTitles(),
+                leftTitles: horizontal
+                    ? const AxisTitles()
+                    : _valueTitles(context, step, basiraValueAxis),
+                bottomTitles: categories,
+              ),
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (_) => c.card,
+                  tooltipBorder: BorderSide(color: c.hairline),
+                  tooltipBorderRadius: BorderRadius.circular(Radii.xs),
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  maxContentWidth: 240,
+                  getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
+                    '${labels[gi]}\n',
+                    _tipTitle(context),
+                    textAlign: TextAlign.start,
+                    children: [
+                      for (final (si, s) in series.indexed) ...[
+                        if (si > 0) const TextSpan(text: '\n'),
+                        ..._tipLine(
+                          context,
+                          s,
+                          colors[si],
+                          gi < s.values.length ? s.values[gi] ?? 0 : 0,
+                        ),
                       ],
-                    ),
+                    ],
                   ),
                 ),
-                barGroups: [
-                  for (var i = 0; i < n; i++)
-                    BarChartGroupData(
-                      x: i,
-                      barsSpace: Space.xs,
-                      barRods: [
-                        for (final (si, s) in series.indexed)
-                          BarChartRodData(
-                            toY: i < s.values.length ? s.values[i] ?? 0 : 0,
-                            width: rod,
-                            color: colors[si],
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(Space.xs),
-                            ),
+              ),
+              barGroups: [
+                for (var i = 0; i < n; i++)
+                  BarChartGroupData(
+                    x: i,
+                    barsSpace: Space.xs,
+                    barRods: [
+                      for (final (si, s) in series.indexed)
+                        BarChartRodData(
+                          toY: i < s.values.length ? s.values[i] ?? 0 : 0,
+                          width: rod,
+                          color: colors[si],
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(Space.xs),
                           ),
-                      ],
-                    ),
-                ],
+                        ),
+                    ],
+                  ),
+              ],
+            );
+            return DashChartSelection<(int, int)>(
+              builder: (context, at, touch) => BarChart(
+                duration: DashMotion.of(context, DashMotion.slow),
+                dashBarSelected(data, at, touch),
               ),
             );
           },

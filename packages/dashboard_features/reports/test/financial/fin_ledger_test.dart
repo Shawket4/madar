@@ -6,6 +6,7 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart' show MadarColorsX;
+import 'package:fl_chart/fl_chart.dart';
 import 'package:dashboard_reports/src/financial/fin_data.dart';
 import 'package:dashboard_reports/src/financial/fin_profitability.dart';
 import 'package:dashboard_reports/src/financial/fin_quadrant.dart';
@@ -808,6 +809,52 @@ void main() {
         ),
         TextDirection.ltr,
       );
+    });
+
+    testWidgets('a tapped mark keeps its tooltip after the finger lifts; a '
+        'tap on empty plot clears it', (tester) async {
+      final h = await pumpFin(tester);
+      await quadrant(h);
+      final chart = find.byType(ScatterChart);
+      await tester.ensureVisible(chart);
+      await tester.pumpAndSettle();
+      ScatterChartData data() => tester.widget<ScatterChart>(chart).data;
+      final d = data();
+      // The plot, past the 64 wide money axis and above the 28 tall one.
+      final r = tester.getRect(chart);
+      final plot = Rect.fromLTRB(r.left + 64, r.top, r.right, r.bottom - 28);
+      Offset at(double x, double y) => Offset(
+        plot.left + (x - d.minX) / (d.maxX - d.minX) * plot.width,
+        plot.top + (d.maxY - y) / (d.maxY - d.minY) * plot.height,
+      );
+      // The topmost mark answers first.
+      final i = d.scatterSpots.length - 1;
+      final mark = d.scatterSpots[i];
+      await tester.tapAt(at(mark.x, mark.y));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+      expect(data().showingTooltipIndicators, [i]);
+      final tip = data().scatterTouchData.touchTooltipData.getTooltipItems(
+        mark,
+      )!;
+      expect(tip.text, isNotEmpty);
+
+      // A point of the plot well away from every mark.
+      final empty =
+          [
+            for (var fx = 0.05; fx < 1; fx += 0.1)
+              for (var fy = 0.05; fy < 1; fy += 0.1)
+                Offset(
+                  plot.left + plot.width * fx,
+                  plot.top + plot.height * fy,
+                ),
+          ].firstWhere(
+            (o) =>
+                d.scatterSpots.every((s) => (at(s.x, s.y) - o).distance > 40),
+          );
+      await tester.tapAt(empty);
+      await tester.pumpAndSettle();
+      expect(data().showingTooltipIndicators, isEmpty);
     });
   });
 }

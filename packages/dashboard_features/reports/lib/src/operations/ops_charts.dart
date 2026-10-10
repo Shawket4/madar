@@ -170,118 +170,121 @@ class OpsBarChart extends StatelessWidget {
                     .fold<double>(0, math.max);
                 every = math.max(1, ((widest + Space.sm) / slot).ceil());
               }
-              return BarChart(
-                duration: DashMotion.of(context, DashMotion.slow),
-                BarChartData(
-                  minY: 0,
-                  maxY: maxY,
-                  alignment: BarChartAlignment.spaceAround,
-                  borderData: FlBorderData(show: false),
-                  gridData: FlGridData(
-                    drawVerticalLine: false,
-                    horizontalInterval: step,
-                    getDrawingHorizontalLine: (_) => FlLine(
-                      color: c.hairline,
-                      strokeWidth: 1,
-                      dashArray: const [3, 3],
-                    ),
+              final data = BarChartData(
+                minY: 0,
+                maxY: maxY,
+                alignment: BarChartAlignment.spaceAround,
+                borderData: FlBorderData(show: false),
+                gridData: FlGridData(
+                  drawVerticalLine: false,
+                  horizontalInterval: step,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: c.hairline,
+                    strokeWidth: 1,
+                    dashArray: const [3, 3],
                   ),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(),
-                    rightTitles: const AxisTitles(),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: yAxisWidth,
-                        interval: step,
-                        getTitlesWidget: (v, meta) => SideTitleWidget(
-                          meta: meta,
-                          child: Text(
-                            dashFigure(formatAxis(v)),
-                            style: style,
-                            maxLines: 1,
-                            softWrap: false,
-                          ),
+                ),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: yAxisWidth,
+                      interval: step,
+                      getTitlesWidget: (v, meta) => SideTitleWidget(
+                        meta: meta,
+                        child: Text(
+                          dashFigure(formatAxis(v)),
+                          style: style,
+                          maxLines: 1,
+                          softWrap: false,
                         ),
                       ),
                     ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: Space.xl + Space.xs,
-                        interval: 1,
-                        getTitlesWidget: (v, meta) {
-                          final i = v.round();
-                          if ((v - i).abs() > 0.01 ||
-                              i < 0 ||
-                              i >= labels.length ||
-                              i % every != 0) {
-                            return const SizedBox.shrink();
-                          }
-                          return SideTitleWidget(
-                            meta: meta,
-                            child: SizedBox(
-                              width: slot * every,
-                              child: Directionality(
-                                textDirection: textDir,
-                                child: MadarClippedText(
-                                  labels[i],
-                                  style: style,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: Space.xl + Space.xs,
+                      interval: 1,
+                      getTitlesWidget: (v, meta) {
+                        final i = v.round();
+                        if ((v - i).abs() > 0.01 ||
+                            i < 0 ||
+                            i >= labels.length ||
+                            i % every != 0) {
+                          return const SizedBox.shrink();
+                        }
+                        return SideTitleWidget(
+                          meta: meta,
+                          child: SizedBox(
+                            width: slot * every,
+                            child: Directionality(
+                              textDirection: textDir,
+                              child: MadarClippedText(
+                                labels[i],
+                                style: style,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
                               ),
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                  barTouchData: BarTouchData(
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipColor: (_) => c.card,
-                      tooltipBorder: BorderSide(color: c.hairline),
-                      tooltipBorderRadius: BorderRadius.circular(Radii.xs),
-                      tooltipPadding: const EdgeInsets.symmetric(
-                        horizontal: Space.md,
-                        vertical: Space.sm,
-                      ),
-                      fitInsideHorizontally: true,
-                      fitInsideVertically: true,
-                      maxContentWidth: 240,
-                      getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
-                        '${(tooltipTitle ?? (i) => labels[i])(gi)}\n',
-                        DashType.smallMedium.copyWith(color: c.textPrimary),
-                        textAlign: TextAlign.start,
-                        textDirection: textDir,
-                        children: [
-                          TextSpan(
-                            text: dashFigure(tooltip(gi)),
-                            style: DashType.small.copyWith(
-                              color: c.textSecondary,
-                            ),
+                ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => c.card,
+                    tooltipBorder: BorderSide(color: c.hairline),
+                    tooltipBorderRadius: BorderRadius.circular(Radii.xs),
+                    tooltipPadding: const EdgeInsets.symmetric(
+                      horizontal: Space.md,
+                      vertical: Space.sm,
+                    ),
+                    fitInsideHorizontally: true,
+                    fitInsideVertically: true,
+                    maxContentWidth: 240,
+                    getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
+                      '${(tooltipTitle ?? (i) => labels[i])(gi)}\n',
+                      DashType.smallMedium.copyWith(color: c.textPrimary),
+                      textAlign: TextAlign.start,
+                      textDirection: textDir,
+                      children: [
+                        TextSpan(
+                          text: dashFigure(tooltip(gi)),
+                          style: DashType.small.copyWith(
+                            color: c.textSecondary,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                  barGroups: [
-                    for (var i = 0; i < labels.length; i++)
-                      BarChartGroupData(
-                        x: i,
-                        barRods: [
-                          BarChartRodData(
-                            toY: i < values.length ? values[i] : 0,
-                            width: bar,
-                            color: color,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(Space.xs),
-                            ),
+                ),
+                barGroups: [
+                  for (var i = 0; i < labels.length; i++)
+                    BarChartGroupData(
+                      x: i,
+                      barRods: [
+                        BarChartRodData(
+                          toY: i < values.length ? values[i] : 0,
+                          width: bar,
+                          color: color,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(Space.xs),
                           ),
-                        ],
-                      ),
-                  ],
+                        ),
+                      ],
+                    ),
+                ],
+              );
+              return DashChartSelection<(int, int)>(
+                builder: (context, at, touch) => BarChart(
+                  duration: DashMotion.of(context, DashMotion.slow),
+                  dashBarSelected(data, at, touch),
                 ),
               );
             },
@@ -294,7 +297,7 @@ class OpsBarChart extends StatelessWidget {
 
 /// Horizontal bars with the names on a 110 px axis (the Tellers and
 /// Waiters leaderboards); a tap or hover on a row shows its figure.
-class OpsHBarChart extends StatefulWidget {
+class OpsHBarChart extends StatelessWidget {
   const OpsHBarChart({
     required this.labels,
     required this.values,
@@ -318,213 +321,206 @@ class OpsHBarChart extends StatefulWidget {
   static const double nameAxis = 110;
 
   @override
-  State<OpsHBarChart> createState() => _OpsHBarChartState();
-}
-
-class _OpsHBarChartState extends State<OpsHBarChart> {
-  int? _active;
-
-  @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     final textDir = Directionality.of(context);
     final style = _axisStyle(context);
-    final maxX = opsNiceStep(widget.values.fold<double>(0, math.max)) * 4;
+    final maxX = opsNiceStep(values.fold<double>(0, math.max)) * 4;
     const axisHeight = Space.xl;
     const gap = Space.sm;
     final reduced = DashMotion.reduced(context);
     return Directionality(
       textDirection: TextDirection.ltr,
       child: SizedBox(
-        height: widget.height,
-        child: LayoutBuilder(
-          builder: (context, box) {
-            final plotW = math.max(
-              1.0,
-              box.maxWidth - OpsHBarChart.nameAxis - gap - Space.md,
-            );
-            final n = math.max(1, widget.labels.length);
-            final rowH = (widget.height - axisHeight) / n;
-            // Ticks that would touch are skipped (every other, then the
-            // ends), as Recharts thins its axis.
-            final widest =
-                [
-                      for (var k = 0; k <= 4; k++)
-                        dashFigure(widget.formatAxis(maxX * k / 4)),
-                    ]
-                    .map((l) {
-                      final tp = TextPainter(
-                        text: TextSpan(text: l, style: style),
-                        textDirection: textDir,
-                        maxLines: 1,
-                      )..layout();
-                      final w = tp.width;
-                      tp.dispose();
-                      return w;
-                    })
-                    .fold<double>(0, math.max);
-            final tickStep = plotW / 4 >= widest + Space.sm
-                ? 1
-                : plotW / 2 >= widest + Space.sm
-                ? 2
-                : 4;
-            final barH = math.min(rowH * 0.7, Space.xxl);
-            Widget row(int i) {
-              final v = i < widget.values.length ? widget.values[i] : 0.0;
-              final w = maxX <= 0 ? 0.0 : plotW * (v / maxX);
-              return MouseRegion(
-                onEnter: (_) => setState(() => _active = i),
-                onExit: (_) => setState(() => _active = null),
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () =>
-                      setState(() => _active = _active == i ? null : i),
-                  child: Semantics(
-                    label: '${widget.labels[i]}: ${widget.tooltip(i)}',
-                    excludeSemantics: true,
-                    child: Container(
-                      height: rowH,
-                      color: _active == i
-                          ? c.muted.withValues(alpha: 0.6)
-                          : null,
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: OpsHBarChart.nameAxis,
-                            child: Directionality(
-                              textDirection: textDir,
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: MadarClippedText(
-                                  widget.labels[i],
-                                  style: style,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.right,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: gap),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TweenAnimationBuilder<double>(
-                              tween: Tween(begin: reduced ? w : 0, end: w),
-                              duration: reduced
-                                  ? Duration.zero
-                                  : DashMotion.slow,
-                              curve: DashMotion.ease,
-                              builder: (context, width, _) => Container(
-                                width: width,
-                                height: barH,
-                                decoration: BoxDecoration(
-                                  color: widget.color,
-                                  borderRadius: const BorderRadius.horizontal(
-                                    right: Radius.circular(Space.xs),
+        height: height,
+        child: DashChartSelection<int>(
+          builder: (context, active, touch) => LayoutBuilder(
+            builder: (context, box) {
+              final plotW = math.max(
+                1.0,
+                box.maxWidth - OpsHBarChart.nameAxis - gap - Space.md,
+              );
+              final n = math.max(1, labels.length);
+              final rowH = (height - axisHeight) / n;
+              // Ticks that would touch are skipped (every other, then the
+              // ends), as Recharts thins its axis.
+              final widest =
+                  [
+                        for (var k = 0; k <= 4; k++)
+                          dashFigure(formatAxis(maxX * k / 4)),
+                      ]
+                      .map((l) {
+                        final tp = TextPainter(
+                          text: TextSpan(text: l, style: style),
+                          textDirection: textDir,
+                          maxLines: 1,
+                        )..layout();
+                        final w = tp.width;
+                        tp.dispose();
+                        return w;
+                      })
+                      .fold<double>(0, math.max);
+              final tickStep = plotW / 4 >= widest + Space.sm
+                  ? 1
+                  : plotW / 2 >= widest + Space.sm
+                  ? 2
+                  : 4;
+              final barH = math.min(rowH * 0.7, Space.xxl);
+              Widget row(int i) {
+                final v = i < values.length ? values[i] : 0.0;
+                final w = maxX <= 0 ? 0.0 : plotW * (v / maxX);
+                return MouseRegion(
+                  onHover: (e) => touch(FlPointerHoverEvent(e), i),
+                  onExit: (e) => touch(FlPointerExitEvent(e), null),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp: (d) => touch(FlTapUpEvent(d), i),
+                    child: Semantics(
+                      label: '${labels[i]}: ${tooltip(i)}',
+                      excludeSemantics: true,
+                      child: Container(
+                        height: rowH,
+                        color: active == i
+                            ? c.muted.withValues(alpha: 0.6)
+                            : null,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: OpsHBarChart.nameAxis,
+                              child: Directionality(
+                                textDirection: textDir,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: MadarClippedText(
+                                    labels[i],
+                                    style: style,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.right,
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }
-
-            final active = _active;
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // The dashed vertical grid.
-                Positioned(
-                  left: OpsHBarChart.nameAxis + gap,
-                  top: 0,
-                  width: plotW,
-                  height: widget.height - axisHeight,
-                  child: CustomPaint(painter: _VGrid(c.hairline)),
-                ),
-                Column(
-                  children: [
-                    for (var i = 0; i < widget.labels.length; i++) row(i),
-                    const Spacer(),
-                    SizedBox(
-                      height: axisHeight,
-                      child: Stack(
-                        children: [
-                          for (var k = 0; k <= 4; k += tickStep)
-                            Positioned(
-                              // Centred on its tick, kept inside the card.
-                              left:
-                                  (OpsHBarChart.nameAxis +
-                                          gap +
-                                          plotW * k / 4 -
-                                          Space.xxl)
-                                      .clamp(0, box.maxWidth - Space.xxl * 2),
-                              width: Space.xxl * 2,
-                              bottom: 0,
-                              child: Text(
-                                dashFigure(widget.formatAxis(maxX * k / 4)),
-                                style: style,
-                                maxLines: 1,
-                                softWrap: false,
-                                textAlign: TextAlign.center,
+                            const SizedBox(width: gap),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(begin: reduced ? w : 0, end: w),
+                                duration: reduced
+                                    ? Duration.zero
+                                    : DashMotion.slow,
+                                curve: DashMotion.ease,
+                                builder: (context, width, _) => Container(
+                                  width: width,
+                                  height: barH,
+                                  decoration: BoxDecoration(
+                                    color: color,
+                                    borderRadius: const BorderRadius.horizontal(
+                                      right: Radius.circular(Space.xs),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                if (active != null && active < widget.labels.length)
-                  Positioned(
-                    left: OpsHBarChart.nameAxis + gap + Space.sm,
-                    top: math.min(
-                      (active + 0.5) * rowH + Space.sm,
-                      widget.height - axisHeight - Space.xxl * 1.5,
-                    ),
-                    child: IgnorePointer(
-                      child: Directionality(
-                        textDirection: textDir,
-                        child: Container(
-                          constraints: const BoxConstraints(maxWidth: 240),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: Space.md,
-                            vertical: Space.sm,
-                          ),
-                          decoration: BoxDecoration(
-                            color: c.card,
-                            borderRadius: BorderRadius.circular(Radii.xs),
-                            border: Border.all(color: c.hairline),
-                            boxShadow: DashShadows.popover(context),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                widget.labels[active],
-                                style: DashType.smallMedium.copyWith(
-                                  color: c.textPrimary,
-                                ),
-                              ),
-                              Text(
-                                dashFigure(widget.tooltip(active)),
-                                style: DashType.small.copyWith(
-                                  color: c.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-              ],
-            );
-          },
+                );
+              }
+
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // The dashed vertical grid.
+                  Positioned(
+                    left: OpsHBarChart.nameAxis + gap,
+                    top: 0,
+                    width: plotW,
+                    height: height - axisHeight,
+                    child: CustomPaint(painter: _VGrid(c.hairline)),
+                  ),
+                  Column(
+                    children: [
+                      for (var i = 0; i < labels.length; i++) row(i),
+                      const Spacer(),
+                      SizedBox(
+                        height: axisHeight,
+                        child: Stack(
+                          children: [
+                            for (var k = 0; k <= 4; k += tickStep)
+                              Positioned(
+                                // Centred on its tick, kept inside the card.
+                                left:
+                                    (OpsHBarChart.nameAxis +
+                                            gap +
+                                            plotW * k / 4 -
+                                            Space.xxl)
+                                        .clamp(0, box.maxWidth - Space.xxl * 2),
+                                width: Space.xxl * 2,
+                                bottom: 0,
+                                child: Text(
+                                  dashFigure(formatAxis(maxX * k / 4)),
+                                  style: style,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (active != null && active < labels.length)
+                    Positioned(
+                      left: OpsHBarChart.nameAxis + gap + Space.sm,
+                      top: math.min(
+                        (active + 0.5) * rowH + Space.sm,
+                        height - axisHeight - Space.xxl * 1.5,
+                      ),
+                      child: IgnorePointer(
+                        child: Directionality(
+                          textDirection: textDir,
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 240),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: Space.md,
+                              vertical: Space.sm,
+                            ),
+                            decoration: BoxDecoration(
+                              color: c.card,
+                              borderRadius: BorderRadius.circular(Radii.xs),
+                              border: Border.all(color: c.hairline),
+                              boxShadow: DashShadows.popover(context),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  labels[active],
+                                  style: DashType.smallMedium.copyWith(
+                                    color: c.textPrimary,
+                                  ),
+                                ),
+                                Text(
+                                  dashFigure(tooltip(active)),
+                                  style: DashType.small.copyWith(
+                                    color: c.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

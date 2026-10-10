@@ -321,76 +321,87 @@ class _Plot extends ConsumerWidget {
       padding: _margin,
       child: Stack(
         children: [
-          ScatterChart(
-            duration: DashMotion.of(context, DashMotion.slow),
-            ScatterChartData(
-              scatterSpots: spots,
-              minX: minX,
-              maxX: maxX,
-              minY: minY,
-              maxY: maxY,
-              borderData: FlBorderData(show: false),
-              gridData: FlGridData(
-                horizontalInterval: spanY / 4,
-                verticalInterval: spanX / 4,
-                getDrawingHorizontalLine: (_) => line,
-                getDrawingVerticalLine: (_) => line,
-              ),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: _yWidth,
-                    interval: spanY / 4,
-                    getTitlesWidget: (v, meta) => SideTitleWidget(
-                      meta: meta,
-                      child: Text(
-                        dashFigure(
-                          f.fmtMoney(v, maxFractionDigits: 0, currency: false),
+          DashChartSelection<int>(
+            builder: (context, at, touch) => ScatterChart(
+              duration: DashMotion.of(context, DashMotion.slow),
+              ScatterChartData(
+                scatterSpots: spots,
+                showingTooltipIndicators: [?at],
+                minX: minX,
+                maxX: maxX,
+                minY: minY,
+                maxY: maxY,
+                borderData: FlBorderData(show: false),
+                gridData: FlGridData(
+                  horizontalInterval: spanY / 4,
+                  verticalInterval: spanX / 4,
+                  getDrawingHorizontalLine: (_) => line,
+                  getDrawingVerticalLine: (_) => line,
+                ),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: _yWidth,
+                      interval: spanY / 4,
+                      getTitlesWidget: (v, meta) => SideTitleWidget(
+                        meta: meta,
+                        child: Text(
+                          dashFigure(
+                            f.fmtMoney(
+                              v,
+                              maxFractionDigits: 0,
+                              currency: false,
+                            ),
+                          ),
+                          style: axis,
                         ),
-                        style: axis,
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: _xHeight,
+                      interval: spanX / 4,
+                      getTitlesWidget: (v, meta) => SideTitleWidget(
+                        meta: meta,
+                        child: Text(
+                          dashFigure(f.fmtPercent(v / 100)),
+                          style: axis,
+                        ),
                       ),
                     ),
                   ),
                 ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: _xHeight,
-                    interval: spanX / 4,
-                    getTitlesWidget: (v, meta) => SideTitleWidget(
-                      meta: meta,
-                      child: Text(
-                        dashFigure(f.fmtPercent(v / 100)),
-                        style: axis,
-                      ),
-                    ),
+                scatterTouchData: ScatterTouchData(
+                  handleBuiltInTouches: false,
+                  // A finger's reach around a 12 px mark.
+                  touchSpotThreshold: Space.sm,
+                  touchCallback: (e, r) => touch(e, r?.touchedSpot?.spotIndex),
+                  touchTooltipData: ScatterTouchTooltipData(
+                    getTooltipColor: (_) => c.card,
+                    tooltipBorder: BorderSide(color: c.hairline),
+                    tooltipBorderRadius: BorderRadius.circular(Radii.sm),
+                    fitInsideHorizontally: true,
+                    fitInsideVertically: true,
+                    maxContentWidth: 240,
+                    getTooltipItems: (s) {
+                      final d = byKey[s];
+                      if (d == null) return null;
+                      return ScatterTooltipItem(
+                        d.row.itemName,
+                        textStyle: DashType.bodyStrong.copyWith(
+                          color: c.textPrimary,
+                        ),
+                        textAlign: TextAlign.start,
+                        textDirection: dir,
+                        children: tip(d),
+                      );
+                    },
                   ),
-                ),
-              ),
-              scatterTouchData: ScatterTouchData(
-                touchTooltipData: ScatterTouchTooltipData(
-                  getTooltipColor: (_) => c.card,
-                  tooltipBorder: BorderSide(color: c.hairline),
-                  tooltipBorderRadius: BorderRadius.circular(Radii.sm),
-                  fitInsideHorizontally: true,
-                  fitInsideVertically: true,
-                  maxContentWidth: 240,
-                  getTooltipItems: (s) {
-                    final d = byKey[s];
-                    if (d == null) return null;
-                    return ScatterTooltipItem(
-                      d.row.itemName,
-                      textStyle: DashType.bodyStrong.copyWith(
-                        color: c.textPrimary,
-                      ),
-                      textAlign: TextAlign.start,
-                      textDirection: dir,
-                      children: tip(d),
-                    );
-                  },
                 ),
               ),
             ),
