@@ -10,6 +10,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
@@ -747,6 +748,18 @@ class _RowList extends ConsumerWidget {
         glyph: MadarGlyph.printer,
         onTap: () => unawaited(showPrinterSheet(context)),
       ),
+      // The loyalty scanner's camera: only a phone or tablet has two.
+      if (Platform.isAndroid || Platform.isIOS)
+        MadarListRow.nav(
+          title: t('settings.scan_camera'),
+          meta: t(
+            config.scanCamera == 'front'
+                ? 'settings.scan_camera_front'
+                : 'settings.scan_camera_back',
+          ),
+          glyph: MadarGlyph.camera,
+          onTap: () => unawaited(showScanCameraSheet(context)),
+        ),
       if (isKitchen && stations.isNotEmpty)
         MadarListRow.nav(
           title: t('setup.choose_station'),

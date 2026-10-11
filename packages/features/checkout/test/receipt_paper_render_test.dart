@@ -139,8 +139,26 @@ const _comboLines = [
   ),
 ];
 
+// A line with its own note, under an order with one.
+const _notedLines = [
+  ReceiptLineView(
+    dealMinor: 0,
+    kind: 'item',
+    parts: [],
+    unitPriceMinor: 0,
+    name: 'Latte',
+    qty: 1,
+    lineTotalMinor: 15500,
+    staffCompMinor: 0,
+    addons: [],
+    optionals: [],
+    note: 'no sugar',
+  ),
+];
+
 ReceiptView _r({
   List<ReceiptLineView>? lines,
+  String? note,
   List<ReceiptDealView> deals = const [],
   List<ReceiptPaymentView> payments = const [],
   String label = 'Cash',
@@ -188,6 +206,7 @@ ReceiptView _r({
   serviceChargeWaivedByName: waivedBy,
   taxInclusive: inclusive,
   taxRate: rate,
+  note: note,
 );
 
 final _cases = <String, ReceiptView>{
@@ -226,6 +245,9 @@ final _cases = <String, ReceiptView>{
     waivedBy: 'Mona',
   ),
   'void': _r(voided: true),
+  // Notes were on the kitchen chit only: the line's under it, the order's
+  // once under the items.
+  'notes': _r(lines: _notedLines, note: 'Birthday, cake last'),
   // Two devices shared a code offline: the server's ~suffix stays on.
   'device': _r(display: '36B-12~AB12'),
   // The order's reference, under the time: one colon (the word has it).
@@ -339,6 +361,15 @@ void main() {
               expect(find.text(w('order.service_charge')), findsNothing);
             case 'void':
               expect(find.textContaining(w('receipt.voided')), findsOneWidget);
+            case 'notes':
+              expect(
+                find.text('  ${w('receipt.notes')} no sugar'),
+                findsOneWidget,
+              );
+              expect(
+                find.text('${w('receipt.notes')} Birthday, cake last'),
+                findsOneWidget,
+              );
             case 'combo':
               // The combo at n×P, its items indented, the extra and the
               // add-on each on their own row.

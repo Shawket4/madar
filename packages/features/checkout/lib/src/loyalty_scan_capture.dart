@@ -96,11 +96,21 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
   static final bool _cameraSupported =
       Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
+  /// Only a phone or tablet has a second camera to flip to.
+  static final bool _canFlip = Platform.isAndroid || Platform.isIOS;
+
   @override
   void initState() {
     super.initState();
     if (_cameraSupported) {
-      _camera = MobileScannerController(formats: const [BarcodeFormat.qrCode]);
+      // The camera this device is set to (Settings, saved in the core like
+      // the printer); the flip below changes it for this scan only.
+      final front =
+          ref.read(bridgeProvider).deviceConfig().scanCamera == 'front';
+      _camera = MobileScannerController(
+        formats: const [BarcodeFormat.qrCode],
+        facing: front ? CameraFacing.front : CameraFacing.back,
+      );
       unawaited(_camera!.start());
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -159,6 +169,16 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
       await widget.onCaptured(token: token, phone: phone);
     } finally {
       _inFlight = false;
+    }
+  }
+
+  /// Flip to the other camera for this scan. A device that cannot (one
+  /// camera, not started yet) stays on the one it has.
+  Future<void> _flip() async {
+    try {
+      await _camera?.switchCamera();
+    } on Object {
+      // Nothing to flip to.
     }
   }
 
@@ -271,14 +291,39 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
               borderRadius: BorderRadius.circular(Radii.md),
               child: SizedBox(
                 height: _cameraHeight,
-                child: MobileScanner(
-                  controller: _camera,
-                  onDetect: (capture) {
-                    // The platform decoder gives us a string; the core says
-                    // whether it is one of ours.
-                    final code = capture.barcodes.firstOrNull?.rawValue;
-                    if (code != null) _onCamera(code);
-                  },
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    MobileScanner(
+                      controller: _camera,
+                      onDetect: (capture) {
+                        // The platform decoder gives us a string; the core
+                        // says whether it is one of ours.
+                        final code = capture.barcodes.firstOrNull?.rawValue;
+                        if (code != null) _onCamera(code);
+                      },
+                    ),
+                    if (_canFlip)
+                      PositionedDirectional(
+                        top: Space.sm,
+                        end: Space.sm,
+                        child: ValueListenableBuilder<MobileScannerState>(
+                          valueListenable: _camera!,
+                          // Hidden where the device reports one camera.
+                          builder: (context, scanner, _) =>
+                              (scanner.availableCameras ?? 2) < 2
+                              ? const SizedBox.shrink()
+                              : MadarButton(
+                                  label: '',
+                                  glyph: MadarGlyph.refresh,
+                                  tooltip: t('loyalty.switch_camera'),
+                                  variant: MadarButtonVariant.secondary,
+                                  size: MadarButtonSize.compact,
+                                  onTap: () => unawaited(_flip()),
+                                ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             )

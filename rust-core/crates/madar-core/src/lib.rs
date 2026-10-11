@@ -2826,6 +2826,16 @@ impl MadarCore {
         Ok(())
     }
 
+    /// The camera the loyalty scanner opens on (Settings): `"front"` or
+    /// `"back"`. Anything else, `None` included, clears it back to the
+    /// default, the back camera.
+    pub fn set_device_scan_camera(&self, facing: Option<String>) -> Result<(), CoreError> {
+        device::update(&self.store, |c| {
+            c.scan_camera = facing.filter(|f| f == "front" || f == "back");
+        })?;
+        Ok(())
+    }
+
     /// Wipe the device binding entirely (factory reset of the device config).
     pub fn clear_device(&self) -> Result<(), CoreError> {
         device::save(&self.store, &device::DeviceConfig::default())

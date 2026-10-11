@@ -10,6 +10,7 @@ import 'package:rust_bridge/rust_bridge.dart';
 class _Bridge implements MadarBridge {
   TillView? till;
   bool refuseHub = false;
+  String? scanCamera;
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
@@ -29,6 +30,10 @@ class _Bridge implements MadarBridge {
       return (t?.isOpen ?? false) ? t : null;
     }
     if (name == #currentTill) return Future<TillView?>.value(till);
+    if (name == #setDeviceScanCamera) {
+      scanCamera = args[#facing] as String?;
+      return Future<void>.value();
+    }
     if (name == #setDeviceLanHub) {
       return refuseHub
           ? Future<void>.error(
@@ -61,4 +66,12 @@ void main() {
     await notifier.setLanHub('10.0.0.2');
     expect(container.read(settingsProvider).writeError, isNull);
   });
+
+  test(
+    'the scanner camera chosen in Settings is saved on the device',
+    () async {
+      await container.read(settingsProvider.notifier).setScanCamera('front');
+      expect(bridge.scanCamera, 'front');
+    },
+  );
 }

@@ -217,9 +217,16 @@ class ReceiptPaper extends ConsumerWidget {
           ],
           for (final line in r.lines)
             if (line.kind == 'combo')
-              _ComboBlock(line: line, money: _money)
+              _ComboBlock(line: line, money: _money, notes: tr('receipt.notes'))
             else
-              _LineBlock(line: line, money: _money),
+              _LineBlock(line: line, money: _money, notes: tr('receipt.notes')),
+          // The order's note, once, under everything it applies to.
+          if (r.note case final note?)
+            _Mono(
+              '${tr('receipt.notes')} $note',
+              size: _rowSize,
+              align: TextAlign.start,
+            ),
           const _Rule(),
           // With deals, the subtotal reads the lines at their normal prices
           // and each deal is its own row under it, as the printed receipt has
@@ -335,10 +342,17 @@ class ReceiptPaper extends ConsumerWidget {
 /// with no paid modifiers stays one row; a line whose per-unit split does not
 /// divide exactly (a reward) shows its total only.
 class _LineBlock extends StatelessWidget {
-  const _LineBlock({required this.line, required this.money});
+  const _LineBlock({
+    required this.line,
+    required this.money,
+    required this.notes,
+  });
 
   final ReceiptLineView line;
   final String Function(int minor) money;
+
+  /// The "Notes:" label a line's note prints after.
+  final String notes;
 
   @override
   Widget build(BuildContext context) {
@@ -381,6 +395,7 @@ class _LineBlock extends StatelessWidget {
             left: '  ★ $staff',
             right: '-${money(line.staffCompMinor)}',
           ),
+        if (line.note case final note?) _NoteRow('  $notes $note'),
       ],
     );
   }
@@ -390,10 +405,17 @@ class _LineBlock extends StatelessWidget {
 /// indented with its size and `+surcharge` when it cost more, and its add-ons
 /// indented once more with their prices.
 class _ComboBlock extends StatelessWidget {
-  const _ComboBlock({required this.line, required this.money});
+  const _ComboBlock({
+    required this.line,
+    required this.money,
+    required this.notes,
+  });
 
   final ReceiptLineView line;
   final String Function(int minor) money;
+
+  /// The "Notes:" label a note prints after.
+  final String notes;
 
   @override
   Widget build(BuildContext context) {
@@ -415,10 +437,23 @@ class _ComboBlock extends StatelessWidget {
           ),
           for (final m in [...p.addons, ...p.optionals])
             _ModRow(prefix: '    + ', modifier: m, money: money, priced: true),
+          if (p.note case final note?) _NoteRow('    $notes $note'),
         ],
+        if (line.note case final note?) _NoteRow('  $notes $note'),
       ],
     );
   }
+}
+
+/// A note under its line, as the printed receipt has it.
+class _NoteRow extends StatelessWidget {
+  const _NoteRow(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) =>
+      _MoneyRow(left: text, right: '', faint: true);
 }
 
 /// A modifier row — indented; `+amount` (already × its count) only when the

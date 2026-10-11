@@ -1417,6 +1417,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// print time; the other is retained so switching back is lossless.
   Future<void> setDevicePrinterTransport({required String kind});
 
+  /// The camera the loyalty scanner opens on: `"front"` or `"back"`;
+  /// anything else (or `None`) clears it back to the back camera.
+  Future<void> setDeviceScanCamera({String? facing});
+
   /// Bind the device's kitchen station (a KDS device). `None` clears it.
   Future<void> setDeviceStation({String? stationId});
 

@@ -87,7 +87,8 @@ struct Kept {
     printer: DeviceConfig,
 }
 
-/// Only the printer half of a device config.
+/// Only the hardware half of a device config: the printer, and the camera
+/// the scanner opens on.
 fn printer_only(c: &DeviceConfig) -> DeviceConfig {
     DeviceConfig {
         printer_host: c.printer_host.clone(),
@@ -97,6 +98,7 @@ fn printer_only(c: &DeviceConfig) -> DeviceConfig {
         printer_bt_address: c.printer_bt_address.clone(),
         printer_bt_name: c.printer_bt_name.clone(),
         printer_paper_dots: c.printer_paper_dots,
+        scan_camera: c.scan_camera.clone(),
         ..DeviceConfig::default()
     }
 }
@@ -532,6 +534,7 @@ mod tests {
         core.set_device_branch("00000000-0000-0000-0000-000000000001".into(), Some("Downtown".into())).unwrap();
         core.set_device_printer(Some("10.0.0.9".into()), Some(9100), Some("star".into())).unwrap();
         core.set_device_printer_paper(Some(384)).unwrap();
+        core.set_device_scan_camera(Some("front".into())).unwrap();
         core.set_device_lan_hub(Some("10.0.0.2".into())).unwrap();
         core.store.kv_put(crate::session::BUNDLE_KEY, r#"{"lan_secret":"00"}"#).unwrap();
         core.store.kv_put("catalog:menu", "[]").unwrap();
@@ -587,8 +590,23 @@ mod tests {
         assert_eq!(cfg.printer_host.as_deref(), Some("10.0.0.9"));
         assert_eq!(cfg.printer_brand.as_deref(), Some("star"));
         assert_eq!(cfg.printer_paper_dots, Some(384));
+        // The scanner's camera is the device's hardware too: it stays.
+        assert_eq!(cfg.scan_camera.as_deref(), Some("front"));
         assert_eq!(core.app_route(), crate::AppRoute::DeviceSetup);
         assert!(!marker_path(&core.config.db_path).unwrap().exists());
+    }
+
+    /// The loyalty scanner's camera (Settings): front or back; anything
+    /// else clears it back to the default, the back camera.
+    #[test]
+    fn the_scanner_camera_is_front_or_back_and_anything_else_clears_it() {
+        let (_dir, db) = temp_db();
+        let core = core_at(&db);
+        assert_eq!(core.device_config().scan_camera, None);
+        core.set_device_scan_camera(Some("front".into())).unwrap();
+        assert_eq!(core.device_config().scan_camera.as_deref(), Some("front"));
+        core.set_device_scan_camera(Some("sideways".into())).unwrap();
+        assert_eq!(core.device_config().scan_camera, None);
     }
 
     #[test]

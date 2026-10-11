@@ -46,6 +46,7 @@ pub struct _DeviceConfigView {
     pub printer_paper_dots: Option<u32>,
     pub reconfiguring: bool,
     pub lan_hub: Option<String>,
+    pub scan_camera: Option<String>,
     pub configured: bool,
 }
 
@@ -154,6 +155,14 @@ impl MadarBridge {
     pub fn set_device_printer_paper(&self, dots: Option<u32>) -> Result<(), MadarError> {
         self.inner
             .set_device_printer_paper(dots)
+            .map_err(MadarError::from)
+    }
+
+    /// The camera the loyalty scanner opens on: `"front"` or `"back"`;
+    /// anything else (or `None`) clears it back to the back camera.
+    pub fn set_device_scan_camera(&self, facing: Option<String>) -> Result<(), MadarError> {
+        self.inner
+            .set_device_scan_camera(facing)
             .map_err(MadarError::from)
     }
 
