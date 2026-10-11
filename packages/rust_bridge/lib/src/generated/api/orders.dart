@@ -514,6 +514,9 @@ class ReceiptLineView {
   /// What a deal took off this line; the line prints at its normal price.
   final PlatformInt64 dealMinor;
 
+  /// The line's own note, printed under it (never its kitchen-only note).
+  final String? note;
+
   const ReceiptLineView({
     required this.name,
     required this.qty,
@@ -528,6 +531,7 @@ class ReceiptLineView {
     required this.unitPriceMinor,
     required this.parts,
     required this.dealMinor,
+    this.note,
   });
 
   @override
@@ -544,7 +548,8 @@ class ReceiptLineView {
       kind.hashCode ^
       unitPriceMinor.hashCode ^
       parts.hashCode ^
-      dealMinor.hashCode;
+      dealMinor.hashCode ^
+      note.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -563,7 +568,8 @@ class ReceiptLineView {
           kind == other.kind &&
           unitPriceMinor == other.unitPriceMinor &&
           parts == other.parts &&
-          dealMinor == other.dealMinor;
+          dealMinor == other.dealMinor &&
+          note == other.note;
 }
 
 /// A priced modifier on a receipt line (an addon or a chosen optional).
@@ -595,6 +601,9 @@ class ReceiptPartView {
   final List<ReceiptModifierView> addons;
   final List<ReceiptModifierView> optionals;
 
+  /// This item's own note, printed under it.
+  final String? note;
+
   const ReceiptPartView({
     required this.name,
     required this.qty,
@@ -603,6 +612,7 @@ class ReceiptPartView {
     required this.surchargeMinor,
     required this.addons,
     required this.optionals,
+    this.note,
   });
 
   @override
@@ -613,7 +623,8 @@ class ReceiptPartView {
       slotName.hashCode ^
       surchargeMinor.hashCode ^
       addons.hashCode ^
-      optionals.hashCode;
+      optionals.hashCode ^
+      note.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -626,7 +637,8 @@ class ReceiptPartView {
           slotName == other.slotName &&
           surchargeMinor == other.surchargeMinor &&
           addons == other.addons &&
-          optionals == other.optionals;
+          optionals == other.optionals &&
+          note == other.note;
 }
 
 /// One tender on a split receipt.
@@ -712,6 +724,9 @@ class ReceiptView {
   final String? paymentHint;
   final String? deliveryNotes;
 
+  /// The order's note, printed once under the items.
+  final String? note;
+
   /// `true` while the order is still queued (offline); `false` once sent.
   final bool queuedOffline;
   final String createdAt;
@@ -761,6 +776,7 @@ class ReceiptView {
     this.deliveryRef,
     this.paymentHint,
     this.deliveryNotes,
+    this.note,
     required this.queuedOffline,
     required this.createdAt,
     required this.payments,
@@ -802,6 +818,7 @@ class ReceiptView {
       deliveryRef.hashCode ^
       paymentHint.hashCode ^
       deliveryNotes.hashCode ^
+      note.hashCode ^
       queuedOffline.hashCode ^
       createdAt.hashCode ^
       payments.hashCode ^
@@ -845,6 +862,7 @@ class ReceiptView {
           deliveryRef == other.deliveryRef &&
           paymentHint == other.paymentHint &&
           deliveryNotes == other.deliveryNotes &&
+          note == other.note &&
           queuedOffline == other.queuedOffline &&
           createdAt == other.createdAt &&
           payments == other.payments &&

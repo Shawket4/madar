@@ -38,6 +38,12 @@ Future<void> showPrinterSheet(BuildContext context) => showMadarSheet<void>(
   builder: (_) => const _PrinterSheet(),
 );
 
+Future<void> showScanCameraSheet(BuildContext context) => showMadarSheet<void>(
+  context,
+  size: SheetSize.hug,
+  builder: (_) => const _ScanCameraSheet(),
+);
+
 Future<void> showStationSheet(BuildContext context) => showMadarSheet<void>(
   context,
   size: SheetSize.hug,
@@ -364,6 +370,35 @@ class _StationSheet extends ConsumerWidget {
               ],
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The camera the loyalty scanner (points and rewards) opens on. Saved on
+/// this device like the printer; the scanner's own flip is for one scan.
+class _ScanCameraSheet extends ConsumerWidget {
+  const _ScanCameraSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
+    String t(String key) => bridge.tr(key: key);
+    final facing = ref.watch(
+      settingsProvider.select((s) => s.config.scanCamera ?? 'back'),
+    );
+    return _SheetFrame(
+      title: t('settings.scan_camera'),
+      children: [
+        MadarSegmented<String>(
+          items: [
+            MadarSegmentItem('back', t('settings.scan_camera_back')),
+            MadarSegmentItem('front', t('settings.scan_camera_front')),
+          ],
+          value: facing,
+          onChanged: (f) =>
+              unawaited(ref.read(settingsProvider.notifier).setScanCamera(f)),
         ),
       ],
     );
