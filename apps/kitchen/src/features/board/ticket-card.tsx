@@ -59,7 +59,7 @@ export function TicketCard({ part, now, width, sectionName, onLine, onBumpAll }:
       {/* Header: order number largest, then type · waiter, age on the end side. */}
       <View style={{ backgroundColor: h.bg, paddingHorizontal: space.lg, paddingVertical: space.md, gap: 4 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-          <Txt size={kitchen.orderNumber} mono weight="bold" color={h.fg} style={{ flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{part.kitchenRef}</Txt>
+          <Txt size={kitchen.orderNumber} mono weight="bold" color={h.fg} style={{ flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>#{part.kitchenRef}</Txt>
           <View style={{ flex: 1 }} />
           {done ? (
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>

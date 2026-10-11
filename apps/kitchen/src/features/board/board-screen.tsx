@@ -136,7 +136,7 @@ function RecallSheet() {
       {list.map((p) => (
         <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: space.md, padding: space.md, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, backgroundColor: wash(c.success, 0.06) }}>
           <View style={{ flex: 1 }}>
-            <Txt size={20} mono weight="bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{p.kitchenRef}</Txt>
+            <Txt size={20} mono weight="bold" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>#{p.kitchenRef}</Txt>
             <Txt size={14} muted numberOfLines={1}>
               {sourceLabel(t, p)} · {formatClock(p.createdAt)} · {p.items.map((l) => `${l.qty}× ${l.name}`).join(", ")}
             </Txt>

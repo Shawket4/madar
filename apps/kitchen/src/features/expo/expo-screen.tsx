@@ -97,7 +97,7 @@ function OrderCard({ parts, now }: { parts: KitchenPart[]; now: number }) {
   return (
     <View style={{ backgroundColor: c.card, borderRadius: radius.xl, borderWidth: ready ? 3 : 1, borderColor: ready ? c.success : c.border, padding: space.lg, gap: space.md }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-        <Txt size={kitchen.orderNumber} mono weight="bold" style={{ flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>{order.kitchenRef}</Txt>
+        <Txt size={kitchen.orderNumber} mono weight="bold" style={{ flexShrink: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>#{order.kitchenRef}</Txt>
         <View style={{ flex: 1 }} />
         <Txt size={kitchen.age - 2} mono weight="bold" color={late && !ready ? c.destructive : c.mutedForeground}>{formatAge(ageMs(new Date(firstFire(parts)).toISOString(), now))}</Txt>
       </View>

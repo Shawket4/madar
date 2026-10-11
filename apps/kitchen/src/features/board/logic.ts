@@ -39,9 +39,11 @@ export function sourceOf(t: Pick<Ticket, "sourceType" | "tableLabel">): SourceTy
 }
 
 /**
- * The short number a cook calls out, exactly as the POS prints it: the core's
- * `display_ref` (`36B-12` for a till sale, `T-10` for a waiter's ticket). A
- * round fired offline has no reference yet: the id's tail stands in.
+ * The number a cook calls out, as the POS prints it after its "#": the core's
+ * `display_ref` — a till sale's device code and sequence (`36B-12`, the
+ * receipt's "Order #36B-12"), a waiter's ticket `T-10` (tickets are numbered
+ * per branch, with no device). A round fired offline has no reference yet: the
+ * id's tail stands in.
  */
 export function shortRef(displayRef: string | undefined, id: string): string {
   return displayRef?.trim() || id.slice(-4).toUpperCase();

@@ -89,6 +89,10 @@ mod display_ref_tests {
     #[test]
     fn a_till_sale_reads_like_its_receipt() {
         assert_eq!(display_ref(Some("ARK-261011-36B-0012"), "order").as_deref(), Some("36B-12"));
+        // A real device-numbered ref from a POS: the receipt reads "Order #244-6".
+        assert_eq!(display_ref(Some("TEST2-260915-244-0006"), "order").as_deref(), Some("244-6"));
+        // An old server-numbered ref (3-digit sequence): the plain number, as the receipt.
+        assert_eq!(display_ref(Some("MAADIB-260811-C3423C-011"), "order").as_deref(), Some("11"));
         // Two devices shared a code offline: the suffix stays on the number.
         assert_eq!(display_ref(Some("ARK-261011-36B-0012~a1b2"), "order").as_deref(), Some("36B-12~a1b2"));
     }
