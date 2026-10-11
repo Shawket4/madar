@@ -802,6 +802,12 @@ Future<void> _capture(WidgetTester tester, String name) async {
 }
 
 /// The sheet's own session, reachable while the sheet is up.
+/// The teller picks Cash: no method is preselected (owner, 2026-10-11).
+Future<void> _pickCash(WidgetTester tester) async {
+  _session0(tester).selectMethod('cash');
+  await _settle(tester);
+}
+
 CheckoutState _state0(WidgetTester tester) => ProviderScope.containerOf(
   tester.element(find.byType(ChargeSheet)),
 ).read(checkoutProvider);
@@ -964,6 +970,7 @@ void main() {
     expect(_state0(tester).waiveService, isTrue);
     expect(_state0(tester).dueMinor, 16500);
     expect(find.text(coreWord('checkout.keep_service')), findsOneWidget);
+    await _pickCash(tester);
     await _session0(tester).chargeExact();
     await _settle(tester);
     expect(bridge.settled?[#waiveService], isTrue);
@@ -991,6 +998,7 @@ void main() {
       // The free latte is off the figure Charge collects, not only the paper.
       expect(_state0(tester).dueMinor, 13000);
       expect(_state0(tester).rewardRedemptions.single.ticketLineId, 'l1');
+      await _pickCash(tester);
       await tester.tap(find.text('200'));
       await _settle(tester);
       expect(
@@ -1029,6 +1037,7 @@ void main() {
           presentDoneCard: false,
         );
         await _settle(tester);
+        await _pickCash(tester);
         await tester.tap(find.text('200'));
         await _settle(tester);
         await _capture(tester, 'charge-bill-$label${rtl ? '-ar' : ''}');
@@ -1243,7 +1252,7 @@ void main() {
     );
     await _settle(tester);
     await _session0(tester).scanLoyalty(token: 'tok');
-    await _settle(tester);
+    await _pickCash(tester);
     expect(find.text('بالضبط'), findsOneWidget);
     await _capture(tester, 'charge-bill-phone-ar');
   });
