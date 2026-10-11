@@ -2020,7 +2020,7 @@ fn escpos_ctx(_core: &MadarCore) -> receipt::EscPosCtx {
             served_by: l("Served by"),
             queued: l("Saved - will sync"),
             thank_you: l("Thank you!"),
-            powered_by: l("Powered by"),
+            powered_by: Some(l("Powered by")),
             locale: l("en"),
             tz: chrono_tz::UTC,
         },

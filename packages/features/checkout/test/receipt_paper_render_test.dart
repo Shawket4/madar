@@ -21,8 +21,11 @@ import 'package:rust_bridge/rust_bridge.dart';
 const _render = bool.fromEnvironment('MADAR_RENDER');
 
 class _Bridge implements MadarBridge {
-  _Bridge({required this.rtl});
+  _Bridge({required this.rtl, this.stub = true});
   final bool rtl;
+
+  /// Settings › Printer's "Powered by madar" stub.
+  final bool stub;
 
   @override
   dynamic noSuchMethod(Invocation i) {
@@ -35,6 +38,13 @@ class _Bridge implements MadarBridge {
     if (i.memberName == #receiptFooter) return 'Thank you!';
     if (i.memberName == #isRtl) return rtl;
     if (i.memberName == #locale) return rtl ? 'ar' : 'en';
+    if (i.memberName == #deviceConfig) {
+      return DeviceConfigView(
+        reconfiguring: false,
+        configured: true,
+        receiptStub: stub,
+      );
+    }
     return null;
   }
 }
@@ -428,5 +438,38 @@ void main() {
         });
       }
     }
+  }
+
+  // Settings › Printer's "Powered by madar" stub: on by default, and the
+  // preview drops it when the device stops printing it.
+  for (final stub in [true, false]) {
+    testWidgets('the powered-by stub follows the setting (stub=$stub)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            bridgeProvider.overrideWithValue(_Bridge(rtl: false, stub: stub)),
+          ],
+          child: MaterialApp(
+            theme: MadarTheme.light(),
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ReceiptPaper(
+                  receipt: _cases['cash']!,
+                  storeName: 'Rue Zamalek',
+                  currency: 'EGP',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.text(coreWord('receipt.powered_by')),
+        stub ? findsOneWidget : findsNothing,
+      );
+    });
   }
 }

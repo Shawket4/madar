@@ -340,10 +340,12 @@ class ReceiptPaper extends ConsumerWidget {
               ),
             ],
           ),
-          Padding(
-            padding: const EdgeInsetsDirectional.only(top: Space.sm),
-            child: _PoweredByStub(label: tr('receipt.powered_by')),
-          ),
+          // As printed: only when the device prints it (Settings › Printer).
+          if (bridge.deviceConfig().receiptStub)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(top: Space.sm),
+              child: _PoweredByStub(label: tr('receipt.powered_by')),
+            ),
         ],
       ),
     );

@@ -253,6 +253,13 @@ class SettingsNotifier extends Notifier<SettingsState> {
     state = state.copyWith(config: _bridge.deviceConfig());
   }
 
+  /// Print the "Powered by madar" stub at the foot of receipts (on by
+  /// default) — and re-mirror. The preview reads the same setting.
+  Future<void> setReceiptStub({required bool on}) async {
+    await _write(() => _bridge.setDeviceReceiptStub(enabled: on));
+    state = state.copyWith(config: _bridge.deviceConfig());
+  }
+
   /// List the OS's paired Bluetooth printers into [SettingsState.pairedDevices]
   /// (requests the runtime permission first). Best-effort: empty on denial or
   /// Bluetooth off.

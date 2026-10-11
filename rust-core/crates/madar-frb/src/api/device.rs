@@ -47,6 +47,8 @@ pub struct _DeviceConfigView {
     pub reconfiguring: bool,
     pub lan_hub: Option<String>,
     pub scan_camera: Option<String>,
+    #[frb(default = true)]
+    pub receipt_stub: bool,
     pub configured: bool,
 }
 
@@ -163,6 +165,14 @@ impl MadarBridge {
     pub fn set_device_scan_camera(&self, facing: Option<String>) -> Result<(), MadarError> {
         self.inner
             .set_device_scan_camera(facing)
+            .map_err(MadarError::from)
+    }
+
+    /// Print the "Powered by madar" stub at the foot of receipts; on by
+    /// default. The on-screen preview follows it too.
+    pub fn set_device_receipt_stub(&self, enabled: bool) -> Result<(), MadarError> {
+        self.inner
+            .set_device_receipt_stub(enabled)
             .map_err(MadarError::from)
     }
 

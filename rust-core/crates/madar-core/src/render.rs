@@ -702,8 +702,10 @@ impl Renderer {
         self.center(&r.payment_label.to_uppercase(), RS_BODY, Weight::BOLD);
         self.gap(self.sx(6));
         self.center(&lab.thank_you, RS_BODY, Weight::BOLD);
-        self.gap(self.sx(20));
-        self.powered_by(&lab.powered_by, lab.locale.starts_with("ar"));
+        if let Some(label) = &lab.powered_by {
+            self.gap(self.sx(20));
+            self.powered_by(label, lab.locale.starts_with("ar"));
+        }
         self.gap(self.bottom_pad);
     }
 
@@ -1299,7 +1301,7 @@ mod tests {
                 served_by: "Served by".into(),
                 queued: "Saved — will sync".into(),
                 thank_you: "Thank you!".into(),
-                powered_by: "Powered by".into(),
+                powered_by: Some("Powered by".into()),
                 locale: "en".into(),
                 tz: chrono_tz::UTC,
             },
@@ -1935,7 +1937,7 @@ mod tests {
         c.labels.cash = tr("receipt.cash");
         c.labels.change = tr("order.change");
         c.labels.thank_you = "شكراً لزيارتكم".into();
-        c.labels.powered_by = tr("receipt.powered_by");
+        c.labels.powered_by = Some(tr("receipt.powered_by"));
         c.labels.locale = "ar".into();
         c
     }
@@ -2042,12 +2044,25 @@ mod tests {
                 let mut r = Renderer::new(roll);
                 r.build(&rc, &c, None);
                 let what = format!("{} @{roll}", c.labels.locale);
-                assert_eq!(r.shaped.last(), Some(&c.labels.powered_by), "{what}: the stub is last");
+                assert_eq!(r.shaped.last(), c.labels.powered_by.as_ref(), "{what}: the stub is last");
                 let (_, (x0, _, x1, _)) = r.inked.last().unwrap().clone();
                 assert!(x0 >= 0 && x0 < x1 && x1 <= r.width, "{what}: label at x {x0}..{x1}");
                 assert_eq!((x0 + x1) / 2 > r.width / 2, right, "{what}: label at x {x0}..{x1}");
             }
         }
+    }
+
+    /// Turned off in Settings, the receipt ends at the thank-you: no stub,
+    /// and the paper is that much shorter.
+    #[test]
+    fn a_receipt_without_the_stub_ends_at_the_thank_you() {
+        let mut off = ctx();
+        off.labels.powered_by = None;
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build(&receipt(), &off, None);
+        assert_eq!(r.shaped.last(), Some(&off.labels.thank_you));
+        let on = render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH).rows;
+        assert!(render_receipt(&receipt(), &off, None, PRINT_WIDTH).rows < on);
     }
 
     #[test]

@@ -1828,6 +1828,7 @@ fn en(key: &str) -> Option<&'static str> {
         "settings.scan_camera_back" => "Back",
         "settings.scan_camera_front" => "Front",
         "settings.printer_paper_80" => "80 mm",
+        "settings.printer_madar_stub" => "“Powered by madar” on receipts",
         "settings.printer_bt_scan" => "Refresh paired devices",
         "settings.printer_bt_none" => {
             "No paired printers. Pair the printer in Android Bluetooth settings first (SPP, PIN 0000 or 1234)."
@@ -4259,6 +4260,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "settings.scan_camera_back" => "الخلفية",
         "settings.scan_camera_front" => "الأمامية",
         "settings.printer_paper_80" => "٨٠ مم",
+        "settings.printer_madar_stub" => "«بواسطة مدار» على الإيصال",
         "settings.printer_bt_scan" => "تحديث الأجهزة المقترنة",
         "settings.printer_bt_none" => {
             "لا توجد طابعات مقترنة. اقرن الطابعة من إعدادات بلوتوث في أندرويد أولًا (SPP، الرمز 0000 أو 1234)."
