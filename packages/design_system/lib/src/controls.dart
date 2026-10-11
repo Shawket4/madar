@@ -946,93 +946,105 @@ class _MadarFieldState extends State<MadarField>
     final colors = context.madarColors;
     final obscure = widget.obscure ?? widget.kind.obscures;
     final single = obscure || widget.maxLines == 1;
-    return ListenableBuilder(
-      listenable: _focus,
-      builder: (context, _) {
-        final focused = _focus.hasFocus && widget.enabled;
-        final textStyle = MadarType.title.copyWith(
-          fontWeight: FontWeight.w500,
-          color: widget.enabled ? colors.textPrimary : colors.textMuted,
-        );
-        return AnimatedContainer(
-          duration: MotionSpec.standardDuration,
-          curve: MotionSpec.standardCurve,
-          constraints: BoxConstraints(
-            minHeight: Metrics.inputHeight,
-            maxHeight: single ? Metrics.inputHeight : double.infinity,
-          ),
-          padding: EdgeInsetsDirectional.symmetric(
-            horizontal: Space.lg,
-            vertical: single ? 0 : Space.md,
-          ),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(Radii.control),
-            border: Border.all(
-              color: focused ? colors.accent : colors.border,
-              width: _fieldBorder,
+    // The whole box is the field: a tap on the currency or the glyph beside
+    // the text, or on the padding, focuses it too, not only the figure.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      excludeFromSemantics: true,
+      onTap: widget.enabled ? _focus.requestFocus : null,
+      child: ListenableBuilder(
+        listenable: _focus,
+        builder: (context, _) {
+          final focused = _focus.hasFocus && widget.enabled;
+          final textStyle = MadarType.title.copyWith(
+            fontWeight: FontWeight.w500,
+            color: widget.enabled ? colors.textPrimary : colors.textMuted,
+          );
+          return AnimatedContainer(
+            duration: MotionSpec.standardDuration,
+            curve: MotionSpec.standardCurve,
+            constraints: BoxConstraints(
+              minHeight: Metrics.inputHeight,
+              maxHeight: single ? Metrics.inputHeight : double.infinity,
             ),
-            // A hard ring, not a glow: zero blur, a 3px spread of the wash.
-            boxShadow: focused
-                ? [BoxShadow(color: colors.accentBg, spreadRadius: _focusRing)]
-                : null,
-          ),
-          child: Row(
-            crossAxisAlignment: single
-                ? CrossAxisAlignment.center
-                : CrossAxisAlignment.start,
-            spacing: Space.md,
-            children: [
-              if (widget.glyph != null)
-                MadarGlyphIcon(
-                  widget.glyph!,
-                  color: focused ? colors.accent : colors.textMuted,
-                )
-              else if (widget.icon != null)
-                MadarIcon(
-                  widget.icon,
-                  tint: focused ? colors.accent : colors.textMuted,
-                  size: IconSize.lg,
-                ),
-              Expanded(
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: TextField(
-                    controller: widget.controller,
-                    focusNode: _focus,
-                    enabled: widget.enabled,
-                    onChanged: widget.onChanged,
-                    onSubmitted: _submit,
-                    obscureText: obscure,
-                    // The kind answers unless the caller overrode it.
-                    keyboardType:
-                        widget.keyboardType ?? widget.kind.keyboardType,
-                    textInputAction: _action,
-                    autocorrect: widget.kind.autocorrect,
-                    enableSuggestions: widget.kind.enableSuggestions,
-                    textCapitalization: widget.kind.textCapitalization,
-                    enableInteractiveSelection: widget.kind.allowsPaste,
-                    inputFormatters: _formatters,
-                    // A figure or a code is an LTR island whatever the script
-                    // around it: "12.50" reorders in an Arabic line otherwise.
-                    textDirection: widget.kind.forcesLtr
-                        ? TextDirection.ltr
-                        : null,
-                    maxLines: single ? 1 : widget.maxLines,
-                    cursorColor: colors.accent,
-                    style: textStyle,
-                    decoration: InputDecoration.collapsed(
-                      hintText: widget.placeholder,
-                      hintStyle: textStyle.copyWith(color: colors.textMuted),
+            padding: EdgeInsetsDirectional.symmetric(
+              horizontal: Space.lg,
+              vertical: single ? 0 : Space.md,
+            ),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(Radii.control),
+              border: Border.all(
+                color: focused ? colors.accent : colors.border,
+                width: _fieldBorder,
+              ),
+              // A hard ring, not a glow: zero blur, a 3px spread of the wash.
+              boxShadow: focused
+                  ? [
+                      BoxShadow(
+                        color: colors.accentBg,
+                        spreadRadius: _focusRing,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              crossAxisAlignment: single
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
+              spacing: Space.md,
+              children: [
+                if (widget.glyph != null)
+                  MadarGlyphIcon(
+                    widget.glyph!,
+                    color: focused ? colors.accent : colors.textMuted,
+                  )
+                else if (widget.icon != null)
+                  MadarIcon(
+                    widget.icon,
+                    tint: focused ? colors.accent : colors.textMuted,
+                    size: IconSize.lg,
+                  ),
+                Expanded(
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _focus,
+                      enabled: widget.enabled,
+                      onChanged: widget.onChanged,
+                      onSubmitted: _submit,
+                      obscureText: obscure,
+                      // The kind answers unless the caller overrode it.
+                      keyboardType:
+                          widget.keyboardType ?? widget.kind.keyboardType,
+                      textInputAction: _action,
+                      autocorrect: widget.kind.autocorrect,
+                      enableSuggestions: widget.kind.enableSuggestions,
+                      textCapitalization: widget.kind.textCapitalization,
+                      enableInteractiveSelection: widget.kind.allowsPaste,
+                      inputFormatters: _formatters,
+                      // A figure or a code is an LTR island whatever the script
+                      // around it: "12.50" reorders in an Arabic line otherwise.
+                      textDirection: widget.kind.forcesLtr
+                          ? TextDirection.ltr
+                          : null,
+                      maxLines: single ? 1 : widget.maxLines,
+                      cursorColor: colors.accent,
+                      style: textStyle,
+                      decoration: InputDecoration.collapsed(
+                        hintText: widget.placeholder,
+                        hintStyle: textStyle.copyWith(color: colors.textMuted),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              ?widget.trailing,
-            ],
-          ),
-        );
-      },
+                ?widget.trailing,
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -1173,75 +1185,87 @@ class _MadarAmountFieldState extends State<MadarAmountField>
   @override
   Widget build(BuildContext context) {
     final colors = context.madarColors;
-    return ListenableBuilder(
-      listenable: _focus,
-      builder: (context, _) {
-        final focused = _focus.hasFocus;
-        return AnimatedContainer(
-          duration: MotionSpec.standardDuration,
-          curve: MotionSpec.standardCurve,
-          height: Metrics.amountFieldHeight,
-          padding: const EdgeInsetsDirectional.symmetric(
-            horizontal: Space.card,
-          ),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: focused ? colors.accent : colors.border,
-              width: _fieldBorder,
+    // The whole box is the field: a tap on the currency or the glyph beside
+    // the text, or on the padding, focuses it too, not only the figure.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      excludeFromSemantics: true,
+      onTap: _focus.requestFocus,
+      child: ListenableBuilder(
+        listenable: _focus,
+        builder: (context, _) {
+          final focused = _focus.hasFocus;
+          return AnimatedContainer(
+            duration: MotionSpec.standardDuration,
+            curve: MotionSpec.standardCurve,
+            height: Metrics.amountFieldHeight,
+            padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: Space.card,
             ),
-            boxShadow: focused
-                ? [BoxShadow(color: colors.accentBg, spreadRadius: _focusRing)]
-                : null,
-          ),
-          child: Row(
-            spacing: Space.md,
-            children: [
-              Text(
-                MadarFormat.currencyLabel(
-                  widget.currencyCode,
-                  locale: MadarFormat.localeOf(context),
-                ),
-                style: MadarType.title.copyWith(color: colors.textMuted),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: focused ? colors.accent : colors.border,
+                width: _fieldBorder,
               ),
-              Expanded(
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focus,
-                    onChanged: _changed,
-                    onSubmitted: (v) =>
-                        widget.onSubmitted?.call(textToMinor(v)),
-                    cursorColor: colors.accent,
-                    // Figures are LTR islands, whatever the script around them.
-                    textDirection: TextDirection.ltr,
-                    keyboardType: _kind.keyboardType,
-                    // Folds ٠-٩ / ۰-۹ to ASCII as they are typed and keeps
-                    // one separator: an amount entered on an Arabic iPad used
-                    // to parse as nothing and leave the field silently empty.
-                    inputFormatters: _kind.inputFormatters,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    style: MadarType.moneyDisplay.copyWith(
-                      fontSize: 28,
-                      color: colors.textPrimary,
-                    ),
-                    decoration: InputDecoration.collapsed(
-                      hintText: '0.00',
-                      hintStyle: MadarType.moneyDisplay.copyWith(
+              boxShadow: focused
+                  ? [
+                      BoxShadow(
+                        color: colors.accentBg,
+                        spreadRadius: _focusRing,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              spacing: Space.md,
+              children: [
+                Text(
+                  MadarFormat.currencyLabel(
+                    widget.currencyCode,
+                    locale: MadarFormat.localeOf(context),
+                  ),
+                  style: MadarType.title.copyWith(color: colors.textMuted),
+                ),
+                Expanded(
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focus,
+                      onChanged: _changed,
+                      onSubmitted: (v) =>
+                          widget.onSubmitted?.call(textToMinor(v)),
+                      cursorColor: colors.accent,
+                      // Figures are LTR islands, whatever the script around them.
+                      textDirection: TextDirection.ltr,
+                      keyboardType: _kind.keyboardType,
+                      // Folds ٠-٩ / ۰-۹ to ASCII as they are typed and keeps
+                      // one separator: an amount entered on an Arabic iPad used
+                      // to parse as nothing and leave the field silently empty.
+                      inputFormatters: _kind.inputFormatters,
+                      autocorrect: false,
+                      enableSuggestions: false,
+                      style: MadarType.moneyDisplay.copyWith(
                         fontSize: 28,
-                        color: colors.textMuted,
+                        color: colors.textPrimary,
+                      ),
+                      decoration: InputDecoration.collapsed(
+                        hintText: '0.00',
+                        hintStyle: MadarType.moneyDisplay.copyWith(
+                          fontSize: 28,
+                          color: colors.textMuted,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
