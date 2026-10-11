@@ -318,6 +318,7 @@ void main() {
     );
     await _settle(tester);
     final session = container.read(checkoutProvider.notifier)
+      ..selectMethod('cash')
       ..setTendered(10000);
     unawaited(session.charge());
     await tester.pump();
@@ -358,7 +359,9 @@ void main() {
       presentDoneCard: false,
     );
     await _settle(tester);
-    container.read(checkoutProvider.notifier).setTendered(10000);
+    container.read(checkoutProvider.notifier)
+      ..selectMethod('cash')
+      ..setTendered(10000);
     await container.read(checkoutProvider.notifier).charge();
     await _settle(tester);
     final outcome = await pending;
@@ -399,6 +402,7 @@ void main() {
       ..setSplitAmount('cash', 4000)
       ..setSplitAmount('card', 6000)
       ..toggleSplit()
+      ..selectMethod('cash')
       ..setTendered(10000);
     expect(container.read(checkoutProvider).splitAmounts, isEmpty);
     await session.charge();
@@ -414,7 +418,9 @@ void main() {
     final keep = container.listen(checkoutProvider, (_, _) {});
     addTearDown(keep.close);
     await session.start(const ChargeTarget.bill(_ticket, tableLabel: 'T1'));
-    session.setTendered(10000);
+    session
+      ..selectMethod('cash')
+      ..setTendered(10000);
     expect(container.read(checkoutProvider).block, ChargeBlock.noTill);
     expect(container.read(checkoutProvider).canChargeExact, isFalse);
     await session.charge();
@@ -426,6 +432,25 @@ void main() {
     container.read(shellProvider.notifier).refresh();
     expect(container.read(checkoutProvider).tillId, _openTill.id);
     expect(container.read(checkoutProvider).block, ChargeBlock.none);
+  });
+
+  test('no method is preselected; a shop with one has nothing to pick', () {
+    // Owner, 2026-10-11: like a required option or a size, the teller picks.
+    expect(
+      const CheckoutState(paymentMethods: _methods).effectiveMethodId,
+      isNull,
+    );
+    expect(
+      const CheckoutState(
+        paymentMethods: _methods,
+        selectedMethodId: 'card',
+      ).effectiveMethodId,
+      'card',
+    );
+    expect(
+      CheckoutState(paymentMethods: [_methods.first]).effectiveMethodId,
+      'cash',
+    );
   });
 
   testWidgets('the next sale inherits nothing from the last one', (
@@ -450,7 +475,9 @@ void main() {
     expect(s.tipOpen, isFalse);
     expect(s.splitMode, isFalse);
     expect(s.splitAmounts, isEmpty);
-    expect(s.effectiveMethodId, 'cash');
+    // Nothing is preselected: the teller picks the method every sale.
+    expect(s.effectiveMethodId, isNull);
+    expect(s.block, ChargeBlock.needTender);
   });
 
   testWidgets('the Done card offers Add points from the outcome alone', (

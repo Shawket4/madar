@@ -320,19 +320,16 @@ class CheckoutState {
   /// What the Charge bar takes — the due plus the tip, split or not.
   int get chargeTotalMinor => tender.chargeTotalMinor;
 
-  /// The method that would charge if the teller tapped the bar now.
+  /// The method that would charge if the teller tapped the bar now: the one
+  /// the teller picked, never a default (owner, 2026-10-11: like a required
+  /// option or a size, the teller chooses it). A shop with a single method
+  /// has nothing to choose, so that one is used.
   String? get effectiveMethodId {
     final picked = selectedMethodId;
     if (picked != null && paymentMethods.any((m) => m.id == picked)) {
       return picked;
     }
-    if (isOnline) {
-      // Nothing to type, so the tap IS the pick — unless there is only one
-      // method, where the bar simply names it.
-      return paymentMethods.length == 1 ? paymentMethods.first.id : null;
-    }
-    final cash = paymentMethods.where((m) => m.isCash).firstOrNull;
-    return (cash ?? paymentMethods.firstOrNull)?.id;
+    return paymentMethods.length == 1 ? paymentMethods.first.id : null;
   }
 
   PaymentMethodView? get effectiveMethod =>
