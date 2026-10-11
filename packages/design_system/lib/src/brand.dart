@@ -111,7 +111,12 @@ class MadarSymbol extends StatelessWidget {
 /// the ambient [Theme] brightness is dark.
 class MadarWordmark extends StatelessWidget {
   /// Creates the Madar wordmark at [width] logical pixels wide.
-  const MadarWordmark({super.key, this.width = 160, this.mono = false});
+  const MadarWordmark({
+    super.key,
+    this.width = 160,
+    this.mono = false,
+    this.arabic = false,
+  });
 
   /// Rendered width in logical pixels; height follows the asset's
   /// aspect ratio.
@@ -121,9 +126,15 @@ class MadarWordmark extends StatelessWidget {
   /// chrome (the dashboard's sidebar).
   final bool mono;
 
+  /// The Arabic wordmark (مدار, plain form), always solid ink or paper.
+  final bool arabic;
+
   @override
   Widget build(BuildContext context) {
-    final variant = _isDark(context)
+    final dark = _isDark(context);
+    final variant = arabic
+        ? (dark ? 'arabic_reversed' : 'arabic')
+        : dark
         ? (mono ? 'mono_paper' : 'reversed')
         : 'primary';
     return Image.asset(

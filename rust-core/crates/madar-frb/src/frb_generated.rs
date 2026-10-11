@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -552780862;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1312117235;
 
 // Section: executor
 
@@ -14514,6 +14514,112 @@ fn wire__crate__api__bridge__MadarBridge_set_device_printer_transport_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_set_device_receipt_stub_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_set_device_receipt_stub",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_enabled = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::error::MadarError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::bridge::MadarBridge::set_device_receipt_stub(
+                        &*api_that_guard,
+                        api_enabled,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_set_device_scan_camera_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_set_device_scan_camera",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_facing = <Option<String>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::error::MadarError>((move || {
+                    let mut api_that_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_that, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_that_guard = api_that_guard.unwrap();
+                    let output_ok = crate::api::bridge::MadarBridge::set_device_scan_camera(
+                        &*api_that_guard,
+                        api_facing,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_set_device_station_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -18121,6 +18227,8 @@ const _: fn() = || {
         let _: Option<u32> = DeviceConfigView.printer_paper_dots;
         let _: bool = DeviceConfigView.reconfiguring;
         let _: Option<String> = DeviceConfigView.lan_hub;
+        let _: Option<String> = DeviceConfigView.scan_camera;
+        let _: bool = DeviceConfigView.receipt_stub;
         let _: bool = DeviceConfigView.configured;
     }
     {
@@ -18704,6 +18812,7 @@ const _: fn() = || {
         let _: i64 = ReceiptLineView.unit_price_minor;
         let _: Vec<crate::api::orders::ReceiptPartView> = ReceiptLineView.parts;
         let _: i64 = ReceiptLineView.deal_minor;
+        let _: Option<String> = ReceiptLineView.note;
     }
     {
         let ReceiptModifierView = None::<crate::api::orders::ReceiptModifierView>.unwrap();
@@ -18719,6 +18828,7 @@ const _: fn() = || {
         let _: i64 = ReceiptPartView.surcharge_minor;
         let _: Vec<crate::api::orders::ReceiptModifierView> = ReceiptPartView.addons;
         let _: Vec<crate::api::orders::ReceiptModifierView> = ReceiptPartView.optionals;
+        let _: Option<String> = ReceiptPartView.note;
     }
     {
         let ReceiptPaymentView = None::<crate::api::orders::ReceiptPaymentView>.unwrap();
@@ -18758,6 +18868,7 @@ const _: fn() = || {
         let _: Option<String> = ReceiptView.delivery_ref;
         let _: Option<String> = ReceiptView.payment_hint;
         let _: Option<String> = ReceiptView.delivery_notes;
+        let _: Option<String> = ReceiptView.note;
         let _: bool = ReceiptView.queued_offline;
         let _: String = ReceiptView.created_at;
         let _: Vec<crate::api::orders::ReceiptPaymentView> = ReceiptView.payments;
@@ -20568,6 +20679,8 @@ impl SseDecode for crate::api::device::DeviceConfigView {
         let mut var_printerPaperDots = <Option<u32>>::sse_decode(deserializer);
         let mut var_reconfiguring = <bool>::sse_decode(deserializer);
         let mut var_lanHub = <Option<String>>::sse_decode(deserializer);
+        let mut var_scanCamera = <Option<String>>::sse_decode(deserializer);
+        let mut var_receiptStub = <bool>::sse_decode(deserializer);
         let mut var_configured = <bool>::sse_decode(deserializer);
         return crate::api::device::DeviceConfigView {
             branch_id: var_branchId,
@@ -20582,6 +20695,8 @@ impl SseDecode for crate::api::device::DeviceConfigView {
             printer_paper_dots: var_printerPaperDots,
             reconfiguring: var_reconfiguring,
             lan_hub: var_lanHub,
+            scan_camera: var_scanCamera,
+            receipt_stub: var_receiptStub,
             configured: var_configured,
         };
     }
@@ -23619,6 +23734,7 @@ impl SseDecode for crate::api::orders::ReceiptLineView {
         let mut var_unitPriceMinor = <i64>::sse_decode(deserializer);
         let mut var_parts = <Vec<crate::api::orders::ReceiptPartView>>::sse_decode(deserializer);
         let mut var_dealMinor = <i64>::sse_decode(deserializer);
+        let mut var_note = <Option<String>>::sse_decode(deserializer);
         return crate::api::orders::ReceiptLineView {
             name: var_name,
             qty: var_qty,
@@ -23633,6 +23749,7 @@ impl SseDecode for crate::api::orders::ReceiptLineView {
             unit_price_minor: var_unitPriceMinor,
             parts: var_parts,
             deal_minor: var_dealMinor,
+            note: var_note,
         };
     }
 }
@@ -23661,6 +23778,7 @@ impl SseDecode for crate::api::orders::ReceiptPartView {
             <Vec<crate::api::orders::ReceiptModifierView>>::sse_decode(deserializer);
         let mut var_optionals =
             <Vec<crate::api::orders::ReceiptModifierView>>::sse_decode(deserializer);
+        let mut var_note = <Option<String>>::sse_decode(deserializer);
         return crate::api::orders::ReceiptPartView {
             name: var_name,
             qty: var_qty,
@@ -23669,6 +23787,7 @@ impl SseDecode for crate::api::orders::ReceiptPartView {
             surcharge_minor: var_surchargeMinor,
             addons: var_addons,
             optionals: var_optionals,
+            note: var_note,
         };
     }
 }
@@ -23719,6 +23838,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
         let mut var_deliveryRef = <Option<String>>::sse_decode(deserializer);
         let mut var_paymentHint = <Option<String>>::sse_decode(deserializer);
         let mut var_deliveryNotes = <Option<String>>::sse_decode(deserializer);
+        let mut var_note = <Option<String>>::sse_decode(deserializer);
         let mut var_queuedOffline = <bool>::sse_decode(deserializer);
         let mut var_createdAt = <String>::sse_decode(deserializer);
         let mut var_payments =
@@ -23758,6 +23878,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
             delivery_ref: var_deliveryRef,
             payment_hint: var_paymentHint,
             delivery_notes: var_deliveryNotes,
+            note: var_note,
             queued_offline: var_queuedOffline,
             created_at: var_createdAt,
             payments: var_payments,
@@ -26081,157 +26202,169 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        263 => wire__crate__api__bridge__MadarBridge_set_device_station_impl(
+        263 => wire__crate__api__bridge__MadarBridge_set_device_receipt_stub_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        264 => wire__crate__api__bridge__MadarBridge_set_kitchen_routing_mode_impl(
+        264 => wire__crate__api__bridge__MadarBridge_set_device_scan_camera_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        266 => wire__crate__api__bridge__MadarBridge_set_push_token_impl(
+        265 => wire__crate__api__bridge__MadarBridge_set_device_station_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        268 => wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
+        266 => wire__crate__api__bridge__MadarBridge_set_kitchen_routing_mode_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        269 => {
+        268 => wire__crate__api__bridge__MadarBridge_set_push_token_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        270 => wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        271 => {
             wire__crate__api__bridge__MadarBridge_sign_in_impl(port, ptr, rust_vec_len, data_len)
         }
-        276 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
+        278 => wire__crate__api__bridge__MadarBridge_start_realtime_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        277 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
+        279 => wire__crate__api__bridge__MadarBridge_start_reconfigure_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        278 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
+        280 => wire__crate__api__bridge__MadarBridge_suggested_opening_cash_minor_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        279 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
+        281 => wire__crate__api__bridge__MadarBridge_swap_floor_tables_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        280 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
+        282 => wire__crate__api__bridge__MadarBridge_switch_to_draft_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        281 => {
+        283 => {
             wire__crate__api__bridge__MadarBridge_sync_full_impl(port, ptr, rust_vec_len, data_len)
         }
-        282 => {
+        284 => {
             wire__crate__api__bridge__MadarBridge_sync_now_impl(port, ptr, rust_vec_len, data_len)
         }
-        285 => wire__crate__api__bridge__MadarBridge_table_history_impl(
+        287 => wire__crate__api__bridge__MadarBridge_table_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        286 => wire__crate__api__bridge__MadarBridge_take_deal_notices_impl(
+        288 => wire__crate__api__bridge__MadarBridge_take_deal_notices_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        295 => {
+        297 => {
             wire__crate__api__bridge__MadarBridge_till_punch_impl(port, ptr, rust_vec_len, data_len)
         }
-        296 => wire__crate__api__bridge__MadarBridge_till_report_impl(
+        298 => wire__crate__api__bridge__MadarBridge_till_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        297 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
+        299 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        298 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
+        300 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        299 => {
+        301 => {
             wire__crate__api__bridge__MadarBridge_till_stats_impl(port, ptr, rust_vec_len, data_len)
         }
-        300 => wire__crate__api__bridge__MadarBridge_till_stats_checked_impl(
+        302 => wire__crate__api__bridge__MadarBridge_till_stats_checked_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        303 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
+        305 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        304 => wire__crate__api__bridge__MadarBridge_unmark_staff_drink_impl(
+        306 => wire__crate__api__bridge__MadarBridge_unmark_staff_drink_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        305 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+        307 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        307 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        309 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        309 => {
+        311 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        310 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
+        312 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        311 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        313 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        312 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
+        314 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        316 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
+        318 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
             port,
             ptr,
             rust_vec_len,
@@ -26526,96 +26659,96 @@ fn pde_ffi_dispatcher_sync_impl(
         257 => {
             wire__crate__api__bridge__MadarBridge_set_device_code_impl(ptr, rust_vec_len, data_len)
         }
-        265 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
-        267 => wire__crate__api__bridge__MadarBridge_set_ticket_customer_impl(
+        267 => wire__crate__api__bridge__MadarBridge_set_locale_impl(ptr, rust_vec_len, data_len),
+        269 => wire__crate__api__bridge__MadarBridge_set_ticket_customer_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        270 => {
+        272 => {
             wire__crate__api__bridge__MadarBridge_split_auto_fill_impl(ptr, rust_vec_len, data_len)
         }
-        271 => {
+        273 => {
             wire__crate__api__bridge__MadarBridge_split_rest_here_impl(ptr, rust_vec_len, data_len)
         }
-        272 => wire__crate__api__bridge__MadarBridge_staff_drink_access_impl(
+        274 => wire__crate__api__bridge__MadarBridge_staff_drink_access_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        273 => wire__crate__api__bridge__MadarBridge_staff_drinks_today_impl(
+        275 => wire__crate__api__bridge__MadarBridge_staff_drinks_today_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        274 => wire__crate__api__bridge__MadarBridge_staff_old_server_notice_impl(
+        276 => wire__crate__api__bridge__MadarBridge_staff_old_server_notice_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        275 => {
+        277 => {
             wire__crate__api__bridge__MadarBridge_staff_pool_today_impl(ptr, rust_vec_len, data_len)
         }
-        283 => wire__crate__api__bridge__MadarBridge_sync_on_till_open_status_impl(
+        285 => wire__crate__api__bridge__MadarBridge_sync_on_till_open_status_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        284 => wire__crate__api__bridge__MadarBridge_sync_status_impl(ptr, rust_vec_len, data_len),
-        287 => wire__crate__api__bridge__MadarBridge_take_pay_out_notices_impl(
+        286 => wire__crate__api__bridge__MadarBridge_sync_status_impl(ptr, rust_vec_len, data_len),
+        289 => wire__crate__api__bridge__MadarBridge_take_pay_out_notices_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        288 => wire__crate__api__bridge__MadarBridge_take_staff_drink_notices_impl(
+        290 => wire__crate__api__bridge__MadarBridge_take_staff_drink_notices_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        289 => {
+        291 => {
             wire__crate__api__bridge__MadarBridge_tender_summary_impl(ptr, rust_vec_len, data_len)
         }
-        290 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
+        292 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        291 => wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
+        293 => wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        292 => {
+        294 => {
             wire__crate__api__bridge__MadarBridge_till_dawam_on_impl(ptr, rust_vec_len, data_len)
         }
-        293 => wire__crate__api__bridge__MadarBridge_till_figures_visible_impl(
+        295 => wire__crate__api__bridge__MadarBridge_till_figures_visible_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        294 => wire__crate__api__bridge__MadarBridge_till_lock_impl(ptr, rust_vec_len, data_len),
-        301 => {
+        296 => wire__crate__api__bridge__MadarBridge_till_lock_impl(ptr, rust_vec_len, data_len),
+        303 => {
             wire__crate__api__bridge__MadarBridge_toggle_reward_impl(ptr, rust_vec_len, data_len)
         }
-        302 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        306 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        304 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        308 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        308 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        313 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
+        310 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        315 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        314 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
-        315 => {
+        316 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
+        317 => {
             wire__crate__api__bridge__MadarBridge_waste_reasons_impl(ptr, rust_vec_len, data_len)
         }
-        317 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        318 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        319 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        319 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        320 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        321 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -28110,6 +28243,8 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::device::DeviceConf
             self.0.printer_paper_dots.into_into_dart().into_dart(),
             self.0.reconfiguring.into_into_dart().into_dart(),
             self.0.lan_hub.into_into_dart().into_dart(),
+            self.0.scan_camera.into_into_dart().into_dart(),
+            self.0.receipt_stub.into_into_dart().into_dart(),
             self.0.configured.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -29805,6 +29940,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::ReceiptLin
             self.0.unit_price_minor.into_into_dart().into_dart(),
             self.0.parts.into_into_dart().into_dart(),
             self.0.deal_minor.into_into_dart().into_dart(),
+            self.0.note.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -29852,6 +29988,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::ReceiptPar
             self.0.surcharge_minor.into_into_dart().into_dart(),
             self.0.addons.into_into_dart().into_dart(),
             self.0.optionals.into_into_dart().into_dart(),
+            self.0.note.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -29929,6 +30066,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::ReceiptVie
             self.0.delivery_ref.into_into_dart().into_dart(),
             self.0.payment_hint.into_into_dart().into_dart(),
             self.0.delivery_notes.into_into_dart().into_dart(),
+            self.0.note.into_into_dart().into_dart(),
             self.0.queued_offline.into_into_dart().into_dart(),
             self.0.created_at.into_into_dart().into_dart(),
             self.0.payments.into_into_dart().into_dart(),
@@ -32325,6 +32463,8 @@ impl SseEncode for crate::api::device::DeviceConfigView {
         <Option<u32>>::sse_encode(self.printer_paper_dots, serializer);
         <bool>::sse_encode(self.reconfiguring, serializer);
         <Option<String>>::sse_encode(self.lan_hub, serializer);
+        <Option<String>>::sse_encode(self.scan_camera, serializer);
+        <bool>::sse_encode(self.receipt_stub, serializer);
         <bool>::sse_encode(self.configured, serializer);
     }
 }
@@ -34444,6 +34584,7 @@ impl SseEncode for crate::api::orders::ReceiptLineView {
         <i64>::sse_encode(self.unit_price_minor, serializer);
         <Vec<crate::api::orders::ReceiptPartView>>::sse_encode(self.parts, serializer);
         <i64>::sse_encode(self.deal_minor, serializer);
+        <Option<String>>::sse_encode(self.note, serializer);
     }
 }
 
@@ -34465,6 +34606,7 @@ impl SseEncode for crate::api::orders::ReceiptPartView {
         <i64>::sse_encode(self.surcharge_minor, serializer);
         <Vec<crate::api::orders::ReceiptModifierView>>::sse_encode(self.addons, serializer);
         <Vec<crate::api::orders::ReceiptModifierView>>::sse_encode(self.optionals, serializer);
+        <Option<String>>::sse_encode(self.note, serializer);
     }
 }
 
@@ -34510,6 +34652,7 @@ impl SseEncode for crate::api::orders::ReceiptView {
         <Option<String>>::sse_encode(self.delivery_ref, serializer);
         <Option<String>>::sse_encode(self.payment_hint, serializer);
         <Option<String>>::sse_encode(self.delivery_notes, serializer);
+        <Option<String>>::sse_encode(self.note, serializer);
         <bool>::sse_encode(self.queued_offline, serializer);
         <String>::sse_encode(self.created_at, serializer);
         <Vec<crate::api::orders::ReceiptPaymentView>>::sse_encode(self.payments, serializer);

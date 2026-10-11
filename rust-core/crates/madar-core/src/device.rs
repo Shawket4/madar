@@ -70,6 +70,16 @@ pub(crate) struct DeviceConfig {
     /// rely on auto-discovery. (Phase E.)
     #[serde(default)]
     pub lan_hub: Option<String>,
+    /// The camera the loyalty scanner opens on: `"front"` or `"back"`; `None`
+    /// = back. A tablet on a counter stand faces the teller with its front
+    /// camera, so the shop picks per device; the scanner's flip is one-off.
+    #[serde(default)]
+    pub scan_camera: Option<String>,
+    /// The Settings toggle for the "Powered by madar" stub at the foot of a
+    /// printed receipt. Stored inverted so a fresh install, and a config saved
+    /// before the toggle existed, print it.
+    #[serde(default)]
+    pub hide_receipt_stub: bool,
 }
 
 impl DeviceConfig {
@@ -140,6 +150,9 @@ pub struct DeviceConfigView {
     pub printer_paper_dots: Option<u32>,
     pub reconfiguring: bool,
     pub lan_hub: Option<String>,
+    pub scan_camera: Option<String>,
+    /// Whether receipts print the "Powered by madar" stub (default on).
+    pub receipt_stub: bool,
     pub configured: bool,
 }
 
@@ -159,6 +172,8 @@ impl From<DeviceConfig> for DeviceConfigView {
             printer_paper_dots: c.printer_paper_dots,
             reconfiguring: c.reconfiguring,
             lan_hub: c.lan_hub,
+            scan_camera: c.scan_camera,
+            receipt_stub: !c.hide_receipt_stub,
             configured,
         }
     }

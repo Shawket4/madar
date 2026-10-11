@@ -50,6 +50,8 @@ class DeviceConfigView {
   final int? printerPaperDots;
   final bool reconfiguring;
   final String? lanHub;
+  final String? scanCamera;
+  final bool receiptStub;
   final bool configured;
 
   const DeviceConfigView({
@@ -65,6 +67,8 @@ class DeviceConfigView {
     this.printerPaperDots,
     required this.reconfiguring,
     this.lanHub,
+    this.scanCamera,
+    this.receiptStub = true,
     required this.configured,
   });
 
@@ -82,6 +86,8 @@ class DeviceConfigView {
       printerPaperDots.hashCode ^
       reconfiguring.hashCode ^
       lanHub.hashCode ^
+      scanCamera.hashCode ^
+      receiptStub.hashCode ^
       configured.hashCode;
 
   @override
@@ -101,6 +107,8 @@ class DeviceConfigView {
           printerPaperDots == other.printerPaperDots &&
           reconfiguring == other.reconfiguring &&
           lanHub == other.lanHub &&
+          scanCamera == other.scanCamera &&
+          receiptStub == other.receiptStub &&
           configured == other.configured;
 }
 

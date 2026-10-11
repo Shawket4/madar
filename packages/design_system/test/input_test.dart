@@ -285,6 +285,39 @@ void main() {
       await tester.pump();
       expect(minor, 1250, reason: 'EGP 12.50, typed on an Arabic keyboard');
     });
+
+    // The split rows: "EGP" sat outside the text box, so a tap on it (or on
+    // the padding) did nothing. The whole box is the field.
+    testWidgets('a tap on the currency focuses the amount field', (
+      tester,
+    ) async {
+      _size(tester, _ipad9);
+      await tester.pumpWidget(
+        _app(const MadarAmountField(amountMinor: null, currencyCode: 'EGP')),
+      );
+      final label = find.byWidgetPredicate(
+        (w) => w is Text && (w.data ?? '').contains('EGP'),
+      );
+      await tester.tap(label);
+      await tester.pump();
+      expect(_field(tester).focusNode!.hasFocus, isTrue);
+    });
+
+    testWidgets('a tap on the glyph focuses the field', (tester) async {
+      _size(tester, _ipad9);
+      await tester.pumpWidget(
+        _app(
+          MadarField(
+            controller: TextEditingController(),
+            placeholder: 'Search',
+            glyph: MadarGlyph.search,
+          ),
+        ),
+      );
+      await tester.tap(find.byType(MadarGlyphIcon));
+      await tester.pump();
+      expect(_field(tester).focusNode!.hasFocus, isTrue);
+    });
   });
 
   group('the Done bar, for a keyboard with no return key', () {

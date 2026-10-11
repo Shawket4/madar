@@ -2826,6 +2826,23 @@ impl MadarCore {
         Ok(())
     }
 
+    /// The camera the loyalty scanner opens on (Settings): `"front"` or
+    /// `"back"`. Anything else, `None` included, clears it back to the
+    /// default, the back camera.
+    pub fn set_device_scan_camera(&self, facing: Option<String>) -> Result<(), CoreError> {
+        device::update(&self.store, |c| {
+            c.scan_camera = facing.filter(|f| f == "front" || f == "back");
+        })?;
+        Ok(())
+    }
+
+    /// Print the "Powered by madar" stub at the foot of receipts (Settings ›
+    /// Printer); on by default. The preview follows the same setting.
+    pub fn set_device_receipt_stub(&self, enabled: bool) -> Result<(), CoreError> {
+        device::update(&self.store, |c| c.hide_receipt_stub = !enabled)?;
+        Ok(())
+    }
+
     /// Wipe the device binding entirely (factory reset of the device config).
     pub fn clear_device(&self) -> Result<(), CoreError> {
         device::save(&self.store, &device::DeviceConfig::default())
@@ -4151,6 +4168,10 @@ impl MadarCore {
         // shows the rate that actually applied to it.
         let vat_word = tr("receipt.vat");
         let vat_label = receipt::vat_label(&vat_word, receipt.tax_rate);
+        // Raster width + cut come from the device's paper config, not the host —
+        // a 58 mm Bluetooth portable renders 384 dots with no cut, a 72 mm LAN
+        // head renders 576 dots with a partial cut.
+        let cfg = device::load(&self.store);
         let ctx = receipt::EscPosCtx {
             store_name,
             currency,
@@ -4186,6 +4207,7 @@ impl MadarCore {
                 served_by: tr("receipt.served_by"),
                 queued: tr("order.queued_hint"),
                 thank_you: self.receipt_footer(),
+                powered_by: (!cfg.hide_receipt_stub).then(|| tr("receipt.powered_by")),
                 locale: loc.clone(),
                 tz,
             },
@@ -4197,10 +4219,6 @@ impl MadarCore {
             .blob_get(checkout::KEY_ORG_LOGO_PNG)
             .ok()
             .flatten();
-        // Raster width + cut come from the device's paper config, not the host —
-        // a 58 mm Bluetooth portable renders 384 dots with no cut, a 72 mm LAN
-        // head renders 576 dots with a partial cut.
-        let cfg = device::load(&self.store);
         let bitmap = render::render_receipt(&receipt, &ctx, logo.as_deref(), cfg.paper_dots());
         receipt::raster_for(brand, &bitmap, cfg.printer_has_cutter())
     }

@@ -38,6 +38,12 @@ Future<void> showPrinterSheet(BuildContext context) => showMadarSheet<void>(
   builder: (_) => const _PrinterSheet(),
 );
 
+Future<void> showScanCameraSheet(BuildContext context) => showMadarSheet<void>(
+  context,
+  size: SheetSize.hug,
+  builder: (_) => const _ScanCameraSheet(),
+);
+
 Future<void> showDeviceSheet(BuildContext context) => showMadarSheet<void>(
   context,
   size: SheetSize.large,
@@ -166,7 +172,8 @@ class _Caption extends StatelessWidget {
 // ── Printer ──────────────────────────────────────────────────────────────
 
 /// Transport (LAN / Bluetooth), the host or the paired device, paper width,
-/// brand, and a test print that proves the whole path.
+/// brand, the receipt's "Powered by madar" stub, and a test print that proves
+/// the whole path.
 class _PrinterSheet extends ConsumerStatefulWidget {
   const _PrinterSheet();
 
@@ -253,6 +260,15 @@ class _PrinterSheetState extends ConsumerState<_PrinterSheet> {
           onChanged: (b) =>
               unawaited(notifier.persistPrinter(_host.text, brand: b)),
         ),
+        _Choice<bool>(
+          label: t('settings.printer_madar_stub'),
+          items: [
+            MadarSegmentItem(true, t('toggle.on')),
+            MadarSegmentItem(false, t('toggle.off')),
+          ],
+          value: config.receiptStub,
+          onChanged: (on) => unawaited(notifier.setReceiptStub(on: on)),
+        ),
         MadarButton(
           label: t('settings.printer_test'),
           glyph: MadarGlyph.printer,
@@ -326,6 +342,37 @@ class _BluetoothPicker extends ConsumerWidget {
 }
 
 // ── Station ──────────────────────────────────────────────────────────────
+
+/// The camera the loyalty scanner (points and rewards) opens on. Saved on
+/// this device like the printer; the scanner's own flip is for one scan.
+class _ScanCameraSheet extends ConsumerWidget {
+  const _ScanCameraSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bridge = ref.bridge;
+    String t(String key) => bridge.tr(key: key);
+    final facing = ref.watch(
+      settingsProvider.select((s) => s.config.scanCamera ?? 'back'),
+    );
+    return _SheetFrame(
+      title: t('settings.scan_camera'),
+      children: [
+        MadarSegmented<String>(
+          items: [
+            MadarSegmentItem('back', t('settings.scan_camera_back')),
+            MadarSegmentItem('front', t('settings.scan_camera_front')),
+          ],
+          value: facing,
+          onChanged: (f) =>
+              unawaited(ref.read(settingsProvider.notifier).setScanCamera(f)),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Device ───────────────────────────────────────────────────────────────
 
 /// The till's identity: the device code (the `<DEVICE>` segment of every
 /// order ref), the branch it is bound to, the LAN hub, and re-provisioning

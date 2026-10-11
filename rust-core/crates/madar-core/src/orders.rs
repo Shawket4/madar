@@ -537,9 +537,11 @@ fn combo_receipt_line(
                 surcharge_minor: p.combo_surcharge.unwrap_or(0) as i64,
                 addons: priced_addons(p, locale),
                 optionals: priced_optionals(p, locale),
+                note: crate::checkout::note_text(p.notes.as_deref()),
             })
             .collect(),
         deal_minor: 0,
+        note: crate::checkout::note_text(header.notes.as_deref()),
     }
 }
 
@@ -604,6 +606,7 @@ pub(crate) fn order_to_receipt(
                 unit_price_minor: it.unit_price as i64,
                 parts: vec![],
                 deal_minor: it.deal_minor.unwrap_or(0).max(0) as i64,
+                note: crate::checkout::note_text(it.notes.as_deref()),
             }
         })
         .map(|mut l| {
@@ -695,6 +698,7 @@ pub(crate) fn order_to_receipt(
             .as_ref()
             .and_then(|d| d.delivery_notes.clone().flatten())
             .filter(|s| !s.is_empty()),
+        note: crate::checkout::note_text(o.notes.as_deref()),
         queued_offline: false,
         created_at: o.created_at.to_rfc3339(),
         // Only a SPLIT lists its legs; one leg is the payment line already.
@@ -1612,6 +1616,22 @@ mod tests {
         assert_eq!(r.delivery_ref.as_deref(), Some("D-DT-0042"));
         assert_eq!(r.payment_hint.as_deref(), Some("cash"));
         assert_eq!(r.delivery_notes.as_deref(), Some("Ring bell"));
+    }
+
+    /// A reprint carries the order's note and each line's own note, blanks
+    /// dropped, as the till printed them.
+    #[test]
+    fn receipt_carries_the_order_note_and_each_lines_note() {
+        let mut latte = item("Latte", 1, 6000);
+        latte.notes = Some(" no onions ".into());
+        let mut cake = item("Cake", 1, 4000);
+        cake.notes = Some("   ".into());
+        let mut o = order_full(vec![latte, cake]);
+        o.notes = Some("birthday".into());
+        let r = order_to_receipt(&o, "en");
+        assert_eq!(r.note.as_deref(), Some("birthday"));
+        assert_eq!(r.lines[0].note.as_deref(), Some("no onions"));
+        assert_eq!(r.lines[1].note, None);
     }
 
     #[test]
