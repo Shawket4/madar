@@ -188,6 +188,9 @@ export const useKitchen = create<KitchenState>((set, get) => {
 
     pause() {
       backend().stopRealtime();
+      // iOS withdraws a suspended app's Bonjour advert; drop ours so the next
+      // boot publishes it again instead of believing it is still out there.
+      bonjour?.stop();
       set({ connected: false });
     },
 
