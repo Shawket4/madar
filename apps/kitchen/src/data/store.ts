@@ -37,6 +37,8 @@ interface KitchenState {
 
   boot(): Promise<void>;
   refresh(): Promise<void>;
+  /** Backgrounded: close the live stream so the server falls back to push. */
+  pause(): void;
   /** The one-time setup: the activation code from the dashboard's branch plan. */
   activate(code: string): Promise<void>;
   chooseSections(mode: DeviceMode, ids: string[]): void;
@@ -182,6 +184,11 @@ export const useKitchen = create<KitchenState>((set, get) => {
       } catch (e) {
         set({ error: say(e) });
       }
+    },
+
+    pause() {
+      backend().stopRealtime();
+      set({ connected: false });
     },
 
     async activate(code) {

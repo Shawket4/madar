@@ -219,7 +219,8 @@ impl KitchenCore {
         let cfg = self.core.device_config();
         let session = self.core.current_session();
         let binding = read_binding(&self.binding_path);
-        let route = if cfg.branch_id.as_deref().unwrap_or("").is_empty() || session.is_none() {
+        // No code, no board: a session left over from the PIN sign-in doesn't count.
+        let route = if cfg.branch_id.as_deref().unwrap_or("").is_empty() || session.is_none() || !self.core.has_device_credential() {
             "setup"
         } else if binding.is_none() {
             "sections"

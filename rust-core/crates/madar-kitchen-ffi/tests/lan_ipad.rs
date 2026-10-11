@@ -12,6 +12,7 @@
 //! MADAR_IPAD_PHASE=fire $T    # find the tablet, fire a round, wait for its bump
 //! # start the backend
 //! MADAR_IPAD_PHASE=sync $T    # drain, then read what the server holds
+//! MADAR_IPAD_PHASE=order $T   # backend up: one online round (a closed screen gets a push)
 //! ```
 
 use std::time::Duration;
@@ -114,6 +115,19 @@ async fn pos_on_this_mac_with_a_real_kitchen_tablet() {
             }
             pos.lan_stop();
             panic!("no bump came back from the tablet in 5 minutes");
+        }
+        "order" => {
+            // An ordinary online round, for a push to a kitchen screen that is closed.
+            pos.restore_session_cached().expect("a saved session (run setup first)");
+            assert!(pos.refresh_connectivity().await, "the backend is up");
+            let items = pos.list_menu_items().expect("menu");
+            for it in &items[..2] {
+                pos.cart_add(None, it.id.clone(), it.name.clone(), it.base_price_minor).unwrap();
+            }
+            let fired = pos.fire_ticket(None, None, Some("Push check from the Mac".into()), None, None, None).await.expect("fire");
+            pos.sync_now().await.ok();
+            assert_eq!(pos.sync_status().pending_outbox, 0, "the round reached the server");
+            eprintln!("FIRED ONLINE: {} + {} (ticket {})", items[0].name, items[1].name, fired.ticket_id);
         }
         "sync" => {
             pos.restore_session_cached().expect("a saved session");

@@ -47,5 +47,9 @@ export async function startPush(backend: Backend, locale: string, onPush: () => 
  * board catches up from the stream or the next read when the app opens.
  */
 export function registerBackgroundPush(): void {
-  setBackgroundMessageHandler(getMessaging(), async () => {});
+  try {
+    setBackgroundMessageHandler(getMessaging(), async () => {});
+  } catch {
+    // Firebase not configured in this build: the LAN and the stream still deliver.
+  }
 }

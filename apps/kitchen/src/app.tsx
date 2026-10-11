@@ -39,6 +39,7 @@ export default function App() {
   const device = useKitchen((s) => s.device);
   const boot = useKitchen((s) => s.boot);
   const refresh = useKitchen((s) => s.refresh);
+  const pause = useKitchen((s) => s.pause);
 
   useEffect(() => { void i18n.changeLanguage(lang); }, [lang]);
   useEffect(() => { void boot(); }, [boot]);
@@ -49,9 +50,16 @@ export default function App() {
   useEffect(() => {
     if (device.route !== "board" && device.route !== "sections") return;
     const id = setInterval(() => void refresh(), 3000);
-    const sub = AppState.addEventListener("change", (st) => st === "active" && void refresh());
+    // In the background the live stream is closed, so the server sees this
+    // screen gone and pushes new work instead (iOS keeps a suspended app's
+    // socket open, which would otherwise look like a screen still watching).
+    // Back in front: reopen the stream and catch up.
+    const sub = AppState.addEventListener("change", (st) => {
+      if (st === "active") void boot();
+      else if (st === "background") pause();
+    });
     return () => { clearInterval(id); sub.remove(); };
-  }, [device.route, refresh]);
+  }, [device.route, refresh, boot, pause]);
 
   if (!fontsLoaded) {
     return (

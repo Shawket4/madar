@@ -6789,6 +6789,13 @@ impl MadarCore {
         self.finish_login(&body, branch_id).await
     }
 
+    /// Whether this install was activated with a code (holds its own device
+    /// credential). A kitchen screen without one, such as one upgraded from the
+    /// PIN sign-in, must be set up with a code before it shows anything.
+    pub fn has_device_credential(&self) -> bool {
+        self.device_credential().is_some()
+    }
+
     /// Whether a device-credential screen should mint a fresh session now: it
     /// holds a credential, and has no token, a token within two hours of
     /// expiring, or a token the server refused (the outbox is parked).
