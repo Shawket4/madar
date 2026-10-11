@@ -352,9 +352,9 @@ void main() {
   });
 
   testWidgets('ADM-REV-014 Arabic: "تمييز 1 كمراجَع"', (tester) async {
-    await pumpReview(tester, locale: 'ar');
-    await tester.tap(pick(1));
-    await tester.pumpAndSettle();
+    final h = await pumpReview(tester, locale: 'ar');
+    // The harness's bounded settle: the sidebar's living mark never stops.
+    await h.tap(pick(1));
     expect(
       find.descendant(of: bulkResolve, matching: find.text('تمييز 1 كمراجَع')),
       findsOneWidget,
