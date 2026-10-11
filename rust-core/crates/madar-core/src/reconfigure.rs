@@ -99,6 +99,7 @@ fn printer_only(c: &DeviceConfig) -> DeviceConfig {
         printer_bt_name: c.printer_bt_name.clone(),
         printer_paper_dots: c.printer_paper_dots,
         scan_camera: c.scan_camera.clone(),
+        hide_receipt_stub: c.hide_receipt_stub,
         ..DeviceConfig::default()
     }
 }
@@ -535,6 +536,7 @@ mod tests {
         core.set_device_printer(Some("10.0.0.9".into()), Some(9100), Some("star".into())).unwrap();
         core.set_device_printer_paper(Some(384)).unwrap();
         core.set_device_scan_camera(Some("front".into())).unwrap();
+        core.set_device_receipt_stub(false).unwrap();
         core.set_device_lan_hub(Some("10.0.0.2".into())).unwrap();
         core.store.kv_put(crate::session::BUNDLE_KEY, r#"{"lan_secret":"00"}"#).unwrap();
         core.store.kv_put("catalog:menu", "[]").unwrap();
@@ -592,6 +594,8 @@ mod tests {
         assert_eq!(cfg.printer_paper_dots, Some(384));
         // The scanner's camera is the device's hardware too: it stays.
         assert_eq!(cfg.scan_camera.as_deref(), Some("front"));
+        // So is the receipt's "Powered by madar" stub setting.
+        assert!(!cfg.receipt_stub);
         assert_eq!(core.app_route(), crate::AppRoute::DeviceSetup);
         assert!(!marker_path(&core.config.db_path).unwrap().exists());
     }
@@ -607,6 +611,21 @@ mod tests {
         assert_eq!(core.device_config().scan_camera.as_deref(), Some("front"));
         core.set_device_scan_camera(Some("sideways".into())).unwrap();
         assert_eq!(core.device_config().scan_camera, None);
+    }
+
+    /// The receipt stub prints by default, also for a config saved before
+    /// the setting existed; the Settings toggle turns it off and on.
+    #[test]
+    fn the_receipt_stub_is_on_by_default_and_toggles() {
+        let (_dir, db) = temp_db();
+        let core = core_at(&db);
+        assert!(core.device_config().receipt_stub);
+        core.store.kv_put("device_config", r#"{"branch_id":"b1"}"#).unwrap();
+        assert!(core.device_config().receipt_stub);
+        core.set_device_receipt_stub(false).unwrap();
+        assert!(!core.device_config().receipt_stub);
+        core.set_device_receipt_stub(true).unwrap();
+        assert!(core.device_config().receipt_stub);
     }
 
     #[test]

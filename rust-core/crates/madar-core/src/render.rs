@@ -49,6 +49,20 @@ const LOGO_MAX_H: u32 = 216;
 // Branch name under the hairline — smaller than the old above-hairline size.
 const RS_BRANCH: f32 = 30.0;
 
+// The "Powered by madar" stub at the foot (Madar Design System, Signature
+// board: "Receipt stub"): a ticket whose orbit cell tears off along a
+// perforation, the label over the wordmark beside it. The wordmarks are the
+// kit's mono-ink PNGs; the Arabic one sits taller, as on the board.
+const STUB_H: i32 = 112;
+const STUB_RADIUS: i32 = 16;
+const STUB_NOTCH: i32 = 10;
+const STUB_PAD: i32 = 28;
+const STUB_MARK_H: i32 = 30;
+const STUB_MARK_H_AR: i32 = 40;
+const RS_STUB: f32 = 22.0;
+const WORDMARK_LATIN: &[u8] = include_bytes!("../assets/brand/wordmark-latin.png");
+const WORDMARK_ARABIC: &[u8] = include_bytes!("../assets/brand/wordmark-arabic.png");
+
 // Embedded Cairo — the same family the Compose/Swift UI renders. Regular for
 // body, SemiBold for the payment label, Bold for headers/totals.
 const CAIRO_REGULAR: &[u8] = include_bytes!("../assets/fonts/Cairo-Regular.ttf");
@@ -408,6 +422,102 @@ impl Renderer {
         self.y += h as i32 + self.sx(8);
     }
 
+    /// The "Powered by madar" stub, centred (see `STUB_H`). An Arabic receipt
+    /// mirrors it, the orbit cell on the right, and carries the Arabic
+    /// wordmark; the orbit itself never mirrors.
+    fn powered_by(&mut self, label: &str, arabic: bool) {
+        let (bytes, mark_h) = if arabic {
+            (WORDMARK_ARABIC, STUB_MARK_H_AR)
+        } else {
+            (WORDMARK_LATIN, STUB_MARK_H)
+        };
+        let Some((mw, mh, mark)) = decode_logo(bytes, self.content_w() as u32, self.sx(mark_h) as u32)
+        else {
+            return;
+        };
+        let text = self.shape(label, RS_STUB, Weight::NORMAL, self.content_w());
+        let (tw, th) = Self::measure(&text);
+        let (h, pad) = (self.sx(STUB_H), self.sx(STUB_PAD));
+        let w = (h + 2 * pad + (tw.ceil() as i32).max(mw as i32)).min(self.content_w());
+        let (x0, y0) = ((self.width - w) / 2, self.y);
+        let perf = if arabic { x0 + w - h } else { x0 + h };
+
+        // The ticket's outline: a rounded rect with a half-round notch at each
+        // end of the perforation, stroked by keeping what its inset loses.
+        let (r, n, t) = (self.sx(STUB_RADIUS) as f32, self.sx(STUB_NOTCH) as f32, 2.0);
+        let inside = |x: f32, y: f32, inset: f32| {
+            let (l, top, rt, b) = (
+                x0 as f32 + inset,
+                y0 as f32 + inset,
+                (x0 + w) as f32 - inset,
+                (y0 + h) as f32 - inset,
+            );
+            if x < l || x > rt || y < top || y > b {
+                return false;
+            }
+            let rad = (r - inset).max(0.0);
+            let (cx, cy) = (x.clamp(l + rad, rt - rad), y.clamp(top + rad, b - rad));
+            let notched = |ny: f32| (x - perf as f32).hypot(y - ny) <= n + inset;
+            (x - cx).hypot(y - cy) <= rad && !notched(y0 as f32) && !notched((y0 + h) as f32)
+        };
+        for y in y0..y0 + h {
+            for x in x0..x0 + w {
+                let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+                if inside(px, py, 0.0) && !inside(px, py, t) {
+                    self.canvas.cover(x, y, 255);
+                }
+            }
+        }
+
+        // The perforation, dashed between the notches.
+        let dash = self.sx(6).max(2);
+        let mut y = y0 + n as i32 + dash;
+        while y + dash <= y0 + h - n as i32 - dash {
+            self.canvas.rule(perf - 1, perf + 1, y, dash);
+            y += 2 * dash;
+        }
+
+        // The orbit, the kit's optical cut for small sizes (100-unit box: ring
+        // r 34 stroke 11, centre dot r 15, satellite r 11 at 45°), its box half
+        // the cell.
+        let cx = (if arabic { perf + h / 2 } else { x0 + h / 2 }) as f32;
+        let cy = (y0 + h / 2) as f32;
+        let u = h as f32 / 200.0;
+        let sat = 34.0 * u * std::f32::consts::FRAC_1_SQRT_2;
+        let reach = (46.0 * u).ceil() as i32;
+        for y in cy as i32 - reach..=cy as i32 + reach {
+            for x in cx as i32 - reach..=cx as i32 + reach {
+                let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+                let d = dx.hypot(dy);
+                if (d - 34.0 * u).abs() <= 5.5 * u
+                    || d <= 15.0 * u
+                    || (dx - sat).hypot(dy + sat) <= 11.0 * u
+                {
+                    self.canvas.cover(x, y, 255);
+                }
+            }
+        }
+
+        // The label over the wordmark, against the perforation.
+        let gap = self.sx(4);
+        let top = y0 + (h - th.ceil() as i32 - gap - mh as i32) / 2;
+        let (tx, mx) = if arabic {
+            (perf - pad - tw.round() as i32, perf - pad - mw as i32)
+        } else {
+            (perf + pad, perf + pad)
+        };
+        self.blit(&text, tx - Self::rtl_lead(&text), top);
+        let my = top + th.ceil() as i32 + gap;
+        for ly in 0..mh {
+            for lx in 0..mw {
+                if mark[ly * mw + lx] != 0 {
+                    self.canvas.cover(mx + lx as i32, my + ly as i32, 255);
+                }
+            }
+        }
+        self.y += h;
+    }
+
     /// Walk the receipt top-to-bottom, mirroring `ReceiptPaper.kt`.
     fn build(&mut self, r: &ReceiptView, ctx: &EscPosCtx, logo: Option<&[u8]>) {
         let cur = &ctx.currency;
@@ -592,6 +702,10 @@ impl Renderer {
         self.center(&r.payment_label.to_uppercase(), RS_BODY, Weight::BOLD);
         self.gap(self.sx(6));
         self.center(&lab.thank_you, RS_BODY, Weight::BOLD);
+        if let Some(label) = &lab.powered_by {
+            self.gap(self.sx(20));
+            self.powered_by(label, lab.locale.starts_with("ar"));
+        }
         self.gap(self.bottom_pad);
     }
 
@@ -1187,6 +1301,7 @@ mod tests {
                 served_by: "Served by".into(),
                 queued: "Saved — will sync".into(),
                 thank_you: "Thank you!".into(),
+                powered_by: Some("Powered by".into()),
                 locale: "en".into(),
                 tz: chrono_tz::UTC,
             },
@@ -1822,6 +1937,7 @@ mod tests {
         c.labels.cash = tr("receipt.cash");
         c.labels.change = tr("order.change");
         c.labels.thank_you = "شكراً لزيارتكم".into();
+        c.labels.powered_by = Some(tr("receipt.powered_by"));
         c.labels.locale = "ar".into();
         c
     }
@@ -1916,6 +2032,37 @@ mod tests {
             r.build(&rc, &c, None);
             assert_on_paper(&r, &want, "AR receipt");
         }
+    }
+
+    /// The "Powered by madar" stub closes every printed receipt, on the paper
+    /// at both rolls, its label past the orbit cell: right of centre in
+    /// English, left of it in Arabic (the stub mirrors).
+    #[test]
+    fn the_powered_by_stub_closes_the_receipt_mirrored_in_arabic() {
+        for roll in ROLLS {
+            for (c, rc, right) in [(ctx(), receipt(), true), (ar_ctx(), ar_receipt(), false)] {
+                let mut r = Renderer::new(roll);
+                r.build(&rc, &c, None);
+                let what = format!("{} @{roll}", c.labels.locale);
+                assert_eq!(r.shaped.last(), c.labels.powered_by.as_ref(), "{what}: the stub is last");
+                let (_, (x0, _, x1, _)) = r.inked.last().unwrap().clone();
+                assert!(x0 >= 0 && x0 < x1 && x1 <= r.width, "{what}: label at x {x0}..{x1}");
+                assert_eq!((x0 + x1) / 2 > r.width / 2, right, "{what}: label at x {x0}..{x1}");
+            }
+        }
+    }
+
+    /// Turned off in Settings, the receipt ends at the thank-you: no stub,
+    /// and the paper is that much shorter.
+    #[test]
+    fn a_receipt_without_the_stub_ends_at_the_thank_you() {
+        let mut off = ctx();
+        off.labels.powered_by = None;
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build(&receipt(), &off, None);
+        assert_eq!(r.shaped.last(), Some(&off.labels.thank_you));
+        let on = render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH).rows;
+        assert!(render_receipt(&receipt(), &off, None, PRINT_WIDTH).rows < on);
     }
 
     #[test]
