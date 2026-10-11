@@ -4196,6 +4196,7 @@ impl MadarCore {
                 served_by: tr("receipt.served_by"),
                 queued: tr("order.queued_hint"),
                 thank_you: self.receipt_footer(),
+                powered_by: tr("receipt.powered_by"),
                 locale: loc.clone(),
                 tz,
             },

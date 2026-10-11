@@ -110,6 +110,8 @@ pub struct ReceiptLabels {
     pub served_by: String,
     pub queued: String,
     pub thank_you: String,
+    /// The "Powered by" over the madar wordmark in the stub at the foot.
+    pub powered_by: String,
     /// The language the labels are in — the date's AM/PM follows it.
     pub locale: String,
     /// The zone every printed time is shown in (the branch's effective zone).
@@ -1067,6 +1069,7 @@ mod tests {
                 served_by: "Served by".into(),
                 queued: "Saved - will sync".into(),
                 thank_you: "Thank you!".into(),
+                powered_by: "Powered by".into(),
                 locale: "en".into(),
                 tz: chrono_tz::UTC,
             },
