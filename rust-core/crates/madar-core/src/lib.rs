@@ -6765,14 +6765,27 @@ impl MadarCore {
             detail: "activate this screen with a code first".into(),
         })?;
         let branch_id = self.device_config().branch_id.filter(|b| !b.is_empty());
-        let body = self
+        let body = match self
             .api
             .post_with_header(
                 "/auth/device-session",
                 &serde_json::json!({}),
                 &[("X-Madar-Device-Token", credential.as_str())],
             )
-            .await?;
+            .await
+        {
+            Ok(b) => b,
+            // The server refused the credential itself: the screen was retired
+            // in the dashboard (or its install replaced). Nothing it holds can
+            // sync any more, so it goes back to setup, as a fresh install (DV-7).
+            Err(CoreError::Unauthenticated { .. }) => {
+                self.wipe_device()?;
+                return Err(CoreError::Unauthenticated {
+                    detail: "this screen was removed from the branch; set it up again".into(),
+                });
+            }
+            Err(e) => return Err(e),
+        };
         self.finish_login(&body, branch_id).await
     }
 

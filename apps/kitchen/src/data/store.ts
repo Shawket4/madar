@@ -164,6 +164,8 @@ export const useKitchen = create<KitchenState>((set, get) => {
 
     async refresh() {
       readState();
+      // A retired screen is wiped by the core on its next sign-in (DV-7).
+      if (get().device.route === "setup") return get().lan.running ? stopLan() : undefined;
       if (get().device.route === "sections") return loadSections();
       if (get().device.route !== "board") return;
       if (Date.now() - lastSessionCheck > SESSION_CHECK_MS) {

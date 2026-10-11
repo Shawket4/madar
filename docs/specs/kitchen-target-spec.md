@@ -130,7 +130,7 @@ The branch's internet is not trusted. On the local network the POS, the kitchen 
 | DV-4 | The dashboard no longer gives anyone the kitchen role; people who already have it keep it. A kitchen screen's session belongs to the screen itself: one principal per screen (`users.device_id`), role kitchen at the screen's branch, never shown in a staff list, unable to sign in any other way. | Locked |
 | DV-5 | The board never waits for a person: the screen's own session reads and syncs the feed. Offline, it keeps showing local rows until the network returns and the session is renewed. | Locked |
 | DV-6 | The kitchen app's capabilities come from Madar's authz crate (the existing kitchen permissions plus any new ones). The server checks them; the app only hides what the server would refuse. | Proposed |
-| DV-7 | Retiring the device in the dashboard ends its sign-in at once: the credential stops working and the screen goes back to setup. | Proposed |
+| DV-7 | Retiring the device in the dashboard ends it at once: its credential stops working and its open session loses the kitchen role, so it reads and bumps nothing more. At its next session renewal the screen wipes itself and shows setup. | Locked |
 
 ## How new work reaches a screen
 

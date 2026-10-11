@@ -261,11 +261,18 @@ impl KitchenCore {
     /// working from local rows until the network is back.
     pub async fn ensure_session(&self) -> Result<(), KitchenError> {
         let core = self.core.clone();
+        let path = self.binding_path.clone();
         on_rt(async move {
             if !core.device_session_due() {
                 return Ok(());
             }
-            core.device_sign_in().await.map(|_| ()).map_err(|e| human(&core, &e))
+            core.device_sign_in().await.map(|_| ()).map_err(|e| {
+                // A retired screen was wiped by the core: forget its sections too.
+                if core.device_config().branch_id.unwrap_or_default().is_empty() {
+                    let _ = std::fs::remove_file(&path);
+                }
+                human(&core, &e)
+            })
         })
         .await?
     }
