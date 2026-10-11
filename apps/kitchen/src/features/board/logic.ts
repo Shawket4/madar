@@ -39,13 +39,12 @@ export function sourceOf(t: Pick<Ticket, "sourceType" | "tableLabel">): SourceTy
 }
 
 /**
- * The order's reference exactly as the POS prints it on the chit and the
- * receipt ("T-DOWNTO-261008-0042" for a waiter's ticket, the order's own ref
- * for a till sale), so the kitchen and the paper always agree. A round fired
- * offline has no server ref yet: the id's tail stands in until the sync.
+ * The short number a cook calls out, exactly as the POS prints it: the core's
+ * `display_ref` (`36B-12` for a till sale, `T-10` for a waiter's ticket). A
+ * round fired offline has no reference yet: the id's tail stands in.
  */
-export function shortRef(ref: string | undefined, id: string): string {
-  return ref?.trim() || id.slice(-4).toUpperCase();
+export function shortRef(displayRef: string | undefined, id: string): string {
+  return displayRef?.trim() || id.slice(-4).toUpperCase();
 }
 
 const live = (l: KitchenLine) => !l.voided;
@@ -75,7 +74,7 @@ export function toParts(tickets: Ticket[], defaultSectionId: string | undefined)
       out.push({
         id: `${t.id}:${sectionId}`,
         orderId: t.id,
-        kitchenRef: shortRef(t.kitchenRef, t.id),
+        kitchenRef: shortRef(t.displayRef, t.id),
         sectionId,
         sourceType: sourceOf(t),
         tableLabel: t.tableLabel,

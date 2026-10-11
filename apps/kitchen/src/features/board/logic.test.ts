@@ -11,7 +11,7 @@ const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
 
 function ticket(over: Partial<Ticket> = {}): Ticket {
   return {
-    id: "t1", kitchenRef: "41", tableLabel: "T4", roundNumber: 1, sourceType: "open_ticket", status: "firing",
+    id: "t1", kitchenRef: "41", displayRef: "T-41", tableLabel: "T4", roundNumber: 1, sourceType: "open_ticket", status: "firing",
     createdAt: ago(1),
     items: [
       { id: "a", name: "Kofta", qty: 2, modifiers: [], stationId: "grill", bumped: false },
@@ -28,9 +28,9 @@ test("a ticket splits by section; an unrouted line goes to the default (KS-4)", 
   assert.equal(parts[0].sourceType, "dine_in");
   assert.equal(toParts([ticket({ tableLabel: undefined, sourceType: "order" })], "grill")[0].sourceType, "takeaway");
   assert.equal(toParts([ticket({ tableLabel: undefined })], "grill")[0].sourceType, "dine_in");
-  // The reference the POS prints, whole: the kitchen and the chit agree.
-  assert.equal(toParts([ticket({ kitchenRef: "T-DOWNTO-261008-0042" })], "grill")[0].kitchenRef, "T-DOWNTO-261008-0042");
-  assert.equal(toParts([ticket({ kitchenRef: undefined, id: "abc-12ef" })], "grill")[0].kitchenRef, "12EF");
+  // The core's short number, as the POS prints it; the id's tail before a ref exists.
+  assert.equal(toParts([ticket({ kitchenRef: "ARK-261011-36B-0012", displayRef: "36B-12" })], "grill")[0].kitchenRef, "36B-12");
+  assert.equal(toParts([ticket({ displayRef: undefined, id: "abc-12ef" })], "grill")[0].kitchenRef, "12EF");
   assert.deepEqual(toParts([ticket({ status: "voided" })], "grill"), []);
 });
 

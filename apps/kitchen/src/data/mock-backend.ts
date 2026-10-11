@@ -164,6 +164,7 @@ export function mockBackend(): Backend & { tools: MockTools } {
       return tickets.map((t) => ({
         id: t.id,
         kitchenRef: String(t.ref),
+        displayRef: t.table ? `T-${t.ref % 100}` : `36B-${t.ref % 100}`,
         tableLabel: t.table,
         roundNumber: t.round,
         sourceType: t.online ? "online" : t.table ? "open_ticket" : "order",

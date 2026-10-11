@@ -432,6 +432,10 @@ const FfiConverterTypeStation = (() => {
 export type Ticket = {
     id: string,
     kitchenRef?: string,
+    /**
+     * The short number people read, as the POS prints it (`36B-12`, `T-10`).
+     */
+    displayRef?: string,
     tableLabel?: string,
     roundNumber: number,
     /**
@@ -469,6 +473,7 @@ const FfiConverterTypeTicket = (() => {
             return {
                 id: FfiConverterString.readFromCursor(c), 
                 kitchenRef: FfiConverterOptionalString.readFromCursor(c), 
+                displayRef: FfiConverterOptionalString.readFromCursor(c), 
                 tableLabel: FfiConverterOptionalString.readFromCursor(c), 
                 roundNumber: FfiConverterInt32.readFromCursor(c), 
                 sourceType: FfiConverterString.readFromCursor(c), 
@@ -480,6 +485,7 @@ const FfiConverterTypeTicket = (() => {
         writeIntoCursor(value: TypeName, c: Cursor): void {
             FfiConverterString.writeIntoCursor(value.id, c);
             FfiConverterOptionalString.writeIntoCursor(value.kitchenRef, c);
+            FfiConverterOptionalString.writeIntoCursor(value.displayRef, c);
             FfiConverterOptionalString.writeIntoCursor(value.tableLabel, c);
             FfiConverterInt32.writeIntoCursor(value.roundNumber, c);
             FfiConverterString.writeIntoCursor(value.sourceType, c);
@@ -490,6 +496,7 @@ const FfiConverterTypeTicket = (() => {
         allocationSize(value: TypeName): number {
             return FfiConverterString.allocationSize(value.id) +
              FfiConverterOptionalString.allocationSize(value.kitchenRef) +
+             FfiConverterOptionalString.allocationSize(value.displayRef) +
              FfiConverterOptionalString.allocationSize(value.tableLabel) +
              FfiConverterInt32.allocationSize(value.roundNumber) +
              FfiConverterString.allocationSize(value.sourceType) +

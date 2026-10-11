@@ -42,6 +42,8 @@ export interface Line {
 export interface Ticket {
   id: string;
   kitchenRef?: string;
+  /** The short number people read, as the POS prints it (`36B-12`, `T-10`); from the core. */
+  displayRef?: string;
   tableLabel?: string;
   roundNumber: number;
   /** `order` (counter) | `open_ticket` (waiter) | `online` (mock; not on the server yet, OF-6) */

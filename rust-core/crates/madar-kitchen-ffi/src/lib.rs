@@ -112,6 +112,8 @@ pub struct Station {
 pub struct Ticket {
     pub id: String,
     pub kitchen_ref: Option<String>,
+    /// The short number people read, as the POS prints it (`36B-12`, `T-10`).
+    pub display_ref: Option<String>,
     pub table_label: Option<String>,
     pub round_number: i32,
     /// `order` (teller) | `open_ticket` (waiter)
@@ -340,6 +342,7 @@ impl KitchenCore {
             Ok(list
                 .into_iter()
                 .map(|t| Ticket {
+                    display_ref: madar_core::kds::display_ref(t.kitchen_ref.as_deref(), &t.source_type),
                     id: t.id,
                     kitchen_ref: t.kitchen_ref,
                     table_label: t.table_label,
