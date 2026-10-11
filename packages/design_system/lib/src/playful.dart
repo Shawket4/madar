@@ -1177,11 +1177,26 @@ class _AnimatedBrandMarkState extends State<AnimatedBrandMark>
   late final AnimationController _orbit = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 8),
-  )..repeat();
+  );
   late final AnimationController _pulse = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 3500),
-  )..repeat();
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduced motion (the platform's, or the app's own setting) draws the
+    // still mark: an orbit that never stops is motion nobody asked for, and
+    // it kept every pumpAndSettle in a reduced-motion test from settling.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _orbit.stop();
+      _pulse.stop();
+    } else if (!_orbit.isAnimating) {
+      _orbit.repeat();
+      _pulse.repeat();
+    }
+  }
 
   @override
   void dispose() {
