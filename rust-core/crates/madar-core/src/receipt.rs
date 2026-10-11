@@ -240,6 +240,12 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
                 for m in p.addons.iter().chain(p.optionals.iter()) {
                     push_modifier(&mut out, "    + ", m, cur, w);
                 }
+                if let Some(n) = &p.note {
+                    out.push(Line::plain(format!("    {} {n}", lab.notes)));
+                }
+            }
+            if let Some(n) = &l.note {
+                out.push(Line::plain(format!("  {} {n}", lab.notes)));
             }
             continue;
         }
@@ -270,6 +276,13 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
         for m in &l.optionals {
             push_modifier(&mut out, "  + ", m, cur, w);
         }
+        if let Some(n) = &l.note {
+            out.push(Line::plain(format!("  {} {n}", lab.notes)));
+        }
+    }
+    // The order's note, once, under everything it applies to.
+    if let Some(n) = &receipt.note {
+        out.push(Line::plain(format!("{} {n}", lab.notes)));
     }
     out.push(Line::plain(divider(w)));
 
@@ -1075,6 +1088,7 @@ mod tests {
             unit_price_minor: total / qty.max(1),
             parts: vec![],
             deal_minor: 0,
+            note: None,
         }
     }
 
@@ -1093,6 +1107,24 @@ mod tests {
         assert!(text[at + 1].contains("* Staff drink") && text[at + 1].contains("-EGP 65.00") || text[at + 1].contains("-65.00"), "{}", text[at + 1]);
         // A paid line grows no such row.
         assert_eq!(text.iter().filter(|t| t.contains("Staff drink")).count(), 1);
+    }
+
+    /// A line's note prints under that line, and the order's note once
+    /// under every item (both were on the kitchen chit only).
+    #[test]
+    fn a_line_note_prints_under_its_line_and_the_order_note_under_the_items() {
+        let mut r = cash_receipt();
+        let mut latte = line("Latte", 1, 4500);
+        latte.note = Some("no sugar".into());
+        r.lines = vec![latte, line("Cake", 1, 4000)];
+        r.note = Some("birthday".into());
+        let text: Vec<String> = layout(&r, &ctx()).into_iter().map(|l| l.text).collect();
+        let at = text.iter().position(|t| t.contains("Latte")).expect("the line");
+        assert_eq!(text[at + 1].trim(), "Notes: no sugar");
+        let cake = text.iter().position(|t| t.contains("Cake")).expect("the cake");
+        let order = text.iter().position(|t| t == "Notes: birthday").expect("the order note");
+        assert!(order > cake, "{text:?}");
+        assert_eq!(text.iter().filter(|t| t.contains("Notes:")).count(), 2);
     }
 
     fn cash_receipt() -> ReceiptView {
@@ -1134,6 +1166,7 @@ mod tests {
             staff_notice: None,
             deals: vec![],
             payments: vec![],
+            note: None,
         }
     }
 
@@ -2384,7 +2417,8 @@ pub struct KitchenSlip {
     pub at: String,
     pub teller: Option<String>,
     /// The order note, then the cart-level kitchen note — each printed
-    /// once, blanks dropped. Never the customer receipt's concern.
+    /// once, blanks dropped. The order note is on the customer receipt too;
+    /// the kitchen note never is.
     pub top_notes: Vec<String>,
     pub items: Vec<KitchenSlipItem>,
 }

@@ -122,6 +122,8 @@ pub struct _ReceiptLineView {
     pub parts: Vec<ReceiptPartView>,
     /// What a deal took off this line; the line prints at its normal price.
     pub deal_minor: i64,
+    /// The line's own note, printed under it (never its kitchen-only note).
+    pub note: Option<String>,
 }
 
 /// One item of a combo on the receipt (whole-line figures).
@@ -134,6 +136,8 @@ pub struct _ReceiptPartView {
     pub surcharge_minor: i64,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
+    /// This item's own note, printed under it.
+    pub note: Option<String>,
 }
 
 /// A deal row, printed under the subtotal.
@@ -193,6 +197,8 @@ pub struct _ReceiptView {
     pub delivery_ref: Option<String>,
     pub payment_hint: Option<String>,
     pub delivery_notes: Option<String>,
+    /// The order's note, printed once under the items.
+    pub note: Option<String>,
     /// `true` while the order is still queued (offline); `false` once sent.
     pub queued_offline: bool,
     pub created_at: String,

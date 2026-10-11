@@ -486,7 +486,8 @@ impl Renderer {
                 self.row(&lab.payment_hint, v, RS_SMALL, Weight::BOLD);
             }
             if let Some(v) = &r.delivery_notes {
-                self.indented(&format!("{}: {}", lab.notes, v), RS_SMALL, 0);
+                // The label carries its own colon ("Notes:", "ملاحظات:").
+                self.indented(&format!("{} {}", lab.notes, v), RS_SMALL, 0);
             }
             self.rule();
         }
@@ -494,10 +495,14 @@ impl Renderer {
         // ── items ──
         for line in &r.lines {
             if line.kind == crate::menu::KIND_COMBO {
-                self.combo_item(line, cur);
+                self.combo_item(line, cur, &lab.notes);
             } else {
-                self.item(line, cur);
+                self.item(line, cur, &lab.notes);
             }
+        }
+        // The order's note, once, under everything it applies to.
+        if let Some(n) = &r.note {
+            self.indented(&format!("{} {}", lab.notes, n), RS_SMALL, 0);
         }
         self.rule();
 
@@ -934,7 +939,7 @@ impl Renderer {
     /// "2 × 95.00  190.00" — so the rows add up on paper. A plain line (no paid
     /// modifiers) stays one row. When the per-unit split can't be derived
     /// exactly (a reward or a rounding line), the line prints its total only.
-    fn item(&mut self, line: &ReceiptLineView, cur: &str) {
+    fn item(&mut self, line: &ReceiptLineView, cur: &str, notes: &str) {
         let name = name_with_size(&line.name, &line.size_label);
         let qty = line.qty.max(1);
         let mods: Vec<&ReceiptModifierView> =
@@ -979,13 +984,16 @@ impl Renderer {
                 Weight::BOLD,
             );
         }
+        if let Some(n) = &line.note {
+            self.indented(&format!("{notes} {n}"), RS_SMALL, 16);
+        }
         self.gap(self.sx(6));
     }
 
     /// A combo (C12): its name with `n × P`, then each of its items indented —
     /// name and size, `+surcharge` when it cost more — and the item's add-ons
     /// indented once more with their prices. Whole-line figures throughout.
-    fn combo_item(&mut self, line: &ReceiptLineView, cur: &str) {
+    fn combo_item(&mut self, line: &ReceiptLineView, cur: &str, notes: &str) {
         let qty = line.qty.max(1);
         let head = if qty > 1 { format!("{}× {}", qty, line.name) } else { line.name.clone() };
         self.row(&head, &money(line.unit_price_minor * qty, cur), RS_BODY, Weight::BOLD);
@@ -1005,6 +1013,12 @@ impl Renderer {
             for mo in p.addons.iter().chain(p.optionals.iter()) {
                 self.modifier(mo, cur, 32, true);
             }
+            if let Some(n) = &p.note {
+                self.indented(&format!("{notes} {n}"), RS_SMALL, 32);
+            }
+        }
+        if let Some(n) = &line.note {
+            self.indented(&format!("{notes} {n}"), RS_SMALL, 16);
         }
         self.gap(self.sx(6));
     }
@@ -1179,6 +1193,20 @@ mod tests {
         }
     }
 
+    /// The raster receipt prints a line's note and the order's note: each
+    /// adds a row to the paper.
+    #[test]
+    fn notes_add_rows_to_the_printed_receipt() {
+        let plain = render_receipt(&receipt(), &ctx(), None, 576);
+        let mut line_note = receipt();
+        line_note.lines[0].note = Some("no onions".into());
+        let with_line = render_receipt(&line_note, &ctx(), None, 576);
+        assert!(with_line.rows > plain.rows);
+        let mut both = line_note.clone();
+        both.note = Some("birthday".into());
+        assert!(render_receipt(&both, &ctx(), None, 576).rows > with_line.rows);
+    }
+
     fn receipt() -> ReceiptView {
         ReceiptView {
             local_order_id: "abcdef12-0000-0000-0000-000000000000".into(),
@@ -1203,6 +1231,7 @@ mod tests {
                 unit_price_minor: 5500,
                 parts: vec![],
                 deal_minor: 0,
+                note: None,
             }],
             payment_label: "Cash".into(),
             subtotal_minor: 12500,
@@ -1235,6 +1264,7 @@ mod tests {
             staff_notice: None,
             deals: vec![],
             payments: vec![],
+            note: None,
         }
     }
 

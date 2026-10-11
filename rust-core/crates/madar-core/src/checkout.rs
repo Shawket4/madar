@@ -182,6 +182,9 @@ pub struct ReceiptLineView {
     /// What a deal took off this line; `line_total_minor` stays the NORMAL
     /// price and the deal prints as its own row under the subtotal.
     pub deal_minor: i64,
+    /// The line's own note ("no onions"), printed under it. Never its
+    /// kitchen-only note: that one is for the kitchen and stays off the paper.
+    pub note: Option<String>,
 }
 
 /// One item of a combo on the receipt, printed indented under the combo:
@@ -200,6 +203,8 @@ pub struct ReceiptPartView {
     pub surcharge_minor: i64,
     pub addons: Vec<ReceiptModifierView>,
     pub optionals: Vec<ReceiptModifierView>,
+    /// This item's own note, printed under it.
+    pub note: Option<String>,
 }
 
 /// A deal on the receipt: printed as `<deal name> −discount` under the
@@ -280,6 +285,9 @@ pub struct ReceiptView {
     pub delivery_ref: Option<String>,
     pub payment_hint: Option<String>,
     pub delivery_notes: Option<String>,
+    /// The order's note, printed once under the items. Never the cart's
+    /// kitchen-only note.
+    pub note: Option<String>,
     /// `true` when the order is still queued (offline); `false` once it's been
     /// sent to the server. The host hints "saved — will sync" vs "sent".
     pub queued_offline: bool,
@@ -922,6 +930,8 @@ pub(crate) fn prepare(
         delivery_ref: None,
         payment_hint: None,
         delivery_notes: None,
+        // The note this sale was sent with (the teller's, else the cart's).
+        note: note_text(request.notes.clone().flatten().as_deref()),
         queued_offline: true, // the FFI flips this to false if the drain sends it now
         created_at: now_rfc3339.clone(),
         loyalty_notice: None,
@@ -1047,6 +1057,7 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
                         price_minor: o.price_minor * times,
                     })
                     .collect(),
+                note: note_text(p.notes.as_deref()),
             }
         })
         .collect();
@@ -1064,7 +1075,13 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
         unit_price_minor: l.unit_price_minor,
         parts,
         deal_minor: l.deal_cut_minor,
+        note: note_text(l.notes.as_deref()),
     }
+}
+
+/// A note as the receipt prints it: trimmed, a blank one dropped.
+pub(crate) fn note_text(note: Option<&str>) -> Option<String> {
+    note.map(str::trim).filter(|s| !s.is_empty()).map(str::to_string)
 }
 
 /// A combo line on the wire (COMBOS_CONTRACT §3.1): the combo's id at its
@@ -1644,6 +1661,8 @@ mod tests {
         assert_eq!(r.tip_payment_method, Some(Some("Cash".into()))); // defaults to order method
         assert_eq!(r.customer_name, Some(Some("Sara".into())));
         assert_eq!(r.notes, Some(Some("no sugar".into())));
+        // The receipt prints the note the sale was sent with.
+        assert_eq!(p.receipt.note.as_deref(), Some("no sugar"));
     }
 
     #[test]
