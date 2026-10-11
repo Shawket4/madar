@@ -38,11 +38,14 @@ export function sourceOf(t: Pick<Ticket, "sourceType" | "tableLabel">): SourceTy
   return t.sourceType === "open_ticket" || t.tableLabel ? "dine_in" : "takeaway";
 }
 
-/** The number a cook calls out: the ref's last segment ("T-DOWNTO-261008-0042" → "42"). */
+/**
+ * The order's reference exactly as the POS prints it on the chit and the
+ * receipt ("T-DOWNTO-261008-0042" for a waiter's ticket, the order's own ref
+ * for a till sale), so the kitchen and the paper always agree. A round fired
+ * offline has no server ref yet: the id's tail stands in until the sync.
+ */
 export function shortRef(ref: string | undefined, id: string): string {
-  if (!ref) return id.slice(-4).toUpperCase();
-  const tail = ref.split("-").pop() ?? ref;
-  return /^\d+$/.test(tail) ? String(Number(tail)) : tail;
+  return ref?.trim() || id.slice(-4).toUpperCase();
 }
 
 const live = (l: KitchenLine) => !l.voided;

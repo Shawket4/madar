@@ -28,7 +28,9 @@ test("a ticket splits by section; an unrouted line goes to the default (KS-4)", 
   assert.equal(parts[0].sourceType, "dine_in");
   assert.equal(toParts([ticket({ tableLabel: undefined, sourceType: "order" })], "grill")[0].sourceType, "takeaway");
   assert.equal(toParts([ticket({ tableLabel: undefined })], "grill")[0].sourceType, "dine_in");
-  assert.equal(toParts([ticket({ kitchenRef: "T-DOWNTO-261008-0042" })], "grill")[0].kitchenRef, "42");
+  // The reference the POS prints, whole: the kitchen and the chit agree.
+  assert.equal(toParts([ticket({ kitchenRef: "T-DOWNTO-261008-0042" })], "grill")[0].kitchenRef, "T-DOWNTO-261008-0042");
+  assert.equal(toParts([ticket({ kitchenRef: undefined, id: "abc-12ef" })], "grill")[0].kitchenRef, "12EF");
   assert.deepEqual(toParts([ticket({ status: "voided" })], "grill"), []);
 });
 
