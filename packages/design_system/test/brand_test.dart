@@ -212,6 +212,24 @@ void main() {
     );
   });
 
+  testWidgets('reduced motion draws the still mark', (tester) async {
+    Future<void> pumpMark({required bool reduced}) => tester.pumpWidget(
+      MediaQuery(
+        data: MediaQueryData(disableAnimations: reduced),
+        child: MaterialApp(
+          theme: MadarTheme.light(),
+          home: const Center(
+            child: AnimatedBrandMark(symbolSize: 120, wordmark: false),
+          ),
+        ),
+      ),
+    );
+    await pumpMark(reduced: true);
+    expect(tester.hasRunningAnimations, isFalse);
+    await pumpMark(reduced: false);
+    expect(tester.hasRunningAnimations, isTrue);
+  });
+
   testWidgets('on the ink chrome the satellite turns the lighter teal', (
     tester,
   ) async {
