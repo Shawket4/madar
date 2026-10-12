@@ -59,7 +59,8 @@
           }
         }
       ],
-      "./plugins/with-firebase-pods"
+      "./plugins/with-firebase-pods",
+      "./plugins/with-android-release"
     ]
   }
 }

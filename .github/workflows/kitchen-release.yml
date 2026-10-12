@@ -1,20 +1,25 @@
 name: Kitchen release
 
-# Madar Kitchen (apps/kitchen, React Native on the Rust core) → TestFlight on
-# every push to main that touches the app, its binding or the core it runs
-# (owner, 2026-10-11). Bundle id cloud.madar.kitchen. Same iOS signing and
-# upload path as deploy.yml (POS) and staff-release.yml (Dawam): cloud
-# signing with the App Store Connect key, the export IS the upload.
-#
-# Or run it by hand from the Actions tab (workflow_dispatch).
+# Madar Kitchen (apps/kitchen, React Native on the Rust core), bundle id and
+# package cloud.madar.kitchen. On every push to main that changes the kitchen
+# app or its binding (owner, 2026-10-12: not every main commit, only the ones
+# with kitchen changes), and by hand from the Actions tab:
+#   iOS     → signed and uploaded to TestFlight (same path as the POS and Dawam:
+#             cloud signing with the App Store Connect key; the export IS the upload)
+#   Android → a signed app bundle (.aab), attached to the run
+# A core change the POS makes doesn't rebuild the kitchen; run it by hand to
+# ship one.
 #
 # Secrets (repo → Settings → Secrets and variables → Actions):
 #   ASC_KEY_P8 / ASC_KEY_ID / ASC_ISSUER_ID / APPLE_TEAM_ID — the POS's App
 #       Store Connect key (same team, same key; see deploy.yml)
-#   KITCHEN_GOOGLE_SERVICE_INFO_PLIST — apps/kitchen/GoogleService-Info.plist,
-#       base64 (git-ignored; Firebase project dawam-by-madar, app
-#       "Madar Kitchen (ios)")
-# The job skips itself, with a warning, until all are set.
+#   KITCHEN_GOOGLE_SERVICE_INFO_PLIST — apps/kitchen/GoogleService-Info.plist, base64
+#   KITCHEN_GOOGLE_SERVICES_JSON      — apps/kitchen/google-services.json, base64
+#       (both git-ignored; Firebase project dawam-by-madar, the "Madar Kitchen" apps)
+#   KITCHEN_KEYSTORE_BASE64 / KITCHEN_KEYSTORE_PASSWORD / KITCHEN_KEY_PASSWORD /
+#   KITCHEN_KEY_ALIAS — the kitchen's own Android upload key
+# On main a missing secret fails the job; a manual run on another branch warns
+# and skips (iOS) or builds unsigned-for-Play (Android).
 #
 # The build number is the run number; the version is app.json's.
 
@@ -24,9 +29,6 @@ on:
     paths:
       - "apps/kitchen/**"
       - "rust-core/crates/madar-kitchen-ffi/**"
-      - "rust-core/crates/madar-core/**"
-      - "rust-core/crates/madar-api/**"
-      - "rust-core/Cargo.lock"
       - ".github/workflows/kitchen-release.yml"
   workflow_dispatch:
 
@@ -36,6 +38,130 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build-android:
+    name: Build Android (signed AAB)
+    runs-on: ubuntu-latest
+    env:
+      ON_MAIN: ${{ github.ref == 'refs/heads/main' }}
+      LANG: en_US.UTF-8
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust-core
+          key: kitchen-android
+
+      # The NDK the core is built with (ubrn drives cargo-ndk).
+      - name: NDK + cargo-ndk
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;28.2.13676358" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          cargo install cargo-ndk --locked
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/kitchen/package-lock.json
+
+      - name: Install
+        working-directory: apps/kitchen
+        run: npm ci --no-audit --no-fund
+
+      # Push. A build from main without it could never notify a kitchen, so
+      # main fails here; a manual run elsewhere carries on with push off.
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.KITCHEN_GOOGLE_SERVICES_JSON }}
+        working-directory: apps/kitchen
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
+            [ "$ON_MAIN" = "true" ] && { echo "::error::KITCHEN_GOOGLE_SERVICES_JSON is not set — a kitchen build must be able to receive push."; exit 1; }
+            echo "::warning::No KITCHEN_GOOGLE_SERVICES_JSON — building with push off."; exit 0
+          fi
+          echo "$GOOGLE_SERVICES_JSON" | base64 --decode > google-services.json
+          python3 -c "import json; d=json.load(open('google-services.json')); assert d['client'][0]['client_info']['android_client_info']['package_name']=='cloud.madar.kitchen'" \
+            || { echo "::error::KITCHEN_GOOGLE_SERVICES_JSON is not the cloud.madar.kitchen config."; exit 1; }
+
+      - name: Build the Rust core (release)
+        working-directory: apps/kitchen/modules/madar-kitchen-core
+        run: ../../node_modules/.bin/ubrn build android --config ubrn.config.yaml --release --and-generate
+
+      - name: Prepare the Android project
+        working-directory: apps/kitchen
+        run: ./node_modules/.bin/expo prebuild -p android --clean
+
+      # Fail here, not inside Gradle: without the key the bundle is DEBUG-signed
+      # (plugins/with-android-release.js), and Play refuses that upload.
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KITCHEN_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KITCHEN_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KITCHEN_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KITCHEN_KEY_ALIAS }}
+        working-directory: apps/kitchen/android
+        run: |
+          set -euo pipefail
+          missing=""
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_PASSWORD KEY_ALIAS; do
+            [ -z "${!v:-}" ] && missing="$missing KITCHEN_$v"
+          done
+          if [ -n "$missing" ]; then
+            [ "$ON_MAIN" = "true" ] && { echo "::error::Missing signing secret(s):$missing"; exit 1; }
+            echo "::warning::No signing secrets — this bundle is DEBUG-signed and not shippable."; exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+          keytool -list -keystore app/release.keystore -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null \
+            || { echo "::error::Cannot open the keystore with KITCHEN_KEYSTORE_PASSWORD / KITCHEN_KEY_ALIAS."; exit 1; }
+          umask 077
+          cat > key.properties <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=app/release.keystore
+          EOF
+
+      - name: Build the app bundle
+        working-directory: apps/kitchen/android
+        run: ./gradlew bundleRelease -PversionCode=${{ github.run_number }} --no-daemon
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: madar-kitchen-${{ github.run_number }}.aab
+          path: apps/kitchen/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+      - name: Summary
+        run: |
+          {
+            echo "## 🤖 Madar Kitchen — Android bundle"
+            echo ""
+            echo "Build **${{ github.run_number }}** (\`cloud.madar.kitchen\`): \`madar-kitchen-${{ github.run_number }}.aab\` is attached to this run, signed with the kitchen upload key. Upload it in Play Console."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Shred key and config
+        if: always()
+        working-directory: apps/kitchen
+        run: rm -f android/key.properties android/app/release.keystore google-services.json 2>/dev/null || true
+
   build-ios:
     name: Build iOS + upload to TestFlight
     runs-on: macos-26
@@ -55,6 +181,9 @@ jobs:
             [ -z "${!v:-}" ] && missing="$missing $v"
           done
           if [ -n "$missing" ]; then
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "::error::Kitchen TestFlight — missing secret(s):$missing"; exit 1
+            fi
             echo "::warning::Kitchen TestFlight skipped — missing secret(s):$missing"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
