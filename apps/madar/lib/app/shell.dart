@@ -120,22 +120,19 @@ class _RouteHostState extends ConsumerState<_RouteHost> {
 
   Widget _screenFor(WidgetRef ref, AppRoute route) {
     return switch (route) {
-      // A kitchen account parked on DeviceSetup (no station bound) gets the
-      // same notice as one routed to the kitchen display; everyone else gets
-      // the login screen, which embeds the manager device-setup form when
-      // the device is unbound.
-      AppRoute_DeviceSetup() =>
+      // The POS is never a kitchen screen (kitchens run Madar Kitchen): the
+      // core keeps a kitchen account on DeviceSetup, where it is told so and
+      // offered a way out. Everyone else gets the login screen, which embeds
+      // the manager device-setup form when the device is unbound.
+      AppRoute.deviceSetup =>
         _kitchenOnly(ref) ? const KitchenAccountScreen() : const LoginScreen(),
-      AppRoute_Login() => const LoginScreen(),
+      AppRoute.login => const LoginScreen(),
       // Signed in: the person's shell decides the tabs from the role. A
       // teller with no till is not walled off — the shell opens on Till,
       // where the open-till card is, and the Floor and Queue stay readable.
-      AppRoute_OpenTill() ||
-      AppRoute_Order() ||
-      AppRoute_WaiterTickets() => const RoleShell(),
-      // The kitchen display is its own app now (Madar Kitchen): a kitchen
-      // account on the POS is told so and offered a way out.
-      AppRoute_KitchenDisplay() => const KitchenAccountScreen(),
+      AppRoute.openTill ||
+      AppRoute.order ||
+      AppRoute.waiterTickets => const RoleShell(),
     };
   }
 }

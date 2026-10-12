@@ -371,7 +371,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #isRtl) return lang == 'ar';
     if (name == #currentSession) return session;
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #deviceConfig) return _config;
     if (name == #deviceCode) return 'T1';
     if (name == #refreshConnectivity) return Future<bool>.value(true);

@@ -88,7 +88,6 @@ step "pos · format" - - -- sh -c "git ls-files '*.dart' | grep -v '/cargokit/' 
 step "pos · rust workspace" "$RUST_WARN" - -- sh -c 'cd rust-core && cargo check --workspace --all-targets --locked'
 step "pos · core tests" "$RUST_WARN" "$RUST_SKIP" -- sh -c 'cd rust-core && cargo test -p madar-core --locked'
 step "pos · bridge library" "$RUST_WARN" - -- sh -c 'cd rust-core && cargo build -p madar_frb --release --locked'
-step "pos · kds" "$RUST_WARN" "$RUST_SKIP" -- sh -c 'cd apps/kds-slint && cargo test --locked'
 for pkg in $(git ls-files '*/pubspec.yaml' | grep -v '/cargokit/' | xargs -n1 dirname | sort); do
   [ -d "$pkg/test" ] || continue
   step "pos · flutter $(basename "$pkg")" "$FLUTTER_WARN" "$FLUTTER_SKIP" -- sh -c "cd '$pkg' && flutter test --no-pub"

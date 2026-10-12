@@ -5,31 +5,22 @@
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
-import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
-part 'routes.freezed.dart';
 
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `eq`, `fmt`, `from`
 
-@freezed
-sealed class AppRoute with _$AppRoute {
-  const AppRoute._();
-
+enum AppRoute {
   /// Till not bound to a branch → manager device-setup.
-  const factory AppRoute.deviceSetup() = AppRoute_DeviceSetup;
+  deviceSetup,
 
   /// Configured but signed out → teller/waiter PIN login.
-  const factory AppRoute.login() = AppRoute_Login;
+  login,
 
   /// Signed in, no open shift → open-shift screen.
-  const factory AppRoute.openTill() = AppRoute_OpenTill;
+  openTill,
 
   /// Signed in with an open shift → order screen.
-  const factory AppRoute.order() = AppRoute_Order;
-
-  /// Device run as a kitchen display → the KDS for `station_id` (no shift needed).
-  const factory AppRoute.kitchenDisplay({required String stationId}) =
-      AppRoute_KitchenDisplay;
+  order,
 
   /// A signed-in WAITER (holds no shift) → the open-tickets / take-order screen.
-  const factory AppRoute.waiterTickets() = AppRoute_WaiterTickets;
+  waiterTickets,
 }

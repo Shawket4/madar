@@ -738,7 +738,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       // The drawer closed under the teller (a force-close, a reconcile):
       // the Till is where the open-till card is.
       ..listen(shellProvider.select((s) => s.route), (prev, next) {
-        if (next is AppRoute_OpenTill && prev is! AppRoute_OpenTill) {
+        if (next == AppRoute.openTill && prev != AppRoute.openTill) {
           _select(_Tab.till);
         }
       })
@@ -768,7 +768,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
       kind,
       hasFloor: hasFloor,
       requireTable: session?.requireTableForOrders ?? false,
-      noTill: locked || route is AppRoute_OpenTill,
+      noTill: locked || route == AppRoute.openTill,
     );
     // Every stack the shell keeps: the rail's tabs plus the teller's
     // off-rail Settings owner.

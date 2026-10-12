@@ -226,8 +226,6 @@ pub enum AppRoute {
     OpenTill,
     /// Signed in with an open shift → order screen.
     Order,
-    /// Device run as a kitchen display → the KDS for `station_id` (no shift needed).
-    KitchenDisplay { station_id: String },
     /// A signed-in WAITER (holds no shift) → the open-tickets / take-order screen.
     WaiterTickets,
 }
@@ -2695,14 +2693,11 @@ impl MadarCore {
             Some(s) => s,
             None => return AppRoute::Login,
         };
-        // A kitchen-role device shows the KDS for its configured station (it needs
-        // the session for the bus + kitchen permission, but holds no shift). With
-        // no station bound yet, it must finish device setup first.
+        // The POS is never a kitchen screen: kitchens run Madar Kitchen
+        // (apps/kitchen). A kitchen-role sign-in stays on setup, where the host
+        // says so (KitchenAccountScreen).
         if session.work_kind() == "kitchen" {
-            return match cfg.station_id {
-                Some(station_id) => AppRoute::KitchenDisplay { station_id },
-                None => AppRoute::DeviceSetup,
-            };
+            return AppRoute::DeviceSetup;
         }
         // Waiters take orders and fire tickets but hold NO shift — route them to the
         // waiter screen BEFORE the open-shift gate (which they could never satisfy).
@@ -12431,9 +12426,9 @@ mod lifecycle_tests {
     }
 
     #[test]
-    fn route_kitchen_role_to_the_kds_for_its_station() {
-        // A kitchen-role device routes to the KDS for its configured station,
-        // needing NO shift — but stays in device-setup until a station is bound.
+    fn a_kitchen_role_never_turns_the_pos_into_a_kitchen_screen() {
+        // Kitchens run Madar Kitchen; a kitchen sign-in on the POS stays on
+        // setup, with or without a station left over from an old build.
         let core = MadarCore::from_env().unwrap();
         core.set_device_branch("b".into(), None).unwrap();
         set_session(
@@ -12443,18 +12438,9 @@ mod lifecycle_tests {
                 Some("b"),
             )),
         );
-        assert_eq!(
-            core.app_route(),
-            AppRoute::DeviceSetup,
-            "kitchen device needs a station"
-        );
+        assert_eq!(core.app_route(), AppRoute::DeviceSetup);
         core.set_device_station(Some("grill".into())).unwrap();
-        assert_eq!(
-            core.app_route(),
-            AppRoute::KitchenDisplay {
-                station_id: "grill".into()
-            }
-        );
+        assert_eq!(core.app_route(), AppRoute::DeviceSetup);
     }
 
     /// End-to-end offline: sign in offline, open a shift (the open_till command

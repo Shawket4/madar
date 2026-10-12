@@ -57,7 +57,7 @@ void main() {
   });
 
   test('fresh store routes to device setup', () {
-    expect(core.bridge.appRoute(), isA<AppRoute_DeviceSetup>());
+    expect(core.bridge.appRoute(), AppRoute.deviceSetup);
     expect(core.bridge.isAuthenticated(), isFalse);
     expect(core.bridge.currentSession(), isNull);
   });

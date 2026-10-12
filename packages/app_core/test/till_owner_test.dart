@@ -55,7 +55,7 @@ class _Core implements MadarBridge {
     final name = invocation.memberName;
     if (name == #currentSession) return _session;
     if (name == #appRoute) {
-      return till == null ? const AppRoute.openTill() : const AppRoute.order();
+      return till == null ? AppRoute.openTill : AppRoute.order;
     }
     if (name == #tillLock) {
       return TillLockView(
@@ -103,7 +103,7 @@ void main() {
     final s = container.read(shellProvider);
     expect(s.till?.id, 't-1');
     expect(s.tillOpen, isTrue);
-    expect(s.route, const AppRoute.order());
+    expect(s.route, AppRoute.order);
     expect(s.locked, isFalse);
   });
 
@@ -122,7 +122,7 @@ void main() {
 
     expect(seen, ['t-1']);
     final s = container.read(shellProvider);
-    expect(s.route, const AppRoute.order(), reason: 'route agrees');
+    expect(s.route, AppRoute.order, reason: 'route agrees');
     expect(s.locked, isFalse, reason: 'lock agrees');
     expect(arms, 1, reason: 'a refresh still arms realtime');
   });
@@ -138,7 +138,7 @@ void main() {
     final s = container.read(shellProvider);
     expect(s.till, isNull);
     expect(s.locked, isTrue);
-    expect(s.route, const AppRoute.openTill());
+    expect(s.route, AppRoute.openTill);
     expect(arms, 0, reason: 'a table change is a re-read, not a re-arm');
   });
 

@@ -472,7 +472,7 @@ class _FakeBridge implements MadarBridge {
       return MadarFormat.stamp(at, DateTime(at.year, 9, 12), locale: lang);
     }
     if (name == #isRtl) return arabic;
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #currentSession) {
       return SessionSnapshot(
         userId: 'u-1',

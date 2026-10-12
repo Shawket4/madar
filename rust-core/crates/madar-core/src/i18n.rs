@@ -1109,8 +1109,6 @@ fn en(key: &str) -> Option<&'static str> {
         // a kitchen account on the POS: the kitchen display is its own app now
         "kitchen.use_app" => "This is a kitchen account",
         "kitchen.use_app_desc" => "Kitchen screens run on the Madar Kitchen app. Sign in there with this PIN, or sign out to use a till account here.",
-        "setup.choose_station" => "Choose a station",
-        "setup.choose_station_desc" => "Pick which kitchen station this display shows.",
         "setup.no_stations" => "No kitchen stations for this branch yet.",
         "setup.station_default" => "Default",
         // brand panel
@@ -3567,8 +3565,6 @@ fn ar(key: &str) -> Option<&'static str> {
         "setup.cancel" => "إلغاء",
         "kitchen.use_app" => "هذا حساب مطبخ",
         "kitchen.use_app_desc" => "شاشات المطبخ تعمل على تطبيق مطبخ مدار. سجّل الدخول هناك بهذا الرمز، أو سجّل الخروج لاستخدام حساب كاشير هنا.",
-        "setup.choose_station" => "اختر محطة",
-        "setup.choose_station_desc" => "اختر محطة المطبخ التي يعرضها هذا الجهاز.",
         "setup.no_stations" => "لا توجد محطات مطبخ لهذا الفرع بعد.",
         "setup.station_default" => "افتراضي",
         "brand.headline" => "مرحبًا\nبعودتك.",

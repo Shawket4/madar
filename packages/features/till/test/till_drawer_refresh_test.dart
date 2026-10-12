@@ -136,7 +136,7 @@ class _CoreBridge implements MadarBridge {
     }
     final args = invocation.namedArguments;
     if (name == #tr) return args[#key];
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #currentSession) {
       return const SessionSnapshot(
         userId: 'u-1',

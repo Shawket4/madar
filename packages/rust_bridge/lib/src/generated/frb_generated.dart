@@ -14718,22 +14718,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   AppRoute dco_decode_app_route(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    switch (raw[0]) {
-      case 0:
-        return AppRoute_DeviceSetup();
-      case 1:
-        return AppRoute_Login();
-      case 2:
-        return AppRoute_OpenTill();
-      case 3:
-        return AppRoute_Order();
-      case 4:
-        return AppRoute_KitchenDisplay(stationId: dco_decode_String(raw[1]));
-      case 5:
-        return AppRoute_WaiterTickets();
-      default:
-        throw Exception("unreachable");
-    }
+    return AppRoute.values[raw as int];
   }
 
   @protected
@@ -18997,25 +18982,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   AppRoute sse_decode_app_route(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-
-    var tag_ = sse_decode_i_32(deserializer);
-    switch (tag_) {
-      case 0:
-        return AppRoute_DeviceSetup();
-      case 1:
-        return AppRoute_Login();
-      case 2:
-        return AppRoute_OpenTill();
-      case 3:
-        return AppRoute_Order();
-      case 4:
-        var var_stationId = sse_decode_String(deserializer);
-        return AppRoute_KitchenDisplay(stationId: var_stationId);
-      case 5:
-        return AppRoute_WaiterTickets();
-      default:
-        throw UnimplementedError('');
-    }
+    var inner = sse_decode_i_32(deserializer);
+    return AppRoute.values[inner];
   }
 
   @protected
@@ -24935,21 +24903,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   @protected
   void sse_encode_app_route(AppRoute self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    switch (self) {
-      case AppRoute_DeviceSetup():
-        sse_encode_i_32(0, serializer);
-      case AppRoute_Login():
-        sse_encode_i_32(1, serializer);
-      case AppRoute_OpenTill():
-        sse_encode_i_32(2, serializer);
-      case AppRoute_Order():
-        sse_encode_i_32(3, serializer);
-      case AppRoute_KitchenDisplay(stationId: final stationId):
-        sse_encode_i_32(4, serializer);
-        sse_encode_String(stationId, serializer);
-      case AppRoute_WaiterTickets():
-        sse_encode_i_32(5, serializer);
-    }
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected

@@ -23,7 +23,7 @@ class _Bridge implements MadarBridge {
     if (can != null) return can;
     final name = invocation.memberName;
     if (name == #tr) return invocation.namedArguments[#key];
-    if (name == #appRoute) return const AppRoute.login();
+    if (name == #appRoute) return AppRoute.login;
     if (name == #currentSession) return null;
     if (name == #pinWaitSeconds) return pinWait;
     if (name == #activateDevice) {

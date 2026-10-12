@@ -349,7 +349,7 @@ class _FakeBridge implements MadarBridge {
     if (name == #isRtl) return rtl;
     if (name == #locale) return rtl ? 'ar' : 'en';
     if (name == #currentSession) return _session;
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #deviceConfig) {
       return const DeviceConfigView(
         branchName: 'Rue Zamalek',

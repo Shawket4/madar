@@ -19,7 +19,7 @@ class _Bridge implements MadarBridge {
     final name = invocation.memberName;
     final args = invocation.namedArguments;
     if (name == #tr) return args[#key];
-    if (name == #appRoute) return const AppRoute.login();
+    if (name == #appRoute) return AppRoute.login;
     if (name == #currentSession) return null;
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
