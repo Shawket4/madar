@@ -2843,6 +2843,13 @@ impl MadarCore {
         Ok(())
     }
 
+    /// Under the stub, print the tagline, QR and web address (Settings ›
+    /// Printer, a sub-toggle of the stub's); on by default.
+    pub fn set_device_receipt_get_madar(&self, enabled: bool) -> Result<(), CoreError> {
+        device::update(&self.store, |c| c.hide_receipt_get_madar = !enabled)?;
+        Ok(())
+    }
+
     /// Wipe the device binding entirely (factory reset of the device config).
     pub fn clear_device(&self) -> Result<(), CoreError> {
         device::save(&self.store, &device::DeviceConfig::default())
@@ -4208,6 +4215,7 @@ impl MadarCore {
                 queued: tr("order.queued_hint"),
                 thank_you: self.receipt_footer(),
                 powered_by: (!cfg.hide_receipt_stub).then(|| tr("receipt.powered_by")),
+                get_madar: !cfg.hide_receipt_get_madar,
                 locale: loc.clone(),
                 tz,
             },

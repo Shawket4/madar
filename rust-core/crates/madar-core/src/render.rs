@@ -49,25 +49,69 @@ const LOGO_MAX_H: u32 = 216;
 // Branch name under the hairline — smaller than the old above-hairline size.
 const RS_BRANCH: f32 = 30.0;
 
-// The "Powered by madar" stub at the foot (Madar Design System, Signature
-// board: "Receipt stub"): a ticket whose orbit cell tears off along a
-// perforation, the label over the wordmark beside it. The wordmarks are the
-// kit's mono-ink PNGs; the Arabic one sits taller, as on the board.
-const STUB_H: i32 = 112;
-const STUB_RADIUS: i32 = 16;
-const STUB_NOTCH: i32 = 10;
-const STUB_PAD: i32 = 28;
-const STUB_MARK_H: i32 = 30;
-const STUB_MARK_H_AR: i32 = 40;
-const RS_STUB: f32 = 22.0;
-const WORDMARK_LATIN: &[u8] = include_bytes!("../assets/brand/wordmark-latin.png");
-const WORDMARK_ARABIC: &[u8] = include_bytes!("../assets/brand/wordmark-arabic.png");
+// The "Powered by madar" chit at the foot: the owner's design
+// (assets/brand/receipt-chit.svg), baked to 8-bit gray because its "Powered By"
+// is live IBM Plex Sans Arabic Bold text: `rsvg-convert -w 1068 -b white` with
+// that font installed. Printed 480 dots wide, its strokes land at 5-7 dots.
+// The on-screen preview shows the same PNG (feature_checkout assets).
+const CHIT: &[u8] = include_bytes!("../assets/brand/receipt-chit.png");
+const CHIT_W: i32 = 480;
+const CHIT_H: i32 = 149;
+
+// Under the chit, on every receipt in both languages: the tagline, a QR to
+// Madar's download page and its address in IBM Plex Mono, all solid bold ink.
+const TAGLINE_EN: &str = "One system for the whole café";
+const TAGLINE_AR: &str = "سيستم واحد للمكان كله";
+const GET_URL: &str = "get.madar-pos.cloud/en";
+const RS_TAGLINE: f32 = 30.0;
+const RS_URL: f32 = 30.0;
+/// Dots per QR module: whole dots keep the edges crisp on a 1-bit head, and
+/// 29 × 7 = 203 dots is 25 mm on 80 mm paper (scaled on 58 mm).
+const QR_MODULE: i32 = 7;
+/// `https://{GET_URL}` as QR version 3, error correction M (`#` = dark),
+/// made with segno 1.6.1: `segno.make(url, error="m", boost_error=False)`.
+/// The on-screen preview draws the same rows (`_getMadarQr`, receipt_paper.dart).
+const GET_QR: [&str; 29] = [
+    "#######....##.#...##..#######",
+    "#.....#.##.###.....#..#.....#",
+    "#.###.#..###...#...#..#.###.#",
+    "#.###.#...#..#..#.#...#.###.#",
+    "#.###.#.###..#..#####.#.###.#",
+    "#.....#..#..#.#######.#.....#",
+    "#######.#.#.#.#.#.#.#.#######",
+    "...............#.#...........",
+    "#.#.#.#..#..#...##......#..#.",
+    "###.#.......##.##...###..#..#",
+    "#...#.#.#..#..####...#....###",
+    "..###..#.######.###.#...#..#.",
+    ".#.##.##.#....##.#.####..#.##",
+    "#..###.##.###.##.##.####.#..#",
+    "#.##..#....#.#......#.#.##.##",
+    "#.#.##.###..#..#.###.....#.#.",
+    "..#.####.####...##...###.#.##",
+    ".##.#..#.##..#.###..###..##.#",
+    "#.######...#..###....####..##",
+    ".##..#..#..####.##.###...#.#.",
+    "#..#..#...#...###########....",
+    "........#...#.##...##...#.###",
+    "#######..##.##..##.##.#.##.##",
+    "#.....#..##....#.####...##.##",
+    "#.###.#.###.#...##..#####..#.",
+    "#.###.#..#..#..#.#.##..##.#..",
+    "#.###.#.#..#.#..#...#..###..#",
+    "#.....#....#.#..###.##..#..#.",
+    "#######.###..#####.######..##",
+];
 
 // Embedded Cairo — the same family the Compose/Swift UI renders. Regular for
 // body, SemiBold for the payment label, Bold for headers/totals.
 const CAIRO_REGULAR: &[u8] = include_bytes!("../assets/fonts/Cairo-Regular.ttf");
 const CAIRO_SEMIBOLD: &[u8] = include_bytes!("../assets/fonts/Cairo-SemiBold.ttf");
 const CAIRO_BOLD: &[u8] = include_bytes!("../assets/fonts/Cairo-Bold.ttf");
+const CAIRO: &str = "Cairo";
+// The design system's mono (OFL), for the footer's web address only.
+const PLEX_MONO_BOLD: &[u8] = include_bytes!("../assets/fonts/IBMPlexMono-Bold.ttf");
+const PLEX_MONO: &str = "IBM Plex Mono";
 
 /// Render the receipt to a 1-bit bitmap. `logo` is the decoded org-logo image
 /// bytes the core fetched + cached, or `None` to print without it.
@@ -217,6 +261,7 @@ impl Renderer {
         db.load_font_data(CAIRO_REGULAR.to_vec());
         db.load_font_data(CAIRO_SEMIBOLD.to_vec());
         db.load_font_data(CAIRO_BOLD.to_vec());
+        db.load_font_data(PLEX_MONO_BOLD.to_vec());
         // Custom db only — never scan system fonts, so output is deterministic
         // and the Android/iOS sandboxes don't matter.
         let fonts = FontSystem::new_with_locale_and_db("en-US".to_string(), db);
@@ -252,6 +297,9 @@ impl Renderer {
     /// Shape one string into a laid-out buffer at the given size/weight, wrapping
     /// at `max_w` dots.
     fn shape(&mut self, text: &str, size: f32, weight: Weight, max_w: i32) -> Buffer {
+        self.shape_in(CAIRO, text, size, weight, max_w)
+    }
+    fn shape_in(&mut self, family: &str, text: &str, size: f32, weight: Weight, max_w: i32) -> Buffer {
         #[cfg(test)]
         self.shaped.push(text.to_string());
         // Fonts are tuned for PRINT_WIDTH; scale to the active roll. `max_w` is
@@ -261,7 +309,7 @@ impl Renderer {
         // cosmic-text 0.19: set_size/set_text no longer take the FontSystem
         // (shaping is deferred to shape_until_scroll); attrs pass by ref.
         buf.set_size(Some(max_w as f32), None);
-        let attrs = Attrs::new().family(Family::Name("Cairo")).weight(weight);
+        let attrs = Attrs::new().family(Family::Name(family)).weight(weight);
         buf.set_text(text, &attrs, Shaping::Advanced, None);
         buf.shape_until_scroll(&mut self.fonts, false);
         buf
@@ -325,10 +373,13 @@ impl Renderer {
 
     /// Draw a centered text block at the current cursor, advancing past it.
     fn center(&mut self, s: &str, size: f32, weight: Weight) {
+        self.center_in(CAIRO, s, size, weight);
+    }
+    fn center_in(&mut self, family: &str, s: &str, size: f32, weight: Weight) {
         if s.is_empty() {
             return;
         }
-        let buf = self.shape(s, size, weight, self.content_w());
+        let buf = self.shape_in(family, s, size, weight, self.content_w());
         let (w, h) = Self::measure(&buf);
         let ox = ((self.width as f32 - w) / 2.0).round() as i32 - Self::rtl_lead(&buf);
         let oy = self.y;
@@ -405,10 +456,18 @@ impl Renderer {
         self.y += bh;
     }
 
-    /// Decode, scale-to-fit and threshold the org logo to solid black, then composite it centered.
+    /// The org logo, centred, with a little air under it.
     fn logo(&mut self, bytes: &[u8]) {
-        let Some((w, h, ink)) = decode_logo(bytes, self.logo_w, self.logo_h) else {
-            return;
+        if self.image(bytes, self.logo_w, self.logo_h) {
+            self.y += self.sx(8);
+        }
+    }
+
+    /// Decode, scale-to-fit and threshold an image to solid black, composite
+    /// it centred at the cursor and advance past it. False if it won't decode.
+    fn image(&mut self, bytes: &[u8], max_w: u32, max_h: u32) -> bool {
+        let Some((w, h, ink)) = decode_logo(bytes, max_w, max_h) else {
+            return false;
         };
         let ox = ((self.width - w as i32) / 2).max(0);
         let oy = self.y;
@@ -419,103 +478,29 @@ impl Renderer {
                 }
             }
         }
-        self.y += h as i32 + self.sx(8);
+        self.y += h as i32;
+        true
     }
 
-    /// The "Powered by madar" stub, centred (see `STUB_H`). An Arabic receipt
-    /// mirrors it, the orbit cell on the right, and carries the Arabic
-    /// wordmark; the orbit itself never mirrors.
-    fn powered_by(&mut self, label: &str, arabic: bool) {
-        let (bytes, mark_h) = if arabic {
-            (WORDMARK_ARABIC, STUB_MARK_H_AR)
-        } else {
-            (WORDMARK_LATIN, STUB_MARK_H)
-        };
-        let Some((mw, mh, mark)) = decode_logo(bytes, self.content_w() as u32, self.sx(mark_h) as u32)
-        else {
-            return;
-        };
-        let text = self.shape(label, RS_STUB, Weight::NORMAL, self.content_w());
-        let (tw, th) = Self::measure(&text);
-        let (h, pad) = (self.sx(STUB_H), self.sx(STUB_PAD));
-        let w = (h + 2 * pad + (tw.ceil() as i32).max(mw as i32)).min(self.content_w());
-        let (x0, y0) = ((self.width - w) / 2, self.y);
-        let perf = if arabic { x0 + w - h } else { x0 + h };
-
-        // The ticket's outline: a rounded rect with a half-round notch at each
-        // end of the perforation, stroked by keeping what its inset loses.
-        let (r, n, t) = (self.sx(STUB_RADIUS) as f32, self.sx(STUB_NOTCH) as f32, 2.0);
-        let inside = |x: f32, y: f32, inset: f32| {
-            let (l, top, rt, b) = (
-                x0 as f32 + inset,
-                y0 as f32 + inset,
-                (x0 + w) as f32 - inset,
-                (y0 + h) as f32 - inset,
-            );
-            if x < l || x > rt || y < top || y > b {
-                return false;
-            }
-            let rad = (r - inset).max(0.0);
-            let (cx, cy) = (x.clamp(l + rad, rt - rad), y.clamp(top + rad, b - rad));
-            let notched = |ny: f32| (x - perf as f32).hypot(y - ny) <= n + inset;
-            (x - cx).hypot(y - cy) <= rad && !notched(y0 as f32) && !notched((y0 + h) as f32)
-        };
-        for y in y0..y0 + h {
-            for x in x0..x0 + w {
-                let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
-                if inside(px, py, 0.0) && !inside(px, py, t) {
-                    self.canvas.cover(x, y, 255);
-                }
+    /// Under the chit: the tagline in English and Arabic, the QR to Madar's
+    /// download page (`GET_QR`) and its address.
+    fn get_madar(&mut self) {
+        self.gap(self.sx(20));
+        self.center(TAGLINE_EN, RS_TAGLINE, Weight::BOLD);
+        self.center(TAGLINE_AR, RS_TAGLINE, Weight::BOLD);
+        // Whole dots per module. The paper either side is the quiet zone; above
+        // and below, three modules of blank plus the text's own leading.
+        let m = self.sx(QR_MODULE).max(2);
+        let side = GET_QR.len() as i32 * m;
+        let (x0, y0) = ((self.width - side) / 2, self.y + 3 * m);
+        for (r, row) in GET_QR.iter().enumerate() {
+            for (c, _) in row.bytes().enumerate().filter(|&(_, b)| b == b'#') {
+                let (x, y) = (x0 + c as i32 * m, y0 + r as i32 * m);
+                self.canvas.rule(x, x + m, y, m);
             }
         }
-
-        // The perforation, dashed between the notches.
-        let dash = self.sx(6).max(2);
-        let mut y = y0 + n as i32 + dash;
-        while y + dash <= y0 + h - n as i32 - dash {
-            self.canvas.rule(perf - 1, perf + 1, y, dash);
-            y += 2 * dash;
-        }
-
-        // The orbit, the kit's optical cut for small sizes (100-unit box: ring
-        // r 34 stroke 11, centre dot r 15, satellite r 11 at 45°), its box half
-        // the cell.
-        let cx = (if arabic { perf + h / 2 } else { x0 + h / 2 }) as f32;
-        let cy = (y0 + h / 2) as f32;
-        let u = h as f32 / 200.0;
-        let sat = 34.0 * u * std::f32::consts::FRAC_1_SQRT_2;
-        let reach = (46.0 * u).ceil() as i32;
-        for y in cy as i32 - reach..=cy as i32 + reach {
-            for x in cx as i32 - reach..=cx as i32 + reach {
-                let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
-                let d = dx.hypot(dy);
-                if (d - 34.0 * u).abs() <= 5.5 * u
-                    || d <= 15.0 * u
-                    || (dx - sat).hypot(dy + sat) <= 11.0 * u
-                {
-                    self.canvas.cover(x, y, 255);
-                }
-            }
-        }
-
-        // The label over the wordmark, against the perforation.
-        let gap = self.sx(4);
-        let top = y0 + (h - th.ceil() as i32 - gap - mh as i32) / 2;
-        let (tx, mx) = if arabic {
-            (perf - pad - tw.round() as i32, perf - pad - mw as i32)
-        } else {
-            (perf + pad, perf + pad)
-        };
-        self.blit(&text, tx - Self::rtl_lead(&text), top);
-        let my = top + th.ceil() as i32 + gap;
-        for ly in 0..mh {
-            for lx in 0..mw {
-                if mark[ly * mw + lx] != 0 {
-                    self.canvas.cover(mx + lx as i32, my + ly as i32, 255);
-                }
-            }
-        }
-        self.y += h;
+        self.y = y0 + side + 3 * m;
+        self.center_in(PLEX_MONO, GET_URL, RS_URL, Weight::BOLD);
     }
 
     /// Walk the receipt top-to-bottom, mirroring `ReceiptPaper.kt`.
@@ -702,9 +687,14 @@ impl Renderer {
         self.center(&r.payment_label.to_uppercase(), RS_BODY, Weight::BOLD);
         self.gap(self.sx(6));
         self.center(&lab.thank_you, RS_BODY, Weight::BOLD);
-        if let Some(label) = &lab.powered_by {
+        // `powered_by` is the Settings › Printer switch; the chit carries its
+        // own words, in every language.
+        if lab.powered_by.is_some() {
             self.gap(self.sx(20));
-            self.powered_by(label, lab.locale.starts_with("ar"));
+            self.image(CHIT, self.sx(CHIT_W) as u32, self.sx(CHIT_H) as u32);
+            if lab.get_madar {
+                self.get_madar();
+            }
         }
         self.gap(self.bottom_pad);
     }
@@ -1302,6 +1292,7 @@ mod tests {
                 queued: "Saved — will sync".into(),
                 thank_you: "Thank you!".into(),
                 powered_by: Some("Powered by".into()),
+                get_madar: true,
                 locale: "en".into(),
                 tz: chrono_tz::UTC,
             },
@@ -2034,22 +2025,85 @@ mod tests {
         }
     }
 
-    /// The "Powered by madar" stub closes every printed receipt, on the paper
-    /// at both rolls, its label past the orbit cell: right of centre in
-    /// English, left of it in Arabic (the stub mirrors).
+    /// The "Powered by madar" chit follows the thank-you on every printed
+    /// receipt, in either language and at both rolls: one centred block of ink
+    /// its full width, then the tagline.
     #[test]
-    fn the_powered_by_stub_closes_the_receipt_mirrored_in_arabic() {
+    fn the_chit_follows_the_thank_you_centred() {
         for roll in ROLLS {
-            for (c, rc, right) in [(ctx(), receipt(), true), (ar_ctx(), ar_receipt(), false)] {
+            for (c, rc) in [(ctx(), receipt()), (ar_ctx(), ar_receipt())] {
                 let mut r = Renderer::new(roll);
                 r.build(&rc, &c, None);
                 let what = format!("{} @{roll}", c.labels.locale);
-                assert_eq!(r.shaped.last(), c.labels.powered_by.as_ref(), "{what}: the stub is last");
-                let (_, (x0, _, x1, _)) = r.inked.last().unwrap().clone();
-                assert!(x0 >= 0 && x0 < x1 && x1 <= r.width, "{what}: label at x {x0}..{x1}");
-                assert_eq!((x0 + x1) / 2 > r.width / 2, right, "{what}: label at x {x0}..{x1}");
+                let n = r.shaped.len();
+                assert_eq!(r.shaped[n - 4], c.labels.thank_you, "{what}: the chit carries its own words");
+                let ink = |t: &str| r.inked.iter().rev().find(|(s, _)| s == t).unwrap().1;
+                let (top, bottom) = (ink(&c.labels.thank_you).3, ink(TAGLINE_EN).1);
+                let w = r.canvas.w;
+                let cols: Vec<usize> = (top as usize..bottom as usize)
+                    .flat_map(|y| (0..w).map(move |x| (x, y)))
+                    .filter(|&(x, y)| r.canvas.px[y * w + x] >= 128)
+                    .map(|(x, _)| x)
+                    .collect();
+                let (x0, x1) = (*cols.iter().min().unwrap() as i32, *cols.iter().max().unwrap() as i32 + 1);
+                assert!(((x0 + x1) / 2 - r.width / 2).abs() <= 2, "{what}: chit at x {x0}..{x1}");
+                assert!((x1 - x0 - r.sx(CHIT_W)).abs() <= 3, "{what}: chit {} dots wide", x1 - x0);
             }
         }
+    }
+
+    /// Under the chit, in either language: the English and the Arabic tagline,
+    /// then the web address last, each centred on the paper at both rolls,
+    /// with room for the QR's squares between the Arabic line and the address.
+    #[test]
+    fn the_get_madar_footer_follows_the_stub_centred() {
+        for roll in ROLLS {
+            for (c, rc) in [(ctx(), receipt()), (ar_ctx(), ar_receipt())] {
+                let mut r = Renderer::new(roll);
+                r.build(&rc, &c, None);
+                let what = format!("{} @{roll}", c.labels.locale);
+                let n = r.shaped.len();
+                assert_eq!(r.shaped[n - 3..], [TAGLINE_EN, TAGLINE_AR, GET_URL], "{what}");
+                let ink = |t: &str| r.inked.iter().rev().find(|(s, _)| s == t).unwrap().1;
+                for t in [TAGLINE_EN, TAGLINE_AR, GET_URL] {
+                    let (x0, _, x1, _) = ink(t);
+                    assert!(x0 >= 0 && x1 <= r.width, "{what}: {t} at x {x0}..{x1}");
+                    assert!(((x0 + x1) / 2 - r.width / 2).abs() <= r.sx(4), "{what}: {t} centred, x {x0}..{x1}");
+                }
+                let (above, below) = (ink(TAGLINE_AR).3, ink(GET_URL).1);
+                assert!(below - above >= 29 * r.sx(QR_MODULE), "{what}: QR room {above}..{below}");
+            }
+        }
+    }
+
+    /// The QR rows are a version-3 code: 29 × 29 of `#`/`.`, with the three
+    /// finder patterns in their corners (a mangled paste fails here).
+    #[test]
+    fn the_get_qr_is_29_modules_with_its_three_finders() {
+        assert!(GET_QR.iter().all(|r| r.len() == 29 && r.bytes().all(|b| b == b'#' || b == b'.')));
+        let finder = ["#######", "#.....#", "#.###.#", "#.###.#", "#.###.#", "#.....#", "#######"];
+        for (y0, x0) in [(0, 0), (0, 22), (22, 0)] {
+            for (i, want) in finder.iter().enumerate() {
+                assert_eq!(&GET_QR[y0 + i][x0..x0 + 7], *want, "finder at ({x0}, {y0}) row {i}");
+            }
+        }
+    }
+
+    /// With the sub-toggle off, the chit still prints but nothing under it:
+    /// no tagline, no QR, no address, and a shorter paper.
+    #[test]
+    fn the_get_madar_sub_toggle_drops_the_tagline_qr_and_address() {
+        let mut off = ctx();
+        off.labels.get_madar = false;
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build(&receipt(), &off, None);
+        assert_eq!(r.shaped.last(), Some(&off.labels.thank_you), "nothing shaped after the thank-you");
+        let on = render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH).rows;
+        let chit_only = render_receipt(&receipt(), &off, None, PRINT_WIDTH).rows;
+        let mut none = ctx();
+        none.labels.powered_by = None;
+        let bare = render_receipt(&receipt(), &none, None, PRINT_WIDTH).rows;
+        assert!(bare < chit_only && chit_only < on, "{bare} < {chit_only} < {on}");
     }
 
     /// Turned off in Settings, the receipt ends at the thank-you: no stub,

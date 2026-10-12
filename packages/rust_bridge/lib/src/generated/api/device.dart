@@ -52,6 +52,7 @@ class DeviceConfigView {
   final String? lanHub;
   final String? scanCamera;
   final bool receiptStub;
+  final bool receiptGetMadar;
   final bool configured;
 
   const DeviceConfigView({
@@ -69,6 +70,7 @@ class DeviceConfigView {
     this.lanHub,
     this.scanCamera,
     this.receiptStub = true,
+    this.receiptGetMadar = true,
     required this.configured,
   });
 
@@ -88,6 +90,7 @@ class DeviceConfigView {
       lanHub.hashCode ^
       scanCamera.hashCode ^
       receiptStub.hashCode ^
+      receiptGetMadar.hashCode ^
       configured.hashCode;
 
   @override
@@ -109,6 +112,7 @@ class DeviceConfigView {
           lanHub == other.lanHub &&
           scanCamera == other.scanCamera &&
           receiptStub == other.receiptStub &&
+          receiptGetMadar == other.receiptGetMadar &&
           configured == other.configured;
 }
 

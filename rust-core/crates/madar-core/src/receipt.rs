@@ -113,6 +113,9 @@ pub struct ReceiptLabels {
     /// The "Powered by" over the madar wordmark in the stub at the foot;
     /// `None` when the device turned the stub off (Settings › Printer).
     pub powered_by: Option<String>,
+    /// Under the stub, the tagline, QR and web address (Settings › Printer's
+    /// sub-toggle); printed only with the stub.
+    pub get_madar: bool,
     /// The language the labels are in — the date's AM/PM follows it.
     pub locale: String,
     /// The zone every printed time is shown in (the branch's effective zone).
@@ -1071,6 +1074,7 @@ mod tests {
                 queued: "Saved - will sync".into(),
                 thank_you: "Thank you!".into(),
                 powered_by: Some("Powered by".into()),
+                get_madar: true,
                 locale: "en".into(),
                 tz: chrono_tz::UTC,
             },

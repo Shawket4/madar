@@ -1417,6 +1417,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// print time; the other is retained so switching back is lossless.
   Future<void> setDevicePrinterTransport({required String kind});
 
+  /// Under the stub, print the tagline, QR and web address; on by default.
+  /// The on-screen preview follows it too.
+  Future<void> setDeviceReceiptGetMadar({required bool enabled});
+
   /// Print the "Powered by madar" stub at the foot of receipts; on by
   /// default. The on-screen preview follows it too.
   Future<void> setDeviceReceiptStub({required bool enabled});

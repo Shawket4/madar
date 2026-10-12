@@ -80,6 +80,10 @@ pub(crate) struct DeviceConfig {
     /// before the toggle existed, print it.
     #[serde(default)]
     pub hide_receipt_stub: bool,
+    /// The sub-toggle under it: the tagline, QR and web address printed under
+    /// the stub. Stored inverted too, so it prints until someone turns it off.
+    #[serde(default)]
+    pub hide_receipt_get_madar: bool,
 }
 
 impl DeviceConfig {
@@ -153,6 +157,9 @@ pub struct DeviceConfigView {
     pub scan_camera: Option<String>,
     /// Whether receipts print the "Powered by madar" stub (default on).
     pub receipt_stub: bool,
+    /// Whether, under the stub, receipts print the tagline, QR and web
+    /// address (default on; only with the stub).
+    pub receipt_get_madar: bool,
     pub configured: bool,
 }
 
@@ -174,6 +181,7 @@ impl From<DeviceConfig> for DeviceConfigView {
             lan_hub: c.lan_hub,
             scan_camera: c.scan_camera,
             receipt_stub: !c.hide_receipt_stub,
+            receipt_get_madar: !c.hide_receipt_get_madar,
             configured,
         }
     }
