@@ -63,11 +63,60 @@ const RS_STUB: f32 = 22.0;
 const WORDMARK_LATIN: &[u8] = include_bytes!("../assets/brand/wordmark-latin.png");
 const WORDMARK_ARABIC: &[u8] = include_bytes!("../assets/brand/wordmark-arabic.png");
 
+// Under the stub, on every receipt in both languages: the tagline, a QR to
+// Madar's download page and its address in IBM Plex Mono, all solid bold ink.
+const TAGLINE_EN: &str = "One system for the whole café";
+const TAGLINE_AR: &str = "سيستم واحد للمكان كله";
+const GET_URL: &str = "get.madar-pos.cloud/en";
+const RS_TAGLINE: f32 = 30.0;
+const RS_URL: f32 = 30.0;
+/// Dots per QR module: whole dots keep the edges crisp on a 1-bit head, and
+/// 29 × 7 = 203 dots is 25 mm on 80 mm paper (scaled on 58 mm).
+const QR_MODULE: i32 = 7;
+/// `https://{GET_URL}` as QR version 3, error correction M (`#` = dark),
+/// made with segno 1.6.1: `segno.make(url, error="m", boost_error=False)`.
+/// The on-screen preview draws the same rows (`_getMadarQr`, receipt_paper.dart).
+const GET_QR: [&str; 29] = [
+    "#######....##.#...##..#######",
+    "#.....#.##.###.....#..#.....#",
+    "#.###.#..###...#...#..#.###.#",
+    "#.###.#...#..#..#.#...#.###.#",
+    "#.###.#.###..#..#####.#.###.#",
+    "#.....#..#..#.#######.#.....#",
+    "#######.#.#.#.#.#.#.#.#######",
+    "...............#.#...........",
+    "#.#.#.#..#..#...##......#..#.",
+    "###.#.......##.##...###..#..#",
+    "#...#.#.#..#..####...#....###",
+    "..###..#.######.###.#...#..#.",
+    ".#.##.##.#....##.#.####..#.##",
+    "#..###.##.###.##.##.####.#..#",
+    "#.##..#....#.#......#.#.##.##",
+    "#.#.##.###..#..#.###.....#.#.",
+    "..#.####.####...##...###.#.##",
+    ".##.#..#.##..#.###..###..##.#",
+    "#.######...#..###....####..##",
+    ".##..#..#..####.##.###...#.#.",
+    "#..#..#...#...###########....",
+    "........#...#.##...##...#.###",
+    "#######..##.##..##.##.#.##.##",
+    "#.....#..##....#.####...##.##",
+    "#.###.#.###.#...##..#####..#.",
+    "#.###.#..#..#..#.#.##..##.#..",
+    "#.###.#.#..#.#..#...#..###..#",
+    "#.....#....#.#..###.##..#..#.",
+    "#######.###..#####.######..##",
+];
+
 // Embedded Cairo — the same family the Compose/Swift UI renders. Regular for
 // body, SemiBold for the payment label, Bold for headers/totals.
 const CAIRO_REGULAR: &[u8] = include_bytes!("../assets/fonts/Cairo-Regular.ttf");
 const CAIRO_SEMIBOLD: &[u8] = include_bytes!("../assets/fonts/Cairo-SemiBold.ttf");
 const CAIRO_BOLD: &[u8] = include_bytes!("../assets/fonts/Cairo-Bold.ttf");
+const CAIRO: &str = "Cairo";
+// The design system's mono (OFL), for the footer's web address only.
+const PLEX_MONO_BOLD: &[u8] = include_bytes!("../assets/fonts/IBMPlexMono-Bold.ttf");
+const PLEX_MONO: &str = "IBM Plex Mono";
 
 /// Render the receipt to a 1-bit bitmap. `logo` is the decoded org-logo image
 /// bytes the core fetched + cached, or `None` to print without it.
@@ -217,6 +266,7 @@ impl Renderer {
         db.load_font_data(CAIRO_REGULAR.to_vec());
         db.load_font_data(CAIRO_SEMIBOLD.to_vec());
         db.load_font_data(CAIRO_BOLD.to_vec());
+        db.load_font_data(PLEX_MONO_BOLD.to_vec());
         // Custom db only — never scan system fonts, so output is deterministic
         // and the Android/iOS sandboxes don't matter.
         let fonts = FontSystem::new_with_locale_and_db("en-US".to_string(), db);
@@ -252,6 +302,9 @@ impl Renderer {
     /// Shape one string into a laid-out buffer at the given size/weight, wrapping
     /// at `max_w` dots.
     fn shape(&mut self, text: &str, size: f32, weight: Weight, max_w: i32) -> Buffer {
+        self.shape_in(CAIRO, text, size, weight, max_w)
+    }
+    fn shape_in(&mut self, family: &str, text: &str, size: f32, weight: Weight, max_w: i32) -> Buffer {
         #[cfg(test)]
         self.shaped.push(text.to_string());
         // Fonts are tuned for PRINT_WIDTH; scale to the active roll. `max_w` is
@@ -261,7 +314,7 @@ impl Renderer {
         // cosmic-text 0.19: set_size/set_text no longer take the FontSystem
         // (shaping is deferred to shape_until_scroll); attrs pass by ref.
         buf.set_size(Some(max_w as f32), None);
-        let attrs = Attrs::new().family(Family::Name("Cairo")).weight(weight);
+        let attrs = Attrs::new().family(Family::Name(family)).weight(weight);
         buf.set_text(text, &attrs, Shaping::Advanced, None);
         buf.shape_until_scroll(&mut self.fonts, false);
         buf
@@ -325,10 +378,13 @@ impl Renderer {
 
     /// Draw a centered text block at the current cursor, advancing past it.
     fn center(&mut self, s: &str, size: f32, weight: Weight) {
+        self.center_in(CAIRO, s, size, weight);
+    }
+    fn center_in(&mut self, family: &str, s: &str, size: f32, weight: Weight) {
         if s.is_empty() {
             return;
         }
-        let buf = self.shape(s, size, weight, self.content_w());
+        let buf = self.shape_in(family, s, size, weight, self.content_w());
         let (w, h) = Self::measure(&buf);
         let ox = ((self.width as f32 - w) / 2.0).round() as i32 - Self::rtl_lead(&buf);
         let oy = self.y;
@@ -518,6 +574,27 @@ impl Renderer {
         self.y += h;
     }
 
+    /// Under the stub: the tagline in English and Arabic, the QR to Madar's
+    /// download page (`GET_QR`) and its address.
+    fn get_madar(&mut self) {
+        self.gap(self.sx(20));
+        self.center(TAGLINE_EN, RS_TAGLINE, Weight::BOLD);
+        self.center(TAGLINE_AR, RS_TAGLINE, Weight::BOLD);
+        // Whole dots per module. The paper either side is the quiet zone; above
+        // and below, three modules of blank plus the text's own leading.
+        let m = self.sx(QR_MODULE).max(2);
+        let side = GET_QR.len() as i32 * m;
+        let (x0, y0) = ((self.width - side) / 2, self.y + 3 * m);
+        for (r, row) in GET_QR.iter().enumerate() {
+            for (c, _) in row.bytes().enumerate().filter(|&(_, b)| b == b'#') {
+                let (x, y) = (x0 + c as i32 * m, y0 + r as i32 * m);
+                self.canvas.rule(x, x + m, y, m);
+            }
+        }
+        self.y = y0 + side + 3 * m;
+        self.center_in(PLEX_MONO, GET_URL, RS_URL, Weight::BOLD);
+    }
+
     /// Walk the receipt top-to-bottom, mirroring `ReceiptPaper.kt`.
     fn build(&mut self, r: &ReceiptView, ctx: &EscPosCtx, logo: Option<&[u8]>) {
         let cur = &ctx.currency;
@@ -705,6 +782,7 @@ impl Renderer {
         if let Some(label) = &lab.powered_by {
             self.gap(self.sx(20));
             self.powered_by(label, lab.locale.starts_with("ar"));
+            self.get_madar();
         }
         self.gap(self.bottom_pad);
     }
@@ -2044,10 +2122,49 @@ mod tests {
                 let mut r = Renderer::new(roll);
                 r.build(&rc, &c, None);
                 let what = format!("{} @{roll}", c.labels.locale);
-                assert_eq!(r.shaped.last(), c.labels.powered_by.as_ref(), "{what}: the stub is last");
-                let (_, (x0, _, x1, _)) = r.inked.last().unwrap().clone();
+                let label = c.labels.powered_by.clone().unwrap();
+                let n = r.shaped.len();
+                assert_eq!(r.shaped[n - 4], label, "{what}: the stub, then the get-madar footer");
+                let (_, (x0, _, x1, _)) = r.inked.iter().rev().find(|(t, _)| *t == label).unwrap().clone();
                 assert!(x0 >= 0 && x0 < x1 && x1 <= r.width, "{what}: label at x {x0}..{x1}");
                 assert_eq!((x0 + x1) / 2 > r.width / 2, right, "{what}: label at x {x0}..{x1}");
+            }
+        }
+    }
+
+    /// Under the stub, in either language: the English and the Arabic tagline,
+    /// then the web address last, each centred on the paper at both rolls,
+    /// with room for the QR's squares between the Arabic line and the address.
+    #[test]
+    fn the_get_madar_footer_follows_the_stub_centred() {
+        for roll in ROLLS {
+            for (c, rc) in [(ctx(), receipt()), (ar_ctx(), ar_receipt())] {
+                let mut r = Renderer::new(roll);
+                r.build(&rc, &c, None);
+                let what = format!("{} @{roll}", c.labels.locale);
+                let n = r.shaped.len();
+                assert_eq!(r.shaped[n - 3..], [TAGLINE_EN, TAGLINE_AR, GET_URL], "{what}");
+                let ink = |t: &str| r.inked.iter().rev().find(|(s, _)| s == t).unwrap().1;
+                for t in [TAGLINE_EN, TAGLINE_AR, GET_URL] {
+                    let (x0, _, x1, _) = ink(t);
+                    assert!(x0 >= 0 && x1 <= r.width, "{what}: {t} at x {x0}..{x1}");
+                    assert!(((x0 + x1) / 2 - r.width / 2).abs() <= r.sx(4), "{what}: {t} centred, x {x0}..{x1}");
+                }
+                let (above, below) = (ink(TAGLINE_AR).3, ink(GET_URL).1);
+                assert!(below - above >= 29 * r.sx(QR_MODULE), "{what}: QR room {above}..{below}");
+            }
+        }
+    }
+
+    /// The QR rows are a version-3 code: 29 × 29 of `#`/`.`, with the three
+    /// finder patterns in their corners (a mangled paste fails here).
+    #[test]
+    fn the_get_qr_is_29_modules_with_its_three_finders() {
+        assert!(GET_QR.iter().all(|r| r.len() == 29 && r.bytes().all(|b| b == b'#' || b == b'.')));
+        let finder = ["#######", "#.....#", "#.###.#", "#.###.#", "#.###.#", "#.....#", "#######"];
+        for (y0, x0) in [(0, 0), (0, 22), (22, 0)] {
+            for (i, want) in finder.iter().enumerate() {
+                assert_eq!(&GET_QR[y0 + i][x0..x0 + 7], *want, "finder at ({x0}, {y0}) row {i}");
             }
         }
     }

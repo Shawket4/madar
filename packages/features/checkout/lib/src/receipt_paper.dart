@@ -41,6 +41,48 @@ const double _stubNotch = 6;
 const double _stubLabelSize = 12;
 const double _stubWordmarkWidth = 60;
 
+/// Under the stub, as printed (render.rs `get_madar`): the tagline in both
+/// languages, the QR to Madar's download page and its address.
+const String _taglineEn = 'One system for the whole café';
+const String _taglineAr = 'سيستم واحد للمكان كله';
+const String _getUrl = 'get.madar-pos.cloud/en';
+const double _taglineSize = 15;
+const double _qrModule = 4;
+
+/// `https://get.madar-pos.cloud/en`, QR version 3-M: the printed `GET_QR`
+/// rows (render.rs), `#` = dark. Change both together.
+const List<String> _getMadarQr = [
+  '#######....##.#...##..#######',
+  '#.....#.##.###.....#..#.....#',
+  '#.###.#..###...#...#..#.###.#',
+  '#.###.#...#..#..#.#...#.###.#',
+  '#.###.#.###..#..#####.#.###.#',
+  '#.....#..#..#.#######.#.....#',
+  '#######.#.#.#.#.#.#.#.#######',
+  '...............#.#...........',
+  '#.#.#.#..#..#...##......#..#.',
+  '###.#.......##.##...###..#..#',
+  '#...#.#.#..#..####...#....###',
+  '..###..#.######.###.#...#..#.',
+  '.#.##.##.#....##.#.####..#.##',
+  '#..###.##.###.##.##.####.#..#',
+  '#.##..#....#.#......#.#.##.##',
+  '#.#.##.###..#..#.###.....#.#.',
+  '..#.####.####...##...###.#.##',
+  '.##.#..#.##..#.###..###..##.#',
+  '#.######...#..###....####..##',
+  '.##..#..#..####.##.###...#.#.',
+  '#..#..#...#...###########....',
+  '........#...#.##...##...#.###',
+  '#######..##.##..##.##.#.##.##',
+  '#.....#..##....#.####...##.##',
+  '#.###.#.###.#...##..#####..#.',
+  '#.###.#..#..#..#.#.##..##.#..',
+  '#.###.#.#..#.#..#...#..###..#',
+  '#.....#....#.#..###.##..#..#.',
+  '#######.###..#####.######..##',
+];
+
 /// The on-screen receipt paper — renders a [ReceiptView] as the printed
 /// layout: org logo/name header, order + delivery meta, line items with
 /// `qty× name … amount` columns, the totals block, and the payment footer.
@@ -341,11 +383,13 @@ class ReceiptPaper extends ConsumerWidget {
             ],
           ),
           // As printed: only when the device prints it (Settings › Printer).
-          if (bridge.deviceConfig().receiptStub)
+          if (bridge.deviceConfig().receiptStub) ...[
             Padding(
               padding: const EdgeInsetsDirectional.only(top: Space.sm),
               child: _PoweredByStub(label: tr('receipt.powered_by')),
             ),
+            const _GetMadar(),
+          ],
         ],
       ),
     );
@@ -415,6 +459,58 @@ class _PoweredByStub extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Under the stub: the tagline in English and Arabic, the QR and the address,
+/// centred and bold in ink, as printed.
+class _GetMadar extends StatelessWidget {
+  const _GetMadar();
+
+  @override
+  Widget build(BuildContext context) {
+    const side = _qrModule * 29;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Space.md),
+      child: Column(
+        children: [
+          const _Mono(_taglineEn, size: _taglineSize, weight: FontWeight.w700),
+          const _Mono(_taglineAr, size: _taglineSize, weight: FontWeight.w700),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: _qrModule * 3),
+            child: CustomPaint(size: Size.square(side), painter: _QrPainter()),
+          ),
+          Text(
+            _getUrl,
+            textDirection: TextDirection.ltr,
+            style: MadarType.money.copyWith(color: Paper.ink),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// [_getMadarQr], one ink square per dark module.
+class _QrPainter extends CustomPainter {
+  const _QrPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final ink = Paint()..color = Paper.ink;
+    for (var y = 0; y < _getMadarQr.length; y++) {
+      for (var x = 0; x < _getMadarQr[y].length; x++) {
+        if (_getMadarQr[y][x] == '#') {
+          canvas.drawRect(
+            Rect.fromLTWH(x * _qrModule, y * _qrModule, _qrModule, _qrModule),
+            ink,
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_QrPainter old) => false;
 }
 
 /// The stub's outline (a rounded ticket notched at both ends of the

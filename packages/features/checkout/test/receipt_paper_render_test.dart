@@ -470,6 +470,18 @@ void main() {
         find.text(coreWord('receipt.powered_by')),
         stub ? findsOneWidget : findsNothing,
       );
+      // The get-madar footer under it rides the same setting.
+      for (final line in const [
+        'One system for the whole café',
+        'سيستم واحد للمكان كله',
+        'get.madar-pos.cloud/en',
+      ]) {
+        expect(
+          find.text(line),
+          stub ? findsOneWidget : findsNothing,
+          reason: line,
+        );
+      }
     });
   }
 }
