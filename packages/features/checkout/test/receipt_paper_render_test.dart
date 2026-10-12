@@ -21,11 +21,13 @@ import 'package:rust_bridge/rust_bridge.dart';
 const _render = bool.fromEnvironment('MADAR_RENDER');
 
 class _Bridge implements MadarBridge {
-  _Bridge({required this.rtl, this.stub = true});
+  _Bridge({required this.rtl, this.stub = true, this.getMadar = true});
   final bool rtl;
 
-  /// Settings › Printer's "Powered by madar" stub.
+  /// Settings › Printer's "Powered by madar" stub, and its sub-toggle for the
+  /// tagline and QR under it.
   final bool stub;
+  final bool getMadar;
 
   @override
   dynamic noSuchMethod(Invocation i) {
@@ -43,6 +45,7 @@ class _Bridge implements MadarBridge {
         reconfiguring: false,
         configured: true,
         receiptStub: stub,
+        receiptGetMadar: getMadar,
       );
     }
     return null;
@@ -447,17 +450,23 @@ void main() {
   }
 
   // Settings › Printer's "Powered by madar" stub: on by default, and the
-  // preview drops it when the device stops printing it.
-  for (final stub in [true, false]) {
-    testWidgets('the powered-by stub follows the setting (stub=$stub)', (
-      tester,
-    ) async {
+  // preview drops it when the device stops printing it. Its sub-toggle drops
+  // only the tagline, QR and address under it.
+  for (final (stub, getMadar) in const [
+    (true, true),
+    (true, false),
+    (false, true),
+  ]) {
+    testWidgets('the stub and its footer follow the settings '
+        '(stub=$stub, getMadar=$getMadar)', (tester) async {
       await tester.pumpWidget(
         DefaultAssetBundle(
           bundle: _PackageAssets(),
           child: ProviderScope(
             overrides: [
-              bridgeProvider.overrideWithValue(_Bridge(rtl: false, stub: stub)),
+              bridgeProvider.overrideWithValue(
+                _Bridge(rtl: false, stub: stub, getMadar: getMadar),
+              ),
             ],
             child: MaterialApp(
               theme: MadarTheme.light(),
@@ -484,7 +493,7 @@ void main() {
         ),
         stub ? findsOneWidget : findsNothing,
       );
-      // The get-madar footer under it rides the same setting.
+      // The footer under it needs the stub AND its own sub-toggle.
       for (final line in const [
         'One system for the whole café',
         'سيستم واحد للمكان كله',
@@ -492,7 +501,7 @@ void main() {
       ]) {
         expect(
           find.text(line),
-          stub ? findsOneWidget : findsNothing,
+          stub && getMadar ? findsOneWidget : findsNothing,
           reason: line,
         );
       }

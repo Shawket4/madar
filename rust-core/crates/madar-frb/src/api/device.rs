@@ -49,6 +49,8 @@ pub struct _DeviceConfigView {
     pub scan_camera: Option<String>,
     #[frb(default = true)]
     pub receipt_stub: bool,
+    #[frb(default = true)]
+    pub receipt_get_madar: bool,
     pub configured: bool,
 }
 
@@ -173,6 +175,14 @@ impl MadarBridge {
     pub fn set_device_receipt_stub(&self, enabled: bool) -> Result<(), MadarError> {
         self.inner
             .set_device_receipt_stub(enabled)
+            .map_err(MadarError::from)
+    }
+
+    /// Under the stub, print the tagline, QR and web address; on by default.
+    /// The on-screen preview follows it too.
+    pub fn set_device_receipt_get_madar(&self, enabled: bool) -> Result<(), MadarError> {
+        self.inner
+            .set_device_receipt_get_madar(enabled)
             .map_err(MadarError::from)
     }
 

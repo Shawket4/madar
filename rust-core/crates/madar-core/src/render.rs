@@ -692,7 +692,9 @@ impl Renderer {
         if lab.powered_by.is_some() {
             self.gap(self.sx(20));
             self.image(CHIT, self.sx(CHIT_W) as u32, self.sx(CHIT_H) as u32);
-            self.get_madar();
+            if lab.get_madar {
+                self.get_madar();
+            }
         }
         self.gap(self.bottom_pad);
     }
@@ -1290,6 +1292,7 @@ mod tests {
                 queued: "Saved — will sync".into(),
                 thank_you: "Thank you!".into(),
                 powered_by: Some("Powered by".into()),
+                get_madar: true,
                 locale: "en".into(),
                 tz: chrono_tz::UTC,
             },
@@ -2084,6 +2087,23 @@ mod tests {
                 assert_eq!(&GET_QR[y0 + i][x0..x0 + 7], *want, "finder at ({x0}, {y0}) row {i}");
             }
         }
+    }
+
+    /// With the sub-toggle off, the chit still prints but nothing under it:
+    /// no tagline, no QR, no address, and a shorter paper.
+    #[test]
+    fn the_get_madar_sub_toggle_drops_the_tagline_qr_and_address() {
+        let mut off = ctx();
+        off.labels.get_madar = false;
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build(&receipt(), &off, None);
+        assert_eq!(r.shaped.last(), Some(&off.labels.thank_you), "nothing shaped after the thank-you");
+        let on = render_receipt(&receipt(), &ctx(), None, PRINT_WIDTH).rows;
+        let chit_only = render_receipt(&receipt(), &off, None, PRINT_WIDTH).rows;
+        let mut none = ctx();
+        none.labels.powered_by = None;
+        let bare = render_receipt(&receipt(), &none, None, PRINT_WIDTH).rows;
+        assert!(bare < chit_only && chit_only < on, "{bare} < {chit_only} < {on}");
     }
 
     /// Turned off in Settings, the receipt ends at the thank-you: no stub,

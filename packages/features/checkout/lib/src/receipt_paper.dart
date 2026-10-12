@@ -116,6 +116,7 @@ class ReceiptPaper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
+    final device = bridge.deviceConfig();
     String tr(String key) => bridge.tr(key: key);
     final r = receipt;
     final logo = orgLogoPath;
@@ -378,7 +379,7 @@ class ReceiptPaper extends ConsumerWidget {
             ],
           ),
           // As printed: only when the device prints it (Settings › Printer).
-          if (bridge.deviceConfig().receiptStub) ...[
+          if (device.receiptStub) ...[
             Padding(
               padding: const EdgeInsetsDirectional.only(top: Space.sm),
               child: Center(
@@ -390,7 +391,7 @@ class ReceiptPaper extends ConsumerWidget {
                 ),
               ),
             ),
-            const _GetMadar(),
+            if (device.receiptGetMadar) const _GetMadar(),
           ],
         ],
       ),
