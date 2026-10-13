@@ -172,8 +172,8 @@ class _Caption extends StatelessWidget {
 // ── Printer ──────────────────────────────────────────────────────────────
 
 /// Transport (LAN / Bluetooth), the host or the paired device, paper width,
-/// brand, the receipt's "Powered by madar" stub, and a test print that proves
-/// the whole path.
+/// brand, the receipt's "Powered by madar" stub (and, while it's on, the
+/// tagline and QR under it), and a test print that proves the whole path.
 class _PrinterSheet extends ConsumerStatefulWidget {
   const _PrinterSheet();
 
@@ -269,6 +269,16 @@ class _PrinterSheetState extends ConsumerState<_PrinterSheet> {
           value: config.receiptStub,
           onChanged: (on) => unawaited(notifier.setReceiptStub(on: on)),
         ),
+        if (config.receiptStub)
+          _Choice<bool>(
+            label: t('settings.printer_get_madar'),
+            items: [
+              MadarSegmentItem(true, t('toggle.on')),
+              MadarSegmentItem(false, t('toggle.off')),
+            ],
+            value: config.receiptGetMadar,
+            onChanged: (on) => unawaited(notifier.setReceiptGetMadar(on: on)),
+          ),
         MadarButton(
           label: t('settings.printer_test'),
           glyph: MadarGlyph.printer,

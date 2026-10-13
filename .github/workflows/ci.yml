@@ -115,17 +115,102 @@ jobs:
         working-directory: rust-core
         run: cargo build -p madar_frb_dashboard --release
 
-      # Only where there is something to run: an empty test/ makes `flutter
-      # test` exit non-zero.
-      - name: Dashboard tests
+      # EVERY Flutter package with tests (owner, 2026-10-11: CI runs every
+      # test): the POS app and its packages, the dashboard app and its
+      # packages, and any package added later, found by its pubspec.yaml rather
+      # than named here. Two trees run elsewhere: packages/rust_bridge (the
+      # host tests above) and the staff app's tree (staff-ci.yml). Only where
+      # there is something to run: an empty test/ makes `flutter test` exit
+      # non-zero.
+      - name: Package tests (every package with tests)
         run: |
           set -e
-          for p in packages/dashboard_api packages/dashboard_kit packages/dashboard_core packages/dashboard_features/* packages/rust_bridge_dashboard apps/dashboard; do
+          ran=0
+          for p in $(git ls-files '*pubspec.yaml' | grep -v '/cargokit/' | xargs -n1 dirname | sort); do
+            case "$p" in
+              . | packages/rust_bridge) continue ;;
+              apps/staff | packages/staff_core | packages/rust_bridge_staff | packages/features/dawam_*) continue ;;
+            esac
             if find "$p/test" -name '*_test.dart' 2>/dev/null | grep -q .; then
               echo "── $p"
               (cd "$p" && flutter test)
+              ran=$((ran + 1))
             fi
           done
+          echo "Ran the tests of $ran packages."
+
+      # apps/madar's shell board lays out its whole matrix (every device ×
+      # en/ar × light/dark) only with MADAR_RENDER on; the run above lays out
+      # the cheap subset. This lays out the rest (and writes the PNGs, unused).
+      - name: POS shell board, full matrix (MADAR_RENDER)
+        working-directory: apps/madar
+        run: |
+          flutter test test/shell_render_test.dart --dart-define=MADAR_RENDER=true --plain-name 'board: '
+
+  rust:
+    # Every Rust test in the repo: all five rust-core crates (unit,
+    # integration and doc tests; madar-frb-dashboard and madar-frb-staff
+    # have their own) and the KDS (apps/kds-slint, its own workspace). The
+    # old-client harness (tool/old_client_api_check) is the next job.
+    # Not here, on purpose: madar-core's `backend-tests` suites (they drive a
+    # LIVE backend: tool/offline_b_backend.sh) and its `probes` (manual
+    # #[ignore]d timing/PNG dumps).
+    name: Rust tests (every crate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust (from rust-toolchain.toml)
+        working-directory: rust-core
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustc --version
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            rust-core
+            apps/kds-slint
+          key: rust-all
+
+      - name: rust-core workspace tests
+        working-directory: rust-core
+        run: cargo test --workspace --locked
+
+      # Slint's winit + Skia backend links fontconfig and xkbcommon.
+      - name: KDS system libraries
+        run: sudo apt-get update -q && sudo apt-get install -yq libfontconfig1-dev libxkbcommon-dev
+
+      - name: KDS tests (apps/kds-slint)
+        working-directory: apps/kds-slint
+        run: cargo test --locked
+
+  old-clients:
+    # tool/old_client_api_check.sh: the madar-api models of every POS release
+    # still in the field (v0.5.0, v0.5.1, v0.6.0, v0.6.1) must decode the
+    # backend's golden responses (MadarRust tests/fixtures/legacy_till_api).
+    # It builds each release from its tag, so it needs the full history, and
+    # the backend checkout beside this one.
+    name: Old-client API check (golden responses)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: madar
+          fetch-depth: 0
+
+      - uses: actions/checkout@v7
+        with:
+          repository: Shawket4/MadarRust
+          path: MadarRust
+          sparse-checkout: tests/fixtures
+
+      - name: Decode the golden responses with every old release
+        env:
+          MADAR_RUST: ${{ github.workspace }}/MadarRust
+          CARGO_TARGET_DIR: ${{ github.workspace }}/old-clients-target
+        run: madar/tool/old_client_api_check.sh
 
   windows:
     name: Windows build + host tests

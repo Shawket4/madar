@@ -100,6 +100,7 @@ fn printer_only(c: &DeviceConfig) -> DeviceConfig {
         printer_paper_dots: c.printer_paper_dots,
         scan_camera: c.scan_camera.clone(),
         hide_receipt_stub: c.hide_receipt_stub,
+        hide_receipt_get_madar: c.hide_receipt_get_madar,
         ..DeviceConfig::default()
     }
 }
@@ -537,6 +538,7 @@ mod tests {
         core.set_device_printer_paper(Some(384)).unwrap();
         core.set_device_scan_camera(Some("front".into())).unwrap();
         core.set_device_receipt_stub(false).unwrap();
+        core.set_device_receipt_get_madar(false).unwrap();
         core.set_device_lan_hub(Some("10.0.0.2".into())).unwrap();
         core.store.kv_put(crate::session::BUNDLE_KEY, r#"{"lan_secret":"00"}"#).unwrap();
         core.store.kv_put("catalog:menu", "[]").unwrap();
@@ -596,6 +598,7 @@ mod tests {
         assert_eq!(cfg.scan_camera.as_deref(), Some("front"));
         // So is the receipt's "Powered by madar" stub setting.
         assert!(!cfg.receipt_stub);
+        assert!(!cfg.receipt_get_madar);
         assert_eq!(core.app_route(), crate::AppRoute::DeviceSetup);
         assert!(!marker_path(&core.config.db_path).unwrap().exists());
     }
@@ -626,6 +629,22 @@ mod tests {
         assert!(!core.device_config().receipt_stub);
         core.set_device_receipt_stub(true).unwrap();
         assert!(core.device_config().receipt_stub);
+    }
+
+    /// The tagline-and-QR sub-toggle prints by default, also for a config
+    /// saved before it existed, and turns off and on by itself.
+    #[test]
+    fn the_receipt_get_madar_is_on_by_default_and_toggles() {
+        let (_dir, db) = temp_db();
+        let core = core_at(&db);
+        assert!(core.device_config().receipt_get_madar);
+        core.store.kv_put("device_config", r#"{"branch_id":"b1","hide_receipt_stub":false}"#).unwrap();
+        assert!(core.device_config().receipt_get_madar);
+        core.set_device_receipt_get_madar(false).unwrap();
+        assert!(!core.device_config().receipt_get_madar);
+        assert!(core.device_config().receipt_stub, "the stub keeps its own setting");
+        core.set_device_receipt_get_madar(true).unwrap();
+        assert!(core.device_config().receipt_get_madar);
     }
 
     #[test]

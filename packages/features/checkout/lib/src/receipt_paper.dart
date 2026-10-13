@@ -32,14 +32,51 @@ const double _boldRowSize = 15;
 const double _rowSize = 14;
 const double _metaSize = 13;
 
-/// The "Powered by madar" stub at the foot — the printed one's `STUB_*`
-/// (render.rs) at the paper's scale.
-const double _stubHeight = 68;
-const double _stubPad = 17;
-const double _stubRadius = 10;
-const double _stubNotch = 6;
-const double _stubLabelSize = 12;
-const double _stubWordmarkWidth = 60;
+/// The "Powered by madar" chit at the foot: the PNG the printer prints
+/// (render.rs `CHIT`, the owner's SVG baked), at the paper's scale.
+const double _chitWidth = 270;
+
+/// Under the chit, as printed (render.rs `get_madar`): the tagline in both
+/// languages, the QR to Madar's download page and its address.
+const String _taglineEn = 'One system for the whole café';
+const String _taglineAr = 'سيستم واحد للمكان كله';
+const String _getUrl = 'get.madar-pos.cloud/en';
+const double _taglineSize = 15;
+const double _qrModule = 4;
+
+/// `https://get.madar-pos.cloud/en`, QR version 3-M: the printed `GET_QR`
+/// rows (render.rs), `#` = dark. Change both together.
+const List<String> _getMadarQr = [
+  '#######....##.#...##..#######',
+  '#.....#.##.###.....#..#.....#',
+  '#.###.#..###...#...#..#.###.#',
+  '#.###.#...#..#..#.#...#.###.#',
+  '#.###.#.###..#..#####.#.###.#',
+  '#.....#..#..#.#######.#.....#',
+  '#######.#.#.#.#.#.#.#.#######',
+  '...............#.#...........',
+  '#.#.#.#..#..#...##......#..#.',
+  '###.#.......##.##...###..#..#',
+  '#...#.#.#..#..####...#....###',
+  '..###..#.######.###.#...#..#.',
+  '.#.##.##.#....##.#.####..#.##',
+  '#..###.##.###.##.##.####.#..#',
+  '#.##..#....#.#......#.#.##.##',
+  '#.#.##.###..#..#.###.....#.#.',
+  '..#.####.####...##...###.#.##',
+  '.##.#..#.##..#.###..###..##.#',
+  '#.######...#..###....####..##',
+  '.##..#..#..####.##.###...#.#.',
+  '#..#..#...#...###########....',
+  '........#...#.##...##...#.###',
+  '#######..##.##..##.##.#.##.##',
+  '#.....#..##....#.####...##.##',
+  '#.###.#.###.#...##..#####..#.',
+  '#.###.#..#..#..#.#.##..##.#..',
+  '#.###.#.#..#.#..#...#..###..#',
+  '#.....#....#.#..###.##..#..#.',
+  '#######.###..#####.######..##',
+];
 
 /// The on-screen receipt paper — renders a [ReceiptView] as the printed
 /// layout: org logo/name header, order + delivery meta, line items with
@@ -79,6 +116,7 @@ class ReceiptPaper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
+    final device = bridge.deviceConfig();
     String tr(String key) => bridge.tr(key: key);
     final r = receipt;
     final logo = orgLogoPath;
@@ -341,152 +379,76 @@ class ReceiptPaper extends ConsumerWidget {
             ],
           ),
           // As printed: only when the device prints it (Settings › Printer).
-          if (bridge.deviceConfig().receiptStub)
+          if (device.receiptStub) ...[
             Padding(
               padding: const EdgeInsetsDirectional.only(top: Space.sm),
-              child: _PoweredByStub(label: tr('receipt.powered_by')),
+              child: Center(
+                child: Image.asset(
+                  'assets/receipt-chit.png',
+                  package: 'feature_checkout',
+                  width: _chitWidth,
+                  semanticLabel: '${tr('receipt.powered_by')} madar',
+                ),
+              ),
             ),
+            if (device.receiptGetMadar) const _GetMadar(),
+          ],
         ],
       ),
     );
   }
 }
 
-/// The "Powered by madar" stub, as printed (Madar Design System, Signature
-/// board: "Receipt stub"): the orbit in a cell torn off along a perforation,
-/// the label over the wordmark. Mirrored in Arabic with the Arabic wordmark;
-/// the marks in ink only, as the paper prints them.
-class _PoweredByStub extends StatelessWidget {
-  const _PoweredByStub({required this.label});
-
-  final String label;
+/// Under the chit: the tagline in English and Arabic, the QR and the address,
+/// centred and bold in ink, as printed.
+class _GetMadar extends StatelessWidget {
+  const _GetMadar();
 
   @override
   Widget build(BuildContext context) {
-    final rtl = Directionality.of(context) == TextDirection.rtl;
-    return Center(
-      child: CustomPaint(
-        painter: _StubPainter(rtl: rtl),
-        child: SizedBox(
-          height: _stubHeight,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox.square(
-                dimension: _stubHeight,
-                child: Center(
-                  child: CustomPaint(
-                    size: Size.square(_stubHeight / 2),
-                    painter: _OrbitPainter(),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsetsDirectional.symmetric(
-                  horizontal: _stubPad,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 2,
-                  children: [
-                    _Mono(
-                      label,
-                      size: _stubLabelSize,
-                      color: Paper.faint,
-                      align: TextAlign.start,
-                    ),
-                    ColorFiltered(
-                      colorFilter: const ColorFilter.mode(
-                        Paper.ink,
-                        BlendMode.srcIn,
-                      ),
-                      child: MadarWordmark(
-                        width: _stubWordmarkWidth,
-                        arabic: rtl,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    const side = _qrModule * 29;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: Space.md),
+      child: Column(
+        children: [
+          const _Mono(_taglineEn, size: _taglineSize, weight: FontWeight.w700),
+          const _Mono(_taglineAr, size: _taglineSize, weight: FontWeight.w700),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: _qrModule * 3),
+            child: CustomPaint(size: Size.square(side), painter: _QrPainter()),
           ),
-        ),
+          Text(
+            _getUrl,
+            textDirection: TextDirection.ltr,
+            style: MadarType.money.copyWith(color: Paper.ink),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// The stub's outline (a rounded ticket notched at both ends of the
-/// perforation) and the dashed perforation, in the paper's rule colour.
-class _StubPainter extends CustomPainter {
-  const _StubPainter({required this.rtl});
-
-  final bool rtl;
+/// [_getMadarQr], one ink square per dark module.
+class _QrPainter extends CustomPainter {
+  const _QrPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final perf = rtl ? size.width - size.height : size.height;
-    final pen = Paint()
-      ..color = Paper.rule
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final ticket = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          (Offset.zero & size).deflate(0.5),
-          const Radius.circular(_stubRadius),
-        ),
-      );
-    final notches = Path()
-      ..addOval(Rect.fromCircle(center: Offset(perf, 0), radius: _stubNotch))
-      ..addOval(
-        Rect.fromCircle(center: Offset(perf, size.height), radius: _stubNotch),
-      );
-    canvas.drawPath(
-      Path.combine(PathOperation.difference, ticket, notches),
-      pen,
-    );
-    const dash = 3.0;
-    for (
-      var y = _stubNotch + dash;
-      y + dash <= size.height - _stubNotch - dash;
-      y += 2 * dash
-    ) {
-      canvas.drawLine(Offset(perf, y), Offset(perf, y + dash), pen);
+    final ink = Paint()..color = Paper.ink;
+    for (var y = 0; y < _getMadarQr.length; y++) {
+      for (var x = 0; x < _getMadarQr[y].length; x++) {
+        if (_getMadarQr[y][x] == '#') {
+          canvas.drawRect(
+            Rect.fromLTWH(x * _qrModule, y * _qrModule, _qrModule, _qrModule),
+            ink,
+          );
+        }
+      }
     }
   }
 
   @override
-  bool shouldRepaint(_StubPainter old) => old.rtl != rtl;
-}
-
-/// The orbit in ink, the kit's optical cut for small sizes (100-unit box:
-/// ring r 34 stroke 11, centre dot r 15, satellite r 11 at 45°) — the same
-/// figures the printed stub draws. The mark never mirrors.
-class _OrbitPainter extends CustomPainter {
-  const _OrbitPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 100, size.height / 100);
-    final ink = Paint()..color = Paper.ink;
-    const c = Offset(50, 50);
-    canvas
-      ..drawCircle(
-        c,
-        34,
-        Paint()
-          ..color = Paper.ink
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 11,
-      )
-      ..drawCircle(c, 15, ink)
-      ..drawCircle(const Offset(74.04, 25.96), 11, ink);
-  }
-
-  @override
-  bool shouldRepaint(_OrbitPainter old) => false;
+  bool shouldRepaint(_QrPainter old) => false;
 }
 
 /// One receipt line, as printed: the base price for ONE unit, each paid

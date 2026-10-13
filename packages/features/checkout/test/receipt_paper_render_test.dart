@@ -21,11 +21,13 @@ import 'package:rust_bridge/rust_bridge.dart';
 const _render = bool.fromEnvironment('MADAR_RENDER');
 
 class _Bridge implements MadarBridge {
-  _Bridge({required this.rtl, this.stub = true});
+  _Bridge({required this.rtl, this.stub = true, this.getMadar = true});
   final bool rtl;
 
-  /// Settings › Printer's "Powered by madar" stub.
+  /// Settings › Printer's "Powered by madar" stub, and its sub-toggle for the
+  /// tagline and QR under it.
   final bool stub;
+  final bool getMadar;
 
   @override
   dynamic noSuchMethod(Invocation i) {
@@ -43,6 +45,7 @@ class _Bridge implements MadarBridge {
         reconfiguring: false,
         configured: true,
         receiptStub: stub,
+        receiptGetMadar: getMadar,
       );
     }
     return null;
@@ -304,31 +307,36 @@ void main() {
           await tester.pumpWidget(
             RepaintBoundary(
               key: const ValueKey('shot'),
-              child: ProviderScope(
-                overrides: [
-                  bridgeProvider.overrideWithValue(_Bridge(rtl: rtl)),
-                ],
-                child: MaterialApp(
-                  debugShowCheckedModeBanner: false,
-                  theme: MadarTheme.light(),
-                  home: Directionality(
-                    textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-                    child: Scaffold(
-                      body: SingleChildScrollView(
-                        padding: const EdgeInsets.all(Space.lg),
-                        child: Center(
-                          child: ReceiptPaper(
-                            receipt: name == 'staff'
-                                ? _r(
-                                    lines: _staffLines(arabic: rtl),
-                                    subtotal: 4500,
-                                    total: 4500,
-                                    tendered: 5000,
-                                    change: 500,
-                                  )
-                                : receipt,
-                            storeName: 'Rue Zamalek',
-                            currency: 'EGP',
+              child: DefaultAssetBundle(
+                bundle: _PackageAssets(),
+                child: ProviderScope(
+                  overrides: [
+                    bridgeProvider.overrideWithValue(_Bridge(rtl: rtl)),
+                  ],
+                  child: MaterialApp(
+                    debugShowCheckedModeBanner: false,
+                    theme: MadarTheme.light(),
+                    home: Directionality(
+                      textDirection: rtl
+                          ? TextDirection.rtl
+                          : TextDirection.ltr,
+                      child: Scaffold(
+                        body: SingleChildScrollView(
+                          padding: const EdgeInsets.all(Space.lg),
+                          child: Center(
+                            child: ReceiptPaper(
+                              receipt: name == 'staff'
+                                  ? _r(
+                                      lines: _staffLines(arabic: rtl),
+                                      subtotal: 4500,
+                                      total: 4500,
+                                      tendered: 5000,
+                                      change: 500,
+                                    )
+                                  : receipt,
+                              storeName: 'Rue Zamalek',
+                              currency: 'EGP',
+                            ),
                           ),
                         ),
                       ),
@@ -424,6 +432,7 @@ void main() {
               expect(find.textContaining('::'), findsNothing);
           }
           if (!_render) return;
+          await _precacheChit(tester);
           final b =
               tester.renderObject(find.byKey(const ValueKey('shot')))
                   as RenderRepaintBoundary;
@@ -441,24 +450,33 @@ void main() {
   }
 
   // Settings › Printer's "Powered by madar" stub: on by default, and the
-  // preview drops it when the device stops printing it.
-  for (final stub in [true, false]) {
-    testWidgets('the powered-by stub follows the setting (stub=$stub)', (
-      tester,
-    ) async {
+  // preview drops it when the device stops printing it. Its sub-toggle drops
+  // only the tagline, QR and address under it.
+  for (final (stub, getMadar) in const [
+    (true, true),
+    (true, false),
+    (false, true),
+  ]) {
+    testWidgets('the stub and its footer follow the settings '
+        '(stub=$stub, getMadar=$getMadar)', (tester) async {
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            bridgeProvider.overrideWithValue(_Bridge(rtl: false, stub: stub)),
-          ],
-          child: MaterialApp(
-            theme: MadarTheme.light(),
-            home: Scaffold(
-              body: SingleChildScrollView(
-                child: ReceiptPaper(
-                  receipt: _cases['cash']!,
-                  storeName: 'Rue Zamalek',
-                  currency: 'EGP',
+        DefaultAssetBundle(
+          bundle: _PackageAssets(),
+          child: ProviderScope(
+            overrides: [
+              bridgeProvider.overrideWithValue(
+                _Bridge(rtl: false, stub: stub, getMadar: getMadar),
+              ),
+            ],
+            child: MaterialApp(
+              theme: MadarTheme.light(),
+              home: Scaffold(
+                body: SingleChildScrollView(
+                  child: ReceiptPaper(
+                    receipt: _cases['cash']!,
+                    storeName: 'Rue Zamalek',
+                    currency: 'EGP',
+                  ),
                 ),
               ),
             ),
@@ -466,10 +484,48 @@ void main() {
         ),
       );
       await tester.pump();
+      if (stub) await _precacheChit(tester);
       expect(
-        find.text(coreWord('receipt.powered_by')),
+        find.byWidgetPredicate(
+          (w) =>
+              w is Image &&
+              w.semanticLabel == '${coreWord('receipt.powered_by')} madar',
+        ),
         stub ? findsOneWidget : findsNothing,
       );
+      // The footer under it needs the stub AND its own sub-toggle.
+      for (final line in const [
+        'One system for the whole café',
+        'سيستم واحد للمكان كله',
+        'get.madar-pos.cloud/en',
+      ]) {
+        expect(
+          find.text(line),
+          stub && getMadar ? findsOneWidget : findsNothing,
+          reason: line,
+        );
+      }
     });
   }
+}
+
+/// The app bundles the chit as `packages/feature_checkout/assets/…`; this
+/// package's own tests bundle it at the root. Map the one to the other.
+class _PackageAssets extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) =>
+      rootBundle.load(key.replaceFirst('packages/feature_checkout/', ''));
+}
+
+/// Loads the chit PNG (failing the test if it doesn't decode) and repaints,
+/// so a shot shows it.
+Future<void> _precacheChit(WidgetTester tester) async {
+  await tester.runAsync(
+    () => precacheImage(
+      const AssetImage('assets/receipt-chit.png', package: 'feature_checkout'),
+      tester.element(find.byType(ReceiptPaper)),
+      onError: (e, _) => fail('the chit PNG did not load: $e'),
+    ),
+  );
+  await tester.pump();
 }

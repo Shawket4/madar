@@ -31,3 +31,5 @@ flutter:
   # win_ble (under print_bluetooth_thermal) declares Material icons; this
   # package must too, or every `flutter test` here warns about it.
   uses-material-design: true
+  assets:
+    - assets/receipt-chit.png

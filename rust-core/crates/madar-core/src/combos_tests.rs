@@ -2021,6 +2021,7 @@ fn escpos_ctx(_core: &MadarCore) -> receipt::EscPosCtx {
             queued: l("Saved - will sync"),
             thank_you: l("Thank you!"),
             powered_by: Some(l("Powered by")),
+            get_madar: true,
             locale: l("en"),
             tz: chrono_tz::UTC,
         },

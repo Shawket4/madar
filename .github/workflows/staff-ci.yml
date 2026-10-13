@@ -95,7 +95,7 @@ jobs:
       - name: Package tests
         run: |
           set -e
-          for p in packages/staff_core packages/features/dawam_*; do
+          for p in packages/staff_core packages/rust_bridge_staff packages/features/dawam_*; do
             if find "$p/test" -name '*_test.dart' 2>/dev/null | grep -q .; then
               echo "── $p"
               (cd "$p" && flutter test)

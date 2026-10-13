@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_2" data-name="Layer 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 178 55.11">
+  <defs>
+    <style>
+      .cls-1 {
+        stroke-width: 3.8px;
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-4, .cls-5, .cls-6 {
+        stroke: #000;
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-5 {
+        fill: none;
+        stroke-linecap: round;
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-5, .cls-6 {
+        stroke-linejoin: round;
+      }
+
+      .cls-2 {
+        stroke-width: 2.79px;
+      }
+
+      .cls-3, .cls-4, .cls-5 {
+        stroke-width: 2px;
+      }
+
+      .cls-7 {
+        font-family: IBMPlexSansArabic-Bold, 'IBM Plex Sans Arabic';
+        font-size: 11.5px;
+        font-weight: 700;
+      }
+
+      .cls-4 {
+        fill: #fff;
+        stroke-miterlimit: 10;
+      }
+
+      .cls-5 {
+        stroke-dasharray: 0 4.6;
+      }
+
+      .cls-8 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-6 {
+        stroke-width: .5px;
+      }
+
+      .cls-9 {
+        letter-spacing: 0em;
+      }
+
+      .cls-10 {
+        letter-spacing: 0em;
+      }
+
+      .cls-11 {
+        letter-spacing: 0em;
+      }
+    </style>
+  </defs>
+  <g id="Madar_receipt_footer_72_mm_·_neutral" data-name="Madar receipt footer 72 mm · neutral">
+    <path class="cls-3" d="M48.94,54.11H10.89c-5.45,0-9.89-4.46-9.89-9.89V10.89C1,5.46,5.45,1,10.89,1h38.04"/>
+    <path class="cls-3" d="M60.33,1h106.78c5.44,0,9.89,4.46,9.89,9.89v33.33c0,5.44-4.46,9.89-9.89,9.89H60.33"/>
+    <circle id="ring" class="cls-1" cx="27.27" cy="27.56" r="9.62"/>
+    <circle id="dot" class="cls-6" cx="27.27" cy="27.56" r="4.24"/>
+    <circle id="satellite" class="cls-6" cx="34.07" cy="20.76" r="3.11"/>
+    <text class="cls-7" transform="translate(70.66 20.03)"><tspan class="cls-8" x="0" y="0">P</tspan><tspan class="cls-10" x="7.31" y="0">ow</tspan><tspan x="23.24" y="0">e</tspan><tspan class="cls-9" x="29.7" y="0">r</tspan><tspan x="34.29" y="0">ed </tspan><tspan class="cls-11" x="50.46" y="0">B</tspan><tspan x="58.04" y="0">y</tspan></text>
+    <path class="cls-2" d="M72.69,33.09v8.69"/>
+    <path class="cls-2" d="M72.69,35.16c0-1.14,1.3-2.07,2.9-2.07s2.9.93,2.9,2.07"/>
+    <path class="cls-2" d="M78.49,35.16v6.62"/>
+    <path class="cls-2" d="M78.49,35.16c0-1.14,1.3-2.07,2.9-2.07s2.9.93,2.9,2.07"/>
+    <path class="cls-2" d="M84.28,35.16v6.62"/>
+    <circle class="cls-2" cx="92.76" cy="37.43" r="4.34"/>
+    <path class="cls-2" d="M97.11,33.09v8.69"/>
+    <circle class="cls-2" cx="118.42" cy="37.43" r="4.34"/>
+    <path class="cls-2" d="M122.76,33.09v8.69"/>
+    <path class="cls-2" d="M127.52,33.09v8.69"/>
+    <path class="cls-2" d="M127.52,34.95c.4-1.46,2.36-2.41,4.38-2.12.35.05.69.14,1,.26"/>
+    <circle class="cls-2" cx="105.59" cy="37.43" r="4.34"/>
+    <path class="cls-2" d="M109.94,28.95v12.83"/>
+    <path class="cls-4" d="M48.94,1c.26,2.93,2.71,5.21,5.7,5.21s5.44-2.28,5.7-5.21"/>
+    <path class="cls-4" d="M48.94,54.11c.26-2.93,2.71-5.21,5.7-5.21s5.44,2.28,5.7,5.21"/>
+    <line id="perforation" class="cls-5" x1="54.63" y1="10.37" x2="54.63" y2="44.74"/>
+  </g>
+</svg>
