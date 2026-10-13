@@ -1,14 +1,19 @@
 name: Kitchen release
 
 # Madar Kitchen (apps/kitchen, React Native on the Rust core), bundle id and
-# package cloud.madar.kitchen. On every push to main that changes the kitchen
-# app or its binding (owner, 2026-10-12: not every main commit, only the ones
-# with kitchen changes), and by hand from the Actions tab:
+# package cloud.madar.kitchen, on both platforms it ships: Android and iOS.
+# Runs on its own tag, like the POS (v*) and the dashboard (dash-v*), or by
+# hand from the Actions tab:
+#   bump "version" in apps/kitchen/app.json + package.json, commit
+#   "Kitchen X.Y.Z", then  git tag -a kitchen-vX.Y.Z && git push origin kitchen-vX.Y.Z
 #   iOS     → signed and uploaded to TestFlight (same path as the POS and Dawam:
 #             cloud signing with the App Store Connect key; the export IS the upload)
-#   Android → a signed app bundle (.aab), attached to the run
-# A core change the POS makes doesn't rebuild the kitchen; run it by hand to
-# ship one.
+#   Android → a signed app bundle (.aab, for Play) and APK (to sideload a tablet)
+#   Release → a GitHub Release with the .aab and .apk. Like the POS's, it does
+#             not wait on iOS, so an Apple signing failure doesn't hold Android back.
+# A tag whose version isn't app.json's fails before anything builds. A suffix
+# (kitchen-v1.0.0-beta.1) publishes a pre-release, and a kitchen release never
+# becomes the repo's "Latest" (that is the POS's).
 #
 # Secrets (repo → Settings → Secrets and variables → Actions):
 #   ASC_KEY_P8 / ASC_KEY_ID / ASC_ISSUER_ID / APPLE_TEAM_ID — the POS's App
@@ -18,31 +23,49 @@ name: Kitchen release
 #       (both git-ignored; Firebase project dawam-by-madar, the "Madar Kitchen" apps)
 #   KITCHEN_KEYSTORE_BASE64 / KITCHEN_KEYSTORE_PASSWORD / KITCHEN_KEY_PASSWORD /
 #   KITCHEN_KEY_ALIAS — the kitchen's own Android upload key
-# On main a missing secret fails the job; a manual run on another branch warns
-# and skips (iOS) or builds unsigned-for-Play (Android).
+# On a tag a missing secret fails the job; a manual run warns and skips (iOS)
+# or builds unsigned-for-Play (Android).
 #
 # The build number is the run number; the version is app.json's.
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "apps/kitchen/**"
-      - "rust-core/crates/madar-kitchen-ffi/**"
-      - ".github/workflows/kitchen-release.yml"
+    tags:
+      - "kitchen-v*.*.*"
   workflow_dispatch:
 
-# Two merges in a row must not upload the same build number twice.
+# Two tags in a row must not upload the same build number twice.
 concurrency:
   group: kitchen-release
   cancel-in-progress: false
 
 jobs:
+  version:
+    name: Tag matches app.json
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        run: |
+          set -euo pipefail
+          app=$(jq -r .expo.version apps/kitchen/app.json)
+          pkg=$(jq -r .version apps/kitchen/package.json)
+          [ "$app" = "$pkg" ] || { echo "::error::app.json says $app, package.json says $pkg."; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#kitchen-v}"
+            # kitchen-v1.0.0-beta.1 builds app.json's 1.0.0.
+            [ "${tag%%-*}" = "$app" ] || { echo "::error::Tag $GITHUB_REF_NAME, but app.json is $app: bump it first."; exit 1; }
+          fi
+          echo "version=$app" >> "$GITHUB_OUTPUT"
+
   build-android:
-    name: Build Android (signed AAB)
+    name: Build Android (AAB + APK)
+    needs: version
     runs-on: ubuntu-latest
     env:
-      ON_MAIN: ${{ github.ref == 'refs/heads/main' }}
+      STRICT: ${{ github.ref_type == 'tag' }}
       LANG: en_US.UTF-8
     steps:
       - uses: actions/checkout@v7
@@ -90,8 +113,8 @@ jobs:
         working-directory: apps/kitchen
         run: npm ci --no-audit --no-fund
 
-      # Push. A build from main without it could never notify a kitchen, so
-      # main fails here; a manual run elsewhere carries on with push off.
+      # Push. A release without it could never notify a kitchen, so a tag
+      # fails here; a manual run elsewhere carries on with push off.
       - name: Firebase config
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.KITCHEN_GOOGLE_SERVICES_JSON }}
@@ -99,7 +122,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
-            [ "$ON_MAIN" = "true" ] && { echo "::error::KITCHEN_GOOGLE_SERVICES_JSON is not set — a kitchen build must be able to receive push."; exit 1; }
+            [ "$STRICT" = "true" ] && { echo "::error::KITCHEN_GOOGLE_SERVICES_JSON is not set — a kitchen build must be able to receive push."; exit 1; }
             echo "::warning::No KITCHEN_GOOGLE_SERVICES_JSON — building with push off."; exit 0
           fi
           echo "$GOOGLE_SERVICES_JSON" | base64 --decode > google-services.json
@@ -130,7 +153,7 @@ jobs:
             [ -z "${!v:-}" ] && missing="$missing KITCHEN_$v"
           done
           if [ -n "$missing" ]; then
-            [ "$ON_MAIN" = "true" ] && { echo "::error::Missing signing secret(s):$missing"; exit 1; }
+            [ "$STRICT" = "true" ] && { echo "::error::Missing signing secret(s):$missing"; exit 1; }
             echo "::warning::No signing secrets — this bundle is DEBUG-signed and not shippable."; exit 0
           fi
           echo "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
@@ -144,23 +167,29 @@ jobs:
           storeFile=app/release.keystore
           EOF
 
-      - name: Build the app bundle
+      - name: Build the app bundle + APK
         working-directory: apps/kitchen/android
-        run: ./gradlew bundleRelease -PversionCode=${{ github.run_number }} --no-daemon
+        run: |
+          set -euo pipefail
+          ./gradlew bundleRelease assembleRelease -PversionCode=${{ github.run_number }} --no-daemon
+          V=${{ needs.version.outputs.version }}
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/out/MadarKitchen-$V.aab"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/out/MadarKitchen-$V.apk"
 
-      - name: Upload the bundle
-        uses: actions/upload-artifact@v4
+      - name: Upload
+        uses: actions/upload-artifact@v7
         with:
-          name: madar-kitchen-${{ github.run_number }}.aab
-          path: apps/kitchen/android/app/build/outputs/bundle/release/app-release.aab
+          name: kitchen-android
+          path: out/*
           if-no-files-found: error
 
       - name: Summary
         run: |
           {
-            echo "## 🤖 Madar Kitchen — Android bundle"
+            echo "## 🤖 Madar Kitchen ${{ needs.version.outputs.version }} — Android"
             echo ""
-            echo "Build **${{ github.run_number }}** (\`cloud.madar.kitchen\`): \`madar-kitchen-${{ github.run_number }}.aab\` is attached to this run, signed with the kitchen upload key. Upload it in Play Console."
+            echo "Build **${{ github.run_number }}** (\`cloud.madar.kitchen\`): the .aab (Play Console) and .apk (sideload) are attached to this run, signed with the kitchen upload key."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Shred key and config
@@ -170,6 +199,7 @@ jobs:
 
   build-ios:
     name: Build iOS + upload to TestFlight
+    needs: version
     runs-on: macos-26
     env:
       ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
@@ -187,7 +217,7 @@ jobs:
             [ -z "${!v:-}" ] && missing="$missing $v"
           done
           if [ -n "$missing" ]; then
-            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            if [ "${{ github.ref_type }}" = "tag" ]; then
               echo "::error::Kitchen TestFlight — missing secret(s):$missing"; exit 1
             fi
             echo "::warning::Kitchen TestFlight skipped — missing secret(s):$missing"
@@ -303,7 +333,7 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
           {
-            echo "## 🍳 Madar Kitchen — uploaded to App Store Connect"
+            echo "## 🍳 Madar Kitchen ${{ needs.version.outputs.version }} — uploaded to App Store Connect"
             echo ""
             echo "Build **${{ github.run_number }}** (\`cloud.madar.kitchen\`). It appears in TestFlight once Apple finishes processing, usually 5–30 minutes."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -312,3 +342,42 @@ jobs:
         if: always()
         run: |
           rm -f "$RUNNER_TEMP/AuthKey.p8" apps/kitchen/GoogleService-Info.plist 2>/dev/null || true
+
+  release:
+    name: Create GitHub Release
+    if: github.ref_type == 'tag'
+    needs: [version, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      # kitchen-v1.0.0-beta.1 is a pre-release; the "kitchen-" prefix is not a suffix.
+      - name: Pre-release?
+        id: meta
+        run: |
+          v="${GITHUB_REF_NAME#kitchen-v}"
+          if [[ "$v" == *-* ]]; then echo "pre=true" >> "$GITHUB_OUTPUT"; else echo "pre=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Compose release notes
+        run: |
+          {
+            echo "Madar Kitchen ${{ needs.version.outputs.version }}, build ${{ github.run_number }}."
+            echo
+            echo "- **Android:** \`MadarKitchen-${{ needs.version.outputs.version }}.aab\` for Play Console, \`.apk\` to sideload a kitchen tablet."
+            echo "- **iOS:** uploaded to TestFlight by this run's iOS job (see its status)."
+          } > notes.md
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          name: Madar Kitchen ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ steps.meta.outputs.pre == 'true' }}
+          # The repo's "Latest" release is the POS's; a kitchen one never takes it.
+          make_latest: "false"
+          generate_release_notes: true
+          body_path: notes.md
+          files: artifacts/**/*
