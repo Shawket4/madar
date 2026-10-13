@@ -671,8 +671,9 @@ struct LocalCategory {
     is_active: bool,
     #[serde(default)]
     deleted_at: Option<Value>,
+    /// Missing (an older cache) or `null` is 0, as madar-shared's rule reads it.
     #[serde(default)]
-    display_order: i32,
+    display_order: Option<i32>,
 }
 
 pub(crate) fn categories(store: &Store, locale: &str) -> CoreResult<Vec<CategoryView>> {
@@ -685,16 +686,16 @@ pub(crate) fn categories(store: &Store, locale: &str) -> CoreResult<Vec<Category
             name: resolve(&c.name_translations, &c.name, locale),
             image_url: c.image_url,
             is_active: c.is_active,
-            display_order: c.display_order,
+            display_order: c.display_order.unwrap_or(0),
         })
         .collect();
     // Custom drag-and-drop order, authored on the dashboard; ties break on the
-    // resolved (locale) name so two categories at the same position are still
-    // deterministic offline.
-    views.sort_by(|a, b| {
-        a.display_order
-            .cmp(&b.display_order)
-            .then_with(|| a.name.cmp(&b.name))
+    // resolved (locale) name, then the id. madar-shared's rule, which the
+    // public menu and the customer pages run too (madar-catalog `order`).
+    madar_catalog::order::sort(&mut views, |c| madar_catalog::order::Key {
+        display_order: c.display_order,
+        name: &c.name,
+        id: &c.id,
     });
     Ok(views)
 }
@@ -1077,15 +1078,9 @@ fn parse_kv_lenient<T: serde::de::DeserializeOwned>(
 /// Resolve a `*_translations` object to the device locale, falling back
 /// locale → its language subtag → `en` → the base field (R9).
 pub(crate) fn resolve(translations: &Value, base: &str, locale: &str) -> String {
-    let lang = locale.split(['-', '_']).next().unwrap_or(locale);
-    for key in [locale, lang, "en"] {
-        if let Some(s) = translations.get(key).and_then(Value::as_str) {
-            if !s.is_empty() {
-                return s.to_string();
-            }
-        }
-    }
-    base.to_string()
+    // madar-shared's (madar-catalog `order::resolve_name`): the name the
+    // menu's order breaks ties on is the name this resolves.
+    madar_catalog::order::resolve_name(translations, base, locale)
 }
 
 /// A JSON number OR a BigDecimal-as-string ("18.000") → f64 (0.0 on failure).
@@ -1525,6 +1520,48 @@ mod tests {
         assert_eq!(v.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["Apple", "Bread", "Zebra"]);
         assert_eq!(v[0].display_order, 0);
         assert_eq!(v[2].display_order, 2);
+    }
+
+    #[test]
+    fn categories_follow_madar_shareds_menu_order_vectors() {
+        // The same bytes the public menu and the customer pages are pinned by
+        // (madar-catalog `menu_order_vectors.json`), through the till's own
+        // path: the cached `/categories` rows, resolved for the locale.
+        #[derive(serde::Deserialize)]
+        struct Vectors {
+            categories: Vec<Case>,
+        }
+        #[derive(serde::Deserialize)]
+        struct Case {
+            name: String,
+            locale: String,
+            categories: Vec<Value>,
+            expected: Vec<String>,
+        }
+        let v: Vectors = serde_json::from_str(madar_catalog::vectors::MENU_ORDER).unwrap();
+        assert!(v.categories.len() >= 10);
+        for case in &v.categories {
+            // The vectors' ids are short names; the cache holds UUIDs. Number
+            // them in the ids' own order so the id tie-break still holds.
+            let mut ids: Vec<&str> = case.categories.iter().map(|c| c["id"].as_str().unwrap()).collect();
+            ids.sort_unstable();
+            let uuid = |id: &str| format!("00000000-0000-0000-0000-{:012}", ids.binary_search(&id).unwrap());
+            let rows: Vec<Value> = case
+                .categories
+                .iter()
+                .map(|c| {
+                    let mut row = c.clone();
+                    row["id"] = Value::String(uuid(c["id"].as_str().unwrap()));
+                    row["is_active"] = Value::Bool(true);
+                    row
+                })
+                .collect();
+            let store = Store::open("").unwrap();
+            seed(&store, K_CATEGORIES, &Value::Array(rows).to_string());
+            let got: Vec<String> = categories(&store, &case.locale).unwrap().into_iter().map(|c| c.id).collect();
+            let want: Vec<String> = case.expected.iter().map(|id| uuid(id)).collect();
+            assert_eq!(got, want, "{}", case.name);
+        }
     }
 
     #[test]
