@@ -84,7 +84,7 @@ cd rust-core && cargo test -p madar-core && cd ..
 ```
 
 Touched anything FRB-bound (`madar-frb`, or a `madar-core` type/fn a bridge
-method exposes)? Also run the host-test job CI runs on macOS:
+method exposes)? Also run the host-test job CI runs (Linux; `.dylib` on a Mac):
 ```bash
 cd rust-core && cargo build -p madar_frb --release && cd ..
 cd packages/rust_bridge && flutter test && cd ../..
