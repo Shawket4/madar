@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DeliveryMenuCategory {
+    /// The dashboard's drag-and-drop position (lower first). `categories` already comes in the POS's order (madar-catalog `order`: this, then the English name, then `id`); a page shown in another language re-orders by the name it shows (madar-web `category_order`).
+    #[serde(rename = "display_order")]
+    pub display_order: i32,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
     #[serde(
@@ -30,11 +33,13 @@ pub struct DeliveryMenuCategory {
 
 impl DeliveryMenuCategory {
     pub fn new(
+        display_order: i32,
         id: uuid::Uuid,
         name: String,
         name_translations: serde_json::Value,
     ) -> DeliveryMenuCategory {
         DeliveryMenuCategory {
+            display_order,
             id,
             image_url: None,
             name,
