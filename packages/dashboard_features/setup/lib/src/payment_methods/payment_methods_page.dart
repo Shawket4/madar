@@ -36,8 +36,22 @@ class PaymentMethodsPage extends ConsumerStatefulWidget {
   ConsumerState<PaymentMethodsPage> createState() => _PaymentMethodsPageState();
 }
 
-class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage> {
+class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage>
+    with DashRememberedState {
   PmTab _tab = PmTab.methods;
+
+  // ── memory: the tab comes back with the page (`DashRememberedState`);
+  // the methods table keeps its own search and sort (its page bucket). ──
+
+  @override
+  String get memoryKey => 'setup.paymentMethods';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'tab': _tab.name};
+
+  @override
+  void restoreRemembered(DashMemo m) =>
+      _tab = m.enumOr('tab', PmTab.values, PmTab.methods);
   bool _exporting = false;
 
   /// The editor is up (opened from `?edit`).

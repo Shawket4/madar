@@ -83,7 +83,30 @@ class _CombosList extends ConsumerStatefulWidget {
   ConsumerState<_CombosList> createState() => _CombosListState();
 }
 
-class _CombosListState extends ConsumerState<_CombosList> {
+class _CombosListState extends ConsumerState<_CombosList>
+    with DashRememberedState {
+  // ── memory: search, category, status and page come back with the page
+  // (from a combo's editor, anywhere), `DashRememberedState`. ──
+
+  @override
+  String get memoryKey => 'menu.combos';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'q': _q,
+    'category': _category,
+    'active': _active,
+    'page': _page,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _q = m.getOr('q', '');
+    _category = m.string('category');
+    _active = m.get<bool>('active');
+    _page = m.getOr('page', 0);
+  }
+
   /// The debounced search (trimmed; empty = none).
   String _q = '';
   String? _category;
@@ -107,7 +130,11 @@ class _CombosListState extends ConsumerState<_CombosList> {
     _page = 0;
   });
 
-  void _open(String id) => context.go('/menu/combos/$id');
+  void _open(String id) {
+    // Its Back returns here, with this page's filters (`DashListMemory`).
+    ref.dashOpenedFrom(context, '/menu/combos/$id');
+    context.go('/menu/combos/$id');
+  }
 
   Future<void> _remove(ComboSummary c) async {
     final t = ref.read(tProvider);
@@ -151,12 +178,19 @@ class _CombosListState extends ConsumerState<_CombosList> {
       ),
     );
 
+    final catsQ = orgId == null ? null : ref.watch(offersCategoriesProvider);
+    // A remembered category that is gone is dropped once the list says so.
+    if (catsQ != null &&
+        catsQ.hasValue &&
+        dashStale(_category, catsQ.value!.map((c) => c.id))) {
+      _category = null;
+      _page = 0;
+      rememberNow();
+    }
     // Asked only with an org in scope (the page itself needs the right).
     final key = _key;
     final list = orgId == null ? null : ref.watch(combosListProvider(key));
-    final cats = orgId == null
-        ? const <Category>[]
-        : ref.watch(offersCategoriesProvider).value ?? const [];
+    final cats = catsQ?.value ?? const <Category>[];
     final names = {
       for (final c in cats)
         c.id: translatedName(c.name, c.nameTranslations, lang),

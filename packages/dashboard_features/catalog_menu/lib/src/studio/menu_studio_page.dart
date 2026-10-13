@@ -221,7 +221,14 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
     return Uri(path: path, queryParameters: q.isEmpty ? null : q);
   }
 
-  void _goBack() => context.go(_keepingQuery('/menu/items').toString());
+  /// Back returns to the page the item was opened from (the menu, filters
+  /// and all — `DashListMemory`), else the menu.
+  void _goBack() => context.go(
+    ref.dashBackTarget(
+      '/menu/items/${widget.itemId}',
+      _keepingQuery('/menu/items').toString(),
+    ),
+  );
 
   /// Back is about to be pressed: the items page's first reads.
   void _warmBack() => ref.prefetchRoute('/menu/items');
@@ -242,7 +249,9 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
           .duplicateItem(id: widget.itemId);
       if (!mounted) return;
       DashToast.success(context, t('menu.studio.duplicated'));
-      context.go('/menu/items/${created.id}');
+      final to = '/menu/items/${created.id}';
+      ref.dashOpenedFrom(context, to);
+      context.go(to);
     } on Object catch (e) {
       if (mounted) DashToast.error(context, errorMessage(e, t));
     }

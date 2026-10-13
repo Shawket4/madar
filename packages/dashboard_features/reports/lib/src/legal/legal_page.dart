@@ -92,9 +92,21 @@ class LegalReportPage extends ConsumerStatefulWidget {
   ConsumerState<LegalReportPage> createState() => _LegalReportPageState();
 }
 
-class _LegalReportPageState extends ConsumerState<LegalReportPage> {
-  /// The picked tab (page state, not the URL: REP-ALL-022); Tax at first.
+class _LegalReportPageState extends ConsumerState<LegalReportPage>
+    with DashRememberedState {
+  /// The picked tab (page state, not the URL: REP-ALL-022); Tax at first,
+  /// then the one last picked (`DashRememberedState`).
   LegalTab _picked = LegalTab.tax;
+
+  @override
+  String get memoryKey => 'reports.legal';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'tab': _picked.name};
+
+  @override
+  void restoreRemembered(DashMemo m) =>
+      _picked = m.enumOr('tab', LegalTab.values, LegalTab.tax);
 
   @override
   Widget build(BuildContext context) {

@@ -303,8 +303,63 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
   final Set<Object> _expanded = {};
   final Set<Object> _ownSelection = {};
 
+  /// A page restored from the page's memory, applied once rows arrive
+  /// (the rows loading in would otherwise send it back to page 1).
+  int? _pendingPage;
+
   bool get _manualPaging => widget.onPageChanged != null;
   bool get _usePages => widget.loadMore == null;
+
+  // ── memory: the table's sort, search, page and hidden columns come back
+  // with its page (the page's [PageStorage] bucket, `DashListMemory`). ──
+
+  Object get _memoryId =>
+      'dash.table:${widget.columns.map((c) => c.id).join(',')}';
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = PageStorage.maybeOf(
+      context,
+    )?.readState(context, identifier: _memoryId);
+    if (saved is! Map) return;
+    if (widget.onSortChanged == null) {
+      final col = saved['sort'];
+      if (col is String && widget.columns.any((c) => c.id == col)) {
+        _sort = DashSort(col, descending: saved['desc'] == true);
+      }
+    }
+    final hidden = saved['hidden'];
+    if (hidden is List) {
+      _hidden
+        ..clear()
+        ..addAll(hidden.whereType<String>());
+    }
+    if (saved['query'] case final String q) _query = q;
+    if (saved['page'] case final int p when p > 0 && !_manualPaging) {
+      if (widget.rows.isEmpty) {
+        _pendingPage = p;
+      } else {
+        _page = p;
+      }
+    }
+  }
+
+  void _remember() {
+    PageStorage.maybeOf(context)?.writeState(context, {
+      if (_sort case final s?) ...{'sort': s.columnId, 'desc': s.descending},
+      'hidden': _hidden.toList(),
+      'query': _query,
+      'page': _pendingPage ?? _page,
+    }, identifier: _memoryId);
+  }
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _remember();
+  }
+
   Set<Object> get _selection => widget.selectedKeys ?? _ownSelection;
 
   List<DashColumn<T>> get _visible => [
@@ -407,7 +462,14 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
     super.didUpdateWidget(old);
     // The web's autoResetPageIndex: other rows (a filter, a search) start
     // on page 1; the same rows refreshed keep the page.
-    if (_page != 0 && !_sameRows(old.rows, widget.rows)) _page = 0;
+    if (_pendingPage != null && widget.rows.isNotEmpty) {
+      // The rows a remembered page was waiting for.
+      _page = _pendingPage!;
+      _pendingPage = null;
+    } else if (_page != 0 && !_sameRows(old.rows, widget.rows)) {
+      _page = 0;
+      _remember();
+    }
     // Drop selected keys whose rows are gone.
     if (widget.selectedKeys == null && _ownSelection.isNotEmpty) {
       final keys = {for (final r in widget.rows) widget.rowKey(r)};

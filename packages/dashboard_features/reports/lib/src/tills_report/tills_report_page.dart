@@ -50,9 +50,26 @@ class TillsReportPage extends ConsumerStatefulWidget {
   ConsumerState<TillsReportPage> createState() => _TillsReportPageState();
 }
 
-class _TillsReportPageState extends ConsumerState<TillsReportPage> {
+class _TillsReportPageState extends ConsumerState<TillsReportPage>
+    with DashRememberedState {
   String _tab = tillsReportTabs.first.id;
   bool _exporting = false;
+
+  // The tab comes back with the page; the sessions table keeps its own
+  // sort and page (the kit's page memory).
+  @override
+  String get memoryKey => 'reports.tills';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'tab': _tab};
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    final tab = m.string('tab');
+    _tab = tillsReportTabs.any((t) => t.id == tab)
+        ? tab!
+        : tillsReportTabs.first.id;
+  }
 
   @override
   Widget build(BuildContext context) {

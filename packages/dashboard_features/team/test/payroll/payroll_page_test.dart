@@ -417,7 +417,7 @@ void main() {
     expect(inPage(find.widgetWithText(DashButton, 'Open it')), findsNothing);
   });
 
-  testWidgets('TEAM-PAY-013 / TEAM-ALL-021 tabs; the tab resets on leaving', (
+  testWidgets('TEAM-PAY-013 / TEAM-ALL-021 tabs; the tab is kept on leaving', (
     tester,
   ) async {
     final h = await pumpPayroll(tester);
@@ -434,8 +434,7 @@ void main() {
     expect(pageText('September 2026'), findsOneWidget);
     await h.go('/staff/employees');
     await h.go(payrollPath);
-    expect(pageText('NAME'), findsOneWidget);
-    expect(pageText('September 2026'), findsNothing);
+    expect(pageText('September 2026'), findsOneWidget);
   });
 
   testWidgets('TEAM-PAY-022 loading: skeleton, never the empty words', (

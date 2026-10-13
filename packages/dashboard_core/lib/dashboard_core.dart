@@ -38,6 +38,7 @@ export 'src/i18n/loader.dart';
 export 'src/i18n/plural.dart';
 export 'src/i18n/strings.dart';
 export 'src/kit/kit_l10n.dart';
+export 'src/memory/list_memory.dart';
 export 'src/providers.dart';
 export 'src/routes/nav.dart';
 export 'src/routes/openers.dart';

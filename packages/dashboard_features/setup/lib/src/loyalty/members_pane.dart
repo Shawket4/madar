@@ -32,10 +32,34 @@ class MembersPane extends ConsumerStatefulWidget {
   ConsumerState<MembersPane> createState() => _MembersPaneState();
 }
 
-class _MembersPaneState extends ConsumerState<MembersPane> {
+class _MembersPaneState extends ConsumerState<MembersPane>
+    with DashRememberedState {
   String _q = '';
   String? _source;
   int _pages = 1;
+
+  // ── memory: the search, the source filter and how far the list was
+  // loaded come back with the page (`DashRememberedState`). ──
+
+  @override
+  String get memoryKey => 'setup.loyalty.members';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'q': _q,
+    'source': _source,
+    'pages': _pages,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _q = m.getOr('q', '');
+    final source = m.string('source');
+    // A source the list no longer offers is dropped.
+    _source = dashStale(source, customerSources) ? null : source;
+    _pages = math.max(1, m.getOr('pages', 1));
+  }
+
   bool _exporting = false;
   String? _openId;
 

@@ -72,8 +72,9 @@ class ScheduleView extends ConsumerStatefulWidget {
   ConsumerState<ScheduleView> createState() => _ScheduleViewState();
 }
 
-class _ScheduleViewState extends ConsumerState<ScheduleView> {
-  late String _week = weekStartOf(teamTodayIsoOf(ref));
+class _ScheduleViewState extends ConsumerState<ScheduleView>
+    with DashRememberedState {
+  late String _week;
   String? _picked;
   bool _showCoverage = false;
 
@@ -82,6 +83,26 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
   String? _busy;
   late final AppLifecycleListener _lifecycle;
   DateTime? _loadedAt;
+
+  // ── memory: the week on show, the page's own branch pick and the
+  // coverage panel come back with the page (`DashRememberedState`). ──
+
+  @override
+  String get memoryKey => 'team.schedule';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'week': _week,
+    'branch': _picked,
+    'coverage': _showCoverage,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _week = m.string('week') ?? weekStartOf(teamTodayIsoOf(ref));
+    _picked = m.string('branch');
+    _showCoverage = m.getOr('coverage', false);
+  }
 
   @override
   void initState() {
@@ -305,6 +326,11 @@ class _ScheduleViewState extends ConsumerState<ScheduleView> {
     final scoped = ref.watch(scopeProvider.select((s) => s.branchId));
     final branchesQ = ref.watch(branchesProvider);
     final branches = branchesQ.value;
+    // A remembered branch pick that is gone (closed) goes.
+    if (dashStale(_picked, branches?.map((b) => b.id))) {
+      _picked = null;
+      rememberNow();
+    }
     final branch = canRead ? _branchOf(scoped, branches) : null;
     final today = teamTodayIsoOf(ref);
     final days = weekDays(_week);

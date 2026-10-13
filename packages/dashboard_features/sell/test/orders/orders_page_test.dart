@@ -816,7 +816,8 @@ void main() {
   });
 
   testWidgets(
-    'SELL-ORD-033/091 Columns hides a column until the page remounts',
+    'SELL-ORD-033/091 Columns hides a column, still hidden after another '
+    'page and back',
     (tester) async {
       final h = await pumpOrders(tester);
       expect(header('Waiter'), findsOneWidget);
@@ -836,7 +837,7 @@ void main() {
       expect(header('Waiter'), findsNothing);
       await h.go('/tills');
       await h.go('/orders');
-      expect(header('Waiter'), findsOneWidget);
+      expect(header('Waiter'), findsNothing);
     },
   );
 

@@ -52,6 +52,10 @@ const List<DashRoute> sellRoutes = [
     titleFallback: 'Tills',
     module: OrgModule.pos,
     prefetch: TillsPage.prefetch,
+    // The list's filters live in the URL (SELL-TIL-008); `report` is the
+    // open panel, not a filter. A teller or a device is one branch's.
+    rememberQuery: ['status', 'teller', 'device', 'flagged', 'today'],
+    branchQuery: ['teller', 'device'],
   ),
   DashRoute(
     path: '/customers',

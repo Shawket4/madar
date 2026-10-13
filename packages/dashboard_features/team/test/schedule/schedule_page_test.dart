@@ -1012,7 +1012,7 @@ void main() {
     expect(calls(h, coverageT), hasLength(cov));
   });
 
-  testWidgets('TEAM-ALL-021 the week is page state: leaving resets it', (
+  testWidgets('TEAM-ALL-021 the week is page state: leaving keeps it', (
     tester,
   ) async {
     final h = await pumpSchedule(tester);
@@ -1020,7 +1020,7 @@ void main() {
     expect(pageText('Next week'), findsWidgets);
     await h.go('/staff/employees');
     await h.go(schedulePath);
-    expect(pageText('This week'), findsOneWidget);
+    expect(pageText('Next week'), findsWidgets);
     expect(h.location.queryParameters, isEmpty);
   });
 

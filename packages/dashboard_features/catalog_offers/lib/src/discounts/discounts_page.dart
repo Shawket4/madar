@@ -45,9 +45,26 @@ class DiscountsPage extends ConsumerStatefulWidget {
   ConsumerState<DiscountsPage> createState() => _DiscountsPageState();
 }
 
-class _DiscountsPageState extends ConsumerState<DiscountsPage> {
+class _DiscountsPageState extends ConsumerState<DiscountsPage>
+    with DashRememberedState {
   String _query = '';
   int _page = 0;
+
+  // ── memory: the search and the page come back with the page (the
+  // `?edit` dialog does not: it is not a filter), `DashRememberedState`. ──
+
+  @override
+  String get memoryKey => 'offers.discounts';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'query': _query, 'page': _page};
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _query = m.getOr('query', '');
+    _page = m.getOr('page', 0);
+  }
+
   String? _rowsSeen;
 
   /// Discounts whose status toggle is on its way.

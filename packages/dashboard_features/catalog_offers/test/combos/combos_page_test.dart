@@ -835,8 +835,8 @@ void main() {
       expect(shownNames(tester), _all);
     });
 
-    testWidgets('OFFR-CMB-034 search, filters and page are not kept: back '
-        'from a combo starts afresh', (tester) async {
+    testWidgets('OFFR-CMB-034 search and filters are kept: back from a '
+        'combo comes back to the same list', (tester) async {
       final h = await pumpCombos(tester);
       await h.enterText(searchBox(), 'cookie');
       await afterDebounce(h);
@@ -846,12 +846,9 @@ void main() {
       h.allowUnmatched = true;
       await h.tap(rowOf(_cookie));
       await h.go(combosPath);
-      expect(shownNames(tester), _all);
-      expect(tester.widget<DashSearchInput>(searchBox()).value, '');
-      expect(
-        find.bySemanticsLabel('Status: Active and inactive'),
-        findsWidgets,
-      );
+      expect(shownNames(tester), [_cookie, _kids]);
+      expect(tester.widget<DashSearchInput>(searchBox()).value, 'cookie');
+      expect(find.bySemanticsLabel('Status: Active'), findsWidgets);
     });
 
     testWidgets('OFFR-CMB-035 (divergence) opening a combo keeps the scope', (

@@ -38,8 +38,22 @@ class LoyaltyReportPage extends ConsumerStatefulWidget {
   ConsumerState<LoyaltyReportPage> createState() => _LoyaltyReportPageState();
 }
 
-class _LoyaltyReportPageState extends ConsumerState<LoyaltyReportPage> {
+class _LoyaltyReportPageState extends ConsumerState<LoyaltyReportPage>
+    with DashRememberedState {
   String _tab = 'overview';
+
+  // The tab comes back with the page (`DashRememberedState`).
+  @override
+  String get memoryKey => 'reports.loyalty';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'tab': _tab};
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    final tab = m.string('tab');
+    _tab = loyaltyReportTabs.any((t) => t.id == tab) ? tab! : 'overview';
+  }
 
   @override
   Widget build(BuildContext context) {

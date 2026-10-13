@@ -82,7 +82,8 @@ class ApprovalsQueue extends ConsumerStatefulWidget {
   ConsumerState<ApprovalsQueue> createState() => _ApprovalsQueueState();
 }
 
-class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
+class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue>
+    with DashRememberedState {
   ApprovalSection _section = ApprovalSection.all;
 
   /// Rows ticked for a batch approval.
@@ -98,6 +99,22 @@ class _ApprovalsQueueState extends ConsumerState<ApprovalsQueue> {
   late final AppLifecycleListener _lifecycle;
   DateTime? _loadedAt;
   List<ProviderBase<Object?>> _reads = const [];
+
+  // ── memory: the section comes back with the page (`DashRememberedState`;
+  // the ticks are a batch in hand, not a filter). ──
+
+  @override
+  String get memoryKey => 'team.approvals';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'section': _section.name};
+
+  @override
+  void restoreRemembered(DashMemo m) => _section = m.enumOr(
+    'section',
+    ApprovalSection.values,
+    ApprovalSection.all,
+  );
 
   @override
   void initState() {

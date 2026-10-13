@@ -45,8 +45,21 @@ class DealsPage extends ConsumerStatefulWidget {
   ConsumerState<DealsPage> createState() => _DealsPageState();
 }
 
-class _DealsPageState extends ConsumerState<DealsPage> {
+class _DealsPageState extends ConsumerState<DealsPage>
+    with DashRememberedState {
   int _page = 0;
+
+  // ── memory: the page shown comes back with the page (the `?edit` dialog
+  // does not: it is not a filter), `DashRememberedState`. ──
+
+  @override
+  String get memoryKey => 'menu.deals';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'page': _page};
+
+  @override
+  void restoreRemembered(DashMemo m) => _page = m.getOr('page', 0);
   String? _rowsSeen;
 
   /// The dialog `?edit` opened is up, and for which value.

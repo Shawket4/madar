@@ -74,13 +74,31 @@ class InventoryReportsPage extends ConsumerStatefulWidget {
       _InventoryReportsPageState();
 }
 
-class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage> {
-  /// Set once on open; it does not follow the scope bar (REP-INV-005).
-  late InventoryScope _scope = initialInventoryScope(
-    ref.read(currentScopeProvider),
-  );
+class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage>
+    with DashRememberedState {
+  /// Set on open (or remembered); it does not follow the scope bar
+  /// (REP-INV-005).
+  late InventoryScope _scope;
   String _tab = 'consumption';
   bool _exporting = false;
+
+  // The tab and the branch/org toggle come back with the page.
+  @override
+  String get memoryKey => 'reports.inventory';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'tab': _tab,
+    'scope': _scope.name,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _tab = m.getOr('tab', 'consumption');
+    _scope =
+        m.enumOrNull('scope', InventoryScope.values) ??
+        initialInventoryScope(ref.read(currentScopeProvider));
+  }
 
   /// A read the web keeps enabled only on its open tab with something to
   /// ask: neither loading nor failed otherwise, and never requested.

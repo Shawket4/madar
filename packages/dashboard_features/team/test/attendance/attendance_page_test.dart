@@ -774,8 +774,8 @@ void main() {
     }
   });
 
-  testWidgets('TEAM-ALL-021 filters live in the page, not the URL, and reset '
-      'when it is left', (tester) async {
+  testWidgets('TEAM-ALL-021 filters live in the page, not the URL, and are '
+      'kept when it is left', (tester) async {
     final h = await pumpAttendance(tester);
     await h.tap(pageText('All statuses'));
     await h.tap(find.text('Absent').hitTestable());
@@ -783,10 +783,10 @@ void main() {
     h.allowUnmatched = true;
     await h.go('/staff/employees');
     await h.go(attendancePath);
-    expect(pageText('All statuses'), findsOneWidget);
+    expect(pageText('All statuses'), findsNothing);
     expect(
       inTable(find.widgetWithText(DashStatusPill, 'Present')),
-      findsWidgets,
+      findsNothing,
     );
   });
 

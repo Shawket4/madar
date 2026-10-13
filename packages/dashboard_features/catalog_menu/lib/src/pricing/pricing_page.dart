@@ -44,12 +44,37 @@ class PricingAvailabilityPage extends ConsumerStatefulWidget {
 /// page goes so Save still writes its cells (`registerTargets`).
 typedef _ItemEntry = ({String name, List<PricingTarget> targets});
 
-class _PricingPageState extends ConsumerState<PricingAvailabilityPage> {
+class _PricingPageState extends ConsumerState<PricingAvailabilityPage>
+    with DashRememberedState {
   String _tab = 'items';
   int _itemsPage = 0;
   String _itemsSearch = '';
   int _addonsPage = 0;
   String _addonsSearch = '';
+
+  // ── memory: the tab, searches and pages come back with the page
+  // (`DashRememberedState`); staged cells are not filters. ──
+
+  @override
+  String get memoryKey => 'menu.pricing';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'tab': _tab,
+    'itemsPage': _itemsPage,
+    'itemsSearch': _itemsSearch,
+    'addonsPage': _addonsPage,
+    'addonsSearch': _addonsSearch,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _tab = m.string('tab') == 'addons' ? 'addons' : 'items';
+    _itemsPage = m.getOr('itemsPage', 0);
+    _itemsSearch = m.getOr('itemsSearch', '');
+    _addonsPage = m.getOr('addonsPage', 0);
+    _addonsSearch = m.getOr('addonsSearch', '');
+  }
 
   /// Staged cells by `cellKey` (`useDirtyCells`).
   final Map<String, DraftCell> _drafts = {};

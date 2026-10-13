@@ -80,13 +80,35 @@ class _ReportsBody extends ConsumerStatefulWidget {
   ConsumerState<_ReportsBody> createState() => _ReportsBodyState();
 }
 
-class _ReportsBodyState extends ConsumerState<_ReportsBody> {
+class _ReportsBodyState extends ConsumerState<_ReportsBody>
+    with DashRememberedState {
   /// Picked by hand; until then, this pay period.
   ({String from, String to})? _range;
   String? _picked;
   late final AppLifecycleListener _lifecycle;
   DateTime? _loadedAt;
   FutureProvider<Object?>? _read;
+
+  // ── memory: the range picked and the tab come back with the page
+  // (`DashRememberedState`; a tab not offered falls back as before). ──
+
+  @override
+  String get memoryKey => 'team.reports';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'from': _range?.from,
+    'to': _range?.to,
+    'tab': _picked,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    final from = m.string('from');
+    final to = m.string('to');
+    _range = from == null || to == null ? null : (from: from, to: to);
+    _picked = m.string('tab');
+  }
 
   @override
   void initState() {

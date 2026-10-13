@@ -44,11 +44,27 @@ class TransfersPage extends ConsumerStatefulWidget {
   ConsumerState<TransfersPage> createState() => _TransfersPageState();
 }
 
-class _TransfersPageState extends ConsumerState<TransfersPage> {
-  /// The status tab and the direction (null = both ways); per visit.
+class _TransfersPageState extends ConsumerState<TransfersPage>
+    with DashRememberedState {
+  /// The status tab and the direction (null = both ways); they come back
+  /// with the page (the owner's rule, `DashRememberedState`).
   String _tab = 'all';
   String? _dir;
   bool _exporting = false;
+
+  @override
+  String get memoryKey => 'inventory.transfers';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'tab': _tab, 'dir': _dir};
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    final tab = m.string('tab');
+    _tab = tab != null && transferTabs.contains(tab) ? tab : 'all';
+    final dir = m.string('dir');
+    _dir = transferDirections.contains(dir) ? dir : null;
+  }
 
   TransfersKey _key(Scope s, {String? tab, String? dir}) =>
       s.transfersKey(direction: dir ?? _dir, status: tabStatus(tab ?? _tab));

@@ -39,9 +39,21 @@ class BundlesReportPage extends ConsumerStatefulWidget {
   ConsumerState<BundlesReportPage> createState() => _BundlesReportPageState();
 }
 
-class _BundlesReportPageState extends ConsumerState<BundlesReportPage> {
+class _BundlesReportPageState extends ConsumerState<BundlesReportPage>
+    with DashRememberedState {
   BundleKind _kind = BundleKind.combo;
   bool _exporting = false;
+
+  // Combos or deals comes back with the page (`DashRememberedState`).
+  @override
+  String get memoryKey => 'reports.bundles';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'kind': _kind.name};
+
+  @override
+  void restoreRemembered(DashMemo m) =>
+      _kind = m.enumOr('kind', BundleKind.values, BundleKind.combo);
 
   bool get _combos => _kind == BundleKind.combo;
 

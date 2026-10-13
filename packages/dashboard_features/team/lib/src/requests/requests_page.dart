@@ -38,7 +38,8 @@ class RequestsInboxPage extends ConsumerStatefulWidget {
   ConsumerState<RequestsInboxPage> createState() => _RequestsInboxPageState();
 }
 
-class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage> {
+class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage>
+    with DashRememberedState {
   String _status = 'pending';
   String? _kind;
 
@@ -47,6 +48,24 @@ class _RequestsInboxPageState extends ConsumerState<RequestsInboxPage> {
 
   late final AppLifecycleListener _lifecycle;
   DateTime? _loadedAt;
+
+  // ── memory: the status and kind come back with the page
+  // (`DashRememberedState`). ──
+
+  @override
+  String get memoryKey => 'team.requests';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'status': _status,
+    'kind': _kind,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _status = m.string('status') ?? 'pending';
+    _kind = m.string('kind');
+  }
 
   @override
   void initState() {

@@ -35,13 +35,38 @@ class FinProfitabilityView extends ConsumerStatefulWidget {
       _FinProfitabilityViewState();
 }
 
-class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
+class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView>
+    with DashRememberedState {
   bool _current = false;
   String _tab = 'ledger';
   bool _quadrant = false;
   String? _class;
   bool _flagged = false;
   bool _exporting = false;
+
+  // The basis, inner tab, view and ledger filters come back with the page
+  // (from an item's studio the Fix opened, too).
+  @override
+  String get memoryKey => 'reports.financial.profitability';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'current': _current,
+    'tab': _tab,
+    'quadrant': _quadrant,
+    'class': _class,
+    'flagged': _flagged,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _current = m.getOr('current', false);
+    _tab = m.getOr('tab', 'ledger');
+    _quadrant = m.getOr('quadrant', false);
+    final cls = m.string('class');
+    _class = finClasses.contains(cls) ? cls : null;
+    _flagged = m.getOr('flagged', false);
+  }
 
   /// Decisions in flight (`createDecision.isPending`): every flag's
   /// buttons wait.
@@ -86,7 +111,10 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView> {
       _decision(r, s, 'acted', scope.branchId),
       scope.orgId!,
     ).then((_) => invalidateInsights(bus), onError: (Object _) {});
-    context.go(_fixPath(r, s));
+    final to = _fixPath(r, s);
+    // The item's Back returns here, filters and all (`DashListMemory`).
+    if (to.startsWith('/menu/items/')) ref.dashOpenedFrom(context, to);
+    context.go(to);
   }
 
   /// REP-FIN-031…033 Dismiss / Snooze: the server suppresses the flag.
