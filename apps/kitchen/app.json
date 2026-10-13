@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "Madar Kitchen",
+    "slug": "madar-kitchen",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "requireFullScreen": true,
+      "bundleIdentifier": "cloud.madar.kitchen",
+      "appleTeamId": "W4D7HW9L4Y",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Madar Kitchen talks to the Madar server and the POS tablets on your shop network.",
+        "NSBonjourServices": [
+          "_madar._tcp"
+        ],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "aps-environment": "development"
+      }
+    },
+    "android": {
+      "package": "cloud.madar.kitchen",
+      "adaptiveIcon": {
+        "backgroundColor": "#0D1A1E",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_MULTICAST_STATE",
+        "POST_NOTIFICATIONS"
+      ],
+      "googleServicesFile": "./google-services.json"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "./plugins/with-scene-lifecycle",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ],
+      "./plugins/with-firebase-pods",
+      "./plugins/with-android-release"
+    ]
+  }
+}

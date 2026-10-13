@@ -825,7 +825,7 @@ class _FakeBridge implements MadarBridge {
       return '${two(t.hour)}:${two(t.minute)}';
     }
     if (name == #clockSkewMinutes) return 0;
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #isRealtimeSubscribed) return false;
     return null;
   }

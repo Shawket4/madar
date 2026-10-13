@@ -60,7 +60,7 @@ class _Bridge implements MadarBridge {
     if (can != null) return can;
     final name = invocation.memberName;
     if (name == #tr) return invocation.namedArguments[#key];
-    if (name == #appRoute) return const AppRoute.deviceSetup();
+    if (name == #appRoute) return AppRoute.deviceSetup;
     if (name == #reconfigureReadiness) return readiness;
     if (name == #reconfigurePushNow) {
       pushes++;

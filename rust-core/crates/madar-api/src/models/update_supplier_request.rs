@@ -11,6 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// UpdateSupplierRequest : A PATCH: an absent field is left as it is. For the contact fields, `null` or a blank value clears them.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct UpdateSupplierRequest {
     #[serde(
@@ -51,6 +52,7 @@ pub struct UpdateSupplierRequest {
 }
 
 impl UpdateSupplierRequest {
+    /// A PATCH: an absent field is left as it is. For the contact fields, `null` or a blank value clears them.
     pub fn new() -> UpdateSupplierRequest {
         UpdateSupplierRequest {
             contact_name: None,

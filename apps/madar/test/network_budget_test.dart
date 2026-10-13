@@ -72,7 +72,7 @@ class _CountingBridge implements MadarBridge {
     calls[name] = (calls[name] ?? 0) + 1;
     final args = invocation.namedArguments;
     if (name == #tr) return args[#key];
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #currentSession) {
       return const SessionSnapshot(
         userId: 'u-1',

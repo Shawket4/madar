@@ -478,7 +478,7 @@ class _FakeBridge implements MadarBridge {
         locale: arabic ? 'ar' : 'en',
       );
     }
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #currentSession) {
       return const SessionSnapshot(
         userId: 'u',

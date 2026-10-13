@@ -198,6 +198,7 @@ pub enum TrackDeliveryOrderError {
     UnknownValue(serde_json::Value),
 }
 
+/// Answers 201 with the order; follow it at `/public/delivery-orders/{id}/track`. The server prices the cart in piastres. Where the branch requires a verified phone (the default), send the `device_token` from `/public/otp/verify`.
 pub async fn create_delivery_order(
     configuration: &configuration::Configuration,
     params: CreateDeliveryOrderParams,
@@ -241,6 +242,7 @@ pub async fn create_delivery_order(
     }
 }
 
+/// Needs `lat`, `lng` and `channel`. `status` says whether the branch delivers there; the fee is in piastres.
 pub async fn delivery_quote(
     configuration: &configuration::Configuration,
     params: DeliveryQuoteParams,
@@ -288,6 +290,7 @@ pub async fn delivery_quote(
     }
 }
 
+/// Needs `phone` and the `device_token` from `/public/otp/verify`; a phone number alone unlocks nothing.
 pub async fn guest_order_history(
     configuration: &configuration::Configuration,
     params: GuestOrderHistoryParams,
@@ -333,6 +336,7 @@ pub async fn guest_order_history(
     }
 }
 
+/// Needs `phone` and the `device_token` from `/public/otp/verify`.
 pub async fn guest_past_locations(
     configuration: &configuration::Configuration,
     params: GuestPastLocationsParams,
@@ -384,6 +388,7 @@ pub async fn guest_past_locations(
     }
 }
 
+/// One live code per phone per minute (409 otherwise). Check it with `/public/otp/verify`.
 pub async fn otp_request(
     configuration: &configuration::Configuration,
     params: OtpRequestParams,
@@ -427,6 +432,7 @@ pub async fn otp_request(
     }
 }
 
+/// Ordering, booking, the rewards card and order history take this token where a shop asks for a verified phone. A code allows five tries.
 pub async fn otp_verify(
     configuration: &configuration::Configuration,
     params: OtpVerifyParams,
@@ -470,6 +476,7 @@ pub async fn otp_verify(
     }
 }
 
+/// `org_id` names the shop. With `browse=true` every active branch is listed, for a read-only menu.
 pub async fn public_branches(
     configuration: &configuration::Configuration,
     params: PublicBranchesParams,
@@ -514,6 +521,7 @@ pub async fn public_branches(
     }
 }
 
+/// `channel` is `in_mall`, `outside`, `umbrella` or `pickup`. `preview=true` shows a channel's menu while it is closed, and `channel=dine_in&preview=true` gives the read-only dine-in menu. Nothing can be ordered from a preview.
 pub async fn public_menu(
     configuration: &configuration::Configuration,
     params: PublicMenuParams,
@@ -562,6 +570,7 @@ pub async fn public_menu(
     }
 }
 
+/// Amounts are in piastres.
 pub async fn track_delivery_order(
     configuration: &configuration::Configuration,
     params: TrackDeliveryOrderParams,

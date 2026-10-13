@@ -19629,33 +19629,15 @@ impl SseDecode for crate::api::realtime::AlertCommand {
 impl SseDecode for crate::api::routes::AppRoute {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut tag_ = <i32>::sse_decode(deserializer);
-        match tag_ {
-            0 => {
-                return crate::api::routes::AppRoute::DeviceSetup;
-            }
-            1 => {
-                return crate::api::routes::AppRoute::Login;
-            }
-            2 => {
-                return crate::api::routes::AppRoute::OpenTill;
-            }
-            3 => {
-                return crate::api::routes::AppRoute::Order;
-            }
-            4 => {
-                let mut var_stationId = <String>::sse_decode(deserializer);
-                return crate::api::routes::AppRoute::KitchenDisplay {
-                    station_id: var_stationId,
-                };
-            }
-            5 => {
-                return crate::api::routes::AppRoute::WaiterTickets;
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::routes::AppRoute::DeviceSetup,
+            1 => crate::api::routes::AppRoute::Login,
+            2 => crate::api::routes::AppRoute::OpenTill,
+            3 => crate::api::routes::AppRoute::Order,
+            4 => crate::api::routes::AppRoute::WaiterTickets,
+            _ => unreachable!("Invalid variant for AppRoute: {}", inner),
+        };
     }
 }
 
@@ -26981,17 +26963,12 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::realtime::AlertCommand>
 impl flutter_rust_bridge::IntoDart for crate::api::routes::AppRoute {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
-            crate::api::routes::AppRoute::DeviceSetup => [0.into_dart()].into_dart(),
-            crate::api::routes::AppRoute::Login => [1.into_dart()].into_dart(),
-            crate::api::routes::AppRoute::OpenTill => [2.into_dart()].into_dart(),
-            crate::api::routes::AppRoute::Order => [3.into_dart()].into_dart(),
-            crate::api::routes::AppRoute::KitchenDisplay { station_id } => {
-                [4.into_dart(), station_id.into_into_dart().into_dart()].into_dart()
-            }
-            crate::api::routes::AppRoute::WaiterTickets => [5.into_dart()].into_dart(),
-            _ => {
-                unimplemented!("");
-            }
+            Self::DeviceSetup => 0.into_dart(),
+            Self::Login => 1.into_dart(),
+            Self::OpenTill => 2.into_dart(),
+            Self::Order => 3.into_dart(),
+            Self::WaiterTickets => 4.into_dart(),
+            _ => unreachable!(),
         }
     }
 }
@@ -31842,30 +31819,19 @@ impl SseEncode for crate::api::realtime::AlertCommand {
 impl SseEncode for crate::api::routes::AppRoute {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        match self {
-            crate::api::routes::AppRoute::DeviceSetup => {
-                <i32>::sse_encode(0, serializer);
-            }
-            crate::api::routes::AppRoute::Login => {
-                <i32>::sse_encode(1, serializer);
-            }
-            crate::api::routes::AppRoute::OpenTill => {
-                <i32>::sse_encode(2, serializer);
-            }
-            crate::api::routes::AppRoute::Order => {
-                <i32>::sse_encode(3, serializer);
-            }
-            crate::api::routes::AppRoute::KitchenDisplay { station_id } => {
-                <i32>::sse_encode(4, serializer);
-                <String>::sse_encode(station_id, serializer);
-            }
-            crate::api::routes::AppRoute::WaiterTickets => {
-                <i32>::sse_encode(5, serializer);
-            }
-            _ => {
-                unimplemented!("");
-            }
-        }
+        <i32>::sse_encode(
+            match self {
+                crate::api::routes::AppRoute::DeviceSetup => 0,
+                crate::api::routes::AppRoute::Login => 1,
+                crate::api::routes::AppRoute::OpenTill => 2,
+                crate::api::routes::AppRoute::Order => 3,
+                crate::api::routes::AppRoute::WaiterTickets => 4,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
     }
 }
 

@@ -5,12 +5,12 @@ All URIs are relative to *http://localhost:8080*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**loyalty_apple_pass**](LoyaltyPublicApi.md#loyalty_apple_pass) | **GET** /public/loyalty/pass/{token}/apple.pkpass | Download the signed `.pkpass`.
-[**loyalty_card**](LoyaltyPublicApi.md#loyalty_card) | **GET** /public/loyalty/card/{token} | 
+[**loyalty_card**](LoyaltyPublicApi.md#loyalty_card) | **GET** /public/loyalty/card/{token} | A rewards card: the member's balance, progress to the next reward, rewards and wallet links.
 [**loyalty_card_orders**](LoyaltyPublicApi.md#loyalty_card_orders) | **GET** /public/loyalty/card/{token}/orders | The member's own purchase history.
 [**loyalty_card_qr**](LoyaltyPublicApi.md#loyalty_card_qr) | **GET** /public/loyalty/card/{token}/qr.png | The member's QR as a PNG.
-[**loyalty_join**](LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | 
-[**loyalty_join_info**](LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | 
-[**set_loyalty_card_preferences**](LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | 
+[**loyalty_join**](LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | Join a shop's rewards programme.
+[**loyalty_join_info**](LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | What a rewards programme's join page shows: its brand, rewards and what joining asks for.
+[**set_loyalty_card_preferences**](LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | Save a card holder's choices: no marketing messages, and the language to write in.
 
 
 
@@ -47,7 +47,9 @@ No authorization required
 ## loyalty_card
 
 > models::CardView loyalty_card(token)
+A rewards card: the member's balance, progress to the next reward, rewards and wallet links.
 
+The token is the one on the card's barcode.
 
 ### Parameters
 
@@ -135,7 +137,9 @@ No authorization required
 ## loyalty_join
 
 > models::JoinResult loyalty_join(join_input)
+Join a shop's rewards programme.
 
+Where `require_otp` is on, send the `device_token` from `/public/otp/verify`; until the phone is proven the answer carries no card.
 
 ### Parameters
 
@@ -163,7 +167,9 @@ No authorization required
 ## loyalty_join_info
 
 > models::JoinInfo loyalty_join_info(branch_id, org_id)
+What a rewards programme's join page shows: its brand, rewards and what joining asks for.
 
+Name the shop with `org_id`, or a branch with `branch_id` from its counter code.
 
 ### Parameters
 
@@ -192,7 +198,9 @@ No authorization required
 ## set_loyalty_card_preferences
 
 > set_loyalty_card_preferences(token, card_preferences)
+Save a card holder's choices: no marketing messages, and the language to write in.
 
+The card's own token is the key. Answers 204.
 
 ### Parameters
 

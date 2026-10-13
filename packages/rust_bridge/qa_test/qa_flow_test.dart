@@ -209,9 +209,9 @@ void main() {
     final route = rebooted.bridge.appRoute();
     expect(
       route,
-      isNot(isA<AppRoute_Login>()),
+      isNot(AppRoute.login),
       reason: 'a restored session must land past the login screen',
     );
-    expect(route, isNot(isA<AppRoute_DeviceSetup>()));
+    expect(route, isNot(AppRoute.deviceSetup));
   });
 }

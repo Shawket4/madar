@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **device_token** | **String** | The device's own credential. Returned ONCE; store it in the device vault. Sent later as `X-Madar-Device-Token`. | 
 **org_id** | **uuid::Uuid** |  | 
 **org_name** | **String** |  | 
+**slot_id** | Option<**uuid::Uuid**> | The branch-plan slot this device now fills, when the code was made for one. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

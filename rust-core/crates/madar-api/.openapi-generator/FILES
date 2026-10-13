@@ -3,6 +3,7 @@
 .travis.yml
 Cargo.toml
 README.md
+docs/AcceptTransferRequest.md
 docs/AcceptingInput.md
 docs/ActivateDeviceRequest.md
 docs/ActivateDeviceResponse.md
@@ -72,9 +73,13 @@ docs/BranchChannelOverride.md
 docs/BranchComparison.md
 docs/BranchDeliverySettings.md
 docs/BranchFairness.md
+docs/BranchKind.md
 docs/BranchMenuOverride.md
 docs/BranchMenuOverrideInput.md
 docs/BranchPerson.md
+docs/BranchPlan.md
+docs/BranchPlanApi.md
+docs/BranchPlanView.md
 docs/BranchRules.md
 docs/BranchSalesReport.md
 docs/BranchSettingsInput.md
@@ -135,6 +140,7 @@ docs/CloseTillMethod.md
 docs/CloseTillPreview.md
 docs/CloseTillRequest.md
 docs/CloseTillResponse.md
+docs/CloseTransferRequest.md
 docs/Column.md
 docs/ColumnKind.md
 docs/CombinedItemSalesRow.md
@@ -248,6 +254,7 @@ docs/DeliveryMenuItem.md
 docs/DeliveryMenuSize.md
 docs/DeliveryModifierGroup.md
 docs/DeliveryModifierOption.md
+docs/DeliveryOptionPricing.md
 docs/DeliveryOptionalField.md
 docs/DeliveryOrder.md
 docs/DeliveryOrderInput.md
@@ -492,6 +499,12 @@ docs/PermissionsApi.md
 docs/PinSuggestion.md
 docs/PingRequest.md
 docs/PingResult.md
+docs/PlanCategory.md
+docs/PlanDevice.md
+docs/PlanPrinter.md
+docs/PlanRegisteredDevice.md
+docs/PlanSection.md
+docs/PlanVersionView.md
 docs/PoLeadTimeReport.md
 docs/PoLeadTimeRow.md
 docs/PoLineInput.md
@@ -525,6 +538,7 @@ docs/ProvisionBranch.md
 docs/ProvisionOrgRequest.md
 docs/ProvisionOwner.md
 docs/ProvisionedOrg.md
+docs/PublicApi.md
 docs/PublicBookingBranch.md
 docs/PublicBookingChange.md
 docs/PublicBookingInfo.md
@@ -590,6 +604,8 @@ docs/RealtimeApi.md
 docs/ReassignExpenseAdvance.md
 docs/ReceiveLineInput.md
 docs/ReceivePurchaseOrderRequest.md
+docs/ReceiveTransferLine.md
+docs/ReceiveTransferRequest.md
 docs/RecipeBaseLineInput.md
 docs/RecipeBaseLineOut.md
 docs/RecipeBaseOut.md
@@ -629,6 +645,7 @@ docs/ReplaceIdentityRequest.md
 docs/ReplaceIdentityResponse.md
 docs/ReplayApproval.md
 docs/ReplayFlag.md
+docs/ReplenishmentRow.md
 docs/ReportsApi.md
 docs/RepricingReport.md
 docs/RepricingSuggestion.md
@@ -642,6 +659,7 @@ docs/ResolvedShift.md
 docs/ResultBlock.md
 docs/ReturnLineInput.md
 docs/ReviewAdvance.md
+docs/ReviewedOut.md
 docs/RewardCatalogue.md
 docs/RewardItem.md
 docs/RewardItemInput.md
@@ -655,12 +673,14 @@ docs/SalaryAdvance.md
 docs/SalaryAdvanceRow.md
 docs/SaleWindow.md
 docs/SaveLayoutRequest.md
+docs/SavePlanRequest.md
 docs/ScanResult.md
 docs/ScheduleAssignment.md
 docs/ScheduleOverride.md
 docs/ScheduledDay.md
 docs/ScopeInfo.md
 docs/SeatBookingRequest.md
+docs/SectionCount.md
 docs/SetAssignmentsRequest.md
 docs/SetGrantRequest.md
 docs/SetOverrideRequest.md
@@ -711,6 +731,7 @@ docs/StatusInput.md
 docs/StockMovement.md
 docs/StockRow.md
 docs/StockTransfer.md
+docs/StockTransferLine.md
 docs/Stocktake.md
 docs/StocktakeFull.md
 docs/StocktakeItem.md
@@ -758,6 +779,11 @@ docs/TimeseriesPoint.md
 docs/TopPer.md
 docs/TopReward.md
 docs/TopUpRequest.md
+docs/TransferDifferenceRow.md
+docs/TransferLineInput.md
+docs/TransferLocation.md
+docs/TransferStamp.md
+docs/TransferStatus.md
 docs/TransferView.md
 docs/TransfersSyncResponse.md
 docs/Transform.md
@@ -837,6 +863,7 @@ src/apis/auth_api.rs
 src/apis/authz_api.rs
 src/apis/bookings_api.rs
 src/apis/bookings_public_api.rs
+src/apis/branch_plan_api.rs
 src/apis/branches_api.rs
 src/apis/configuration.rs
 src/apis/costing_api.rs
@@ -862,6 +889,7 @@ src/apis/orders_api.rs
 src/apis/orgs_api.rs
 src/apis/payment_methods_api.rs
 src/apis/permissions_api.rs
+src/apis/public_api.rs
 src/apis/purchasing_api.rs
 src/apis/push_api.rs
 src/apis/qr_api.rs
@@ -881,6 +909,7 @@ src/apis/uploads_api.rs
 src/apis/users_api.rs
 src/apis/whatsapp_api.rs
 src/lib.rs
+src/models/accept_transfer_request.rs
 src/models/accepting_input.rs
 src/models/activate_device_request.rs
 src/models/activate_device_response.rs
@@ -944,9 +973,12 @@ src/models/branch_channel_override.rs
 src/models/branch_comparison.rs
 src/models/branch_delivery_settings.rs
 src/models/branch_fairness.rs
+src/models/branch_kind.rs
 src/models/branch_menu_override.rs
 src/models/branch_menu_override_input.rs
 src/models/branch_person.rs
+src/models/branch_plan.rs
+src/models/branch_plan_view.rs
 src/models/branch_rules.rs
 src/models/branch_sales_report.rs
 src/models/branch_settings_input.rs
@@ -1006,6 +1038,7 @@ src/models/close_till_method.rs
 src/models/close_till_preview.rs
 src/models/close_till_request.rs
 src/models/close_till_response.rs
+src/models/close_transfer_request.rs
 src/models/column.rs
 src/models/column_kind.rs
 src/models/combined_item_sales_row.rs
@@ -1116,6 +1149,7 @@ src/models/delivery_menu_item.rs
 src/models/delivery_menu_size.rs
 src/models/delivery_modifier_group.rs
 src/models/delivery_modifier_option.rs
+src/models/delivery_option_pricing.rs
 src/models/delivery_optional_field.rs
 src/models/delivery_order.rs
 src/models/delivery_order_input.rs
@@ -1342,6 +1376,12 @@ src/models/permission_matrix.rs
 src/models/pin_suggestion.rs
 src/models/ping_request.rs
 src/models/ping_result.rs
+src/models/plan_category.rs
+src/models/plan_device.rs
+src/models/plan_printer.rs
+src/models/plan_registered_device.rs
+src/models/plan_section.rs
+src/models/plan_version_view.rs
 src/models/po_lead_time_report.rs
 src/models/po_lead_time_row.rs
 src/models/po_line_input.rs
@@ -1436,6 +1476,8 @@ src/models/ready_group_ref.rs
 src/models/reassign_expense_advance.rs
 src/models/receive_line_input.rs
 src/models/receive_purchase_order_request.rs
+src/models/receive_transfer_line.rs
+src/models/receive_transfer_request.rs
 src/models/recipe_base_line_input.rs
 src/models/recipe_base_line_out.rs
 src/models/recipe_base_out.rs
@@ -1473,6 +1515,7 @@ src/models/replace_identity_request.rs
 src/models/replace_identity_response.rs
 src/models/replay_approval.rs
 src/models/replay_flag.rs
+src/models/replenishment_row.rs
 src/models/repricing_report.rs
 src/models/repricing_suggestion.rs
 src/models/request_decision.rs
@@ -1484,6 +1527,7 @@ src/models/resolved_shift.rs
 src/models/result_block.rs
 src/models/return_line_input.rs
 src/models/review_advance.rs
+src/models/reviewed_out.rs
 src/models/reward_catalogue.rs
 src/models/reward_item.rs
 src/models/reward_item_input.rs
@@ -1497,12 +1541,14 @@ src/models/salary_advance.rs
 src/models/salary_advance_row.rs
 src/models/sale_window.rs
 src/models/save_layout_request.rs
+src/models/save_plan_request.rs
 src/models/scan_result.rs
 src/models/schedule_assignment.rs
 src/models/schedule_override.rs
 src/models/scheduled_day.rs
 src/models/scope_info.rs
 src/models/seat_booking_request.rs
+src/models/section_count.rs
 src/models/set_assignments_request.rs
 src/models/set_grant_request.rs
 src/models/set_override_request.rs
@@ -1549,6 +1595,7 @@ src/models/status_input.rs
 src/models/stock_movement.rs
 src/models/stock_row.rs
 src/models/stock_transfer.rs
+src/models/stock_transfer_line.rs
 src/models/stocktake.rs
 src/models/stocktake_full.rs
 src/models/stocktake_item.rs
@@ -1593,6 +1640,11 @@ src/models/timeseries_point.rs
 src/models/top_per.rs
 src/models/top_reward.rs
 src/models/top_up_request.rs
+src/models/transfer_difference_row.rs
+src/models/transfer_line_input.rs
+src/models/transfer_location.rs
+src/models/transfer_stamp.rs
+src/models/transfer_status.rs
 src/models/transfer_view.rs
 src/models/transfers_sync_response.rs
 src/models/transform.rs

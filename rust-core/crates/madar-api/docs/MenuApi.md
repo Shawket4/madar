@@ -45,7 +45,7 @@ Method | HTTP request | Description
 [**get_menu_item**](MenuApi.md#get_menu_item) | **GET** /menu-items/{id} | 
 [**get_menu_lint**](MenuApi.md#get_menu_lint) | **GET** /menu/lint | 
 [**get_recipe_link**](MenuApi.md#get_recipe_link) | **GET** /menu-items/{id}/recipe-link | 
-[**get_settings**](MenuApi.md#get_settings) | **GET** /settings/combos | 
+[**get_settings**](MenuApi.md#get_settings) | **GET** /settings/combos | Needs `org.settings.read` or `menu.combos.edit`.
 [**get_studio**](MenuApi.md#get_studio) | **GET** /menu-items/{id}/studio | 
 [**list_addon_catalog**](MenuApi.md#list_addon_catalog) | **GET** /addon-items/catalog | 
 [**list_addon_items**](MenuApi.md#list_addon_items) | **GET** /addon-items | 
@@ -1257,7 +1257,7 @@ Name | Type | Description  | Required | Notes
 ## get_settings
 
 > models::ComboSettings get_settings()
-
+Needs `org.settings.read` or `menu.combos.edit`.
 
 ### Parameters
 

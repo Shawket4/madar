@@ -19,6 +19,15 @@ pub struct ActivateParams {
     pub activate_device_request: models::ActivateDeviceRequest,
 }
 
+/// struct for passing parameters to the method [`device_session`]
+#[derive(Clone, Debug)]
+pub struct DeviceSessionParams {
+    /// The install id the device was activated as
+    pub x_madar_device: String,
+    /// The credential issued at activation
+    pub x_madar_device_token: String,
+}
+
 /// struct for passing parameters to the method [`login`]
 #[derive(Clone, Debug)]
 pub struct LoginParams {
@@ -35,6 +44,19 @@ pub struct ResolveBranchParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ActivateError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`device_session`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DeviceSessionError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -131,6 +153,54 @@ pub async fn activate(
     } else {
         let content = resp.text().await?;
         let entity: Option<ActivateError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// The gate is the device credential (`X-Madar-Device` + `X-Madar-Device-Token`, as for activation), on a live `kds` device bound to a branch. The session's subject is the screen's own principal (migration `20261011100000_kitchen_screen_principal.sql`), made here the first time: role `kitchen`, assigned to the screen's branch, so it holds exactly the kitchen role's capabilities there (`kitchen.display.read`, `kitchen.bump`) and nothing else. Same response as `/auth/login`, so a client reuses its whole sign-in path.
+pub async fn device_session(
+    configuration: &configuration::Configuration,
+    params: DeviceSessionParams,
+) -> Result<models::LoginResponse, Error<DeviceSessionError>> {
+    let uri_str = format!("{}/auth/device-session", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.header("X-Madar-Device", params.x_madar_device.to_string());
+    req_builder = req_builder.header(
+        "X-Madar-Device-Token",
+        params.x_madar_device_token.to_string(),
+    );
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::LoginResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::LoginResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<DeviceSessionError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

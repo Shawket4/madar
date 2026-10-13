@@ -1,0 +1,10 @@
+# uniffi-bindgen-react-native: builds rust-core/crates/madar-kitchen-ffi and
+# generates the TypeScript + C++ turbo module in this package.
+name: MadarKitchenCore
+rust:
+  directory: ../../../../rust-core
+  manifestPath: crates/madar-kitchen-ffi/Cargo.toml
+android:
+  targets:
+    - arm64-v8a
+    - x86_64

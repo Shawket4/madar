@@ -461,7 +461,7 @@ class _FakeBridge implements MadarBridge {
     }
     if (name == #isRtl) return arabic;
     if (name == #appRoute) {
-      return open ? const AppRoute.order() : const AppRoute.openTill();
+      return open ? AppRoute.order : AppRoute.openTill;
     }
     if (name == #currentSession) {
       return SessionSnapshot(

@@ -6,8 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// First-run device commissioning — the screen shown while `app_route()` is
 /// `AppRoute.deviceSetup` (till not bound to a branch, or reconfiguring): a
 /// manager authenticates with org email + password, then binds the till to a
-/// branch. KDS station binding follows on `StationPickerScreen` and the till
-/// (drawer) binding lives in Settings, exactly like the natives.
+/// branch. The till (drawer) binding lives in Settings, exactly like the
+/// natives; kitchen screens are the Madar Kitchen app's.
 ///
 /// Wide layout: brand panel beside the form at the brand-panel ratio;
 /// stacked (logo above the form) on narrow.

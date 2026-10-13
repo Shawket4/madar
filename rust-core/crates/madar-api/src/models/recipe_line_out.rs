@@ -49,6 +49,9 @@ pub struct RecipeLineOut {
     pub source: Option<Option<String>>,
     #[serde(rename = "unit")]
     pub unit: String,
+    /// The usable amount in the base unit, before yield loss: `quantity` × the ingredient's yield, 3 dp (madar-units `usable_qty`; 100 g at 80 % yield stores 125, shows 100). What an editor shows and sends back; a line sent back unchanged keeps its stored `quantity`.
+    #[serde(rename = "usable_quantity")]
+    pub usable_quantity: String,
 }
 
 impl RecipeLineOut {
@@ -59,6 +62,7 @@ impl RecipeLineOut {
         ingredient_name: String,
         quantity: String,
         unit: String,
+        usable_quantity: String,
     ) -> RecipeLineOut {
         RecipeLineOut {
             id,
@@ -69,6 +73,7 @@ impl RecipeLineOut {
             size_label: None,
             source: None,
             unit,
+            usable_quantity,
         }
     }
 }

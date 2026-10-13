@@ -1,0 +1,102 @@
+{
+  "app": {
+    "name": "Madar Kitchen"
+  },
+  "net": {
+    "online": "Online",
+    "lan": "LAN only",
+    "offline": "Offline",
+    "lanTitle": "No internet — working over the local network",
+    "lanBody": "Orders and bumps still reach this kitchen. They sync to Madar when the internet is back.",
+    "offlineTitle": "Offline — this device can't reach anyone",
+    "offlineBody": "Bumps are saved on this device and sent when it reconnects.",
+    "pending_one": "{{count}} bump waiting to sync",
+    "pending_other": "{{count}} bumps waiting to sync"
+  },
+  "source": {
+    "table": "Table {{table}}",
+    "takeaway": "Takeaway",
+    "online": "Online",
+    "dineIn": "Dine-in"
+  },
+  "board": {
+    "section": "Section",
+    "sections": "Sections",
+    "done": "Done",
+    "addition": "Addition · round {{round}}",
+    "bumpAll": "Bump all",
+    "void": "Void",
+    "recall": "Recall",
+    "recallCount": "Recall · {{count}}",
+    "allDay": "All day",
+    "clearTitle": "All clear",
+    "clearBody": "New orders for this section appear here the moment a waiter fires them."
+  },
+  "recall": {
+    "title": "Recall",
+    "subtitle": "Finished parts of orders still open. Recall one to put it back on the board.",
+    "empty": "Nothing finished on an open order.",
+    "action": "Recall"
+  },
+  "expo": {
+    "title": "Expo",
+    "subtitle": "Pass",
+    "cooking": "In the kitchen",
+    "ready": "Ready to hand off",
+    "cookingEmpty": "No orders cooking right now.",
+    "readyEmpty": "Nothing ready yet",
+    "readyEmptyBody": "An order lands here when every section has bumped its part.",
+    "round": "round {{round}}",
+    "status": {
+      "waiting": "Waiting",
+      "cooking": "Cooking",
+      "done": "Done"
+    },
+    "handOff": "Hand off",
+    "reprint": "Reprint chit"
+  },
+  "setup": {
+    "title": "Set up this kitchen screen",
+    "subtitle": "Enter the code for this screen from the branch plan in the dashboard. You do this once; the screen stays signed in.",
+    "mode": "This screen shows",
+    "modeSections": "A section",
+    "modeSectionsBody": "The orders one section cooks — or several, for a cook covering two.",
+    "modeExpo": "Expo (pass)",
+    "modeExpoBody": "Whole orders, with each section's progress, to hand off to the waiter.",
+    "sections": "Sections",
+    "sectionsHint": "Sections and their categories are set in the dashboard.",
+    "default": "Default",
+    "confirm": "Open the board",
+    "mockNote": "Mock data — nothing here reaches the server. Any 8 digits work.",
+    "sectionsTitle": "What does this screen show?",
+    "sectionsSubtitle": "Sections and their categories are set in the dashboard.",
+    "noSections": "This branch has no kitchen sections yet. Add them in the dashboard under Kitchen.",
+    "code": "Activation code",
+    "codeHint": "8 digits, valid for a day.",
+    "activating": "Activating…",
+    "delete": "Delete"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "language": "Language",
+    "chime": "New order chime",
+    "chimeHint": "Plays on a new order and repeats while one is late. This device only.",
+    "on": "On",
+    "off": "Off",
+    "device": "This device",
+    "syncNow": "Sync now",
+    "changeSections": "Change sections",
+    "resetDevice": "Reset device (new branch)",
+    "screen": "This screen: {{name}}"
+  },
+  "mock": {
+    "title": "Mock tools",
+    "body": "Design preview only. Fake the network and the orders to see every state.",
+    "network": "Network",
+    "sendOrder": "Send a test order",
+    "reset": "Reset mock data"
+  }
+}

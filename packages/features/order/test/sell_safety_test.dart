@@ -114,7 +114,7 @@ class _Fake implements MadarBridge {
     if (name == #tr) return coreWord(a[#key] as String);
     if (name == #humanMessage) return 'refused';
     if (name == #currentSession) return _session;
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #deviceConfig) {
       return const DeviceConfigView(reconfiguring: false, configured: true);
     }

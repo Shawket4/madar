@@ -18,8 +18,9 @@ Method | HTTP request | Description
 [**public_org_brand**](OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 [**public_org_favicon**](OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 [**public_org_links**](OrgsApi.md#public_org_links) | **GET** /public/orgs/links | The shop's links page, in one request.
+[**public_tenant_shell**](OrgsApi.md#public_tenant_shell) | **GET** /public/tenant-shell | A shop page's HTML: the app entry with the shop's head and noscript.
 [**put_links_page**](OrgsApi.md#put_links_page) | **PUT** /orgs/{id}/links-page | Save the links page.
-[**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
+[**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | Super admin only, except a body carrying nothing but `social_links` and/or `logo_url: null`: the org's own people with `org.settings.edit` may save that for their own org.
 [**upload_org_card_image**](OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 [**upload_org_logo**](OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
 
@@ -432,6 +433,37 @@ No authorization required
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## public_tenant_shell
+
+> public_tenant_shell(host, path)
+A shop page's HTML: the app entry with the shop's head and noscript.
+
+Called by nginx for page requests on a shop's own host. Public by nature: it returns what the shop's public pages and the public JSON endpoints already show.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**host** | Option<**String**> | The shop's host, e.g. `rue.madar-pos.cloud`. nginx sends it as the `X-Shell-Host` header; the query parameter is for tests and probes. |  |
+**path** | Option<**String**> | The page's path and query, e.g. `/order/menu?branch=…`. nginx sends it as the `X-Shell-Path` header. |  |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: text/html
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## put_links_page
 
 > models::LinksPageSettings put_links_page(id, links_page_input)
@@ -466,7 +498,7 @@ Name | Type | Description  | Required | Notes
 ## update_org
 
 > models::Org update_org(id, update_org_request)
-
+Super admin only, except a body carrying nothing but `social_links` and/or `logo_url: null`: the org's own people with `org.settings.edit` may save that for their own org.
 
 ### Parameters
 

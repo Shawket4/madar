@@ -758,7 +758,7 @@ pub async fn rename_role(
 pub async fn review_flag(
     configuration: &configuration::Configuration,
     params: ReviewFlagParams,
-) -> Result<models::ReplayFlag, Error<ReviewFlagError>> {
+) -> Result<models::ReviewedOut, Error<ReviewFlagError>> {
     let uri_str = format!(
         "{}/authz/flags/{id}/review",
         configuration.base_path,
@@ -790,8 +790,8 @@ pub async fn review_flag(
         let content = resp.text().await?;
         match content_type {
             ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ReplayFlag`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ReplayFlag`")))),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ReviewedOut`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ReviewedOut`")))),
         }
     } else {
         let content = resp.text().await?;

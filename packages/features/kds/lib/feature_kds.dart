@@ -5,9 +5,10 @@
 /// the core keeps truthful and `kdsRevisionProvider` keeps in step across
 /// screens.
 ///
-/// Two mount points share it: the kitchen device's `KitchenDisplayScreen`
-/// and — behind the routing-mode gate — Queue's Kitchen segment, which
-/// mounts `KdsBoardBody` with a null station.
+/// Mounted by Queue's Kitchen segment, behind the routing-mode gate, with a
+/// null station: the till's own kitchen tab for one-device shops (spec PS-3).
+/// Kitchen screens on their own device are the Madar Kitchen app
+/// (`apps/kitchen`).
 library;
 
 export 'src/kds_board_body.dart' show KdsBoardBody;
@@ -20,4 +21,3 @@ export 'src/kds_provider.dart'
         kdsRevisionProvider;
 export 'src/kds_ticket_card.dart'
     show KdsTicketCard, kdsAgeDangerMinutes, kdsAgeTone, kdsAgeWarnMinutes;
-export 'src/kitchen_display_screen.dart' show KitchenDisplayScreen;

@@ -38,6 +38,10 @@ pub struct GetBranchParams {
 pub struct ListBranchesParams {
     /// Organization whose branches to list. Must match the caller's JWT org.
     pub org_id: String,
+    /// Only this kind. Omitted: selling branches, plus warehouses when `include_warehouses` is set.
+    pub kind: Option<models::BranchKind>,
+    /// Also list warehouses (when `kind` is omitted). Off by default so a client that predates warehouses (POS and KDS device setup, the staff app) never offers one as a branch to sell from.
+    pub include_warehouses: Option<bool>,
 }
 
 /// struct for passing parameters to the method [`patch_branch`]
@@ -286,6 +290,12 @@ pub async fn list_branches(
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     req_builder = req_builder.query(&[("org_id", &params.org_id.to_string())]);
+    if let Some(ref param_value) = params.kind {
+        req_builder = req_builder.query(&[("kind", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.include_warehouses {
+        req_builder = req_builder.query(&[("include_warehouses", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }

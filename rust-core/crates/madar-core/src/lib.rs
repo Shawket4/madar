@@ -226,8 +226,6 @@ pub enum AppRoute {
     OpenTill,
     /// Signed in with an open shift → order screen.
     Order,
-    /// Device run as a kitchen display → the KDS for `station_id` (no shift needed).
-    KitchenDisplay { station_id: String },
     /// A signed-in WAITER (holds no shift) → the open-tickets / take-order screen.
     WaiterTickets,
 }
@@ -2695,14 +2693,11 @@ impl MadarCore {
             Some(s) => s,
             None => return AppRoute::Login,
         };
-        // A kitchen-role device shows the KDS for its configured station (it needs
-        // the session for the bus + kitchen permission, but holds no shift). With
-        // no station bound yet, it must finish device setup first.
+        // The POS is never a kitchen screen: kitchens run Madar Kitchen
+        // (apps/kitchen). A kitchen-role sign-in stays on setup, where the host
+        // says so (KitchenAccountScreen).
         if session.work_kind() == "kitchen" {
-            return match cfg.station_id {
-                Some(station_id) => AppRoute::KitchenDisplay { station_id },
-                None => AppRoute::DeviceSetup,
-            };
+            return AppRoute::DeviceSetup;
         }
         // Waiters take orders and fire tickets but hold NO shift — route them to the
         // waiter screen BEFORE the open-shift gate (which they could never satisfy).
@@ -6407,7 +6402,6 @@ impl MadarCore {
         &self,
         req: session::LoginRequest,
     ) -> Result<session::SessionSnapshot, CoreError> {
-        use madar_api::apis::{auth_api, orgs_api};
 
         let wire = session::wire_login_request(&req)?;
         // Tell the server which open shifts THIS device is already closing (queued
@@ -6444,8 +6438,22 @@ impl MadarCore {
                 return Err(self.sign_in_refusal(e).await);
             }
         };
+        self.finish_login(&body, req.branch_id.clone()).await
+    }
+
+    /// Install a signed-in session from the server's login answer (the body of
+    /// `/auth/login`, or of `/auth/device-session` for a kitchen screen, which
+    /// answers the same shape): the token, the person, their permissions, the
+    /// offline bundle, the authz snapshot, then a drain and the till.
+    /// `branch_id` is the device branch a PIN sign-in carried (None for email).
+    async fn finish_login(
+        &self,
+        body: &str,
+        branch_id: Option<String>,
+    ) -> Result<session::SessionSnapshot, CoreError> {
+        use madar_api::apis::{auth_api, orgs_api};
         let resp: madar_api::models::LoginResponse =
-            serde_json::from_str(&body).map_err(|e| CoreError::Internal {
+            serde_json::from_str(body).map_err(|e| CoreError::Internal {
                 detail: format!("decode: {e}"),
             })?;
 
@@ -6459,8 +6467,6 @@ impl MadarCore {
         self.borrowed_token
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
-        // PIN login carries the device branch; email login has none.
-        let branch_id = req.branch_id.clone();
         let mut snapshot = session::snapshot_from_login(&resp, branch_id);
         // Sign-in is the live server check for the person's open till (decision
         // 4a): keep its answer so opening stays verified if the next call fails.
@@ -6770,13 +6776,76 @@ impl MadarCore {
         })
     }
 
+    /// A kitchen screen's sign-in, with no person (owner, 2026-10-11): the
+    /// device credential [`Self::activate_device`] stored mints the screen's
+    /// own session (`POST /auth/device-session`), installed exactly like a
+    /// login. Online-only; call it after activation and whenever
+    /// [`Self::device_session_due`] says so, and the kitchen never signs in.
+    pub async fn device_sign_in(&self) -> Result<session::SessionSnapshot, CoreError> {
+        let credential = self.device_credential().ok_or_else(|| CoreError::Unauthenticated {
+            detail: "activate this screen with a code first".into(),
+        })?;
+        let branch_id = self.device_config().branch_id.filter(|b| !b.is_empty());
+        let body = match self
+            .api
+            .post_with_header(
+                "/auth/device-session",
+                &serde_json::json!({}),
+                &[("X-Madar-Device-Token", credential.as_str())],
+            )
+            .await
+        {
+            Ok(b) => b,
+            // The server refused the credential itself: the screen was retired
+            // in the dashboard (or its install replaced). Nothing it holds can
+            // sync any more, so it goes back to setup, as a fresh install (DV-7).
+            Err(CoreError::Unauthenticated { .. }) => {
+                self.wipe_device()?;
+                return Err(CoreError::Unauthenticated {
+                    detail: "this screen was removed from the branch; set it up again".into(),
+                });
+            }
+            Err(e) => return Err(e),
+        };
+        self.finish_login(&body, branch_id).await
+    }
+
+    /// Whether this install was activated with a code (holds its own device
+    /// credential). A kitchen screen without one, such as one upgraded from the
+    /// PIN sign-in, must be set up with a code before it shows anything.
+    pub fn has_device_credential(&self) -> bool {
+        self.device_credential().is_some()
+    }
+
+    /// Whether a device-credential screen should mint a fresh session now: it
+    /// holds a credential, and has no token, a token within two hours of
+    /// expiring, or a token the server refused (the outbox is parked).
+    pub fn device_session_due(&self) -> bool {
+        if self.device_credential().is_none() {
+            return false;
+        }
+        if self.auth_paused.load(std::sync::atomic::Ordering::Relaxed) {
+            return true;
+        }
+        let token = self
+            .session
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .and_then(|s| s.token.clone());
+        match token {
+            None => true,
+            Some(t) => token_is_expired(&t, chrono::Utc::now().timestamp() + 2 * 3600),
+        }
+    }
+
     /// List the org's active branches — for the device-setup picker. Requires a
     /// live (manager) session; online-only.
     pub async fn list_branches(&self) -> Result<Vec<session::BranchView>, CoreError> {
         use madar_api::apis::branches_api;
         let (org_id, _) = self.org_branch()?;
         let config = self.api.config();
-        let branches = ledger_ops::within(branches_api::list_branches(&config, branches_api::ListBranchesParams { org_id })).await?;
+        let branches = ledger_ops::within(branches_api::list_branches(&config, branches_api::ListBranchesParams { org_id, include_warehouses: None, kind: None })).await?;
         Ok(branches
             .into_iter()
             .filter(|b| b.is_active)
@@ -12365,9 +12434,9 @@ mod lifecycle_tests {
     }
 
     #[test]
-    fn route_kitchen_role_to_the_kds_for_its_station() {
-        // A kitchen-role device routes to the KDS for its configured station,
-        // needing NO shift — but stays in device-setup until a station is bound.
+    fn a_kitchen_role_never_turns_the_pos_into_a_kitchen_screen() {
+        // Kitchens run Madar Kitchen; a kitchen sign-in on the POS stays on
+        // setup, with or without a station left over from an old build.
         let core = MadarCore::from_env().unwrap();
         core.set_device_branch("b".into(), None).unwrap();
         set_session(
@@ -12377,18 +12446,9 @@ mod lifecycle_tests {
                 Some("b"),
             )),
         );
-        assert_eq!(
-            core.app_route(),
-            AppRoute::DeviceSetup,
-            "kitchen device needs a station"
-        );
+        assert_eq!(core.app_route(), AppRoute::DeviceSetup);
         core.set_device_station(Some("grill".into())).unwrap();
-        assert_eq!(
-            core.app_route(),
-            AppRoute::KitchenDisplay {
-                station_id: "grill".into()
-            }
-        );
+        assert_eq!(core.app_route(), AppRoute::DeviceSetup);
     }
 
     /// End-to-end offline: sign in offline, open a shift (the open_till command

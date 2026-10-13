@@ -1106,8 +1106,9 @@ fn en(key: &str) -> Option<&'static str> {
         "setup.continue" => "Continue",
         "setup.cancel" => "Cancel",
         // kitchen-display commissioning — a KDS device picks which station it shows
-        "setup.choose_station" => "Choose a station",
-        "setup.choose_station_desc" => "Pick which kitchen station this display shows.",
+        // a kitchen account on the POS: the kitchen display is its own app now
+        "kitchen.use_app" => "This is a kitchen account",
+        "kitchen.use_app_desc" => "Kitchen screens run on the Madar Kitchen app. Sign in there with this PIN, or sign out to use a till account here.",
         "setup.no_stations" => "No kitchen stations for this branch yet.",
         "setup.station_default" => "Default",
         // brand panel
@@ -3563,8 +3564,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "setup.password" => "كلمة المرور",
         "setup.continue" => "متابعة",
         "setup.cancel" => "إلغاء",
-        "setup.choose_station" => "اختر محطة",
-        "setup.choose_station_desc" => "اختر محطة المطبخ التي يعرضها هذا الجهاز.",
+        "kitchen.use_app" => "هذا حساب مطبخ",
+        "kitchen.use_app_desc" => "شاشات المطبخ تعمل على تطبيق مطبخ مدار. سجّل الدخول هناك بهذا الرمز، أو سجّل الخروج لاستخدام حساب كاشير هنا.",
         "setup.no_stations" => "لا توجد محطات مطبخ لهذا الفرع بعد.",
         "setup.station_default" => "افتراضي",
         "brand.headline" => "مرحبًا\nبعودتك.",

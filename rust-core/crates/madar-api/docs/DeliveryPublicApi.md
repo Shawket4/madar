@@ -4,22 +4,24 @@ All URIs are relative to *http://localhost:8080*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**create_delivery_order**](DeliveryPublicApi.md#create_delivery_order) | **POST** /public/delivery-orders | 
-[**delivery_quote**](DeliveryPublicApi.md#delivery_quote) | **GET** /public/branches/{id}/delivery-quote | 
-[**guest_order_history**](DeliveryPublicApi.md#guest_order_history) | **GET** /public/delivery-orders/history | 
-[**guest_past_locations**](DeliveryPublicApi.md#guest_past_locations) | **GET** /public/delivery-orders/past-locations | 
-[**otp_request**](DeliveryPublicApi.md#otp_request) | **POST** /public/otp/request | 
-[**otp_verify**](DeliveryPublicApi.md#otp_verify) | **POST** /public/otp/verify | 
-[**public_branches**](DeliveryPublicApi.md#public_branches) | **GET** /public/branches | 
-[**public_menu**](DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | 
-[**track_delivery_order**](DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | 
+[**create_delivery_order**](DeliveryPublicApi.md#create_delivery_order) | **POST** /public/delivery-orders | Place an online order (delivery or pickup) at a branch.
+[**delivery_quote**](DeliveryPublicApi.md#delivery_quote) | **GET** /public/branches/{id}/delivery-quote | The delivery fee and zone for a point, before ordering.
+[**guest_order_history**](DeliveryPublicApi.md#guest_order_history) | **GET** /public/delivery-orders/history | A customer's past orders at a shop, by their verified phone.
+[**guest_past_locations**](DeliveryPublicApi.md#guest_past_locations) | **GET** /public/delivery-orders/past-locations | A customer's saved delivery addresses at a shop, by their verified phone.
+[**otp_request**](DeliveryPublicApi.md#otp_request) | **POST** /public/otp/request | Send a 4-digit code by WhatsApp to verify a phone number.
+[**otp_verify**](DeliveryPublicApi.md#otp_verify) | **POST** /public/otp/verify | Check a WhatsApp code and get a `device_token` that proves the phone.
+[**public_branches**](DeliveryPublicApi.md#public_branches) | **GET** /public/branches | A shop's branches that take online orders, with each channel's hours and settings.
+[**public_menu**](DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | A branch's menu for one ordering channel, with prices in piastres.
+[**track_delivery_order**](DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | An online order's status, timeline and totals, from the id in its tracking link.
 
 
 
 ## create_delivery_order
 
 > models::DeliveryOrder create_delivery_order(delivery_order_input)
+Place an online order (delivery or pickup) at a branch.
 
+Answers 201 with the order; follow it at `/public/delivery-orders/{id}/track`. The server prices the cart in piastres. Where the branch requires a verified phone (the default), send the `device_token` from `/public/otp/verify`.
 
 ### Parameters
 
@@ -47,7 +49,9 @@ No authorization required
 ## delivery_quote
 
 > models::QuoteResponse delivery_quote(lat, lng, channel, id)
+The delivery fee and zone for a point, before ordering.
 
+Needs `lat`, `lng` and `channel`. `status` says whether the branch delivers there; the fee is in piastres.
 
 ### Parameters
 
@@ -78,7 +82,9 @@ No authorization required
 ## guest_order_history
 
 > Vec<models::OrderHistorySummary> guest_order_history(phone, org_id, device_token)
+A customer's past orders at a shop, by their verified phone.
 
+Needs `phone` and the `device_token` from `/public/otp/verify`; a phone number alone unlocks nothing.
 
 ### Parameters
 
@@ -108,7 +114,9 @@ No authorization required
 ## guest_past_locations
 
 > Vec<models::GuestSavedLocation> guest_past_locations(phone, org_id, branch_id, device_token)
+A customer's saved delivery addresses at a shop, by their verified phone.
 
+Needs `phone` and the `device_token` from `/public/otp/verify`.
 
 ### Parameters
 
@@ -139,7 +147,9 @@ No authorization required
 ## otp_request
 
 > models::OtpRequestResponse otp_request(otp_request_input)
+Send a 4-digit code by WhatsApp to verify a phone number.
 
+One live code per phone per minute (409 otherwise). Check it with `/public/otp/verify`.
 
 ### Parameters
 
@@ -167,7 +177,9 @@ No authorization required
 ## otp_verify
 
 > models::OtpVerifyResponse otp_verify(otp_verify_input)
+Check a WhatsApp code and get a `device_token` that proves the phone.
 
+Ordering, booking, the rewards card and order history take this token where a shop asks for a verified phone. A code allows five tries.
 
 ### Parameters
 
@@ -195,7 +207,9 @@ No authorization required
 ## public_branches
 
 > Vec<models::PublicBranch> public_branches(org_id, browse)
+A shop's branches that take online orders, with each channel's hours and settings.
 
+`org_id` names the shop. With `browse=true` every active branch is listed, for a read-only menu.
 
 ### Parameters
 
@@ -224,7 +238,9 @@ No authorization required
 ## public_menu
 
 > models::DeliveryMenu public_menu(channel, id, preview)
+A branch's menu for one ordering channel, with prices in piastres.
 
+`channel` is `in_mall`, `outside`, `umbrella` or `pickup`. `preview=true` shows a channel's menu while it is closed, and `channel=dine_in&preview=true` gives the read-only dine-in menu. Nothing can be ordered from a preview.
 
 ### Parameters
 
@@ -254,7 +270,9 @@ No authorization required
 ## track_delivery_order
 
 > models::DeliveryTracking track_delivery_order(id)
+An online order's status, timeline and totals, from the id in its tracking link.
 
+Amounts are in piastres.
 
 ### Parameters
 

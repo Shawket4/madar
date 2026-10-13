@@ -31,6 +31,9 @@ pub struct DeliveryMenu {
     pub discount: Option<Option<Box<models::DeliveryMenuDiscount>>>,
     #[serde(rename = "items")]
     pub items: Vec<models::DeliveryMenuItem>,
+    /// Every option the menu offers (the add-on catalog and each item's groups), as the pricing rule reads it; see `DeliveryMenuItem.pricing`. Additive.
+    #[serde(rename = "option_pricing")]
+    pub option_pricing: Vec<models::DeliveryOptionPricing>,
 }
 
 impl DeliveryMenu {
@@ -39,6 +42,7 @@ impl DeliveryMenu {
         categories: Vec<models::DeliveryMenuCategory>,
         deals: Vec<models::DealRule>,
         items: Vec<models::DeliveryMenuItem>,
+        option_pricing: Vec<models::DeliveryOptionPricing>,
     ) -> DeliveryMenu {
         DeliveryMenu {
             addons,
@@ -46,6 +50,7 @@ impl DeliveryMenu {
             deals,
             discount: None,
             items,
+            option_pricing,
         }
     }
 }

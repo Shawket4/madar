@@ -40,6 +40,14 @@ pub struct ActivationCode {
         skip_serializing_if = "Option::is_none"
     )]
     pub revoked_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// The branch-plan slot this code fills, when it was made from the branch builder. The device that uses it takes the slot.
+    #[serde(
+        rename = "slot_id",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub slot_id: Option<Option<uuid::Uuid>>,
     #[serde(rename = "state")]
     pub state: models::ActivationCodeState,
     #[serde(
@@ -77,6 +85,7 @@ impl ActivationCode {
             kind,
             label: None,
             revoked_at: None,
+            slot_id: None,
             state,
             used_at: None,
             used_by_device: None,

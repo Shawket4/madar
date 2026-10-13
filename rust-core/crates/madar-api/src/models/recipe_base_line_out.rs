@@ -35,6 +35,9 @@ pub struct RecipeBaseLineOut {
     pub sort: i32,
     #[serde(rename = "unit")]
     pub unit: String,
+    /// The usable amount before yield loss, like `RecipeLineOut::usable_quantity`: what an editor shows and sends back (a line sent back unchanged keeps its stored `quantity`).
+    #[serde(rename = "usable_quantity")]
+    pub usable_quantity: String,
 }
 
 impl RecipeBaseLineOut {
@@ -46,6 +49,7 @@ impl RecipeBaseLineOut {
         quantity: String,
         sort: i32,
         unit: String,
+        usable_quantity: String,
     ) -> RecipeBaseLineOut {
         RecipeBaseLineOut {
             id,
@@ -55,6 +59,7 @@ impl RecipeBaseLineOut {
             size_label: None,
             sort,
             unit,
+            usable_quantity,
         }
     }
 }

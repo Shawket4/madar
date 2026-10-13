@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**display_order** | **i32** | The dashboard's drag-and-drop position (lower first). `categories` already comes in the POS's order (madar-catalog `order`: this, then the English name, then `id`); a page shown in another language re-orders by the name it shows (madar-web `category_order`). | 
 **id** | **uuid::Uuid** |  | 
 **image_url** | Option<**String**> |  | [optional]
 **name** | **String** |  | 

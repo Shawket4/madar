@@ -43,6 +43,14 @@ pub struct UpdateOrgRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub logo_url: Option<Option<String>>,
+    /// Warehouses this org may have. `null` = unlimited; absent = unchanged.
+    #[serde(
+        rename = "max_warehouses",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_warehouses: Option<Option<i32>>,
     /// `pos`, `dawam`: at least one (PS-2, SA-5). Super admin only, like the rest of this endpoint.
     #[serde(
         rename = "modules",
@@ -132,6 +140,7 @@ impl UpdateOrgRequest {
             custom_branding: None,
             is_active: None,
             logo_url: None,
+            max_warehouses: None,
             modules: None,
             name: None,
             receipt_footer: None,

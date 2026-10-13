@@ -20,8 +20,8 @@ enum SetupPhase {
 }
 
 /// The whole auth-flow surface: teller PIN entry (login + re-auth share the
-/// buffer — they can never be on screen together), the manager device-setup
-/// stepper, and the KDS station-picker list.
+/// buffer — they can never be on screen together) and the manager
+/// device-setup stepper.
 class AuthState {
   /// Creates an auth state (defaults = idle credentials phase).
   const AuthState({
@@ -33,9 +33,6 @@ class AuthState {
     this.pinWaitSeconds = 0,
     this.configVersion = 0,
     this.branches = const [],
-    this.stations = const [],
-    this.stationsLoading = true,
-    this.stationsError,
   });
 
   /// Which device-setup step is showing.
@@ -70,17 +67,6 @@ class AuthState {
   /// Branches offered on [SetupPhase.pickBranch].
   final List<BranchView> branches;
 
-  /// Stations offered on the KDS station picker.
-  final List<KdsStationView> stations;
-
-  /// The station list is still loading.
-  final bool stationsLoading;
-
-  /// Why the station list could not be read, or null. Distinct from an
-  /// empty list: "this branch has no stations" and "we could not ask" call
-  /// for different things from the person holding the tablet.
-  final UiText? stationsError;
-
   /// Copy with the given fields replaced ([error] supports null-out).
   AuthState copyWith({
     SetupPhase? phase,
@@ -91,9 +77,6 @@ class AuthState {
     int? pinWaitSeconds,
     int? configVersion,
     List<BranchView>? branches,
-    List<KdsStationView>? stations,
-    bool? stationsLoading,
-    Object? stationsError = _unset,
   }) {
     return AuthState(
       phase: phase ?? this.phase,
@@ -104,11 +87,6 @@ class AuthState {
       pinWaitSeconds: pinWaitSeconds ?? this.pinWaitSeconds,
       configVersion: configVersion ?? this.configVersion,
       branches: branches ?? this.branches,
-      stations: stations ?? this.stations,
-      stationsLoading: stationsLoading ?? this.stationsLoading,
-      stationsError: identical(stationsError, _unset)
-          ? this.stationsError
-          : stationsError as UiText?,
     );
   }
 }
@@ -381,42 +359,6 @@ class AuthNotifier extends Notifier<AuthState> {
     _refreshShell();
   }
 
-  /// Load the branch's stations. A failure is NOT an empty branch: it lands
-  /// in [AuthState.stationsError] so the picker offers a retry instead of
-  /// telling an offline tablet the branch has no stations. Read-only, so no
-  /// shell refresh.
-  Future<void> loadStations() async {
-    state = state.copyWith(stationsLoading: true, stationsError: null);
-    try {
-      final stations = await _bridge.kdsListStations();
-      state = state.copyWith(stations: stations, stationsLoading: false);
-    } on MadarError catch (e) {
-      state = state.copyWith(
-        stationsLoading: false,
-        stationsError: UiText.error(e),
-      );
-    } on Exception catch (_) {
-      state = state.copyWith(
-        stationsLoading: false,
-        stationsError: const UiText.key('err.generic'),
-      );
-    }
-  }
-
-  /// Pin this device to [station] — the route recomputes to the KDS.
-  Future<void> pickStation(KdsStationView station) async {
-    UiText? failure;
-    try {
-      await _bridge.setDeviceStation(stationId: station.id);
-    } on MadarError catch (e) {
-      failure = UiText.error(e);
-    } on Exception catch (_) {
-      failure = const UiText.key('err.generic');
-    }
-    state = state.copyWith(error: failure);
-    _refreshShell();
-  }
-
   /// Tear down the session (natives' `signOut`) — routing falls back to
   /// login. The shell owns the realtime/LAN lifecycles and reacts to the
   /// route change.
@@ -429,7 +371,7 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 }
 
-/// The auth-flow state — teller PIN, device setup, station picker, re-auth.
+/// The auth-flow state — teller PIN, device setup, re-auth.
 final authProvider = NotifierProvider<AuthNotifier, AuthState>(
   AuthNotifier.new,
 );

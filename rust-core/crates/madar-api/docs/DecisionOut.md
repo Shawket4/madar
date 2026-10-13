@@ -11,7 +11,7 @@ Name | Type | Description | Notes
 **created_by** | Option<**uuid::Uuid**> |  | [optional]
 **detail** | **serde_json::Value** |  | 
 **id** | **uuid::Uuid** |  | 
-**impact** | **serde_json::Value** | Measured after-window aggregate; `null` until ≥1 day of after-data. | 
+**impact** | Option<**serde_json::Value**> | Measured after-window aggregate; `null` until ≥1 day of after-data. | [optional]
 **impact_complete** | **bool** | True once the full baseline window has elapsed since the decision. | 
 **item_name** | **String** |  | 
 **menu_item_id** | **uuid::Uuid** |  | 

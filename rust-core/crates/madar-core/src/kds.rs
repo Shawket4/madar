@@ -61,6 +61,56 @@ pub struct KdsTicketView {
     pub items: Vec<KdsLineView>,
 }
 
+/// The short number a person reads for a kitchen ticket, the way the POS
+/// prints it: a till sale's receipt number (`36B-12`, madar-shared's
+/// `display_number_from_ref` over its `<BR>-<YYMMDD>-<DEV>-<RRRR>` ref), and a
+/// waiter's ticket as `T-` and its number of the day (`T-TESTBR-261011-0010` →
+/// `T-10`). `None` when the ticket has no reference yet (fired offline).
+pub fn display_ref(kitchen_ref: Option<&str>, source_type: &str) -> Option<String> {
+    let r = kitchen_ref.map(str::trim).filter(|r| !r.is_empty())?;
+    let seq = |s: &str| s.split('~').next().and_then(|n| n.parse::<i64>().ok());
+    let last = r.rsplit('-').next().unwrap_or(r);
+    if source_type == "open_ticket" || r.starts_with("T-") {
+        return Some(match seq(last) {
+            Some(n) => format!("T-{n}"),
+            None => r.to_string(),
+        });
+    }
+    Some(match seq(last) {
+        Some(n) => madar_ids::order_ref::display_number_from_ref(Some(r), n),
+        None => r.to_string(),
+    })
+}
+
+#[cfg(test)]
+mod display_ref_tests {
+    use super::display_ref;
+
+    #[test]
+    fn a_till_sale_reads_like_its_receipt() {
+        assert_eq!(display_ref(Some("ARK-261011-36B-0012"), "order").as_deref(), Some("36B-12"));
+        // A real device-numbered ref from a POS: the receipt reads "Order #244-6".
+        assert_eq!(display_ref(Some("TEST2-260915-244-0006"), "order").as_deref(), Some("244-6"));
+        // An old server-numbered ref (3-digit sequence): the plain number, as the receipt.
+        assert_eq!(display_ref(Some("MAADIB-260811-C3423C-011"), "order").as_deref(), Some("11"));
+        // Two devices shared a code offline: the suffix stays on the number.
+        assert_eq!(display_ref(Some("ARK-261011-36B-0012~a1b2"), "order").as_deref(), Some("36B-12~a1b2"));
+    }
+
+    #[test]
+    fn a_waiters_ticket_is_t_and_its_number() {
+        assert_eq!(display_ref(Some("T-TESTBR-261011-0010"), "open_ticket").as_deref(), Some("T-10"));
+        assert_eq!(display_ref(Some("T-DOWNTO-261008-0042"), "order").as_deref(), Some("T-42"));
+    }
+
+    #[test]
+    fn no_reference_yet_is_none_and_an_odd_one_is_shown_whole() {
+        assert_eq!(display_ref(None, "order"), None);
+        assert_eq!(display_ref(Some("  "), "open_ticket"), None);
+        assert_eq!(display_ref(Some("ODD"), "order").as_deref(), Some("ODD"));
+    }
+}
+
 /// One kitchen line (NO prices — the kitchen copy is slim by design).
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, Serialize, Deserialize)]

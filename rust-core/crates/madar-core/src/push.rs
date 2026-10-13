@@ -12,11 +12,34 @@ use crate::{CoreError, MadarCore};
 
 /// Which app the token belongs to, in `push_devices.app`.
 pub const APP: &str = "pos";
+/// Madar Kitchen's tokens (the server's `push::kitchen::APP`).
+pub const KITCHEN_APP: &str = "kds";
 
 impl MadarCore {
-    /// Register (or rebind) this device's push token.
+    /// Register (or rebind) this till's push token.
     pub async fn set_push_token(
         &self,
+        token: String,
+        locale: String,
+        platform: String,
+    ) -> Result<(), CoreError> {
+        self.register_push_token(APP, token, locale, platform).await
+    }
+
+    /// Register (or rebind) a kitchen screen's push token: the fallback that
+    /// reaches it when neither the LAN nor the live stream does.
+    pub async fn set_kitchen_push_token(
+        &self,
+        token: String,
+        locale: String,
+        platform: String,
+    ) -> Result<(), CoreError> {
+        self.register_push_token(KITCHEN_APP, token, locale, platform).await
+    }
+
+    async fn register_push_token(
+        &self,
+        app: &str,
         token: String,
         locale: String,
         platform: String,
@@ -34,7 +57,7 @@ impl MadarCore {
                 reqwest::Method::PUT,
                 "/push/token",
                 Some(&json!({
-                    "app": APP, "token": token, "locale": locale, "platform": platform,
+                    "app": app, "token": token, "locale": locale, "platform": platform,
                 })),
             )
             .await

@@ -27,7 +27,7 @@ pricing, floor geometry); the POS writes operational state (orders, occupancy, s
 apps/
   madar/          The POS/teller Flutter app (macOS, iOS, Android)
   dashboard/      A Flutter management app (separate FRB surface)
-  kds-slint/      Kitchen display, Rust + Slint (not Flutter)
+  kitchen/        Madar Kitchen, React Native (Expo) — see docs/specs/kitchen-target-spec.md
 packages/
   app_core/       Providers, bridge wiring, realtime ticks, shared app plumbing
   design_system/  Tokens (colors/dimens/typography/motion), sheets, toasts, icons

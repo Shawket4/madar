@@ -422,7 +422,8 @@ Future<ProviderContainer> _mount(
                 context: context,
                 locale: Locale(fake.rtl ? 'ar' : 'en'),
                 child:
-                    screen ?? const KitchenDisplayScreen(stationId: 'st-grill'),
+                    screen ??
+                    const Scaffold(body: KdsBoardBody(stationId: 'st-grill')),
               ),
             ),
           ),
@@ -470,7 +471,6 @@ void main() {
 
   testWidgets('the board on an iPad', (tester) async {
     await _mount(tester, size: _ipad);
-    expect(find.text('Grill'), findsOneWidget);
     expect(find.text('T5'), findsOneWidget);
     expect(find.text('#1041'), findsOneWidget);
     // Four cards still cooking, one done.
@@ -517,7 +517,6 @@ void main() {
 
   testWidgets('the board in Arabic, mirrored', (tester) async {
     await _mount(tester, size: _ipad, bridge: _FakeBridge(rtl: true));
-    expect(find.text('الشواية'), findsOneWidget);
     expect(
       find.text(
         coreWord(

@@ -14,6 +14,7 @@ Name | Type | Description | Notes
 **id** | **uuid::Uuid** |  | 
 **is_active** | **bool** |  | 
 **logo_url** | Option<**String**> |  | [optional]
+**max_warehouses** | Option<**i32**> | How many warehouses this org may have; `null` = unlimited. Set by a super admin (WAREHOUSE_DESIGN.md). | [optional]
 **modules** | **Vec<String>** | Switched-on modules: `pos`, `dawam` (PS-2). Switching one off hides it and keeps every record. | 
 **name** | **String** |  | 
 **receipt_footer** | Option<**String**> |  | [optional]

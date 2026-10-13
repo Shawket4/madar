@@ -111,7 +111,7 @@ class _Bridge implements MadarBridge {
     if (name == #tr || name == #trChecked) {
       return args[#key] ?? invocation.positionalArguments.first;
     }
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #currentSession) return null;
     if (name == #humanMessage) return 'failed';
     if (name == #loyaltySettings) {

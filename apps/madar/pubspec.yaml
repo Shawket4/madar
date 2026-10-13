@@ -21,7 +21,6 @@ dependencies:
   feature_checkout: ^0.1.0
   feature_history: ^0.1.0
   feature_incoming: ^0.1.0
-  feature_kds: ^0.1.0
   feature_order: ^0.1.0
   feature_settings: ^0.1.0
   feature_till: ^0.1.0

@@ -794,13 +794,13 @@ class _FakeBridge implements MadarBridge {
         holdsDrawer: holdsDrawer,
       );
     }
-    if (name == #appRoute && route == 'login') return const AppRoute.login();
+    if (name == #appRoute && route == 'login') return AppRoute.login;
     if (name == #appRoute && route == 'station') {
-      return const AppRoute.deviceSetup();
+      return AppRoute.deviceSetup;
     }
     if (name == #appRoute) {
-      if (_waiter) return const AppRoute.waiterTickets();
-      return tillOpen ? const AppRoute.order() : const AppRoute.openTill();
+      if (_waiter) return AppRoute.waiterTickets;
+      return tillOpen ? AppRoute.order : AppRoute.openTill;
     }
     if (name == #currentSession) {
       return SessionSnapshot(

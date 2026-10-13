@@ -30,6 +30,9 @@ pub struct MenuItemRecipe {
     pub quantity_used: f64,
     #[serde(rename = "size_label")]
     pub size_label: String,
+    /// The usable amount before yield loss: `quantity_used` × the linked ingredient's yield, 3 dp (madar-units `usable_qty`). What the catalog item dialog shows.
+    #[serde(rename = "usable_quantity")]
+    pub usable_quantity: f64,
 }
 
 impl MenuItemRecipe {
@@ -39,6 +42,7 @@ impl MenuItemRecipe {
         ingredient_unit: String,
         quantity_used: f64,
         size_label: String,
+        usable_quantity: f64,
     ) -> MenuItemRecipe {
         MenuItemRecipe {
             category,
@@ -47,6 +51,7 @@ impl MenuItemRecipe {
             org_ingredient_id: None,
             quantity_used,
             size_label,
+            usable_quantity,
         }
     }
 }

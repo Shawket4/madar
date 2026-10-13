@@ -37,6 +37,7 @@ Class | Method | HTTP request | Description
 *AssetsApi* | [**get_job**](docs/AssetsApi.md#get_job) | **GET** /assets/jobs/{id} | 
 *AssetsApi* | [**top_up**](docs/AssetsApi.md#top_up) | **POST** /sync/assets | 
 *AuthApi* | [**activate**](docs/AuthApi.md#activate) | **POST** /auth/activate-device | 
+*AuthApi* | [**device_session**](docs/AuthApi.md#device_session) | **POST** /auth/device-session | A kitchen screen's sign-in: no person, no account (owner, 2026-10-11). The screen was activated once with a code from the dashboard's branch plan and keeps the credential activation handed it; with it, this mints the screen's session whenever the last one runs out, so the kitchen never signs in again.
 *AuthApi* | [**get_my_permissions**](docs/AuthApi.md#get_my_permissions) | **GET** /auth/permissions | 
 *AuthApi* | [**login**](docs/AuthApi.md#login) | **POST** /auth/login | 
 *AuthApi* | [**me**](docs/AuthApi.md#me) | **GET** /auth/me | 
@@ -69,13 +70,16 @@ Class | Method | HTTP request | Description
 *BookingsApi* | [**put_booking_settings**](docs/BookingsApi.md#put_booking_settings) | **PUT** /bookings/settings | 
 *BookingsApi* | [**seat_booking**](docs/BookingsApi.md#seat_booking) | **POST** /bookings/{id}/seat | 
 *BookingsApi* | [**update_booking**](docs/BookingsApi.md#update_booking) | **PATCH** /bookings/{id} | 
-*BookingsPublicApi* | [**booking_branches**](docs/BookingsPublicApi.md#booking_branches) | **GET** /public/booking-branches | 
-*BookingsPublicApi* | [**booking_info**](docs/BookingsPublicApi.md#booking_info) | **GET** /public/branches/{id}/booking-info | 
-*BookingsPublicApi* | [**booking_slots**](docs/BookingsPublicApi.md#booking_slots) | **GET** /public/branches/{id}/booking-slots | 
-*BookingsPublicApi* | [**cancel_public_booking**](docs/BookingsPublicApi.md#cancel_public_booking) | **POST** /public/bookings/{token}/cancel | 
-*BookingsPublicApi* | [**create_public_booking**](docs/BookingsPublicApi.md#create_public_booking) | **POST** /public/bookings | 
-*BookingsPublicApi* | [**get_public_booking**](docs/BookingsPublicApi.md#get_public_booking) | **GET** /public/bookings/{token} | 
-*BookingsPublicApi* | [**update_public_booking**](docs/BookingsPublicApi.md#update_public_booking) | **PATCH** /public/bookings/{token} | 
+*BookingsPublicApi* | [**booking_branches**](docs/BookingsPublicApi.md#booking_branches) | **GET** /public/booking-branches | A shop's branches that take table bookings online.
+*BookingsPublicApi* | [**booking_info**](docs/BookingsPublicApi.md#booking_info) | **GET** /public/branches/{id}/booking-info | A branch's booking rules: party sizes, slot length, lead time and how far ahead.
+*BookingsPublicApi* | [**booking_slots**](docs/BookingsPublicApi.md#booking_slots) | **GET** /public/branches/{id}/booking-slots | The free booking times at a branch for one date and party size.
+*BookingsPublicApi* | [**cancel_public_booking**](docs/BookingsPublicApi.md#cancel_public_booking) | **POST** /public/bookings/{token}/cancel | Cancel a booking, by its manage token.
+*BookingsPublicApi* | [**create_public_booking**](docs/BookingsPublicApi.md#create_public_booking) | **POST** /public/bookings | Book a table at a branch.
+*BookingsPublicApi* | [**get_public_booking**](docs/BookingsPublicApi.md#get_public_booking) | **GET** /public/bookings/{token} | A booking, by the manage token from its confirmation link.
+*BookingsPublicApi* | [**update_public_booking**](docs/BookingsPublicApi.md#update_public_booking) | **PATCH** /public/bookings/{token} | Change a booking's time, party size or notes, by its manage token.
+*BranchPlanApi* | [**get_plan**](docs/BranchPlanApi.md#get_plan) | **GET** /branch-plan | 
+*BranchPlanApi* | [**list_versions**](docs/BranchPlanApi.md#list_versions) | **GET** /branch-plan/versions | 
+*BranchPlanApi* | [**save_plan**](docs/BranchPlanApi.md#save_plan) | **PUT** /branch-plan | 
 *BranchesApi* | [**create_branch**](docs/BranchesApi.md#create_branch) | **POST** /branches | 
 *BranchesApi* | [**delete_branch**](docs/BranchesApi.md#delete_branch) | **DELETE** /branches/{id} | 
 *BranchesApi* | [**get_branch**](docs/BranchesApi.md#get_branch) | **GET** /branches/{id} | 
@@ -113,15 +117,15 @@ Class | Method | HTTP request | Description
 *DeliveryApi* | [**update_zone**](docs/DeliveryApi.md#update_zone) | **PATCH** /delivery/zones/{id} | 
 *DeliveryApi* | [**upsert_channel_addon_override**](docs/DeliveryApi.md#upsert_channel_addon_override) | **PUT** /delivery/channel-addon-overrides | 
 *DeliveryApi* | [**upsert_channel_override**](docs/DeliveryApi.md#upsert_channel_override) | **PUT** /delivery/channel-overrides | 
-*DeliveryPublicApi* | [**create_delivery_order**](docs/DeliveryPublicApi.md#create_delivery_order) | **POST** /public/delivery-orders | 
-*DeliveryPublicApi* | [**delivery_quote**](docs/DeliveryPublicApi.md#delivery_quote) | **GET** /public/branches/{id}/delivery-quote | 
-*DeliveryPublicApi* | [**guest_order_history**](docs/DeliveryPublicApi.md#guest_order_history) | **GET** /public/delivery-orders/history | 
-*DeliveryPublicApi* | [**guest_past_locations**](docs/DeliveryPublicApi.md#guest_past_locations) | **GET** /public/delivery-orders/past-locations | 
-*DeliveryPublicApi* | [**otp_request**](docs/DeliveryPublicApi.md#otp_request) | **POST** /public/otp/request | 
-*DeliveryPublicApi* | [**otp_verify**](docs/DeliveryPublicApi.md#otp_verify) | **POST** /public/otp/verify | 
-*DeliveryPublicApi* | [**public_branches**](docs/DeliveryPublicApi.md#public_branches) | **GET** /public/branches | 
-*DeliveryPublicApi* | [**public_menu**](docs/DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | 
-*DeliveryPublicApi* | [**track_delivery_order**](docs/DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | 
+*DeliveryPublicApi* | [**create_delivery_order**](docs/DeliveryPublicApi.md#create_delivery_order) | **POST** /public/delivery-orders | Place an online order (delivery or pickup) at a branch.
+*DeliveryPublicApi* | [**delivery_quote**](docs/DeliveryPublicApi.md#delivery_quote) | **GET** /public/branches/{id}/delivery-quote | The delivery fee and zone for a point, before ordering.
+*DeliveryPublicApi* | [**guest_order_history**](docs/DeliveryPublicApi.md#guest_order_history) | **GET** /public/delivery-orders/history | A customer's past orders at a shop, by their verified phone.
+*DeliveryPublicApi* | [**guest_past_locations**](docs/DeliveryPublicApi.md#guest_past_locations) | **GET** /public/delivery-orders/past-locations | A customer's saved delivery addresses at a shop, by their verified phone.
+*DeliveryPublicApi* | [**otp_request**](docs/DeliveryPublicApi.md#otp_request) | **POST** /public/otp/request | Send a 4-digit code by WhatsApp to verify a phone number.
+*DeliveryPublicApi* | [**otp_verify**](docs/DeliveryPublicApi.md#otp_verify) | **POST** /public/otp/verify | Check a WhatsApp code and get a `device_token` that proves the phone.
+*DeliveryPublicApi* | [**public_branches**](docs/DeliveryPublicApi.md#public_branches) | **GET** /public/branches | A shop's branches that take online orders, with each channel's hours and settings.
+*DeliveryPublicApi* | [**public_menu**](docs/DeliveryPublicApi.md#public_menu) | **GET** /public/branches/{id}/menu | A branch's menu for one ordering channel, with prices in piastres.
+*DeliveryPublicApi* | [**track_delivery_order**](docs/DeliveryPublicApi.md#track_delivery_order) | **GET** /public/delivery-orders/{id}/track | An online order's status, timeline and totals, from the id in its tracking link.
 *DevicesApi* | [**create_code**](docs/DevicesApi.md#create_code) | **POST** /devices/activation-codes | 
 *DevicesApi* | [**device_snapshot**](docs/DevicesApi.md#device_snapshot) | **GET** /devices/me/authz-snapshot | 
 *DevicesApi* | [**list_client_versions**](docs/DevicesApi.md#list_client_versions) | **GET** /devices/client-versions | 
@@ -155,22 +159,30 @@ Class | Method | HTTP request | Description
 *IntegrationsApi* | [**list_credentials**](docs/IntegrationsApi.md#list_credentials) | **GET** /integrations/credentials | 
 *IntegrationsApi* | [**revoke_credential**](docs/IntegrationsApi.md#revoke_credential) | **DELETE** /integrations/credentials/{id} | 
 *IntegrationsApi* | [**rotate_credential**](docs/IntegrationsApi.md#rotate_credential) | **POST** /integrations/credentials/{id}/rotate | 
+*InventoryApi* | [**accept_transfer**](docs/InventoryApi.md#accept_transfer) | **POST** /inventory/transfers/{id}/accept | 
+*InventoryApi* | [**cancel_stock_transfer**](docs/InventoryApi.md#cancel_stock_transfer) | **POST** /inventory/transfers/{id}/cancel | 
 *InventoryApi* | [**create_catalog_item**](docs/InventoryApi.md#create_catalog_item) | **POST** /inventory/orgs/{org_id}/catalog | 
 *InventoryApi* | [**create_ingredient_category**](docs/InventoryApi.md#create_ingredient_category) | **POST** /inventory/orgs/{org_id}/categories | 
 *InventoryApi* | [**create_transfer**](docs/InventoryApi.md#create_transfer) | **POST** /inventory/transfers | 
 *InventoryApi* | [**create_waste**](docs/InventoryApi.md#create_waste) | **POST** /inventory/branches/{branch_id}/waste | 
+*InventoryApi* | [**decline_transfer**](docs/InventoryApi.md#decline_transfer) | **POST** /inventory/transfers/{id}/decline | 
 *InventoryApi* | [**delete_catalog_item**](docs/InventoryApi.md#delete_catalog_item) | **DELETE** /inventory/orgs/{org_id}/catalog/{id} | 
 *InventoryApi* | [**delete_ingredient_category**](docs/InventoryApi.md#delete_ingredient_category) | **DELETE** /inventory/orgs/{org_id}/categories/{id} | 
-*InventoryApi* | [**delete_transfer**](docs/InventoryApi.md#delete_transfer) | **DELETE** /inventory/transfers/{id} | 
+*InventoryApi* | [**dispatch_transfer**](docs/InventoryApi.md#dispatch_transfer) | **POST** /inventory/transfers/{id}/dispatch | 
 *InventoryApi* | [**get_inventory_settings**](docs/InventoryApi.md#get_inventory_settings) | **GET** /inventory/orgs/{org_id}/settings | 
+*InventoryApi* | [**get_transfer**](docs/InventoryApi.md#get_transfer) | **GET** /inventory/transfers/{id} | 
 *InventoryApi* | [**list_branch_stock**](docs/InventoryApi.md#list_branch_stock) | **GET** /inventory/branches/{branch_id}/stock | 
 *InventoryApi* | [**list_catalog**](docs/InventoryApi.md#list_catalog) | **GET** /inventory/orgs/{org_id}/catalog | 
 *InventoryApi* | [**list_ingredient_categories**](docs/InventoryApi.md#list_ingredient_categories) | **GET** /inventory/orgs/{org_id}/categories | 
 *InventoryApi* | [**list_movements**](docs/InventoryApi.md#list_movements) | **GET** /inventory/branches/{branch_id}/movements | 
 *InventoryApi* | [**list_transfers**](docs/InventoryApi.md#list_transfers) | **GET** /inventory/branches/{branch_id}/transfers | 
 *InventoryApi* | [**list_waste**](docs/InventoryApi.md#list_waste) | **GET** /inventory/branches/{branch_id}/waste | 
+*InventoryApi* | [**receive_transfer**](docs/InventoryApi.md#receive_transfer) | **POST** /inventory/transfers/{id}/receive | 
 *InventoryApi* | [**record_waste**](docs/InventoryApi.md#record_waste) | **POST** /inventory/waste | POST /inventory/waste — record waste at a branch (ingredient or menu item).
+*InventoryApi* | [**replenishment**](docs/InventoryApi.md#replenishment) | **GET** /inventory/warehouses/{warehouse_id}/replenishment | 
 *InventoryApi* | [**set_par_levels**](docs/InventoryApi.md#set_par_levels) | **PUT** /inventory/branches/{branch_id}/stock/{org_ingredient_id}/par | 
+*InventoryApi* | [**transfer_differences**](docs/InventoryApi.md#transfer_differences) | **GET** /inventory/orgs/{org_id}/transfer-differences | 
+*InventoryApi* | [**transfer_locations**](docs/InventoryApi.md#transfer_locations) | **GET** /inventory/orgs/{org_id}/transfer-locations | Every live location of the org, for the other side of a transfer. Someone who works at one shop still sends to, and requests from, the rest; `GET /branches` lists only where the caller works.
 *InventoryApi* | [**update_catalog_item**](docs/InventoryApi.md#update_catalog_item) | **PATCH** /inventory/orgs/{org_id}/catalog/{id} | 
 *InventoryApi* | [**update_ingredient_category**](docs/InventoryApi.md#update_ingredient_category) | **PATCH** /inventory/orgs/{org_id}/categories/{id} | 
 *InventoryApi* | [**update_inventory_settings**](docs/InventoryApi.md#update_inventory_settings) | **PUT** /inventory/orgs/{org_id}/settings | 
@@ -211,12 +223,12 @@ Class | Method | HTTP request | Description
 *LoyaltyApi* | [**put_loyalty_settings**](docs/LoyaltyApi.md#put_loyalty_settings) | **PUT** /loyalty/settings | 
 *LoyaltyApi* | [**refresh_loyalty_google_pass**](docs/LoyaltyApi.md#refresh_loyalty_google_pass) | **POST** /loyalty/members/{id}/google-refresh | Provision this member's Google card and report every word of it. **Super admin only.**
 *LoyaltyPublicApi* | [**loyalty_apple_pass**](docs/LoyaltyPublicApi.md#loyalty_apple_pass) | **GET** /public/loyalty/pass/{token}/apple.pkpass | Download the signed `.pkpass`.
-*LoyaltyPublicApi* | [**loyalty_card**](docs/LoyaltyPublicApi.md#loyalty_card) | **GET** /public/loyalty/card/{token} | 
+*LoyaltyPublicApi* | [**loyalty_card**](docs/LoyaltyPublicApi.md#loyalty_card) | **GET** /public/loyalty/card/{token} | A rewards card: the member's balance, progress to the next reward, rewards and wallet links.
 *LoyaltyPublicApi* | [**loyalty_card_orders**](docs/LoyaltyPublicApi.md#loyalty_card_orders) | **GET** /public/loyalty/card/{token}/orders | The member's own purchase history.
 *LoyaltyPublicApi* | [**loyalty_card_qr**](docs/LoyaltyPublicApi.md#loyalty_card_qr) | **GET** /public/loyalty/card/{token}/qr.png | The member's QR as a PNG.
-*LoyaltyPublicApi* | [**loyalty_join**](docs/LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | 
-*LoyaltyPublicApi* | [**loyalty_join_info**](docs/LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | 
-*LoyaltyPublicApi* | [**set_loyalty_card_preferences**](docs/LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | 
+*LoyaltyPublicApi* | [**loyalty_join**](docs/LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | Join a shop's rewards programme.
+*LoyaltyPublicApi* | [**loyalty_join_info**](docs/LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | What a rewards programme's join page shows: its brand, rewards and what joining asks for.
+*LoyaltyPublicApi* | [**set_loyalty_card_preferences**](docs/LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | Save a card holder's choices: no marketing messages, and the language to write in.
 *MenuApi* | [**apply_rules**](docs/MenuApi.md#apply_rules) | **POST** /packaging-rules/apply | 
 *MenuApi* | [**catalog_sync**](docs/MenuApi.md#catalog_sync) | **GET** /catalog/sync | 
 *MenuApi* | [**combo_economics**](docs/MenuApi.md#combo_economics) | **POST** /combos/economics | 
@@ -258,7 +270,7 @@ Class | Method | HTTP request | Description
 *MenuApi* | [**get_menu_item**](docs/MenuApi.md#get_menu_item) | **GET** /menu-items/{id} | 
 *MenuApi* | [**get_menu_lint**](docs/MenuApi.md#get_menu_lint) | **GET** /menu/lint | 
 *MenuApi* | [**get_recipe_link**](docs/MenuApi.md#get_recipe_link) | **GET** /menu-items/{id}/recipe-link | 
-*MenuApi* | [**get_settings**](docs/MenuApi.md#get_settings) | **GET** /settings/combos | 
+*MenuApi* | [**get_settings**](docs/MenuApi.md#get_settings) | **GET** /settings/combos | Needs `org.settings.read` or `menu.combos.edit`.
 *MenuApi* | [**get_studio**](docs/MenuApi.md#get_studio) | **GET** /menu-items/{id}/studio | 
 *MenuApi* | [**list_addon_catalog**](docs/MenuApi.md#list_addon_catalog) | **GET** /addon-items/catalog | 
 *MenuApi* | [**list_addon_items**](docs/MenuApi.md#list_addon_items) | **GET** /addon-items | 
@@ -312,7 +324,7 @@ Class | Method | HTTP request | Description
 *OpenTicketsApi* | [**get_open_ticket**](docs/OpenTicketsApi.md#get_open_ticket) | **GET** /open-tickets/{id} | 
 *OpenTicketsApi* | [**list_open_tickets**](docs/OpenTicketsApi.md#list_open_tickets) | **GET** /open-tickets | 
 *OpenTicketsApi* | [**move_ticket_table**](docs/OpenTicketsApi.md#move_ticket_table) | **PATCH** /open-tickets/{id}/table | Switch an open ticket to a different table (the \"move table\" button). Works for any live ticket — walk-in dine-in or one auto-opened from a booking. The old table is flagged `dirty` (bus it), the new one `seated`; if the ticket came from a booking, the booking's assignment is kept in sync.
-*OpenTicketsApi* | [**public_table**](docs/OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | 
+*OpenTicketsApi* | [**public_table**](docs/OpenTicketsApi.md#public_table) | **GET** /public/tables/{id} | The table behind a QR code: its label, its branch, and whether the branch is taking orders now.
 *OpenTicketsApi* | [**public_table_cart_quote**](docs/OpenTicketsApi.md#public_table_cart_quote) | **POST** /public/tables/{id}/cart-quote | Price a QR table cart, deals applied.
 *OpenTicketsApi* | [**public_table_menu**](docs/OpenTicketsApi.md#public_table_menu) | **GET** /public/tables/{id}/menu | The menu at this table.
 *OpenTicketsApi* | [**public_table_order**](docs/OpenTicketsApi.md#public_table_order) | **POST** /public/table-orders | Send this table's order to the kitchen.
@@ -320,9 +332,9 @@ Class | Method | HTTP request | Description
 *OpenTicketsApi* | [**settle_open_ticket**](docs/OpenTicketsApi.md#settle_open_ticket) | **POST** /open-tickets/{id}/settle | 
 *OpenTicketsApi* | [**void_open_ticket**](docs/OpenTicketsApi.md#void_open_ticket) | **POST** /open-tickets/{id}/void | 
 *OpenTicketsApi* | [**void_ticket_line**](docs/OpenTicketsApi.md#void_ticket_line) | **POST** /open-tickets/{id}/items/{item_id}/void | 
-*OrderNowApi* | [**order_now_combine**](docs/OrderNowApi.md#order_now_combine) | **POST** /public/order-now/{token}/combine | 
-*OrderNowApi* | [**order_now_context**](docs/OrderNowApi.md#order_now_context) | **GET** /public/order-now/{token} | 
-*OrderNowApi* | [**order_now_replace_identity**](docs/OrderNowApi.md#order_now_replace_identity) | **POST** /public/order-now/{token}/replace-identity | 
+*OrderNowApi* | [**order_now_combine**](docs/OrderNowApi.md#order_now_combine) | **POST** /public/order-now/{token}/combine | Merge the profile that already holds the new phone into this card's profile.
+*OrderNowApi* | [**order_now_context**](docs/OrderNowApi.md#order_now_context) | **GET** /public/order-now/{token} | \"Order now\" from a wallet card: the member's last branch and channel, to prefill an order.
+*OrderNowApi* | [**order_now_replace_identity**](docs/OrderNowApi.md#order_now_replace_identity) | **POST** /public/order-now/{token}/replace-identity | Change the phone number on a card's customer profile.
 *OrdersApi* | [**create_order**](docs/OrdersApi.md#create_order) | **POST** /orders | 
 *OrdersApi* | [**export_orders**](docs/OrdersApi.md#export_orders) | **GET** /orders/export | 
 *OrdersApi* | [**get_order**](docs/OrdersApi.md#get_order) | **GET** /orders/{order_id} | 
@@ -343,8 +355,9 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**public_org_brand**](docs/OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 *OrgsApi* | [**public_org_favicon**](docs/OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 *OrgsApi* | [**public_org_links**](docs/OrgsApi.md#public_org_links) | **GET** /public/orgs/links | The shop's links page, in one request.
+*OrgsApi* | [**public_tenant_shell**](docs/OrgsApi.md#public_tenant_shell) | **GET** /public/tenant-shell | A shop page's HTML: the app entry with the shop's head and noscript.
 *OrgsApi* | [**put_links_page**](docs/OrgsApi.md#put_links_page) | **PUT** /orgs/{id}/links-page | Save the links page.
-*OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | 
+*OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | Super admin only, except a body carrying nothing but `social_links` and/or `logo_url: null`: the org's own people with `org.settings.edit` may save that for their own org.
 *OrgsApi* | [**upload_org_card_image**](docs/OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 *OrgsApi* | [**upload_org_logo**](docs/OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
 *PaymentMethodsApi* | [**activate_payment_method**](docs/PaymentMethodsApi.md#activate_payment_method) | **POST** /payment-methods/{id}/activate | 
@@ -363,6 +376,10 @@ Class | Method | HTTP request | Description
 *PermissionsApi* | [**get_user_permissions**](docs/PermissionsApi.md#get_user_permissions) | **GET** /permissions/user/{user_id} | 
 *PermissionsApi* | [**upsert_role_permission**](docs/PermissionsApi.md#upsert_role_permission) | **PUT** /permissions/roles | 
 *PermissionsApi* | [**upsert_user_permission**](docs/PermissionsApi.md#upsert_user_permission) | **PUT** /permissions/user/{user_id} | 
+*PublicApi* | [**api_root**](docs/PublicApi.md#api_root) | **GET** / | What this host is, for a person or an agent that opens it.
+*PublicApi* | [**mcp**](docs/PublicApi.md#mcp) | **POST** /mcp | One JSON-RPC message in, one answer out (a notification gets 202 and no body).
+*PublicApi* | [**mcp_server_card**](docs/PublicApi.md#mcp_server_card) | **GET** /.well-known/mcp/server-card.json | The MCP server card: how to reach this server and what it offers, built from the same tool list `tools/list` answers with, so the two cannot disagree. The marketing site's /.well-known/mcp/server-card.json redirects here.
+*PublicApi* | [**public_openapi**](docs/PublicApi.md#public_openapi) | **GET** /openapi.json | The public part of this API as OpenAPI 3.1.
 *PurchasingApi* | [**cancel_purchase_order**](docs/PurchasingApi.md#cancel_purchase_order) | **POST** /purchasing/orders/{id}/cancel | 
 *PurchasingApi* | [**create_purchase_order**](docs/PurchasingApi.md#create_purchase_order) | **POST** /purchasing/branches/{branch_id}/orders | 
 *PurchasingApi* | [**create_return**](docs/PurchasingApi.md#create_return) | **POST** /purchasing/branches/{branch_id}/returns | Return stock to a supplier: decrements branch stock and posts a 'purchase_return' movement per line, recorded as a goods receipt with is_return = true. Returns remove stock at its current cost (WAC unchanged).
@@ -652,6 +669,7 @@ Class | Method | HTTP request | Description
 
 ## Documentation For Models
 
+ - [AcceptTransferRequest](docs/AcceptTransferRequest.md)
  - [AcceptingInput](docs/AcceptingInput.md)
  - [ActivateDeviceRequest](docs/ActivateDeviceRequest.md)
  - [ActivateDeviceResponse](docs/ActivateDeviceResponse.md)
@@ -715,9 +733,12 @@ Class | Method | HTTP request | Description
  - [BranchComparison](docs/BranchComparison.md)
  - [BranchDeliverySettings](docs/BranchDeliverySettings.md)
  - [BranchFairness](docs/BranchFairness.md)
+ - [BranchKind](docs/BranchKind.md)
  - [BranchMenuOverride](docs/BranchMenuOverride.md)
  - [BranchMenuOverrideInput](docs/BranchMenuOverrideInput.md)
  - [BranchPerson](docs/BranchPerson.md)
+ - [BranchPlan](docs/BranchPlan.md)
+ - [BranchPlanView](docs/BranchPlanView.md)
  - [BranchRules](docs/BranchRules.md)
  - [BranchSalesReport](docs/BranchSalesReport.md)
  - [BranchSettingsInput](docs/BranchSettingsInput.md)
@@ -777,6 +798,7 @@ Class | Method | HTTP request | Description
  - [CloseTillPreview](docs/CloseTillPreview.md)
  - [CloseTillRequest](docs/CloseTillRequest.md)
  - [CloseTillResponse](docs/CloseTillResponse.md)
+ - [CloseTransferRequest](docs/CloseTransferRequest.md)
  - [Column](docs/Column.md)
  - [ColumnKind](docs/ColumnKind.md)
  - [CombinedItemSalesRow](docs/CombinedItemSalesRow.md)
@@ -887,6 +909,7 @@ Class | Method | HTTP request | Description
  - [DeliveryMenuSize](docs/DeliveryMenuSize.md)
  - [DeliveryModifierGroup](docs/DeliveryModifierGroup.md)
  - [DeliveryModifierOption](docs/DeliveryModifierOption.md)
+ - [DeliveryOptionPricing](docs/DeliveryOptionPricing.md)
  - [DeliveryOptionalField](docs/DeliveryOptionalField.md)
  - [DeliveryOrder](docs/DeliveryOrder.md)
  - [DeliveryOrderInput](docs/DeliveryOrderInput.md)
@@ -1112,6 +1135,12 @@ Class | Method | HTTP request | Description
  - [PinSuggestion](docs/PinSuggestion.md)
  - [PingRequest](docs/PingRequest.md)
  - [PingResult](docs/PingResult.md)
+ - [PlanCategory](docs/PlanCategory.md)
+ - [PlanDevice](docs/PlanDevice.md)
+ - [PlanPrinter](docs/PlanPrinter.md)
+ - [PlanRegisteredDevice](docs/PlanRegisteredDevice.md)
+ - [PlanSection](docs/PlanSection.md)
+ - [PlanVersionView](docs/PlanVersionView.md)
  - [PoLeadTimeReport](docs/PoLeadTimeReport.md)
  - [PoLeadTimeRow](docs/PoLeadTimeRow.md)
  - [PoLineInput](docs/PoLineInput.md)
@@ -1206,6 +1235,8 @@ Class | Method | HTTP request | Description
  - [ReassignExpenseAdvance](docs/ReassignExpenseAdvance.md)
  - [ReceiveLineInput](docs/ReceiveLineInput.md)
  - [ReceivePurchaseOrderRequest](docs/ReceivePurchaseOrderRequest.md)
+ - [ReceiveTransferLine](docs/ReceiveTransferLine.md)
+ - [ReceiveTransferRequest](docs/ReceiveTransferRequest.md)
  - [RecipeBaseLineInput](docs/RecipeBaseLineInput.md)
  - [RecipeBaseLineOut](docs/RecipeBaseLineOut.md)
  - [RecipeBaseOut](docs/RecipeBaseOut.md)
@@ -1243,6 +1274,7 @@ Class | Method | HTTP request | Description
  - [ReplaceIdentityResponse](docs/ReplaceIdentityResponse.md)
  - [ReplayApproval](docs/ReplayApproval.md)
  - [ReplayFlag](docs/ReplayFlag.md)
+ - [ReplenishmentRow](docs/ReplenishmentRow.md)
  - [RepricingReport](docs/RepricingReport.md)
  - [RepricingSuggestion](docs/RepricingSuggestion.md)
  - [RequestDecision](docs/RequestDecision.md)
@@ -1254,6 +1286,7 @@ Class | Method | HTTP request | Description
  - [ResultBlock](docs/ResultBlock.md)
  - [ReturnLineInput](docs/ReturnLineInput.md)
  - [ReviewAdvance](docs/ReviewAdvance.md)
+ - [ReviewedOut](docs/ReviewedOut.md)
  - [RewardCatalogue](docs/RewardCatalogue.md)
  - [RewardItem](docs/RewardItem.md)
  - [RewardItemInput](docs/RewardItemInput.md)
@@ -1267,12 +1300,14 @@ Class | Method | HTTP request | Description
  - [SalaryAdvanceRow](docs/SalaryAdvanceRow.md)
  - [SaleWindow](docs/SaleWindow.md)
  - [SaveLayoutRequest](docs/SaveLayoutRequest.md)
+ - [SavePlanRequest](docs/SavePlanRequest.md)
  - [ScanResult](docs/ScanResult.md)
  - [ScheduleAssignment](docs/ScheduleAssignment.md)
  - [ScheduleOverride](docs/ScheduleOverride.md)
  - [ScheduledDay](docs/ScheduledDay.md)
  - [ScopeInfo](docs/ScopeInfo.md)
  - [SeatBookingRequest](docs/SeatBookingRequest.md)
+ - [SectionCount](docs/SectionCount.md)
  - [SetAssignmentsRequest](docs/SetAssignmentsRequest.md)
  - [SetGrantRequest](docs/SetGrantRequest.md)
  - [SetOverrideRequest](docs/SetOverrideRequest.md)
@@ -1319,6 +1354,7 @@ Class | Method | HTTP request | Description
  - [StockMovement](docs/StockMovement.md)
  - [StockRow](docs/StockRow.md)
  - [StockTransfer](docs/StockTransfer.md)
+ - [StockTransferLine](docs/StockTransferLine.md)
  - [Stocktake](docs/Stocktake.md)
  - [StocktakeFull](docs/StocktakeFull.md)
  - [StocktakeItem](docs/StocktakeItem.md)
@@ -1363,6 +1399,11 @@ Class | Method | HTTP request | Description
  - [TopPer](docs/TopPer.md)
  - [TopReward](docs/TopReward.md)
  - [TopUpRequest](docs/TopUpRequest.md)
+ - [TransferDifferenceRow](docs/TransferDifferenceRow.md)
+ - [TransferLineInput](docs/TransferLineInput.md)
+ - [TransferLocation](docs/TransferLocation.md)
+ - [TransferStamp](docs/TransferStamp.md)
+ - [TransferStatus](docs/TransferStatus.md)
  - [TransferView](docs/TransferView.md)
  - [TransfersSyncResponse](docs/TransfersSyncResponse.md)
  - [Transform](docs/Transform.md)

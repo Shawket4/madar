@@ -13,20 +13,32 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StockTransfer {
+    #[serde(
+        rename = "cancelled",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cancelled: Option<Option<Box<models::TransferStamp>>>,
+    #[serde(rename = "created")]
+    pub created: Box<models::TransferStamp>,
     #[serde(rename = "destination_branch_id")]
     pub destination_branch_id: uuid::Uuid,
     #[serde(rename = "destination_branch_name")]
     pub destination_branch_name: String,
+    #[serde(rename = "destination_kind")]
+    pub destination_kind: models::BranchKind,
+    #[serde(
+        rename = "dispatched",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub dispatched: Option<Option<Box<models::TransferStamp>>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
-    #[serde(rename = "ingredient_name")]
-    pub ingredient_name: String,
-    #[serde(rename = "initiated_at")]
-    pub initiated_at: chrono::DateTime<chrono::FixedOffset>,
-    #[serde(rename = "initiated_by")]
-    pub initiated_by: uuid::Uuid,
-    #[serde(rename = "initiated_by_name")]
-    pub initiated_by_name: String,
+    #[serde(rename = "lines")]
+    pub lines: Vec<models::StockTransferLine>,
     #[serde(
         rename = "note",
         default,
@@ -36,49 +48,66 @@ pub struct StockTransfer {
     pub note: Option<Option<String>>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
-    #[serde(rename = "org_ingredient_id")]
-    pub org_ingredient_id: uuid::Uuid,
-    #[serde(rename = "quantity")]
-    pub quantity: f64,
+    #[serde(
+        rename = "received",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub received: Option<Option<Box<models::TransferStamp>>>,
+    /// `TR-1043`, per org.
+    #[serde(rename = "reference")]
+    pub reference: String,
+    #[serde(
+        rename = "requested",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub requested: Option<Option<Box<models::TransferStamp>>>,
     #[serde(rename = "source_branch_id")]
     pub source_branch_id: uuid::Uuid,
     #[serde(rename = "source_branch_name")]
     pub source_branch_name: String,
-    #[serde(rename = "unit")]
-    pub unit: String,
+    #[serde(rename = "source_kind")]
+    pub source_kind: models::BranchKind,
+    #[serde(rename = "status")]
+    pub status: models::TransferStatus,
 }
 
 impl StockTransfer {
     pub fn new(
+        created: models::TransferStamp,
         destination_branch_id: uuid::Uuid,
         destination_branch_name: String,
+        destination_kind: models::BranchKind,
         id: uuid::Uuid,
-        ingredient_name: String,
-        initiated_at: chrono::DateTime<chrono::FixedOffset>,
-        initiated_by: uuid::Uuid,
-        initiated_by_name: String,
+        lines: Vec<models::StockTransferLine>,
         org_id: uuid::Uuid,
-        org_ingredient_id: uuid::Uuid,
-        quantity: f64,
+        reference: String,
         source_branch_id: uuid::Uuid,
         source_branch_name: String,
-        unit: String,
+        source_kind: models::BranchKind,
+        status: models::TransferStatus,
     ) -> StockTransfer {
         StockTransfer {
+            cancelled: None,
+            created: Box::new(created),
             destination_branch_id,
             destination_branch_name,
+            destination_kind,
+            dispatched: None,
             id,
-            ingredient_name,
-            initiated_at,
-            initiated_by,
-            initiated_by_name,
+            lines,
             note: None,
             org_id,
-            org_ingredient_id,
-            quantity,
+            received: None,
+            reference,
+            requested: None,
             source_branch_id,
             source_branch_name,
-            unit,
+            source_kind,
+            status,
         }
     }
 }

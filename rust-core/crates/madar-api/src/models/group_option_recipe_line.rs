@@ -30,6 +30,9 @@ pub struct GroupOptionRecipeLine {
     pub size_label: Option<Option<String>>,
     #[serde(rename = "unit")]
     pub unit: String,
+    /// The usable amount before yield loss: `quantity` × the ingredient's yield, 3 dp (madar-units `usable_qty`). What the editor shows and sends back; a line sent back unchanged keeps its stored `quantity`.
+    #[serde(rename = "usable_quantity")]
+    pub usable_quantity: f64,
 }
 
 impl GroupOptionRecipeLine {
@@ -39,6 +42,7 @@ impl GroupOptionRecipeLine {
         ingredient_name: String,
         quantity: f64,
         unit: String,
+        usable_quantity: f64,
     ) -> GroupOptionRecipeLine {
         GroupOptionRecipeLine {
             ingredient_id,
@@ -46,6 +50,7 @@ impl GroupOptionRecipeLine {
             quantity,
             size_label: None,
             unit,
+            usable_quantity,
         }
     }
 }

@@ -179,7 +179,7 @@ class _Fake implements MadarBridge {
     if (n == #listItemAddons) return Future<List<ItemAddonView>>.value([]);
     if (n == #formatTime) return '19:00';
     if (n == #clockSkewMinutes) return 0;
-    if (n == #appRoute) return const AppRoute.order();
+    if (n == #appRoute) return AppRoute.order;
     if (n == #isRealtimeSubscribed) return false;
     if (n.toString().contains('"refresh') || n.toString().contains('"cart')) {
       return Future<void>.value();

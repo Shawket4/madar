@@ -44,12 +44,6 @@ Future<void> showScanCameraSheet(BuildContext context) => showMadarSheet<void>(
   builder: (_) => const _ScanCameraSheet(),
 );
 
-Future<void> showStationSheet(BuildContext context) => showMadarSheet<void>(
-  context,
-  size: SheetSize.hug,
-  builder: (_) => const _StationSheet(),
-);
-
 Future<void> showDeviceSheet(BuildContext context) => showMadarSheet<void>(
   context,
   size: SheetSize.large,
@@ -358,43 +352,6 @@ class _BluetoothPicker extends ConsumerWidget {
 }
 
 // ── Station ──────────────────────────────────────────────────────────────
-
-/// Which kitchen station this display shows (kitchen devices only). The
-/// station rides the route, so binding refreshes the shell.
-class _StationSheet extends ConsumerWidget {
-  const _StationSheet();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bridge = ref.bridge;
-    final notifier = ref.read(settingsProvider.notifier);
-    final stations = ref.watch(settingsProvider.select((s) => s.stations));
-    final stationId = ref.watch(
-      settingsProvider.select((s) => s.config.stationId),
-    );
-    return _SheetFrame(
-      title: bridge.tr(key: 'setup.choose_station'),
-      children: [
-        MadarCard(
-          flush: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final (index, station) in stations.indexed) ...[
-                if (index > 0) const MadarHairline.row(),
-                MadarListRow.pick(
-                  title: station.name,
-                  selected: stationId == station.id,
-                  onTap: () => unawaited(notifier.bindStation(station.id)),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 /// The camera the loyalty scanner (points and rewards) opens on. Saved on
 /// this device like the printer; the scanner's own flip is for one scan.

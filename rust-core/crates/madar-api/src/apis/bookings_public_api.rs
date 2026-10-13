@@ -154,6 +154,7 @@ pub enum UpdatePublicBookingError {
     UnknownValue(serde_json::Value),
 }
 
+/// `org_id` names the shop. Only active branches with booking switched on are listed.
 pub async fn booking_branches(
     configuration: &configuration::Configuration,
     params: BookingBranchesParams,
@@ -195,6 +196,7 @@ pub async fn booking_branches(
     }
 }
 
+/// `require_otp` says whether a booking needs a phone verified through `/public/otp/verify`.
 pub async fn booking_info(
     configuration: &configuration::Configuration,
     params: BookingInfoParams,
@@ -239,6 +241,7 @@ pub async fn booking_info(
     }
 }
 
+/// Refused when the branch takes no online bookings, or the date or party size is outside its rules.
 pub async fn booking_slots(
     configuration: &configuration::Configuration,
     params: BookingSlotsParams,
@@ -285,6 +288,7 @@ pub async fn booking_slots(
     }
 }
 
+/// Cancelling a booking that is already cancelled returns it unchanged. A party already seated is the venue's to cancel.
 pub async fn cancel_public_booking(
     configuration: &configuration::Configuration,
     params: CancelPublicBookingParams,
@@ -331,6 +335,7 @@ pub async fn cancel_public_booking(
     }
 }
 
+/// Answers 201 with the booking. The time must be a free slot after the branch's lead time. Where the branch's `require_otp` is on, send the `device_token` from `/public/otp/verify`.
 pub async fn create_public_booking(
     configuration: &configuration::Configuration,
     params: CreatePublicBookingParams,
@@ -418,6 +423,7 @@ pub async fn get_public_booking(
     }
 }
 
+/// Only a confirmed booking, and only until the branch's lead time before it starts; after that, 409.
 pub async fn update_public_booking(
     configuration: &configuration::Configuration,
     params: UpdatePublicBookingParams,

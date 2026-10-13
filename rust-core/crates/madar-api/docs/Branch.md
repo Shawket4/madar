@@ -10,6 +10,7 @@ Name | Type | Description | Notes
 **geo_radius_meters** | Option<**i32**> | Radius in meters within which this branch is considered a match. Defaults to 200. | [optional]
 **id** | **uuid::Uuid** |  | 
 **is_active** | **bool** |  | 
+**kind** | [**models::BranchKind**](BranchKind.md) | `branch` sells; `warehouse` only holds stock (WAREHOUSE_DESIGN.md). | 
 **latitude** | Option<**f64**> | WGS-84 latitude for geofenced branch resolution. | [optional]
 **longitude** | Option<**f64**> | WGS-84 longitude for geofenced branch resolution. | [optional]
 **name** | **String** |  | 

@@ -12,6 +12,7 @@ Name | Type | Description | Notes
 **kind** | [**models::DeviceKind**](DeviceKind.md) |  | 
 **label** | Option<**String**> |  | [optional]
 **revoked_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
+**slot_id** | Option<**uuid::Uuid**> | The branch-plan slot this code fills, when it was made from the branch builder. The device that uses it takes the slot. | [optional]
 **state** | [**models::ActivationCodeState**](ActivationCodeState.md) |  | 
 **used_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **used_by_device** | Option<**uuid::Uuid**> |  | [optional]

@@ -53,7 +53,7 @@ class _FakeBridge implements MadarBridge {
       return invocation.namedArguments[#rfc3339] as String? ?? '';
     }
     if (name == #currentSession) return null;
-    if (name == #appRoute) return const AppRoute.order();
+    if (name == #appRoute) return AppRoute.order;
     if (name == #tableHistory) {
       if (error != null) return Future<TableHistoryView>.error(error!);
       return Future<TableHistoryView>.value(history);
