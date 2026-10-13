@@ -40,7 +40,7 @@
     "android": "expo run:android",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/",
+    "test": "node --experimental-strip-types --no-warnings --test 'src/**/*.test.ts'",
     "core:ios": "cd modules/madar-kitchen-core && ../../node_modules/.bin/ubrn build ios --config ubrn.config.yaml --and-generate",
     "core:android": "cd modules/madar-kitchen-core && ../../node_modules/.bin/ubrn build android --config ubrn.config.yaml --and-generate",
     "start:mock": "EXPO_PUBLIC_MOCK=1 expo start"

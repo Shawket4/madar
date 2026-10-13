@@ -150,8 +150,8 @@ jobs:
   rust:
     # Every Rust test in the repo: all five rust-core crates (unit,
     # integration and doc tests; madar-frb-dashboard and madar-frb-staff
-    # have their own) and the KDS (apps/kds-slint, its own workspace). The
-    # old-client harness (tool/old_client_api_check) is the next job.
+    # have their own), madar_kitchen_ffi included. The old-client harness
+    # (tool/old_client_api_check) is the next job.
     # Not here, on purpose: madar-core's `backend-tests` suites (they drive a
     # LIVE backend: tool/offline_b_backend.sh) and its `probes` (manual
     # #[ignore]d timing/PNG dumps).
@@ -171,20 +171,31 @@ jobs:
         with:
           workspaces: |
             rust-core
-            apps/kds-slint
           key: rust-all
 
       - name: rust-core workspace tests
         working-directory: rust-core
         run: cargo test --workspace --locked
 
-      # Slint's winit + Skia backend links fontconfig and xkbcommon.
-      - name: KDS system libraries
-        run: sudo apt-get update -q && sudo apt-get install -yq libfontconfig1-dev libxkbcommon-dev
-
-      - name: KDS tests (apps/kds-slint)
-        working-directory: apps/kds-slint
-        run: cargo test --locked
+  kitchen:
+    # Madar Kitchen (apps/kitchen, React Native): the TypeScript check and its
+    # unit tests. The native core module is not built here; its Rust side is
+    # tested in the rust job (madar_kitchen_ffi).
+    name: Kitchen app (typecheck + tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/kitchen
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/kitchen/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
 
   old-clients:
     # tool/old_client_api_check.sh: the madar-api models of every POS release
