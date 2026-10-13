@@ -58,6 +58,10 @@ jobs:
         run: |
           rustup show active-toolchain || rustup toolchain install
           rustc --version
+          # ubrn and cargo-ndk run cargo from apps/kitchen, outside rust-core,
+          # where rust-toolchain.toml does not apply: pin the same toolchain
+          # (and so its iOS / Android targets) for every later step.
+          echo "RUSTUP_TOOLCHAIN=$(rustup show active-toolchain | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -69,7 +73,9 @@ jobs:
       - name: NDK + cargo-ndk
         run: |
           set -euo pipefail
-          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;28.2.13676358" > /dev/null
+          # `yes` dies of SIGPIPE when sdkmanager exits; under pipefail that
+          # alone failed the step, so it may not decide the pipeline's status.
+          { yes || true; } | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;28.2.13676358" > /dev/null
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
           cargo install cargo-ndk --locked
 
@@ -199,6 +205,10 @@ jobs:
         run: |
           rustup show active-toolchain || rustup toolchain install
           rustc --version
+          # ubrn and cargo-ndk run cargo from apps/kitchen, outside rust-core,
+          # where rust-toolchain.toml does not apply: pin the same toolchain
+          # (and so its iOS / Android targets) for every later step.
+          echo "RUSTUP_TOOLCHAIN=$(rustup show active-toolchain | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
       - name: Cache cargo
         if: steps.asc.outputs.ready == 'true'
