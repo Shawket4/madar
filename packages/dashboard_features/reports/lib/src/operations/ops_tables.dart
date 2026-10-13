@@ -140,8 +140,22 @@ class OpsTablesView extends ConsumerStatefulWidget {
   ConsumerState<OpsTablesView> createState() => _OpsTablesViewState();
 }
 
-class _OpsTablesViewState extends ConsumerState<OpsTablesView> {
+class _OpsTablesViewState extends ConsumerState<OpsTablesView>
+    with DashRememberedState {
   String _section = _allSections;
+
+  // The section filter comes back with the tab. A branch (or a period) whose
+  // tables lack it shows All sections without forgetting it: a branch that
+  // has it shows it again (REP-OPS-016).
+  @override
+  String get memoryKey => 'reports.operations.tables';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'section': _section};
+
+  @override
+  void restoreRemembered(DashMemo m) =>
+      _section = m.getOr('section', _allSections);
 
   Future<void> _open(OpsTableRow row) => showDashSidePanel<void>(
     context,

@@ -1209,7 +1209,11 @@ class StudioRecipeLinkBar extends ConsumerWidget {
         ..warm(menuStudioProvider(id))
         ..warm(recipeLinkProvider(id))
         ..warm(studioMenuItemProvider(id)),
-      onPressed: () => context.go('/menu/items/$id'),
+      onPressed: () {
+        // The linked item's Back goes where this one's would.
+        ref.dashOpenedFrom(context, '/menu/items/$id');
+        context.go('/menu/items/$id');
+      },
     );
 
     final source = sourceItemId;

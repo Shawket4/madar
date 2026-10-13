@@ -82,18 +82,35 @@ class FinancialReportPage extends ConsumerStatefulWidget {
       _FinancialReportPageState();
 }
 
-class _FinancialReportPageState extends ConsumerState<FinancialReportPage> {
+class _FinancialReportPageState extends ConsumerState<FinancialReportPage>
+    with DashRememberedState {
   String _picked = 'profitability';
   String _gran = 'daily';
   late InventoryScope _inv;
   bool _channelExporting = false;
   bool _invExporting = false;
 
+  // The tab, the revenue granularity and the inventory toggle come back
+  // with the page (`DashRememberedState`).
   @override
-  void initState() {
-    super.initState();
-    // Set once on open; it does not follow the scope bar (REP-FIN-005).
-    _inv = initialInventoryScope(ref.read(currentScopeProvider));
+  String get memoryKey => 'reports.financial';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'tab': _picked,
+    'gran': _gran,
+    'inv': _inv.name,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _picked = m.getOr('tab', 'profitability');
+    _gran = m.getOr('gran', 'daily');
+    // Set on open (or remembered); it does not follow the scope bar
+    // (REP-FIN-005).
+    _inv =
+        m.enumOrNull('inv', InventoryScope.values) ??
+        initialInventoryScope(ref.read(currentScopeProvider));
   }
 
   @override

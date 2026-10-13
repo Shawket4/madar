@@ -684,35 +684,36 @@ void main() {
       );
     });
 
-    testWidgets('REP-FIN-071 leaving Menu profitability resets basis, view, '
-        'filters and the inner tab', (tester) async {
+    testWidgets('REP-FIN-071 leaving Menu profitability and coming back '
+        'keeps basis, view, filters and the inner tab', (tester) async {
       final h = await pumpFin(tester);
+      bool basis() => tester
+          .widget<DashSegmentedControl<bool>>(
+            find.byKey(const ValueKey('fin-basis')),
+          )
+          .value;
+      String? classFilter() => tester
+          .widget<DashSelect<String>>(
+            find.byKey(const ValueKey('fin-class-filter')),
+          )
+          .value;
       await pickSegment(h, 'fin-basis', "Today's costs");
       await pickClass(h, 'Star');
+      final picked = classFilter();
+      expect(picked, isNot(anyOf(isNull, '')));
       await quadrant(h);
       await openTab(h, 'Revenue');
       await openTab(h, 'Menu profitability');
-      expect(
-        tester
-            .widget<DashSegmentedControl<bool>>(
-              find.byKey(const ValueKey('fin-basis')),
-            )
-            .value,
-        isFalse,
-      );
+      expect(basis(), isTrue);
+      expect(find.byType(FinQuadrantView), findsOneWidget);
+      await pickSegment(h, 'fin-view', 'Table');
       expect(ledgerTable, findsOneWidget);
-      expect(
-        tester
-            .widget<DashSelect<String>>(
-              find.byKey(const ValueKey('fin-class-filter')),
-            )
-            .value,
-        '',
-      );
+      expect(classFilter(), picked);
       await openInner(h, 'Decisions');
       await openTab(h, 'Revenue');
       await openTab(h, 'Menu profitability');
-      expect(ledgerTable, findsOneWidget);
+      expect(ledgerTable, findsNothing);
+      expect(find.byType(FinQuadrantView), findsNothing);
     });
 
     testWidgets('REP-FIN-042 loading: a 420 px skeleton, never "no sales"', (

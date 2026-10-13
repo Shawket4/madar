@@ -34,8 +34,21 @@ class LoyaltyPage extends ConsumerStatefulWidget {
   ConsumerState<LoyaltyPage> createState() => _LoyaltyPageState();
 }
 
-class _LoyaltyPageState extends ConsumerState<LoyaltyPage> {
+class _LoyaltyPageState extends ConsumerState<LoyaltyPage>
+    with DashRememberedState {
   LoyaltyTab _tab = LoyaltyTab.program;
+
+  // ── memory: the tab comes back with the page (`DashRememberedState`). ──
+
+  @override
+  String get memoryKey => 'setup.loyalty';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'tab': _tab.name};
+
+  @override
+  void restoreRemembered(DashMemo m) =>
+      _tab = m.enumOr('tab', LoyaltyTab.values, LoyaltyTab.program);
 
   /// Warms what [tab] reads on mount, with the exact keys it uses.
   void _warm(LoyaltyTab tab, String orgId, String? branchId) {

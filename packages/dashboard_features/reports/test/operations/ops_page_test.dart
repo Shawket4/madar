@@ -187,10 +187,11 @@ void main() {
     expect(h.location.path, opsPath);
     expect(h.location.queryParameters, isEmpty);
     expect(pageText(h.t('analytics.revenueByTeller')), findsOneWidget);
-    // Opening the address again starts on Tables.
+    // Coming back to the address keeps the tab (the owner's rule,
+    // 2026-10-11, `DashListMemory`; the web starts on Tables again).
     await h.go('/reports/financial');
     await h.go(opsPath);
-    expect(chartCard(h.t('tablesInsights.busiestHours')), findsOneWidget);
+    expect(pageText(h.t('analytics.revenueByTeller')), findsOneWidget);
   });
 
   testWidgets('REP-OPS-003 the tab strip in Arabic', (tester) async {
@@ -288,8 +289,10 @@ void main() {
     await h.settle();
   });
 
-  testWidgets('REP-OPS-062 a tab\'s own state (the section filter) is lost '
-      'when the tab is left', (tester) async {
+  // The web loses it (REP-OPS-062); the owner's rule (2026-10-11) is that a
+  // filter carries through navigation, so it is kept (`DashListMemory`).
+  testWidgets('REP-OPS-062 a tab\'s own state (the section filter) is kept '
+      'when the tab is left and come back to', (tester) async {
     final h = await pumpOps(tester, branchId: SeedIds.heliopolis);
     final select = inPage(find.byKey(const ValueKey('ops-section-filter')));
     expect(select, findsOneWidget);
@@ -303,7 +306,7 @@ void main() {
             inPage(find.byKey(const ValueKey('ops-section-filter'))),
           )
           .value,
-      isNot('Terrace'),
+      'Terrace',
     );
   });
 

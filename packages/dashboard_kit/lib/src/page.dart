@@ -306,13 +306,16 @@ class DashPageScaffold extends StatelessWidget {
           ),
         );
         if (unbounded) return Padding(padding: pad, child: column);
-        Widget scroll = SingleChildScrollView(
+        Widget scroll = _RememberedScroll(
           controller: scrollController,
-          physics: onRefresh != null || shellRefresh != null
-              ? const AlwaysScrollableScrollPhysics()
-              : null,
-          padding: pad,
-          child: column,
+          builder: (controller) => SingleChildScrollView(
+            controller: controller,
+            physics: onRefresh != null || shellRefresh != null
+                ? const AlwaysScrollableScrollPhysics()
+                : null,
+            padding: pad,
+            child: column,
+          ),
         );
         if (onRefresh != null) {
           scroll = RefreshIndicator(
@@ -330,6 +333,150 @@ class DashPageScaffold extends StatelessWidget {
     // The web's page fadeIn; an embedded page shows in its host at once.
     return embedded ? page : DashEntrance(child: page);
   }
+}
+
+/// The page's scroll, kept in the page's [PageStorage] bucket (the shell
+/// gives every page one that outlives it, `DashListMemory`): back on the
+/// page, it scrolls to where it was — once the content is tall enough again
+/// (a list still loading), and never after the person has scrolled
+/// themselves. A page that brings its own controller keeps it as it is.
+class _RememberedScroll extends StatefulWidget {
+  const _RememberedScroll({required this.builder, this.controller});
+
+  final ScrollController? controller;
+  final Widget Function(ScrollController? controller) builder;
+
+  @override
+  State<_RememberedScroll> createState() => _RememberedScrollState();
+}
+
+class _RememberedScrollState extends State<_RememberedScroll> {
+  static const Object _id = 'dash.page.scroll';
+
+  ScrollController? _own;
+  PageStorageBucket? _bucket;
+
+  /// Where to return to, until the content allows it or the person
+  /// scrolls.
+  double? _pending;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bucket = PageStorage.maybeOf(context);
+    if (bucket == _bucket || widget.controller != null) return;
+    _bucket = bucket;
+    final saved = bucket?.readState(context, identifier: _id);
+    _pending = saved is double && saved > 0 ? saved : null;
+    _own ??= ScrollController(initialScrollOffset: _pending ?? 0)
+      ..addListener(_save);
+    if (_pending != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _restore());
+    }
+  }
+
+  @override
+  void dispose() {
+    _own?.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final c = _own;
+    if (c == null || !c.hasClients || _pending != null) return;
+    // Looked up each time: another org gives the page a fresh bucket.
+    PageStorage.maybeOf(
+      context,
+    )?.writeState(context, c.offset, identifier: _id);
+  }
+
+  void _restore() {
+    final target = _pending;
+    final c = _own;
+    if (!mounted || target == null || c == null || !c.hasClients) return;
+    final p = c.position;
+    if (!p.hasContentDimensions) return;
+    if (p.maxScrollExtent + 0.5 >= target) {
+      _pending = null;
+      if ((p.pixels - target).abs() > 0.5) c.jumpTo(target);
+      _save();
+    }
+  }
+
+  bool _onNotification(Notification n) {
+    if (_pending != null) {
+      if (n is UserScrollNotification ||
+          (n is ScrollStartNotification && n.dragDetails != null)) {
+        // The person scrolled: their place wins.
+        _pending = null;
+        _save();
+      } else if (n is ScrollMetricsNotification) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _restore());
+      }
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final own = widget.controller == null ? _own : null;
+    final child = widget.builder(widget.controller ?? own);
+    if (own == null) return child;
+    return NotificationListener<Notification>(
+      onNotification: _onNotification,
+      child: child,
+    );
+  }
+}
+
+/// A page's Back answers the system back too (Android's back gesture, the
+/// back key): the same place the header's Back goes, filters and all. A
+/// dialog or sheet over the page closes first, as it always did.
+class _SystemBack extends StatefulWidget {
+  const _SystemBack({required this.onBack, required this.child});
+
+  final VoidCallback onBack;
+  final Widget child;
+
+  @override
+  State<_SystemBack> createState() => _SystemBackState();
+}
+
+class _SystemBackState extends State<_SystemBack> {
+  BackButtonDispatcher? _root;
+  ChildBackButtonDispatcher? _dispatcher;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final root = Router.maybeOf(context)?.backButtonDispatcher;
+    if (root == _root) return;
+    _dispatcher?.removeCallback(_handle);
+    _root = root;
+    _dispatcher = root?.createChildBackButtonDispatcher()
+      ?..addCallback(_handle)
+      ..takePriority();
+  }
+
+  @override
+  void dispose() {
+    _dispatcher?.removeCallback(_handle);
+    super.dispose();
+  }
+
+  Future<bool> _handle() async {
+    if (!mounted) return false;
+    // Something over the page (a dialog, a sheet, a menu): it closes first.
+    if (ModalRoute.of(context)?.isCurrent == false) return false;
+    if (Navigator.maybeOf(context, rootNavigator: true)?.canPop() ?? false) {
+      return false;
+    }
+    widget.onBack();
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// The page's header block on its own (for a page that lays itself out).
@@ -456,16 +603,19 @@ class DashPageHeader extends StatelessWidget {
     );
     final back = onBack == null
         ? null
-        : SizedBox(
-            height: DashMetrics.headerRow,
-            child: Center(
-              child: DashIconButton(
-                icon: DashIcon.backward(context),
-                semanticLabel: context.dashStrings.back,
-                variant: DashButtonVariant.outline,
-                iconSize: IconSize.lg,
-                onPressed: onBack,
-                onIntent: onBackIntent,
+        : _SystemBack(
+            onBack: onBack!,
+            child: SizedBox(
+              height: DashMetrics.headerRow,
+              child: Center(
+                child: DashIconButton(
+                  icon: DashIcon.backward(context),
+                  semanticLabel: context.dashStrings.back,
+                  variant: DashButtonVariant.outline,
+                  iconSize: IconSize.lg,
+                  onPressed: onBack,
+                  onIntent: onBackIntent,
+                ),
               ),
             ),
           );

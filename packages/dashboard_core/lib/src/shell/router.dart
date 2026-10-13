@@ -7,8 +7,10 @@ library;
 import 'dart:async';
 
 import 'package:dashboard_core/src/authz/authz_providers.dart';
+import 'package:dashboard_core/src/memory/list_memory.dart';
 import 'package:dashboard_core/src/routes/nav.dart';
 import 'package:dashboard_core/src/routes/route.dart';
+import 'package:dashboard_core/src/scope/scope.dart';
 import 'package:dashboard_core/src/session/session.dart';
 import 'package:dashboard_core/src/shell/frame.dart';
 import 'package:dashboard_core/src/shell/leave_guard.dart';
@@ -101,6 +103,56 @@ String? safeReturnPath(String? value) {
   return value;
 }
 
+/// The redirect that keeps a page's URL-held filters ([DashRoute.rememberQuery])
+/// through navigation; null = stay. Pure over [memory], so it is tested
+/// directly.
+///
+/// - Opened bare from another page ([from] is elsewhere): the filters it
+///   last had come back (its branch-bound ones only in the same branch).
+/// - On the page, with the branch changed under it: the branch-bound
+///   filters go.
+/// - Otherwise the filters shown are remembered (a Clear on the page is
+///   remembered as no filter).
+String? rememberedQueryRedirect({
+  required DashListMemory memory,
+  required DashRoute route,
+  required Uri uri,
+  Uri? from,
+}) {
+  final keys = route.rememberQuery;
+  if (keys.isEmpty) return null;
+  final path = normalizePath(uri.path);
+  final shown = {
+    for (final k in keys)
+      if (uri.queryParameters[k] case final v? when v.isNotEmpty) k: v,
+  };
+  final entering = from == null || normalizePath(from.path) != path;
+  final saved = memory.recallQuery(path);
+  Uri withQuery(Map<String, String> q) =>
+      Uri(path: uri.path, queryParameters: q.isEmpty ? null : q);
+  if (entering && shown.isEmpty && saved != null) {
+    final restore = {
+      for (final e in saved.query.entries)
+        if (saved.sameBranch || !route.branchQuery.contains(e.key))
+          e.key: e.value,
+    };
+    if (restore.isNotEmpty) {
+      return withQuery({...uri.queryParameters, ...restore}).toString();
+    }
+  }
+  if (!entering && saved != null && !saved.sameBranch) {
+    final stale = shown.keys.where(route.branchQuery.contains).toSet();
+    if (stale.isNotEmpty) {
+      return withQuery({
+        for (final e in uri.queryParameters.entries)
+          if (!stale.contains(e.key)) e.key: e.value,
+      }).toString();
+    }
+  }
+  memory.rememberQuery(path, shown);
+  return null;
+}
+
 /// Re-runs the redirect when the session, the onboarding gate or the org's
 /// modules change — after the change has settled (a redirect that read
 /// providers while Riverpod was still rebuilding them would re-enter them).
@@ -112,7 +164,9 @@ class _RouterRefresh extends ChangeNotifier {
       ..listen(
         orgModulesProvider.select((m) => (m.known, m.modules.join(','))),
         (_, _) => _soon(),
-      );
+      )
+      // A page's branch-bound URL filters go with the branch.
+      ..listen(scopeProvider.select((s) => s.branchId), (_, _) => _soon());
   }
 
   bool _queued = false;
@@ -156,17 +210,36 @@ GoRouter buildDashRouter(
       ? ref.read(dashLeaveGuardsProvider).leave(state.pageKey)
       : true;
 
+  late final GoRouter router;
+  // Where the person is (before the navigation being decided).
+  String? remember(DashRoute r, GoRouterState state) =>
+      status() == SessionStatus.signedIn
+      ? rememberedQueryRedirect(
+          memory: ref.read(dashListMemoryProvider),
+          route: r,
+          uri: state.uri,
+          from: router.routerDelegate.currentConfiguration.isEmpty
+              ? null
+              : router.routerDelegate.currentConfiguration.uri,
+        )
+      : null;
+
   final framed = <RouteBase>[];
   final fullScreen = <RouteBase>[];
   for (final area in areas) {
     for (final r in area.routes) {
       (fullScreenPaths.contains(r.path) ? fullScreen : framed).add(
-        _goRoute(r, framed: !fullScreenPaths.contains(r.path), onExit: leave),
+        _goRoute(
+          r,
+          framed: !fullScreenPaths.contains(r.path),
+          onExit: leave,
+          remember: remember,
+        ),
       );
     }
   }
 
-  return GoRouter(
+  return router = GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: initialLocation,
     refreshListenable: refresh,
@@ -203,11 +276,14 @@ GoRoute _goRoute(
   DashRoute r, {
   required bool framed,
   required ExitCallback onExit,
+  required String? Function(DashRoute r, GoRouterState state) remember,
 }) {
   final redirect = r.redirect;
   return GoRoute(
     path: r.path,
-    redirect: redirect == null ? null : (c, s) => redirect(c, s),
+    redirect: redirect == null && r.rememberQuery.isEmpty
+        ? null
+        : (c, s) => redirect?.call(c, s) ?? remember(r, s),
     onExit: onExit,
     pageBuilder: (context, state) => _fadePage(
       context,
@@ -215,7 +291,8 @@ GoRoute _goRoute(
       DashRouteHost(route: r, state: state, framed: framed),
     ),
     routes: [
-      for (final c in r.children) _goRoute(c, framed: framed, onExit: onExit),
+      for (final c in r.children)
+        _goRoute(c, framed: framed, onExit: onExit, remember: remember),
     ],
   );
 }

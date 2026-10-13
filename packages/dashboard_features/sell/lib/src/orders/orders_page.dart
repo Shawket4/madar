@@ -74,7 +74,8 @@ class OrdersPage extends ConsumerStatefulWidget {
   ConsumerState<OrdersPage> createState() => _OrdersPageState();
 }
 
-class _OrdersPageState extends ConsumerState<OrdersPage> {
+class _OrdersPageState extends ConsumerState<OrdersPage>
+    with DashRememberedState {
   String _teller = '';
   String _waiter = '';
   String? _status;
@@ -94,6 +95,45 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
 
   /// The order whose sheet is up.
   String? _sheet;
+
+  // ── memory: the searches, filters and page come back with the page
+  // (`DashRememberedState`). Not `?order=` (a sheet) nor `?till=` (a link's
+  // one-till view, which the page offers no way to clear). ──
+
+  @override
+  String get memoryKey => 'sell.orders';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'teller': _teller,
+    'waiter': _waiter,
+    'status': _status,
+    'payment': _payment,
+    'type': _type,
+    'channel': _channel,
+    'page': _page,
+    'pageSig': _pageSig,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    String? known(String key, List<String> all) {
+      final v = m.string(key);
+      return dashStale(v, all) ? null : v;
+    }
+
+    _teller = m.getOr('teller', '');
+    _waiter = m.getOr('waiter', '');
+    _status = known('status', orderStatuses);
+    _payment = known('payment', orderPaymentMethods);
+    _type = known('type', const ['dine_in', 'delivery']);
+    _channel = _type == 'delivery'
+        ? known('channel', const ['in_mall', 'outside'])
+        : null;
+    // The page holds only under the filters (and scope) it was asked under.
+    _page = m.getOr('page', 0);
+    _pageSig = m.string('pageSig');
+  }
 
   @override
   void initState() {
@@ -195,6 +235,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     if (sig != _pageSig) {
       _pageSig = sig;
       _page = 0;
+      rememberNow();
     }
     final page = _page;
     OrdersKey keyAt(int p) => (

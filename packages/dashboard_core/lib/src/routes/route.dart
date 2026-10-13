@@ -69,6 +69,8 @@ class DashRoute {
     this.children = const [],
     this.redirect,
     this.prefetch,
+    this.rememberQuery = const [],
+    this.branchQuery = const [],
   });
 
   /// go_router path. Top-level routes are absolute (`/orders`); children are
@@ -101,6 +103,16 @@ class DashRoute {
 
   /// Called when the page's sidebar or palette row is pointed at or focused.
   final DashPrefetch? prefetch;
+
+  /// The query keys that are this page's filters, held in the URL
+  /// (`status`, `teller`, …): opened bare from another page, the page gets
+  /// back the ones it last had (`DashListMemory`). Not a sheet or an
+  /// editor's key (`?order=`, `?edit=`): those are not filters.
+  final List<String> rememberQuery;
+
+  /// The [rememberQuery] keys that name something of one branch (a teller,
+  /// a device): dropped when the branch in scope changes.
+  final List<String> branchQuery;
 
   /// Whether this person may open the page (else the shell shows
   /// `Restricted`). Module checks are the `ModuleGate`'s.

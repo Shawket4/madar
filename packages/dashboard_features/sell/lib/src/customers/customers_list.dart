@@ -4,6 +4,8 @@
 /// sheet a row opens (SELL-CUS-004 … SELL-CUS-021).
 library;
 
+import 'dart:math' as math;
+
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show publicBrandProvider;
@@ -39,7 +41,8 @@ class CustomersList extends ConsumerStatefulWidget {
   ConsumerState<CustomersList> createState() => _CustomersListState();
 }
 
-class _CustomersListState extends ConsumerState<CustomersList> {
+class _CustomersListState extends ConsumerState<CustomersList>
+    with DashRememberedState {
   String _q = '';
   bool _onlyMembers = false;
   String? _source;
@@ -51,6 +54,29 @@ class _CustomersListState extends ConsumerState<CustomersList> {
   List<Customer>? _previous;
 
   int get _limit => _key.limit;
+
+  // ── memory: the search, filters and how far "Load more" went come back
+  // with the page (`DashRememberedState`). ──
+
+  @override
+  String get memoryKey => 'sell.customers';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'q': _q,
+    'onlyMembers': _onlyMembers,
+    'source': _source,
+    'pages': _pages,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _q = m.getOr('q', '');
+    _onlyMembers = m.getOr('onlyMembers', false);
+    final source = m.string('source');
+    _source = isCustomerSource(source) ? source : null;
+    _pages = math.max(1, m.getOr('pages', 1));
+  }
 
   bool get _filtered => _q.isNotEmpty || _onlyMembers || _source != null;
 

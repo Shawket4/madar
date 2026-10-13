@@ -6,7 +6,10 @@ library;
 import 'package:dashboard_core/src/authz/authz_providers.dart';
 import 'package:dashboard_core/src/authz/gates.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
+import 'package:dashboard_core/src/memory/list_memory.dart';
+import 'package:dashboard_core/src/routes/nav.dart' show normalizePath;
 import 'package:dashboard_core/src/routes/route.dart';
+import 'package:dashboard_core/src/scope/scope.dart' show orgIdProvider;
 import 'package:dashboard_core/src/shell/prefetch.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -55,6 +58,16 @@ class DashRouteHost extends ConsumerWidget {
       ),
     );
     if (framed) body = ModuleGate(path: state.uri.path, child: body);
+    // The page's widgets (its scroll, its tables) keep their state in its
+    // location's bucket, so they come back with it (`DashListMemory`);
+    // another org starts a fresh one.
+    ref.watch(orgIdProvider);
+    body = PageStorage(
+      bucket: ref
+          .read(dashListMemoryProvider)
+          .bucketFor(normalizePath(state.uri.path)),
+      child: body,
+    );
     return Material(color: context.madarColors.bg, child: body);
   }
 }

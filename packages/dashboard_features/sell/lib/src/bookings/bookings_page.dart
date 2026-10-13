@@ -56,7 +56,8 @@ class BookingsPage extends ConsumerStatefulWidget {
   ConsumerState<BookingsPage> createState() => _BookingsPageState();
 }
 
-class _BookingsPageState extends ConsumerState<BookingsPage> {
+class _BookingsPageState extends ConsumerState<BookingsPage>
+    with DashRememberedState {
   late String _date = widget.date ?? _today();
   String _view = 'list';
   String _filter = 'active';
@@ -67,6 +68,31 @@ class _BookingsPageState extends ConsumerState<BookingsPage> {
 
   /// The `?booking=` link already followed.
   String? _followed;
+
+  // ── memory: the day, the view and the status filter come back with the
+  // page (`DashRememberedState`); a `?date=` link still wins. ──
+
+  @override
+  String get memoryKey => 'sell.bookings';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'date': _date,
+    'view': _view,
+    'filter': _filter,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    final date = m.string('date');
+    _date = widget.date ?? (isBookingYmd(date) ? date! : _today());
+    final view = m.string('view');
+    _view = view == 'timeline' ? 'timeline' : 'list';
+    final filter = m.string('filter');
+    _filter = filter != null && bookingFilters.contains(filter)
+        ? filter
+        : 'active';
+  }
 
   String _today() => serviceToday(
     ref.read(clockProvider)(),

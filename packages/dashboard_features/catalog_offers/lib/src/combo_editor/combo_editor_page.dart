@@ -62,6 +62,11 @@ class ComboEditorPage extends ConsumerWidget {
 /// The list the editor's Back, Delete and link rows lead to.
 const String _listPath = '/menu/combos';
 
+/// Where Back goes: the page the combo was opened from (the combos or the
+/// menu, filters and all — `DashListMemory`), else the combos.
+String _backPath(BuildContext context, WidgetRef ref) =>
+    ref.dashBackTarget(GoRouterState.of(context).uri.path, _listPath);
+
 /// The editor while the rights or the combo load.
 class _EditorSkeleton extends ConsumerWidget {
   const _EditorSkeleton();
@@ -76,7 +81,7 @@ class _EditorSkeleton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => DashPageScaffold(
     title: '',
-    onBack: () => context.go(_listPath),
+    onBack: () => context.go(_backPath(context, ref)),
     onBackIntent: () => warmCombosList(ref),
     subtitleWidget: const DashSkeleton(
       width: _titleWidth,
@@ -159,7 +164,7 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
   /// page, so a save finished after leaving still says how it went.
   BuildContext _toastContext() => Navigator.of(context).context;
 
-  void _goBack() => context.go(_listPath);
+  void _goBack() => context.go(_backPath(context, ref));
 
   Future<DashPickedFile?> _pickImage() async {
     final f = await ref.read(fileGatewayProvider).pickImage();
@@ -237,7 +242,11 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
       }
       // The web's query client refetches even if the page is gone.
       bus.invalidate(combosInvalidationPrefixes);
-      if (isNew && mounted) router.go('$_listPath/${saved.id}');
+      if (isNew && mounted) {
+        final to = '$_listPath/${saved.id}';
+        ref.dashOpenedFrom(context, to);
+        router.go(to);
+      }
     } on Object catch (e) {
       if (toast.mounted) DashToast.error(toast, _saveErrorText(e, v, t));
     } finally {

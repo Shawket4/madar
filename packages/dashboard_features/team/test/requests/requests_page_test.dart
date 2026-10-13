@@ -913,7 +913,7 @@ void main() {
   });
 
   testWidgets('TEAM-ALL-021 filters live in the page, not the URL; leaving '
-      'resets them; Escape closes a dialog sending nothing', (tester) async {
+      'keeps them; Escape closes a dialog sending nothing', (tester) async {
     final h = await pumpRequests(tester);
     await h.tap(pageText('Approved'));
     expect(h.location.query, isEmpty);
@@ -925,7 +925,7 @@ void main() {
     expect(patches(h), 0);
     await h.go('/staff/approvals');
     await h.go(requestsPath);
-    expect(_shown(tester).map((r) => r.status).toSet(), {'pending'});
+    expect(_shown(tester).map((r) => r.status).toSet(), {'approved'});
   });
 
   testWidgets('TEAM-ALL-023 the list read: a 403 once, a 500 twice, a 429 '

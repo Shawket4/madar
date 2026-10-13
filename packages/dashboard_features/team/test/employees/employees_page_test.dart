@@ -562,8 +562,8 @@ void main() {
     expect(inPage(find.text('KIND')), findsNothing);
   });
 
-  testWidgets('TEAM-ALL-021 filters live in the page, not the URL, and reset '
-      'when it is left', (tester) async {
+  testWidgets('TEAM-ALL-021 filters live in the page, not the URL, and are '
+      'kept when it is left', (tester) async {
     final h = await pumpEmployees(tester);
     await h.tap(inPage(find.text('All statuses')));
     await h.tapText('Suspended');
@@ -571,7 +571,8 @@ void main() {
     h.allowUnmatched = true;
     await h.go('/staff/attendance');
     await h.go(employeesPath);
-    expect(pageText('All statuses'), findsOneWidget);
+    expect(pageText('All statuses'), findsNothing);
+    expect(h.location.query, isEmpty);
   });
 
   testWidgets('TEAM-ALL-021 a dialog closes on Escape sending nothing', (

@@ -58,7 +58,8 @@ class MenuItemsPage extends ConsumerStatefulWidget {
   ConsumerState<MenuItemsPage> createState() => _MenuItemsPageState();
 }
 
-class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
+class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
+    with DashRememberedState {
   MenuTab _tab = MenuTab.items;
   String? _category;
   RecipeFilter _recipe = RecipeFilter.all;
@@ -76,6 +77,58 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
   PaginatedMenuItems? _lastCatalog;
 
   Translator get _t => ref.read(tProvider);
+
+  // ── memory: the tab, filters, searches and pages come back with the page
+  // (from the item studio, a combo, anywhere), `DashRememberedState`. ──
+
+  @override
+  String get memoryKey => 'menu.items';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'tab': _tab.name,
+    'category': _category,
+    'recipe': _recipe.name,
+    'addonType': _addonType,
+    'itemsPage': _itemsPage,
+    'itemsSearch': _itemsSearch,
+    'gridSearch': _gridSearch,
+    'gridPage': _gridPage,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _tab = m.enumOr('tab', MenuTab.values, MenuTab.items);
+    _category = m.string('category');
+    _recipe = m.enumOr('recipe', RecipeFilter.values, RecipeFilter.all);
+    _addonType = m.string('addonType');
+    _itemsPage = m.getOr('itemsPage', 0);
+    _itemsSearch = m.getOr('itemsSearch', '');
+    _gridSearch = m.getOr('gridSearch', '');
+    _gridPage = m.getOr('gridPage', 0);
+  }
+
+  /// A remembered category or add-on type that is gone (deleted, renamed
+  /// away) is dropped once the lists say so: back to All.
+  void _dropStale(
+    AsyncValue<List<Category>> categoriesQ,
+    AsyncValue<List<AddonItem>> addonsQ,
+  ) {
+    var dropped = false;
+    final categories = categoriesQ.hasValue ? categoriesQ.value : null;
+    if (dashStale(_category, categories?.map((c) => c.id))) {
+      _category = null;
+      _itemsPage = 0;
+      dropped = true;
+    }
+    final addons = addonsQ.hasValue ? addonsQ.value : null;
+    if (dashStale(_addonType, addons?.map((a) => a.addonType))) {
+      _addonType = null;
+      _gridPage = 0;
+      dropped = true;
+    }
+    if (dropped) rememberNow();
+  }
 
   CatalogQuery _query(String orgId, bool canRecipes) => (
     orgId: orgId,
@@ -240,9 +293,14 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
   }
 
   /// The web's combo check: a combo opens its own editor.
-  void _openEditor(MenuItemWithCosts m) => m.kind == 'combo'
-      ? context.go('/menu/combos/${m.id}')
-      : context.go('/menu/items/${m.id}');
+  void _openEditor(MenuItemWithCosts m) {
+    final to = m.kind == 'combo'
+        ? '/menu/combos/${m.id}'
+        : '/menu/items/${m.id}';
+    // Its Back returns here, with this page's filters (`DashListMemory`).
+    ref.dashOpenedFrom(context, to);
+    context.go(to);
+  }
 
   // ── intent warm-ups (owner rule): the read a press is about to make ──
 
@@ -298,12 +356,12 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage> {
     final canRecipes = ref.watch(
       authzProvider.select((a) => a.can(Cap.recipesRead)),
     );
-    final query = _query(orgId, canRecipes);
-
     // The export's logo (`useExportLogo`): the org's public brand, on mount.
     ref.watch(publicBrandProvider);
     final categoriesQ = ref.watch(menuCategoriesProvider(orgId));
     final addonsQ = ref.watch(addonItemsProvider(orgId));
+    _dropStale(categoriesQ, addonsQ);
+    final query = _query(orgId, canRecipes);
     final catalogQ = ref.watch(menuCatalogProvider(query));
     final catalog = catalogQ.value ?? (catalogQ.hasError ? null : _lastCatalog);
     if (catalogQ.hasValue) _lastCatalog = catalogQ.value;

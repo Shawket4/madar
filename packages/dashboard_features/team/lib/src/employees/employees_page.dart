@@ -36,13 +36,32 @@ class EmployeesPage extends ConsumerStatefulWidget {
   ConsumerState<EmployeesPage> createState() => _EmployeesPageState();
 }
 
-class _EmployeesPageState extends ConsumerState<EmployeesPage> {
+class _EmployeesPageState extends ConsumerState<EmployeesPage>
+    with DashRememberedState {
   String? _status;
   String? _departmentId;
   late final AppLifecycleListener _lifecycle;
   DateTime? _loadedAt;
 
   EmployeesQuery get _key => (status: _status, departmentId: _departmentId);
+
+  // ── memory: the status and department come back with the page (the
+  // table keeps its own search and sort), `DashRememberedState`. ──
+
+  @override
+  String get memoryKey => 'team.employees';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'status': _status,
+    'department': _departmentId,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _status = m.string('status');
+    _departmentId = m.string('department');
+  }
 
   @override
   void initState() {
@@ -104,9 +123,17 @@ class _EmployeesPageState extends ConsumerState<EmployeesPage> {
     final canDelete = authz.can(Cap.hrStaffDelete);
     // The salary calculator (Add, the profile) reads the rules.
     final canSetPay = authz.canEverywhere(Cap.hrPayrollEdit);
+    final departments = ref.watch(staffDepartmentsProvider);
+    // A remembered department that was removed goes (back to All).
+    if (dashStale(
+      _departmentId,
+      departments.hasValue ? departments.value!.map((d) => d.id) : null,
+    )) {
+      _departmentId = null;
+      rememberNow();
+    }
     final read = employeesReadFor(_key);
     final q = ref.watch(read);
-    final departments = ref.watch(staffDepartmentsProvider);
     final branches = ref.watch(branchesProvider).value ?? const <Branch>[];
     listenStaffRefreshFailure(ref, context, read);
     listenStaffRefreshFailure(ref, context, staffDepartmentsProvider);

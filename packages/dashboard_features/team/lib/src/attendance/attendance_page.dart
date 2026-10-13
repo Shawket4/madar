@@ -59,7 +59,8 @@ class AttendancePage extends ConsumerStatefulWidget {
   ConsumerState<AttendancePage> createState() => _AttendancePageState();
 }
 
-class _AttendancePageState extends ConsumerState<AttendancePage> {
+class _AttendancePageState extends ConsumerState<AttendancePage>
+    with DashRememberedState {
   late String _from;
   late String _to;
   String? _status;
@@ -71,10 +72,30 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
   @override
   void initState() {
     super.initState();
-    // The last 7 days on the active zone's calendar (TEAM-ALL-012).
-    _from = teamTodayIsoOf(ref, -6);
-    _to = teamTodayIsoOf(ref);
     _lifecycle = AppLifecycleListener(onResume: _onResume);
+  }
+
+  // ── memory: the range, status and person come back with the page
+  // (`DashRememberedState`). ──
+
+  @override
+  String get memoryKey => 'team.attendance';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'from': _from,
+    'to': _to,
+    'status': _status,
+    'person': _person,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    // Default: the last 7 days on the active zone's calendar (TEAM-ALL-012).
+    _from = m.string('from') ?? teamTodayIsoOf(ref, -6);
+    _to = m.string('to') ?? teamTodayIsoOf(ref);
+    _status = m.string('status');
+    _person = m.string('person');
   }
 
   @override
@@ -162,10 +183,18 @@ class _AttendancePageState extends ConsumerState<AttendancePage> {
     final canAdd = authz.can(Cap.hrAttendanceCreate);
     final canCorrect = authz.can(Cap.hrAttendanceEdit);
     final branchId = ref.watch(scopeProvider.select((s) => s.branchId));
+    final employeesQ = ref.watch(employeesListProvider(_everyone));
+    // A remembered person who is no longer on the list goes (back to All).
+    if (dashStale(
+      _person,
+      employeesQ.hasValue ? employeesQ.value!.map((e) => e.id) : null,
+    )) {
+      _person = null;
+      rememberNow();
+    }
     final key = _keyFor(branchId);
     final recordsQ = ref.watch(attendanceListProvider(key));
     final summaryQ = ref.watch(attendanceSummaryProvider(key));
-    final employeesQ = ref.watch(employeesListProvider(_everyone));
     final settingsQ = ref.watch(staffAttendanceSettingsProvider);
     final branches = ref.watch(branchesProvider).value ?? const <Branch>[];
     listenStaffRefreshFailure(ref, context, attendanceListProvider(key));

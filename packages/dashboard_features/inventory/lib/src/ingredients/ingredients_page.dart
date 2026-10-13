@@ -33,9 +33,26 @@ class IngredientsPage extends ConsumerStatefulWidget {
   ConsumerState<IngredientsPage> createState() => _IngredientsPageState();
 }
 
-class _IngredientsPageState extends ConsumerState<IngredientsPage> {
+class _IngredientsPageState extends ConsumerState<IngredientsPage>
+    with DashRememberedState {
   IngredientFilter _filter = IngredientFilter.all;
   bool _exporting = false;
+
+  // ── memory: the stock filter comes back with the page (the table keeps
+  // its own search, sort and page), `DashRememberedState`. ──
+
+  @override
+  String get memoryKey => 'inventory.ingredients';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'filter': _filter.name};
+
+  @override
+  void restoreRemembered(DashMemo m) => _filter = m.enumOr(
+    'filter',
+    IngredientFilter.values,
+    IngredientFilter.all,
+  );
 
   List<Branch> _activeBranches() => [
     for (final b in ref.read(branchesProvider).value ?? const <Branch>[])

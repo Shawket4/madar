@@ -83,6 +83,8 @@ const List<DashRoute> adminRoutes = [
     titleKey: 'nav.devices',
     titleFallback: 'Devices',
     module: OrgModule.pos,
+    // The page's view and the clients window live in the URL.
+    rememberQuery: ['view', 'days', 'all'],
   ),
   DashRoute(
     path: UsersPage.path,

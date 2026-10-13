@@ -80,8 +80,22 @@ class OperationsReportPage extends ConsumerStatefulWidget {
       _OperationsReportPageState();
 }
 
-class _OperationsReportPageState extends ConsumerState<OperationsReportPage> {
-  late String _tab = widget.initialTab;
+class _OperationsReportPageState extends ConsumerState<OperationsReportPage>
+    with DashRememberedState {
+  late String _tab;
+
+  // The tab comes back with the page (`DashRememberedState`).
+  @override
+  String get memoryKey => 'reports.operations';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'tab': _tab};
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    final tab = m.string('tab');
+    _tab = operationsTabs.any((t) => t.id == tab) ? tab! : widget.initialTab;
+  }
 
   @override
   Widget build(BuildContext context) {

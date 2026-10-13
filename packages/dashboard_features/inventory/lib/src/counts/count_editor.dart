@@ -41,7 +41,28 @@ class CountEditor extends ConsumerStatefulWidget {
   ConsumerState<CountEditor> createState() => _CountEditorState();
 }
 
-class _CountEditorState extends ConsumerState<CountEditor> {
+class _CountEditorState extends ConsumerState<CountEditor>
+    with DashRememberedState {
+  // ── memory: the open count's search and filters come back with the page
+  // (one count, one branch: its own key), `DashRememberedState`. ──
+
+  @override
+  String get memoryKey => 'inventory.count.${widget.stocktakeId}';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'search': _search,
+    'category': _category,
+    'filter': _filter.name,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _search = m.getOr('search', '');
+    _category = m.string('category');
+    _filter = m.enumOr('filter', CountFilter.values, CountFilter.all);
+  }
+
   Map<String, String> _counts = {};
   Map<String, String> _reasons = {};
   final List<CountRow> _extras = [];
@@ -268,6 +289,12 @@ class _CountEditorState extends ConsumerState<CountEditor> {
     final rows = countEditorRows(data?.items, _extras);
     _rowIds = [for (final r in rows) r.orgIngredientId];
     final categories = countRowCategories(rows);
+    // A remembered category the count no longer holds: All again.
+    if (data != null &&
+        dashStale(_category, [for (final c in categories) c.$1])) {
+      _category = null;
+      rememberNow();
+    }
     final visible = visibleCountRows(
       rows,
       search: _search,

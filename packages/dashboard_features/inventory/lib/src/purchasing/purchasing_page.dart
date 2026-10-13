@@ -19,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_export.dart';
 import '../shared/inventory_labels.dart';
+import '../shared/inventory_lib.dart' show poStatuses;
 import '../shared/no_org.dart';
 import 'orders_tab.dart';
 import 'purchase_order_dialog.dart';
@@ -38,10 +39,32 @@ class PurchasingPage extends ConsumerStatefulWidget {
   ConsumerState<PurchasingPage> createState() => _PurchasingPageState();
 }
 
-class _PurchasingPageState extends ConsumerState<PurchasingPage> {
+class _PurchasingPageState extends ConsumerState<PurchasingPage>
+    with DashRememberedState {
   PurchasingView _view = PurchasingView.orders;
   String _status = allPoStatuses;
   bool _exporting = false;
+
+  // ── memory: the tab and the status filter come back with the page,
+  // `DashRememberedState`. ──
+
+  @override
+  String get memoryKey => 'inventory.purchasing';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'view': _view.name,
+    'status': _status,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _view = m.enumOr('view', PurchasingView.values, PurchasingView.orders);
+    final status = m.string('status');
+    _status = status != null && poStatuses.contains(status)
+        ? status
+        : allPoStatuses;
+  }
 
   Future<void> _export({
     required PurchasingView view,

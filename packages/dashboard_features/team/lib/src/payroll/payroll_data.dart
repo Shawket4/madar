@@ -106,15 +106,35 @@ class PayrollView {
   final String? historyId;
 }
 
+/// The page's view: the tab and the month on show come back with the page
+/// (`DashListMemory`, as the other lists' `DashRememberedState`); a month
+/// no longer offered shows this month (`olderPeriod` finds nothing). The
+/// History sheet is not remembered: it is a sheet, not a filter.
 class PayrollViewNotifier extends Notifier<PayrollView> {
+  static const String memoryKey = 'team.payroll';
+
   @override
-  PayrollView build() => const PayrollView();
+  PayrollView build() {
+    final m = ref.read(dashListMemoryProvider).recall(memoryKey);
+    return PayrollView(
+      tab: m.enumOr('tab', PayrollTab.values, PayrollTab.payslips),
+      viewId: m.string('month'),
+    );
+  }
+
+  void _set(PayrollView v) {
+    state = v;
+    ref.read(dashListMemoryProvider).remember(memoryKey, {
+      'tab': v.tab.name,
+      'month': v.viewId,
+    });
+  }
 
   void setTab(PayrollTab tab) =>
-      state = PayrollView(tab: tab, viewId: state.viewId);
+      _set(PayrollView(tab: tab, viewId: state.viewId));
 
   /// Views an older month (null = back to this month) on the Payslips tab.
-  void openMonth(String? id) => state = PayrollView(viewId: id);
+  void openMonth(String? id) => _set(PayrollView(viewId: id));
 
   /// The History sheet opened (an id) or closed (null).
   void showHistory(String? id) =>

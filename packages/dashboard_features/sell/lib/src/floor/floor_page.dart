@@ -72,7 +72,8 @@ class _FloorBody extends ConsumerStatefulWidget {
   ConsumerState<_FloorBody> createState() => _FloorBodyState();
 }
 
-class _FloorBodyState extends ConsumerState<_FloorBody> {
+class _FloorBodyState extends ConsumerState<_FloorBody>
+    with DashRememberedState {
   bool _editable = false;
 
   /// The area chip: null = All, [_unassigned], or a section id.
@@ -94,6 +95,26 @@ class _FloorBodyState extends ConsumerState<_FloorBody> {
   List<FloorSection> _sections = const [];
 
   String get _branchId => widget.branchId;
+
+  // ── memory: the area chip comes back with the page, in the branch it was
+  // picked in (`DashRememberedState`). Edit mode and the picked tables are
+  // not filters: they start afresh. ──
+
+  @override
+  String get memoryKey => 'sell.floor';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'branch': _branchId,
+    'section': _sectionKey,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _sectionKey = m.sameBranch && m.string('branch') == _branchId
+        ? m.string('section')
+        : null;
+  }
 
   String? get _activeSectionId =>
       _sectionKey == null || _sectionKey == _unassigned ? null : _sectionKey;
@@ -452,6 +473,15 @@ class _FloorBodyState extends ConsumerState<_FloorBody> {
       });
     final all = tablesQ.value ?? const <FloorTable>[];
     _geometry.syncTables(all);
+    // A remembered area that is gone (deleted, renamed away): All again.
+    if (_sectionKey != _unassigned &&
+        dashStale(
+          _sectionKey,
+          sectionsQ.hasValue ? sections.map((s) => s.id) : null,
+        )) {
+      _sectionKey = null;
+      rememberNow();
+    }
     final key = _sectionKey;
     final visible = [
       for (final tb in all)

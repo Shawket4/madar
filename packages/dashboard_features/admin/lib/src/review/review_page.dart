@@ -28,8 +28,22 @@ class ReviewPage extends ConsumerStatefulWidget {
   ConsumerState<ReviewPage> createState() => _ReviewPageState();
 }
 
-class _ReviewPageState extends ConsumerState<ReviewPage> {
+class _ReviewPageState extends ConsumerState<ReviewPage>
+    with DashRememberedState {
   bool _showReviewed = false;
+
+  // ── memory: "Show reviewed" comes back with the page
+  // (`DashRememberedState`); the table keeps its page (its bucket). ──
+
+  @override
+  String get memoryKey => 'admin.review';
+
+  @override
+  Map<String, Object?> get rememberedValues => {'showReviewed': _showReviewed};
+
+  @override
+  void restoreRemembered(DashMemo m) =>
+      _showReviewed = m.getOr('showReviewed', false);
 
   /// Picks survive "Show reviewed" and paging; only those still open in the
   /// current list count (ADM-REV-017).

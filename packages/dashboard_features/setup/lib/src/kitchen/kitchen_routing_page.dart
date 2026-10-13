@@ -42,7 +42,8 @@ class KitchenRoutingPage extends ConsumerStatefulWidget {
   ConsumerState<KitchenRoutingPage> createState() => _KitchenRoutingPageState();
 }
 
-class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
+class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage>
+    with DashRememberedState {
   KitchenRoutingTab _tab = KitchenRoutingTab.categories;
 
   /// The settled search (300 ms after the last keystroke).
@@ -54,6 +55,30 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage> {
 
   /// The last catalogue page shown (`keepPreviousData`).
   PaginatedMenuItems? _lastCatalog;
+
+  // ── memory: the view, the item search and its page come back with the
+  // page (`DashRememberedState`). ──
+
+  @override
+  String get memoryKey => 'setup.kitchen.routing';
+
+  @override
+  Map<String, Object?> get rememberedValues => {
+    'tab': _tab.name,
+    'search': _search,
+    'page': _page,
+  };
+
+  @override
+  void restoreRemembered(DashMemo m) {
+    _tab = m.enumOr(
+      'tab',
+      KitchenRoutingTab.values,
+      KitchenRoutingTab.categories,
+    );
+    _search = m.getOr('search', '');
+    _page = m.getOr('page', 0);
+  }
 
   Future<void> _write(Future<void> Function() write) async {
     final t = ref.read(tProvider);
