@@ -142,7 +142,9 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
         .trim_start_matches("http://")
         .trim_end_matches('/')
         .to_string();
-    let (api, net) = switchable_proxy(upstream).await;
+    // One uplink each, so the kitchen can come back before the POS.
+    let (api, net) = switchable_proxy(upstream.clone()).await;
+    let (pos_api, pos_net) = switchable_proxy(upstream).await;
 
     let dir = std::env::temp_dir().join(format!("madar_lan_offline_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -197,7 +199,7 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
     assert_eq!(kitchen.state().route, "board");
 
     let pos = MadarCore::new(MadarConfig {
-        base_url: api.clone(),
+        base_url: pos_api,
         environment: "dev".into(),
         db_path: dir.join("pos.db").to_string_lossy().into(),
         locale: "en".into(),
@@ -262,6 +264,7 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
 
     // ── 2. Offline: the POS fires; the kitchen gets it by LAN ────────────────
     net.cut();
+    pos_net.cut();
     // One failed probe could be a blip; the core takes two to call it offline.
     within(10, "the POS sees it is offline", || async {
         (!pos.refresh_connectivity().await).then_some(())
@@ -341,8 +344,34 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
     })
     .await;
 
-    // ── 4. Online again: both drain, the server has everything once ─────────
+    // ── 4. Online again, one device after the other (`MADAR_FIRST`, default
+    // the kitchen). Whatever the order, bumped lines never come back unbumped.
+    let kitchen_first = env("MADAR_FIRST", "kitchen") == "kitchen";
+    let still_bumped = || async {
+        let board = kitchen.tickets(None).await.unwrap();
+        for t in board.iter().filter(|t| t.items.iter().any(|l| line_ids.contains(&l.id))) {
+            assert!(t.items.iter().all(|l| l.bumped), "a bumped line came back: {:?}", t.items.iter().map(|l| (&l.id, l.bumped)).collect::<Vec<_>>());
+        }
+    };
+    if kitchen_first { net.restore() } else { pos_net.restore(); pos.refresh_connectivity().await; }
+    for _ in 0..8 {
+        if kitchen_first { let _ = kitchen.sync_now().await; } else { let _ = pos.sync_now().await; }
+        still_bumped().await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        still_bumped().await;
+    }
+    let ops: Vec<(String, String)> = rusqlite::Connection::open(dir.join("kitchen").join("madar.db"))
+        .unwrap()
+        .prepare("SELECT op_type, status FROM outbox ORDER BY seq")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    eprintln!("KITCHEN OUTBOX: {ops:?}");
+    assert!(ops.iter().all(|(_, st)| st != "dead"), "nothing of the kitchen's dead-lettered");
     net.restore();
+    pos_net.restore();
     pos.refresh_connectivity().await;
     within(60, "both outboxes drain", || async {
         let _ = pos.sync_now().await;
@@ -356,6 +385,7 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
             .and_then(|c| c.query_row("SELECT count(*) FROM outbox WHERE status = 'dead' AND op_type <> 'lan_mirror'", [], |r| r.get(0)))
             .unwrap_or(-1);
         assert_eq!(own_dead, 0, "nothing of the POS's own dead-lettered: {pos_status:?}");
+        still_bumped().await;
         (pos_status.pending_outbox == 0 && kitchen.state().pending == 0).then_some(())
     })
     .await;
@@ -390,7 +420,6 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
         "the LAN ticket and the server's are one ticket"
     );
 
-    let board = kitchen.tickets(None).await.unwrap();
     // A finished round is closed by the server: it leaves the board, and its
     // LAN copy never comes back as a ghost with its lines unbumped.
     let _ = kitchen.sync_now().await;
