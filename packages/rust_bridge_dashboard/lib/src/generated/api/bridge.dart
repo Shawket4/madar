@@ -64,6 +64,9 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? granularity,
   });
 
+  /// The plan's features and limits (unknown is Paid). Local; no network.
+  EntitlementsView entitlements();
+
   /// Cached ACL check (drives nav/action gating).
   bool hasPermission({required String resource, required String action});
 
@@ -87,8 +90,18 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// The saved answers, in this core's own store.
   OfflineCache offlineCache({required PlatformInt64 freshMs});
 
+  /// A plan refusal's words in the app's language, from the `Forbidden`
+  /// resource it travels under (`plan_feature:kitchen`…). `None` when it is
+  /// not a plan refusal.
+  String? planRefusalWords({required String resource});
+
   /// Ping /health; updates the online flag. True when reachable.
   Future<bool> refreshConnectivity();
+
+  /// Ask the server for the plan now (`/auth/me`) and keep it, so an upgrade
+  /// shows without signing in again. Best-effort; returns the plan key after
+  /// the read (`free` | `paid`).
+  Future<String> refreshPlan();
 
   /// Re-hydrate the persisted session from the core's OWN store (cold boot).
   /// `None` = signed out / fresh install.

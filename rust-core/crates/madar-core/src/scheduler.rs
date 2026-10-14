@@ -200,7 +200,13 @@ impl MadarCore {
         let weak: Weak<MadarCore> = Arc::downgrade(&me);
         drop(me);
         handle.spawn(async move {
-            let mut interval = POLL_MIN;
+            // A plan with no stream (Free) has nothing to fall back FROM: the
+            // poll is its only beat besides the pull after each acked op, so
+            // it starts on the idle minute, not the quick one.
+            let mut interval = match weak.upgrade() {
+                Some(core) if !madar_plan::entitlements(core.current_plan()).realtime => POLL_MAX,
+                _ => POLL_MIN,
+            };
             loop {
                 tokio::time::sleep(interval).await;
                 let Some(core) = weak.upgrade() else { return };

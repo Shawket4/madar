@@ -151,6 +151,7 @@ pub(crate) mod ledger;
 pub mod push;
 pub mod till_ops;
 pub mod till_dawam;
+pub mod plan;
 pub mod sync_pull;
 pub mod assets;
 /// Gated device reconfigure = a fresh install (`reconfigure.rs`).
@@ -412,6 +413,10 @@ pub struct MadarCore {
     /// Replacing or clearing it aborts the previous supervisor task, so a device
     /// never holds two streams. `None` = not subscribed.
     realtime: Mutex<Option<realtime::StreamHandle>>,
+    /// The plan the realtime subscription was last decided for (`plan.rs`
+    /// `reconcile_realtime`): a pull that brings a DIFFERENT plan starts or
+    /// stops the stream. `None` = not decided yet.
+    realtime_plan: Mutex<Option<madar_plan::Plan>>,
     /// The ONE unified event listener (set by `subscribe_realtime`), shared by BOTH
     /// the cloud SSE supervisor AND the LAN relay bridge so a cross-LAN event and its
     /// cloud twin reach the same sink (deduped by the host's snapshot-reload). Phase E.
@@ -548,6 +553,7 @@ impl MadarCore {
             diag: Mutex::new(std::collections::VecDeque::new()),
             drain_lock: tokio::sync::Mutex::new(()),
             realtime: Mutex::new(None),
+            realtime_plan: Mutex::new(None),
             unified_listener: Arc::new(Mutex::new(None)),
             alert_memory: Arc::new(Mutex::new(realtime::AlertDedup::new())),
             lan: Arc::new(Mutex::new(None)),
@@ -2868,6 +2874,11 @@ impl MadarCore {
         topics: Vec<String>,
         listener: Box<dyn realtime::EventListener>,
     ) {
+        // A plan with no realtime holds no stream: poll instead.
+        if !madar_plan::entitlements(self.current_plan()).realtime {
+            self.go_without_stream();
+            return;
+        }
         // Share the listener (Arc) so the LAN relay bridge forwards to the SAME sink
         // as the cloud SSE — a cross-LAN event and its cloud twin both land here and
         // dedup via the host's snapshot-reload.
@@ -2891,7 +2902,7 @@ impl MadarCore {
 
     /// Start the device's ONE session-level realtime subscription — the unified entry
     /// the hosts call once after login (and on connectivity-regain). The CORE owns all
-    /// the policy: it derives the topics from the signed-in role ([`topics_for_role`]),
+    /// the policy: it derives the topics from the plan and the signed-in role ([`realtime::topics_for_role`]; none on Free: no stream, the core polls),
     /// opens/replaces the single SSE, and wires an [`AlertingListener`] so every event
     /// (cloud OR LAN) both refreshes the host's board (via `listener`) AND raises a
     /// deduped, localized alert through `player` (ping + notification + haptic). The
@@ -2932,8 +2943,30 @@ impl MadarCore {
                 detail: "no branch bound".into(),
             })?;
         let kind = self.work_kind();
-        let topics = realtime::topics_for_role(&kind);
+        let plan = self.current_plan();
+        let topics = realtime::topics_for_role(plan, &kind);
+        // Installed even when no stream opens: the listener chain is what an
+        // upgrade mid-session starts the stream with (`reconcile_realtime`).
         let alerting = self.install_unified_listener(Arc::from(listener), Arc::from(player), &kind);
+        self.note_realtime_plan(plan);
+        if topics.is_empty() {
+            // The plan holds no stream (Free): none is opened, and the server
+            // would refuse it (403 `plan_no_realtime`). The device pulls instead.
+            self.go_without_stream();
+            return Ok(());
+        }
+        self.open_stream(branch_id, topics, alerting);
+        Ok(())
+    }
+
+    /// Open the cloud stream for `topics` and make it THE subscription (any
+    /// previous one is stopped first: never two connections).
+    pub(crate) fn open_stream(
+        &self,
+        branch_id: String,
+        topics: Vec<String>,
+        listener: Arc<dyn realtime::EventListener>,
+    ) {
         let client = self.api.realtime_client();
         // Cloud-only events (online orders, bookings) get re-published on the LAN
         // by every device that heard them, under one deterministic id, so a
@@ -2944,13 +2977,12 @@ impl MadarCore {
             store: self.store.clone(),
             device_id: self.lan_device_id(),
         });
-        let handle = realtime::spawn_supervisor(client, branch_id, topics, alerting, Some(relay));
+        let handle = realtime::spawn_supervisor(client, branch_id, topics, listener, Some(relay));
         let mut slot = self.realtime.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(old) = slot.take() {
             old.stop();
         }
         *slot = Some(handle);
-        Ok(())
     }
 }
 
@@ -6246,6 +6278,8 @@ impl MadarCore {
         self.auth_paused.store(false, Relaxed);
         self.borrowed_token.store(false, Relaxed);
 
+        // The organisation's plan: the dashboard hides what a Free plan lacks.
+        self.remember_plan(resp.plan.as_deref());
         // Org-level session — no branch pin (the scope bar selects the branch).
         let mut snapshot = session::snapshot_from_login(&resp, None);
         // Admin permissions are authoritative — mirror them (best-effort: a perms
@@ -6467,6 +6501,9 @@ impl MadarCore {
         self.borrowed_token
             .store(false, std::sync::atomic::Ordering::Relaxed);
 
+        // The organisation's plan (Free hides the paid features). A server that
+        // says nothing is Paid.
+        self.remember_plan(resp.plan.as_deref());
         let mut snapshot = session::snapshot_from_login(&resp, branch_id);
         // Sign-in is the live server check for the person's open till (decision
         // 4a): keep its answer so opening stays verified if the next call fails.
@@ -7530,6 +7567,14 @@ impl MadarCore {
         let Ok(me) = auth_api::me(&self.api.config()).await else {
             return;
         };
+        self.remember_plan(me.plan.as_deref());
+        // Dawam is offered only once the server has said the module is on; a
+        // till that never kept that answer asks again here (an explicit sync).
+        if !self.org_modules_known() {
+            if let Some(org_id) = self.current_session().and_then(|s| s.org_id) {
+                self.remember_org_modules(&org_id).await;
+            }
+        }
         let p = &me.tax_policy;
         self.adopt_tax_policy(
             p.tax_rate,

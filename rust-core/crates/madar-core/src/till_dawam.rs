@@ -168,16 +168,27 @@ impl MadarCore {
     }
 
     /// Dawam is on for this org, so the till offers "Clock in/out" and the
-    /// pay-out's "Expense advance to" (minor #40). True until the server has
-    /// said otherwise: the server still refuses either when it is off. Local;
-    /// no network.
+    /// pay-out's "Expense advance to" (minor #40). OFF until the server has
+    /// said it is on (the org's `modules` read at sign-in, kept), and off on a
+    /// plan without Dawam (Free): the till must not offer what a Free shop can
+    /// never have. The server still refuses either when it is off. A paid
+    /// shop whose answer was never kept (a till signed in before this was
+    /// read) asks again at its next explicit sync (`refresh_tax_policy`).
+    /// Local; no network.
     pub fn till_dawam_on(&self) -> bool {
-        self.store
-            .kv_get(K_ORG_MODULES)
-            .ok()
-            .flatten()
-            .and_then(|j| serde_json::from_str::<Vec<String>>(&j).ok())
-            .is_none_or(|m| m.iter().any(|x| x == "dawam"))
+        madar_plan::has_feature(self.current_plan(), madar_plan::Feature::Dawam)
+            && self
+                .store
+                .kv_get(K_ORG_MODULES)
+                .ok()
+                .flatten()
+                .and_then(|j| serde_json::from_str::<Vec<String>>(&j).ok())
+                .is_some_and(|m| m.iter().any(|x| x == "dawam"))
+    }
+
+    /// Has the server's answer about the org's modules been kept?
+    pub(crate) fn org_modules_known(&self) -> bool {
+        self.store.kv_get(K_ORG_MODULES).ok().flatten().is_some()
     }
 
     /// This branch's staff; the last list when offline.
@@ -534,12 +545,18 @@ mod tests {
         })
         .await;
         let core = testkit::online_core(&stub.base, "").await;
-        assert!(core.till_dawam_on(), "nothing known yet: offered, the server decides");
+        assert!(!core.till_dawam_on(), "nothing known yet: off until the server says");
         core.remember_org_modules("o1").await;
         assert!(!core.till_dawam_on(), "Dawam off: no punch, no advance tag");
         core.remember_org_modules("o1").await;
         assert!(!core.till_dawam_on(), "a failed read keeps the last answer");
         core.remember_org_modules("o1").await;
+        assert!(core.till_dawam_on(), "the server said so: a paid shop gets Dawam");
+        // The plan has the last word: a Free plan never offers Dawam, whatever
+        // modules were kept; Paid again, and it is back.
+        core.remember_plan(Some("free"));
+        assert!(!core.till_dawam_on());
+        core.remember_plan(Some("paid"));
         assert!(core.till_dawam_on());
     }
 }

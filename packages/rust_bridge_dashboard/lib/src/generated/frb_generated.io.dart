@@ -212,6 +212,9 @@ abstract class DashboardBridgeApiImplPlatform
   DayBounds dco_decode_day_bounds(dynamic raw);
 
   @protected
+  EntitlementsView dco_decode_entitlements_view(dynamic raw);
+
+  @protected
   double dco_decode_f_64(dynamic raw);
 
   @protected
@@ -614,6 +617,9 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   DayBounds sse_decode_day_bounds(SseDeserializer deserializer);
+
+  @protected
+  EntitlementsView sse_decode_entitlements_view(SseDeserializer deserializer);
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
@@ -1100,6 +1106,12 @@ abstract class DashboardBridgeApiImplPlatform
 
   @protected
   void sse_encode_day_bounds(DayBounds self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_entitlements_view(
+    EntitlementsView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_f_64(double self, SseSerializer serializer);

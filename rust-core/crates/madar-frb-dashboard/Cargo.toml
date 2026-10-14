@@ -40,15 +40,16 @@ chrono-tz = "0.10"
 # Dawam's salary money crosses as f64 and is read as the exact Decimal the
 # crate takes.
 rust_decimal = { version = "1", default-features = false }
-madar-time = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.2" }
-madar-units = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.2" }
-madar-dawam = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.2" }
-madar-ids = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.2" }
-madar-money = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.2" }
-madar-catalog = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.2" }
-madar-till = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.2" }
-madar-inventory = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.2" }
-madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.7.2" }
+madar-time = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
+madar-units = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
+madar-dawam = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
+madar-ids = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
+madar-money = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
+madar-catalog = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
+madar-till = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
+madar-inventory = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
+madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
+madar-plan = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.0" }
 
 [dev-dependencies]
 # Reads the written workbook's XML in the xlsx tests (rust_xlsxwriter's own zip).
