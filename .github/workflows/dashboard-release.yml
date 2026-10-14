@@ -429,3 +429,52 @@ jobs:
           generate_release_notes: true
           body_path: notes.md
           files: artifacts/**/*
+
+      # Mirror every build to https://downloads.madar-pos.cloud (rsync as the restricted
+      # madar-deploy user, then rebuild its manifest). After the release is published and
+      # best effort: a missing secret or an unreachable box is a warning, never a failed
+      # release. Not on pull requests (this workflow only runs for tags anyway).
+      - name: Publish to downloads.madar-pos.cloud
+        if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        timeout-minutes: 25
+        env:
+          DOWNLOADS_SSH_KEY: ${{ secrets.DOWNLOADS_SSH_KEY }}
+          DOWNLOADS_HOST: ${{ secrets.DOWNLOADS_HOST }}
+          DOWNLOADS_KNOWN_HOSTS: ${{ secrets.DOWNLOADS_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$DOWNLOADS_SSH_KEY" ] || [ -z "$DOWNLOADS_HOST" ] || [ -z "$DOWNLOADS_KNOWN_HOSTS" ]; then
+            echo "::warning::DOWNLOADS_SSH_KEY / DOWNLOADS_HOST / DOWNLOADS_KNOWN_HOSTS not all set: skipping the downloads.madar-pos.cloud upload."
+            exit 0
+          fi
+          P=dashboard; BASE=Madar-Dashboard; V="${GITHUB_REF_NAME#dash-v}"
+          out="$RUNNER_TEMP/dl/$P/$V"; mkdir -p "$out"
+          while IFS= read -r f; do
+            b=$(basename "$f")
+            case "$b" in
+              *arm64-v8a*.apk) s=android-arm64.apk ;;
+              *armeabi-v7a*.apk) s=android-armv7.apk ;;
+              *.apk) s=android.apk ;;
+              *.aab) s=android.aab ;;
+              *.ipa) s=ios-unsigned.ipa ;;
+              *macOS*.zip) s=macos.zip ;;
+              *Windows*.zip) s=windows.zip ;;
+              *) echo "::warning::not uploaded to downloads (no name rule): $b"; continue ;;
+            esac
+            n="$BASE-$V-$s"
+            cp "$f" "$out/$n"
+            (cd "$out" && sha256sum "$n" > "$n.sha256")
+          done < <(find artifacts -type f)
+          ls -l "$out"
+          install -m 600 /dev/null "$RUNNER_TEMP/dl_key"
+          printf '%s\n' "$DOWNLOADS_SSH_KEY" > "$RUNNER_TEMP/dl_key"
+          printf '%s\n' "$DOWNLOADS_KNOWN_HOSTS" > "$RUNNER_TEMP/dl_kh"
+          SSH="ssh -i $RUNNER_TEMP/dl_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/dl_kh -o ConnectTimeout=20 -o ServerAliveInterval=30"
+          # The box's gate takes only this rsync (jailed to its files/ folder) and "rebuild".
+          if rsync -rt --partial -e "$SSH" "$RUNNER_TEMP/dl/" "madar-deploy@$DOWNLOADS_HOST:" \
+             && $SSH "madar-deploy@$DOWNLOADS_HOST" rebuild; then
+            echo "Published $P $V to https://downloads.madar-pos.cloud/"
+          else
+            echo "::warning::downloads.madar-pos.cloud upload failed (box unreachable?). The GitHub release is unaffected."
+          fi
+          rm -f "$RUNNER_TEMP/dl_key"
