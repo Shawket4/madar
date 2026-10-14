@@ -97,7 +97,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     );
     // Null while the first read is in flight, and null forever on a device
     // that has never reached the server — both hide the segment.
-    // The plan decides first: Free has no bills (floor), no online orders and
+    // The plan decides first: Free has bills (floor) but no online orders and
     // no kitchen board, and a paid plan shows exactly what it always did.
     final plan = ref.watch(entitlementsProvider);
     final showBills = plan.has(PlanFeature.floor);

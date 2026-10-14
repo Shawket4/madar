@@ -290,9 +290,10 @@ mod tests {
         core.remember_plan(Some("free"));
         let e = core.entitlements();
         assert_eq!((e.plan.as_str(), e.realtime), ("free", false));
-        assert!(e.features.is_empty());
+        assert_eq!(e.features, vec!["floor".to_string()]);
         assert_eq!((e.max_branches, e.max_pos_devices_per_branch, e.max_kds_devices), (Some(1), Some(1), Some(0)));
-        assert!(!core.has_plan_feature("floor"));
+        assert!(core.has_plan_feature("floor"));
+        assert!(!core.has_plan_feature("kitchen"));
 
         // Sign-in saying nothing is Paid; an unknown plan is Paid.
         core.remember_plan(None);
