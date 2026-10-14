@@ -415,7 +415,14 @@ jobs:
           flutter build ios --release --config-only --build-number=${{ github.run_number }}
           cd ios && pod install
 
-      - name: Archive (signed)
+      # Archived UNSIGNED, then ad-hoc signed with the app's entitlements:
+      # signing the archive asked Apple for a new Apple Development
+      # certificate on every run (each runner is a fresh machine), until the
+      # team hit Apple's limit and every iOS release failed ("maximum number of
+      # certificates"). The export below signs for the App Store with Apple's
+      # cloud-managed distribution certificate and keeps the entitlements the
+      # ad-hoc signature carries (push: aps-environment → production).
+      - name: Archive (unsigned) + entitlements
         if: steps.asc.outputs.ready == 'true'
         working-directory: apps/madar/ios
         run: |
@@ -424,11 +431,12 @@ jobs:
             -workspace Runner.xcworkspace -scheme Runner -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+          APP=$(ls -d "$RUNNER_TEMP/Runner.xcarchive/Products/Applications/"*.app)
+          codesign --force --sign - --entitlements Runner/Runner.entitlements "$APP"
+          codesign -d --entitlements :- "$APP" > "$RUNNER_TEMP/entitlements.plist"
+          grep -q aps-environment "$RUNNER_TEMP/entitlements.plist" \
+            || { echo "::error::The archived app lost its push entitlement."; exit 1; }
 
       # destination=upload: the export IS the upload, no altool/Transporter.
       - name: Upload to App Store Connect (TestFlight)
