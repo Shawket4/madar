@@ -348,6 +348,7 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**get_onboarding**](docs/OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 *OrgsApi* | [**get_org**](docs/OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 *OrgsApi* | [**get_org_modules**](docs/OrgsApi.md#get_org_modules) | **GET** /orgs/{id}/modules | The org's modules, for anyone who works there: the dashboard routes by the server's answer (PS-3), and a branch manager cannot read the org itself (`orgs:read` is the owner's). Switching them is `PATCH /orgs/{id}`, a super admin's alone (SA-1).
+*OrgsApi* | [**get_org_plan**](docs/OrgsApi.md#get_org_plan) | **GET** /orgs/{id}/plan | The org's plan, what it allows, and each branch's tills.
 *OrgsApi* | [**list_orgs**](docs/OrgsApi.md#list_orgs) | **GET** /orgs | 
 *OrgsApi* | [**list_templates**](docs/OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
@@ -356,6 +357,7 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**public_org_favicon**](docs/OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 *OrgsApi* | [**public_org_links**](docs/OrgsApi.md#public_org_links) | **GET** /public/orgs/links | The shop's links page, in one request.
 *OrgsApi* | [**public_tenant_shell**](docs/OrgsApi.md#public_tenant_shell) | **GET** /public/tenant-shell | A shop page's HTML: the app entry with the shop's head and noscript.
+*OrgsApi* | [**put_active_till**](docs/OrgsApi.md#put_active_till) | **PUT** /orgs/{id}/plan/active-till | Choose which till a branch sells on (Free plan). The chosen till is active, every other POS till of the branch is switched off. The org's owner, or a super admin; a paid org has no inactive tills (409 `PLAN_NOT_FREE`).
 *OrgsApi* | [**put_links_page**](docs/OrgsApi.md#put_links_page) | **PUT** /orgs/{id}/links-page | Save the links page.
 *OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | Super admin only, except a body carrying nothing but `social_links` and/or `logo_url: null`: the org's own people with `org.settings.edit` may save that for their own org.
 *OrgsApi* | [**upload_org_card_image**](docs/OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
@@ -487,6 +489,8 @@ Class | Method | HTTP request | Description
 *ShiftsApi* | [**legacy_add_shift_cash_movement**](docs/ShiftsApi.md#legacy_add_shift_cash_movement) | **POST** /shifts/{shift_id}/cash-movements | 
 *ShiftsApi* | [**list_shifts**](docs/ShiftsApi.md#list_shifts) | **GET** /shifts/branches/{branch_id} | 
 *ShiftsApi* | [**open_shift**](docs/ShiftsApi.md#open_shift) | **POST** /shifts/branches/{branch_id}/open | 
+*SignupApi* | [**signup**](docs/SignupApi.md#signup) | **POST** /public/signup | Make a shop on the Free plan.
+*SignupApi* | [**signup_otp**](docs/SignupApi.md#signup_otp) | **POST** /public/signup/otp | Send a code by WhatsApp to prove the owner's phone.
 *StaffApi* | [**accept_staff_privacy**](docs/StaffApi.md#accept_staff_privacy) | **POST** /staff/me/privacy | The employee accepted the location notice on this phone (AT-5). Kept on the device row: a new phone asks again.
 *StaffApi* | [**advances**](docs/StaffApi.md#advances) | **GET** /staff/reports/advances | Advances given in range, and what is still owed.
 *StaffApi* | [**answer_swap**](docs/StaffApi.md#answer_swap) | **PATCH** /staff/me/swaps/{id} | The colleague agrees or declines.
@@ -675,6 +679,7 @@ Class | Method | HTTP request | Description
  - [ActivateDeviceResponse](docs/ActivateDeviceResponse.md)
  - [ActivationCode](docs/ActivationCode.md)
  - [ActivationCodeState](docs/ActivationCodeState.md)
+ - [ActiveTillRequest](docs/ActiveTillRequest.md)
  - [AddRoundRequest](docs/AddRoundRequest.md)
  - [AddonCost](docs/AddonCost.md)
  - [AddonIngredient](docs/AddonIngredient.md)
@@ -1135,11 +1140,14 @@ Class | Method | HTTP request | Description
  - [PinSuggestion](docs/PinSuggestion.md)
  - [PingRequest](docs/PingRequest.md)
  - [PingResult](docs/PingResult.md)
+ - [PlanBranch](docs/PlanBranch.md)
  - [PlanCategory](docs/PlanCategory.md)
  - [PlanDevice](docs/PlanDevice.md)
  - [PlanPrinter](docs/PlanPrinter.md)
  - [PlanRegisteredDevice](docs/PlanRegisteredDevice.md)
  - [PlanSection](docs/PlanSection.md)
+ - [PlanState](docs/PlanState.md)
+ - [PlanTill](docs/PlanTill.md)
  - [PlanVersionView](docs/PlanVersionView.md)
  - [PoLeadTimeReport](docs/PoLeadTimeReport.md)
  - [PoLeadTimeRow](docs/PoLeadTimeRow.md)
@@ -1308,6 +1316,7 @@ Class | Method | HTTP request | Description
  - [ScopeInfo](docs/ScopeInfo.md)
  - [SeatBookingRequest](docs/SeatBookingRequest.md)
  - [SectionCount](docs/SectionCount.md)
+ - [ServiceModeSales](docs/ServiceModeSales.md)
  - [SetAssignmentsRequest](docs/SetAssignmentsRequest.md)
  - [SetGrantRequest](docs/SetGrantRequest.md)
  - [SetOverrideRequest](docs/SetOverrideRequest.md)
@@ -1322,6 +1331,10 @@ Class | Method | HTTP request | Description
  - [ShiftSummary](docs/ShiftSummary.md)
  - [ShrinkageRow](docs/ShrinkageRow.md)
  - [Signal](docs/Signal.md)
+ - [SignupOtpRequest](docs/SignupOtpRequest.md)
+ - [SignupOtpResponse](docs/SignupOtpResponse.md)
+ - [SignupRequest](docs/SignupRequest.md)
+ - [SignupResponse](docs/SignupResponse.md)
  - [SizeBaseResult](docs/SizeBaseResult.md)
  - [SizeCostOut](docs/SizeCostOut.md)
  - [SizeInput](docs/SizeInput.md)

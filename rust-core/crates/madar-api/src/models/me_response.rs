@@ -16,6 +16,9 @@ pub struct MeResponse {
     /// Org currency code (e.g. \"EGP\").
     #[serde(rename = "currency_code")]
     pub currency_code: String,
+    /// The organization's plan: `free` | `paid`. Re-read on every `/auth/me`.
+    #[serde(rename = "plan", skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
     /// Every dine-in sale belongs to a table. Re-read on every `/auth/me`, so switching it on reaches a till that has been running for weeks.
     #[serde(
         rename = "require_table_for_orders",
@@ -41,6 +44,7 @@ impl MeResponse {
     ) -> MeResponse {
         MeResponse {
             currency_code,
+            plan: None,
             require_table_for_orders: None,
             tax_policy: Box::new(tax_policy),
             tax_rate,

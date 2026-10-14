@@ -81,6 +81,22 @@ pub struct GetOrgModulesParams {
     pub id: String,
 }
 
+/// struct for passing parameters to the method [`get_org_plan`]
+#[derive(Clone, Debug)]
+pub struct GetOrgPlanParams {
+    /// Organization ID
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`list_orgs`]
+#[derive(Clone, Debug)]
+pub struct ListOrgsParams {
+    /// Only organizations on this plan: `free` | `paid`.
+    pub plan: Option<String>,
+    /// Only organizations created this way: `admin` | `self`.
+    pub signup_source: Option<String>,
+}
+
 /// struct for passing parameters to the method [`offline_auth_bundle`]
 #[derive(Clone, Debug)]
 pub struct OfflineAuthBundleParams {
@@ -128,6 +144,14 @@ pub struct PublicTenantShellParams {
     pub host: Option<String>,
     /// The page's path and query, e.g. `/order/menu?branch=…`. nginx sends it as the `X-Shell-Path` header.
     pub path: Option<String>,
+}
+
+/// struct for passing parameters to the method [`put_active_till`]
+#[derive(Clone, Debug)]
+pub struct PutActiveTillParams {
+    /// Organization ID
+    pub id: String,
+    pub active_till_request: models::ActiveTillRequest,
 }
 
 /// struct for passing parameters to the method [`put_links_page`]
@@ -255,6 +279,19 @@ pub enum GetOrgModulesError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_org_plan`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetOrgPlanError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`list_orgs`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -352,6 +389,19 @@ pub enum PublicOrgLinksError {
 pub enum PublicTenantShellError {
     Status404(),
     Status503(),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_active_till`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutActiveTillError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
 
@@ -769,12 +819,66 @@ pub async fn get_org_modules(
     }
 }
 
+pub async fn get_org_plan(
+    configuration: &configuration::Configuration,
+    params: GetOrgPlanParams,
+) -> Result<models::PlanState, Error<GetOrgPlanError>> {
+    let uri_str = format!(
+        "{}/orgs/{id}/plan",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PlanState`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PlanState`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetOrgPlanError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn list_orgs(
     configuration: &configuration::Configuration,
+    params: ListOrgsParams,
 ) -> Result<Vec<models::Org>, Error<ListOrgsError>> {
     let uri_str = format!("{}/orgs", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
+    if let Some(ref param_value) = params.plan {
+        req_builder = req_builder.query(&[("plan", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.signup_source {
+        req_builder = req_builder.query(&[("signup_source", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -1107,6 +1211,54 @@ pub async fn public_tenant_shell(
     } else {
         let content = resp.text().await?;
         let entity: Option<PublicTenantShellError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_active_till(
+    configuration: &configuration::Configuration,
+    params: PutActiveTillParams,
+) -> Result<models::PlanState, Error<PutActiveTillError>> {
+    let uri_str = format!(
+        "{}/orgs/{id}/plan/active-till",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.active_till_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::PlanState`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::PlanState`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutActiveTillError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

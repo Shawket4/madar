@@ -5,6 +5,7 @@
 /// the app's support folder; files go through the platform's dialogs.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dashboard_core/dashboard_core.dart';
@@ -104,5 +105,34 @@ Future<ProviderContainer> bootReal() async {
   );
   core.bridge.setLocale(locale: container.read(localeProvider));
   await container.read(sessionProvider.future);
+  _followPlan(container, core.bridge);
   return container;
+}
+
+/// Keeps [planFeaturesProvider] on the organisation's plan: what the core
+/// holds at once (sign-in and the cached session carry it), then the server's
+/// word (`/auth/me`), so an upgrade shows without signing in again. Signed
+/// out, the plan is unknown and nothing is hidden. Best-effort: a failed read
+/// keeps the last answer, and an unknown plan is Paid.
+void _followPlan(ProviderContainer container, MadarBridge bridge) {
+  void apply() {
+    final signedIn = bridge.isAuthenticated();
+    container
+        .read(planFeaturesProvider.notifier)
+        .set(signedIn ? bridge.entitlements().features.toSet() : null);
+  }
+
+  Future<void> refresh() async {
+    apply();
+    if (!bridge.isAuthenticated()) return;
+    try {
+      await bridge.refreshPlan();
+    } on Object {
+      // Offline: the last answer stands.
+    }
+    apply();
+  }
+
+  container.listen(sessionProvider, (_, _) => unawaited(refresh()));
+  unawaited(refresh());
 }

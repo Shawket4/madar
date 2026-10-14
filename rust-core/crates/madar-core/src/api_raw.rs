@@ -349,6 +349,12 @@ pub(crate) fn answer_words(locale: &str, status: u16, body: &str, kind: ApiFailu
         ApiFailureKind::Offline => return words(locale, Words::Network),
         _ => {}
     }
+    // A plan refusal is madar-plan's own sentence, in this language.
+    if status == 403 {
+        if let Some(r) = crate::plan::refusal_of_body(body) {
+            return r.message(locale).to_string();
+        }
+    }
     let code = net::extract_error_code(body);
     if let Some(said) = code.as_deref().and_then(|c| core_code_words(locale, c)) {
         return said;

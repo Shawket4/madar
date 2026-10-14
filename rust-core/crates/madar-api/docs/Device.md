@@ -14,6 +14,7 @@ Name | Type | Description | Notes
 **label** | Option<**String**> |  | [optional]
 **last_seen_at** | **chrono::DateTime<chrono::FixedOffset>** |  | 
 **org_id** | **uuid::Uuid** |  | 
+**plan_inactive** | Option<**bool**> | The Free plan switched this till off (it is not its branch's active one): it shows \"This till isn't active\" instead of the sell screen. Always `false` on Paid. | [optional]
 **platform** | Option<**String**> |  | [optional]
 **retired_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 

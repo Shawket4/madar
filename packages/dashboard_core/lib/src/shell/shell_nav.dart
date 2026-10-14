@@ -5,6 +5,7 @@
 library;
 
 import 'package:dashboard_core/src/authz/authz_providers.dart';
+import 'package:dashboard_core/src/authz/plan_gate.dart';
 import 'package:dashboard_core/src/generated/nav.dart';
 import 'package:dashboard_core/src/routes/nav.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,11 +16,13 @@ final navLeafVisibleProvider = Provider<bool Function(NavLeaf leaf)>((ref) {
   final s = ref.watch(authzStateProvider);
   final modules = s.modules.known ? s.modules.modules : const <String>[];
   final setupIncomplete = s.setupIncomplete;
+  final features = ref.watch(planFeaturesProvider);
   return (leaf) => leafVisible(
     leaf,
     s.authz,
     modules: modules,
     setupIncomplete: setupIncomplete,
+    features: features,
   );
 });
 

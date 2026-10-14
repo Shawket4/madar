@@ -883,6 +883,15 @@ pub(crate) fn status_to_error(status: u16, body: &str) -> CoreError {
             detail: secs.to_string(),
         };
     }
+    // A plan refusal (`plan_feature`, `plan_device_limit`, … : madar-plan's
+    // `Refusal`) keeps its code and feature in the resource, so a host words it
+    // in the till's language (`MadarCore::plan_refusal_words`); `action` is the
+    // English sentence, for a log or a stuck-op list.
+    if status == 403 {
+        if let Some(r) = crate::plan::refusal_of_body(body) {
+            return CoreError::Forbidden { resource: crate::plan::refusal_resource(&r), action: r.en().to_string() };
+        }
+    }
     // Our backend ALWAYS answers an error with the `{ "error": "…" }` envelope
     // (`errors.rs::ErrorBody`); a captive portal / transparent proxy answers with
     // HTML, a redirect stub, or an empty body. `extract_error_message` is `Some`
@@ -1187,6 +1196,27 @@ mod tests {
             }
             other => panic!("expected Forbidden, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_plan_refusal_keeps_its_code_and_feature() {
+        let body = r#"{"error":"Kitchen screens are on the paid plan.","error_ar":"x","code":"plan_feature","feature":"kitchen"}"#;
+        match status_to_error(403, body) {
+            CoreError::Forbidden { resource, action } => {
+                assert_eq!(resource, "plan_feature:kitchen");
+                assert_eq!(action, "Kitchen screens are on the paid plan.");
+            }
+            other => panic!("expected Forbidden, got {other:?}"),
+        }
+        // The codes without a feature.
+        for code in ["plan_branch_limit", "plan_device_limit", "plan_no_realtime", "plan_till_inactive"] {
+            match status_to_error(403, &format!(r#"{{"error":"x","code":"{code}"}}"#)) {
+                CoreError::Forbidden { resource, .. } => assert_eq!(resource, code),
+                other => panic!("{code}: expected Forbidden, got {other:?}"),
+            }
+        }
+        // A plan refusal is the server's answer: it is not "offline".
+        assert!(!is_connectivity_failure(&status_to_error(403, body)));
     }
 
     #[test]

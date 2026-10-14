@@ -52,6 +52,57 @@ class BranchView {
           orgLogoUrl == other.orgLogoUrl;
 }
 
+/// What the organisation's plan switches on: hide a nav entry or lock a page
+/// from `features`, never from the plan's name. `till_inactive` is a POS
+/// notion (always false here).
+class EntitlementsView {
+  /// `free` | `paid`.
+  final String plan;
+  final List<String> features;
+  final bool realtime;
+  final int? maxBranches;
+  final int? maxPosDevicesPerBranch;
+  final int? maxKdsDevices;
+  final int? maxWaiterDevices;
+  final bool tillInactive;
+
+  const EntitlementsView({
+    required this.plan,
+    required this.features,
+    required this.realtime,
+    this.maxBranches,
+    this.maxPosDevicesPerBranch,
+    this.maxKdsDevices,
+    this.maxWaiterDevices,
+    required this.tillInactive,
+  });
+
+  @override
+  int get hashCode =>
+      plan.hashCode ^
+      features.hashCode ^
+      realtime.hashCode ^
+      maxBranches.hashCode ^
+      maxPosDevicesPerBranch.hashCode ^
+      maxKdsDevices.hashCode ^
+      maxWaiterDevices.hashCode ^
+      tillInactive.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EntitlementsView &&
+          runtimeType == other.runtimeType &&
+          plan == other.plan &&
+          features == other.features &&
+          realtime == other.realtime &&
+          maxBranches == other.maxBranches &&
+          maxPosDevicesPerBranch == other.maxPosDevicesPerBranch &&
+          maxKdsDevices == other.maxKdsDevices &&
+          maxWaiterDevices == other.maxWaiterDevices &&
+          tillInactive == other.tillInactive;
+}
+
 class MadarConfig {
   final String baseUrl;
   final String environment;

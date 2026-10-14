@@ -824,6 +824,17 @@ class OrderNotifier extends Notifier<OrderState> {
   // ── floor canvas + transfer waitlist ───────────────────────────────────────
   /// Re-project the floor from the local mirrors (instant, offline-safe).
   Future<void> loadFloor() async {
+    // Free has no floor, tables or bookings: nothing is projected, and every
+    // table affordance (`hasFloor`) stays hidden. A downgraded shop keeps its
+    // layout in the mirror, untouched, for the day it upgrades.
+    if (!ref.read(entitlementsProvider).has(PlanFeature.floor)) {
+      state = state.copyWith(
+        floorLayout: null,
+        transferQueue: const [],
+        arrivals: const [],
+      );
+      return;
+    }
     final layout = await _quiet(_bridge.floorLayout);
     final queue = await _quiet(_bridge.listTransferQueue);
     final arrivals = await _quiet(_bridge.listArrivals);
@@ -1340,6 +1351,7 @@ class OrderNotifier extends Notifier<OrderState> {
         _bridge,
         tableId: tableId,
         lineKey: line.key,
+        dineIn: ref.read(dineInProvider(tableId)),
         tableLabel: tableLabel,
         ticketRef: ticketRef,
       );
@@ -1377,6 +1389,7 @@ class OrderNotifier extends Notifier<OrderState> {
         _bridge,
         tableId: tableId,
         lineKey: line.key,
+        dineIn: ref.read(dineInProvider(tableId)),
         tableLabel: tableLabel,
         ticketRef: ticketRef,
       );

@@ -1169,6 +1169,10 @@ impl MadarCore {
         }
         // A pull is a real network round trip: its outcome is connectivity
         // evidence exactly like an outbox send (the backlog must not mask it).
+        // A pull may have brought a different plan: the stream follows it.
+        if res.is_ok() {
+            self.reconcile_realtime();
+        }
         match &res {
             Ok(_) => self.note_connectivity(true),
             Err(e) if crate::net::is_connectivity_failure(e) => self.note_connectivity(false),
@@ -1563,7 +1567,7 @@ impl MadarCore {
         self.pull(false).await
     }
 
-    fn sync_branch(&self) -> Option<String> {
+    pub(crate) fn sync_branch(&self) -> Option<String> {
         self.current_session().and_then(|s| s.branch_id)
     }
 

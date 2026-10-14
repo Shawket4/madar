@@ -744,6 +744,9 @@ class ReceiptView {
   /// The deals on the order; `subtotal_minor` is net of them.
   final List<ReceiptDealView> deals;
 
+  /// `takeaway` | `dine_in`, printed on the receipt; `None` prints nothing.
+  final String? serviceMode;
+
   const ReceiptView({
     required this.localOrderId,
     this.orderNumber,
@@ -783,6 +786,7 @@ class ReceiptView {
     this.loyaltyNotice,
     this.staffNotice,
     required this.deals,
+    this.serviceMode,
   });
 
   @override
@@ -824,7 +828,8 @@ class ReceiptView {
       payments.hashCode ^
       loyaltyNotice.hashCode ^
       staffNotice.hashCode ^
-      deals.hashCode;
+      deals.hashCode ^
+      serviceMode.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -868,7 +873,8 @@ class ReceiptView {
           payments == other.payments &&
           loyaltyNotice == other.loyaltyNotice &&
           staffNotice == other.staffNotice &&
-          deals == other.deals;
+          deals == other.deals &&
+          serviceMode == other.serviceMode;
 }
 
 /// A line picked on the refund sheet.

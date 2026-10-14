@@ -20,6 +20,7 @@ import 'loyalty.dart';
 import 'metrics.dart';
 import 'orders.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'plan.dart';
 import 'printing.dart';
 import 'realtime.dart';
 import 'routes.dart';
@@ -291,6 +292,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? tableId,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   });
@@ -309,6 +311,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   });
@@ -321,6 +324,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   });
@@ -703,6 +707,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String lineKey,
     required String note,
   });
+
+  /// The plan's features and limits, and whether this till is switched off.
+  /// Unknown is Paid. Local; no network. Re-read on a `catalog`/`sync` change.
+  EntitlementsView entitlements();
 
   /// Environment name (`prod` | `staging` | `dev`).
   String environment();
@@ -1091,6 +1099,14 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Seconds before this tablet may try a PIN again (the server's growing
   /// delay, persisted across restarts); 0 when it may now.
   int pinWaitSeconds();
+
+  /// The same sentence for a `code` and optional `feature` a host holds.
+  String? planRefusalMessage({required String code, String? feature});
+
+  /// A plan refusal's words in the till's language, from the `Forbidden`
+  /// resource it travels under (`plan_feature:kitchen`, `plan_device_limit`…).
+  /// `None` when it is not a plan refusal.
+  String? planRefusalWords({required String resource});
 
   /// The Metrics screen for a preset (`custom` takes two `YYYY-MM-DD` days).
   /// NETWORK-CAPABLE: one server call when online, the device's rows otherwise.

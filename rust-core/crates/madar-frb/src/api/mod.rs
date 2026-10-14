@@ -13,6 +13,7 @@ pub mod kds;
 pub mod loyalty;
 pub mod metrics;
 pub mod orders;
+pub mod plan;
 pub mod printing;
 pub mod push;
 pub mod realtime;

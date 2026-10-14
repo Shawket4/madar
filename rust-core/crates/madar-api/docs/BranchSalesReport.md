@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **branch_id** | **uuid::Uuid** |  | 
 **branch_name** | **String** |  | 
 **by_category** | [**Vec<models::CategorySales>**](CategorySales.md) |  | 
+**by_service_mode** | Option<[**Vec<models::ServiceModeSales>**](ServiceModeSales.md)> | The sales split by how the customer takes the order: always both rows, `takeaway` (Pickup) then `dine_in`, zero when there were none. Same sold set and the same net-of-refunds revenue as `total_revenue`, so the two rows add up to it (less delivery orders, which are `takeaway` here as they are on the order). On every plan. | [optional]
 **cash_tips** | Option<**i64**> | The cash slice of `total_tips` (snapshotted `tip_is_cash`). | [optional]
 **from** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
 **gross_sales** | Option<**i64**> | Sales in range as rung up, before any refund. Was what `total_revenue` meant until 2026-09. | [optional]

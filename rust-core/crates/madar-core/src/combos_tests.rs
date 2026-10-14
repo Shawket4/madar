@@ -1989,7 +1989,7 @@ fn escpos_ctx(_core: &MadarCore) -> receipt::EscPosCtx {
         store_name: l("MADAR CAFE"),
         currency: String::new(),
         width: 48,
-        labels: receipt::ReceiptLabels {
+        labels: receipt::ReceiptLabels { pickup: "Pickup".into(), dine_in: "Dine in".into(),
             order: l("Order"),
             reference: l("Ref:"),
             voided: l("VOIDED"),
@@ -2288,7 +2288,7 @@ async fn the_kitchen_gets_one_dish_per_part_tagged_with_its_combo() {
 
     let chits = core.kitchen_chits_for_line(l.clone(), Some("4".into()), None);
     assert_eq!(chits.len(), 3);
-    let labels = receipt::KitchenChitLabels {
+    let labels = receipt::KitchenChitLabels { pickup: "Pickup".into(), dine_in: "Dine in".into(),
         heading: "KITCHEN".into(),
         table: "Table".into(),
         note: "Note:".into(),
@@ -2601,7 +2601,7 @@ fn one_size_is_never_a_size_a_person_reads() {
     assert_eq!(cart::real_size(Some(" One_Size ".into())), None);
     assert_eq!(cart::real_size(Some(String::new())), None);
     assert_eq!(cart::real_size(Some("Large".into())), Some("Large".into()));
-    let chit = receipt::KitchenChit {
+    let chit = receipt::KitchenChit { service_mode: None,
         item: "Burger".into(),
         qty: 1,
         size_label: Some("one_size".into()),
@@ -2613,7 +2613,7 @@ fn one_size_is_never_a_size_a_person_reads() {
         teller: None,
         combo: Some("In Lunch deal".into()),
     };
-    let labels = receipt::KitchenChitLabels {
+    let labels = receipt::KitchenChitLabels { pickup: "Pickup".into(), dine_in: "Dine in".into(),
         heading: "KITCHEN".into(),
         table: "Table".into(),
         note: "Note:".into(),

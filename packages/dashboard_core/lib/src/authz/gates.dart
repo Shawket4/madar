@@ -2,11 +2,17 @@
 /// `components/app/module-gate.tsx`, and a capability gate for actions.
 library;
 
+import 'dart:async';
+
 import 'package:dashboard_api/dashboard_api.dart' show ApiException;
 import 'package:dashboard_core/src/authz/authz_providers.dart';
+import 'package:dashboard_core/src/authz/plan_gate.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/routes/nav.dart';
-import 'package:dashboard_kit/dashboard_kit.dart' show DashErrorState;
+import 'package:dashboard_core/src/shell/shell_prefs.dart'
+    show linkOpenerProvider;
+import 'package:dashboard_kit/dashboard_kit.dart'
+    show DashButton, DashErrorState;
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -115,6 +121,12 @@ class ModuleGate extends ConsumerWidget {
     if (ref.watch(authzProvider.select((a) => !a.ready && a.error != null))) {
       return const AuthzLoadError();
     }
+    // The plan first: a page of a feature the plan does not have is not
+    // reachable by its path either, whatever the modules say.
+    final features = ref.watch(planFeaturesProvider);
+    if (!planHasPath(features, path)) {
+      return PlanLocked(feature: featureOfPath(path));
+    }
     final needs = moduleOfPath(path);
     if (needs == null) return child;
     final mods = ref.watch(orgModulesProvider);
@@ -157,6 +169,62 @@ class ModuleGate extends ConsumerWidget {
       );
     }
     return child;
+  }
+}
+
+/// Madar's number, where "Contact Madar" opens WhatsApp (the web's
+/// `MADAR_PHONE_E164`, `config/contact.ts`).
+const String madarWhatsAppNumber = '201211116899';
+
+/// WhatsApp click-to-chat to Madar with [text] prefilled.
+Uri madarWhatsAppUri(String text) =>
+    Uri.https('wa.me', '/$madarWhatsAppNumber', {'text': text});
+
+/// A page the organisation's plan does not have: "`feature` is on the paid
+/// plan" and a way to contact Madar (the web's upgrade page). Nothing is
+/// lost by upgrading: the body says so.
+class PlanLocked extends ConsumerWidget {
+  const PlanLocked({required this.feature, super.key});
+
+  /// The `madar_plan::Feature` word, or null for a page with no name for it.
+  final String? feature;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(tProvider);
+    final name = feature == null ? null : t('plan.features.$feature');
+    final title = name == null
+        ? t('plan.upgrade.hint', defaultValue: 'On the paid plan')
+        : t('plan.upgrade.title', args: {'feature': name});
+    final message = name == null
+        ? t(
+            'plan.upgrade.messageGeneric',
+            defaultValue:
+                'Hello Madar, I would like to move my shop to the paid plan.',
+          )
+        : t('plan.upgrade.message', args: {'feature': name});
+    return Padding(
+      padding: const EdgeInsetsDirectional.all(Space.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          EmptyState(
+            icon: 'lock',
+            title: title,
+            message: t('plan.upgrade.body'),
+          ),
+          const SizedBox(height: Space.lg),
+          DashButton(
+            key: const ValueKey('plan-contact'),
+            label: t('plan.upgrade.cta'),
+            icon: 'message-circle',
+            onPressed: () => unawaited(
+              ref.read(linkOpenerProvider)(madarWhatsAppUri(message)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

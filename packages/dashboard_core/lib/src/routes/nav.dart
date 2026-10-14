@@ -5,6 +5,7 @@
 library;
 
 import 'package:dashboard_core/src/authz/authz.dart';
+import 'package:dashboard_core/src/authz/plan_gate.dart';
 import 'package:dashboard_core/src/generated/nav.dart';
 
 /// One page in the sidebar (`NavLeaf`).
@@ -212,7 +213,11 @@ bool leafVisible(
   Authz authz, {
   List<String>? modules,
   bool setupIncomplete = false,
+  Set<String>? features,
 }) {
+  // The plan first: a page the plan does not have is not in the nav (null =
+  // the plan is not known yet: everything shows).
+  if (!planHasPath(features, leaf.to)) return false;
   final module = leaf.module;
   if (module != null && modules != null && !modules.contains(module)) {
     return false;
@@ -250,10 +255,16 @@ String? moduleOfPath(String pathname) {
 
 /// The settings panes this person may see, in an org with these modules on
 /// (`visibleSettings`). Until the modules are known, pass an empty list:
-/// none of the module panes shows.
-List<SettingsNavGroup> visibleSettings(Authz authz, List<String> modules) => [
+/// none of the module panes shows. [features] is the plan's (null = unknown =
+/// every pane): a pane of a feature the plan lacks is not listed.
+List<SettingsNavGroup> visibleSettings(
+  Authz authz,
+  List<String> modules, {
+  Set<String>? features,
+}) => [
   for (final g in settingsNav)
-    if (_visibleItems(g, authz, modules) case final items when items.isNotEmpty)
+    if (_visibleItems(g, authz, modules, features) case final items
+        when items.isNotEmpty)
       SettingsNavGroup(
         labelKey: g.labelKey,
         fallback: g.fallback,
@@ -265,12 +276,19 @@ List<SettingsNavLeaf> _visibleItems(
   SettingsNavGroup g,
   Authz authz,
   List<String> modules,
+  Set<String>? features,
 ) => [
   for (final i in g.items)
-    if (_settingVisible(i, authz, modules)) i,
+    if (_settingVisible(i, authz, modules, features)) i,
 ];
 
-bool _settingVisible(SettingsNavLeaf i, Authz authz, List<String> modules) {
+bool _settingVisible(
+  SettingsNavLeaf i,
+  Authz authz,
+  List<String> modules,
+  Set<String>? features,
+) {
+  if (!planHasPath(features, i.to)) return false;
   final module = i.module;
   if (module != null && !modules.contains(module)) return false;
   if (i.superAdminOnly) return authz.platform;

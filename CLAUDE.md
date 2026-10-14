@@ -218,6 +218,26 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
 - **LAN rows are checked, never dropped.** A peer's money row whose author lacks the
   grant is kept (the money moved) and recorded in `lan_authz_flags`.
 
+## Plans (Free / Paid) — madar-shared's `madar-plan`
+What a plan allows is defined once, in madar-shared (`authz/spec/plans.toml`,
+the `madar-plan` crate, pinned by the same tag as the rest). The core asks it
+and nothing else keeps a list:
+- **Screens ask `entitlements()`** (`entitlementsProvider`, `.has(PlanFeature.x)`),
+  never the plan's name. Unknown is **Paid**: a paying shop never loses a screen.
+  The plan rides `branch_settings.plan` in the feed (sign-in and `/auth/me` as
+  fallback); the table in `app_core/lib/src/generated/plans.dart` is generated
+  (`cargo run -p authz-gen -- --pos <this repo>` in madar-shared).
+- **Free opens no stream** (`realtime::topics_for_role(plan, role)` is empty):
+  the core polls once a minute when idle and pulls after each acked op. A pull
+  that brings a different plan opens or closes the stream (`reconcile_realtime`).
+- **A till the plan switched off** (`plan_inactive` on its `device` feed row)
+  shows `InactiveTillScreen` instead of the sell screen.
+- **A refusal** (`plan_feature`, `plan_device_limit`, …) is a `Forbidden` whose
+  resource is the code (`plan_feature:kitchen`); `humanMessage` words it in the
+  app's language with madar-plan's own sentence.
+- **Pickup / Dine in is on every plan**: stored on every order, printed on the
+  receipt and the kitchen print.
+
 ## Floor / tables — shared with the dashboard
 `packages/features/order/lib/src/tables_screen.dart`.
 

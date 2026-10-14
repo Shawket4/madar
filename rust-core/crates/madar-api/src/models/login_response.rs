@@ -23,6 +23,9 @@ pub struct LoginResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub open_till: Option<Option<Box<models::TillBrief>>>,
+    /// The organization's plan: `free` | `paid` (`madar-plan`; an old client that does not read it behaves as before, and a missing value is `paid`). A till also learns it from the sync feed's branch settings.
+    #[serde(rename = "plan", skip_serializing_if = "Option::is_none")]
+    pub plan: Option<String>,
     /// Every dine-in sale belongs to a table.  The till needs this, not just the server: the rule changes what the POS puts in front of a teller — the floor becomes the home screen and a sale starts by picking a table — and a refusal AFTER the items are rung up is far too late to be useful.
     #[serde(
         rename = "require_table_for_orders",
@@ -53,6 +56,7 @@ impl LoginResponse {
         LoginResponse {
             currency_code,
             open_till: None,
+            plan: None,
             require_table_for_orders: None,
             tax_policy: Box::new(tax_policy),
             tax_rate,

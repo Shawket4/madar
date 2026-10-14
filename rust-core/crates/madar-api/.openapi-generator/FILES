@@ -9,6 +9,7 @@ docs/ActivateDeviceRequest.md
 docs/ActivateDeviceResponse.md
 docs/ActivationCode.md
 docs/ActivationCodeState.md
+docs/ActiveTillRequest.md
 docs/AddRoundRequest.md
 docs/AddonCost.md
 docs/AddonIngredient.md
@@ -499,11 +500,14 @@ docs/PermissionsApi.md
 docs/PinSuggestion.md
 docs/PingRequest.md
 docs/PingResult.md
+docs/PlanBranch.md
 docs/PlanCategory.md
 docs/PlanDevice.md
 docs/PlanPrinter.md
 docs/PlanRegisteredDevice.md
 docs/PlanSection.md
+docs/PlanState.md
+docs/PlanTill.md
 docs/PlanVersionView.md
 docs/PoLeadTimeReport.md
 docs/PoLeadTimeRow.md
@@ -681,6 +685,7 @@ docs/ScheduledDay.md
 docs/ScopeInfo.md
 docs/SeatBookingRequest.md
 docs/SectionCount.md
+docs/ServiceModeSales.md
 docs/SetAssignmentsRequest.md
 docs/SetGrantRequest.md
 docs/SetOverrideRequest.md
@@ -696,6 +701,11 @@ docs/ShiftSummary.md
 docs/ShiftsApi.md
 docs/ShrinkageRow.md
 docs/Signal.md
+docs/SignupApi.md
+docs/SignupOtpRequest.md
+docs/SignupOtpResponse.md
+docs/SignupRequest.md
+docs/SignupResponse.md
 docs/SizeBaseResult.md
 docs/SizeCostOut.md
 docs/SizeInput.md
@@ -899,6 +909,7 @@ src/apis/refunds_api.rs
 src/apis/reports_api.rs
 src/apis/reservations_api.rs
 src/apis/shifts_api.rs
+src/apis/signup_api.rs
 src/apis/staff_api.rs
 src/apis/staff_auth_api.rs
 src/apis/staff_pool_api.rs
@@ -915,6 +926,7 @@ src/models/activate_device_request.rs
 src/models/activate_device_response.rs
 src/models/activation_code.rs
 src/models/activation_code_state.rs
+src/models/active_till_request.rs
 src/models/add_round_request.rs
 src/models/addon_cost.rs
 src/models/addon_ingredient.rs
@@ -1376,11 +1388,14 @@ src/models/permission_matrix.rs
 src/models/pin_suggestion.rs
 src/models/ping_request.rs
 src/models/ping_result.rs
+src/models/plan_branch.rs
 src/models/plan_category.rs
 src/models/plan_device.rs
 src/models/plan_printer.rs
 src/models/plan_registered_device.rs
 src/models/plan_section.rs
+src/models/plan_state.rs
+src/models/plan_till.rs
 src/models/plan_version_view.rs
 src/models/po_lead_time_report.rs
 src/models/po_lead_time_row.rs
@@ -1549,6 +1564,7 @@ src/models/scheduled_day.rs
 src/models/scope_info.rs
 src/models/seat_booking_request.rs
 src/models/section_count.rs
+src/models/service_mode_sales.rs
 src/models/set_assignments_request.rs
 src/models/set_grant_request.rs
 src/models/set_override_request.rs
@@ -1563,6 +1579,10 @@ src/models/shift_report_response.rs
 src/models/shift_summary.rs
 src/models/shrinkage_row.rs
 src/models/signal.rs
+src/models/signup_otp_request.rs
+src/models/signup_otp_response.rs
+src/models/signup_request.rs
+src/models/signup_response.rs
 src/models/size_base_result.rs
 src/models/size_cost_out.rs
 src/models/size_input.rs

@@ -83,6 +83,7 @@ Future<CartLineChit> buildCartLineChit(
   MadarBridge bridge, {
   required String? tableId,
   required String lineKey,
+  required bool dineIn,
   String? tableLabel,
   String? ticketRef,
 }) => bridge.cartLineChit(
@@ -90,6 +91,7 @@ Future<CartLineChit> buildCartLineChit(
   lineKey: lineKey,
   tableLabel: tableLabel,
   ticketRef: ticketRef,
+  dineIn: dineIn,
   width: kReceiptChars,
   tillBrand: printerBrandOf(bridge.deviceConfig().printerBrand),
 );
@@ -100,6 +102,7 @@ Future<CartLineChit> buildCartLineRecipeChit(
   MadarBridge bridge, {
   required String? tableId,
   required String lineKey,
+  required bool dineIn,
   String? tableLabel,
   String? ticketRef,
 }) => bridge.cartLineRecipeChit(
@@ -107,6 +110,7 @@ Future<CartLineChit> buildCartLineRecipeChit(
   lineKey: lineKey,
   tableLabel: tableLabel,
   ticketRef: ticketRef,
+  dineIn: dineIn,
   width: kReceiptChars,
   tillBrand: printerBrandOf(bridge.deviceConfig().printerBrand),
 );
@@ -149,12 +153,14 @@ Future<PrintState> printCartLineChit(
 Future<CartKitchenChit> buildCartKitchenChit(
   MadarBridge bridge, {
   required String? tableId,
+  required bool dineIn,
   String? tableLabel,
   String? ticketRef,
 }) => bridge.cartKitchenChit(
   tableId: tableId,
   tableLabel: tableLabel,
   ticketRef: ticketRef,
+  dineIn: dineIn,
   width: kReceiptChars,
   tillBrand: printerBrandOf(bridge.deviceConfig().printerBrand),
 );

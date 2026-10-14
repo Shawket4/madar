@@ -11,6 +11,7 @@ Method | HTTP request | Description
 [**get_onboarding**](OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 [**get_org**](OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 [**get_org_modules**](OrgsApi.md#get_org_modules) | **GET** /orgs/{id}/modules | The org's modules, for anyone who works there: the dashboard routes by the server's answer (PS-3), and a branch manager cannot read the org itself (`orgs:read` is the owner's). Switching them is `PATCH /orgs/{id}`, a super admin's alone (SA-1).
+[**get_org_plan**](OrgsApi.md#get_org_plan) | **GET** /orgs/{id}/plan | The org's plan, what it allows, and each branch's tills.
 [**list_orgs**](OrgsApi.md#list_orgs) | **GET** /orgs | 
 [**list_templates**](OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 [**offline_auth_bundle**](OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
@@ -19,6 +20,7 @@ Method | HTTP request | Description
 [**public_org_favicon**](OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 [**public_org_links**](OrgsApi.md#public_org_links) | **GET** /public/orgs/links | The shop's links page, in one request.
 [**public_tenant_shell**](OrgsApi.md#public_tenant_shell) | **GET** /public/tenant-shell | A shop page's HTML: the app entry with the shop's head and noscript.
+[**put_active_till**](OrgsApi.md#put_active_till) | **PUT** /orgs/{id}/plan/active-till | Choose which till a branch sells on (Free plan). The chosen till is active, every other POS till of the branch is switched off. The org's owner, or a super admin; a paid org has no inactive tills (409 `PLAN_NOT_FREE`).
 [**put_links_page**](OrgsApi.md#put_links_page) | **PUT** /orgs/{id}/links-page | Save the links page.
 [**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | Super admin only, except a body carrying nothing but `social_links` and/or `logo_url: null`: the org's own people with `org.settings.edit` may save that for their own org.
 [**upload_org_card_image**](OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
@@ -233,14 +235,46 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## get_org_plan
+
+> models::PlanState get_org_plan(id)
+The org's plan, what it allows, and each branch's tills.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+
+### Return type
+
+[**models::PlanState**](PlanState.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## list_orgs
 
-> Vec<models::Org> list_orgs()
+> Vec<models::Org> list_orgs(plan, signup_source)
 
 
 ### Parameters
 
-This endpoint does not need any parameter.
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**plan** | Option<**String**> | Only organizations on this plan: `free` | `paid`. |  |
+**signup_source** | Option<**String**> | Only organizations created this way: `admin` | `self`. |  |
 
 ### Return type
 
@@ -460,6 +494,35 @@ No authorization required
 
 - **Content-Type**: Not defined
 - **Accept**: text/html
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_active_till
+
+> models::PlanState put_active_till(id, active_till_request)
+Choose which till a branch sells on (Free plan). The chosen till is active, every other POS till of the branch is switched off. The org's owner, or a super admin; a paid org has no inactive tills (409 `PLAN_NOT_FREE`).
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+**active_till_request** | [**ActiveTillRequest**](ActiveTillRequest.md) |  | [required] |
+
+### Return type
+
+[**models::PlanState**](PlanState.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

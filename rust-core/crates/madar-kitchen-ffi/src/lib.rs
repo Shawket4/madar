@@ -57,6 +57,12 @@ fn human(core: &MadarCore, e: &CoreError) -> KitchenError {
         }
         CoreError::Server { detail, .. } => or(detail),
         CoreError::Transient { .. } => core.tr("err.network".into()),
+        // A plan refusal (`plan_feature:kitchen`, `plan_device_limit`…): the
+        // plan's own sentence in the screen's language, "Kitchen screens are
+        // on the paid plan." when a Free shop tries to activate one.
+        CoreError::Forbidden { resource, .. } if core.plan_refusal_words(resource).is_some() => {
+            core.plan_refusal_words(resource).unwrap_or_default()
+        }
         CoreError::Forbidden { resource, action }
             if !action.trim().is_empty()
                 && resource.len() > 1
@@ -478,4 +484,44 @@ pub struct LanAdvert {
     pub station_id: Option<String>,
     pub device_code: Option<String>,
     pub tcp_port: u16,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn core(locale: &str) -> Arc<MadarCore> {
+        MadarCore::new(madar_core::MadarConfig {
+            base_url: "http://127.0.0.1:1".into(),
+            environment: "test".into(),
+            db_path: String::new(),
+            locale: locale.into(),
+            app_version: None,
+        })
+        .expect("core")
+    }
+
+    fn said(core: &MadarCore, e: CoreError) -> String {
+        match human(core, &e) {
+            KitchenError::Failed { message, .. } => message,
+        }
+    }
+
+    /// A Free shop activating a kitchen screen is told why, in the screen's
+    /// language, with the plan's own sentence (not "no permission").
+    #[test]
+    fn a_free_shop_is_told_kitchen_screens_are_on_the_paid_plan() {
+        let refused = || CoreError::Forbidden {
+            resource: "plan_feature:kitchen".into(),
+            action: "Kitchen screens are on the paid plan.".into(),
+        };
+        assert_eq!(said(&core("en"), refused()), "Kitchen screens are on the paid plan.");
+        assert_eq!(said(&core("ar"), refused()), "شاشات المطبخ متاحة في الخطة المدفوعة.");
+        // The limit for a kind the plan has none of says the same.
+        let limit = CoreError::Forbidden { resource: "plan_device_limit:kitchen".into(), action: String::new() };
+        assert_eq!(said(&core("en"), limit), "Kitchen screens are on the paid plan.");
+        // Any other 403 is unchanged.
+        let other = CoreError::Forbidden { resource: "api".into(), action: "no".into() };
+        assert_eq!(said(&core("en"), other), core("en").tr("err.not_allowed".into()));
+    }
 }

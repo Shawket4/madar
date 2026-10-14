@@ -34,6 +34,15 @@ extension MadarErrorMessage on MadarBridge {
       MadarError_Forbidden(resource: 'deal', :final action)
           when action.trim().isNotEmpty =>
         action,
+      // A plan refusal (`plan_feature:kitchen`, `plan_device_limit`…): the
+      // plan's own sentence in the app's language, then the hint to ask the
+      // owner to upgrade. The inactive-till screen words itself.
+      MadarError_Forbidden(:final resource)
+          when planRefusalWords(resource: resource) != null =>
+        resource == 'plan_till_inactive'
+            ? planRefusalWords(resource: resource)!
+            : '${planRefusalWords(resource: resource)!} '
+                  '${tr(key: 'plan.upgrade_hint')}',
       // A CODED refusal (`ORG_SUSPENDED`, `PIN_WRONG_BRANCH`, `DEVICE_MOVED`,
       // `LOGIN_REFUSED`, …): the core already worded why. Hiding it behind
       // "no permission" sent a shop hunting for a grant nobody had removed.

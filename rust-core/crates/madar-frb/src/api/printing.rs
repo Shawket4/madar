@@ -81,11 +81,12 @@ impl MadarBridge {
         line_key: String,
         table_label: Option<String>,
         ticket_ref: Option<String>,
+        dine_in: bool,
         width: u32,
         till_brand: PrinterBrand,
     ) -> Result<CartLineChit, MadarError> {
         self.inner
-            .cart_line_chit(table_id, line_key, table_label, ticket_ref, width, till_brand)
+            .cart_line_chit(table_id, line_key, table_label, ticket_ref, dine_in, width, till_brand)
             .map_err(MadarError::from)
     }
 
@@ -98,11 +99,12 @@ impl MadarBridge {
         line_key: String,
         table_label: Option<String>,
         ticket_ref: Option<String>,
+        dine_in: bool,
         width: u32,
         till_brand: PrinterBrand,
     ) -> Result<CartLineChit, MadarError> {
         self.inner
-            .cart_line_recipe_chit(table_id, line_key, table_label, ticket_ref, width, till_brand)
+            .cart_line_recipe_chit(table_id, line_key, table_label, ticket_ref, dine_in, width, till_brand)
             .map_err(MadarError::from)
     }
 
@@ -116,11 +118,12 @@ impl MadarBridge {
         table_id: Option<String>,
         table_label: Option<String>,
         ticket_ref: Option<String>,
+        dine_in: bool,
         width: u32,
         till_brand: PrinterBrand,
     ) -> Result<CartKitchenChit, MadarError> {
         self.inner
-            .cart_kitchen_chit(table_id, table_label, ticket_ref, width, till_brand)
+            .cart_kitchen_chit(table_id, table_label, ticket_ref, dine_in, width, till_brand)
             .map_err(MadarError::from)
     }
 
@@ -206,6 +209,8 @@ pub struct _KitchenChit {
     pub teller: Option<String>,
     /// The combo this dish belongs to, already worded ("In Lunch deal").
     pub combo: Option<String>,
+    /// `takeaway` | `dine_in`, printed under the table; `None` prints nothing.
+    pub service_mode: Option<String>,
 }
 
 /// Mirrors `madar_core::receipt::ChitLineView` — one printed chit line for the
@@ -277,4 +282,6 @@ pub struct _KitchenSlip {
     pub teller: Option<String>,
     pub top_notes: Vec<String>,
     pub items: Vec<KitchenSlipItem>,
+    /// `takeaway` | `dine_in`, printed under the table; `None` prints nothing.
+    pub service_mode: Option<String>,
 }

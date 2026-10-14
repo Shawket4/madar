@@ -19,6 +19,7 @@ import 'api/kds.dart';
 import 'api/loyalty.dart';
 import 'api/metrics.dart';
 import 'api/orders.dart';
+import 'api/plan.dart';
 import 'api/printing.dart';
 import 'api/realtime.dart';
 import 'api/routes.dart';
@@ -395,6 +396,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   DraftView dco_decode_draft_view(dynamic raw);
+
+  @protected
+  EntitlementsView dco_decode_entitlements_view(dynamic raw);
 
   @protected
   double dco_decode_f_64(dynamic raw);
@@ -1608,6 +1612,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   DraftView sse_decode_draft_view(SseDeserializer deserializer);
+
+  @protected
+  EntitlementsView sse_decode_entitlements_view(SseDeserializer deserializer);
 
   @protected
   double sse_decode_f_64(SseDeserializer deserializer);
@@ -3220,6 +3227,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_draft_view(DraftView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_entitlements_view(
+    EntitlementsView self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_f_64(double self, SseSerializer serializer);

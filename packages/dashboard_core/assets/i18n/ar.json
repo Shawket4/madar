@@ -6765,5 +6765,22 @@
  "notFound.title": "الصفحة غير موجودة",
  "notFound.body": "هذه الصفحة غير موجودة أو نُقلت. تحقّق من العنوان أو ارجع إلى لوحة التحكم.",
  "notFound.home": "العودة إلى لوحة التحكم",
- "shell.accessLoadError": "تعذّر تحميل ما يُسمح لك به هنا."
+ "shell.accessLoadError": "تعذّر تحميل ما يُسمح لك به هنا.",
+ "plan.features.basira": "بصيرة (المساعد الذكي)",
+ "plan.features.bookings": "الحجوزات",
+ "plan.features.branding": "الهوية البصرية وصفحة الروابط وعنوان المتجر",
+ "plan.features.dawam": "دوام (جدولة الموظفين والرواتب)",
+ "plan.features.floor": "مخطط الصالة والفواتير المفتوحة",
+ "plan.features.inventory": "المخزون والمشتريات والوصفات",
+ "plan.features.kitchen": "شاشات المطبخ ومحطاته",
+ "plan.features.loyalty": "برنامج الولاء",
+ "plan.features.online": "الطلب عبر الإنترنت والتوصيل وقوائم QR",
+ "plan.upgrade.title": "{{feature}} ضمن الباقة المدفوعة",
+ "plan.upgrade.body": "متجرك على الباقة المجانية. تواصل مع مدار للانتقال إلى الباقة المدفوعة؛ وتبقى مبيعاتك وبياناتك كما هي تمامًا.",
+ "plan.upgrade.cta": "تواصل مع مدار عبر واتساب",
+ "plan.upgrade.message": "مرحبًا مدار، أرغب في ترقية متجري إلى الباقة المدفوعة ({{feature}}).",
+ "plan.upgrade.messageGeneric": "مرحبًا مدار، أرغب في ترقية متجري إلى الباقة المدفوعة.",
+ "plan.upgrade.hint": "تواصل مع مدار للانتقال إلى الباقة المدفوعة.",
+ "signup.noAccount": "ليس لديك حساب؟",
+ "signup.signUpFree": "سجّل مجانًا"
 }

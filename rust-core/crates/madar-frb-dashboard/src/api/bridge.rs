@@ -13,7 +13,7 @@ use flutter_rust_bridge::frb;
 use madar_core::MadarCore;
 
 use crate::api::error::MadarError;
-use crate::api::types::{ActiveScopeView, BranchView, MadarConfig, SessionSnapshot};
+use crate::api::types::{ActiveScopeView, BranchView, EntitlementsView, MadarConfig, SessionSnapshot};
 
 /// FFI contract version this wrapper was written against. Dart asserts equality.
 #[frb(sync)]
@@ -108,6 +108,29 @@ impl MadarBridge {
     /// The org's active branches (scope-bar picker). Online-only.
     pub async fn list_branches(&self) -> Result<Vec<BranchView>, MadarError> {
         self.inner.list_branches().await.map_err(MadarError::from)
+    }
+
+    // ── plan (Free / Paid) ───────────────────────────────────────────────────
+
+    /// The plan's features and limits (unknown is Paid). Local; no network.
+    #[frb(sync)]
+    pub fn entitlements(&self) -> EntitlementsView {
+        self.inner.entitlements()
+    }
+
+    /// Ask the server for the plan now (`/auth/me`) and keep it, so an upgrade
+    /// shows without signing in again. Best-effort; returns the plan key after
+    /// the read (`free` | `paid`).
+    pub async fn refresh_plan(&self) -> String {
+        self.inner.refresh_plan().await.as_str().to_string()
+    }
+
+    /// A plan refusal's words in the app's language, from the `Forbidden`
+    /// resource it travels under (`plan_feature:kitchen`…). `None` when it is
+    /// not a plan refusal.
+    #[frb(sync)]
+    pub fn plan_refusal_words(&self, resource: String) -> Option<String> {
+        self.inner.plan_refusal_words(&resource)
     }
 
     // ── i18n (shared with the core; drives text + direction) ─────────────────

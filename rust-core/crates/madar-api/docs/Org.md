@@ -17,10 +17,12 @@ Name | Type | Description | Notes
 **max_warehouses** | Option<**i32**> | How many warehouses this org may have; `null` = unlimited. Set by a super admin (WAREHOUSE_DESIGN.md). | [optional]
 **modules** | **Vec<String>** | Switched-on modules: `pos`, `dawam` (PS-2). Switching one off hides it and keeps every record. | 
 **name** | **String** |  | 
+**plan** | **String** | `free` | `paid`. What the organization may use (madar-plan): Free is POS only, one branch, one till; Paid is the whole product. Super admin changes it (`PATCH /orgs/{id}`). | 
 **receipt_footer** | Option<**String**> |  | [optional]
 **require_table_for_orders** | **bool** | Every dine-in sale must belong to a table. No effect where a branch has no floor authored — a shop cannot be made to seat somebody in a room with no seats. | 
 **service_charge_rate** | **f64** | Fraction of the bill added as a service charge; `0` disables it. | 
 **service_charge_taxable** | **bool** | Whether the service charge is itself taxed. | 
+**signup_source** | **String** | `admin` (the super admin made the org) | `self` (the shop signed up). | 
 **slug** | Option<**String**> | `None` when the shop has no address of its own. Never an empty string — the column holds NULL for that and a CHECK keeps it so. | [optional]
 **social_links** | **serde_json::Value** | Where else to find the shop, keyed by platform. See `orgs::social`. | 
 **tax_inclusive** | **bool** | `true` = menu prices already contain the tax, and the receipt breaks it out backwards rather than adding it on at the till. | 

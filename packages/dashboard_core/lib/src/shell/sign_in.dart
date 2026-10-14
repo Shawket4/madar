@@ -7,6 +7,7 @@
 /// theme and language toggles in the corner and the legal links under it.
 library;
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dashboard_api/dashboard_api.dart' show ApiException;
@@ -17,6 +18,8 @@ import 'package:dashboard_core/src/shell/brand_mark.dart';
 import 'package:dashboard_core/src/shell/footer.dart';
 import 'package:dashboard_core/src/shell/header.dart';
 import 'package:dashboard_core/src/shell/router.dart';
+import 'package:dashboard_core/src/shell/shell_prefs.dart'
+    show dashboardSignupUri, linkOpenerProvider;
 import 'package:dashboard_core/src/shell/sidebar.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -250,6 +253,27 @@ class _SignInState extends ConsumerState<DashSignInPage> {
                             loading: _busy,
                             expand: true,
                             onPressed: _submit,
+                          ),
+                          // No account: the free sign-up on the web.
+                          const SizedBox(height: Space.lg),
+                          Text(
+                            t('signup.noAccount', defaultValue: 'No account?'),
+                            textAlign: TextAlign.center,
+                            style: DashType.small.copyWith(color: c.textMuted),
+                          ),
+                          const SizedBox(height: Space.xs),
+                          DashButton(
+                            key: const ValueKey('signin-sign-up'),
+                            label: t(
+                              'signup.signUpFree',
+                              defaultValue: 'Sign up free',
+                            ),
+                            icon: 'arrow-up-right',
+                            variant: DashButtonVariant.ghost,
+                            expand: true,
+                            onPressed: () => unawaited(
+                              ref.read(linkOpenerProvider)(dashboardSignupUri),
+                            ),
                           ),
                           if (!wide) ...[
                             const SizedBox(height: Space.xxl),

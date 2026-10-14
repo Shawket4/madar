@@ -80,6 +80,9 @@ pub struct Org {
     pub modules: Vec<String>,
     #[serde(rename = "name")]
     pub name: String,
+    /// `free` | `paid`. What the organization may use (madar-plan): Free is POS only, one branch, one till; Paid is the whole product. Super admin changes it (`PATCH /orgs/{id}`).
+    #[serde(rename = "plan")]
+    pub plan: String,
     #[serde(
         rename = "receipt_footer",
         default,
@@ -96,6 +99,9 @@ pub struct Org {
     /// Whether the service charge is itself taxed.
     #[serde(rename = "service_charge_taxable")]
     pub service_charge_taxable: bool,
+    /// `admin` (the super admin made the org) | `self` (the shop signed up).
+    #[serde(rename = "signup_source")]
+    pub signup_source: String,
     /// `None` when the shop has no address of its own. Never an empty string — the column holds NULL for that and a CHECK keeps it so.
     #[serde(
         rename = "slug",
@@ -126,9 +132,11 @@ impl Org {
         is_active: bool,
         modules: Vec<String>,
         name: String,
+        plan: String,
         require_table_for_orders: bool,
         service_charge_rate: f64,
         service_charge_taxable: bool,
+        signup_source: String,
         social_links: serde_json::Value,
         tax_inclusive: bool,
         tax_rate: f64,
@@ -148,10 +156,12 @@ impl Org {
             max_warehouses: None,
             modules,
             name,
+            plan,
             receipt_footer: None,
             require_table_for_orders,
             service_charge_rate,
             service_charge_taxable,
+            signup_source,
             slug: None,
             social_links,
             tax_inclusive,

@@ -13,6 +13,7 @@ import 'package:madar/app/lan_retry.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:rust_bridge/rust_bridge.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Base URL override for dev builds:
 /// `flutter run --dart-define=MADAR_API=http://192.168.1.10:8080`.
@@ -170,6 +171,11 @@ List<Override> readyScopeOverrides(BootData boot) {
     themeChoicePersisterProvider.overrideWithValue((choice) {
       boot.vault.themeMode = choice.name;
     }),
+    // "Sign up free" on the first-run screen opens the web sign-up in the
+    // browser, on every platform url_launcher covers.
+    externalLinkOpenerProvider.overrideWithValue(
+      (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
+    ),
     realtimeArmerProvider.overrideWith((ref) {
       final armer = RealtimeArmer(core: boot.core, ref: ref);
       ref.onDispose(armer.dispose);

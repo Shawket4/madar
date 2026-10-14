@@ -65,35 +65,16 @@ pub trait RealtimePlayer: Send + Sync {
 /// single source of truth (the hosts no longer choose). A till sees delivery + the
 /// kitchen queue + tickets-to-settle + orders; a waiter sees its tickets + the
 /// kitchen; a KDS sees the kitchen. The backend still intersects with granted topics.
-pub fn topics_for_role(role: &str) -> Vec<String> {
-    match role {
-        // Every role also hears `sync` (`sync.changed {branch_id}`, §10.2): the
-        // host answers it with `sync_now`, the one incremental pull.
-        "kitchen" => vec!["kitchen".into(), "sync".into()],
-        // A waiter works the floor too: `floor` carries table/held-order/
-        // layout changes (a manager re-arranging the room in the dashboard,
-        // another till seating a party) so the canvas is never stale.
-        // `bookings` rides the SAME connection: a reserved table and its
-        // "party due" ping reach the floor without a second stream.
-        "waiter" => vec![
-            "tickets".into(),
-            "kitchen".into(),
-            "floor".into(),
-            "bookings".into(),
-            "sync".into(),
-        ],
-        // teller / till (and any other operating role): the full set.
-        _ => vec![
-            "delivery".into(),
-            "kitchen".into(),
-            "tickets".into(),
-            "orders".into(),
-            "floor".into(),
-            "bookings".into(),
-            "tills".into(),
-            "sync".into(),
-        ],
-    }
+///
+/// The table is madar-shared's (`madar_plan::realtime_topics`, moved there from
+/// this file unchanged for Paid). A plan with no realtime (Free) has NO topics:
+/// the device opens no stream and pulls instead (after each acked op, and
+/// once a minute when idle: `scheduler::ensure_fallback_poll`).
+pub fn topics_for_role(plan: madar_plan::Plan, role: &str) -> Vec<String> {
+    madar_plan::realtime_topics(plan, role)
+        .into_iter()
+        .map(|t| t.as_str().to_string())
+        .collect()
 }
 
 /// A localized alert the core decided to raise for an inbound event.
@@ -987,11 +968,12 @@ mod tests {
     #[test]
     fn topics_are_role_scoped() {
         // A KDS stays kitchen-only — it has no floor surface.
-        assert_eq!(topics_for_role("kitchen"), ["kitchen", "sync"]);
+        use madar_plan::Plan::{Free, Paid};
+        assert_eq!(topics_for_role(Paid, "kitchen"), ["kitchen", "sync"]);
         // Anyone who works the floor also gets `floor` (table state, held
         // orders, and dashboard layout edits), so canvases never go stale.
         assert_eq!(
-            topics_for_role("waiter"),
+            topics_for_role(Paid, "waiter"),
             ["tickets", "kitchen", "floor", "bookings", "sync"]
         );
         // teller / unknown → the full operating set.
@@ -999,9 +981,13 @@ mod tests {
             "delivery", "kitchen", "tickets", "orders", "floor", "bookings", "tills", "sync",
         ] {
             assert!(
-                topics_for_role("teller").contains(&topic.to_string()),
+                topics_for_role(Paid, "teller").contains(&topic.to_string()),
                 "teller must subscribe to {topic}"
             );
+        }
+        // Free holds no stream, whatever the role.
+        for role in ["kitchen", "waiter", "teller", ""] {
+            assert!(topics_for_role(Free, role).is_empty(), "{role}");
         }
     }
 

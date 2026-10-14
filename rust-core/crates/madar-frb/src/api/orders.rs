@@ -211,6 +211,8 @@ pub struct _ReceiptView {
     pub staff_notice: Option<String>,
     /// The deals on the order; `subtotal_minor` is net of them.
     pub deals: Vec<ReceiptDealView>,
+    /// `takeaway` | `dine_in`, printed on the receipt; `None` prints nothing.
+    pub service_mode: Option<String>,
 }
 
 /// One tender on a split receipt.

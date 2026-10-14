@@ -78,6 +78,14 @@ const List<String> _getMadarQr = [
   '#######.###..#####.######..##',
 ];
 
+/// The core's key for an order's service mode, or null when it prints none
+/// (`receipt.rs` `service_word`: unknown prints nothing rather than a guess).
+String? _serviceWord(String? mode) => switch (mode) {
+  'dine_in' => 'charge.dine_in',
+  'takeaway' => 'charge.pickup',
+  _ => null,
+};
+
 /// The on-screen receipt paper — renders a [ReceiptView] as the printed
 /// layout: org logo/name header, order + delivery meta, line items with
 /// `qty× name … amount` columns, the totals block, and the payment footer.
@@ -225,6 +233,14 @@ class ReceiptPaper extends ConsumerWidget {
                 _Mono(
                   // The core's word carries its own colon ("Ref:", "مرجع:").
                   '${tr('receipt.ref')} ${r.orderRef}',
+                  size: _metaSize,
+                  weight: FontWeight.w700,
+                ),
+              // Pickup / Dine in, as printed (receipt.rs `service_word`); a
+              // delivery says so above and prints neither.
+              if (!r.isDelivery && _serviceWord(r.serviceMode) != null)
+                _Mono(
+                  tr(_serviceWord(r.serviceMode)!),
                   size: _metaSize,
                   weight: FontWeight.w700,
                 ),

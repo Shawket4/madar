@@ -100,7 +100,9 @@ class TillScreen extends ConsumerWidget {
       width = MadarContentWidth.form;
       // Waste needs no drawer (it is stock, not money): offered here too,
       // under the same capability check as with a till open.
-      final wasteRow = bridge.canRecordWaste()
+      final wasteRow =
+          bridge.canRecordWaste() &&
+              ref.watch(entitlementsProvider).has(PlanFeature.inventory)
           ? MadarCard.column(
               flush: true,
               children: [
@@ -182,7 +184,11 @@ class _DrawerHome extends ConsumerWidget {
     void cashInOut() => _push(context, ref, CashMovementsScreen.new);
     void pastTills() => _push(context, ref, _pastTills);
     // Hidden unless the person holds the capability or may ask a manager.
-    final canWaste = bridge.canRecordWaste();
+    // Waste takes stock off: inventory, so not on Free (the plan ceiling
+    // already removes the capability; this is the same answer, twice).
+    final canWaste =
+        bridge.canRecordWaste() &&
+        ref.watch(entitlementsProvider).has(PlanFeature.inventory);
 
     final links = _Links(
       onOpenOrders: onOpenOrders,

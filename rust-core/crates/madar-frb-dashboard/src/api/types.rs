@@ -3,6 +3,7 @@
 //! type — any drift in madar-core becomes a compile error here.
 use flutter_rust_bridge::frb;
 
+pub use madar_core::plan::EntitlementsView;
 pub use madar_core::session::{BranchView, SessionSnapshot};
 pub use madar_core::{ActiveScopeView, MadarConfig};
 
@@ -44,4 +45,20 @@ pub struct _BranchView {
 pub struct _ActiveScopeView {
     pub org_id: Option<String>,
     pub branch_id: Option<String>,
+}
+
+/// What the organisation's plan switches on: hide a nav entry or lock a page
+/// from `features`, never from the plan's name. `till_inactive` is a POS
+/// notion (always false here).
+#[frb(mirror(EntitlementsView))]
+pub struct _EntitlementsView {
+    /// `free` | `paid`.
+    pub plan: String,
+    pub features: Vec<String>,
+    pub realtime: bool,
+    pub max_branches: Option<u32>,
+    pub max_pos_devices_per_branch: Option<u32>,
+    pub max_kds_devices: Option<u32>,
+    pub max_waiter_devices: Option<u32>,
+    pub till_inactive: bool,
 }
