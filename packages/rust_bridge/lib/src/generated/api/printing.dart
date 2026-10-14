@@ -153,6 +153,9 @@ class KitchenChit {
   /// The combo this dish belongs to, already worded ("In Lunch deal").
   final String? combo;
 
+  /// `takeaway` | `dine_in`, printed under the table; `None` prints nothing.
+  final String? serviceMode;
+
   const KitchenChit({
     required this.item,
     required this.qty,
@@ -164,6 +167,7 @@ class KitchenChit {
     required this.at,
     this.teller,
     this.combo,
+    this.serviceMode,
   });
 
   @override
@@ -177,7 +181,8 @@ class KitchenChit {
       ticketRef.hashCode ^
       at.hashCode ^
       teller.hashCode ^
-      combo.hashCode;
+      combo.hashCode ^
+      serviceMode.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -193,7 +198,8 @@ class KitchenChit {
           ticketRef == other.ticketRef &&
           at == other.at &&
           teller == other.teller &&
-          combo == other.combo;
+          combo == other.combo &&
+          serviceMode == other.serviceMode;
 }
 
 /// Mirrors `madar_core::receipt::KitchenSlip` — a kitchen slip: one header,
@@ -207,6 +213,9 @@ class KitchenSlip {
   final List<String> topNotes;
   final List<KitchenSlipItem> items;
 
+  /// `takeaway` | `dine_in`, printed under the table; `None` prints nothing.
+  final String? serviceMode;
+
   const KitchenSlip({
     this.tableLabel,
     this.ticketRef,
@@ -214,6 +223,7 @@ class KitchenSlip {
     this.teller,
     required this.topNotes,
     required this.items,
+    this.serviceMode,
   });
 
   @override
@@ -223,7 +233,8 @@ class KitchenSlip {
       at.hashCode ^
       teller.hashCode ^
       topNotes.hashCode ^
-      items.hashCode;
+      items.hashCode ^
+      serviceMode.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -235,7 +246,8 @@ class KitchenSlip {
           at == other.at &&
           teller == other.teller &&
           topNotes == other.topNotes &&
-          items == other.items;
+          items == other.items &&
+          serviceMode == other.serviceMode;
 }
 
 /// Mirrors `madar_core::receipt::KitchenSlipItem` — one item's line on a

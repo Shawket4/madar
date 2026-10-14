@@ -309,6 +309,11 @@ pub struct ReceiptView {
     /// subtotal (`subtotal_minor`) is NET of them, as the server stores it;
     /// a renderer prints the lines' sum above them.
     pub deals: Vec<ReceiptDealView>,
+    /// How the customer takes the order: `takeaway` (Pickup) or `dine_in`,
+    /// the cart's toggle, stored on every order of every plan. Printed on the
+    /// receipt; `None` on a stash from before it was recorded (nothing
+    /// prints), and never printed on a delivery.
+    pub service_mode: Option<String>,
 }
 
 impl ReceiptView {
@@ -950,6 +955,7 @@ pub(crate) fn prepare(
                 amount_minor: leg.amount_minor,
             })
             .collect(),
+        service_mode: Some(if input.dine_in { "dine_in" } else { "takeaway" }.to_string()),
     };
 
     Ok(Prepared {

@@ -2581,6 +2581,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_kitchen_chit_impl(
             let api_table_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_table_label = <Option<String>>::sse_decode(&mut deserializer);
             let api_ticket_ref = <Option<String>>::sse_decode(&mut deserializer);
+            let api_dine_in = <bool>::sse_decode(&mut deserializer);
             let api_width = <u32>::sse_decode(&mut deserializer);
             let api_till_brand =
                 <crate::api::printing::PrinterBrand>::sse_decode(&mut deserializer);
@@ -2606,6 +2607,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_kitchen_chit_impl(
                         api_table_id,
                         api_table_label,
                         api_ticket_ref,
+                        api_dine_in,
                         api_width,
                         api_till_brand,
                     )?;
@@ -2697,6 +2699,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_line_chit_impl(
             let api_line_key = <String>::sse_decode(&mut deserializer);
             let api_table_label = <Option<String>>::sse_decode(&mut deserializer);
             let api_ticket_ref = <Option<String>>::sse_decode(&mut deserializer);
+            let api_dine_in = <bool>::sse_decode(&mut deserializer);
             let api_width = <u32>::sse_decode(&mut deserializer);
             let api_till_brand =
                 <crate::api::printing::PrinterBrand>::sse_decode(&mut deserializer);
@@ -2723,6 +2726,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_line_chit_impl(
                         api_line_key,
                         api_table_label,
                         api_ticket_ref,
+                        api_dine_in,
                         api_width,
                         api_till_brand,
                     )?;
@@ -2761,6 +2765,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_line_recipe_chit_impl(
             let api_line_key = <String>::sse_decode(&mut deserializer);
             let api_table_label = <Option<String>>::sse_decode(&mut deserializer);
             let api_ticket_ref = <Option<String>>::sse_decode(&mut deserializer);
+            let api_dine_in = <bool>::sse_decode(&mut deserializer);
             let api_width = <u32>::sse_decode(&mut deserializer);
             let api_till_brand =
                 <crate::api::printing::PrinterBrand>::sse_decode(&mut deserializer);
@@ -2787,6 +2792,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_line_recipe_chit_impl(
                         api_line_key,
                         api_table_label,
                         api_ticket_ref,
+                        api_dine_in,
                         api_width,
                         api_till_brand,
                     )?;
@@ -18617,6 +18623,7 @@ const _: fn() = || {
         let _: String = KitchenChit.at;
         let _: Option<String> = KitchenChit.teller;
         let _: Option<String> = KitchenChit.combo;
+        let _: Option<String> = KitchenChit.service_mode;
     }
     {
         let KitchenSlip = None::<crate::api::printing::KitchenSlip>.unwrap();
@@ -18626,6 +18633,7 @@ const _: fn() = || {
         let _: Option<String> = KitchenSlip.teller;
         let _: Vec<String> = KitchenSlip.top_notes;
         let _: Vec<crate::api::printing::KitchenSlipItem> = KitchenSlip.items;
+        let _: Option<String> = KitchenSlip.service_mode;
     }
     {
         let KitchenSlipItem = None::<crate::api::printing::KitchenSlipItem>.unwrap();
@@ -19091,6 +19099,7 @@ const _: fn() = || {
         let _: Option<String> = ReceiptView.loyalty_notice;
         let _: Option<String> = ReceiptView.staff_notice;
         let _: Vec<crate::api::orders::ReceiptDealView> = ReceiptView.deals;
+        let _: Option<String> = ReceiptView.service_mode;
     }
     {
         let RecipeLineView = None::<crate::api::catalog::RecipeLineView>.unwrap();
@@ -21311,6 +21320,7 @@ impl SseDecode for crate::api::printing::KitchenChit {
         let mut var_at = <String>::sse_decode(deserializer);
         let mut var_teller = <Option<String>>::sse_decode(deserializer);
         let mut var_combo = <Option<String>>::sse_decode(deserializer);
+        let mut var_serviceMode = <Option<String>>::sse_decode(deserializer);
         return crate::api::printing::KitchenChit {
             item: var_item,
             qty: var_qty,
@@ -21322,6 +21332,7 @@ impl SseDecode for crate::api::printing::KitchenChit {
             at: var_at,
             teller: var_teller,
             combo: var_combo,
+            service_mode: var_serviceMode,
         };
     }
 }
@@ -21335,6 +21346,7 @@ impl SseDecode for crate::api::printing::KitchenSlip {
         let mut var_teller = <Option<String>>::sse_decode(deserializer);
         let mut var_topNotes = <Vec<String>>::sse_decode(deserializer);
         let mut var_items = <Vec<crate::api::printing::KitchenSlipItem>>::sse_decode(deserializer);
+        let mut var_serviceMode = <Option<String>>::sse_decode(deserializer);
         return crate::api::printing::KitchenSlip {
             table_label: var_tableLabel,
             ticket_ref: var_ticketRef,
@@ -21342,6 +21354,7 @@ impl SseDecode for crate::api::printing::KitchenSlip {
             teller: var_teller,
             top_notes: var_topNotes,
             items: var_items,
+            service_mode: var_serviceMode,
         };
     }
 }
@@ -24070,6 +24083,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
         let mut var_loyaltyNotice = <Option<String>>::sse_decode(deserializer);
         let mut var_staffNotice = <Option<String>>::sse_decode(deserializer);
         let mut var_deals = <Vec<crate::api::orders::ReceiptDealView>>::sse_decode(deserializer);
+        let mut var_serviceMode = <Option<String>>::sse_decode(deserializer);
         return crate::api::orders::ReceiptView {
             local_order_id: var_localOrderId,
             order_number: var_orderNumber,
@@ -24109,6 +24123,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
             loyalty_notice: var_loyaltyNotice,
             staff_notice: var_staffNotice,
             deals: var_deals,
+            service_mode: var_serviceMode,
         };
     }
 }
@@ -28972,6 +28987,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::printing::KitchenC
             self.0.at.into_into_dart().into_dart(),
             self.0.teller.into_into_dart().into_dart(),
             self.0.combo.into_into_dart().into_dart(),
+            self.0.service_mode.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -28997,6 +29013,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::printing::KitchenS
             self.0.teller.into_into_dart().into_dart(),
             self.0.top_notes.into_into_dart().into_dart(),
             self.0.items.into_into_dart().into_dart(),
+            self.0.service_mode.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -30340,6 +30357,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::ReceiptVie
             self.0.loyalty_notice.into_into_dart().into_dart(),
             self.0.staff_notice.into_into_dart().into_dart(),
             self.0.deals.into_into_dart().into_dart(),
+            self.0.service_mode.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -32983,6 +33001,7 @@ impl SseEncode for crate::api::printing::KitchenChit {
         <String>::sse_encode(self.at, serializer);
         <Option<String>>::sse_encode(self.teller, serializer);
         <Option<String>>::sse_encode(self.combo, serializer);
+        <Option<String>>::sse_encode(self.service_mode, serializer);
     }
 }
 
@@ -32995,6 +33014,7 @@ impl SseEncode for crate::api::printing::KitchenSlip {
         <Option<String>>::sse_encode(self.teller, serializer);
         <Vec<String>>::sse_encode(self.top_notes, serializer);
         <Vec<crate::api::printing::KitchenSlipItem>>::sse_encode(self.items, serializer);
+        <Option<String>>::sse_encode(self.service_mode, serializer);
     }
 }
 
@@ -34930,6 +34950,7 @@ impl SseEncode for crate::api::orders::ReceiptView {
         <Option<String>>::sse_encode(self.loyalty_notice, serializer);
         <Option<String>>::sse_encode(self.staff_notice, serializer);
         <Vec<crate::api::orders::ReceiptDealView>>::sse_encode(self.deals, serializer);
+        <Option<String>>::sse_encode(self.service_mode, serializer);
     }
 }
 

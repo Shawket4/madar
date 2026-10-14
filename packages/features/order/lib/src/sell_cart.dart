@@ -1498,6 +1498,7 @@ Future<void> _previewRowChit(
       bridge,
       tableId: tableId,
       lineKey: line.key,
+      dineIn: ref.read(dineInProvider(tableId)),
       tableLabel: tableLabel,
       ticketRef: ticketRef,
     );
@@ -2265,6 +2266,7 @@ Future<void> _printWholeCartToKitchen(
     final chit = await buildCartKitchenChit(
       bridge,
       tableId: tableId,
+      dineIn: ref.read(dineInProvider(tableId)),
       tableLabel: tableLabel,
       ticketRef: ticketRef,
     );
@@ -2297,6 +2299,7 @@ Future<void> _previewWholeCartKitchenChit(
     chit = await buildCartKitchenChit(
       bridge,
       tableId: tableId,
+      dineIn: ref.read(dineInProvider(tableId)),
       tableLabel: tableLabel,
       ticketRef: ticketRef,
     );

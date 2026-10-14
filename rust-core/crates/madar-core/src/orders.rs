@@ -704,6 +704,8 @@ pub(crate) fn order_to_receipt(
         // Only a SPLIT lists its legs; one leg is the payment line already.
         staff_notice: None,
         deals: deal_views(o, locale),
+        // `takeaway` | `dine_in`; an older server omits it, and nothing prints.
+        service_mode: o.service_mode.clone().filter(|s| !s.is_empty()),
         loyalty_notice: o
             .loyalty_redemption_refused
             .clone()

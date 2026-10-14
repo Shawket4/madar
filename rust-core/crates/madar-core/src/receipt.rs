@@ -109,6 +109,9 @@ pub struct ReceiptLabels {
     pub teller: String,
     pub served_by: String,
     pub queued: String,
+    /// Pickup / Dine in, printed on every receipt.
+    pub pickup: String,
+    pub dine_in: String,
     pub thank_you: String,
     /// The "Powered by" over the madar wordmark in the stub at the foot;
     /// `None` when the device turned the stub off (Settings › Printer).
@@ -120,6 +123,17 @@ pub struct ReceiptLabels {
     pub locale: String,
     /// The zone every printed time is shown in (the branch's effective zone).
     pub tz: chrono_tz::Tz,
+}
+
+/// The printed word for an order's service mode: `dine_in` is Dine in,
+/// `takeaway` is Pickup; anything else (absent, a mode a newer server
+/// invented) prints nothing rather than a guess.
+pub fn service_word<'a>(mode: Option<&str>, pickup: &'a str, dine_in: &'a str) -> Option<&'a str> {
+    match mode {
+        Some("dine_in") => Some(dine_in),
+        Some("takeaway") => Some(pickup),
+        _ => None,
+    }
 }
 
 /// Render a receipt to ESC/POS bytes ready to stream to a printer.
@@ -189,6 +203,12 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
     out.push(bold_left(row(&id_label, &dt, w)));
     if let Some(r) = &receipt.order_ref {
         out.push(bold_left(row(&format!("{} {}", lab.reference, r), &dt, w)));
+    }
+    // Pickup / Dine in, on every plan. A delivery says so in its own flag.
+    if !receipt.is_delivery {
+        if let Some(word) = service_word(receipt.service_mode.as_deref(), &lab.pickup, &lab.dine_in) {
+            out.push(bold_left(word.to_string()));
+        }
     }
     out.push(Line::plain(divider(w)));
 
@@ -1037,12 +1057,29 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_receipt_says_pickup_or_dine_in_on_every_plan() {
+        let text = |mode: Option<&str>, delivery: bool| -> Vec<String> {
+            let mut r = cash_receipt();
+            r.service_mode = mode.map(str::to_string);
+            r.is_delivery = delivery;
+            layout(&r, &ctx()).into_iter().map(|l| l.text).collect()
+        };
+        assert!(text(Some("dine_in"), false).contains(&"Dine in".to_string()));
+        assert!(text(Some("takeaway"), false).contains(&"Pickup".to_string()));
+        for t in [text(None, false), text(Some("from_the_future"), false)] {
+            assert!(!t.iter().any(|l| l == "Pickup" || l == "Dine in"), "{t:?}");
+        }
+        // A delivery says so in its own flag; no Pickup beside it.
+        assert!(!text(Some("takeaway"), true).contains(&"Pickup".to_string()));
+    }
+
     fn ctx() -> EscPosCtx {
         EscPosCtx {
             store_name: "MADAR CAFE".into(),
             currency: "EGP".into(),
             width: 32,
-            labels: ReceiptLabels {
+            labels: ReceiptLabels { pickup: "Pickup".into(), dine_in: "Dine in".into(),
                 order: "Order".into(),
                 reference: "Ref:".into(),
                 voided: "VOIDED".into(),
@@ -1136,7 +1173,7 @@ mod tests {
     }
 
     fn cash_receipt() -> ReceiptView {
-        ReceiptView {
+        ReceiptView { service_mode: None,
             local_order_id: "1a2b3c4d-0000-0000-0000-000000000000".into(),
             order_number: None,
             display_number: String::new(),
@@ -2288,6 +2325,9 @@ pub struct KitchenChit {
     /// The combo this dish is part of, already worded ("In Lunch deal"), so
     /// a station making one item of a meal knows the rest is coming (C12).
     pub combo: Option<String>,
+    /// `takeaway` | `dine_in`: printed under the table, so the cook knows
+    /// whether it leaves in a bag or goes to a table. `None` prints nothing.
+    pub service_mode: Option<String>,
 }
 
 /// The words a chit needs.
@@ -2300,6 +2340,9 @@ pub struct KitchenChitLabels {
     /// Over a recipe card's ingredients, and over its steps.
     pub recipe: String,
     pub steps: String,
+    /// Pickup / Dine in.
+    pub pickup: String,
+    pub dine_in: String,
 }
 
 /// Build a chit's line list — pure, golden-tested like `layout`.
@@ -2328,6 +2371,9 @@ pub fn kitchen_chit_layout(
             bold: true,
             size: Size::Double,
         });
+    }
+    if let Some(word) = service_word(chit.service_mode.as_deref(), &labels.pickup, &labels.dine_in) {
+        out.push(Line { text: word.to_string(), align: Align::Center, bold: true, size: Size::Normal });
     }
     out.push(Line::plain("-".repeat(w)));
 
@@ -2429,6 +2475,8 @@ pub struct KitchenSlip {
     /// the kitchen note never is.
     pub top_notes: Vec<String>,
     pub items: Vec<KitchenSlipItem>,
+    /// `takeaway` | `dine_in`: printed under the table. `None` prints nothing.
+    pub service_mode: Option<String>,
 }
 
 /// The chit's lines as the preview draws them.
@@ -2535,6 +2583,8 @@ pub fn chits_for_cart_line(
     teller: Option<String>,
     locale: &str,
 ) -> Vec<KitchenChit> {
+    // A fired round is a table's (or a bill's): dine in.
+    let service_mode = (table_label.is_some() || ticket_ref.is_some()).then(|| "dine_in".to_string());
     slip_items_for_cart_line(line, locale)
         .into_iter()
         .map(|it| KitchenChit {
@@ -2548,6 +2598,7 @@ pub fn chits_for_cart_line(
             at: at.clone(),
             teller: teller.clone(),
             combo: it.combo,
+            service_mode: service_mode.clone(),
         })
         .collect()
 }
@@ -2563,9 +2614,11 @@ pub fn slip_for_cart_line(
     teller: Option<String>,
     order_note: Option<String>,
     cart_kitchen_note: Option<String>,
+    service_mode: Option<String>,
     locale: &str,
 ) -> KitchenSlip {
     KitchenSlip {
+        service_mode,
         table_label,
         ticket_ref,
         at,
@@ -2602,6 +2655,9 @@ pub fn kitchen_slip_layout(slip: &KitchenSlip, labels: &KitchenChitLabels, width
             bold: true,
             size: Size::Double,
         });
+    }
+    if let Some(word) = service_word(slip.service_mode.as_deref(), &labels.pickup, &labels.dine_in) {
+        out.push(Line { text: word.to_string(), align: Align::Center, bold: true, size: Size::Normal });
     }
     out.push(Line::plain("-".repeat(w)));
 
@@ -2686,6 +2742,7 @@ pub fn slip_for_kitchen_chit(chit: &KitchenChit) -> KitchenSlip {
         at: chit.at.clone(),
         teller: chit.teller.clone(),
         top_notes: Vec::new(),
+        service_mode: chit.service_mode.clone(),
         items: vec![KitchenSlipItem {
             item: chit.item.clone(),
             qty: chit.qty,
@@ -2747,7 +2804,7 @@ mod kitchen_chit_tests {
 
     #[test]
     fn a_recipe_card_prints_the_ingredients_then_the_numbered_steps() {
-        let slip = KitchenSlip {
+        let slip = KitchenSlip { service_mode: None,
             table_label: None,
             ticket_ref: None,
             at: "09:12".into(),
@@ -2779,8 +2836,27 @@ mod kitchen_chit_tests {
         assert!(!text.iter().any(|t| t == "Recipe:" || t == "Steps:"), "{text:#?}");
     }
 
+    #[test]
+    fn a_chit_says_whether_it_leaves_in_a_bag_or_goes_to_a_table() {
+        let mut c = chit();
+        let text = |c: &KitchenChit| -> Vec<String> {
+            kitchen_slip_layout(&slip_for_kitchen_chit(c), &labels(), 32).into_iter().map(|l| l.text).collect()
+        };
+        c.service_mode = Some("dine_in".into());
+        let t = text(&c);
+        let at = |needle: &str| t.iter().position(|x| x == needle).unwrap_or_else(|| panic!("{needle}: {t:?}"));
+        assert!(at("Table T4") < at("Dine in"), "under the table: {t:?}");
+        c.service_mode = Some("takeaway".into());
+        assert!(text(&c).contains(&"Pickup".to_string()));
+        c.service_mode = None;
+        assert!(!text(&c).iter().any(|x| x == "Pickup" || x == "Dine in"));
+        // The legacy single-chit layout says it too.
+        c.service_mode = Some("dine_in".into());
+        assert!(kitchen_chit_layout(&c, &labels(), 32).iter().any(|l| l.text == "Dine in"));
+    }
+
     fn labels() -> KitchenChitLabels {
-        KitchenChitLabels {
+        KitchenChitLabels { pickup: "Pickup".into(), dine_in: "Dine in".into(),
             heading: "KITCHEN".into(),
             table: "Table".into(),
             note: "NOTE:".into(),
@@ -2790,7 +2866,7 @@ mod kitchen_chit_tests {
     }
 
     fn chit() -> KitchenChit {
-        KitchenChit {
+        KitchenChit { service_mode: None,
             item: "Flat White".into(),
             qty: 2,
             size_label: Some("Large".into()),
@@ -2839,6 +2915,7 @@ mod kitchen_chit_tests {
             Some("R-1".into()),
             "12:00".into(),
             Some("Ken".into()),
+            None,
             None,
             None,
             "en",
@@ -2918,7 +2995,7 @@ mod kitchen_chit_tests {
     #[test]
     fn the_thin_case_still_reads() {
         // No table, no note, no ref, no size — a counter sale of one thing.
-        let bare = KitchenChit {
+        let bare = KitchenChit { service_mode: None,
             item: "Espresso".into(),
             qty: 1,
             size_label: None,
@@ -2991,6 +3068,7 @@ mod kitchen_chit_tests {
             Some("Sara".into()),
             None,
             None,
+            None,
             "en",
         );
         assert_eq!(slip.items.len(), 1);
@@ -3015,7 +3093,7 @@ mod kitchen_chit_tests {
     fn a_counter_cart_line_chit_has_no_table() {
         let mut line = cart_line();
         line.notes = None;
-        let slip = slip_for_cart_line(&line, None, None, "13:05".into(), None, None, None, "en");
+        let slip = slip_for_cart_line(&line, None, None, "13:05".into(), None, None, None, None, "en");
         let joined = text_of(&kitchen_slip_layout(&slip, &labels(), 32)).join("\n");
         assert!(!joined.contains("Table"));
         assert!(!joined.contains("NOTE:"));
@@ -3036,6 +3114,7 @@ mod kitchen_chit_tests {
             Some("Sara".into()),
             Some("Birthday — bring the cake last".into()), // the ORDER note
             Some("rush this table".into()),                // the CART-level kitchen note
+            None,
             "en",
         );
         assert_eq!(
@@ -3064,7 +3143,7 @@ mod kitchen_chit_tests {
         second.name = "Fries".into();
         second.notes = None;
         second.kitchen_note = Some("extra crispy".into());
-        let slip = KitchenSlip {
+        let slip = KitchenSlip { service_mode: None,
             table_label: Some("T2".into()),
             ticket_ref: None,
             at: "14:00".into(),
@@ -3092,7 +3171,7 @@ mod kitchen_chit_tests {
         let mut second = cart_line();
         second.key = "k2".into();
         second.name = "Fries".into();
-        let slip = KitchenSlip {
+        let slip = KitchenSlip { service_mode: None,
             table_label: Some("T2".into()),
             ticket_ref: Some("R-1".into()),
             at: "14:00".into(),

@@ -292,6 +292,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     String? tableId,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   });
@@ -310,6 +311,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   });
@@ -322,6 +324,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   });

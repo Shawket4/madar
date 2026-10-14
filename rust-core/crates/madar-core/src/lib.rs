@@ -3511,6 +3511,11 @@ fn parse_hub_addr(addr: &str) -> (String, u16) {
     }
 }
 
+/// The wire word of the cart's Pickup / Dine in toggle.
+fn service_mode_of(dine_in: bool) -> Option<String> {
+    Some(if dine_in { "dine_in" } else { "takeaway" }.to_string())
+}
+
 impl MadarCore {
     /// Stable per-device id for the LAN mesh — minted once, persisted in the store.
     fn lan_device_id(&self) -> String {
@@ -3950,6 +3955,8 @@ impl MadarCore {
             note: tr("kitchen.chit_note"),
             recipe: tr("kitchen.recipe"),
             steps: tr("kitchen.steps"),
+            pickup: tr("charge.pickup"),
+            dine_in: tr("charge.dine_in"),
         }
     }
 
@@ -3991,6 +3998,7 @@ impl MadarCore {
         line_key: String,
         table_label: Option<String>,
         ticket_ref: Option<String>,
+        dine_in: bool,
         width: u32,
         till_brand: receipt::PrinterBrand,
     ) -> Result<receipt::CartLineChit, CoreError> {
@@ -3998,7 +4006,7 @@ impl MadarCore {
             .into_iter()
             .find(|l| l.key == line_key)
             .ok_or_else(|| CoreError::Validation { field: "line_key".into(), detail: "cart line not found".into() })?;
-        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, width, till_brand, false)
+        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, service_mode_of(dine_in), width, till_brand, false)
     }
 
     /// ONE cart line's RECIPE CARD for the kitchen: the line's own chit
@@ -4012,6 +4020,7 @@ impl MadarCore {
         line_key: String,
         table_label: Option<String>,
         ticket_ref: Option<String>,
+        dine_in: bool,
         width: u32,
         till_brand: receipt::PrinterBrand,
     ) -> Result<receipt::CartLineChit, CoreError> {
@@ -4019,7 +4028,7 @@ impl MadarCore {
             .into_iter()
             .find(|l| l.key == line_key)
             .ok_or_else(|| CoreError::Validation { field: "line_key".into(), detail: "cart line not found".into() })?;
-        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, width, till_brand, true)
+        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, service_mode_of(dine_in), width, till_brand, true)
     }
 
     /// One dish's recipe card lines: its ingredients for ONE (size, swaps and
@@ -4073,6 +4082,7 @@ impl MadarCore {
         table_id: Option<&str>,
         table_label: Option<String>,
         ticket_ref: Option<String>,
+        service_mode: Option<String>,
         width: u32,
         till_brand: receipt::PrinterBrand,
         with_recipe: bool,
@@ -4083,7 +4093,7 @@ impl MadarCore {
         let order_note = cart::note(&self.store, table_id)?;
         let cart_kitchen_note = cart::kitchen_note(&self.store, table_id)?;
         let mut slip =
-            receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note, &loc);
+            receipt::slip_for_cart_line(line, table_label, ticket_ref, at, teller, order_note, cart_kitchen_note, service_mode, &loc);
         let mut labels = self.kitchen_chit_labels();
         if with_recipe {
             labels.heading = i18n::tr(&loc, "kitchen.recipe_heading");
@@ -4151,6 +4161,7 @@ impl MadarCore {
         table_id: Option<String>,
         table_label: Option<String>,
         ticket_ref: Option<String>,
+        dine_in: bool,
         width: u32,
         till_brand: receipt::PrinterBrand,
     ) -> Result<receipt::CartKitchenChit, CoreError> {
@@ -4167,6 +4178,7 @@ impl MadarCore {
             at,
             teller,
             top_notes: receipt::top_notes(order_note.clone(), cart_note.clone()),
+            service_mode: service_mode_of(dine_in),
             items: lines.iter().flat_map(|l| receipt::slip_items_for_cart_line(l, &loc)).collect(),
         };
         let labels = self.kitchen_chit_labels();
@@ -4240,6 +4252,8 @@ impl MadarCore {
                 teller: tr("receipt.teller"),
                 served_by: tr("receipt.served_by"),
                 queued: tr("order.queued_hint"),
+                pickup: tr("charge.pickup"),
+                dine_in: tr("charge.dine_in"),
                 thank_you: self.receipt_footer(),
                 powered_by: (!cfg.hide_receipt_stub).then(|| tr("receipt.powered_by")),
                 get_madar: !cfg.hide_receipt_get_madar,

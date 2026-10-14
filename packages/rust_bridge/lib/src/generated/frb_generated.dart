@@ -367,6 +367,7 @@ abstract class RustBridgeApi extends BaseApi {
     String? tableId,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   });
@@ -382,6 +383,7 @@ abstract class RustBridgeApi extends BaseApi {
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   });
@@ -392,6 +394,7 @@ abstract class RustBridgeApi extends BaseApi {
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   });
@@ -3726,6 +3729,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     String? tableId,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   }) {
@@ -3740,6 +3744,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_opt_String(tableId, serializer);
           sse_encode_opt_String(tableLabel, serializer);
           sse_encode_opt_String(ticketRef, serializer);
+          sse_encode_bool(dineIn, serializer);
           sse_encode_u_32(width, serializer);
           sse_encode_printer_brand(tillBrand, serializer);
           pdeCallFfi(
@@ -3754,7 +3759,15 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           decodeErrorData: sse_decode_madar_error,
         ),
         constMeta: kCrateApiBridgeMadarBridgeCartKitchenChitConstMeta,
-        argValues: [that, tableId, tableLabel, ticketRef, width, tillBrand],
+        argValues: [
+          that,
+          tableId,
+          tableLabel,
+          ticketRef,
+          dineIn,
+          width,
+          tillBrand,
+        ],
         apiImpl: this,
       ),
     );
@@ -3768,6 +3781,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           "tableId",
           "tableLabel",
           "ticketRef",
+          "dineIn",
           "width",
           "tillBrand",
         ],
@@ -3818,6 +3832,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   }) {
@@ -3833,6 +3848,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_String(lineKey, serializer);
           sse_encode_opt_String(tableLabel, serializer);
           sse_encode_opt_String(ticketRef, serializer);
+          sse_encode_bool(dineIn, serializer);
           sse_encode_u_32(width, serializer);
           sse_encode_printer_brand(tillBrand, serializer);
           pdeCallFfi(
@@ -3853,6 +3869,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           lineKey,
           tableLabel,
           ticketRef,
+          dineIn,
           width,
           tillBrand,
         ],
@@ -3870,6 +3887,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           "lineKey",
           "tableLabel",
           "ticketRef",
+          "dineIn",
           "width",
           "tillBrand",
         ],
@@ -3882,6 +3900,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   }) {
@@ -3897,6 +3916,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           sse_encode_String(lineKey, serializer);
           sse_encode_opt_String(tableLabel, serializer);
           sse_encode_opt_String(ticketRef, serializer);
+          sse_encode_bool(dineIn, serializer);
           sse_encode_u_32(width, serializer);
           sse_encode_printer_brand(tillBrand, serializer);
           pdeCallFfi(
@@ -3917,6 +3937,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           lineKey,
           tableLabel,
           ticketRef,
+          dineIn,
           width,
           tillBrand,
         ],
@@ -3934,6 +3955,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           "lineKey",
           "tableLabel",
           "ticketRef",
+          "dineIn",
           "width",
           "tillBrand",
         ],
@@ -16304,8 +16326,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   KitchenChit dco_decode_kitchen_chit(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return KitchenChit(
       item: dco_decode_String(arr[0]),
       qty: dco_decode_i_64(arr[1]),
@@ -16317,6 +16339,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       at: dco_decode_String(arr[7]),
       teller: dco_decode_opt_String(arr[8]),
       combo: dco_decode_opt_String(arr[9]),
+      serviceMode: dco_decode_opt_String(arr[10]),
     );
   }
 
@@ -16324,8 +16347,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   KitchenSlip dco_decode_kitchen_slip(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return KitchenSlip(
       tableLabel: dco_decode_opt_String(arr[0]),
       ticketRef: dco_decode_opt_String(arr[1]),
@@ -16333,6 +16356,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       teller: dco_decode_opt_String(arr[3]),
       topNotes: dco_decode_list_String(arr[4]),
       items: dco_decode_list_kitchen_slip_item(arr[5]),
+      serviceMode: dco_decode_opt_String(arr[6]),
     );
   }
 
@@ -17949,8 +17973,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   ReceiptView dco_decode_receipt_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 38)
-      throw Exception('unexpected arr length: expect 38 but see ${arr.length}');
+    if (arr.length != 39)
+      throw Exception('unexpected arr length: expect 39 but see ${arr.length}');
     return ReceiptView(
       localOrderId: dco_decode_String(arr[0]),
       orderNumber: dco_decode_opt_box_autoadd_i_64(arr[1]),
@@ -17990,6 +18014,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       loyaltyNotice: dco_decode_opt_String(arr[35]),
       staffNotice: dco_decode_opt_String(arr[36]),
       deals: dco_decode_list_receipt_deal_view(arr[37]),
+      serviceMode: dco_decode_opt_String(arr[38]),
     );
   }
 
@@ -20915,6 +20940,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_at = sse_decode_String(deserializer);
     var var_teller = sse_decode_opt_String(deserializer);
     var var_combo = sse_decode_opt_String(deserializer);
+    var var_serviceMode = sse_decode_opt_String(deserializer);
     return KitchenChit(
       item: var_item,
       qty: var_qty,
@@ -20926,6 +20952,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       at: var_at,
       teller: var_teller,
       combo: var_combo,
+      serviceMode: var_serviceMode,
     );
   }
 
@@ -20938,6 +20965,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_teller = sse_decode_opt_String(deserializer);
     var var_topNotes = sse_decode_list_String(deserializer);
     var var_items = sse_decode_list_kitchen_slip_item(deserializer);
+    var var_serviceMode = sse_decode_opt_String(deserializer);
     return KitchenSlip(
       tableLabel: var_tableLabel,
       ticketRef: var_ticketRef,
@@ -20945,6 +20973,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       teller: var_teller,
       topNotes: var_topNotes,
       items: var_items,
+      serviceMode: var_serviceMode,
     );
   }
 
@@ -23636,6 +23665,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_loyaltyNotice = sse_decode_opt_String(deserializer);
     var var_staffNotice = sse_decode_opt_String(deserializer);
     var var_deals = sse_decode_list_receipt_deal_view(deserializer);
+    var var_serviceMode = sse_decode_opt_String(deserializer);
     return ReceiptView(
       localOrderId: var_localOrderId,
       orderNumber: var_orderNumber,
@@ -23675,6 +23705,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       loyaltyNotice: var_loyaltyNotice,
       staffNotice: var_staffNotice,
       deals: var_deals,
+      serviceMode: var_serviceMode,
     );
   }
 
@@ -26429,6 +26460,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_String(self.at, serializer);
     sse_encode_opt_String(self.teller, serializer);
     sse_encode_opt_String(self.combo, serializer);
+    sse_encode_opt_String(self.serviceMode, serializer);
   }
 
   @protected
@@ -26440,6 +26472,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.teller, serializer);
     sse_encode_list_String(self.topNotes, serializer);
     sse_encode_list_kitchen_slip_item(self.items, serializer);
+    sse_encode_opt_String(self.serviceMode, serializer);
   }
 
   @protected
@@ -28670,6 +28703,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.loyaltyNotice, serializer);
     sse_encode_opt_String(self.staffNotice, serializer);
     sse_encode_list_receipt_deal_view(self.deals, serializer);
+    sse_encode_opt_String(self.serviceMode, serializer);
   }
 
   @protected
@@ -29971,6 +30005,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     String? tableId,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   }) => RustBridge.instance.api.crateApiBridgeMadarBridgeCartKitchenChit(
@@ -29978,6 +30013,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     tableId: tableId,
     tableLabel: tableLabel,
     ticketRef: ticketRef,
+    dineIn: dineIn,
     width: width,
     tillBrand: tillBrand,
   );
@@ -29997,6 +30033,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   }) => RustBridge.instance.api.crateApiBridgeMadarBridgeCartLineChit(
@@ -30005,6 +30042,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     lineKey: lineKey,
     tableLabel: tableLabel,
     ticketRef: ticketRef,
+    dineIn: dineIn,
     width: width,
     tillBrand: tillBrand,
   );
@@ -30017,6 +30055,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     required String lineKey,
     String? tableLabel,
     String? ticketRef,
+    required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
   }) => RustBridge.instance.api.crateApiBridgeMadarBridgeCartLineRecipeChit(
@@ -30025,6 +30064,7 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     lineKey: lineKey,
     tableLabel: tableLabel,
     ticketRef: ticketRef,
+    dineIn: dineIn,
     width: width,
     tillBrand: tillBrand,
   );

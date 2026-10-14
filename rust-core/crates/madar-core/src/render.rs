@@ -1260,7 +1260,7 @@ mod tests {
             store_name: "Cafe Madar".into(),
             currency: "EGP".into(),
             width: 48,
-            labels: ReceiptLabels {
+            labels: ReceiptLabels { pickup: "Pickup".into(), dine_in: "Dine in".into(),
                 order: "Order".into(),
                 reference: "Ref".into(),
                 voided: "VOIDED".into(),
@@ -1314,7 +1314,7 @@ mod tests {
     }
 
     fn receipt() -> ReceiptView {
-        ReceiptView {
+        ReceiptView { service_mode: None,
             local_order_id: "abcdef12-0000-0000-0000-000000000000".into(),
             order_number: Some(42),
             display_number: String::new(),
@@ -1826,7 +1826,7 @@ mod tests {
     // ── kitchen chit: raster, not raw text (Arabic/RTL must not garble) ───────
 
     fn kitchen_labels() -> KitchenChitLabels {
-        KitchenChitLabels {
+        KitchenChitLabels { pickup: "Pickup".into(), dine_in: "Dine in".into(),
             heading: "المطبخ".into(),
             table: "طاولة".into(),
             note: "ملاحظة:".into(),
@@ -1836,7 +1836,7 @@ mod tests {
     }
 
     fn arabic_slip() -> KitchenSlip {
-        KitchenSlip {
+        KitchenSlip { service_mode: None,
             table_label: Some("طاولة ٤".into()),
             ticket_ref: Some("R-9".into()),
             at: "19:42".into(),
@@ -1961,7 +1961,7 @@ mod tests {
 
     fn ar_chit_labels() -> KitchenChitLabels {
         let tr = |k: &str| crate::i18n::tr("ar", k);
-        KitchenChitLabels {
+        KitchenChitLabels { pickup: "Pickup".into(), dine_in: "Dine in".into(),
             heading: tr("kitchen.chit_heading"),
             table: tr("kitchen.chit_table"),
             note: tr("kitchen.chit_note"),
@@ -2166,7 +2166,7 @@ mod tests {
         ];
         let mut c = ctx();
         c.labels.reference = crate::i18n::tr("en", "receipt.ref");
-        let chit_labels = KitchenChitLabels {
+        let chit_labels = KitchenChitLabels { pickup: "Pickup".into(), dine_in: "Dine in".into(),
             heading: "KITCHEN".into(),
             table: "Table".into(),
             note: "Note:".into(),
