@@ -1,5 +1,5 @@
-// The Free plan has no online orders, no bills (the floor) and no kitchen:
-// the Queue's feeds make no read at all (the boot-time delivery load was one),
+// The Free plan has the floor (bills) but no online orders and no kitchen:
+// the delivery feed makes no read at all (the boot-time load was one),
 // and a paid plan reads exactly what it always did. The plan is the core's
 // answer (`entitlements()`); an unknown one is Paid.
 
@@ -49,7 +49,7 @@ class _Fake implements MadarBridge {
 
 EntitlementsView _free() => const EntitlementsView(
   plan: 'free',
-  features: [],
+  features: ['floor'],
   realtime: false,
   maxBranches: 1,
   maxPosDevicesPerBranch: 1,
@@ -59,7 +59,7 @@ EntitlementsView _free() => const EntitlementsView(
 );
 
 void main() {
-  test('a Free till reads no delivery orders, bills or floor labels', () async {
+  test('a Free till reads bills and floor labels but no delivery orders', () async {
     final bridge = _Fake(_free());
     final c = ProviderContainer(
       overrides: [bridgeProvider.overrideWithValue(bridge)],
@@ -69,11 +69,10 @@ void main() {
     await queue.loadDeliveryOrders();
     await queue.loadOpenTickets();
     await queue.loadFloorLabels();
-    expect(bridge.calls, isEmpty);
+    expect(bridge.calls, [#listOpenTickets, #floorLayout]);
     final s = c.read(incomingProvider);
     expect(s.deliveryOrders, isEmpty);
-    expect(s.ticketsLoaded, isTrue, reason: 'nothing to wait for');
-    expect(s.hasFloor, isFalse);
+    expect(s.ticketsLoaded, isTrue);
   });
 
   test('a paid till reads all three, as it always did', () async {
@@ -110,9 +109,9 @@ void main() {
     expect(e.tillInactive, isFalse);
   });
 
-  test('Free has none of the paid features; an unknown key is allowed', () {
+  test('Free has the floor only; an unknown key is allowed', () {
     final e = _free();
-    expect(e.has(PlanFeature.floor), isFalse);
+    expect(e.has(PlanFeature.floor), isTrue);
     expect(e.has(PlanFeature.online), isFalse);
     expect(e.has(PlanFeature.kitchen), isFalse);
     expect(e.has('a_feature_from_the_future'), isTrue);

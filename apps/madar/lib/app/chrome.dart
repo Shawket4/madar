@@ -682,8 +682,7 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   /// core decides that, not this list.
   ///
   /// [hasQueue] is the plan's: the Queue holds bills (floor), online orders
-  /// and the kitchen board, and Free has none of them, so the tab is not
-  /// there. [inactive] is a till the Free plan switched off: the Sell tab
+  /// and the kitchen board; Free has the bills, so the tab is there. [inactive] is a till the Free plan switched off: the Sell tab
   /// alone, and it shows the "not active" screen.
   List<_Tab> _tabsFor(
     ShellKind kind, {

@@ -3,8 +3,8 @@
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Free's features: none.
-const Set<String> _free = <String>{};
+/// Free's features: the floor (tables, open tickets).
+const Set<String> _free = <String>{'floor'};
 const Set<String> _paid = <String>{
   'basira',
   'bookings',
@@ -57,7 +57,6 @@ void main() {
   test('Free loses the paid pages and keeps selling', () {
     final free = _shown(_free);
     for (final gone in [
-      '/floor',
       '/bookings',
       '/basira',
       '/inventory/today',
@@ -83,6 +82,7 @@ void main() {
       '/discounts',
       '/reports/financial',
       '/reports/operations',
+      '/floor',
     ]) {
       expect(free, contains(kept), reason: kept);
     }

@@ -5,7 +5,7 @@
 /// answer; this table is for screens that render before a session exists.
 abstract final class PlanFeature {
   static const int specVersion = 1;
-  static const String specHash = '63bb92161548b5b5';
+  static const String specHash = 'f1e6e47ce5c40542';
   static const String basira = 'basira';
   static const String bookings = 'bookings';
   static const String branding = 'branding';
@@ -41,7 +41,9 @@ class PlanEntitlements {
 
 abstract final class Plans {
   static const PlanEntitlements free = PlanEntitlements(
-    features: <String>{},
+    features: {
+      'floor',
+    },
     branches: 1,
     posDevicesPerBranch: 1,
     kdsDevices: 0,
