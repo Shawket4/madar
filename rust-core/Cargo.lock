@@ -2243,6 +2243,7 @@ name = "madar_kitchen_ffi"
 version = "0.1.0"
 dependencies = [
  "madar-core",
+ "rusqlite",
  "serde_json",
  "tokio",
  "tokio-postgres",

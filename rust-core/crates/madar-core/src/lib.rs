@@ -1422,8 +1422,34 @@ impl MadarCore {
             "kitchen.item_unbumped"
         };
         self.lan_publish("kitchen", ev, data, Some(envelope)).await;
+        if bumped {
+            self.announce_ready_on_lan(&item_id).await;
+        }
         self.send_in_background(Vec::new());
         Ok(())
+    }
+
+    /// The bump that finishes a kitchen ticket tells the LAN the order is
+    /// ready (`kitchen.ticket_ready`, the server's own event and shape), so a
+    /// till or waiter on the same Wi-Fi gets "Order ready" with no internet.
+    /// Same id as the server's event (the kitchen ticket's, derived from the
+    /// round), so the server's copy arriving after a reconnect is the same
+    /// alert, deduped, not a second one. Best-effort: the board decides.
+    async fn announce_ready_on_lan(&self, item_id: &str) {
+        let Ok(board) = self.kds_list(None).await else { return };
+        let Some(t) = board.into_iter().find(|t| t.items.iter().any(|l| l.id == item_id)) else {
+            return;
+        };
+        if t.items.is_empty() || !t.items.iter().all(|l| l.bumped) {
+            return;
+        }
+        let mut data = serde_json::to_value(&t).unwrap_or_default();
+        if let Some(o) = data.as_object_mut() {
+            o.insert("status".into(), "ready".into());
+            // Marks the echo: the announcing device doesn't alert itself.
+            o.insert("origin".into(), serde_json::json!({ "device_id": self.lan_device_id() }));
+        }
+        self.lan_publish("kitchen", "kitchen.ticket_ready", data.to_string(), None).await;
     }
 
     /// The still-pending bump intents `(line_id, bumped)` in FIFO order — overlaid

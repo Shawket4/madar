@@ -29,6 +29,30 @@ use madar_core::{MadarConfig, MadarCore};
 use madar_kitchen_ffi::KitchenCore;
 use tokio::net::{TcpListener, TcpStream};
 
+/// What the POS app would show: every notification the core posts.
+#[derive(Clone, Default)]
+struct Shown(Arc<Mutex<Vec<(String, String)>>>);
+
+impl madar_core::realtime::RealtimePlayer for Shown {
+    fn play_ping(&self) {}
+    fn post_notification(&self, title: String, body: String, _tag: String) {
+        self.0.lock().unwrap().push((title, body));
+    }
+    fn haptic(&self) {}
+}
+
+struct Board;
+impl madar_core::realtime::EventListener for Board {
+    fn on_event(&self, _: madar_core::realtime::RealtimeEvent) {}
+    fn on_connection_changed(&self, _: bool) {}
+}
+
+impl Shown {
+    fn ready(&self) -> Vec<String> {
+        self.0.lock().unwrap().iter().filter(|(t, _)| t == "Order ready").map(|(_, b)| b.clone()).collect()
+    }
+}
+
 fn env(k: &str, default: &str) -> String {
     std::env::var(k).unwrap_or_else(|_| default.to_string())
 }
@@ -200,6 +224,9 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
     // here each side is told where the other listens, and re-told inside the TTL.
     kitchen.lan_start().await.expect("kitchen LAN");
     pos.lan_start().await.expect("pos LAN");
+    // The POS listens the way the app does: what it would notify lands in `shown`.
+    let shown = Shown::default();
+    pos.start_realtime(Box::new(Board), Box::new(shown.clone())).await.expect("listen");
     let (k_ad, p_ad) = (
         kitchen.lan_advert().expect("kitchen advert"),
         pos.lan_advert().expect("pos advert"),
@@ -302,6 +329,17 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
         (pos.pending_outbox_count().unwrap() > pos_pending_before).then_some(())
     })
     .await;
+    assert!(!shown.ready().contains(&format!("#{}", &ticket.id[ticket.id.len() - 4..].to_uppercase())), "one line still cooking: this order is not ready: {:?}", shown.0.lock().unwrap());
+
+    // The bump that finishes the order tells the POS over the LAN, with no
+    // internet: one local "Order ready", named like the kitchen's card.
+    kitchen.bump(line_ids[1].clone()).await.expect("bump the last line offline");
+    // No ref yet offline: the id's tail, as the kitchen's card shows it.
+    let ours = format!("#{}", &ticket.id[ticket.id.len() - 4..].to_uppercase());
+    within(15, "the POS hears this order is ready over the LAN", || async {
+        shown.ready().contains(&ours).then_some(())
+    })
+    .await;
 
     // ── 4. Online again: both drain, the server has everything once ─────────
     net.restore();
@@ -310,10 +348,14 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
         let _ = pos.sync_now().await;
         let _ = kitchen.sync_now().await;
         let pos_status = pos.sync_status();
-        assert_eq!(
-            pos_status.dead_outbox, 0,
-            "nothing dead-lettered on the POS: {pos_status:?}"
-        );
+        // Only the POS's OWN writes count. A `lan_mirror` is its backup of
+        // another device's write: on a shop Wi-Fi with real devices of the same
+        // branch (a dev database copied from production shares their branch and
+        // LAN key) those belong to people this backend doesn't know.
+        let own_dead: i64 = rusqlite::Connection::open(dir.join("pos.db"))
+            .and_then(|c| c.query_row("SELECT count(*) FROM outbox WHERE status = 'dead' AND op_type <> 'lan_mirror'", [], |r| r.get(0)))
+            .unwrap_or(-1);
+        assert_eq!(own_dead, 0, "nothing of the POS's own dead-lettered: {pos_status:?}");
         (pos_status.pending_outbox == 0 && kitchen.state().pending == 0).then_some(())
     })
     .await;
@@ -336,7 +378,7 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
         .unwrap();
     let mut server: Vec<(String, bool)> = rows.iter().map(|r| (r.get(0), r.get(1))).collect();
     server.sort();
-    let mut expected = vec![(line_ids[0].clone(), true), (line_ids[1].clone(), false)];
+    let mut expected = vec![(line_ids[0].clone(), true), (line_ids[1].clone(), true)];
     expected.sort();
     assert_eq!(
         server, expected,
@@ -349,22 +391,20 @@ async fn pos_fires_offline_kitchen_bumps_offline_server_gets_both_once() {
     );
 
     let board = kitchen.tickets(None).await.unwrap();
-    let showing: Vec<_> = board
-        .iter()
-        .filter(|t| t.items.iter().any(|l| line_ids.contains(&l.id)))
-        .collect();
+    // A finished round is closed by the server: it leaves the board, and its
+    // LAN copy never comes back as a ghost with its lines unbumped.
+    let _ = kitchen.sync_now().await;
+    let board = kitchen.tickets(None).await.unwrap();
+    let showing: Vec<_> = board.iter().filter(|t| t.items.iter().any(|l| line_ids.contains(&l.id))).collect();
+    assert!(showing.is_empty(), "the finished round is gone, never a ghost: {} shown", showing.len());
+    // The server's own kitchen.ticket_ready for the replayed bump is the same
+    // alert as the LAN's: still one notification.
+    tokio::time::sleep(Duration::from_secs(3)).await;
     assert_eq!(
-        showing.len(),
+        shown.ready().iter().filter(|b| **b == ours).count(),
         1,
-        "the board shows the round once after the sync"
-    );
-    assert!(
-        showing[0]
-            .items
-            .iter()
-            .find(|l| l.id == line_ids[0])
-            .unwrap()
-            .bumped
+        "one Order ready for this order, LAN and server together: {:?}",
+        shown.ready()
     );
 
     pos.lan_stop();
