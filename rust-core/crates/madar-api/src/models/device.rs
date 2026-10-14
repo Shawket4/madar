@@ -49,6 +49,9 @@ pub struct Device {
     pub last_seen_at: chrono::DateTime<chrono::FixedOffset>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
+    /// The Free plan switched this till off (it is not its branch's active one): it shows \"This till isn't active\" instead of the sell screen. Always `false` on Paid.
+    #[serde(rename = "plan_inactive", skip_serializing_if = "Option::is_none")]
+    pub plan_inactive: Option<bool>,
     #[serde(
         rename = "platform",
         default,
@@ -86,6 +89,7 @@ impl Device {
             label: None,
             last_seen_at,
             org_id,
+            plan_inactive: None,
             platform: None,
             retired_at: None,
         }

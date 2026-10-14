@@ -66,6 +66,14 @@ pub struct UpdateOrgRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub name: Option<Option<String>>,
+    /// `free` | `paid`. Super admin only. Paid -> Free keeps every branch and all data, switches the paid features off (the capability ceiling), and leaves ONE till per branch active (the most recently used); Free -> Paid switches every till back on. A repeat of the current plan changes nothing.
+    #[serde(
+        rename = "plan",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub plan: Option<Option<String>>,
     #[serde(
         rename = "receipt_footer",
         default,
@@ -143,6 +151,7 @@ impl UpdateOrgRequest {
             max_warehouses: None,
             modules: None,
             name: None,
+            plan: None,
             receipt_footer: None,
             require_table_for_orders: None,
             service_charge_rate: None,

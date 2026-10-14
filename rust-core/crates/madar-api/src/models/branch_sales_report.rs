@@ -19,6 +19,9 @@ pub struct BranchSalesReport {
     pub branch_name: String,
     #[serde(rename = "by_category")]
     pub by_category: Vec<models::CategorySales>,
+    /// The sales split by how the customer takes the order: always both rows, `takeaway` (Pickup) then `dine_in`, zero when there were none. Same sold set and the same net-of-refunds revenue as `total_revenue`, so the two rows add up to it (less delivery orders, which are `takeaway` here as they are on the order). On every plan.
+    #[serde(rename = "by_service_mode", skip_serializing_if = "Option::is_none")]
+    pub by_service_mode: Option<Vec<models::ServiceModeSales>>,
     /// The cash slice of `total_tips` (snapshotted `tip_is_cash`).
     #[serde(rename = "cash_tips", skip_serializing_if = "Option::is_none")]
     pub cash_tips: Option<i64>,
@@ -109,6 +112,7 @@ impl BranchSalesReport {
             branch_id,
             branch_name,
             by_category,
+            by_service_mode: None,
             cash_tips: None,
             from: None,
             gross_sales: None,

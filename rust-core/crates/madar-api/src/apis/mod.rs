@@ -153,6 +153,7 @@ pub mod refunds_api;
 pub mod reports_api;
 pub mod reservations_api;
 pub mod shifts_api;
+pub mod signup_api;
 pub mod staff_api;
 pub mod staff_auth_api;
 pub mod staff_pool_api;

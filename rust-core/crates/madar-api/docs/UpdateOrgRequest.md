@@ -11,6 +11,7 @@ Name | Type | Description | Notes
 **max_warehouses** | Option<**i32**> | Warehouses this org may have. `null` = unlimited; absent = unchanged. | [optional]
 **modules** | Option<**Vec<String>**> | `pos`, `dawam`: at least one (PS-2, SA-5). Super admin only, like the rest of this endpoint. | [optional]
 **name** | Option<**String**> |  | [optional]
+**plan** | Option<**String**> | `free` | `paid`. Super admin only. Paid -> Free keeps every branch and all data, switches the paid features off (the capability ceiling), and leaves ONE till per branch active (the most recently used); Free -> Paid switches every till back on. A repeat of the current plan changes nothing. | [optional]
 **receipt_footer** | Option<**String**> |  | [optional]
 **require_table_for_orders** | Option<**bool**> |  | [optional]
 **service_charge_rate** | Option<**f64**> |  | [optional]

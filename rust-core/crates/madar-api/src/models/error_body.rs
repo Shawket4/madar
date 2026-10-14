@@ -25,6 +25,22 @@ pub struct ErrorBody {
     /// Human-readable error message.
     #[serde(rename = "error")]
     pub error: String,
+    /// A plan refusal's message in Arabic; `error` is the English one.
+    #[serde(
+        rename = "error_ar",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub error_ar: Option<Option<String>>,
+    /// A plan refusal's feature (`inventory`, `loyalty`, `online`, `bookings`, `floor`, `kitchen`, `dawam`, `branding`, `basira`), when it is about one.
+    #[serde(
+        rename = "feature",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub feature: Option<Option<String>>,
     /// How long to wait before trying again, in seconds. Present on a `PIN_THROTTLED` refusal, absent everywhere else, so the PIN pad can run a countdown rather than inventing one.
     #[serde(
         rename = "retry_after_seconds",
@@ -57,6 +73,8 @@ impl ErrorBody {
         ErrorBody {
             code: None,
             error,
+            error_ar: None,
+            feature: None,
             retry_after_seconds: None,
             till: None,
             vars: None,
