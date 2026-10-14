@@ -44,8 +44,15 @@ class SettingsShell extends ConsumerWidget {
   }
 
   /// The panes this person sees, as [visibleSettings] decides.
-  static List<SettingsNavGroup> groupsFor(Authz authz, OrgModulesState mods) =>
-      visibleSettings(authz, mods.known ? mods.modules : const []);
+  static List<SettingsNavGroup> groupsFor(
+    Authz authz,
+    OrgModulesState mods, {
+    Set<String>? features,
+  }) => visibleSettings(
+    authz,
+    mods.known ? mods.modules : const [],
+    features: features,
+  );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,6 +60,7 @@ class SettingsShell extends ConsumerWidget {
     final groups = groupsFor(
       ref.watch(authzProvider),
       ref.watch(orgModulesProvider),
+      features: ref.watch(planFeaturesProvider),
     );
     SettingsNavLeaf? current;
     for (final g in groups) {

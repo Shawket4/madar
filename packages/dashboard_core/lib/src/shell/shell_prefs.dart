@@ -94,6 +94,16 @@ final linkOpenerProvider = Provider<Future<void> Function(Uri uri)>(
   (ref) => (_) async {},
 );
 
+/// The web dashboard's origin, where the free sign-up lives (`/signup`).
+/// Staging overrides it with `--dart-define=MADAR_DASHBOARD_URL=…`.
+const String dashboardOrigin = String.fromEnvironment(
+  'MADAR_DASHBOARD_URL',
+  defaultValue: 'https://madar-pos.cloud',
+);
+
+/// "No account? Sign up free" opens this. No prices in the app.
+final Uri dashboardSignupUri = Uri.parse('$dashboardOrigin/signup');
+
 /// Madar POS's own site, where "Powered by Madar" leads (the web's
 /// `madarSiteHref`): straight to the page's language, tagged so the site's
 /// analytics can tell who sent the visitor.

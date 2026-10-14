@@ -401,9 +401,10 @@ class TillNotifier extends Notifier<TillState> {
 
 /// Till tab state (auto-disposed with the tab so a re-entry reloads).
 /// Dawam is on for this org (minor #40): the till offers "Clock in/out"
-/// and the pay-out's "Expense advance to" only then. A local read (the core
-/// refreshes the org's modules at every sign-in); a bridge that cannot say
-/// keeps both offered, and the server still decides.
+/// and the pay-out's "Expense advance to" only then. A local read: OFF until
+/// the server has said the module is on (the core reads the org's modules at
+/// sign-in), and off on a plan without Dawam (Free). A bridge that cannot
+/// answer at all keeps both offered, and the server still decides.
 bool tillDawamOn(MadarBridge bridge) {
   try {
     return bridge.tillDawamOn();

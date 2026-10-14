@@ -35,8 +35,9 @@ class _Fake implements MadarBridge {
         ),
       );
     }
-    if (name == #listOpenTickets)
+    if (name == #listOpenTickets) {
       return Future<List<TicketView>>.value(const []);
+    }
     if (name == #floorLayout) {
       return Future<FloorLayoutView>.value(
         const FloorLayoutView(sections: [], tables: []),

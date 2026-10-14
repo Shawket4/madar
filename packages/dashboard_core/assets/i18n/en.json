@@ -6562,5 +6562,22 @@
  "notFound.title": "Page not found",
  "notFound.body": "This page doesn't exist or has moved. Check the address, or go back to the dashboard.",
  "notFound.home": "Back to the dashboard",
- "shell.accessLoadError": "Couldn't load what you're allowed to do here."
+ "shell.accessLoadError": "Couldn't load what you're allowed to do here.",
+ "plan.features.basira": "Basira (AI assistant)",
+ "plan.features.bookings": "Bookings",
+ "plan.features.branding": "Brand, links page and shop address",
+ "plan.features.dawam": "Dawam (staff scheduling and payroll)",
+ "plan.features.floor": "Floor plan and open tickets",
+ "plan.features.inventory": "Inventory, purchasing and recipes",
+ "plan.features.kitchen": "Kitchen screens and stations",
+ "plan.features.loyalty": "Loyalty",
+ "plan.features.online": "Online ordering, delivery and QR menus",
+ "plan.upgrade.title": "{{feature}} is on the paid plan",
+ "plan.upgrade.body": "Your shop is on the Free plan. Contact Madar to move to the paid plan; your sales and your data stay exactly as they are.",
+ "plan.upgrade.cta": "Contact Madar on WhatsApp",
+ "plan.upgrade.message": "Hello Madar, I would like to move my shop to the paid plan ({{feature}}).",
+ "plan.upgrade.messageGeneric": "Hello Madar, I would like to move my shop to the paid plan.",
+ "plan.upgrade.hint": "Contact Madar to move to the paid plan.",
+ "signup.noAccount": "No account?",
+ "signup.signUpFree": "Sign up free"
 }
