@@ -97,12 +97,24 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
     );
     // Null while the first read is in flight, and null forever on a device
     // that has never reached the server — both hide the segment.
-    final showKitchen = tillShowsKitchen(ref.watch(kitchenRoutingModeProvider));
-    // The mode can change under a teller who is standing on the segment.
-    // Fall back rather than leave the control pointing at an item it no
-    // longer has.
-    if (segment == QueueSegment.kitchen && !showKitchen) {
-      segment = QueueSegment.bills;
+    // The plan decides first: Free has no bills (floor), no online orders and
+    // no kitchen board, and a paid plan shows exactly what it always did.
+    final plan = ref.watch(entitlementsProvider);
+    final showBills = plan.has(PlanFeature.floor);
+    final showOnline = plan.has(PlanFeature.online);
+    final showKitchen =
+        plan.has(PlanFeature.kitchen) &&
+        tillShowsKitchen(ref.watch(kitchenRoutingModeProvider));
+    // The mode (or the plan) can change under a teller who is standing on the
+    // segment. Fall back rather than leave the control pointing at an item it
+    // no longer has.
+    final available = [
+      if (showBills) QueueSegment.bills,
+      if (showOnline) QueueSegment.online,
+      if (showKitchen) QueueSegment.kitchen,
+    ];
+    if (available.isNotEmpty && !available.contains(segment)) {
+      segment = available.first;
     }
     // Only counted when the segment exists: watching the board's family
     // member mounts it, and an unrouted till has no business holding a feed.
@@ -117,18 +129,20 @@ class _QueueScreenState extends ConsumerState<QueueScreen> {
 
     final segmented = MadarSegmented<QueueSegment>(
       items: [
-        MadarSegmentItem(
-          QueueSegment.bills,
-          bridge.trOr(QueueKeys.bills),
-          count: billsCount,
-          glyph: MadarGlyph.receipt,
-        ),
-        MadarSegmentItem(
-          QueueSegment.online,
-          bridge.trOr(QueueKeys.online),
-          count: onlineCount,
-          glyph: MadarGlyph.bike,
-        ),
+        if (showBills)
+          MadarSegmentItem(
+            QueueSegment.bills,
+            bridge.trOr(QueueKeys.bills),
+            count: billsCount,
+            glyph: MadarGlyph.receipt,
+          ),
+        if (showOnline)
+          MadarSegmentItem(
+            QueueSegment.online,
+            bridge.trOr(QueueKeys.online),
+            count: onlineCount,
+            glyph: MadarGlyph.bike,
+          ),
         if (showKitchen)
           MadarSegmentItem(
             QueueSegment.kitchen,

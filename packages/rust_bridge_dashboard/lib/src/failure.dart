@@ -16,6 +16,10 @@ extension MadarErrorMessage on MadarBridge {
       ),
       MadarError_Server(:final detail) => _or(detail),
       MadarError_Transient() => tr(key: 'err.network'),
+      // A plan refusal: the plan's own sentence in the app's language.
+      MadarError_Forbidden(:final resource)
+          when planRefusalWords(resource: resource) != null =>
+        planRefusalWords(resource: resource)!,
       MadarError_Forbidden() => tr(key: 'err.not_allowed'),
       MadarError_Internal(:final detail) => _or(detail),
     };

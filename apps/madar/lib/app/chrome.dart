@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:madar/app/inactive_till.dart';
 import 'package:madar/app/notifications.dart';
 import 'package:madar/app/push.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -287,6 +288,9 @@ class _RoleShellState extends ConsumerState<RoleShell> {
 
   bool _reauthShowing = false;
 
+  /// The plan switched this till off (see `InactiveTillScreen`).
+  bool _inactive = false;
+
   ShellKind get _kind {
     final bridge = ref.read(bridgeProvider);
     return ShellKind.of((c) => bridge.can(cap: c));
@@ -505,7 +509,8 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   Widget _body(_Tab tab) {
     final teller = _kind == ShellKind.teller;
     return switch (tab) {
-      _Tab.sell => const TakeawaySellScreen(),
+      _Tab.sell =>
+        _inactive ? const InactiveTillScreen() : const TakeawaySellScreen(),
       // canCharge is the one place a role reaches a shared screen, and it is
       // decided HERE, by which shell mounted it — never by a flag below.
       _Tab.floor => FloorScreen(canCharge: teller),
@@ -675,17 +680,25 @@ class _RoleShellState extends ConsumerState<RoleShell> {
   ///
   /// Waiters and kitchen devices hold no drawer and are never locked; the
   /// core decides that, not this list.
+  ///
+  /// [hasQueue] is the plan's: the Queue holds bills (floor), online orders
+  /// and the kitchen board, and Free has none of them, so the tab is not
+  /// there. [inactive] is a till the Free plan switched off: the Sell tab
+  /// alone, and it shows the "not active" screen.
   List<_Tab> _tabsFor(
     ShellKind kind, {
     required bool hasFloor,
     required bool locked,
+    required bool hasQueue,
+    required bool inactive,
   }) => switch (kind) {
     ShellKind.waiter => [if (hasFloor) _Tab.floor, _Tab.bills, _Tab.me],
+    ShellKind.teller when inactive => [_Tab.sell],
     ShellKind.teller when locked => [_Tab.till],
     ShellKind.teller => [
       _Tab.sell,
       if (hasFloor) _Tab.floor,
-      _Tab.queue,
+      if (hasQueue) _Tab.queue,
       _Tab.orders,
       _Tab.till,
     ],
@@ -763,12 +776,32 @@ class _RoleShellState extends ConsumerState<RoleShell> {
     // The lock, decided in the core and read here ONCE: the shell asks no
     // screen and no role what is reachable.
     final locked = ref.watch(shellProvider.select((s) => s.locked));
-    final tabs = _tabsFor(kind, hasFloor: hasFloor, locked: locked);
+    // The plan, from the core: what Free hides, and whether the plan
+    // switched THIS till off. Unknown is Paid, so a paying shop loses nothing.
+    final plan = ref.watch(entitlementsProvider);
+    final inactive = plan.tillInactive && kind == ShellKind.teller;
+    if (inactive != _inactive) {
+      // The kept bodies belong to the other state: build them again.
+      _inactive = inactive;
+      _bodies.clear();
+      _chosen = null;
+    }
+    final hasQueue =
+        plan.has(PlanFeature.floor) ||
+        plan.has(PlanFeature.online) ||
+        plan.has(PlanFeature.kitchen);
+    final tabs = _tabsFor(
+      kind,
+      hasFloor: hasFloor,
+      locked: locked,
+      hasQueue: hasQueue,
+      inactive: inactive,
+    );
     final home = _homeFor(
       kind,
       hasFloor: hasFloor,
       requireTable: session?.requireTableForOrders ?? false,
-      noTill: locked || route == AppRoute.openTill,
+      noTill: !inactive && (locked || route == AppRoute.openTill),
     );
     // Every stack the shell keeps: the rail's tabs plus the teller's
     // off-rail Settings owner.

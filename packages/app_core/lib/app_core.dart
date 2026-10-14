@@ -9,7 +9,9 @@ export 'package:design_system/design_system.dart' show ThemeChoice;
 
 export 'src/app_toast.dart';
 export 'src/generated/capabilities.dart';
+export 'src/generated/plans.dart';
 export 'src/orientation.dart';
+export 'src/plan.dart';
 export 'src/printing/printer_service.dart';
 export 'src/printing/printer_transport.dart';
 export 'src/providers.dart';

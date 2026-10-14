@@ -260,6 +260,16 @@ class IncomingNotifier extends Notifier<IncomingState> {
   /// mark it stale; the segment says so instead of going blank. The accepting
   /// settings ride along quietly.
   Future<void> loadDeliveryOrders() async {
+    // Online ordering is off on Free: no delivery load at boot, none ever.
+    if (!ref.read(entitlementsProvider).has(PlanFeature.online)) {
+      if (state.deliveryOrders.isNotEmpty || state.isLoadingDelivery) {
+        state = state.copyWith(
+          deliveryOrders: const [],
+          isLoadingDelivery: false,
+        );
+      }
+      return;
+    }
     final gen = ++_onlineGen;
     _latestRead = gen;
     state = state.copyWith(isLoadingDelivery: true);
@@ -524,6 +534,11 @@ class IncomingNotifier extends Notifier<IncomingState> {
   int _ticketsGen = 0;
 
   Future<void> loadOpenTickets() async {
+    // Open tickets are the floor's: none on Free.
+    if (!ref.read(entitlementsProvider).has(PlanFeature.floor)) {
+      state = state.copyWith(openTickets: const [], ticketsLoaded: true);
+      return;
+    }
     final gen = ++_ticketsGen;
     try {
       final tickets = await _bridge.listOpenTickets();
@@ -545,6 +560,7 @@ class IncomingNotifier extends Notifier<IncomingState> {
   /// Table id → label from the floor mirror, so a bill row reads "T3" and a
   /// floorless shop is known to be one (its rows then lead with the guest).
   Future<void> loadFloorLabels() async {
+    if (!ref.read(entitlementsProvider).has(PlanFeature.floor)) return;
     final layout = await _quiet(_bridge.floorLayout);
     if (layout == null) return;
     state = state.copyWith(

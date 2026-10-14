@@ -202,6 +202,29 @@ class _DeviceSetupFormState extends ConsumerState<DeviceSetupForm> {
             variant: MadarButtonVariant.ghost,
             size: MadarButtonSize.compact,
           ),
+        // First run only: a shop with no account is pointed at the free
+        // sign-up on the web. No prices here, only the way in.
+        if (!picking && !isBranchConfigured)
+          Column(
+            key: const ValueKey('setup-sign-up'),
+            spacing: Space.xs,
+            children: [
+              Text(
+                t('setup.no_account'),
+                textAlign: TextAlign.center,
+                style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+              ),
+              MadarButton(
+                label: t('setup.sign_up_free'),
+                onTap: () =>
+                    unawaited(ref.read(externalLinkOpenerProvider)(kSignupUri)),
+                enabled: !busy,
+                variant: MadarButtonVariant.ghost,
+                size: MadarButtonSize.compact,
+                icon: 'arrow.up.right',
+              ),
+            ],
+          ),
         if (picking || isBranchConfigured)
           MadarButton(
             label: t('setup.cancel'),
