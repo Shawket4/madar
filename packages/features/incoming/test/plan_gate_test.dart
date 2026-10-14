@@ -59,21 +59,24 @@ EntitlementsView _free() => const EntitlementsView(
 );
 
 void main() {
-  test('a Free till reads bills and floor labels but no delivery orders', () async {
-    final bridge = _Fake(_free());
-    final c = ProviderContainer(
-      overrides: [bridgeProvider.overrideWithValue(bridge)],
-    );
-    addTearDown(c.dispose);
-    final queue = c.read(incomingProvider.notifier);
-    await queue.loadDeliveryOrders();
-    await queue.loadOpenTickets();
-    await queue.loadFloorLabels();
-    expect(bridge.calls, [#listOpenTickets, #floorLayout]);
-    final s = c.read(incomingProvider);
-    expect(s.deliveryOrders, isEmpty);
-    expect(s.ticketsLoaded, isTrue);
-  });
+  test(
+    'a Free till reads bills and floor labels but no delivery orders',
+    () async {
+      final bridge = _Fake(_free());
+      final c = ProviderContainer(
+        overrides: [bridgeProvider.overrideWithValue(bridge)],
+      );
+      addTearDown(c.dispose);
+      final queue = c.read(incomingProvider.notifier);
+      await queue.loadDeliveryOrders();
+      await queue.loadOpenTickets();
+      await queue.loadFloorLabels();
+      expect(bridge.calls, [#listOpenTickets, #floorLayout]);
+      final s = c.read(incomingProvider);
+      expect(s.deliveryOrders, isEmpty);
+      expect(s.ticketsLoaded, isTrue);
+    },
+  );
 
   test('a paid till reads all three, as it always did', () async {
     final bridge = _Fake(paidEntitlements);

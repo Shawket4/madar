@@ -41,9 +41,7 @@ class PlanEntitlements {
 
 abstract final class Plans {
   static const PlanEntitlements free = PlanEntitlements(
-    features: {
-      'floor',
-    },
+    features: {'floor'},
     branches: 1,
     posDevicesPerBranch: 1,
     kdsDevices: 0,
