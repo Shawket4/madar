@@ -46,6 +46,7 @@ rust-core/
 held-orders strip, open tickets, and the **tables/floor canvas** (`tables_screen.dart`).
 
 ## Commands
+- **Faster builds: always `. rust-core/scripts/dev-env.sh` first** in the shell that runs cargo for `rust-core` (agents included). It only touches the host target, so the cargokit Android/iOS builds keep their own linkers. It turns on sccache (a compile cache shared by every worktree and agent) and, on Linux, the mold linker (much faster links of the big test binaries). Each part activates only when its tool is installed, so it is safe everywhere. Install once per machine: `cargo install --locked sccache`; Linux also `apt install mold clang`. Several worktrees or agents building at once: also give each its own `CARGO_TARGET_DIR`; sccache then shares the compiled dependencies between them. Never put the wrapper or linker in `.cargo/config.toml`: a machine or CI image without them would stop building.
 - `melos run analyze` — `flutter analyze` across the workspace
 - `melos run format` — `dart format --set-exit-if-changed .`
 - `melos run test` — every package's tests
