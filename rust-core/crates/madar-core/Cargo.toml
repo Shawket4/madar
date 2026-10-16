@@ -121,7 +121,7 @@ socket2 = { version = "0.6", features = ["all"] }
 hmac = "0.13"
 sha2 = "0.11"
 # Content-addressed assets (assets.rs): pure-Rust zstd DECODER for `.lottie.zst`.
-ruzstd = "0.8"
+ruzstd = "0.9"
 
 # Local store — embedded SQLite, the source of truth the UI reads from, online
 # or offline. `bundled` vendors SQLite so there's no system dependency.
