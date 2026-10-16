@@ -49,7 +49,6 @@ madar-catalog = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.
 madar-till = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.1" }
 madar-inventory = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.1" }
 madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.1" }
-madar-plan = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.8.1" }
 
 [dev-dependencies]
 # Reads the written workbook's XML in the xlsx tests (rust_xlsxwriter's own zip).
