@@ -8430,7 +8430,7 @@ impl MadarCore {
         );
 
         let mut request = madar_api::models::CreateRefundRequest::new(
-            amount_minor as i32,
+            checkout::wire_i32(amount_minor, "amount")?,
             method,
             order_uuid,
             map_refund_reason(&reason),
@@ -8467,7 +8467,7 @@ impl MadarCore {
                     field: "lines".into(),
                     detail: "the sale's line has no server id".into(),
                 })?;
-                inputs.push(madar_api::models::RefundLineInput::new(amount as i32, item, *q));
+                inputs.push(madar_api::models::RefundLineInput::new(checkout::wire_i32(amount, "lines")?, item, *q));
                 line_rows.push(serde_json::json!({
                     "order_item_id": l.order_item_id, "item_name": l.name,
                     "quantity": q, "amount": amount, "restock": false,
@@ -8793,7 +8793,7 @@ impl MadarCore {
                 detail: "cart is empty".into(),
             });
         }
-        let items = checkout::lines_to_wire_items(&lines);
+        let items = checkout::lines_to_wire_items(&lines)?;
         // A note passed in wins; otherwise the cart's order note rides the ticket.
         let notes = notes
             .filter(|s| !s.trim().is_empty())
@@ -8919,7 +8919,7 @@ impl MadarCore {
                 detail: "cart is empty".into(),
             });
         }
-        let items = checkout::lines_to_wire_items(&lines);
+        let items = checkout::lines_to_wire_items(&lines)?;
         let round_id = uuid::Uuid::new_v4();
         let request = tickets::build_round_request(items, round_id);
         let cmd = tickets::AddRoundCommand {
@@ -9157,8 +9157,13 @@ impl MadarCore {
             .map(|p| p.name);
         let mut request =
             madar_api::models::SettleOpenTicketRequest::new(payment_method, shift_uuid);
-        request.amount_tendered = amount_tendered_minor.map(|v| Some(v as i32));
-        request.tip_amount = tip_minor.filter(|v| *v > 0).map(|v| Some(v as i32));
+        request.amount_tendered = amount_tendered_minor
+            .map(|v| checkout::wire_i32(v, "amount_tendered").map(Some))
+            .transpose()?;
+        request.tip_amount = tip_minor
+            .filter(|v| *v > 0)
+            .map(|v| checkout::wire_i32(v, "tip_amount").map(Some))
+            .transpose()?;
         request.tip_payment_method = tip_method.map(Some);
         request.discount_id = discount_id
             .as_deref()
@@ -9190,7 +9195,7 @@ impl MadarCore {
             request.discount_percent_bps = view.percent_bps.map(|b| Some(b as i32));
             // The figure the drawer really takes off. This is also what a
             // replayed bill keeps if its preset is switched off meanwhile.
-            request.discount_amount = Some(Some(view.amount_minor as i32));
+            request.discount_amount = Some(Some(checkout::wire_i32(view.amount_minor, "discount_amount")?));
             request.discount_applied_by = self
                 .outbox_meta()
                 .0
@@ -9280,7 +9285,7 @@ impl MadarCore {
         // sale's does — only for a bill the server priced, and never with
         // rewards (the server prices those itself and ignores the figure).
         if let Some(b) = priced_bill.as_ref().filter(|_| loyalty_redemptions.is_empty()) {
-            request.total_amount = Some(Some(b.total_minor as i32));
+            request.total_amount = Some(Some(checkout::wire_i32(b.total_minor, "total_amount")?));
         }
         // The legs must cover the bill the drawer collects, exactly — the
         // server refuses anything else, after the table has left the board.

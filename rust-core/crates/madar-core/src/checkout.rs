@@ -550,12 +550,24 @@ pub(crate) fn mint_order_ref(
     ))
 }
 
+/// A money figure or count as the API's `i32` field. Past i32 the sale is
+/// refused here: `as i32` used to wrap it into a different number, which the
+/// server then recorded verbatim.
+pub(crate) fn wire_i32(v: i64, field: &str) -> CoreResult<i32> {
+    i32::try_from(v).map_err(|_| CoreError::Validation {
+        field: field.into(),
+        detail: format!("{v} is too large to record"),
+    })
+}
+
 /// Map priced cart lines to the wire `OrderItemInput`s the backend records
 /// VERBATIM (client-authoritative pricing). Shared by the POS checkout AND the
 /// waiter ticket-fire path (a fired round is the same cart, minus payment), so a
 /// ticket settles into a byte-identical order. A line records its menu-item id,
 /// size, charged unit price, addons + optionals.
-pub(crate) fn lines_to_wire_items(lines: &[cart::CartLineView]) -> Vec<models::OrderItemInput> {
+pub(crate) fn lines_to_wire_items(
+    lines: &[cart::CartLineView],
+) -> CoreResult<Vec<models::OrderItemInput>> {
     lines
         .iter()
         .map(|l| {
@@ -563,19 +575,19 @@ pub(crate) fn lines_to_wire_items(lines: &[cart::CartLineView]) -> Vec<models::O
                 return combo_wire_item(l);
             }
             // Addons carry their CHARGED unit price (swap delta / extra) verbatim.
-            let addons = component_addons(&l.addons);
+            let addons = component_addons(&l.addons)?;
             let optional_ids: Vec<uuid::Uuid> = l
                 .optionals
                 .iter()
                 .filter_map(|o| uuid::Uuid::parse_str(&o.optional_field_id).ok())
                 .collect();
-            let mut item = models::OrderItemInput::new(l.qty as i32);
+            let mut item = models::OrderItemInput::new(wire_i32(l.qty, "quantity")?);
             item.addons = Some(addons);
             item.optional_field_ids = Some(optional_ids);
             item.menu_item_id = uuid::Uuid::parse_str(&l.item_id).ok().map(Some);
             item.size_label = Some(l.size_label.clone());
-            item.unit_price = Some(Some(l.unit_price_minor as i32));
-            item
+            item.unit_price = Some(Some(wire_i32(l.unit_price_minor, "unit_price")?));
+            Ok(item)
         })
         .collect()
 }
@@ -741,7 +753,7 @@ pub(crate) fn prepare(
 
     let order_id = uuid::Uuid::new_v4();
 
-    let mut items = lines_to_wire_items(&lines);
+    let mut items = lines_to_wire_items(&lines)?;
     // A staff drink rides its order line (staff-drink-comp-contract §2): the
     // id is the `staff_drinks` row's id and its idempotency key, `comp_minor`
     // is this till's comp for the WHOLE line. Unit prices stay normal; the
@@ -753,7 +765,7 @@ pub(crate) fn prepare(
             continue;
         };
         let mut sd = models::StaffDrinkLine::new(id, s.note.trim().to_string());
-        sd.comp_minor = Some(Some(s.comp_minor as i32));
+        sd.comp_minor = Some(Some(wire_i32(s.comp_minor, "comp_minor")?));
         sd.overspent = Some(Some(false));
         item.staff_drink = Some(Some(Box::new(sd)));
     }
@@ -765,9 +777,9 @@ pub(crate) fn prepare(
     // even months later — dedups against `orders.idempotency_key` server-side.
     request.idempotency_key = Some(Some(order_id));
     request.deals = wire_deals(store, ctx)?;
-    request.subtotal = Some(Some(priced.subtotal_minor as i32));
-    request.tax_amount = Some(Some(priced.tax_minor as i32));
-    request.total_amount = Some(Some(priced.total_minor as i32));
+    request.subtotal = Some(Some(wire_i32(priced.subtotal_minor, "subtotal")?));
+    request.tax_amount = Some(Some(wire_i32(priced.tax_minor, "tax_amount")?));
+    request.total_amount = Some(Some(wire_i32(priced.total_minor, "total_amount")?));
     request.created_at = chrono::DateTime::parse_from_rfc3339(&now_rfc3339)
         .ok()
         .map(Some);
@@ -783,12 +795,12 @@ pub(crate) fn prepare(
     }
     // A split sends no tender: a 0 here was stored as "Cash 0.00".
     if is_cash && !is_split {
-        request.amount_tendered = Some(Some(amount_tendered_minor as i32));
-        request.change_given = Some(Some(priced.change_given_minor as i32));
+        request.amount_tendered = Some(Some(wire_i32(amount_tendered_minor, "amount_tendered")?));
+        request.change_given = Some(Some(wire_i32(priced.change_given_minor, "change_given")?));
     }
     // Tip, customer, notes (the backend prices the tip separately from the total).
     if tip_minor > 0 {
-        request.tip_amount = Some(Some(tip_minor as i32));
+        request.tip_amount = Some(Some(wire_i32(tip_minor, "tip_amount")?));
         let tip_method = input
             .tip_payment_method_id
             .as_ref()
@@ -846,13 +858,13 @@ pub(crate) fn prepare(
                     .ok()
                     .flatten()?
                     .name;
-                Some(models::PaymentSplitInput {
-                    amount: s.amount_minor as i32,
+                Some(wire_i32(s.amount_minor, "splits").map(|amount| models::PaymentSplitInput {
+                    amount,
                     method: name,
                     reference: None,
-                })
+                }))
             })
-            .collect();
+            .collect::<CoreResult<_>>()?;
         if !legs.is_empty() {
             request.payment_splits = Some(Some(legs));
         }
@@ -869,14 +881,14 @@ pub(crate) fn prepare(
             .map(Some);
         request.discount_type = Some(Some(dtype.into()));
         request.discount_value = Some(Some(discount_value));
-        request.discount_amount = Some(Some(priced.discount_minor as i32));
+        request.discount_amount = Some(Some(wire_i32(priced.discount_minor, "discount_amount")?));
         // Which act it was (phase 6) and its percentage in basis points; who
         // applied it and the approval are stamped by the caller, which holds
         // the session.
         request.discount_kind = cart::discount_act(store, ctx)?.map(Some);
         if discount_kind == DiscountKind::Percentage {
             request.discount_percent_bps =
-                Some(Some(crate::discounts::bps_of_rate(discount_value) as i32));
+                Some(Some(wire_i32(crate::discounts::bps_of_rate(discount_value), "discount_percent_bps")?));
         }
     }
 
@@ -1100,20 +1112,22 @@ pub(crate) fn note_text(note: Option<&str>) -> Option<String> {
 /// the replay figures `share` and `surcharge` per combo unit. Live, the
 /// server prices every part itself and ignores the figures; on replay it
 /// keeps them and flags a difference (`menu.combos:price_mismatch`).
-fn combo_wire_item(l: &cart::CartLineView) -> models::OrderItemInput {
-    let mut item = models::OrderItemInput::new(l.qty as i32);
+fn combo_wire_item(l: &cart::CartLineView) -> CoreResult<models::OrderItemInput> {
+    let mut item = models::OrderItemInput::new(wire_i32(l.qty, "quantity")?);
     item.menu_item_id = uuid::Uuid::parse_str(&l.item_id).ok().map(Some);
-    item.unit_price = Some(Some(l.unit_price_minor as i32));
-    let picks = l
-        .parts
-        .iter()
-        .filter_map(|p| {
-            let item_id = uuid::Uuid::parse_str(&p.item_id).ok()?;
-            let slot_id = uuid::Uuid::parse_str(&p.slot_id).ok()?;
+    item.unit_price = Some(Some(wire_i32(l.unit_price_minor, "unit_price")?));
+    let mut picks = Vec::with_capacity(l.parts.len());
+    for p in &l.parts {
+        let (Ok(item_id), Ok(slot_id)) =
+            (uuid::Uuid::parse_str(&p.item_id), uuid::Uuid::parse_str(&p.slot_id))
+        else {
+            continue;
+        };
+        {
             let mut pick = models::ComboPickInput::new(item_id, slot_id);
-            pick.quantity = Some(p.qty as i32);
+            pick.quantity = Some(wire_i32(p.qty, "quantity")?);
             pick.size_label = Some(p.size_label.clone());
-            let addons = component_addons(&p.addons);
+            let addons = component_addons(&p.addons)?;
             if !addons.is_empty() {
                 pick.addons = Some(addons);
             }
@@ -1126,13 +1140,13 @@ fn combo_wire_item(l: &cart::CartLineView) -> models::OrderItemInput {
                 pick.optional_field_ids = Some(optional_ids);
             }
             pick.notes = p.notes.clone().map(Some);
-            pick.share = Some(Some(p.share_minor as i32));
-            pick.surcharge = Some(Some(p.surcharge_minor as i32));
-            Some(pick)
-        })
-        .collect();
+            pick.share = Some(Some(wire_i32(p.share_minor, "share")?));
+            pick.surcharge = Some(Some(wire_i32(p.surcharge_minor, "surcharge")?));
+            picks.push(pick);
+        }
+    }
     item.combo = Some(Some(Box::new(models::ComboInput::new(picks))));
-    item
+    Ok(item)
 }
 
 /// What a queued wire line comes to, for a bill shown before it syncs: a
@@ -1174,34 +1188,42 @@ fn wire_deals(store: &Store, ctx: cart::Ctx<'_>) -> CoreResult<Option<Vec<models
     if apps.is_empty() {
         return Ok(None);
     }
-    Ok(Some(
-        apps.into_iter()
-            .filter_map(|a| {
-                let id = uuid::Uuid::parse_str(&a.deal_rule_id).ok()?;
-                let lines = a
-                    .lines
-                    .iter()
-                    .map(|l| models::DealLineInput::new(l.line_index as i32, l.units as i32))
-                    .collect();
-                let mut d = models::DealApplicationInput::new(id, lines, a.times as i32);
-                d.discount = Some(Some(a.discount as i32));
-                Some(d)
+    let mut out = Vec::with_capacity(apps.len());
+    for a in apps {
+        let Ok(id) = uuid::Uuid::parse_str(&a.deal_rule_id) else {
+            continue;
+        };
+        let lines = a
+            .lines
+            .iter()
+            .map(|l| {
+                let index = i64::try_from(l.line_index).unwrap_or(i64::MAX);
+                Ok(models::DealLineInput::new(
+                    wire_i32(index, "line_index")?,
+                    wire_i32(l.units, "units")?,
+                ))
             })
-            .collect(),
-    ))
+            .collect::<CoreResult<_>>()?;
+        let mut d = models::DealApplicationInput::new(id, lines, wire_i32(a.times, "times")?);
+        d.discount = Some(Some(wire_i32(a.discount, "discount")?));
+        out.push(d);
+    }
+    Ok(Some(out))
 }
 
 /// Wire `AddonInput`s from cart addons — the CHARGED unit price recorded
 /// verbatim (so an offline order equals the receipt).
-fn component_addons(addons: &[cart::CartAddonView]) -> Vec<models::AddonInput> {
+fn component_addons(addons: &[cart::CartAddonView]) -> CoreResult<Vec<models::AddonInput>> {
     addons
         .iter()
         .filter_map(|a| {
             let id = uuid::Uuid::parse_str(&a.addon_item_id).ok()?;
             let mut ai = models::AddonInput::new(id);
-            ai.quantity = Some(a.qty as i32);
-            ai.unit_price = Some(Some(a.price_modifier_minor as i32));
-            Some(ai)
+            Some((|| {
+                ai.quantity = Some(wire_i32(a.qty, "quantity")?);
+                ai.unit_price = Some(Some(wire_i32(a.price_modifier_minor, "unit_price")?));
+                Ok(ai)
+            })())
         })
         .collect()
 }
@@ -2960,7 +2982,7 @@ mod tests {
             "the receipt view carries no field the kitchen note could leak through: {receipt_line:?}"
         );
 
-        let items = lines_to_wire_items(std::slice::from_ref(&line));
+        let items = lines_to_wire_items(std::slice::from_ref(&line)).unwrap();
         let wire = format!("{:?}", items[0]);
         assert!(
             !wire.contains("allergy"),
