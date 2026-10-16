@@ -834,7 +834,7 @@ async fn the_money_parity_guard_logs_a_difference() {
     assert_eq!(local.expected_cash_minor, 1_000);
 
     core.money_parity_check().await;
-    assert!(stub.requests(&format!("/tills/{}/report", till.id)).len() >= 1);
+    assert!(!stub.requests(&format!("/tills/{}/report", till.id)).is_empty());
     assert!(core.recent_logs().iter().any(|l| l.message.contains("money") && l.message.contains("expected_cash")));
     // The mismatch switches the till's report to the server's.
     let served = core.till_report().await.unwrap();
@@ -2487,7 +2487,7 @@ async fn a_bills_customer_changed_offline_is_sent_once_with_the_last_choice() {
     // Changed again on the bill the server now has: sent under ITS id.
     core.set_ticket_customer(fired.ticket_id.clone(), Some(OMAR.into())).unwrap();
     drain(&core).await;
-    let last = stub.requests("/sync/replay").into_iter().map(|r| r.json()).filter(|e| e["op"] == "set_ticket_customer").last().unwrap();
+    let last = stub.requests("/sync/replay").into_iter().map(|r| r.json()).rfind(|e| e["op"] == "set_ticket_customer").unwrap();
     assert_eq!((last["ticket_id"].as_str(), last["customer_id"].as_str()), (Some(SERVER_TICKET), Some(OMAR)));
 }
 

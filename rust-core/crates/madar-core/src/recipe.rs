@@ -890,7 +890,7 @@ mod tests {
         // qty 0 → clamped to 1 (10ml × 1).
         let zero = compute_recipe(
             &it,
-            &[syrup.clone()],
+            std::slice::from_ref(&syrup),
             &Default::default(),
             &crate::catalog_pricing::PricingMirror::default(),
             None,

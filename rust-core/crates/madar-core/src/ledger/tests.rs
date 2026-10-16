@@ -632,7 +632,7 @@ fn a_row_stored_by_server_id_is_rekeyed_when_the_feed_brings_its_client_key() {
     views::store_fetched_orders(&store, &[listed]).unwrap();
     // A pre-B OrderFull cache of another sale, migrated under its server id.
     store.kv_put("cache:order:srv-2", &json!([server_order("srv-2", None, 300)]).to_string()).unwrap();
-    store.with_tx(|tx| migrate::backfill(tx)).unwrap();
+    store.with_tx(migrate::backfill).unwrap();
     assert_eq!(order_rows(&store), 2);
 
     feed_full(&store, &[(T_ORDER, server_order("srv-1", Some("k1"), 700), 50), (T_ORDER, {

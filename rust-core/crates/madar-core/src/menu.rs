@@ -649,7 +649,7 @@ pub(crate) fn meals(store: &Store) -> CoreResult<std::collections::HashMap<Strin
         .filter(|r| r.kind.as_deref() != Some(KIND_COMBO))
         .filter_map(|r| {
             let m: MealRef = serde_json::from_value(r.meal?).ok()?;
-            (!m.combo_id.is_empty() && !m.slot_id.is_empty()).then(|| (r.id, m))
+            (!m.combo_id.is_empty() && !m.slot_id.is_empty()).then_some((r.id, m))
         })
         .collect())
 }

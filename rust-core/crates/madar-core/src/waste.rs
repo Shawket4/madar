@@ -539,6 +539,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::inconsistent_digit_grouping,
+        reason = "piastres grouped as pounds_piastres: 500_00 is EGP 500.00"
+    )]
     fn a_value_that_cannot_be_judged_needs_approval_and_the_cap_still_works() {
         use madar_authz::{Decision, EffectiveSet, Limits};
         // Someone allowed wastes up to 500_00 piastres.

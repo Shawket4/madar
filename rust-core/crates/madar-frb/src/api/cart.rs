@@ -313,6 +313,10 @@ impl MadarBridge {
     /// Add a CONFIGURED line (size + addons + optionals + notes). The core
     /// resolves the charged prices from the cached catalog and merges identical
     /// configs — the addon prices are resolved here, not trusted from the host.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "a bridge signature: changing it means regenerating the bindings"
+    )]
     pub fn cart_add_configured(
         &self,
         table_id: Option<String>,
@@ -390,6 +394,10 @@ impl MadarBridge {
     /// The item's MODIFIER GROUPS (unified-model projection of `list_item_addons`
     /// + priced optionals) — display-ready, constraints included, prices resolved
     /// by the same swap rules as the flat sheet. Works offline.
+    #[allow(
+        clippy::doc_lazy_continuation,
+        reason = "the text is copied into the generated Dart; editing it means regenerating"
+    )]
     pub fn list_item_modifier_groups(
         &self,
         item_id: String,

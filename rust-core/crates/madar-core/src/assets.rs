@@ -703,7 +703,7 @@ mod tests {
         assert_eq!(std::fs::read(&p).unwrap(), json.to_vec());
         assert!(p.ends_with(format!("cache/{h}.json")));
         // Evicting the asset removes its cache too.
-        evict(&store, &dir, &[h.clone()]).unwrap();
+        evict(&store, &dir, std::slice::from_ref(&h)).unwrap();
         assert!(!p.exists());
     }
 }

@@ -712,10 +712,7 @@ impl SseParser {
         // Process every COMPLETE line (terminated by '\n'); keep the remainder as
         // bytes. Decoding only whole lines means a multi-byte char is never split
         // mid-sequence (the split sits in `tail` until its rest arrives).
-        loop {
-            let Some(nl) = self.tail.iter().position(|&b| b == b'\n') else {
-                break;
-            };
+        while let Some(nl) = self.tail.iter().position(|&b| b == b'\n') {
             let line_bytes: Vec<u8> = self.tail.drain(..=nl).collect();
             let mut end = line_bytes.len() - 1; // drop '\n'
             if end > 0 && line_bytes[end - 1] == b'\r' {

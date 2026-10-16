@@ -75,6 +75,10 @@ impl MadarBridge {
     /// till printer (`target.host == null`). Returns the bytes for that
     /// printer, the same document as preview lines for the preview sheet, and
     /// the target. Local only; marks nothing sent.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "a bridge signature: changing it means regenerating the bindings"
+    )]
     pub fn cart_line_chit(
         &self,
         table_id: Option<String>,
@@ -93,6 +97,10 @@ impl MadarBridge {
     /// ONE cart line's RECIPE CARD: the line's kitchen chit (same routing and
     /// printer), with each dish's ingredients for one and its steps under
     /// it. Local only; marks nothing sent.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "a bridge signature: changing it means regenerating the bindings"
+    )]
     pub fn cart_line_recipe_chit(
         &self,
         table_id: Option<String>,

@@ -251,6 +251,10 @@ pub(crate) fn bill_from_json(bill: Option<&Value>, total: i64) -> crate::tickets
     }
 }
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "every input of a settle, named; a struct would only rename them"
+)]
 pub(crate) fn settle_json(
     ticket_id: &str,
     branch_id: &str,

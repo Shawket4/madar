@@ -838,7 +838,7 @@ pub fn merge_for_view(
         .collect();
     let mut out: Vec<OrderSummaryView> = queued
         .into_iter()
-        .filter(|q| q.order_ref.as_deref().map_or(true, |r| !synced.contains(r)))
+        .filter(|q| q.order_ref.as_deref().is_none_or(|r| !synced.contains(r)))
         .collect();
     out.extend(server);
     out
@@ -880,9 +880,11 @@ mod tests {
 
     #[test]
     fn history_rows_carry_the_device_display_number() {
-        let mut o = models::Order::default();
-        o.order_number = 12;
-        o.order_ref = Some(Some("MAA-260913-36B-0012".into()));
+        let mut o = models::Order {
+            order_number: 12,
+            order_ref: Some(Some("MAA-260913-36B-0012".into())),
+            ..Default::default()
+        };
         assert_eq!(from_server(&o).display_number, "36B-12");
         o.order_ref = Some(Some("MAA-260913-36B-0012~AB12".into()));
         assert_eq!(from_server(&o).display_number, "36B-12~AB12");
@@ -1162,6 +1164,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::type_complexity, reason = "a test's expected rows, spelled out")]
     fn a_reprint_rebuilds_the_combo_from_its_header_and_parts() {
         let r = order_to_receipt(&combo_order(), "en");
         assert_eq!(

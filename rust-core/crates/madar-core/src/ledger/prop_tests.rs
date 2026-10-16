@@ -366,7 +366,7 @@ impl Device {
         for v in Self::listed(server, with_key) {
             self.store.kv_put(&format!("cache:order:{}", v["id"].as_str().unwrap()), &json!([v]).to_string()).unwrap();
         }
-        self.store.with_tx(|tx| super::migrate::backfill(tx)).unwrap();
+        self.store.with_tx(super::migrate::backfill).unwrap();
     }
 
     /// Exactly one row per sale: no two rows share a sale's order_ref, and none lacks it.

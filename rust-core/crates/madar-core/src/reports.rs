@@ -117,7 +117,7 @@ fn merge_payment_maps<'a>(
             revenue_minor,
         })
         .collect();
-    slices.sort_by(|a, b| b.revenue_minor.cmp(&a.revenue_minor));
+    slices.sort_by_key(|a| std::cmp::Reverse(a.revenue_minor));
     slices
 }
 
@@ -192,7 +192,7 @@ pub fn from_comparison(
             revenue_minor: b.total_revenue,
         })
         .collect();
-    branch_ranking.sort_by(|a, b| b.revenue_minor.cmp(&a.revenue_minor));
+    branch_ranking.sort_by_key(|a| std::cmp::Reverse(a.revenue_minor));
     DashboardSummaryView {
         branch_name: String::new(),
         currency_code,

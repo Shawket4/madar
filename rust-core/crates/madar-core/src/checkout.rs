@@ -582,6 +582,10 @@ pub(crate) fn lines_to_wire_items(lines: &[cart::CartLineView]) -> Vec<models::O
 
 use rust_decimal::prelude::ToPrimitive;
 
+#[allow(
+    clippy::too_many_arguments,
+    reason = "every input of a sale, named; a struct would only rename them"
+)]
 pub(crate) fn prepare(
     store: &Store,
     ctx: cart::Ctx<'_>,
@@ -1023,7 +1027,7 @@ fn receipt_line_from_cart(l: &cart::CartLineView) -> ReceiptLineView {
         .iter()
         .map(|a| ReceiptModifierView {
             name: cart::addon_word(&a.name, a.qty),
-            price_minor: a.price_modifier_minor * a.qty.max(1) as i64,
+            price_minor: a.price_modifier_minor * a.qty.max(1),
         })
         .collect();
     let optionals = l

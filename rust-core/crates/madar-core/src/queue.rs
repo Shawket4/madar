@@ -33,7 +33,7 @@
 //!    replaces the earlier `orders.held.resume_others` gate (capability 222,
 //!    now retired). `started_by` is still recorded on the sale (rule 5) —
 //!    that attribution is how a handover is traced.
-//! 4a. **Tables are nobody's** either. A table's order is shared state: the
+//!    4a. **Tables are nobody's** either. A table's order is shared state: the
 //!    open ticket, server-authoritative online and relayed over the LAN
 //!    offline. Anyone holding the normal floor and order capabilities adds to
 //!    it or settles it. A switch leaves nothing person-scoped on a table: an

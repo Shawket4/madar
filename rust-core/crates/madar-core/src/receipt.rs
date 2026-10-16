@@ -493,16 +493,16 @@ pub fn layout_till_report(
 ) -> Vec<Line> {
     let w = (width.max(16)) as usize;
     let cur = currency;
-    let mut out: Vec<Line> = Vec::new();
-
-    out.push(Line {
-        text: store.to_string(),
-        align: Align::Center,
-        bold: true,
-        size: Size::Double,
-    });
-    out.push(Line::centered(labels.title.clone()));
-    out.push(Line::plain(divider(w)));
+    let mut out: Vec<Line> = vec![
+        Line {
+            text: store.to_string(),
+            align: Align::Center,
+            bold: true,
+            size: Size::Double,
+        },
+        Line::centered(labels.title.clone()),
+        Line::plain(divider(w)),
+    ];
 
     // Drawer reconciliation — opening, sales, then pay-in / pay-out separately.
     out.push(Line::plain(row(
@@ -738,7 +738,7 @@ pub struct Bitmap {
 impl Bitmap {
     /// Bytes per packed row.
     pub fn row_bytes(&self) -> usize {
-        ((self.width as usize) + 7) / 8
+        (self.width as usize).div_ceil(8)
     }
 }
 
@@ -1417,7 +1417,7 @@ mod tests {
         let lines = layout(&r, &ctx());
         let text: Vec<&str> = lines.iter().map(|l| l.text.as_str()).collect();
         // Delivery flag with the channel label.
-        assert!(text.iter().any(|t| *t == "*** DELIVERY — Outside ***"));
+        assert!(text.contains(&"*** DELIVERY — Outside ***"));
         // Delivery block: customer / phone / address.
         assert!(text
             .iter()
@@ -2078,10 +2078,10 @@ mod tests {
         // No cash-in/out rows (both zero), no movements block, no voided block.
         assert!(!text.iter().any(|t| t.starts_with("Cash in")));
         assert!(!text.iter().any(|t| t.starts_with("Cash out")));
-        assert!(!text.iter().any(|t| *t == "Cash moves"));
+        assert!(!text.contains(&"Cash moves"));
         assert!(!text.iter().any(|t| t.starts_with("Voided")));
         // The "By method" header still prints even with no payment lines.
-        assert!(text.iter().any(|t| *t == "By method"));
+        assert!(text.contains(&"By method"));
     }
 
     #[test]
@@ -2606,6 +2606,7 @@ pub fn chits_for_cart_line(
 /// Build a ONE-ITEM slip — the per-item print button. Still the same
 /// layout as a whole-cart slip: the order note and the cart-level kitchen
 /// note print once at the top, above this row's own note.
+#[allow(clippy::too_many_arguments, reason = "every field a slip prints, named")]
 pub fn slip_for_cart_line(
     line: &crate::cart::CartLineView,
     table_label: Option<String>,

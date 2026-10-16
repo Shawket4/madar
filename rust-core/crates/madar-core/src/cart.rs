@@ -581,7 +581,6 @@ fn line_total(l: &StoredLine) -> i64 {
         unit_price: l.unit_price_minor,
         addons: addons_of(&l.addons),
         optionals: optionals_of(&l.optionals),
-        ..Default::default()
     })
 }
 
@@ -949,7 +948,16 @@ pub(crate) fn resolve_combo_line(
 }
 
 /// The combo line a stored line holds, as the host re-submits it.
-pub(crate) fn combo_picks(store: &Store, ctx: Ctx<'_>, line_key: &str) -> CoreResult<Option<(String, Vec<crate::combos::ComboPickInput>, i64, Option<String>)>> {
+/// A stored combo line as the host re-submits it: the combo id, its picks,
+/// the quantity and the note.
+pub(crate) type ComboResubmit = (
+    String,
+    Vec<crate::combos::ComboPickInput>,
+    i64,
+    Option<String>,
+);
+
+pub(crate) fn combo_picks(store: &Store, ctx: Ctx<'_>, line_key: &str) -> CoreResult<Option<ComboResubmit>> {
     Ok(load(store, ctx)?
         .into_iter()
         .find(|l| signature(l) == line_key)
@@ -1419,9 +1427,7 @@ pub(crate) fn item_modifier_groups_unified(
                 } else {
                     g.min.max(0)
                 },
-                max_selections: if swap {
-                    Some(1)
-                } else if single && g.max.is_none() {
+                max_selections: if swap || (single && g.max.is_none()) {
                     Some(1)
                 } else {
                     g.max
@@ -2671,7 +2677,7 @@ pub(crate) fn discount_id(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<Stri
 
 /// Resolve the cart's selected discount → (kind, value) from the cached catalog.
 /// Inactive / absent / unknown → no discount. The pricing engine then clamps it.
-
+///
 /// The stored value of a discount — a FRACTION for a percentage, minor units
 /// for a fixed one.
 ///

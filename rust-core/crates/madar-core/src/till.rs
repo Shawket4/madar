@@ -1317,7 +1317,7 @@ pub(crate) fn last_till_warning(
     open_bills_amount_minor: i64,
     seated_tables_count: i64,
 ) -> Option<LastTillWarningView> {
-    (other_open_tills == 0 && (open_bills_count > 0 || seated_tables_count > 0)).then(|| {
+    (other_open_tills == 0 && (open_bills_count > 0 || seated_tables_count > 0)).then_some({
         LastTillWarningView {
             open_bills_count,
             open_bills_amount_minor,
@@ -1817,12 +1817,14 @@ mod tests {
 
     #[test]
     fn report_view_adds_queued_cash_to_server_expected() {
-        let mut report = models::TillReportResponse::default();
-        report.expected_cash = 60000;
-        report.till = Box::new(models::Till {
+        let mut report = models::TillReportResponse {
+            expected_cash: 60000,
+            ..Default::default()
+        };
+        *report.till = models::Till {
             opening_cash: 50000,
             ..Default::default()
-        });
+        };
         report.total_payments = 15000;
         report.payment_summary = vec![models::PaymentSummaryRow::new(
             true,
@@ -1848,12 +1850,14 @@ mod tests {
     /// the drawer reads a huge phantom "over".
     #[test]
     fn cached_report_view_keeps_the_server_figures_a_drained_shift_already_had() {
-        let mut report = models::TillReportResponse::default();
-        report.expected_cash = 60000; // opening 50000 + 10000 already taken
-        report.till = Box::new(models::Till {
+        let mut report = models::TillReportResponse {
+            expected_cash: 60000, // opening 50000 + 10000 already taken
+            ..Default::default()
+        };
+        *report.till = models::Till {
             opening_cash: 50000,
             ..Default::default()
-        });
+        };
         report.total_payments = 10000;
         report.payment_summary = vec![models::PaymentSummaryRow::new(
             true,
@@ -1875,12 +1879,14 @@ mod tests {
 
     #[test]
     fn cached_report_view_adds_queued_work_on_top_without_double_counting() {
-        let mut report = models::TillReportResponse::default();
-        report.expected_cash = 60000;
-        report.till = Box::new(models::Till {
+        let mut report = models::TillReportResponse {
+            expected_cash: 60000,
+            ..Default::default()
+        };
+        *report.till = models::Till {
             opening_cash: 50000,
             ..Default::default()
-        });
+        };
         // The server already knows about this drained pay-in.
         report.cash_movements = vec![models::CashMovementSummaryRow {
             amount: 2000,
@@ -1922,12 +1928,14 @@ mod tests {
 
     #[test]
     fn report_view_projects_every_field_and_preserves_movement_order() {
-        let mut report = models::TillReportResponse::default();
-        report.expected_cash = 30000;
-        report.till = Box::new(models::Till {
+        let mut report = models::TillReportResponse {
+            expected_cash: 30000,
+            ..Default::default()
+        };
+        *report.till = models::Till {
             opening_cash: 20000,
             ..Default::default()
-        });
+        };
         report.total_payments = 9000;
         report.net_payments = 8500; // distinct from total (a void)
         report.voided_amount = 500;
@@ -1996,8 +2004,10 @@ mod tests {
     #[test]
     fn report_view_negative_queued_cash_lowers_expected() {
         // queued_cash is just added — a negative (net cash refund queued) lowers it.
-        let mut report = models::TillReportResponse::default();
-        report.expected_cash = 60000;
+        let report = models::TillReportResponse {
+            expected_cash: 60000,
+            ..Default::default()
+        };
         let v = report_view(&report, -1500, &|m| m.to_string());
         assert_eq!(v.expected_cash_minor, 58500);
     }

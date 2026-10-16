@@ -718,6 +718,7 @@ pub(crate) struct SnapshotPaging {
 pub(crate) const LEDGER_PAGE_SIZE: i64 = 5_000;
 
 /// `hook` runs after each row write (tests inject a crash).
+#[allow(clippy::too_many_arguments, reason = "one page's inputs and the seams the tests drive")]
 pub(crate) fn apply_page_with(
     store: &Store,
     branch: &str,
@@ -1639,9 +1640,7 @@ impl MadarCore {
         // failure) and the catalog's is reported when the pull was fine.
         let pulled = self.pull(true).await;
         let catalog = self.refresh_catalog_with(true).await;
-        if let Err(e) = pulled {
-            return Err(e);
-        }
+        pulled?;
         catalog?;
         Ok(self.sync_status())
     }

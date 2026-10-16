@@ -1584,7 +1584,7 @@ impl MadarCore {
                         serde_json::json!({ "op": "void_order", "teller_id": teller_id, "order_id": cmd.order_id, "request": cmd.request }),
                         cmd.approval,
                     ),
-                    Idem::VoidIdem,
+                    Idem::Void,
                 )
             }
             "create_customer" => {
@@ -2062,7 +2062,7 @@ impl MadarCore {
                             ) {
                                 checkout::bump_order_base(&self.store, sid, n);
                             }
-                            self.note_loyalty_refusal(&item.id, &obj);
+                            self.note_loyalty_refusal(&item.id, obj);
                             // Its staff drinks adopt the server's comp — or, from
                             // a server that predates them, fall back to the
                             // record-only op.
@@ -2095,9 +2095,9 @@ impl MadarCore {
                                 }
                                 if item.op_type == "settle_open_ticket" {
                                     let _ = self.store.id_map_put("order", &item.id, id);
-                                    self.note_loyalty_refusal(&item.id, &obj);
+                                    self.note_loyalty_refusal(&item.id, obj);
                                     if let Some(ticket) = item.entity_id.as_deref() {
-                                        self.reconcile_settled_customer(ticket, &obj);
+                                        self.reconcile_settled_customer(ticket, obj);
                                     }
                                 }
                                 SendOutcome::Acked(Some(id.to_string()))
@@ -2337,7 +2337,7 @@ enum Idem {
     /// open server-side forever with nothing queued to close it.
     Yes,
     /// Void: 409 → already-voided (success); 404 → order never synced → dead.
-    VoidIdem,
+    Void,
 }
 
 /// Captive-portal / transparent-proxy guard for a `/sync/replay` 200. Our backend
@@ -2366,7 +2366,7 @@ fn classify_send(err: CoreError, idem: Idem) -> SendOutcome {
         CoreError::Validation { detail, .. } => SendOutcome::Dead(detail),
         CoreError::Forbidden { action: detail, .. } => SendOutcome::Refused(detail),
         CoreError::Server { status, detail, .. } => match (status, idem) {
-            (409, Idem::Yes) | (409, Idem::VoidIdem) => SendOutcome::Acked(None),
+            (409, Idem::Yes) | (409, Idem::Void) => SendOutcome::Acked(None),
             // A 404 is never an ack: the op did not apply. Dead-lettering keeps
             // it — visible in the stuck list, retryable once whatever it
             // depended on has landed — instead of dropping it silently.
@@ -2374,7 +2374,7 @@ fn classify_send(err: CoreError, idem: Idem) -> SendOutcome {
                 "the server does not have what this needs yet — {detail}"
             )),
             // void 404 = the order never landed → don't silently swallow the void.
-            (404, Idem::VoidIdem) => {
+            (404, Idem::Void) => {
                 SendOutcome::Dead(format!("order not found on server — {detail}"))
             }
             (429, _) => SendOutcome::Throttled(detail),
@@ -3992,6 +3992,7 @@ impl MadarCore {
     ///
     /// `till_brand` is the till printer's dialect, used when the chit falls
     /// back to the till; a station printer's own brand wins otherwise.
+    #[allow(clippy::too_many_arguments, reason = "mirrored 1:1 by the generated host bindings")]
     pub fn cart_line_chit(
         &self,
         table_id: Option<String>,
@@ -4014,6 +4015,7 @@ impl MadarCore {
     /// each dish (its size, swaps and add-ons applied, as [`Self::compute_recipe`]
     /// shows them) and the item's steps in order under it. A combo gets a
     /// card per item. Changes nothing, local only, like [`Self::cart_line_chit`].
+    #[allow(clippy::too_many_arguments, reason = "mirrored 1:1 by the generated host bindings")]
     pub fn cart_line_recipe_chit(
         &self,
         table_id: Option<String>,
@@ -4076,6 +4078,10 @@ impl MadarCore {
     /// worded exactly the same way whichever button asked for it. Same
     /// layout as a whole-cart slip: the order note and the cart-level
     /// kitchen note print once at the top, above this row's own note.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the two chit entry points' inputs, passed through"
+    )]
     fn build_line_chit(
         &self,
         line: &cart::CartLineView,
@@ -4591,6 +4597,7 @@ impl MadarCore {
     /// addon swap-delta vs additive; optional prices) and merges identical
     /// configs. `addons` carry the chosen ids + quantities; the prices are
     /// resolved here, not trusted from the host.
+    #[allow(clippy::too_many_arguments, reason = "mirrored 1:1 by the generated host bindings")]
     pub fn cart_add_configured(
         &self,
         table_id: Option<String>,
@@ -6933,7 +6940,7 @@ impl MadarCore {
             sync_pull::record_catalog_outcome(
                 &self.store,
                 &branch,
-                out.as_ref().map(|_| ()).map_err(|e| e),
+                out.as_ref().map(|_| ()),
                 now_ms(),
             );
         }
@@ -7165,14 +7172,12 @@ impl MadarCore {
                 };
                 let status = match i.op_type.as_str() {
                     "hold_table" => "seated",
-                    "release_table" => {
-                        // The party ate: the table is waiting for a
-                        // cloth, not free.
-                        if cmd.request.get("bus").and_then(|b| b.as_bool()) == Some(true) {
-                            "dirty"
-                        } else {
-                            "free"
-                        }
+                    // The party ate: the table is waiting for a cloth, not
+                    // free.
+                    "release_table"
+                        if cmd.request.get("bus").and_then(|b| b.as_bool()) == Some(true) =>
+                    {
+                        "dirty"
                     }
                     _ => "free",
                 };
@@ -7384,7 +7389,6 @@ impl MadarCore {
         }
         // Per-device numbering (contract §4.7): the minted RRRR is the order number,
         // sent with the device code and the till's verification.
-        let mut prepared = prepared;
         // Started by someone else and resumed here: both people ride the sale
         // (queue.rs rule 5). A resume approval only overrides a discount
         // approval already set above when one was actually needed — a sale
@@ -8199,12 +8203,12 @@ impl MadarCore {
             let q: Vec<orders::OrderSummaryView> = unsent
                 .into_iter()
                 .filter(|o| {
-                    f_status.as_deref().map_or(true, |s| o.status == s)
-                        && f_payment.as_deref().map_or(true, |p| o.payment_label == p)
+                    f_status.as_deref().is_none_or(|s| o.status == s)
+                        && f_payment.as_deref().is_none_or(|p| o.payment_label == p)
                         && {
                             let c = chrono::DateTime::parse_from_rfc3339(&o.created_at).ok();
-                            f_from.map_or(true, |f| c.is_some_and(|c| c >= f))
-                                && f_to.map_or(true, |t| c.is_some_and(|c| c <= t))
+                            f_from.is_none_or(|f| c.is_some_and(|c| c >= f))
+                                && f_to.is_none_or(|t| c.is_some_and(|c| c <= t))
                         }
                 })
                 .collect();
@@ -9411,7 +9415,7 @@ impl MadarCore {
         // receipt prints from. `None` means the settle is still queued: there
         // is no order yet, and inventing one would print a receipt for a sale
         // the server has not accepted.
-        Ok(self.settled_order_id(op_id)?)
+        self.settled_order_id(op_id)
     }
 
     /// The paid order a settle produced, once it has acked.
@@ -9422,7 +9426,7 @@ impl MadarCore {
     /// queued offline: there is no order yet, and inventing one would print a
     /// receipt for a sale the server has not accepted.
     pub fn settled_order_id(&self, settle_op_id: String) -> Result<Option<String>, CoreError> {
-        Ok(self.store.id_map_get("order", &settle_op_id)?)
+        self.store.id_map_get("order", &settle_op_id)
     }
 
 }
@@ -9903,7 +9907,7 @@ mod tests {
         ));
         // ...but a 403 a firewall or WAF sent in our backend's place is not a
         // refusal: the sale waits and goes again, like any other blocked link.
-        for idem in [Idem::No, Idem::Yes, Idem::VoidIdem] {
+        for idem in [Idem::No, Idem::Yes, Idem::Void] {
             assert!(matches!(
                 classify_send(net::status_to_error(403, "<html>Access denied</html>"), idem),
                 SendOutcome::Offline
@@ -9912,7 +9916,7 @@ mod tests {
         // 409: order/open NOT recorded → dead; void/close already-applied → ack.
         assert!(dead(&classify_send(srv(409), Idem::No)));
         assert!(ack(&classify_send(srv(409), Idem::Yes)));
-        assert!(ack(&classify_send(srv(409), Idem::VoidIdem)));
+        assert!(ack(&classify_send(srv(409), Idem::Void)));
         // 404 is NEVER an ack. It says the server does not have something the
         // op needed, which means the op did not apply — so acking it destroyed
         // the work: a `lan_mirror` backup died on exactly the failure it exists
@@ -9920,10 +9924,10 @@ mod tests {
         // left the drawer open server-side with nothing left to close it.
         // Dead-lettering keeps it visible and retryable instead.
         assert!(dead(&classify_send(srv(404), Idem::Yes)));
-        assert!(dead(&classify_send(srv(404), Idem::VoidIdem)));
+        assert!(dead(&classify_send(srv(404), Idem::Void)));
         assert!(dead(&classify_send(srv(404), Idem::No)));
         // 429: paced, never dead, whatever the endpoint.
-        for idem in [Idem::No, Idem::Yes, Idem::VoidIdem] {
+        for idem in [Idem::No, Idem::Yes, Idem::Void] {
             assert!(matches!(classify_send(srv(429), idem), SendOutcome::Throttled(_)));
         }
     }

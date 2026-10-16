@@ -1012,11 +1012,13 @@ mod tests {
 
     #[test]
     fn a_programme_names_itself_in_the_tills_language() {
-        let mut s = madar_api::models::LoyaltySettings::default();
-        s.enabled = true;
-        s.mode = "visits".into();
-        s.program_name = "Rue Rewards".into();
-        s.program_name_ar = Some(Some("مكافآت رو".into()));
+        let s = madar_api::models::LoyaltySettings {
+            enabled: true,
+            mode: "visits".into(),
+            program_name: "Rue Rewards".into(),
+            program_name_ar: Some(Some("مكافآت رو".into())),
+            ..Default::default()
+        };
         assert_eq!(programme_view(&s, "ar").program_name, "مكافآت رو");
         assert_eq!(programme_view(&s, "en").program_name, "Rue Rewards");
         // A stamp card counts orders, and says so before anyone is scanned.
@@ -1025,9 +1027,11 @@ mod tests {
 
     #[test]
     fn an_untranslated_name_still_shows_in_arabic() {
-        let mut s = madar_api::models::LoyaltySettings::default();
-        s.program_name = "Rue Rewards".into();
-        s.program_name_ar = Some(None);
+        let s = madar_api::models::LoyaltySettings {
+            program_name: "Rue Rewards".into(),
+            program_name_ar: Some(None),
+            ..Default::default()
+        };
         assert_eq!(
             programme_view(&s, "ar").program_name,
             "Rue Rewards",

@@ -306,10 +306,12 @@ impl ApiClient {
         body: Option<&serde_json::Value>,
     ) -> Result<String, (CoreError, Option<(u16, String)>)> {
         if self.staff_token_due() {
-            match self.refresh_staff(self.bearer().as_deref()).await {
-                Err(e @ CoreError::Unauthenticated { .. }) => return Err((e, None)),
-                // Anything else: the call itself says what is wrong.
-                _ => {}
+            // Only a lost session stops here; anything else, the call itself
+            // says what is wrong.
+            if let Err(e @ CoreError::Unauthenticated { .. }) =
+                self.refresh_staff(self.bearer().as_deref()).await
+            {
+                return Err((e, None));
             }
         }
         let sent = self.bearer();

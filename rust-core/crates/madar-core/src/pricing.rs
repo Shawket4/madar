@@ -143,16 +143,15 @@ fn addons_of(addons: &[AddonSel]) -> Vec<madar_money::line::Addon> {
         .collect()
 }
 
-/// A cart line in madar-shared's vocabulary (`madar_money::line`). The
-/// shape's combo fields (madar-shared v0.4.0 still has them) stay at their
-/// defaults: combos were removed.
+/// A cart line in madar-shared's vocabulary (`madar_money::line`). Every
+/// field is named: a field a newer tag adds is a compile error here, not a
+/// silent default.
 fn shape_of(line: &CartLine) -> madar_money::line::LineShape {
     madar_money::line::LineShape {
         quantity: line.quantity,
         unit_price: line.unit_price,
         addons: addons_of(&line.addons),
         optionals: line.optionals.iter().map(|o| o.price).collect(),
-        ..Default::default()
     }
 }
 

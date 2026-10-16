@@ -102,6 +102,10 @@ impl MadarCore {
     /// CLOSED till's finished report never needs one (owner decision 1), which
     /// is why the background mirror and the parity guard pass `None` and are
     /// unaffected for every till they legitimately hold.
+    #[allow(
+        clippy::result_large_err,
+        reason = "the generated API client's own error type, as every call returns it"
+    )]
     pub(crate) async fn fetch_till_report(
         &self,
         till_id: &str,

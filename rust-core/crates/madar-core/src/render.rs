@@ -204,7 +204,7 @@ impl Canvas {
     /// Threshold the coverage canvas to a packed 1-bit MSB-first bitmap.
     fn into_bitmap(self) -> Bitmap {
         let rows = self.height() as u32;
-        let wb = (self.w + 7) / 8;
+        let wb = self.w.div_ceil(8);
         let mut bytes = vec![0u8; wb * self.height()];
         for y in 0..self.height() {
             for x in 0..self.w {
@@ -905,7 +905,7 @@ impl Renderer {
                 match l.status.as_str() {
                     "checked" => self.indented(&format!("✓ {}", t("till.reconcile_checked")), RS_SMALL, 16),
                     "disagreed" => {
-                        let declared = l.declared_amount_minor.map(|v| m(v)).unwrap_or_default();
+                        let declared = l.declared_amount_minor.map(&m).unwrap_or_default();
                         self.indented(&format!("✗ {} {}", t("till.reconcile_disagree"), declared), RS_SMALL, 16);
                         if let Some(n) = l.note.as_deref().filter(|n| !n.trim().is_empty()) {
                             self.indented(n, RS_SMALL, 32);
@@ -1876,7 +1876,7 @@ mod tests {
         // frame never does — it's ESC/POS raster commands + packed bits.
         let text = "شاورما دجاج";
         assert!(
-            !bytes.windows(text.as_bytes().len()).any(|w| w == text.as_bytes()),
+            !bytes.windows(text.len()).any(|w| w == text.as_bytes()),
             "the Arabic item name must not appear as raw text bytes in the printed frame"
         );
         // A real raster payload: bigger than the bare command bytes, and it

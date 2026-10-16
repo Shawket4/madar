@@ -1883,6 +1883,7 @@ fn assert_the_wire(req: &Value) {
 }
 
 #[tokio::test]
+#[allow(clippy::type_complexity, reason = "a test's expected rows, spelled out")]
 async fn the_queued_order_carries_the_combo_and_the_deal_as_charged() {
     let core = testkit::offline_core("http://127.0.0.1:1", "").await;
     let (receipt, req) = ring_the_sale(&core).await;
@@ -2913,6 +2914,7 @@ async fn a_combo_with_nothing_to_choose_adds_in_one_tap() {
 /// count to choose, a part with a required pick of its own (a sandwich's
 /// bread), a choice greyed out, or the combo off right now.
 #[tokio::test]
+#[allow(clippy::type_complexity, reason = "a test's expected rows, spelled out")]
 async fn a_combo_with_anything_to_choose_opens_the_sheet() {
     let core = testkit::offline_core("http://127.0.0.1:1", "").await;
     seed(&core);

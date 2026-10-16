@@ -394,6 +394,10 @@ impl MadarBridge {
     /// Price the tender in hand: the bar's total (tip included, split or not),
     /// the cash due, change / short, and what a split still has to allocate.
     #[frb(sync)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "a bridge signature: changing it means regenerating the bindings"
+    )]
     pub fn tender_summary(
         &self,
         due_minor: i64,
