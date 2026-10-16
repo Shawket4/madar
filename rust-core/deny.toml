@@ -1,0 +1,64 @@
+# cargo-deny for rust-core: advisories, licences, duplicate versions, sources.
+# CI: the `rust` job in .github/workflows/ci.yml runs `cargo deny check`.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+# Each one with why it stays (2026-10-16):
+ignore = [
+    # zip 8: every 8.x release is yanked; calamine and rust_xlsxwriter (the
+    # dashboard's spreadsheet import/export) both require zip 8.
+    { crate = "zip@8.6.0", reason = "yanked, but every zip 8 is; calamine and rust_xlsxwriter pin 8" },
+    # ttf-parser is unmaintained; cosmic-text (receipt rendering) depends on it
+    # and has no release without it.
+    { id = "RUSTSEC-2026-0192", reason = "transitive via cosmic-text; no maintained alternative release yet" },
+]
+
+[licenses]
+version = 2
+# The licences in the tree today. A new one fails until it is added here.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+    # madar-api only (see the clarify below).
+    "LicenseRef-Proprietary",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+ignore = true
+
+# The generated API client says `license = "Proprietary"` (not SPDX) and is
+# not marked unpublished; it is ours.
+[[licenses.clarify]]
+crate = "madar-api"
+expression = "LicenseRef-Proprietary"
+license-files = []
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = ["https://github.com/Shawket4/madar-shared"]

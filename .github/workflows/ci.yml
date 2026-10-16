@@ -223,6 +223,23 @@ jobs:
         working-directory: rust-core
         run: cargo test --workspace --locked
 
+      # Every default clippy lint was cleared on 2026-10-16; this keeps it so.
+      - name: rust-core clippy
+        working-directory: rust-core
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  rust-deny:
+    # rust-core/deny.toml: RustSec advisories, licences, duplicates, sources.
+    name: cargo-deny (rust-core)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: rust-core/Cargo.toml
+          command: check
+          arguments: --all-features --config rust-core/deny.toml
+
   kitchen:
     # Madar Kitchen (apps/kitchen, React Native): the TypeScript check and its
     # unit tests. The native core module is not built here; its Rust side is
