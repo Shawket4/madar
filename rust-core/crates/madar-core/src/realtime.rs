@@ -69,7 +69,8 @@ pub trait RealtimePlayer: Send + Sync {
 /// The table is madar-shared's (`madar_plan::realtime_topics`, moved there from
 /// this file unchanged for Paid). A plan with no realtime (Free) has NO topics:
 /// the device opens no stream and pulls instead (after each acked op, and
-/// once a minute when idle: `scheduler::ensure_fallback_poll`).
+/// on its own poll, a minute when busy to five when idle:
+/// `scheduler::ensure_fallback_poll`).
 pub fn topics_for_role(plan: madar_plan::Plan, role: &str) -> Vec<String> {
     madar_plan::realtime_topics(plan, role)
         .into_iter()
