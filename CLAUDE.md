@@ -180,7 +180,11 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
   - `POST /sync/replay` (the outbox drain), the realtime SSE stream, `/health`;
   - asset bundle / file downloads; sign-in, token refresh, the offline-auth bundle;
   - server-only actions a PERSON triggers, never on a timer: search across tills,
-    a loyalty lookup, a table's history, a sale or delivery never seen here, the
+    a loyalty lookup, adding a sale's points (`loyalty_award`: online-only like
+    a redemption, refused with `loyalty.award_offline` and never queued; the
+    receipt keeps its button for the 24-hour window; only `award_loyalty_points`
+    ops an older build queued still drain, and a 409 on one is a stuck row, not
+    an ack), a table's history, a sale or delivery never seen here, the
     delivery accepting toggle, the routing-mode write, a force close, the manual
     catalogue refresh;
   - background FILLS of what the feed cannot give yet, never on a beat: a past

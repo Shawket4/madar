@@ -2348,7 +2348,7 @@ impl MadarCore {
                 other => SendOutcome::Dead(format!("{other:?}")),
             },
             CoreError::Server { status: 409, .. } => queued(),
-            e => match crate::classify_send(e, crate::Idem::Yes) {
+            e => match crate::classify_send(e, crate::Idem::Yes(&[]), None) {
                 // The person waiting reads what the server said.
                 outcome if live => outcome,
                 SendOutcome::Dead(_) | SendOutcome::Refused(_) => queued(),
