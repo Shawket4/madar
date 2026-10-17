@@ -1422,8 +1422,64 @@ impl MadarCore {
             "kitchen.item_unbumped"
         };
         self.lan_publish("kitchen", ev, data, Some(envelope)).await;
+        // The LAN copy of the round says so too: once the op is gone, a copy
+        // the feed has not replaced would show the line unbumped again.
+        lan_kds_apply_bump(&self.store, &item_id, bumped);
+        if bumped {
+            self.announce_ready_on_lan(&item_id).await;
+        }
         self.send_in_background(Vec::new());
         Ok(())
+    }
+
+    /// The bump that finishes a kitchen ticket tells the LAN the order is
+    /// ready (`kitchen.ticket_ready`, the server's own event and shape), so a
+    /// till or waiter on the same Wi-Fi gets "Order ready" with no internet.
+    /// Same id as the server's event (the kitchen ticket's, derived from the
+    /// round), so the server's copy arriving after a reconnect is the same
+    /// alert, deduped, not a second one. Best-effort: the board decides.
+    async fn announce_ready_on_lan(&self, item_id: &str) {
+        let Ok(board) = self.kds_list(None).await else { return };
+        let Some(t) = board.into_iter().find(|t| t.items.iter().any(|l| l.id == item_id)) else {
+            return;
+        };
+        if t.items.is_empty() || !t.items.iter().all(|l| l.bumped) {
+            return;
+        }
+        let mut data = serde_json::to_value(&t).unwrap_or_default();
+        if let Some(o) = data.as_object_mut() {
+            o.insert("status".into(), "ready".into());
+            // Marks the echo: the announcing device doesn't alert itself.
+            o.insert("origin".into(), serde_json::json!({ "device_id": self.lan_device_id() }));
+        }
+        self.lan_publish("kitchen", "kitchen.ticket_ready", data.to_string(), None).await;
+    }
+
+    /// The bumped line is on a LAN copy of a round the feed has not brought.
+    fn bump_waits_for_its_round(&self, item: &store::OutboxItem) -> bool {
+        let Ok(cmd) = serde_json::from_str::<kds::BumpCommand>(&item.payload) else { return false };
+        let Some(t) = lan_kds_read(&self.store).into_iter().find(|t| t.items.iter().any(|l| l.id == cmd.item_id)) else {
+            return false;
+        };
+        let Some(branch) = self.sync_branch() else { return false };
+        !sync_pull::rows_of_type(&self.store, &branch, "kitchen_ticket")
+            .iter()
+            .any(|v| v.get("id").and_then(serde_json::Value::as_str) == Some(t.id.as_str()))
+    }
+
+    /// Un-gate bumps held for their round (a pull just brought changes, maybe
+    /// the round); true when there were any.
+    pub(crate) fn release_waiting_bumps(&self) -> bool {
+        self.store
+            .with_conn(|c| {
+                Ok(c.execute(
+                    "UPDATE outbox SET next_attempt_at = 0 WHERE status = 'pending' AND attempts = 0 \
+                     AND op_type IN ('bump_kitchen', 'unbump_kitchen') AND next_attempt_at > 0",
+                    [],
+                )?)
+            })
+            .unwrap_or(0)
+            > 0
     }
 
     /// The still-pending bump intents `(line_id, bumped)` in FIFO order — overlaid
@@ -1942,6 +1998,12 @@ impl MadarCore {
         seq_out: &mut Option<i64>,
         refusal_out: &mut Option<(u16, String)>,
     ) -> SendOutcome {
+        // A bump on a round the kitchen only has by LAN would 404 (and
+        // dead-letter) before the POS replays the round: it waits for the
+        // round, and a pull that brings it lets it go (`release_waiting_bumps`).
+        if matches!(item.op_type.as_str(), "bump_kitchen" | "unbump_kitchen") && self.bump_waits_for_its_round(item) {
+            return SendOutcome::Held("its round has not reached the server yet".into());
+        }
         // Dawam punches and pings go to their own `/staff/*` endpoint. A 409
         // is the server already holding it only for a resend after a lost
         // answer, or an uncoded check-out / any ping (`conflict_means_held`),

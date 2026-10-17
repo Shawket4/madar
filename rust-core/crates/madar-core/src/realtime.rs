@@ -156,13 +156,25 @@ fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Ale
             id = format!("{id}#{n}");
         }
     }
-    let reff = pick(&[
+    // A ready kitchen ticket reads like its board card and its receipt
+    // ("#T-10", "#244-6"), not its long reference.
+    let short = (event_type == "kitchen.ticket_ready")
+        .then(|| {
+            let source = pick(&["source_type"]).unwrap_or_default();
+            // A round fired offline has no reference yet: the id's tail, as
+            // the kitchen board shows it, so the card and the alert agree.
+            let r = crate::kds::display_ref(pick(&["kitchen_ref"]).as_deref(), &source)
+                .or_else(|| pick(&["id"]).map(|id| id[id.len().saturating_sub(4)..].to_uppercase()))?;
+            Some(format!("#{r}"))
+        })
+        .flatten();
+    let reff = short.or_else(|| pick(&[
         "delivery_ref",
         "ticket_ref",
         "kitchen_ref",
         "order_ref",
         "ref",
-    ]);
+    ]));
     let who = pick(&["customer_name", "table_label", "name"]);
     let body = [reff, who]
         .into_iter()
@@ -234,20 +246,23 @@ fn local_hhmm(rfc3339: &str, tz: &str, locale: &str) -> Option<String> {
 /// Teller / till RECEIVE delivery + tickets-to-settle + ready → everything alerts.
 fn role_wants_alert(event_type: &str, role: &str) -> bool {
     match role {
-        // The waiter's "go serve" signal is `ticket.ready` (their open ticket is up).
-        // The backend ALSO emits `kitchen.ticket_ready` on the kitchen topic for the
-        // SAME ready open ticket, and the waiter subscribes to both topics — alerting
-        // on both double-pinged the waiter (two notifications) for one order.
+        // The "go serve" signal is `kitchen.ticket_ready`, for every role that
+        // serves: the backend emits it AND `ticket.ready` for the same moment,
+        // and only the kitchen one carries the ticket (its ref, its table) and
+        // an id the kitchen knows offline, so the LAN copy a kitchen announces
+        // with no internet and the server's copy after the reconnect are ONE
+        // alert (same tag). `ticket.ready` ({open_ticket_id} only) never alerts.
         // A waiter also hears the floor's bookings: a new reservation and a
         // party that is due are their work (walk over, greet, seat).
-        "waiter" => event_type == "ticket.ready" || event_type.starts_with("booking."),
+        "waiter" => event_type == "kitchen.ticket_ready" || event_type.starts_with("booking."),
         "kitchen" => event_type == "kitchen.fired",
         // Teller / cashier / manager: incoming work to settle / handle — but NOT
         // `kitchen.fired`. That's the kitchen device's new-work signal; one waiter
         // fire emits BOTH `ticket.fired` (the open ticket) and `kitchen.fired` (the
         // kitchen copy), so alerting on both double-pinged the till for one order.
         // The till already gets `ticket.fired`; the kitchen copy is not its concern.
-        _ => event_type != "kitchen.fired",
+        // `ticket.ready` is the same moment as `kitchen.ticket_ready` (above).
+        _ => event_type != "kitchen.fired" && event_type != "ticket.ready",
     }
 }
 
@@ -1025,7 +1040,8 @@ mod tests {
         // Teller / till receives incoming work → those alert-worthy events ping…
         assert!(role_wants_alert("ticket.fired", "teller"));
         assert!(role_wants_alert("delivery.created", "teller"));
-        assert!(role_wants_alert("ticket.ready", "teller"));
+        assert!(role_wants_alert("kitchen.ticket_ready", "teller"));
+        assert!(!role_wants_alert("ticket.ready", "teller"), "the same moment as kitchen.ticket_ready");
         // …but NOT the kitchen copy of a fire — one waiter fire emits both
         // ticket.fired AND kitchen.fired, and the till must ping only once.
         assert!(!role_wants_alert("kitchen.fired", "teller"));
@@ -1033,14 +1049,41 @@ mod tests {
         assert!(!role_wants_alert("ticket.fired", "waiter"));
         assert!(!role_wants_alert("ticket.round_added", "waiter"));
         assert!(!role_wants_alert("kitchen.fired", "waiter"));
-        assert!(role_wants_alert("ticket.ready", "waiter"));
-        // NOT kitchen.ticket_ready: the backend emits it on the kitchen topic for the
-        // SAME ready open ticket as ticket.ready, and the waiter sees both topics —
-        // alerting on both double-pinged the waiter. ticket.ready is the one signal.
-        assert!(!role_wants_alert("kitchen.ticket_ready", "waiter"));
+        // The one "go serve" signal is kitchen.ticket_ready (it also comes over
+        // the LAN); ticket.ready is the same moment and would double-ping.
+        assert!(role_wants_alert("kitchen.ticket_ready", "waiter"));
+        assert!(!role_wants_alert("ticket.ready", "waiter"));
         // The kitchen COOKS → only a new kitchen ticket; not its own ready stamps.
         assert!(role_wants_alert("kitchen.fired", "kitchen"));
         assert!(!role_wants_alert("kitchen.ticket_ready", "kitchen"));
+    }
+
+    #[test]
+    fn a_ready_kitchen_ticket_reads_like_its_card_and_dedups_lan_with_the_server() {
+        // The server's kitchen.ticket_ready (a KitchenTicketView) and a kitchen's
+        // LAN announcement of the same round share the kitchen ticket id.
+        let server = serde_json::json!({
+            "id": "4f42d7bf-9470-5cea-9908-dbb59b1139e7", "branch_id": "b1",
+            "source_type": "open_ticket", "source_id": "s1", "table_label": "T4",
+            "kitchen_ref": "T-TESTBR-261011-0010", "status": "ready", "items": [],
+        })
+        .to_string();
+        let a = alert_for("kitchen.ticket_ready", &server, "en", "Africa/Cairo").unwrap();
+        assert_eq!(a.title, "Order ready");
+        assert_eq!(a.body, "#T-10 · T4");
+        // Offline: no reference yet; the id's tail, as the kitchen board shows it.
+        let lan = serde_json::json!({
+            "id": "4f42d7bf-9470-5cea-9908-dbb59b1139e7", "kitchen_ref": null,
+            "table_label": null, "source_type": "open_ticket", "status": "ready",
+            "items": [], "origin": { "device_id": "kitchen-1" },
+        })
+        .to_string();
+        let b = alert_for("kitchen.ticket_ready", &lan, "en", "Africa/Cairo").unwrap();
+        assert_eq!(b.body, "#39E7");
+        assert_eq!(a.tag, b.tag, "the LAN copy and the server's copy are one alert");
+        // A till sale reads like its receipt.
+        let sale = serde_json::json!({ "id": "k2", "source_type": "order", "kitchen_ref": "TEST2-260915-244-0006" }).to_string();
+        assert_eq!(alert_for("kitchen.ticket_ready", &sale, "en", "Africa/Cairo").unwrap().body, "#244-6");
     }
 
     #[test]

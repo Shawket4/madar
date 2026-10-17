@@ -1174,6 +1174,9 @@ impl MadarCore {
         if res.is_ok() {
             self.reconcile_realtime();
         }
+        if matches!(res, Ok(n) if n > 0) && self.release_waiting_bumps() {
+            self.send_in_background(Vec::new());
+        }
         match &res {
             Ok(_) => self.note_connectivity(true),
             Err(e) if crate::net::is_connectivity_failure(e) => self.note_connectivity(false),
