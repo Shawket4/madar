@@ -59,11 +59,15 @@ pub(crate) fn server_sentence(locale: &str, status: u16, said: &str) -> Option<S
 
 /// A code whose words depend on what was queued: the till's pay-out tagged
 /// as someone's expense advance is refused for Dawam being off or for the
-/// person not being an active employee.
+/// person not being an active employee; a paid bill refuses a line void
+/// differently from a void of the whole bill; a bill fired under a booking
+/// that is no longer active is the bill that did not land.
 fn op_key(op_type: &str, code: &str) -> Option<&'static str> {
     match (op_type, code) {
         ("cash_movement", "MODULE_OFF") => Some("sync.err_advance_dawam_off"),
         ("cash_movement", "EMPLOYEE_INACTIVE") => Some("sync.err_advance_inactive"),
+        ("void_ticket_line", "TICKET_SETTLED") => Some("sync.err_line_bill_settled"),
+        ("open_ticket", "BOOKING_NOT_ACTIVE") => Some("sync.err_fire_booking_not_active"),
         _ => None,
     }
 }
@@ -132,13 +136,54 @@ mod tests {
         assert_eq!(refusal("ar", "award_loyalty_points", 409, old), tr("ar", "sync.refused"));
     }
 
-    /// The lifecycle's refused move (409 TABLE_DIRTY, a code the core has no
-    /// words for) reached an English till as "The server refused it": the
-    /// server writes English, so an English device reads its own sentence,
-    /// and only an Arabic one the sentence for the kind of refusal.
+    /// Every coded refusal a queued op can meet through `/sync/replay` is
+    /// worded in both languages, and an older server's uncoded 409 keeps
+    /// today's wording: its own sentence in English, the plain one in Arabic.
+    #[test]
+    fn a_coded_replay_refusal_says_why_in_both_languages() {
+        let cases = [
+            ("refund_order", "ORDER_FULLY_REFUNDED", "sync.err_order_fully_refunded"),
+            ("void_order", "ORDER_REFUNDED", "sync.err_order_refunded"),
+            ("cash_movement", "CASH_ALREADY_CORRECTED", "sync.err_cash_already_corrected"),
+            ("void_ticket", "TICKET_SETTLED", "sync.err_ticket_settled"),
+            ("void_ticket_line", "TICKET_SETTLED", "sync.err_line_bill_settled"),
+            ("open_ticket", "BOOKING_NOT_ACTIVE", "sync.err_fire_booking_not_active"),
+            ("open_ticket", "BOOKING_OTHER_BRANCH", "sync.err_booking_other_branch"),
+            ("seat_booking", "BOOKING_NOT_ACTIVE", "sync.err_booking_not_active"),
+            ("seat_booking", "BOOKING_SEATED_ELSEWHERE", "sync.err_booking_seated_elsewhere"),
+            ("no_show_booking", "BOOKING_SEATED", "sync.err_booking_seated"),
+            ("hold_table", "TABLE_HELD", "sync.err_table_held"),
+            ("hold_table", "TABLE_DIRTY", "sync.err_table_dirty"),
+            ("clear_table", "TABLE_OCCUPIED", "sync.err_table_occupied"),
+            ("fulfill_table_transfer", "TICKET_NOT_LIVE", "sync.err_ticket_not_live"),
+            ("create_table_transfer", "TRANSFER_EXISTS", "sync.err_transfer_exists"),
+            ("fulfill_table_transfer", "TRANSFER_CANCELLED", "sync.err_transfer_cancelled"),
+            ("cancel_table_transfer", "TRANSFER_FULFILLED", "sync.err_transfer_fulfilled"),
+        ];
+        for (op, code, key) in cases {
+            let body = format!(r#"{{"error":"Conflict: x","code":"{code}"}}"#);
+            for locale in ["en", "ar"] {
+                let said = refusal(locale, op, 409, &body);
+                assert_eq!(said, tr(locale, key), "{op} {code} {locale}");
+                assert!(!said.starts_with("sync."), "{op} {code} {locale}: {said}");
+            }
+        }
+        let old = r#"{"error":"Conflict: This order has already been refunded in full"}"#;
+        assert_eq!(
+            refusal("en", "refund_order", 409, old),
+            "This order has already been refunded in full"
+        );
+        assert_eq!(refusal("ar", "refund_order", 409, old), tr("ar", "sync.refused"));
+    }
+
+    /// The lifecycle's refused move (409 with a code the core had no words
+    /// for, as TABLE_DIRTY once was) reached an English till as "The server
+    /// refused it": the server writes English, so an English device reads its
+    /// own sentence, and only an Arabic one the sentence for the kind of
+    /// refusal.
     #[test]
     fn with_no_words_of_its_own_an_english_device_reads_the_servers_sentence() {
-        let dirty = r#"{"error":"Table has not been cleared since the last party","code":"TABLE_DIRTY"}"#;
+        let dirty = r#"{"error":"Table has not been cleared since the last party","code":"TABLE_SOMETHING_NEW"}"#;
         assert_eq!(
             refusal("en", "move_party", 409, dirty),
             "Table has not been cleared since the last party"

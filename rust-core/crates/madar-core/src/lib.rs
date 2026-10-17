@@ -1520,7 +1520,7 @@ impl MadarCore {
                 (
                     serde_json::json!({ "op": "close_till", "teller_id": teller_id, "till_id": cmd.till_id,
                         "device_id": device_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "create_order" => {
@@ -1594,7 +1594,7 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "create_customer", "teller_id": teller_id, "request": request }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "attach_customer" => {
@@ -1623,7 +1623,7 @@ impl MadarCore {
                 (
                     // The attach is a plain overwrite server-side, so a re-flush is safe.
                     serde_json::json!({ "op": "attach_customer", "teller_id": teller_id, "order_id": order_id, "customer_id": cmd.get("customer_id") }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             // The customer on a bill that is still open, so the other tills
@@ -1638,7 +1638,7 @@ impl MadarCore {
                 (
                     // Last write wins server-side, so a re-flush is safe.
                     serde_json::json!({ "op": "set_ticket_customer", "teller_id": teller_id, "ticket_id": self.server_ticket_id(key), "customer_id": cmd.get("customer_id") }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "record_waste" => match waste::replay_envelope(&item.payload, &teller_id, delta) {
@@ -1648,7 +1648,7 @@ impl MadarCore {
             // The drink's id IS its idempotency key, so a replay after a lost
             // ack is the same row and not a second one off the allowance.
             "record_staff_drink" => match staff_drink::replay_envelope(&item.payload, &teller_id, delta) {
-                Ok(env) => (env, Idem::Yes),
+                Ok(env) => (env, Idem::Yes(&[])),
                 Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
             },
             "award_loyalty_points" => {
@@ -1674,6 +1674,10 @@ impl MadarCore {
                     Idem::No,
                 )
             }
+            // Idempotent on `client_ref`: its own retry is a 200. Its one 409
+            // is a sale another refund already emptied (`ORDER_FULLY_REFUNDED`):
+            // this refund did not apply, and the cash it handed back is on no
+            // record until someone acts on the stuck row.
             "refund_order" => {
                 let cmd: orders::RefundOrderCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
@@ -1684,7 +1688,7 @@ impl MadarCore {
                         serde_json::json!({ "op": "refund_order", "teller_id": teller_id, "request": cmd.request }),
                         cmd.approval,
                     ),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "spot_report_view" => {
@@ -1699,7 +1703,7 @@ impl MadarCore {
                             "device_id": device_id, "request": cmd.request }),
                         cmd.approval,
                     ),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "cash_movement" => {
@@ -1713,7 +1717,7 @@ impl MadarCore {
                 (
                     serde_json::json!({ "op": "cash_movement", "teller_id": teller_id, "till_id": cmd.till_id,
                         "device_id": device_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             // ── Waiter open tickets (fire-now-pay-later) ──────────────────────
@@ -1730,7 +1734,9 @@ impl MadarCore {
                     // `origin_device_id`: the echo names this device, so it skips its
                     // own ping — however late the op drains.
                     serde_json::json!({ "op": "fire_open_ticket", "teller_id": teller_id, "request": cmd.request, "origin_device_id": self.lan_device_id() }),
-                    Idem::Yes,
+                    // A 409 is a refusal (a booking no longer active, the
+                    // table race…) unless the server says this fire landed.
+                    Idem::Yes(conflict_acks("fire_open_ticket")),
                 )
             }
             "ticket_add_round" => {
@@ -1774,7 +1780,7 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "void_open_ticket", "teller_id": teller_id, "ticket_id": self.server_ticket_id(&cmd.ticket_id), "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             // Idempotent on the LINE, and that is load-bearing: the bill's
@@ -1789,12 +1795,13 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "void_ticket_line", "teller_id": teller_id, "ticket_id": self.server_ticket_id(&cmd.ticket_id), "item_id": cmd.item_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(conflict_acks("void_ticket_line")),
                 )
             }
             // ── KDS bump / unbump (Phase E §2) ────────────────────────────────
-            // Idempotent on the line: a 409/404 (re-bump of a gone/bumped line) is
-            // a success. Replay returns 204 No Content — handled specially below.
+            // Idempotent on the line: a re-bump, or a bump of a line that is
+            // gone, is a 204 on replay. The server has no 409 for a bump, so one
+            // is a refusal like any other. 204 No Content — handled below.
             "bump_kitchen" | "unbump_kitchen" => {
                 let cmd: kds::BumpCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
@@ -1807,15 +1814,18 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": op, "teller_id": teller_id, "item_id": cmd.item_id }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             // ── Floor ops ─────────────────────────────────────────────────────
             // Parked orders are NOT here: they are this terminal's own drafts,
             // so they never reach the outbox. What remains is the genuinely
             // shared state -- swaps, the transfer queue, and clearing a bussed
-            // table. A 409 means the floor moved on: ack it and let the
-            // post-drain pull reconcile the mirror.
+            // table. A request that finds the floor already as it asked is a
+            // 200; a 409 is a coded refusal (TABLE_HELD, TABLE_DIRTY,
+            // TRANSFER_CANCELLED…): the move did not happen, and the person who
+            // asked for it is told in the stuck list rather than left with a
+            // till showing a floor the server never had.
             "swap_tables" => {
                 let cmd: held::SwapCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
@@ -1836,7 +1846,7 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "create_table_transfer", "teller_id": teller_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(conflict_acks("create_table_transfer")),
                 )
             }
             "cancel_table_transfer" => {
@@ -1846,7 +1856,7 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "cancel_table_transfer", "teller_id": teller_id, "transfer_id": cmd.transfer_id }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "fulfill_table_transfer" => {
@@ -1856,7 +1866,7 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "fulfill_table_transfer", "teller_id": teller_id, "transfer_id": cmd.transfer_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "clear_table" => {
@@ -1866,14 +1876,14 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "clear_table", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             // The occupancy half of a device-local hold. The ORDER never goes
             // anywhere; only "this table is taken" does, so the dashboard's
-            // floor and every other till see the room as it is. A 409 (the
-            // floor moved on while we were offline) acks like the other floor
-            // ops — the next pull reconciles.
+            // floor and every other till see the room as it is. Holding our own
+            // table again is a 200; a 409 is another till's hold, a booking, a
+            // seated ticket or plates still on it: refused, so it is stuck.
             "hold_table" => {
                 let cmd: held::TableStateCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
@@ -1881,7 +1891,7 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "hold_table", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "release_table" => {
@@ -1891,7 +1901,7 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "release_table", "teller_id": teller_id, "table_id": cmd.table_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "seat_booking" => {
@@ -1901,7 +1911,7 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "seat_booking", "teller_id": teller_id, "booking_id": cmd.booking_id, "request": cmd.request }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             "no_show_booking" => {
@@ -1912,7 +1922,7 @@ impl MadarCore {
                 };
                 (
                     serde_json::json!({ "op": "no_show_booking", "teller_id": teller_id, "booking_id": cmd.booking_id }),
-                    Idem::Yes,
+                    Idem::Yes(&[]),
                 )
             }
             // A LAN mirror-relay backup: the payload IS the `/sync/replay` envelope
@@ -1923,7 +1933,8 @@ impl MadarCore {
                     Ok(v) => v,
                     Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
                 };
-                (envelope, Idem::Yes)
+                let idem = mirror_idem(&envelope);
+                (envelope, idem)
             }
             other => return Err(SendOutcome::Dead(format!("unknown op_type {other}"))),
         })
@@ -2127,8 +2138,9 @@ impl MadarCore {
             Err((e, raw)) => match self.drop_refused_advance_tag(item, &e) {
                 Some(untagged) => self.resend_untagged(&untagged, body_out, seq_out, refusal_out).await,
                 None => {
+                    let code = raw.as_ref().and_then(|(_, text)| net::extract_error_code(text));
                     *refusal_out = raw;
-                    classify_send(e, idem)
+                    classify_send(e, idem, code.as_deref())
                 }
             },
         }
@@ -2163,8 +2175,9 @@ impl MadarCore {
                 }
             }
             Err((e, raw)) => {
+                let code = raw.as_ref().and_then(|(_, text)| net::extract_error_code(text));
                 *refusal_out = raw;
-                classify_send(e, idem)
+                classify_send(e, idem, code.as_deref())
             }
         }
     }
@@ -2333,19 +2346,81 @@ enum SendOutcome {
 }
 
 /// Idempotency profile of an endpoint, deciding how 409/404 are read.
-enum Idem {
+pub(crate) enum Idem {
     /// Not idempotent for our purposes: 409/404 are genuine rejections → dead.
     No,
-    /// Idempotent already-applied: a 409 means the server has this op already,
-    /// so it is success. A 404 is NOT: it means something the op needed is not
-    /// on the server, so the op never applied. Treating it as an ack destroyed
-    /// the work — most sharply for a `lan_mirror` backup, which exists to
-    /// survive exactly the failure that produces the 404, and for a
-    /// `close_till` whose till the server has not seen, which left the drawer
-    /// open server-side forever with nothing queued to close it.
-    Yes,
-    /// Void: 409 → already-voided (success); 404 → order never synced → dead.
+    /// Idempotent on its own key: the server answers a replayed duplicate with
+    /// a 200. So a 409 is a REFUSAL — the op did not apply — unless it carries
+    /// one of these codes, each of which the server sends only when this exact
+    /// op is already on record ([`conflict_acks`]). An uncoded 409 (an older
+    /// server, or a refusal nobody coded) stays stuck with the server's reason:
+    /// when unsure, never ack.
+    ///
+    /// This used to ack EVERY 409, and most of them were refusals: a refund of
+    /// a sale refunded elsewhere, a fire under a booking the sweep had rolled
+    /// to no-show, a hold on a table another till held. The op was deleted as
+    /// if it had applied, and nobody at the till was told.
+    ///
+    /// A 404 is never an ack either: something the op needed is not on the
+    /// server, so the op never applied. Treating it as an ack destroyed the
+    /// work — most sharply for a `lan_mirror` backup, which exists to survive
+    /// exactly the failure that produces the 404, and for a `close_till` whose
+    /// till the server has not seen, which left the drawer open server-side
+    /// forever with nothing queued to close it.
+    Yes(&'static [&'static str]),
+    /// Void of a sale: a 404 means the sale never synced → dead. A 409 is a
+    /// refusal too: the server answers an already-voided sale with a 200 (it
+    /// has never had a 409 for that), and its one 409 is "money was already
+    /// refunded against this sale" (`ORDER_REFUNDED`), which acking dropped.
     Void,
+}
+
+/// The `/sync/replay` 409 codes that mean "this exact op is already on the
+/// server" (MadarRust `sync::codes`, `tickets::handlers::codes`).
+pub(crate) mod conflict_code {
+    /// A second copy of the op (a retry racing its LAN peer's backup) lost on
+    /// the op's own key: the first copy landed.
+    pub const REPLAY_ALREADY_APPLIED: &str = "REPLAY_ALREADY_APPLIED";
+    /// A line void whose line was taken off before the bill was paid.
+    pub const LINE_ALREADY_VOIDED: &str = "LINE_ALREADY_VOIDED";
+    /// A line void on a bill that was voided whole: no line of it is owed for.
+    pub const TICKET_VOIDED: &str = "TICKET_VOIDED";
+}
+
+/// The 409 codes an op (by its `/sync/replay` name) may read as applied. Every
+/// other 409 is a refusal. Proved op by op against the server's handlers:
+///
+/// * `fire_open_ticket`, `create_table_transfer`: a duplicate is a 200; only a
+///   copy that raced the first on its key is a 409, coded as landed. Every
+///   other 409 is a refusal (a booking no longer active, a table race, …).
+/// * `void_ticket_line`: a line already off an OPEN bill is a 200; on a paid
+///   bill the code says whether this void took it off first, and on a voided
+///   bill the line is owed for anyway.
+/// * everything else idempotent (`close_till`, `cash_movement`,
+///   `refund_order`, `spot_report_view`, `void_open_ticket`, the customer
+///   ops, staff drinks, bumps, holds, clears, releases, transfers, seats and
+///   no-shows): a replay of the same op is a 200 — or nothing there can 409 —
+///   so no 409 is ever this op already applied.
+pub(crate) fn conflict_acks(replay_op: &str) -> &'static [&'static str] {
+    use conflict_code::*;
+    match replay_op {
+        "fire_open_ticket" | "create_table_transfer" => &[REPLAY_ALREADY_APPLIED],
+        "void_ticket_line" => &[LINE_ALREADY_VOIDED, TICKET_VOIDED],
+        _ => &[],
+    }
+}
+
+/// How a 409/404 is read for a LAN peer's backup: by the op it carries, under
+/// the same rule as that op's own row. A backup is no less real work: when
+/// its originator never comes back, it is the only copy.
+fn mirror_idem(envelope: &serde_json::Value) -> Idem {
+    match envelope.get("op").and_then(|v| v.as_str()).unwrap_or_default() {
+        "void_order" => Idem::Void,
+        // Ops whose own row is `Idem::No`: every 409 is a refusal.
+        "open_till" | "open_shift" | "create_order" | "add_ticket_round" | "settle_open_ticket"
+        | "swap_tables" | "record_waste" | "award_loyalty_points" => Idem::No,
+        op => Idem::Yes(conflict_acks(op)),
+    }
 }
 
 /// Captive-portal / transparent-proxy guard for a `/sync/replay` 200. Our backend
@@ -2361,8 +2436,9 @@ fn replay_backend_object(body: &str) -> Option<serde_json::Value> {
 }
 
 /// Classify a `CoreError` from a send into a `SendOutcome` per the endpoint's
-/// idempotency profile. Mirrors the Flutter drain's per-status branches.
-fn classify_send(err: CoreError, idem: Idem) -> SendOutcome {
+/// idempotency profile. `code` is the `code` of the server's error body, when
+/// it sent one: the only thing that can make a 409 an ack.
+pub(crate) fn classify_send(err: CoreError, idem: Idem, code: Option<&str>) -> SendOutcome {
     match err {
         CoreError::Offline { .. } => SendOutcome::Offline,
         CoreError::Unauthenticated { .. } => SendOutcome::AuthExpired,
@@ -2374,11 +2450,12 @@ fn classify_send(err: CoreError, idem: Idem) -> SendOutcome {
         CoreError::Validation { detail, .. } => SendOutcome::Dead(detail),
         CoreError::Forbidden { action: detail, .. } => SendOutcome::Refused(detail),
         CoreError::Server { status, detail, .. } => match (status, idem) {
-            (409, Idem::Yes) | (409, Idem::Void) => SendOutcome::Acked(None),
+            // The server already holds this exact op, and said so with a code.
+            (409, Idem::Yes(acks)) if code.is_some_and(|c| acks.contains(&c)) => SendOutcome::Acked(None),
             // A 404 is never an ack: the op did not apply. Dead-lettering keeps
             // it — visible in the stuck list, retryable once whatever it
             // depended on has landed — instead of dropping it silently.
-            (404, Idem::Yes) => SendOutcome::Dead(format!(
+            (404, Idem::Yes(_)) => SendOutcome::Dead(format!(
                 "the server does not have what this needs yet — {detail}"
             )),
             // void 404 = the order never landed → don't silently swallow the void.
@@ -9868,18 +9945,19 @@ mod tests {
 
         // Connectivity / auth / server-error.
         assert!(matches!(
-            classify_send(CoreError::Offline { detail: "x".into() }, Idem::No),
+            classify_send(CoreError::Offline { detail: "x".into() }, Idem::No, None),
             SendOutcome::Offline
         ));
         assert!(matches!(
-            classify_send(CoreError::Unauthenticated { detail: "x".into() }, Idem::No),
+            classify_send(CoreError::Unauthenticated { detail: "x".into() }, Idem::No, None),
             SendOutcome::AuthExpired
         ));
         assert!(retry(&classify_send(
             CoreError::Transient {
                 detail: "503".into()
             },
-            Idem::No
+            Idem::No,
+            None
         )));
         // Permanent validation / permission → dead.
         assert!(dead(&classify_send(
@@ -9887,7 +9965,8 @@ mod tests {
                 field: "".into(),
                 detail: "bad".into()
             },
-            Idem::No
+            Idem::No,
+            None
         )));
         // A 403 is permanent too, but it is dead-lettered as a REFUSAL so the
         // till can offer it under "needs a manager" and re-send it with an
@@ -9898,34 +9977,45 @@ mod tests {
                     resource: "api".into(),
                     action: "no".into()
                 },
-                Idem::No
+                Idem::No,
+                None
             ),
             SendOutcome::Refused(_)
         ));
         // ...but a 403 a firewall or WAF sent in our backend's place is not a
         // refusal: the sale waits and goes again, like any other blocked link.
-        for idem in [Idem::No, Idem::Yes, Idem::Void] {
+        for idem in [Idem::No, Idem::Yes(&[]), Idem::Void] {
             assert!(matches!(
-                classify_send(net::status_to_error(403, "<html>Access denied</html>"), idem),
+                classify_send(net::status_to_error(403, "<html>Access denied</html>"), idem, None),
                 SendOutcome::Offline
             ));
         }
-        // 409: order/open NOT recorded → dead; void/close already-applied → ack.
-        assert!(dead(&classify_send(srv(409), Idem::No)));
-        assert!(ack(&classify_send(srv(409), Idem::Yes)));
-        assert!(ack(&classify_send(srv(409), Idem::Void)));
+        // 409 is a refusal unless the server says, with a code this op knows,
+        // that this exact op is already on record. No code (an older server),
+        // an unknown one, or a refusal's code: stuck, never acked.
+        let landed = Some(conflict_code::REPLAY_ALREADY_APPLIED);
+        assert!(dead(&classify_send(srv(409), Idem::No, landed)));
+        assert!(dead(&classify_send(srv(409), Idem::Yes(&[]), None)));
+        assert!(dead(&classify_send(srv(409), Idem::Yes(&[]), landed)));
+        assert!(dead(&classify_send(srv(409), Idem::Yes(conflict_acks("fire_open_ticket")), None)));
+        assert!(dead(&classify_send(srv(409), Idem::Yes(conflict_acks("fire_open_ticket")), Some("BOOKING_NOT_ACTIVE"))));
+        assert!(ack(&classify_send(srv(409), Idem::Yes(conflict_acks("fire_open_ticket")), landed)));
+        // The server never had a 409 for an already-voided sale (it is a 200).
+        assert!(dead(&classify_send(srv(409), Idem::Void, None)));
+        assert!(dead(&classify_send(srv(409), Idem::Void, Some("ORDER_REFUNDED"))));
+        assert!(dead(&classify_send(srv(409), Idem::Void, landed)));
         // 404 is NEVER an ack. It says the server does not have something the
         // op needed, which means the op did not apply — so acking it destroyed
         // the work: a `lan_mirror` backup died on exactly the failure it exists
         // to survive, and a `close_till` for a till the server had not seen
         // left the drawer open server-side with nothing left to close it.
         // Dead-lettering keeps it visible and retryable instead.
-        assert!(dead(&classify_send(srv(404), Idem::Yes)));
-        assert!(dead(&classify_send(srv(404), Idem::Void)));
-        assert!(dead(&classify_send(srv(404), Idem::No)));
+        assert!(dead(&classify_send(srv(404), Idem::Yes(&[]), None)));
+        assert!(dead(&classify_send(srv(404), Idem::Void, None)));
+        assert!(dead(&classify_send(srv(404), Idem::No, None)));
         // 429: paced, never dead, whatever the endpoint.
-        for idem in [Idem::No, Idem::Yes, Idem::Void] {
-            assert!(matches!(classify_send(srv(429), idem), SendOutcome::Throttled(_)));
+        for idem in [Idem::No, Idem::Yes(&[]), Idem::Void] {
+            assert!(matches!(classify_send(srv(429), idem, None), SendOutcome::Throttled(_)));
         }
     }
 
@@ -11449,6 +11539,181 @@ mod lifecycle_tests {
         assert!(core.store.pending().unwrap().is_empty());
     }
 
+    /// One queued op of every kind `/sync/replay` answers, as the outbox row
+    /// an earlier build (or this one) left: `(op_type, payload)`.
+    fn replay_409_ops() -> Vec<(&'static str, serde_json::Value)> {
+        use serde_json::json;
+        let u = |n: u8| format!("00000000-0000-0000-0000-0000000000{n:02x}");
+        vec![
+            ("close_till", json!({ "till_id": u(1), "request": { "closing_cash_declared": 0 } })),
+            ("cash_movement", json!({ "till_id": u(1), "request": { "amount": -500, "note": "milk", "client_ref": u(2) } })),
+            ("refund_order", json!({ "request": { "amount": 100, "method": "cash", "order_id": u(3), "reason": "quality_issue", "client_ref": u(4) } })),
+            ("void_order", json!({ "order_id": u(3), "request": { "reason": "wrong_order" } })),
+            ("spot_report_view", json!({ "till_id": u(1), "request": { "id": u(5) } })),
+            ("create_customer", json!({ "id": u(6), "name": "Mona", "phone": "01000000001" })),
+            ("attach_customer", json!({ "order_id": u(3), "customer_id": u(6) })),
+            ("record_staff_drink", json!({ "request": { "id": u(7), "note": "tea" } })),
+            ("open_ticket", json!({ "ticket_id": u(8), "request": { "branch_id": u(9), "idempotency_key": u(8), "items": [{ "quantity": 1 }] } })),
+            ("void_ticket", json!({ "ticket_id": u(8), "request": {} })),
+            ("void_ticket_line", json!({ "ticket_id": u(8), "item_id": u(10), "request": {} })),
+            ("bump_kitchen", json!({ "item_id": u(11) })),
+            ("unbump_kitchen", json!({ "item_id": u(11) })),
+            ("create_table_transfer", json!({ "transfer_id": u(12), "request": { "id": u(12) } })),
+            ("cancel_table_transfer", json!({ "transfer_id": u(12), "request": {} })),
+            ("fulfill_table_transfer", json!({ "transfer_id": u(12), "request": { "table_id": u(13) } })),
+            ("clear_table", json!({ "table_id": u(13), "request": {} })),
+            ("hold_table", json!({ "table_id": u(13), "request": {} })),
+            ("release_table", json!({ "table_id": u(13), "request": {} })),
+            ("seat_booking", json!({ "booking_id": u(14), "request": {} })),
+            ("no_show_booking", json!({ "booking_id": u(14) })),
+        ]
+    }
+
+    /// The refusal the server codes for each op, where it has one.
+    fn replay_409_refusal(op: &str) -> Option<&'static str> {
+        Some(match op {
+            "cash_movement" => "CASH_ALREADY_CORRECTED",
+            "refund_order" => "ORDER_FULLY_REFUNDED",
+            "void_order" => "ORDER_REFUNDED",
+            "open_ticket" => "BOOKING_NOT_ACTIVE",
+            "void_ticket" | "void_ticket_line" => "TICKET_SETTLED",
+            "create_table_transfer" => "TRANSFER_EXISTS",
+            "cancel_table_transfer" => "TRANSFER_FULFILLED",
+            "fulfill_table_transfer" => "TRANSFER_CANCELLED",
+            "clear_table" => "TABLE_OCCUPIED",
+            "hold_table" => "TABLE_HELD",
+            "seat_booking" => "BOOKING_NOT_ACTIVE",
+            "no_show_booking" => "BOOKING_SEATED",
+            _ => return None,
+        })
+    }
+
+    /// The codes that are the "already applied" answer for an op, by its
+    /// outbox name.
+    fn replay_409_acks(op: &str) -> &'static [&'static str] {
+        conflict_acks(match op {
+            "open_ticket" => "fire_open_ticket",
+            other => other,
+        })
+    }
+
+    fn queue_raw(core: &MadarCore, op_type: &str, payload: &serde_json::Value) {
+        core.store
+            .enqueue(&store::NewOutboxOp {
+                id: format!("{op_type}:409"),
+                op_type: op_type.into(),
+                idempotency_key: format!("{op_type}:409"),
+                payload: payload.to_string(),
+                event_at: chrono::Utc::now().to_rfc3339(),
+                user_id: Some("00000000-0000-0000-0000-0000000000bb".into()),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    /// Drain one queued op against a server that answers it with `status`
+    /// and `body`; true when it was acked (gone, nothing stuck).
+    async fn drained_409(op_type: &str, payload: &serde_json::Value, body: String) -> (bool, Vec<String>) {
+        let body: &'static str = Box::leak(body.into_boxed_str());
+        let (base, hits) = replay_stub(409, body).await;
+        let core = draining_core(base).await;
+        queue_raw(&core, op_type, payload);
+        core.drain_outbox().await.unwrap();
+        assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 1, "{op_type} was sent");
+        let dead = dead_reasons(&core);
+        let acked = dead.is_empty() && core.store.pending().unwrap().is_empty();
+        (acked, dead)
+    }
+
+    /// A 409 used to ack every op marked idempotent, so a refund of a sale
+    /// refunded elsewhere, a fire under a booking the sweep had rolled to
+    /// no-show, a hold on a table another till held… vanished as if applied.
+    /// Op by op now: the server's "already applied" code acks, a coded refusal
+    /// is a stuck row with its reason, and an uncoded 409 (an older server)
+    /// is stuck too — when unsure, never ack. The same rules hold for a row
+    /// queued before this build: they are read at send time, from the op.
+    #[tokio::test]
+    async fn a_409_acks_only_when_the_server_says_the_op_is_already_there() {
+        for (op, payload) in replay_409_ops() {
+            // Uncoded: an older server, or a refusal nobody coded.
+            let (acked, dead) =
+                drained_409(op, &payload, r#"{"error":"Conflict: something went the other way"}"#.into()).await;
+            assert!(!acked, "{op}: an uncoded 409 is stuck, never acked");
+            assert_eq!(dead, vec!["something went the other way".to_string()], "{op}");
+
+            // A code that is not this op's "already applied" never acks.
+            let (acked, _) = drained_409(
+                op,
+                &payload,
+                r#"{"error":"Conflict: x","code":"SOMETHING_NEW"}"#.into(),
+            )
+            .await;
+            assert!(!acked, "{op}: an unknown code is stuck");
+
+            if let Some(code) = replay_409_refusal(op) {
+                let (acked, dead) =
+                    drained_409(op, &payload, format!(r#"{{"error":"Conflict: x","code":"{code}"}}"#)).await;
+                assert!(!acked, "{op}: {code} is a refusal");
+                assert_eq!(dead.len(), 1, "{op}: one stuck row");
+                assert!(!dead[0].starts_with("sync.") && dead[0] != "x", "{op} {code}: worded, got {}", dead[0]);
+                assert_eq!(dead[0], outbox_words::refusal("en", op, 409, &format!(r#"{{"error":"Conflict: x","code":"{code}"}}"#)));
+            }
+
+            let acks = replay_409_acks(op);
+            for code in acks {
+                let (acked, dead) =
+                    drained_409(op, &payload, format!(r#"{{"error":"Conflict: x","code":"{code}"}}"#)).await;
+                assert!(acked, "{op}: {code} means the op is already on the server: {dead:?}");
+            }
+            // Nobody else's "already applied" answer acks an op that has none.
+            if !acks.contains(&conflict_code::REPLAY_ALREADY_APPLIED) {
+                let (acked, _) = drained_409(
+                    op,
+                    &payload,
+                    r#"{"error":"Database error: duplicate key","code":"REPLAY_ALREADY_APPLIED"}"#.into(),
+                )
+                .await;
+                assert!(!acked, "{op}: REPLAY_ALREADY_APPLIED is not this op's answer");
+            }
+        }
+    }
+
+    /// The ops that have an "already applied" 409 at all, so a change to the
+    /// table above is a decision, not an accident.
+    #[test]
+    fn only_three_ops_have_an_already_applied_409() {
+        let with: Vec<&str> = replay_409_ops()
+            .into_iter()
+            .map(|(op, _)| op)
+            .filter(|op| !replay_409_acks(op).is_empty())
+            .collect();
+        assert_eq!(with, vec!["open_ticket", "void_ticket_line", "create_table_transfer"]);
+    }
+
+    /// A LAN peer's backup of an op reads its 409 by the op it carries: it may
+    /// be the only copy left when its originator never comes back.
+    #[tokio::test]
+    async fn a_mirrored_op_reads_its_409_by_the_op_it_carries() {
+        use serde_json::json;
+        let teller = "00000000-0000-0000-0000-0000000000bb";
+        let refund = json!({ "op": "refund_order", "teller_id": teller, "request": { "order_id": "o" } });
+        let fire = json!({ "op": "fire_open_ticket", "teller_id": teller, "request": { "idempotency_key": "k" } });
+        let sale = json!({ "op": "create_order", "teller_id": teller, "request": { "idempotency_key": "s" } });
+        let void = json!({ "op": "void_order", "teller_id": teller, "order_id": "o", "request": {} });
+        let cases = [
+            (&refund, r#"{"error":"Conflict: x","code":"ORDER_FULLY_REFUNDED"}"#, false),
+            (&refund, r#"{"error":"Conflict: x"}"#, false),
+            (&fire, r#"{"error":"Conflict: Booking is no_show","code":"BOOKING_NOT_ACTIVE"}"#, false),
+            (&fire, r#"{"error":"Database error: dup","code":"REPLAY_ALREADY_APPLIED"}"#, true),
+            (&sale, r#"{"error":"Conflict: x","code":"REPLAY_ALREADY_APPLIED"}"#, false),
+            (&void, r#"{"error":"Conflict: x"}"#, false),
+        ];
+        for (env, body, want_ack) in cases {
+            let (acked, dead) = drained_409("lan_mirror", env, body.into()).await;
+            assert_eq!(acked, want_ack, "{} {body}: {dead:?}", env["op"]);
+        }
+    }
+
     /// The server said no to a move somebody asked for: they are told, with
     /// the server's reason, and no silent stuck row is left behind.
     #[tokio::test]
@@ -11462,8 +11727,9 @@ mod lifecycle_tests {
         seed_party_on_a(&core, "free");
 
         let err = core.swap_tables(TA.into(), TB.into()).await.unwrap_err();
+        // TABLE_DIRTY has the core's own words now, in both languages.
         assert!(
-            format!("{err:?}").contains("not been cleared"),
+            format!("{err:?}").contains(&i18n::tr("en", "sync.err_table_dirty")),
             "the server's reason reaches the person: {err:?}"
         );
         assert_eq!(
