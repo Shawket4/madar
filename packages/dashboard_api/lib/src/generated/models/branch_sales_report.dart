@@ -8,6 +8,7 @@ class BranchSalesReport {
     required this.branchId,
     required this.branchName,
     required this.byCategory,
+    this.byServiceMode,
     this.cashTips,
     this.from,
     this.grossSales,
@@ -42,6 +43,15 @@ class BranchSalesReport {
         e,
         'BranchSalesReport.by_category[]',
         CategorySales.fromJson,
+      ),
+    ),
+    byServiceMode: decListN<ServiceModeSales>(
+      json['by_service_mode'],
+      'BranchSalesReport.by_service_mode',
+      (e) => decObject(
+        e,
+        'BranchSalesReport.by_service_mode[]',
+        ServiceModeSales.fromJson,
       ),
     ),
     cashTips: decIntN(json['cash_tips'], 'BranchSalesReport.cash_tips'),
@@ -101,6 +111,13 @@ class BranchSalesReport {
   final String branchName;
 
   final List<CategorySales> byCategory;
+
+  /// The sales split by how the customer takes the order: always both rows,
+  /// `takeaway` (Pickup) then `dine_in`, zero when there were none. Same sold
+  /// set and the same net-of-refunds revenue as `total_revenue`, so the two
+  /// rows add up to it (less delivery orders, which are `takeaway` here as
+  /// they are on the order). On every plan.
+  final List<ServiceModeSales>? byServiceMode;
 
   /// The cash slice of `total_tips` (snapshotted `tip_is_cash`).
   final int? cashTips;
@@ -173,6 +190,8 @@ class BranchSalesReport {
     'branch_id': branchId,
     'branch_name': branchName,
     'by_category': byCategory.map((e) => e.toJson()).toList(),
+    if (byServiceMode != null || explicitNulls.contains('by_service_mode'))
+      'by_service_mode': byServiceMode?.map((e) => e.toJson()).toList(),
     if (cashTips != null || explicitNulls.contains('cash_tips'))
       'cash_tips': cashTips,
     if (from != null || explicitNulls.contains('from'))

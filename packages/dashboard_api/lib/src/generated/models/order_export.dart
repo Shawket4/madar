@@ -50,6 +50,7 @@ class OrderExport {
     this.serviceChargeWaivedAt,
     this.serviceChargeWaivedBy,
     this.serviceChargeWaivedByName,
+    this.serviceMode,
     required this.shiftId,
     this.startedBy,
     this.startedByName,
@@ -208,6 +209,7 @@ class OrderExport {
       json['service_charge_waived_by_name'],
       'OrderExport.service_charge_waived_by_name',
     ),
+    serviceMode: decStringN(json['service_mode'], 'OrderExport.service_mode'),
     shiftId: decString(json['shift_id'], 'OrderExport.shift_id'),
     startedBy: decStringN(json['started_by'], 'OrderExport.started_by'),
     startedByName: decStringN(
@@ -417,6 +419,12 @@ class OrderExport {
 
   final String? serviceChargeWaivedByName;
 
+  /// How the customer takes the order: `takeaway` (Pickup) | `dine_in`. The
+  /// cart's Pickup / Dine in toggle, stored on every order of every plan; a
+  /// sale made on a till that never sent it is `takeaway`. Sales reports split
+  /// by it (`GET /reports/sales` → `by_service_mode`).
+  final String? serviceMode;
+
   /// DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0).
   final String shiftId;
 
@@ -581,6 +589,8 @@ class OrderExport {
     if (serviceChargeWaivedByName != null ||
         explicitNulls.contains('service_charge_waived_by_name'))
       'service_charge_waived_by_name': serviceChargeWaivedByName,
+    if (serviceMode != null || explicitNulls.contains('service_mode'))
+      'service_mode': serviceMode,
     'shift_id': shiftId,
     if (startedBy != null || explicitNulls.contains('started_by'))
       'started_by': startedBy,

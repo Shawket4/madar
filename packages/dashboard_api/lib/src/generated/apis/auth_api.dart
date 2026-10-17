@@ -26,6 +26,43 @@ class AuthApi {
     );
   }
 
+  /// A kitchen screen's sign-in: no person, no account (owner, 2026-10-11). The
+  /// screen was activated once with a code from the dashboard's branch plan and
+  /// keeps the credential activation handed it; with it, this mints the
+  /// screen's session whenever the last one runs out, so the kitchen never signs
+  /// in again.
+  ///
+  /// The gate is the device credential (`X-Madar-Device` + `X-Madar-Device-Token`,
+  /// as for activation), on a live `kds` device bound to a branch. The session's
+  /// subject is the screen's own principal (migration
+  /// `20261011100000_kitchen_screen_principal.sql`), made here the first time:
+  /// role `kitchen`, assigned to the screen's branch, so it holds exactly the
+  /// kitchen role's capabilities there (`kitchen.display.read`, `kitchen.bump`)
+  /// and nothing else. Same response as `/auth/login`, so a client reuses its
+  /// whole sign-in path.
+  ///
+  /// `POST /auth/device-session` (device_session)
+  Future<LoginResponse> deviceSession({
+    required String xMadarDevice,
+    required String xMadarDeviceToken,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/auth/device-session',
+        headers: {
+          'X-Madar-Device': queryValue(xMadarDevice),
+          'X-Madar-Device-Token': queryValue(xMadarDeviceToken),
+        },
+      ),
+    );
+    return decodeResponse(
+      response,
+      'device_session',
+      (json) => decObject(json, 'device_session', LoginResponse.fromJson),
+    );
+  }
+
   /// `POST /auth/login` (login)
   Future<LoginResponse> login({required LoginRequest body}) async {
     final response = await _transport.send(

@@ -5,6 +5,7 @@ part of '../models.dart';
 @immutable
 class DeliveryMenuCategory {
   const DeliveryMenuCategory({
+    required this.displayOrder,
     required this.id,
     this.imageUrl,
     required this.name,
@@ -14,6 +15,10 @@ class DeliveryMenuCategory {
 
   factory DeliveryMenuCategory.fromJson(Map<String, Object?> json) =>
       DeliveryMenuCategory(
+        displayOrder: decInt(
+          json['display_order'],
+          'DeliveryMenuCategory.display_order',
+        ),
         id: decString(json['id'], 'DeliveryMenuCategory.id'),
         imageUrl: decStringN(
           json['image_url'],
@@ -25,6 +30,12 @@ class DeliveryMenuCategory {
           'DeliveryMenuCategory.name_translations',
         ),
       );
+
+  /// The dashboard's drag-and-drop position (lower first). `categories`
+  /// already comes in the POS's order (madar-catalog `order`: this, then
+  /// the English name, then `id`); a page shown in another language
+  /// re-orders by the name it shows (madar-web `category_order`).
+  final int displayOrder;
 
   final String id;
 
@@ -39,6 +50,7 @@ class DeliveryMenuCategory {
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    'display_order': displayOrder,
     'id': id,
     if (imageUrl != null || explicitNulls.contains('image_url'))
       'image_url': imageUrl,

@@ -54,6 +54,7 @@ class DashboardApi {
   late final ReportsApi reports = ReportsApi(transport);
   late final ReservationsApi reservations = ReservationsApi(transport);
   late final ShiftsApi shifts = ShiftsApi(transport);
+  late final SignupApi signup = SignupApi(transport);
   late final StaffApi staff = StaffApi(transport);
   late final StaffAuthApi staffAuth = StaffAuthApi(transport);
   late final StaffPoolApi staffPool = StaffPoolApi(transport);

@@ -63,6 +63,13 @@ const List<ApiOperation> apiOperations = [
   ),
   ApiOperation('top_up', 'POST', '/sync/assets', 'assets', 'topUp'),
   ApiOperation('activate', 'POST', '/auth/activate-device', 'auth', 'activate'),
+  ApiOperation(
+    'device_session',
+    'POST',
+    '/auth/device-session',
+    'auth',
+    'deviceSession',
+  ),
   ApiOperation('login', 'POST', '/auth/login', 'auth', 'login'),
   ApiOperation('me', 'GET', '/auth/me', 'auth', 'me'),
   ApiOperation(
@@ -2025,6 +2032,14 @@ const List<ApiOperation> apiOperations = [
     'orgs',
     'completeOnboarding',
   ),
+  ApiOperation('get_org_plan', 'GET', '/orgs/{id}/plan', 'orgs', 'getOrgPlan'),
+  ApiOperation(
+    'put_active_till',
+    'PUT',
+    '/orgs/{id}/plan/active-till',
+    'orgs',
+    'putActiveTill',
+  ),
   ApiOperation(
     'public_org_brand',
     'GET',
@@ -2887,6 +2902,21 @@ const List<ApiOperation> apiOperations = [
     '/shifts/{shift_id}/report',
     'shifts',
     'getShiftReport',
+  ),
+  ApiOperation('signup', 'POST', '/public/signup', 'signup', 'signup'),
+  ApiOperation(
+    'signup_otp',
+    'POST',
+    '/public/signup/otp',
+    'signup',
+    'signupOtp',
+  ),
+  ApiOperation(
+    'signup_verify',
+    'POST',
+    '/public/signup/verify',
+    'signup',
+    'signupVerify',
   ),
   ApiOperation(
     'list_adjustments',
@@ -3833,6 +3863,13 @@ const List<ApiOperation> apiOperations = [
     'varianceReport',
   ),
   ApiOperation('pull', 'POST', '/sync/pull', 'sync', 'pull'),
+  ApiOperation(
+    'replay_batch',
+    'POST',
+    '/sync/replay/batch',
+    'sync',
+    'replayBatch',
+  ),
   ApiOperation(
     'legacy_list_till_entities',
     'GET',

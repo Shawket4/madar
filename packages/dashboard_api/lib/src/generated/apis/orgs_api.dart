@@ -2,16 +2,23 @@
 // ignore_for_file: type=lint
 part of '../apis.dart';
 
-/// Organization CRUD. Super-admin only.
+/// Organization CRUD. Super-admin only. Also the plan (`free` | `paid`): `GET /orgs/{id}/plan`, the owner's choice of active till.
 class OrgsApi {
   const OrgsApi(this._transport);
 
   final ApiTransport _transport;
 
   /// `GET /orgs` (list_orgs)
-  Future<List<Org>> listOrgs() async {
+  Future<List<Org>> listOrgs({String? plan, String? signupSource}) async {
     final response = await _transport.send(
-      ApiRequest(method: 'GET', path: '/orgs'),
+      ApiRequest(
+        method: 'GET',
+        path: '/orgs',
+        query: {
+          if (plan != null) 'plan': [queryValue(plan)],
+          if (signupSource != null) 'signup_source': [queryValue(signupSource)],
+        },
+      ),
     );
     return decodeResponse(
       response,
@@ -263,6 +270,43 @@ class OrgsApi {
       'complete_onboarding',
       (json) =>
           decObject(json, 'complete_onboarding', OnboardingStatus.fromJson),
+    );
+  }
+
+  /// The org's plan, what it allows, and each branch's tills.
+  ///
+  /// `GET /orgs/{id}/plan` (get_org_plan)
+  Future<PlanState> getOrgPlan({required String id}) async {
+    final response = await _transport.send(
+      ApiRequest(method: 'GET', path: '/orgs/${pathSegment(id)}/plan'),
+    );
+    return decodeResponse(
+      response,
+      'get_org_plan',
+      (json) => decObject(json, 'get_org_plan', PlanState.fromJson),
+    );
+  }
+
+  /// Choose which till a branch sells on (Free plan). The chosen till is active,
+  /// every other POS till of the branch is switched off. The org's owner, or a
+  /// super admin; a paid org has no inactive tills (409 `PLAN_NOT_FREE`).
+  ///
+  /// `PUT /orgs/{id}/plan/active-till` (put_active_till)
+  Future<PlanState> putActiveTill({
+    required String id,
+    required ActiveTillRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'PUT',
+        path: '/orgs/${pathSegment(id)}/plan/active-till',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'put_active_till',
+      (json) => decObject(json, 'put_active_till', PlanState.fromJson),
     );
   }
 

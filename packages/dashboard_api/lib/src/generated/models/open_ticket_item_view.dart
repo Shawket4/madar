@@ -6,9 +6,11 @@ part of '../models.dart';
 class OpenTicketItemView {
   const OpenTicketItemView({
     required this.id,
+    this.itemName,
     required this.line,
     required this.lineTotal,
     this.menuItemId,
+    this.quantity,
     required this.roundFiredAt,
     required this.roundNumber,
     required this.voided,
@@ -18,12 +20,14 @@ class OpenTicketItemView {
   factory OpenTicketItemView.fromJson(Map<String, Object?> json) =>
       OpenTicketItemView(
         id: decString(json['id'], 'OpenTicketItemView.id'),
+        itemName: decStringN(json['item_name'], 'OpenTicketItemView.item_name'),
         line: json['line'],
         lineTotal: decInt(json['line_total'], 'OpenTicketItemView.line_total'),
         menuItemId: decStringN(
           json['menu_item_id'],
           'OpenTicketItemView.menu_item_id',
         ),
+        quantity: decIntN(json['quantity'], 'OpenTicketItemView.quantity'),
         roundFiredAt: decDateTime(
           json['round_fired_at'],
           'OpenTicketItemView.round_fired_at',
@@ -37,12 +41,18 @@ class OpenTicketItemView {
 
   final String id;
 
+  /// The line's name and quantity from its relational columns (DB Phase
+  /// 5.1). Additive: older tills keep reading them out of `line`.
+  final String? itemName;
+
   /// The frozen priced SnapshotLine (name, size, addons, totals).
   final Object? line;
 
   final int lineTotal;
 
   final String? menuItemId;
+
+  final int? quantity;
 
   /// When the round this line came in on was fired. A bill is read as a
   /// sequence of visits to the table — "the drinks at seven, the food at
@@ -60,10 +70,14 @@ class OpenTicketItemView {
 
   Map<String, Object?> toJson() => <String, Object?>{
     'id': id,
+    if (itemName != null || explicitNulls.contains('item_name'))
+      'item_name': itemName,
     'line': line,
     'line_total': lineTotal,
     if (menuItemId != null || explicitNulls.contains('menu_item_id'))
       'menu_item_id': menuItemId,
+    if (quantity != null || explicitNulls.contains('quantity'))
+      'quantity': quantity,
     'round_fired_at': encDateTime(roundFiredAt),
     'round_number': roundNumber,
     'voided': voided,

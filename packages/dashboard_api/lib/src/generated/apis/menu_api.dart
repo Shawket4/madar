@@ -43,16 +43,9 @@ class MenuApi {
   }
 
   /// `POST /addon-items` (create_addon_item)
-  Future<AddonItem> createAddonItem({
-    required CreateAddonItemRequest body,
-  }) async {
-    final response = await _transport.send(
+  Future<void> createAddonItem({required CreateAddonItemRequest body}) async {
+    await _transport.send(
       ApiRequest(method: 'POST', path: '/addon-items', body: body.toJson()),
-    );
-    return decodeResponse(
-      response,
-      'create_addon_item',
-      (json) => decObject(json, 'create_addon_item', AddonItem.fromJson),
     );
   }
 
@@ -99,21 +92,16 @@ class MenuApi {
   }
 
   /// `PATCH /addon-items/{id}` (update_addon_item)
-  Future<AddonItem> updateAddonItem({
+  Future<void> updateAddonItem({
     required String id,
     required UpdateAddonItemRequest body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'PATCH',
         path: '/addon-items/${pathSegment(id)}',
         body: body.toJson(),
       ),
-    );
-    return decodeResponse(
-      response,
-      'update_addon_item',
-      (json) => decObject(json, 'update_addon_item', AddonItem.fromJson),
     );
   }
 
@@ -163,23 +151,14 @@ class MenuApi {
   }
 
   /// `PUT /branch-addon-overrides` (upsert_branch_addon_override)
-  Future<BranchAddonOverride> upsertBranchAddonOverride({
+  Future<void> upsertBranchAddonOverride({
     required BranchAddonOverrideInput body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'PUT',
         path: '/branch-addon-overrides',
         body: body.toJson(),
-      ),
-    );
-    return decodeResponse(
-      response,
-      'upsert_branch_addon_override',
-      (json) => decObject(
-        json,
-        'upsert_branch_addon_override',
-        BranchAddonOverride.fromJson,
       ),
     );
   }
@@ -230,23 +209,14 @@ class MenuApi {
   }
 
   /// `PUT /branch-menu-overrides` (upsert_branch_menu_override)
-  Future<BranchMenuOverride> upsertBranchMenuOverride({
+  Future<void> upsertBranchMenuOverride({
     required BranchMenuOverrideInput body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'PUT',
         path: '/branch-menu-overrides',
         body: body.toJson(),
-      ),
-    );
-    return decodeResponse(
-      response,
-      'upsert_branch_menu_override',
-      (json) => decObject(
-        json,
-        'upsert_branch_menu_override',
-        BranchMenuOverride.fromJson,
       ),
     );
   }
@@ -713,21 +683,16 @@ class MenuApi {
   }
 
   /// `POST /menu-items/{id}/addon-slots` (create_addon_slot)
-  Future<AddonSlot> createAddonSlot({
+  Future<void> createAddonSlot({
     required String id,
     required CreateAddonSlotRequest body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'POST',
         path: '/menu-items/${pathSegment(id)}/addon-slots',
         body: body.toJson(),
       ),
-    );
-    return decodeResponse(
-      response,
-      'create_addon_slot',
-      (json) => decObject(json, 'create_addon_slot', AddonSlot.fromJson),
     );
   }
 
@@ -746,12 +711,12 @@ class MenuApi {
   }
 
   /// `PATCH /menu-items/{id}/addon-slots/{slot_id}` (update_addon_slot)
-  Future<AddonSlot> updateAddonSlot({
+  Future<void> updateAddonSlot({
     required String id,
     required String slotId,
     required UpdateAddonSlotRequest body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'PATCH',
         path:
@@ -759,32 +724,18 @@ class MenuApi {
         body: body.toJson(),
       ),
     );
-    return decodeResponse(
-      response,
-      'update_addon_slot',
-      (json) => decObject(json, 'update_addon_slot', AddonSlot.fromJson),
-    );
   }
 
   /// `PUT /menu-items/{id}/allowed-addons` (put_allowed_addons)
-  Future<List<String>> putAllowedAddons({
+  Future<void> putAllowedAddons({
     required String id,
     required PutAllowedAddonsRequest body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'PUT',
         path: '/menu-items/${pathSegment(id)}/allowed-addons',
         body: body.toJson(),
-      ),
-    );
-    return decodeResponse(
-      response,
-      'put_allowed_addons',
-      (json) => decList<String>(
-        json,
-        'put_allowed_addons',
-        (e) => decString(e, 'put_allowed_addons[]'),
       ),
     );
   }
@@ -874,22 +825,16 @@ class MenuApi {
   }
 
   /// `POST /menu-items/{id}/optionals` (create_optional_field)
-  Future<OptionalField> createOptionalField({
+  Future<void> createOptionalField({
     required String id,
     required CreateOptionalFieldRequest body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'POST',
         path: '/menu-items/${pathSegment(id)}/optionals',
         body: body.toJson(),
       ),
-    );
-    return decodeResponse(
-      response,
-      'create_optional_field',
-      (json) =>
-          decObject(json, 'create_optional_field', OptionalField.fromJson),
     );
   }
 
@@ -908,24 +853,18 @@ class MenuApi {
   }
 
   /// `PATCH /menu-items/{id}/optionals/{field_id}` (update_optional_field)
-  Future<OptionalField> updateOptionalField({
+  Future<void> updateOptionalField({
     required String id,
     required String fieldId,
     required UpdateOptionalFieldRequest body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'PATCH',
         path:
             '/menu-items/${pathSegment(id)}/optionals/${pathSegment(fieldId)}',
         body: body.toJson(),
       ),
-    );
-    return decodeResponse(
-      response,
-      'update_optional_field',
-      (json) =>
-          decObject(json, 'update_optional_field', OptionalField.fromJson),
     );
   }
 
@@ -953,41 +892,26 @@ class MenuApi {
   }
 
   /// `GET /menu-items/{id}/overrides` (list_addon_overrides)
-  Future<List<AddonOverride>> listAddonOverrides({required String id}) async {
-    final response = await _transport.send(
+  Future<void> listAddonOverrides({required String id}) async {
+    await _transport.send(
       ApiRequest(
         method: 'GET',
         path: '/menu-items/${pathSegment(id)}/overrides',
       ),
     );
-    return decodeResponse(
-      response,
-      'list_addon_overrides',
-      (json) => decList<AddonOverride>(
-        json,
-        'list_addon_overrides',
-        (e) => decObject(e, 'list_addon_overrides[]', AddonOverride.fromJson),
-      ),
-    );
   }
 
   /// `POST /menu-items/{id}/overrides` (upsert_addon_override)
-  Future<AddonOverride> upsertAddonOverride({
+  Future<void> upsertAddonOverride({
     required String id,
     required UpsertAddonOverrideRequest body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'POST',
         path: '/menu-items/${pathSegment(id)}/overrides',
         body: body.toJson(),
       ),
-    );
-    return decodeResponse(
-      response,
-      'upsert_addon_override',
-      (json) =>
-          decObject(json, 'upsert_addon_override', AddonOverride.fromJson),
     );
   }
 

@@ -81,6 +81,7 @@
     "label": "text",
     "last_seen_at": "2026-10-08T07:00:00.000Z",
     "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "plan_inactive": true,
     "platform": "text",
     "retired_at": "2026-10-08T07:00:00.000Z"
    },
@@ -140,9 +141,11 @@
    "items": [
     {
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "item_name": "text",
      "line": "any",
      "line_total": 7,
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 7,
      "round_fired_at": "2026-10-08T07:00:00.000Z",
      "round_number": 7,
      "voided": true
@@ -613,6 +616,13 @@
      "items": [],
      "quantity_sold": 7,
      "revenue": 7
+    }
+   ],
+   "by_service_mode": [
+    {
+     "orders": 7,
+     "revenue": 7,
+     "service_mode": "text"
     }
    ],
    "cash_tips": 7,
@@ -1492,46 +1502,6 @@
    "work_shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "work_shift_name": "text",
    "worked_minutes": 7
-  },
-  "create_addon_item": {
-   "addon_type": "text",
-   "created_at": "2026-10-08T07:00:00.000Z",
-   "default_price": 7,
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredients": [
-    {
-     "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-     "category_slug": "text",
-     "ingredient_name": "text",
-     "ingredient_unit": "text",
-     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-     "quantity_used": 1.5
-    }
-   ],
-   "is_active": true,
-   "name": "text",
-   "name_translations": {
-    "a": 1
-   },
-   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "pricing": {
-    "a": 1
-   },
-   "primary_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "updated_at": "2026-10-08T07:00:00.000Z"
-  },
-  "create_addon_slot": {
-   "addon_type": "text",
-   "created_at": "2026-10-08T07:00:00.000Z",
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "is_required": true,
-   "label": "text",
-   "label_translations": {
-    "a": 1
-   },
-   "max_selections": 7,
-   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "min_selections": 7
   },
   "create_adjustment": {
    "amount_piastres": 7,
@@ -2416,9 +2386,11 @@
    "items": [
     {
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "item_name": "text",
      "line": "any",
      "line_total": 7,
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 7,
      "round_fired_at": "2026-10-08T07:00:00.000Z",
      "round_number": 7,
      "voided": true
@@ -2460,23 +2432,6 @@
    ],
    "replaces_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "sort": 7
-  },
-  "create_optional_field": {
-   "created_at": "2026-10-08T07:00:00.000Z",
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredient_name": "text",
-   "ingredient_unit": "text",
-   "is_active": true,
-   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "name": "text",
-   "name_translations": {
-    "a": 1
-   },
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "price": 7,
-   "quantity_used": 1.5,
-   "size_label": "text",
-   "updated_at": "2026-10-08T07:00:00.000Z"
   },
   "create_order": {
    "amount_tendered": 7,
@@ -2597,6 +2552,7 @@
    "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
    "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "service_charge_waived_by_name": "text",
+   "service_mode": "text",
    "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by_name": "text",
@@ -2639,10 +2595,12 @@
     "text"
    ],
    "name": "text",
+   "plan": "text",
    "receipt_footer": "text",
    "require_table_for_orders": true,
    "service_charge_rate": 1.5,
    "service_charge_taxable": true,
+   "signup_source": "text",
    "slug": "text",
    "social_links": {
     "a": 1
@@ -3552,6 +3510,42 @@
    "zone_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "zone_name": "text"
   },
+  "device_session": {
+   "currency_code": "text",
+   "open_till": {
+    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "device_code": "text",
+    "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "device_label": "text",
+    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "opened_at": "2026-10-08T07:00:00.000Z",
+    "opened_while_another_open": true,
+    "status": "open",
+    "teller_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "teller_name": "text",
+    "verification": "server"
+   },
+   "plan": "text",
+   "require_table_for_orders": true,
+   "tax_policy": {
+    "service_charge_rate": 1.5,
+    "service_charge_taxable": true,
+    "tax_inclusive": true,
+    "tax_rate": 1.5
+   },
+   "tax_rate": 1.5,
+   "token": "text",
+   "user": {
+    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "email": "text",
+    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "is_active": true,
+    "name": "text",
+    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "phone": "text",
+    "role": "super_admin"
+   }
+  },
   "device_snapshot": {
    "a": 1
   },
@@ -3841,6 +3835,7 @@
      "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
      "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "service_charge_waived_by_name": "text",
+     "service_mode": "text",
      "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by_name": "text",
@@ -5367,9 +5362,11 @@
    "items": [
     {
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "item_name": "text",
      "line": "any",
      "line_total": 7,
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 7,
      "round_fired_at": "2026-10-08T07:00:00.000Z",
      "round_number": 7,
      "voided": true
@@ -5511,6 +5508,7 @@
    "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
    "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "service_charge_waived_by_name": "text",
+   "service_mode": "text",
    "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by_name": "text",
@@ -5553,10 +5551,12 @@
     "text"
    ],
    "name": "text",
+   "plan": "text",
    "receipt_footer": "text",
    "require_table_for_orders": true,
    "service_charge_rate": 1.5,
    "service_charge_taxable": true,
+   "signup_source": "text",
    "slug": "text",
    "social_links": {
     "a": 1
@@ -5570,6 +5570,25 @@
     "text"
    ],
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+  },
+  "get_org_plan": {
+   "branch_limit": 7,
+   "branches": [
+    {
+     "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "tills": []
+    }
+   ],
+   "entitlements": {
+    "a": 1
+   },
+   "inactive_tills": 7,
+   "live_branches": 7,
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "over_branch_limit": true,
+   "plan": "text",
+   "signup_source": "text"
   },
   "get_permission_matrix": [
    {
@@ -6470,25 +6489,6 @@
     "updated_at": "2026-10-08T07:00:00.000Z"
    }
   ],
-  "list_addon_overrides": [
-   {
-    "addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "addon_item_name": "text",
-    "combo_addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "combo_addon_item_name": "text",
-    "created_at": "2026-10-08T07:00:00.000Z",
-    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "ingredient_name": "text",
-    "ingredient_unit": "text",
-    "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "quantity_used": 1.5,
-    "replaces_ingredient_name": "text",
-    "replaces_org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-    "size_label": "text",
-    "updated_at": "2026-10-08T07:00:00.000Z"
-   }
-  ],
   "list_addon_slots": [
    {
     "addon_type": "text",
@@ -7223,6 +7223,7 @@
     "label": "text",
     "last_seen_at": "2026-10-08T07:00:00.000Z",
     "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "plan_inactive": true,
     "platform": "text",
     "retired_at": "2026-10-08T07:00:00.000Z"
    }
@@ -7776,6 +7777,7 @@
      "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
      "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "service_charge_waived_by_name": "text",
+     "service_mode": "text",
      "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by_name": "text",
@@ -7858,10 +7860,12 @@
      "text"
     ],
     "name": "text",
+    "plan": "text",
     "receipt_footer": "text",
     "require_table_for_orders": true,
     "service_charge_rate": 1.5,
     "service_charge_taxable": true,
+    "signup_source": "text",
     "slug": "text",
     "social_links": {
      "a": 1
@@ -8579,6 +8583,7 @@
     "teller_name": "text",
     "verification": "server"
    },
+   "plan": "text",
    "require_table_for_orders": true,
    "tax_policy": {
     "service_charge_rate": 1.5,
@@ -9042,6 +9047,7 @@
   "mcp_server_card": "any",
   "me": {
    "currency_code": "text",
+   "plan": "text",
    "require_table_for_orders": true,
    "tax_policy": {
     "service_charge_rate": 1.5,
@@ -9234,9 +9240,11 @@
    "items": [
     {
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "item_name": "text",
      "line": "any",
      "line_total": 7,
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 7,
      "round_fired_at": "2026-10-08T07:00:00.000Z",
      "round_number": 7,
      "voided": true
@@ -10558,10 +10566,12 @@
      "text"
     ],
     "name": "text",
+    "plan": "text",
     "receipt_footer": "text",
     "require_table_for_orders": true,
     "service_charge_rate": 1.5,
     "service_charge_taxable": true,
+    "signup_source": "text",
     "slug": "text",
     "social_links": {
      "a": 1
@@ -10641,6 +10651,7 @@
    ],
    "categories": [
     {
+     "display_order": 7,
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "image_url": "text",
      "name": "text",
@@ -10849,6 +10860,7 @@
    ],
    "categories": [
     {
+     "display_order": 7,
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "image_url": "text",
      "name": "text",
@@ -10954,9 +10966,11 @@
    "items": [
     {
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "item_name": "text",
      "line": "any",
      "line_total": 7,
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 7,
      "round_fired_at": "2026-10-08T07:00:00.000Z",
      "round_number": 7,
      "voided": true
@@ -11008,10 +11022,12 @@
    },
    "full": true,
    "has_more": true,
+   "ledger_retention_hours": 7,
    "ledger_window": {
     "from": "text"
    },
    "next": 7,
+   "protocol": 7,
    "resync_required": true,
    "server_time": "text",
    "since": 7,
@@ -11067,9 +11083,25 @@
    "work_shift_name": "text",
    "worked_minutes": 7
   },
-  "put_allowed_addons": [
-   "text"
-  ],
+  "put_active_till": {
+   "branch_limit": 7,
+   "branches": [
+    {
+     "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "tills": []
+    }
+   ],
+   "entitlements": {
+    "a": 1
+   },
+   "inactive_tills": 7,
+   "live_branches": 7,
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "over_branch_limit": true,
+   "plan": "text",
+   "signup_source": "text"
+  },
   "put_attendance_settings": {
    "absence_deduction_days": 1.5,
    "advance_cap_percent": 1.5,
@@ -11995,6 +12027,7 @@
    "label": "text",
    "last_seen_at": "2026-10-08T07:00:00.000Z",
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "plan_inactive": true,
    "platform": "text",
    "retired_at": "2026-10-08T07:00:00.000Z"
   },
@@ -12051,6 +12084,23 @@
     "supplier_name": "text"
    }
   ],
+  "replay_batch": {
+   "applied": 7,
+   "protocol": 7,
+   "results": [
+    {
+     "body": {
+      "a": 1
+     },
+     "index": 7,
+     "outcome": "applied",
+     "status": 7,
+     "sync_seq": 7
+    }
+   ],
+   "stopped_at": 7,
+   "sync_seq": 7
+  },
   "replenishment": [
    {
     "available": 1.5,
@@ -12821,6 +12871,7 @@
    "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
    "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "service_charge_waived_by_name": "text",
+   "service_mode": "text",
    "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by_name": "text",
@@ -12891,6 +12942,53 @@
    "total_tax": 7,
    "total_tips": 7,
    "voided_orders": 7
+  },
+  "signup": {
+   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "currency_code": "text",
+   "open_till": {
+    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "device_code": "text",
+    "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "device_label": "text",
+    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "opened_at": "2026-10-08T07:00:00.000Z",
+    "opened_while_another_open": true,
+    "status": "open",
+    "teller_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "teller_name": "text",
+    "verification": "server"
+   },
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "plan": "text",
+   "require_table_for_orders": true,
+   "tax_policy": {
+    "service_charge_rate": 1.5,
+    "service_charge_taxable": true,
+    "tax_inclusive": true,
+    "tax_rate": 1.5
+   },
+   "tax_rate": 1.5,
+   "token": "text",
+   "user": {
+    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "email": "text",
+    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "is_active": true,
+    "name": "text",
+    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "phone": "text",
+    "role": "super_admin"
+   }
+  },
+  "signup_otp": {
+   "expires_in_seconds": 7,
+   "resend_after_seconds": 7,
+   "sent": true
+  },
+  "signup_verify": {
+   "expires_in_seconds": 7,
+   "signup_token": "text"
   },
   "staff_otp_request": {
    "dev_code": "text",
@@ -13230,46 +13328,6 @@
    "waive_reason": "text",
    "waived_at": "2026-10-08T07:00:00.000Z"
   },
-  "update_addon_item": {
-   "addon_type": "text",
-   "created_at": "2026-10-08T07:00:00.000Z",
-   "default_price": 7,
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredients": [
-    {
-     "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-     "category_slug": "text",
-     "ingredient_name": "text",
-     "ingredient_unit": "text",
-     "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-     "quantity_used": 1.5
-    }
-   ],
-   "is_active": true,
-   "name": "text",
-   "name_translations": {
-    "a": 1
-   },
-   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "pricing": {
-    "a": 1
-   },
-   "primary_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "updated_at": "2026-10-08T07:00:00.000Z"
-  },
-  "update_addon_slot": {
-   "addon_type": "text",
-   "created_at": "2026-10-08T07:00:00.000Z",
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "is_required": true,
-   "label": "text",
-   "label_translations": {
-    "a": 1
-   },
-   "max_selections": 7,
-   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "min_selections": 7
-  },
   "update_booking": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "cancel_reason": "text",
@@ -13548,6 +13606,7 @@
    "label": "text",
    "last_seen_at": "2026-10-08T07:00:00.000Z",
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "plan_inactive": true,
    "platform": "text",
    "retired_at": "2026-10-08T07:00:00.000Z"
   },
@@ -13634,23 +13693,6 @@
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "updated_at": "2026-10-08T07:00:00.000Z"
   },
-  "update_optional_field": {
-   "created_at": "2026-10-08T07:00:00.000Z",
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredient_name": "text",
-   "ingredient_unit": "text",
-   "is_active": true,
-   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "name": "text",
-   "name_translations": {
-    "a": 1
-   },
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "price": 7,
-   "quantity_used": 1.5,
-   "size_label": "text",
-   "updated_at": "2026-10-08T07:00:00.000Z"
-  },
   "update_org": {
    "brand_accent": "text",
    "brand_background": "text",
@@ -13667,10 +13709,12 @@
     "text"
    ],
    "name": "text",
+   "plan": "text",
    "receipt_footer": "text",
    "require_table_for_orders": true,
    "service_charge_rate": 1.5,
    "service_charge_taxable": true,
+   "signup_source": "text",
    "slug": "text",
    "social_links": {
     "a": 1
@@ -13872,10 +13916,12 @@
     "text"
    ],
    "name": "text",
+   "plan": "text",
    "receipt_footer": "text",
    "require_table_for_orders": true,
    "service_charge_rate": 1.5,
    "service_charge_taxable": true,
+   "signup_source": "text",
    "slug": "text",
    "social_links": {
     "a": 1
@@ -13900,10 +13946,12 @@
     "text"
    ],
    "name": "text",
+   "plan": "text",
    "receipt_footer": "text",
    "require_table_for_orders": true,
    "service_charge_rate": 1.5,
    "service_charge_taxable": true,
+   "signup_source": "text",
    "slug": "text",
    "social_links": {
     "a": 1
@@ -13911,75 +13959,6 @@
    "tax_inclusive": true,
    "tax_rate": 1.5,
    "timezone": "text"
-  },
-  "upsert_addon_ingredient": {
-   "addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredient_name": "text",
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "quantity_used": 1.5,
-   "unit": "text",
-   "usable_quantity": 1.5
-  },
-  "upsert_addon_override": {
-   "addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "addon_item_name": "text",
-   "combo_addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "combo_addon_item_name": "text",
-   "created_at": "2026-10-08T07:00:00.000Z",
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredient_name": "text",
-   "ingredient_unit": "text",
-   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "quantity_used": 1.5,
-   "replaces_ingredient_name": "text",
-   "replaces_org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "size_label": "text",
-   "updated_at": "2026-10-08T07:00:00.000Z"
-  },
-  "upsert_branch_addon_override": {
-   "addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "is_available": true,
-   "price_override": 7,
-   "updated_at": "2026-10-08T07:00:00.000Z"
-  },
-  "upsert_branch_menu_override": {
-   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "is_available": true,
-   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "price_override": 7,
-   "sizes": [
-    {
-     "price_override": 7,
-     "size_label": "text"
-    }
-   ],
-   "updated_at": "2026-10-08T07:00:00.000Z"
-  },
-  "upsert_channel_addon_override": {
-   "addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "channel": "text",
-   "is_available": true,
-   "price_override": 7
-  },
-  "upsert_channel_override": {
-   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "channel": "text",
-   "is_available": true,
-   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "price_override": 7
-  },
-  "upsert_drink_recipe": {
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredient_name": "text",
-   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "quantity_used": 1.5,
-   "size_label": "text",
-   "unit": "text"
   },
   "upsert_items": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -14120,9 +14099,11 @@
    "items": [
     {
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "item_name": "text",
      "line": "any",
      "line_total": 7,
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 7,
      "round_fired_at": "2026-10-08T07:00:00.000Z",
      "round_number": 7,
      "voided": true
@@ -14197,6 +14178,7 @@
    "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
    "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "service_charge_waived_by_name": "text",
+   "service_mode": "text",
    "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by_name": "text",
@@ -14244,9 +14226,11 @@
    "items": [
     {
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "item_name": "text",
      "line": "any",
      "line_total": 7,
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 7,
      "round_fired_at": "2026-10-08T07:00:00.000Z",
      "round_number": 7,
      "voided": true
@@ -14511,6 +14495,7 @@
     "label": "text",
     "last_seen_at": "2026-10-08T07:00:00.000Z",
     "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "plan_inactive": true,
     "platform": "text",
     "retired_at": "2026-10-08T07:00:00.000Z"
    },
@@ -14534,6 +14519,10 @@
    "used_by_device": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
   "ActivationCodeState": "free",
+  "ActiveTillRequest": {
+   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+  },
   "AddRoundRequest": {
    "idempotency_key": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "items": [
@@ -14612,23 +14601,6 @@
    "ingredient_unit": "text",
    "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "quantity_used": 1.5
-  },
-  "AddonOverride": {
-   "addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "addon_item_name": "text",
-   "combo_addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "combo_addon_item_name": "text",
-   "created_at": "2026-10-08T07:00:00.000Z",
-   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "ingredient_name": "text",
-   "ingredient_unit": "text",
-   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "quantity_used": 1.5,
-   "replaces_ingredient_name": "text",
-   "replaces_org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
-   "size_label": "text",
-   "updated_at": "2026-10-08T07:00:00.000Z"
   },
   "AddonSalesRow": {
    "addon_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -15648,6 +15620,13 @@
      "items": [],
      "quantity_sold": 7,
      "revenue": 7
+    }
+   ],
+   "by_service_mode": [
+    {
+     "orders": 7,
+     "revenue": 7,
+     "service_mode": "text"
     }
    ],
    "cash_tips": 7,
@@ -18060,6 +18039,7 @@
    ],
    "categories": [
     {
+     "display_order": 7,
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "image_url": "text",
      "name": "text",
@@ -18142,6 +18122,7 @@
    ]
   },
   "DeliveryMenuCategory": {
+   "display_order": 7,
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "image_url": "text",
    "name": "text",
@@ -18453,6 +18434,7 @@
    "label": "text",
    "last_seen_at": "2026-10-08T07:00:00.000Z",
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "plan_inactive": true,
    "platform": "text",
    "retired_at": "2026-10-08T07:00:00.000Z"
   },
@@ -18614,6 +18596,8 @@
   "ErrorBody": {
    "code": "text",
    "error": "text",
+   "error_ar": "text",
+   "feature": "text",
    "retry_after_seconds": 7,
    "till": {
     "a": 1
@@ -18721,6 +18705,7 @@
      "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
      "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "service_charge_waived_by_name": "text",
+     "service_mode": "text",
      "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by_name": "text",
@@ -19686,6 +19671,7 @@
     "teller_name": "text",
     "verification": "server"
    },
+   "plan": "text",
    "require_table_for_orders": true,
    "tax_policy": {
     "service_charge_rate": 1.5,
@@ -19980,6 +19966,7 @@
   },
   "MeResponse": {
    "currency_code": "text",
+   "plan": "text",
    "require_table_for_orders": true,
    "tax_policy": {
     "service_charge_rate": 1.5,
@@ -20910,9 +20897,11 @@
   },
   "OpenTicketItemView": {
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "item_name": "text",
    "line": "any",
    "line_total": 7,
    "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "quantity": 7,
    "round_fired_at": "2026-10-08T07:00:00.000Z",
    "round_number": 7,
    "voided": true
@@ -20941,9 +20930,11 @@
    "items": [
     {
      "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "item_name": "text",
      "line": "any",
      "line_total": 7,
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "quantity": 7,
      "round_fired_at": "2026-10-08T07:00:00.000Z",
      "round_number": 7,
      "voided": true
@@ -21050,6 +21041,7 @@
    "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
    "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "service_charge_waived_by_name": "text",
+   "service_mode": "text",
    "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by_name": "text",
@@ -21209,6 +21201,7 @@
    "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
    "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "service_charge_waived_by_name": "text",
+   "service_mode": "text",
    "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by_name": "text",
@@ -21351,6 +21344,7 @@
    "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
    "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "service_charge_waived_by_name": "text",
+   "service_mode": "text",
    "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "started_by_name": "text",
@@ -21734,10 +21728,12 @@
     "text"
    ],
    "name": "text",
+   "plan": "text",
    "receipt_footer": "text",
    "require_table_for_orders": true,
    "service_charge_rate": 1.5,
    "service_charge_taxable": true,
+   "signup_source": "text",
    "slug": "text",
    "social_links": {
     "a": 1
@@ -22024,6 +22020,7 @@
      "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
      "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "service_charge_waived_by_name": "text",
+     "service_mode": "text",
      "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by_name": "text",
@@ -22125,6 +22122,7 @@
      "service_charge_waived_at": "2026-10-08T07:00:00.000Z",
      "service_charge_waived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "service_charge_waived_by_name": "text",
+     "service_mode": "text",
      "shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "started_by_name": "text",
@@ -22570,6 +22568,20 @@
    ],
    "inside": true
   },
+  "PlanBranch": {
+   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "name": "text",
+   "tills": [
+    {
+     "active": true,
+     "code": "text",
+     "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "label": "text",
+     "last_sale_at": "2026-10-08T07:00:00.000Z",
+     "last_seen_at": "2026-10-08T07:00:00.000Z"
+    }
+   ]
+  },
   "PlanCategory": {
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "name": "text",
@@ -22621,6 +22633,33 @@
    ],
    "x": 1.5,
    "y": 1.5
+  },
+  "PlanState": {
+   "branch_limit": 7,
+   "branches": [
+    {
+     "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "tills": []
+    }
+   ],
+   "entitlements": {
+    "a": 1
+   },
+   "inactive_tills": 7,
+   "live_branches": 7,
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "over_branch_limit": true,
+   "plan": "text",
+   "signup_source": "text"
+  },
+  "PlanTill": {
+   "active": true,
+   "code": "text",
+   "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "label": "text",
+   "last_sale_at": "2026-10-08T07:00:00.000Z",
+   "last_seen_at": "2026-10-08T07:00:00.000Z"
   },
   "PlanVersionView": {
    "plan": {
@@ -22983,10 +23022,12 @@
      "text"
     ],
     "name": "text",
+    "plan": "text",
     "receipt_footer": "text",
     "require_table_for_orders": true,
     "service_charge_rate": 1.5,
     "service_charge_taxable": true,
+    "signup_source": "text",
     "slug": "text",
     "social_links": {
      "a": 1
@@ -23339,6 +23380,7 @@
    "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "ledger_page_size": 7,
    "limit": 7,
+   "protocol": 7,
    "snapshot_cursor": {
     "after_seq": 7,
     "horizon": 7,
@@ -23378,10 +23420,12 @@
    },
    "full": true,
    "has_more": true,
+   "ledger_retention_hours": 7,
    "ledger_window": {
     "from": "text"
    },
    "next": 7,
+   "protocol": 7,
    "resync_required": true,
    "server_time": "text",
    "since": 7,
@@ -24296,6 +24340,41 @@
    "percent_bps": 7,
    "value_minor": 7
   },
+  "ReplayBatchRequest": {
+   "ops": [
+    {
+     "a": 1
+    }
+   ],
+   "protocol": 7,
+   "stop_on_error": true
+  },
+  "ReplayBatchResponse": {
+   "applied": 7,
+   "protocol": 7,
+   "results": [
+    {
+     "body": {
+      "a": 1
+     },
+     "index": 7,
+     "outcome": "applied",
+     "status": 7,
+     "sync_seq": 7
+    }
+   ],
+   "stopped_at": 7,
+   "sync_seq": 7
+  },
+  "ReplayBatchResult": {
+   "body": {
+    "a": 1
+   },
+   "index": 7,
+   "outcome": "applied",
+   "status": 7,
+   "sync_seq": 7
+  },
   "ReplayFlag": {
    "author_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "author_name": "text",
@@ -24309,6 +24388,7 @@
    "reviewed_at": "2026-10-08T07:00:00.000Z",
    "reviewed_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
+  "ReplayOutcome": "applied",
   "ReplenishmentRow": {
    "available": 1.5,
    "category_name": "text",
@@ -24896,6 +24976,11 @@
    "count": 7,
    "section_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
+  "ServiceModeSales": {
+   "orders": 7,
+   "revenue": 7,
+   "service_mode": "text"
+  },
   "SetAssignmentsRequest": {
    "assignments": [
     {
@@ -25224,6 +25309,71 @@
    "params": {
     "a": 1
    }
+  },
+  "SignupOtpRequest": {
+   "phone": "text"
+  },
+  "SignupOtpResponse": {
+   "expires_in_seconds": 7,
+   "resend_after_seconds": 7,
+   "sent": true
+  },
+  "SignupRequest": {
+   "code": "text",
+   "email": "text",
+   "owner_name": "text",
+   "password": "text",
+   "phone": "text",
+   "shop_name": "text",
+   "signup_token": "text",
+   "template": "text",
+   "terms_version": "text"
+  },
+  "SignupResponse": {
+   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "currency_code": "text",
+   "open_till": {
+    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "device_code": "text",
+    "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "device_label": "text",
+    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "opened_at": "2026-10-08T07:00:00.000Z",
+    "opened_while_another_open": true,
+    "status": "open",
+    "teller_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "teller_name": "text",
+    "verification": "server"
+   },
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "plan": "text",
+   "require_table_for_orders": true,
+   "tax_policy": {
+    "service_charge_rate": 1.5,
+    "service_charge_taxable": true,
+    "tax_inclusive": true,
+    "tax_rate": 1.5
+   },
+   "tax_rate": 1.5,
+   "token": "text",
+   "user": {
+    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "email": "text",
+    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "is_active": true,
+    "name": "text",
+    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "phone": "text",
+    "role": "super_admin"
+   }
+  },
+  "SignupVerifyRequest": {
+   "code": "text",
+   "phone": "text"
+  },
+  "SignupVerifyResponse": {
+   "expires_in_seconds": 7,
+   "signup_token": "text"
   },
   "SizeBaseResult": {
    "base_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -26936,6 +27086,7 @@
     "text"
    ],
    "name": "text",
+   "plan": "text",
    "receipt_footer": "text",
    "require_table_for_orders": true,
    "service_charge_rate": 1.5,

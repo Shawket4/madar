@@ -9,6 +9,8 @@ class ErrorBody {
   const ErrorBody({
     this.code,
     required this.error,
+    this.errorAr,
+    this.feature,
     this.retryAfterSeconds,
     this.till,
     this.vars,
@@ -18,6 +20,8 @@ class ErrorBody {
   factory ErrorBody.fromJson(Map<String, Object?> json) => ErrorBody(
     code: decStringN(json['code'], 'ErrorBody.code'),
     error: decString(json['error'], 'ErrorBody.error'),
+    errorAr: decStringN(json['error_ar'], 'ErrorBody.error_ar'),
+    feature: decStringN(json['feature'], 'ErrorBody.feature'),
     retryAfterSeconds: decIntN(
       json['retry_after_seconds'],
       'ErrorBody.retry_after_seconds',
@@ -33,6 +37,13 @@ class ErrorBody {
 
   /// Human-readable error message.
   final String error;
+
+  /// A plan refusal's message in Arabic; `error` is the English one.
+  final String? errorAr;
+
+  /// A plan refusal's feature (`inventory`, `loyalty`, `online`, `bookings`,
+  /// `floor`, `kitchen`, `dawam`, `branding`, `basira`), when it is about one.
+  final String? feature;
 
   /// How long to wait before trying again, in seconds. Present on a
   /// `PIN_THROTTLED` refusal, absent everywhere else, so the PIN pad can run
@@ -54,6 +65,10 @@ class ErrorBody {
   Map<String, Object?> toJson() => <String, Object?>{
     if (code != null || explicitNulls.contains('code')) 'code': code,
     'error': error,
+    if (errorAr != null || explicitNulls.contains('error_ar'))
+      'error_ar': errorAr,
+    if (feature != null || explicitNulls.contains('feature'))
+      'feature': feature,
     if (retryAfterSeconds != null ||
         explicitNulls.contains('retry_after_seconds'))
       'retry_after_seconds': retryAfterSeconds,
