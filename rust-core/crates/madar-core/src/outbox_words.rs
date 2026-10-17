@@ -111,6 +111,27 @@ mod tests {
         );
     }
 
+    /// Every loyalty award code is worded for a stuck row, in both languages,
+    /// from the same keys the teller who pressed the button was shown.
+    #[test]
+    fn a_stuck_award_says_why_in_both_languages() {
+        for (code, key) in crate::loyalty::AWARD_REFUSAL_CODES {
+            let body = format!(r#"{{"error":"Conflict: x","code":"{code}"}}"#);
+            for (status, locale) in [(409, "en"), (404, "en"), (409, "ar"), (404, "ar")] {
+                let said = refusal(locale, "award_loyalty_points", status, &body);
+                assert_eq!(said, tr(locale, key), "{code} {locale}");
+                assert!(!said.starts_with("sync."), "{code} {locale}: {said}");
+            }
+        }
+        // An older server sends no code: today's wording.
+        let old = r#"{"error":"Conflict: That sale was voided — it earns no points"}"#;
+        assert_eq!(
+            refusal("en", "award_loyalty_points", 409, old),
+            "That sale was voided — it earns no points"
+        );
+        assert_eq!(refusal("ar", "award_loyalty_points", 409, old), tr("ar", "sync.refused"));
+    }
+
     /// The lifecycle's refused move (409 TABLE_DIRTY, a code the core has no
     /// words for) reached an English till as "The server refused it": the
     /// server writes English, so an English device reads its own sentence,

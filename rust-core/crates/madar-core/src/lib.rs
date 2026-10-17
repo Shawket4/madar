@@ -1663,7 +1663,15 @@ impl MadarCore {
                 rebase_dopt(&mut cmd.request.requested_at, delta);
                 (
                     serde_json::json!({ "op": "award_loyalty_points", "teller_id": teller_id, "request": cmd.request }),
-                    Idem::Yes,
+                    // NOT `Idem::Yes`. The server answers a duplicate award with
+                    // a 200 (`already_awarded`), so no 409 here means "already
+                    // done": a 409 is a refusal (sale voided, programme off,
+                    // window closed) and acking it silently dropped the points.
+                    // A 409 dead-letters with the server's reason; the 404 "not
+                    // on the server yet" does too, as it did under `Yes`.
+                    // Nothing enqueues this op any more (earning is
+                    // online-only); the arm stays for ops older builds queued.
+                    Idem::No,
                 )
             }
             "refund_order" => {
@@ -7937,14 +7945,20 @@ impl MadarCore {
     /// Add a sale's points to a member's balance — the button on the receipt,
     /// and on a past order in the history.
     ///
-    /// Unlike the lookup this is a WRITE, so it works offline: the press is
-    /// stamped and queued, and drains through `/sync/replay` into the very same
-    /// server code. That is why the window is anchored to when the button was
-    /// pressed rather than when the op arrived — a till that was offline for two
-    /// days still credits an award its teller made in time.
+    /// ONLINE-ONLY, like the lookup and a redemption (owner, 2026-10-17). With no
+    /// connection, or when the round trip fails, the press is refused with a
+    /// sentence saying a connection is needed, and NOTHING is queued: the
+    /// receipt keeps its button for the whole 24-hour window, so the teller
+    /// presses it again once the till is online. (Earlier builds queued the
+    /// press; those ops still drain, see the `award_loyalty_points` arm of
+    /// `replay_envelope`.)
     ///
-    /// The window is checked here as well as on the server. This copy stops a
-    /// pointless queued op; the server's copy is the one that decides.
+    /// The server's refusals reach the teller worded in their language when the
+    /// server sent a code (`loyalty::AWARD_REFUSAL_CODES`); an older server's
+    /// sentence is shown as it always was.
+    ///
+    /// The window is checked here as well as on the server. This copy saves a
+    /// round trip; the server's copy is the one that decides.
     pub async fn loyalty_award(
         &self,
         order_id: Option<String>,
@@ -8011,68 +8025,46 @@ impl MadarCore {
                 detail: "scan a card or type a phone number".into(),
             });
         }
-        // The moment of the press, on the device's corrected clock. The drain
-        // rebases it again by the measured offset before sending, so a till with
-        // a wrong clock is not punished by the server's bounds.
+        // The moment of the press, on the device's corrected clock.
         request.requested_at = Some(Some(now.into()));
 
-        if self.current_session().map(|s| s.online).unwrap_or(false) {
-            match loyalty_api::loyalty_award(
-                &self.api.config(),
-                loyalty_api::LoyaltyAwardParams {
-                    award_request: request.clone(),
-                },
-            )
-            .await
-            {
-                // `already_awarded` rides back out with the balance: a second
-                // press on the same sale is safe (the ledger is unique per
-                // order), and the teller is told it was already collected
-                // rather than shown a second "added".
-                Ok(result) => return Ok(loyalty::award_outcome(&locale, &result)),
-                Err(e) => match net::map_api_error(e) {
-                    // The session said online but the round trip failed — this
-                    // is the offline case arriving a moment late. Queue the
-                    // press rather than losing it.
-                    CoreError::Offline { .. } | CoreError::Transient { .. } => {}
-                    // Anything else is a real answer from the server (the window
-                    // has closed, the card is not ours, the program is off) and
-                    // must reach the teller instead of being queued to fail
-                    // again later, silently, forever.
-                    other => return Err(other),
-                },
+        let offline = || CoreError::Validation {
+            field: String::new(),
+            detail: loyalty::AWARD_OFFLINE.into(),
+        };
+        if !self.current_session().map(|s| s.online).unwrap_or(false) {
+            return Err(offline());
+        }
+        match loyalty_api::loyalty_award(
+            &self.api.config(),
+            loyalty_api::LoyaltyAwardParams { award_request: request },
+        )
+        .await
+        {
+            // `already_awarded` rides back out with the balance: a second
+            // press on the same sale is safe (the ledger is unique per
+            // order), and the teller is told it was already collected
+            // rather than shown a second "added".
+            Ok(result) => Ok(loyalty::award_outcome(&locale, &result)),
+            Err(e) => {
+                // A refusal the server gave a code for is worded in the
+                // teller's language, from the same table the stuck list uses.
+                if let madar_api::apis::Error::ResponseError(rc) = &e {
+                    if let Some((code, words)) = loyalty::award_refusal_words(&locale, &rc.content) {
+                        return Err(CoreError::Server { status: rc.status.as_u16(), code, detail: words });
+                    }
+                }
+                match net::map_api_error(e) {
+                    // The session said online but the round trip failed. There
+                    // is no queue to fall back on: say a connection is needed.
+                    CoreError::Offline { .. } | CoreError::Transient { .. } => Err(offline()),
+                    // Anything else is a real answer from the server (the
+                    // window has closed, the card is not ours, the program is
+                    // off) and reaches the teller as the server said it.
+                    other => Err(other),
+                }
             }
         }
-
-        // Gate the award behind the SALE when that sale is itself still queued.
-        // The order's outbox id is its client-minted key, which is the same
-        // `order_key` this award names — so the two are linked with no new
-        // bookkeeping. Without this the award could reach the server first and
-        // be refused for an order that had not arrived yet.
-        let depends_on_seq = match order_key.as_deref() {
-            Some(key) => self.store.live_seq_of(key)?,
-            None => None,
-        };
-        let cmd = loyalty::AwardCommand { request };
-        let (user_id, clock_offset_ms) = self.outbox_meta();
-        let op_id = format!("loyalty_award:{}", uuid::Uuid::new_v4());
-        self.store.enqueue(&store::NewOutboxOp {
-            id: op_id.clone(),
-            op_type: "award_loyalty_points".into(),
-            idempotency_key: op_id,
-            payload: serde_json::to_string(&cmd)?,
-            event_at: now.to_rfc3339(),
-            depends_on_seq,
-            user_id,
-            clock_offset_ms,
-            till_id: None,
-            ..Default::default()
-        })?;
-        // Try to send it straight away; offline simply leaves it queued.
-        self.send_in_background(Vec::new());
-        // Queued: there is no balance to show yet. The outcome says so in as
-        // many words rather than inventing a number.
-        Ok(loyalty::award_queued(&locale))
     }
 
     /// Re-render a synced order as a receipt for reprint — same ESC/POS path as a
@@ -11260,6 +11252,201 @@ mod lifecycle_tests {
         assert!(notice.starts_with("Reward given without points"));
         assert!(notice.contains("has 2"));
         assert_eq!(core.loyalty_refusal("order-2".into()), None);
+    }
+
+    // ── Earning points is online-only ──────────────────────────────────────
+
+    /// Every row in the outbox, whatever its state: "nothing was enqueued"
+    /// means this is zero, not merely that nothing is pending.
+    fn outbox_rows(core: &MadarCore) -> i64 {
+        core.store
+            .with_conn(|c| Ok(c.query_row("SELECT COUNT(*) FROM outbox", [], |r| r.get(0))?))
+            .unwrap()
+    }
+
+    /// A stand-in whose `/loyalty/award` answers `status` + `body`; every other
+    /// path hangs up (reads as offline).
+    async fn award_stub(status: u16, body: &'static str) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else { return };
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 65536];
+                    let n = sock.read(&mut buf).await.unwrap_or(0);
+                    // Only the award is answered; sign-in and pulls hang up.
+                    if !String::from_utf8_lossy(&buf[..n]).starts_with("POST /loyalty/award") {
+                        return;
+                    }
+                    let resp = format!(
+                        "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                });
+            }
+        });
+        format!("http://{addr}")
+    }
+
+    const SALE: &str = "00000000-0000-0000-0000-0000000000d1";
+
+    async fn press(core: &MadarCore) -> Result<loyalty::LoyaltyAwardOutcome, CoreError> {
+        core.loyalty_award(
+            Some(SALE.into()),
+            None,
+            chrono::Utc::now().to_rfc3339(),
+            Some("Mabcdefghijklmnopqrstuv".into()),
+            None,
+            None,
+        )
+        .await
+    }
+
+    /// Offline, the press is refused with the sentence the host words, and
+    /// NOTHING is queued: the button stays on the receipt for the window.
+    #[tokio::test]
+    async fn adding_points_offline_is_an_error_and_queues_nothing() {
+        let core = signed_in_offline_core().await;
+        let err = press(&core).await.unwrap_err();
+        assert!(
+            matches!(&err, CoreError::Validation { detail, .. } if detail == loyalty::AWARD_OFFLINE),
+            "{err:?}"
+        );
+        assert_eq!(outbox_rows(&core), 0, "no award op was enqueued");
+        assert!(core.store.pending().unwrap().is_empty());
+        // And it is still pressable: the window has not moved.
+        assert!(loyalty::award_window_open(
+            &chrono::Utc::now().to_rfc3339(),
+            &core.corrected_now().to_rfc3339()
+        ));
+        // The host words the detail, in both languages.
+        for locale in ["en", "ar"] {
+            assert_ne!(i18n::tr(locale, "loyalty.award_offline"), "loyalty.award_offline");
+        }
+    }
+
+    /// The session says online but the round trip fails (a 5xx, then a dead
+    /// socket): the same error, and still nothing queued.
+    #[tokio::test]
+    async fn adding_points_when_the_call_fails_is_an_error_and_queues_nothing() {
+        let core = draining_core(award_stub(503, r#"{"error":"down"}"#).await).await;
+        core.set_online(true);
+        let err = press(&core).await.unwrap_err();
+        assert!(
+            matches!(&err, CoreError::Validation { detail, .. } if detail == loyalty::AWARD_OFFLINE),
+            "transient: {err:?}"
+        );
+        assert_eq!(outbox_rows(&core), 0);
+
+        let core = draining_core("http://127.0.0.1:9".into()).await;
+        core.set_online(true);
+        let err = press(&core).await.unwrap_err();
+        assert!(
+            matches!(&err, CoreError::Validation { detail, .. } if detail == loyalty::AWARD_OFFLINE),
+            "offline: {err:?}"
+        );
+        assert_eq!(outbox_rows(&core), 0);
+    }
+
+    /// A server that sends a code is worded in the till's language; an older
+    /// one that sends none is shown as it always was.
+    #[tokio::test]
+    async fn a_refused_press_is_worded_by_code_and_falls_back_without_one() {
+        let voided = r#"{"error":"Conflict: That sale was voided — it earns no points","code":"LOYALTY_SALE_VOIDED"}"#;
+        let core = draining_core(award_stub(409, voided).await).await;
+        core.set_online(true);
+        let err = press(&core).await.unwrap_err();
+        assert!(
+            matches!(&err, CoreError::Server { status: 409, code, detail }
+                if code == "LOYALTY_SALE_VOIDED" && detail == "That sale was voided"),
+            "{err:?}"
+        );
+        assert_eq!(outbox_rows(&core), 0);
+
+        let old = r#"{"error":"Conflict: That sale was voided — it earns no points"}"#;
+        let core = draining_core(award_stub(409, old).await).await;
+        core.set_online(true);
+        let err = press(&core).await.unwrap_err();
+        assert!(
+            matches!(&err, CoreError::Server { status: 409, detail, .. } if detail.contains("voided")),
+            "{err:?}"
+        );
+    }
+
+    fn legacy_award(core: &MadarCore) {
+        let mut request = madar_api::models::AwardRequest::new(
+            uuid::Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
+        );
+        request.order_id = Some(Some(uuid::Uuid::parse_str(SALE).unwrap()));
+        request.token = Some(Some("Mabcdefghijklmnopqrstuv".into()));
+        core.store
+            .enqueue(&store::NewOutboxOp {
+                id: "loyalty_award:legacy".into(),
+                op_type: "award_loyalty_points".into(),
+                idempotency_key: "loyalty_award:legacy".into(),
+                payload: serde_json::to_string(&loyalty::AwardCommand { request }).unwrap(),
+                event_at: chrono::Utc::now().to_rfc3339(),
+                user_id: Some("00000000-0000-0000-0000-0000000000bb".into()),
+                ..Default::default()
+            })
+            .unwrap();
+    }
+
+    fn dead_reasons(core: &MadarCore) -> Vec<String> {
+        core.store
+            .with_conn(|c| {
+                let mut st = c.prepare("SELECT last_error FROM outbox WHERE status='dead'")?;
+                let rows = st.query_map([], |r| r.get::<_, String>(0))?;
+                Ok(rows.collect::<Result<Vec<_>, _>>()?)
+            })
+            .unwrap()
+    }
+
+    /// An award an earlier build queued, refused with a 409, is a stuck row
+    /// with the real reason. It used to be ACKED (`Idem::Yes`), silently
+    /// dropping points refused for a voided sale or a switched-off programme.
+    #[tokio::test]
+    async fn a_legacy_queued_award_refused_with_409_is_stuck_with_the_reason() {
+        for (code, key) in loyalty::AWARD_REFUSAL_CODES.iter().filter(|(c, _)| *c != "LOYALTY_SALE_NOT_ON_SERVER" && *c != "LOYALTY_CARD_NOT_MEMBER" && *c != "LOYALTY_SALE_OTHER_SHOP") {
+            let body: &'static str = Box::leak(
+                format!(r#"{{"error":"Conflict: whatever","code":"{code}"}}"#).into_boxed_str(),
+            );
+            let (base, hits) = replay_stub(409, body).await;
+            let core = draining_core(base).await;
+            legacy_award(&core);
+            core.drain_outbox().await.unwrap();
+            assert_eq!(hits.load(std::sync::atomic::Ordering::SeqCst), 1, "{code}");
+            assert_eq!(core.store.dead_count().unwrap(), 1, "{code}: refused, not acked");
+            assert_eq!(dead_reasons(&core), vec![i18n::tr("en", key)], "{code}");
+            assert!(core.store.pending().unwrap().is_empty(), "{code}");
+        }
+        // A server too old to send a code: still stuck, never acked.
+        let (base, _) = replay_stub(409, r#"{"error":"Conflict: That sale was voided — it earns no points"}"#).await;
+        let core = draining_core(base).await;
+        legacy_award(&core);
+        core.drain_outbox().await.unwrap();
+        assert_eq!(core.store.dead_count().unwrap(), 1);
+        assert_eq!(dead_reasons(&core), vec!["That sale was voided — it earns no points".to_string()]);
+        // The 404 "not on the server yet" is stuck with its words too, as before.
+        let (base, _) = replay_stub(404, r#"{"error":"Not found: That sale is not on the server yet","code":"LOYALTY_SALE_NOT_ON_SERVER"}"#).await;
+        let core = draining_core(base).await;
+        legacy_award(&core);
+        core.drain_outbox().await.unwrap();
+        assert_eq!(dead_reasons(&core), vec![i18n::tr("en", "sync.err_loyalty_sale_not_on_server")]);
+    }
+
+    /// A duplicate award is a 200 `already_awarded`, so a 200 is the only ack.
+    #[tokio::test]
+    async fn a_legacy_queued_award_is_acked_only_by_a_success() {
+        let (base, _) = replay_stub(200, r#"{"already_awarded":true}"#).await;
+        let core = draining_core(base).await;
+        legacy_award(&core);
+        core.drain_outbox().await.unwrap();
+        assert_eq!(core.store.dead_count().unwrap(), 0);
+        assert!(core.store.pending().unwrap().is_empty());
     }
 
     /// The server said no to a move somebody asked for: they are told, with

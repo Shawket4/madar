@@ -10,8 +10,12 @@
 //! state that any till in the org can move; an offline device cannot answer
 //! "how many points does this person have" without risking a wrong number in
 //! front of the customer, and a wrong balance is worse than a plain "reconnect
-//! to look this up". Earning is unaffected — that rides in the order's outbox
-//! payload and lands on replay.
+//! to look this up". EARNING is online-only too (owner, 2026-10-17): pressing
+//! "add points" with no connection is refused with a sentence saying so, and
+//! nothing is queued. The receipt keeps its button for the 24-hour window, so
+//! the teller presses it again once the till is online. The only awards that
+//! ever drain from the outbox are ones an earlier build queued (see
+//! `AWARD_REFUSAL_CODES`).
 
 use serde::{Deserialize, Serialize};
 
@@ -102,19 +106,20 @@ pub struct LoyaltyScanView {
 
 /// What came of pressing "add points" on a sale.
 ///
-/// The three outcomes a teller has to be able to tell apart are decided HERE,
-/// from what the server said, and phrased here too. "Added", "already
-/// collected" and "queued" are different facts about the customer's card, and a
-/// till that guessed between them would eventually claim to have added points
-/// it did not add.
+/// The outcomes a teller has to be able to tell apart are decided HERE, from
+/// what the server said, and phrased here too. "Added" and "already collected"
+/// are different facts about the customer's card, and a till that guessed
+/// between them would eventually claim to have added points it did not add.
 #[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoyaltyAwardOutcome {
-    /// The member's standing after the call. `None` only when the press was
-    /// queued: there is no balance yet, and inventing one is a lie the customer
-    /// can read off the screen.
+    /// The member's standing after the call. `None` only for an outcome with no
+    /// balance to show, and inventing one is a lie the customer can read off the
+    /// screen. Always `Some` today: a press that is not answered is an error.
     pub member: Option<LoyaltyMemberView>,
-    /// The till was offline (or the round trip failed) and the press is queued.
+    /// Always false since earning went online-only: a press the server did not
+    /// answer is an error, never a queued op. Kept so the bridge type (and an
+    /// older Dart build reading it) does not change shape.
     pub queued: bool,
     /// This sale had ALREADY earned. The endpoint is idempotent per order, so a
     /// second press is safe — but the honest answer is "already collected", not
@@ -157,23 +162,41 @@ pub fn award_outcome(locale: &str, r: &madar_api::models::AwardResult) -> Loyalt
     }
 }
 
-/// The outcome of a press this till could not deliver.
-pub fn award_queued(locale: &str) -> LoyaltyAwardOutcome {
-    LoyaltyAwardOutcome {
-        member: None,
-        queued: true,
-        already_collected: false,
-        points_awarded: 0,
-        headline: crate::i18n::tr(locale, "loyalty.points_queued"),
-        detail: crate::i18n::tr(locale, "loyalty.queued_hint"),
-    }
+/// The detail an award refused for want of a connection carries; the host maps
+/// it to `loyalty.award_offline` (see `coreDetailKeys`).
+pub const AWARD_OFFLINE: &str = "points can only be added online";
+
+/// The refusals the server gives an award a stable code for (MadarRust
+/// `loyalty::award`), and the words each has. `sync.err_<code>` is also where
+/// the stuck list looks (`outbox_words`), so one key says the same thing to a
+/// teller who pressed the button just now and to one reading a stuck row left
+/// by an older build. Two more codes (`LOYALTY_WINDOW_FUTURE`,
+/// `LOYALTY_WINDOW_BEFORE_SALE`) have no words of their own: a till with a sane
+/// clock cannot cause them, and the server's sentence is shown as it always was.
+pub const AWARD_REFUSAL_CODES: [(&str, &str); 6] = [
+    ("LOYALTY_CARD_NOT_MEMBER", "sync.err_loyalty_card_not_member"),
+    ("LOYALTY_SALE_NOT_ON_SERVER", "sync.err_loyalty_sale_not_on_server"),
+    ("LOYALTY_SALE_OTHER_SHOP", "sync.err_loyalty_sale_other_shop"),
+    ("LOYALTY_SALE_VOIDED", "sync.err_loyalty_sale_voided"),
+    ("LOYALTY_WINDOW_CLOSED", "sync.err_loyalty_window_closed"),
+    ("LOYALTY_PROGRAM_OFF", "sync.err_loyalty_program_off"),
+];
+
+/// The teller's words for an award the server refused, from its `{error, code}`
+/// body, as `(code, words)`. `None` for a body with no code or a code this build
+/// has no words for (an older server): the caller then falls back to the
+/// wording it always had.
+pub fn award_refusal_words(locale: &str, body: &str) -> Option<(String, String)> {
+    let code = crate::net::extract_error_code(body)?;
+    let (_, key) = AWARD_REFUSAL_CODES.iter().find(|(c, _)| *c == code)?;
+    Some((code, crate::i18n::tr(locale, key)))
 }
 
 /// How long after a sale its points may still be claimed.
 ///
 /// Kept in lock-step with the server's `loyalty::award::AWARD_WINDOW_HOURS`. The
-/// client copy exists so the button can hide itself and a queued op can be
-/// refused before it is even enqueued; the SERVER's copy is the one that
+/// client copy exists so the button can hide itself and a press can be refused
+/// without a round trip; the SERVER's copy is the one that
 /// decides, because a till's clock and a till's build are both things a customer
 /// should not have to depend on.
 pub const AWARD_WINDOW_HOURS: i64 = 24;
@@ -195,7 +218,9 @@ pub fn award_window_open(order_created_at: &str, now: &str) -> bool {
     age >= chrono::Duration::zero() && age <= chrono::Duration::hours(AWARD_WINDOW_HOURS)
 }
 
-/// The outbox payload for a queued award (op_type `"award_loyalty_points"`).
+/// The outbox payload of an award an EARLIER build queued (op_type
+/// `"award_loyalty_points"`). Nothing enqueues one any more; the drain keeps
+/// reading it so those ops still reach the server.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AwardCommand {
     pub request: madar_api::models::AwardRequest,
@@ -337,9 +362,9 @@ pub fn balance_label_key(mode: &str) -> &'static str {
 ///
 /// It does not need to. An award is a request, not a calculation — the till
 /// sends who, and the server answers with what the sale was worth, reading the
-/// order's own lines out of its own tables. Offline that request is queued and
-/// answered on drain, off the same rows, so an offline till and the one beside
-/// it reach the same number without the offline one ever computing it. Nothing
+/// order's own lines out of its own tables. Earning is online-only, so the
+/// answer comes back off the same rows the server already holds, and no till
+/// ever computes it. Nothing
 /// on this screen previews a stamp count before the server replies, so there is
 /// no figure here that could disagree.
 ///
@@ -951,17 +976,6 @@ mod tests {
     }
 
     #[test]
-    fn a_queued_press_shows_no_balance_at_all() {
-        // There is no balance yet, and a made-up one is a lie the customer can
-        // read off the screen.
-        let out = award_queued("en");
-        assert!(out.member.is_none());
-        assert!(out.queued);
-        assert_eq!(out.headline, "Points queued");
-        assert!(out.detail.contains("offline"));
-    }
-
-    #[test]
     fn every_outcome_is_phrased_in_arabic_too() {
         // Arabic is first class: a teller on an ar till must never be shown the
         // key, which is what an untranslated string resolves to.
@@ -969,11 +983,56 @@ mod tests {
             award_outcome("ar", &result(1, false)),
             award_outcome("ar", &result(0, true)),
             award_outcome("ar", &result(0, false)),
-            award_queued("ar"),
         ] {
             assert!(!out.headline.starts_with("loyalty."), "{}", out.headline);
             assert!(!out.detail.starts_with("loyalty."), "{}", out.detail);
         }
+    }
+
+    /// The six server codes, with the words each must say. English is the
+    /// owner's wording; Arabic must be real Arabic, not the key.
+    const EXPECTED_EN: [(&str, &str); 6] = [
+        ("LOYALTY_CARD_NOT_MEMBER", "That card belongs to another shop"),
+        (
+            "LOYALTY_SALE_NOT_ON_SERVER",
+            "That sale hasn't reached the server yet; try again after it syncs",
+        ),
+        ("LOYALTY_SALE_OTHER_SHOP", "That sale is from another shop"),
+        ("LOYALTY_SALE_VOIDED", "That sale was voided"),
+        (
+            "LOYALTY_WINDOW_CLOSED",
+            "The 24-hour window for this sale has closed",
+        ),
+        (
+            "LOYALTY_PROGRAM_OFF",
+            "Loyalty is switched off for this branch",
+        ),
+    ];
+
+    #[test]
+    fn each_award_refusal_code_has_words_in_both_languages() {
+        for (code, en) in EXPECTED_EN {
+            let body = format!(r#"{{"error":"Conflict: whatever","code":"{code}"}}"#);
+            let (got, words) = award_refusal_words("en", &body).expect(code);
+            assert_eq!(got, code);
+            assert_eq!(words, en, "{code}");
+            let (_, ar) = award_refusal_words("ar", &body).expect(code);
+            assert_ne!(ar, en, "{code}: Arabic is the English or a bare key");
+            assert!(!ar.starts_with("sync."), "{code}: {ar}");
+            assert!(
+                ar.chars().any(|c| ('\u{0600}'..='\u{06FF}').contains(&c)),
+                "{code}: {ar}"
+            );
+        }
+        // The table and the expectations name the same six codes.
+        assert_eq!(AWARD_REFUSAL_CODES.len(), EXPECTED_EN.len());
+    }
+
+    #[test]
+    fn an_older_server_without_a_code_falls_back_to_todays_wording() {
+        assert!(award_refusal_words("en", r#"{"error":"Conflict: That sale was voided"}"#).is_none());
+        assert!(award_refusal_words("en", r#"{"error":"x","code":"LOYALTY_WINDOW_FUTURE"}"#).is_none());
+        assert!(award_refusal_words("en", "<html>nope</html>").is_none());
     }
 
     #[test]

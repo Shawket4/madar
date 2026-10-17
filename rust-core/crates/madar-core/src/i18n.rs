@@ -1439,6 +1439,7 @@ fn en(key: &str) -> Option<&'static str> {
         "loyalty.points_added" => "Points added",
         "loyalty.points_queued" => "Points queued",
         "loyalty.queued_hint" => "This till is offline. The points go on as soon as it reconnects.",
+        "loyalty.award_offline" => "Adding points needs a connection. Reconnect, then press Add points again.",
         "loyalty.already_collected" => "Already collected",
         "loyalty.no_points" => "No points for this sale",
         // What a programme collects, after a count ("30 points", "4 orders"),
@@ -2239,6 +2240,14 @@ fn en(key: &str) -> Option<&'static str> {
         // Why the server refused a queued op, in the till's language (B-POS-6).
         "sync.err_missing" => "The server doesn't have something this needs yet. Try again once everything has synced.",
         "sync.err_sale_missing" => "This sale never reached the server, so it can't be voided there.",
+        // Loyalty award refusals (server codes LOYALTY_*): said to the teller who
+        // pressed "add points" and in the stuck list alike (`loyalty::AWARD_REFUSAL_CODES`).
+        "sync.err_loyalty_card_not_member" => "That card belongs to another shop",
+        "sync.err_loyalty_sale_not_on_server" => "That sale hasn't reached the server yet; try again after it syncs",
+        "sync.err_loyalty_sale_other_shop" => "That sale is from another shop",
+        "sync.err_loyalty_sale_voided" => "That sale was voided",
+        "sync.err_loyalty_window_closed" => "The 24-hour window for this sale has closed",
+        "sync.err_loyalty_program_off" => "Loyalty is switched off for this branch",
         "sync.err_advance_dawam_off" => "Expense advances need Dawam switched on.",
         "sync.err_advance_inactive" => "That person isn't an active employee, so the cash can't be their expense advance.",
         "sync.err_till_not_open" => "That till is already closed, so no cash can be added to it.",
@@ -3881,6 +3890,7 @@ fn ar(key: &str) -> Option<&'static str> {
         "loyalty.points_added" => "تمت إضافة النقاط",
         "loyalty.points_queued" => "النقاط في قائمة الانتظار",
         "loyalty.queued_hint" => "هذا الجهاز غير متصل. ستُضاف النقاط فور عودة الاتصال.",
+        "loyalty.award_offline" => "إضافة النقاط تحتاج إلى اتصال. أعد الاتصال ثم اضغط «إضافة نقاط» مرة أخرى.",
         "loyalty.already_collected" => "تم تحصيلها من قبل",
         "loyalty.no_points" => "لا نقاط لهذه الفاتورة",
         // Plural after a figure, the same compromise as `tables.guests`
@@ -4651,6 +4661,12 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.refused" => "رفضه الخادم",
         "sync.err_missing" => "الخادم لسه ماعندوش حاجة العملية دي محتاجاها. جرّب تاني بعد ما كل حاجة تتزامن.",
         "sync.err_sale_missing" => "البيعة دي عمرها ما وصلت للخادم، فمينفعش تتلغي عنده.",
+        "sync.err_loyalty_card_not_member" => "الكارت ده تابع لمحل تاني",
+        "sync.err_loyalty_sale_not_on_server" => "البيعة دي لسه ماوصلتش للخادم، جرّب تاني بعد ما تتزامن",
+        "sync.err_loyalty_sale_other_shop" => "البيعة دي من محل تاني",
+        "sync.err_loyalty_sale_voided" => "البيعة دي اتلغت",
+        "sync.err_loyalty_window_closed" => "عدّت الـ٢٤ ساعة المسموح بيها لإضافة نقاط على البيعة دي",
+        "sync.err_loyalty_program_off" => "نظام الولاء مقفول في الفرع ده",
         "sync.err_advance_dawam_off" => "العهدة محتاجة دوام يكون شغّال.",
         "sync.err_advance_inactive" => "الشخص ده مش موظف فعّال، فالفلوس مينفعش تتسجل عهدة عليه.",
         "sync.err_till_not_open" => "الوردية دي اتقفلت خلاص، فمينفعش تتضاف عليها فلوس.",
