@@ -17,8 +17,11 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'branch_setup/branch_setup_page.dart';
+import 'branch_setup/branch_setup_providers.dart' show branchPlanProvider;
 import 'branches/branches_page.dart';
+import 'devices/devices_data.dart';
 import 'devices/devices_page.dart';
+import 'onboarding/onboarding_data.dart' show onbOrgProvider;
 import 'onboarding/onboarding_page.dart';
 import 'orgs/orgs_page.dart';
 import 'orgs/orgs_providers.dart';
@@ -76,6 +79,7 @@ const List<DashRoute> adminRoutes = [
     titleKey: 'nav.branchSetup',
     titleFallback: 'Branch setup',
     module: OrgModule.pos,
+    prefetch: _prefetchBranchSetup,
   ),
   DashRoute(
     path: DevicesPage.path,
@@ -85,6 +89,7 @@ const List<DashRoute> adminRoutes = [
     module: OrgModule.pos,
     // The page's view and the clients window live in the URL.
     rememberQuery: ['view', 'days', 'all'],
+    prefetch: _prefetchDevices,
   ),
   DashRoute(
     path: UsersPage.path,
@@ -112,6 +117,7 @@ const List<DashRoute> adminRoutes = [
     builder: _onboarding,
     titleKey: 'onboarding.title',
     titleFallback: 'Let\'s open your café',
+    prefetch: _prefetchOnboarding,
   ),
 ];
 
@@ -127,4 +133,41 @@ void _prefetchOrgs(DashPrefetcher warm, Scope s) => warm(orgsListProvider);
 /// `branchesProvider`, the page's read).
 void _prefetchBranches(DashPrefetcher warm, Scope s) {
   if (s.orgId != null) warm(branchesProvider);
+}
+
+/// The builder's plan for the picked branch (the page shows a picker with
+/// All branches). The versions are read only while History is open.
+void _prefetchBranchSetup(DashPrefetcher warm, Scope s) {
+  final b = s.branchId;
+  if (b != null) warm.notifier(branchPlanProvider(b));
+}
+
+/// The page's view from the URL: the client versions (org-wide or the
+/// branch's, the URL's window), else the branch's devices and, for whoever
+/// may issue them, its setup codes.
+void _prefetchDevices(DashPrefetcher warm, Scope s) {
+  final search = DevicesSearch.parse(warm.query);
+  final b = s.branchId;
+  if (search.effectiveView == DevicesView.clients) {
+    warm(
+      clientVersionsProvider((
+        branchId: b,
+        legacyOnly: search.legacyOnly,
+        days: search.effectiveDays,
+      )),
+    );
+  } else if (b != null) {
+    warm(devicesListProvider(b));
+    if (warm.read(authzProvider).can(Cap.branchesEdit)) {
+      warm(activationCodesProvider(b));
+    }
+  }
+}
+
+/// The checklist and the org's identity (the step panel and the mirror).
+void _prefetchOnboarding(DashPrefetcher warm, Scope s) {
+  final orgId = s.orgId;
+  if (orgId == null) return;
+  warm(onboardingStatusProvider(orgId));
+  warm(onbOrgProvider(orgId));
 }

@@ -20,7 +20,10 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'combo_editor/combo_editor_page.dart';
+import 'combo_editor/combo_editor_providers.dart' show prefetchComboEditor;
 import 'combos/combos_page.dart';
+import 'combos/combos_providers.dart' show prefetchCombosList;
+import 'deals/deals_data.dart' show prefetchDeals;
 import 'deals/deals_page.dart';
 import 'discounts/discounts_page.dart';
 import 'discounts/discounts_data.dart';
@@ -32,6 +35,7 @@ const List<DashRoute> catalogOffersRoutes = [
     titleKey: 'combos.title',
     titleFallback: 'Combos',
     module: OrgModule.pos,
+    prefetch: prefetchCombosList,
   ),
   DashRoute(
     path: '/menu/combos/:comboId',
@@ -39,6 +43,7 @@ const List<DashRoute> catalogOffersRoutes = [
     titleKey: 'combos.title',
     titleFallback: 'Combos',
     module: OrgModule.pos,
+    prefetch: prefetchComboEditor,
   ),
   DashRoute(
     path: '/menu/deals',
@@ -47,6 +52,7 @@ const List<DashRoute> catalogOffersRoutes = [
     titleFallback: 'Deals',
     caps: [Cap.menuItemsRead],
     module: OrgModule.pos,
+    prefetch: prefetchDeals,
   ),
   DashRoute(
     path: '/discounts',

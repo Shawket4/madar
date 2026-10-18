@@ -19,7 +19,10 @@ import 'financial/financial_page.dart';
 import 'legal/legal_page.dart';
 import 'loyalty_inventory_staff/inventory_reports_page.dart';
 import 'loyalty_inventory_staff/lis_providers.dart'
-    show prefetchInventoryReports;
+    show
+        prefetchInventoryReports,
+        prefetchLoyaltyReport,
+        prefetchStaffDiscipline;
 import 'loyalty_inventory_staff/loyalty_report_page.dart';
 import 'loyalty_inventory_staff/staff_discipline_page.dart';
 import 'operations/operations_page.dart';
@@ -71,6 +74,7 @@ const List<DashRoute> reportsRoutes = [
     titleKey: 'reports.legal.title',
     titleFallback: 'Legal',
     tabs: legalTabs,
+    prefetch: prefetchLegal,
   ),
   // REP-LOY-001: `loyalty.members.list`, checked by the page's own
   // `<Restricted>` (REP-ALL-005).
@@ -81,6 +85,7 @@ const List<DashRoute> reportsRoutes = [
     titleFallback: 'Loyalty',
     module: OrgModule.pos,
     tabs: loyaltyReportTabs,
+    prefetch: prefetchLoyaltyReport,
   ),
   // REP-BUN-001: `reports.bundles`.
   DashRoute(
@@ -89,6 +94,7 @@ const List<DashRoute> reportsRoutes = [
     titleKey: 'reports.bundles.title',
     titleFallback: 'Bundles',
     module: OrgModule.pos,
+    prefetch: prefetchBundlesReport,
   ),
   // REP-STF-002: `hr.attendance.read`, checked by the page's own
   // `<Restricted>` (REP-ALL-005); a Dawam page.
@@ -98,6 +104,7 @@ const List<DashRoute> reportsRoutes = [
     titleKey: 'reports.staff.title',
     titleFallback: 'Staff discipline',
     module: OrgModule.dawam,
+    prefetch: prefetchStaffDiscipline,
   ),
   // REP-SPL-001: `orders.staff_drink.record`; pos (the longer prefix wins
   // over `/reports/staff`, REP-ALL-004).
@@ -107,6 +114,7 @@ const List<DashRoute> reportsRoutes = [
     titleKey: 'staffPool.reportTitle',
     titleFallback: 'Staff drinks',
     module: OrgModule.pos,
+    prefetch: prefetchStaffPoolReport,
   ),
   // REP-TIL-001: `till.read.branch` (plain `till.read` is Restricted),
   // checked by the page's own `<Restricted>` with the reports' words; the
@@ -119,6 +127,7 @@ const List<DashRoute> reportsRoutes = [
     titleFallback: 'Till sessions',
     module: OrgModule.pos,
     tabs: tillsReportTabs,
+    prefetch: prefetchTillsReport,
   ),
   // REP-BAS-001: no page gate. The nav leaf needs `reports.read`, but the
   // web renders the page for whoever opens the URL; refusals come back from

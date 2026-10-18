@@ -5,7 +5,6 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show Till;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
@@ -148,7 +147,7 @@ class HomeOpenTillsList extends ConsumerWidget {
                 style: DashType.small,
                 color: c.accent,
                 onTap: () => context.go('/tills'),
-                onIntent: () => ref.prefetchRoute('/tills'),
+                to: '/tills',
               ),
             ],
           ),

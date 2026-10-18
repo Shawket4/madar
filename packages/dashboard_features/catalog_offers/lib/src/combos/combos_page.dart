@@ -18,14 +18,12 @@ import 'dart:math' as math;
 
 import 'package:dashboard_api/dashboard_api.dart' show Category, ComboSummary;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../combo_editor/combo_editor_providers.dart' show warmComboEditor;
 import '../shared/menu_options.dart';
 import '../shared/offers_cache.dart';
 import '../shared/offers_format.dart';
@@ -235,7 +233,7 @@ class _CombosListState extends ConsumerState<_CombosList>
       label: t('combos.new'),
       icon: 'plus',
       onPressed: () => _open('new'),
-      onIntent: () => warmComboEditor(ref, 'new'),
+      to: '/menu/combos/new',
     );
 
     return DashPageScaffold(
@@ -249,7 +247,7 @@ class _CombosListState extends ConsumerState<_CombosList>
             variant: DashButtonVariant.ghost,
             size: DashButtonSize.compact,
             onPressed: () => context.go('/settings/combos'),
-            onIntent: () => ref.prefetchRoute('/settings/combos'),
+            to: '/settings/combos',
           ),
         if (canEdit) newCombo(),
       ],
@@ -276,7 +274,7 @@ class _CombosListState extends ConsumerState<_CombosList>
         onRetry: () => ref.invalidate(combosListProvider(key)),
         retrying: list?.isLoading ?? false,
         onRowTap: (c) => _open(c.id),
-        onRowIntent: (c) => warmComboEditor(ref, c.id),
+        rowTo: (c) => '/menu/combos/${c.id}',
         rowSemanticLabel: (c) => c.name,
         rowActions: (context, c) => canEdit
             ? Row(
@@ -286,7 +284,7 @@ class _CombosListState extends ConsumerState<_CombosList>
                     icon: 'pencil',
                     semanticLabel: t('common.edit'),
                     onPressed: () => _open(c.id),
-                    onIntent: () => warmComboEditor(ref, c.id),
+                    to: '/menu/combos/${c.id}',
                   ),
                   DashIconButton(
                     icon: 'trash-2',

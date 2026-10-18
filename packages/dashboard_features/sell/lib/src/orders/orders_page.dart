@@ -58,10 +58,31 @@ class OrdersPage extends ConsumerStatefulWidget {
     );
   }
 
-  /// The web's `prefetchRoute('/orders')`: the list's first page, unfiltered,
-  /// once a branch or an org is in scope.
+  /// The web's `prefetchRoute('/orders')`: the list's first page, unfiltered
+  /// but for the excluded items, as the page keys it (one till's with
+  /// `?till=`), and the delivery block, once a branch or an
+  /// org is in scope; `?order=` warms that order's sheet too.
   static void prefetch(DashPrefetcher warm, Scope s) {
-    if (s.ordersEnabled) warm(ordersListProvider(s.ordersFirstPage));
+    final q = warm.query;
+    String? nonEmpty(String? v) => v == null || v.isEmpty ? null : v;
+    if (s.ordersEnabled) {
+      final till =
+          nonEmpty(q['till']) ??
+          nonEmpty(q['till_id']) ??
+          nonEmpty(q['shift_id']);
+      final excluded = warm.read(excludedItemsProvider(s.orgId));
+      warm(
+        ordersListProvider(
+          s.ordersFirstPageOf(till: till, exclude: excludeItemsParam(excluded)),
+        ),
+      );
+      warm(ordersDeliveryProvider(s.deliveryRange));
+    }
+    final order = nonEmpty(q['order']);
+    if (order != null) {
+      warm(orderDetailProvider(order));
+      if (s.orgId case final org?) warm(orderCatalogProvider(org));
+    }
   }
 
   /// `?order=`: that order's sheet opens on load (SELL-ORD-011).

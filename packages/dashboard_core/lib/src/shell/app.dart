@@ -6,6 +6,7 @@ library;
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/kit/kit_l10n.dart';
 import 'package:dashboard_core/src/session/session.dart';
+import 'package:dashboard_core/src/shell/prefetch.dart';
 import 'package:dashboard_core/src/shell/router.dart';
 import 'package:dashboard_core/src/shell/shell_prefs.dart';
 import 'package:design_system/design_system.dart';
@@ -48,7 +49,10 @@ class DashApp extends ConsumerWidget {
           textDirection: t.textDirection,
           child: DashI18nScope(
             child: DashKitScope(
-              child: _SessionGate(child: child ?? const SizedBox.shrink()),
+              // Every kit control given `to:` warms that page on intent.
+              child: DashRoutePrefetchScope(
+                child: _SessionGate(child: child ?? const SizedBox.shrink()),
+              ),
             ),
           ),
         );

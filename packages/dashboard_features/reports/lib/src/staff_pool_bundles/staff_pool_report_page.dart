@@ -30,6 +30,25 @@ import 'unit_support.dart';
 Widget staffPoolReportPageBuilder(BuildContext context, GoRouterState state) =>
     const StaffPoolReportPage();
 
+/// The route's prefetch: the picked branch's pool day, drinks and summary,
+/// with the page's local dates (nothing with All branches).
+void prefetchStaffPoolReport(DashPrefetcher warm, Scope s) {
+  final branchId = s.branchId;
+  if (branchId == null) return;
+  final f = warm.read(formatProvider);
+  final businessDate = localDateParam(f, s.to);
+  final drinksQuery = (
+    branchId: branchId,
+    from: localDateParam(f, s.from),
+    to: businessDate,
+  );
+  warm(
+    staffPoolTodayProvider((branchId: branchId, businessDate: businessDate)),
+  );
+  warm(staffDrinksProvider(drinksQuery));
+  warm(staffDrinksSummaryProvider(drinksQuery));
+}
+
 class StaffPoolReportPage extends ConsumerWidget {
   const StaffPoolReportPage({super.key});
 

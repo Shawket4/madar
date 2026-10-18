@@ -46,6 +46,17 @@ class FloorPage extends ConsumerWidget {
   static Widget route(BuildContext context, GoRouterState state) =>
       const FloorPage();
 
+  /// The picked branch's room, as the page reads it on mount: sections,
+  /// tables, transfers and open tickets (nothing with All branches).
+  static void prefetch(DashPrefetcher warm, Scope scope) {
+    final id = scope.branchId;
+    if (id == null) return;
+    warm(floorSectionsProvider(id));
+    warm(floorTablesProvider(id));
+    warm(floorTransfersProvider(id));
+    warm(floorOpenTicketsProvider(id));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final branchId = ref.watch(sellBranchIdProvider);

@@ -17,7 +17,6 @@ import 'package:dashboard_api/dashboard_api.dart'
         StudioAggregate,
         UpdateCatalogItemRequest;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -1159,7 +1158,7 @@ class _StudioBasePickerState extends ConsumerState<StudioBasePicker> {
           label: t('modeling.base.manage'),
           variant: DashButtonVariant.link,
           size: DashButtonSize.compact,
-          onIntent: () => ref.prefetchRoute('/menu/bases'),
+          to: '/menu/bases',
           onPressed: () => context.go('/menu/bases'),
         ),
         if (widget.disabled) StudioHint(t('modeling.base.saveFirst')),
@@ -1218,12 +1217,10 @@ class StudioRecipeLinkBar extends ConsumerWidget {
       label: label,
       variant: DashButtonVariant.link,
       size: DashButtonSize.compact,
-      // Opening the other item reads its aggregate, its link and its row
-      // (both ends of a link read the link).
-      onIntent: () => ref
-        ..warm(menuStudioProvider(id))
-        ..warm(recipeLinkProvider(id))
-        ..warm(studioMenuItemProvider(id)),
+      // Opening the other item warms its studio (the route's prefetch) and
+      // its link (both ends of a link read the link).
+      to: '/menu/items/$id',
+      onIntent: () => ref.warm(recipeLinkProvider(id)),
       onPressed: () {
         // The linked item's Back goes where this one's would.
         ref.dashOpenedFrom(context, '/menu/items/$id');

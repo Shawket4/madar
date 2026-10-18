@@ -49,7 +49,11 @@ extension OrdersKeys on Scope {
   /// The list's first page with no filter: what the page asks on mount and
   /// what the sidebar warms (the web's `prefetchRoute('/orders')`, which
   /// leaves out the excluded items and the till).
-  OrdersKey get ordersFirstPage => (
+  OrdersKey get ordersFirstPage => ordersFirstPageOf();
+
+  /// [ordersFirstPage] for one till (`?till=`) and the excluded items, as
+  /// the page keys it.
+  OrdersKey ordersFirstPageOf({String? till, String? exclude}) => (
     branchId: branchId,
     from: from,
     to: to,
@@ -59,8 +63,8 @@ extension OrdersKeys on Scope {
     waiter: null,
     type: null,
     channel: null,
-    exclude: null,
-    till: null,
+    exclude: exclude,
+    till: till,
     page: 1,
   );
 

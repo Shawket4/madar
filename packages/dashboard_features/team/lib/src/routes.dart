@@ -21,6 +21,7 @@ import 'approvals/approvals_page.dart';
 import 'attendance/attendance_page.dart';
 import 'employees/employees_page.dart';
 import 'payroll/payroll_page.dart';
+import 'prefetch.dart';
 import 'requests/requests_page.dart';
 import 'rules/rules_page.dart';
 import 'schedule/schedule_page.dart';
@@ -39,6 +40,7 @@ const List<DashRoute> teamRoutes = [
     // itself opens for whoever holds `hr.rules.edit`.
     setupOnly: true,
     builder: _teamSetupPage,
+    prefetch: prefetchTeamSetup,
   ),
   DashRoute(
     path: '/staff/employees',
@@ -46,6 +48,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Employees',
     module: OrgModule.dawam,
     builder: _employeesPage,
+    prefetch: prefetchEmployees,
   ),
   DashRoute(
     path: '/staff/attendance',
@@ -53,6 +56,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Attendance',
     module: OrgModule.dawam,
     builder: _attendancePage,
+    prefetch: prefetchAttendance,
   ),
   DashRoute(
     path: '/staff/shifts',
@@ -60,6 +64,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Work shifts',
     module: OrgModule.dawam,
     builder: _workShiftsPage,
+    prefetch: prefetchWorkShifts,
   ),
   DashRoute(
     path: '/staff/team',
@@ -67,6 +72,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Team',
     module: OrgModule.dawam,
     builder: _teamBoardPage,
+    prefetch: prefetchTeamBoard,
   ),
   DashRoute(
     path: '/staff/approvals',
@@ -74,6 +80,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Approvals',
     module: OrgModule.dawam,
     builder: _approvalsPage,
+    prefetch: prefetchApprovals,
   ),
   DashRoute(
     path: '/staff/schedule',
@@ -81,6 +88,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Schedule',
     module: OrgModule.dawam,
     builder: _schedulePage,
+    prefetch: prefetchSchedule,
   ),
   DashRoute(
     path: '/staff/requests',
@@ -88,6 +96,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Requests',
     module: OrgModule.dawam,
     builder: _requestsInboxPage,
+    prefetch: prefetchRequests,
   ),
   DashRoute(
     path: '/staff/payroll',
@@ -95,6 +104,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Payroll',
     module: OrgModule.dawam,
     builder: _payrollPage,
+    prefetch: prefetchPayroll,
   ),
   DashRoute(
     path: '/staff/reports',
@@ -102,6 +112,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Reports',
     module: OrgModule.dawam,
     builder: _staffReportsPage,
+    prefetch: prefetchStaffReports,
   ),
   DashRoute(
     path: '/staff/rules',
@@ -109,6 +120,7 @@ const List<DashRoute> teamRoutes = [
     titleFallback: 'Attendance rules',
     module: OrgModule.dawam,
     builder: _attendanceRulesPage,
+    prefetch: prefetchRules,
   ),
 ];
 

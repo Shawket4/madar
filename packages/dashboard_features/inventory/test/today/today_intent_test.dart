@@ -46,7 +46,7 @@ void main() {
       'counts; opening it asks nothing more', (tester) async {
     final h = await pumpToday(tester, branch: SeedIds.heliopolis);
     final button = byKey('today-first-count');
-    expect(tester.widget<DashButton>(button).onIntent, isNotNull);
+    expect(tester.widget<DashButton>(button).to, '/inventory/counts');
     await restOn(h, button);
     final counts = _gets(h, stocktakesRoute);
     expect(counts, greaterThan(0));
@@ -59,7 +59,7 @@ void main() {
       'asks nothing more', (tester) async {
     final h = await pumpToday(tester, branch: SeedIds.zamalek);
     final link = byKey('today-view-all');
-    expect(tester.widget<DashButton>(link).onIntent, isNotNull);
+    expect(tester.widget<DashButton>(link).to, '/inventory/ingredients');
     await restOn(h, link);
     final catalog = _gets(h, catalogRoute);
     final stock = _gets(h, stockRoute);

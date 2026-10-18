@@ -101,7 +101,7 @@ void main() {
       of: inEditor(find.text('New ingredient')),
       matching: find.byType(DashButton),
     );
-    expect(tester.widget<DashButton>(button).onIntent, isNotNull);
+    expect(tester.widget<DashButton>(button).to, '/inventory/ingredients');
     await restAt(h, tester.getCenter(button));
     final reads = (_gets(h, catalogRoute), _gets(h, _stockRoute));
     expect(reads.$2, greaterThan(0), reason: 'the branch stock is warmed');

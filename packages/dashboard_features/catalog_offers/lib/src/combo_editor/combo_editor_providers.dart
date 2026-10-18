@@ -23,12 +23,15 @@ final comboProvider = FutureProvider.autoDispose.family<Combo, String>((
   return ref.watch(apiProvider).menu.getCombo(id: id);
 });
 
-/// What the editor at [id] reads on mount (`new` reads no combo), warmed
-/// from whatever opens it (a list row, its pencil, New combo).
-void warmComboEditor(WidgetRef ref, String id) {
-  if (id != 'new') ref.warm(comboProvider(id));
-  ref.warm(offersMenuItemsProvider);
-  ref.warm(offersCategoriesProvider);
+/// The route's prefetch (`/menu/combos/:comboId`): what the editor reads on
+/// mount (`new` reads no combo), warmed from whatever opens it (a list row,
+/// its pencil, New combo, a studio link). The org's branches are the shell's.
+void prefetchComboEditor(DashPrefetcher warm, Scope s) {
+  final id = warm.params['comboId'];
+  if (id == null) return;
+  if (id != 'new') warm(comboProvider(id));
+  warm(offersMenuItemsProvider);
+  warm(offersCategoriesProvider);
 }
 
 /// The price check's request path (its epoch follows `invalidateCombos`).

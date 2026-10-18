@@ -20,6 +20,13 @@ import 'tax_tab.dart';
 Widget legalPageBuilder(BuildContext context, GoRouterState state) =>
     const LegalReportPage();
 
+/// The route's prefetch: the first tab's report (Tax), with the page's own
+/// query for the scope.
+void prefetchLegal(DashPrefetcher warm, Scope s) {
+  final query = legalQueryOf(s);
+  if (query != null) warm(legalTaxProvider(query));
+}
+
 /// The tabs, in the web's order, with each tab's module and the extra
 /// capability it needs beyond `reports.legal` (REP-LEG-002…004,
 /// `leg:31-66`). Until the org's modules are known the web shows no tab at

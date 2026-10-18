@@ -167,7 +167,7 @@ class _SettingsRail extends ConsumerWidget {
                     label: t(i.labelKey, defaultValue: i.fallback),
                     active: SettingsShell.isActive(i, path),
                     onTap: () => context.go(i.to),
-                    onIntent: () => ref.prefetchRoute(i.to),
+                    to: i.to,
                   ),
               ],
             ),
@@ -183,7 +183,7 @@ class _RailEntry extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
-    required this.onIntent,
+    this.to,
   });
 
   final String icon;
@@ -192,14 +192,14 @@ class _RailEntry extends StatelessWidget {
   final VoidCallback onTap;
 
   /// Warms the pane's reads before the press (its route's `prefetch`).
-  final VoidCallback onIntent;
+  final String? to;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: onTap,
-      onIntent: onIntent,
+      to: to,
       selected: active,
       pressScale: false,
       semanticLabel: label,

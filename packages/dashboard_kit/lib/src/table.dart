@@ -164,6 +164,7 @@ class DashDataTable<T> extends StatefulWidget {
     this.empty,
     this.onRowTap,
     this.onRowIntent,
+    this.rowTo,
     this.selectedRowKey,
     this.expandedBuilder,
     this.rowActions,
@@ -217,6 +218,10 @@ class DashDataTable<T> extends StatefulWidget {
   /// A row is about to be pressed ([DashIntent]): warm the read its
   /// [onRowTap] opens (the detail sheet's, with the same key).
   final ValueChanged<T>? onRowIntent;
+
+  /// The location a row's [onRowTap] opens (its detail page), warmed on
+  /// intent ([DashIntent.to]); null for a row that opens no page.
+  final String? Function(T row)? rowTo;
 
   /// The record open beside the table (split view, the open side panel).
   final Object? selectedRowKey;
@@ -906,6 +911,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
         : DashPressable(
             onTap: () => widget.onRowTap!(row),
             onIntent: _rowIntent(row),
+            to: widget.rowTo?.call(row),
             selected: selected,
             pressScale: false,
             semanticLabel:
@@ -979,6 +985,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
       return DashPressable(
         onTap: () => widget.onRowTap!(row),
         onIntent: _rowIntent(row),
+        to: widget.rowTo?.call(row),
         selected: selected,
         semanticLabel: widget.rowSemanticLabel?.call(row) ?? _firstText(row),
         builder: (context, s) => card,
@@ -1002,6 +1009,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
       selected: selected,
       onTap: widget.onRowTap == null ? null : () => widget.onRowTap!(row),
       onIntent: _rowIntent(row),
+      to: widget.rowTo?.call(row),
       semanticLabel: widget.rowSemanticLabel?.call(row) ?? _firstText(row),
       padding: const EdgeInsets.all(Space.lg),
       child: Column(

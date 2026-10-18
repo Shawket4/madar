@@ -33,11 +33,25 @@ class TillsPage extends ConsumerStatefulWidget {
   static Widget route(BuildContext context, GoRouterState state) =>
       TillsPage(query: state.uri.queryParameters);
 
-  /// The web's `prefetchRoute('/tills')`: the branch's open tills, the key
-  /// the page watches on mount.
+  /// The web's `prefetchRoute('/tills')`: the branch's open tills, and what
+  /// else the page watches on mount, with its keys: my till, the open-bills
+  /// notice, the list under the URL's filters (not `?today`, keyed by the
+  /// wall clock's day: left to the page).
   static void prefetch(DashPrefetcher warm, Scope scope) {
     final branchId = scope.branchId;
-    if (branchId != null) warm(openTillsProvider(branchId));
+    if (branchId != null) {
+      warm(openTillsProvider(branchId));
+      warm(tillPreFillProvider(branchId));
+      warm(openBillsNoticeProvider(branchId));
+    }
+    final search = TillsSearch.fromQuery(warm.query);
+    if (!search.today) warm(tillsListProvider(tillsListKey(scope, search)));
+    // `?report=`: the panel's report, summary and deductions.
+    if (search.report case final till?) {
+      warm(tillReportProvider(till));
+      warm(tillSummaryProvider(till));
+      warm(tillDeductionsProvider(till));
+    }
   }
 
   final Map<String, String> query;
@@ -128,14 +142,8 @@ class _TillsPageState extends ConsumerState<TillsPage> {
     return DateTime(now.year, now.month, now.day).toUtc();
   }
 
-  TillsListKey _listKey(Scope scope, TillsSearch s) => (
-    branchId: scope.scopeBranchId,
-    status: s.status,
-    tellerId: s.teller,
-    deviceId: s.device,
-    flagged: s.flagged,
-    from: s.today ? _startOfToday() : null,
-  );
+  TillsListKey _listKey(Scope scope, TillsSearch s) =>
+      tillsListKey(scope, s, from: s.today ? _startOfToday() : null);
 
   // ── Actions ──────────────────────────────────────────────────────────
 

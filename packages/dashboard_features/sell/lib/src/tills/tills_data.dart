@@ -95,6 +95,17 @@ typedef TillsListKey = ({
   DateTime? from,
 });
 
+/// The list's key for [scope] under [s] (`?today` passes [from], the start
+/// of the day).
+TillsListKey tillsListKey(Scope scope, TillsSearch s, {DateTime? from}) => (
+  branchId: scope.scopeBranchId,
+  status: s.status,
+  tellerId: s.teller,
+  deviceId: s.device,
+  flagged: s.flagged,
+  from: from,
+);
+
 /// T3 `GET /tills/branches/{branch_id}` (the all-branches id with All
 /// branches selected).
 final tillsListProvider = FutureProvider.autoDispose

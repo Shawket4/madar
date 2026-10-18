@@ -169,6 +169,16 @@ void prefetchInventoryReports(DashPrefetcher warm, Scope s) {
   if (k != null) warm(invConsumptionProvider(k));
 }
 
+/// The route's prefetch for `/reports/loyalty`: the first tab (Overview),
+/// keyed as the page keys it.
+void prefetchLoyaltyReport(DashPrefetcher warm, Scope s) =>
+    warm(loyaltyBehaviorProvider(s.loyaltyKey));
+
+/// The route's prefetch for `/reports/staff`: the report, with the page's
+/// local dates.
+void prefetchStaffDiscipline(DashPrefetcher warm, Scope s) =>
+    warm(disciplineProvider(disciplineKeyOf(s, warm.read(formatProvider))));
+
 // ── staff discipline ─────────────────────────────────────────────────────
 
 /// `{from, to, branch_id?}` with local `YYYY-MM-DD` dates (REP-STF-005).

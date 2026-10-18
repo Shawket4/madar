@@ -22,12 +22,20 @@ const List<DashRoute> overviewRoutes = [
 
 Widget _home(BuildContext context, GoRouterState state) => const HomeRoute();
 
-/// The web's `prefetchRoute('/')`: the branch's sales when one is picked, the
-/// org's trend and branch comparison when an org is in scope (`HomeData`).
+/// The web's `prefetchRoute('/')`: the branch's sales and open tills when
+/// one is picked; the org's trend, branch comparison, margin watch and
+/// delivery sales when an org is in scope (`HomeData` and the cards'
+/// own reads, with the keys they watch).
 void _prefetchHome(DashPrefetcher warm, Scope s) {
-  if (s.branchId != null) warm(homeBranchSalesProvider(s.branchRange));
+  final b = s.branchId;
+  if (b != null) {
+    warm(homeBranchSalesProvider(s.branchRange));
+    warm(homeOpenTillsProvider(b));
+  }
   if (s.orgId != null) {
     warm(homeTimeseriesProvider(s.series));
     warm(homeComparisonProvider(s.orgRange));
+    warm(homeMarginWatchProvider(s.scopeRange));
+    warm(homeDeliveryProvider(s.scopeRange));
   }
 }

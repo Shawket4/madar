@@ -23,6 +23,23 @@ class CustomersPage extends ConsumerStatefulWidget {
   static Widget route(BuildContext context, GoRouterState state) =>
       const CustomersPage();
 
+  /// The list's first window, unfiltered, and the org's programme (for the
+  /// balance column), as the list keys them on mount, for whoever may see
+  /// customers.
+  static void prefetch(DashPrefetcher warm, Scope scope) {
+    final access = warm.read(peopleAccessProvider);
+    if (access.ready && !access.canViewCustomers) return;
+    warm(
+      customersListProvider((
+        q: '',
+        member: null,
+        source: null,
+        limit: customersPageSize.clamp(1, customersLimitMax),
+      )),
+    );
+    if (access.canReadProgram) warm(loyaltySettingsProvider(null));
+  }
+
   @override
   ConsumerState<CustomersPage> createState() => _CustomersPageState();
 }

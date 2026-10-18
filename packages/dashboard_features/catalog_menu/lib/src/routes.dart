@@ -17,13 +17,16 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'bases/bases_page.dart';
+import 'bases/bases_providers.dart';
 import 'bases/packaging_rules_page.dart';
 import 'groups/groups_page.dart';
 import 'items/items_page.dart';
 import 'items/items_providers.dart' show prefetchMenuItems;
 import 'pricing/pricing_page.dart';
 import 'pricing/pricing_providers.dart' show prefetchPricing;
+import 'shared/menu_providers.dart';
 import 'studio/menu_studio_page.dart';
+import 'studio/studio_providers.dart';
 
 Widget _items(BuildContext context, GoRouterState state) =>
     const MenuItemsPage();
@@ -60,6 +63,7 @@ const List<DashRoute> catalogMenuRoutes = [
     titleKey: 'menu.studio.itemTitle',
     titleFallback: 'Menu item',
     module: OrgModule.pos,
+    prefetch: _prefetchStudio,
   ),
   DashRoute(
     path: '/menu/groups',
@@ -67,6 +71,7 @@ const List<DashRoute> catalogMenuRoutes = [
     titleKey: 'menu.groups.title',
     titleFallback: 'Choice groups',
     module: OrgModule.pos,
+    prefetch: _prefetchGroups,
   ),
   DashRoute(
     path: '/menu/pricing',
@@ -82,6 +87,7 @@ const List<DashRoute> catalogMenuRoutes = [
     titleKey: 'modeling.bases.title',
     titleFallback: 'Recipe bases',
     module: OrgModule.pos,
+    prefetch: _prefetchBases,
   ),
   DashRoute(
     path: '/menu/packaging',
@@ -89,5 +95,54 @@ const List<DashRoute> catalogMenuRoutes = [
     titleKey: 'modeling.packaging.title',
     titleFallback: 'Packaging rules',
     module: OrgModule.pos,
+    prefetch: _prefetchPackaging,
   ),
 ];
+
+/// The studio's mount reads (`/menu/items/:itemId`): the aggregate, the item
+/// (the meal section's target), the step library, the area's shared reads
+/// (ingredients, categories, bases, active groups) and the meal section's
+/// combos and full item list. A new item (`new`) reads nothing to warm; the
+/// steps' animation files are fetched per step URL once the library lands,
+/// and the recipe link only for a linked copy, so the page reads those.
+void _prefetchStudio(DashPrefetcher warm, Scope s) {
+  final id = warm.params['itemId'];
+  final org = s.orgId;
+  if (id == null || id == 'new' || org == null) return;
+  warm(menuStudioProvider(id));
+  warm(studioMenuItemProvider(id));
+  warm(stepPresetsProvider);
+  warm(ingredientCatalogProvider(org));
+  warm(menuCategoriesProvider(org));
+  warm(recipeBasesProvider(org));
+  warm(modifierGroupsProvider((orgId: org, includeInactive: false)));
+  warm(studioCombosProvider);
+  warm(studioMenuOptionsProvider(org));
+}
+
+/// `/menu/groups`: the list, inactive included (the page's key). Each
+/// group's usage is keyed by an id the list answers, so the page reads it.
+void _prefetchGroups(DashPrefetcher warm, Scope s) {
+  final org = s.orgId;
+  if (org == null) return;
+  warm(modifierGroupsProvider((orgId: org, includeInactive: true)));
+}
+
+/// `/menu/bases`: the bases and the ingredient catalog they read.
+void _prefetchBases(DashPrefetcher warm, Scope s) {
+  final org = s.orgId;
+  if (org == null) return;
+  warm(recipeBasesProvider(org));
+  warm(ingredientCatalogProvider(org));
+}
+
+/// `/menu/packaging`: the rules, the ingredient catalog, the menu
+/// categories and the first 500 catalog items the rows name.
+void _prefetchPackaging(DashPrefetcher warm, Scope s) {
+  final org = s.orgId;
+  if (org == null) return;
+  warm(packagingRulesProvider(org));
+  warm(ingredientCatalogProvider(org));
+  warm(menuCategoriesProvider(org));
+  warm(packagingItemOptionsProvider(org));
+}

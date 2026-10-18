@@ -23,6 +23,20 @@ import 'unit_support.dart';
 Widget bundlesReportPageBuilder(BuildContext context, GoRouterState state) =>
     const BundlesReportPage();
 
+/// The route's prefetch: the first view (Combos), with the page's local
+/// dates.
+void prefetchBundlesReport(DashPrefetcher warm, Scope s) {
+  final f = warm.read(formatProvider);
+  warm(
+    bundlesReportProvider((
+      from: localDateParam(f, s.from),
+      to: localDateParam(f, s.to),
+      branchId: s.branchId,
+      kind: BundleKind.combo.wire,
+    )),
+  );
+}
+
 /// Combos or deals (`BundleKind`).
 enum BundleKind {
   combo,

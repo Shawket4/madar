@@ -7,7 +7,8 @@ import 'package:dashboard_api/dashboard_api.dart' show ApiException, DealRule;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/menu_options.dart' show compareNames;
+import '../shared/menu_options.dart'
+    show compareNames, offersCategoriesProvider, offersMenuItemsProvider;
 import '../shared/offers_cache.dart';
 import 'deal_form.dart';
 
@@ -52,4 +53,12 @@ String dealErrorText(Object? error, Translator t) {
     }
   }
   return errorMessage(error, t);
+}
+
+/// The route's prefetch (`/menu/deals`): the deals and the pick lists the
+/// page names them with (the full menu items and the categories).
+void prefetchDeals(DashPrefetcher warm, Scope s) {
+  warm(dealsProvider);
+  warm(offersMenuItemsProvider);
+  warm(offersCategoriesProvider);
 }

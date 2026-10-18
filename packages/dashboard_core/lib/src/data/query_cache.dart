@@ -17,7 +17,8 @@ import 'package:dashboard_core/src/data/offline.dart' show offlineProvider;
 import 'package:dashboard_core/src/scope/scope.dart' show orgIdProvider;
 import 'package:dashboard_core/src/session/session.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart' show KeepAliveLink;
+import 'package:flutter_riverpod/misc.dart'
+    show KeepAliveLink, ProviderListenable;
 
 /// The web's `staleTime`: younger data is shown as it is, older data is shown
 /// and refetched in the background.
@@ -161,6 +162,7 @@ class QueryCache {
   /// one when its page closes (a sign-out closes them all). Never reloaded
   /// in place, which would show the last person's data meanwhile.
   void clear() {
+    _warmedAt.clear();
     final links = [..._kept];
     _kept.clear();
     _idle.clear();
@@ -185,6 +187,26 @@ class QueryCache {
   }
 
   void busy(KeepAliveLink link) => _idle.remove(link);
+
+  /// When each page location was last warmed (`prefetchRouteIn`).
+  final _warmedAt = <String, DateTime>{};
+
+  /// How many page warms ran (not throttled): tests read it.
+  int warmsRun = 0;
+
+  /// Whether the page warm [key] (a location and scope) may run at [now]:
+  /// not within [throttle] of the last one. Records it when so. [clear]
+  /// forgets them all, with the data.
+  bool admitWarm(String key, DateTime now, Duration throttle) {
+    final last = _warmedAt[key];
+    if (last != null && now.difference(last) < throttle) return false;
+    if (_warmedAt.length > 256) {
+      _warmedAt.removeWhere((_, t) => now.difference(t) >= throttle);
+    }
+    _warmedAt[key] = now;
+    warmsRun++;
+    return true;
+  }
 
   /// Whether nobody listens to [link]'s read right now.
   bool isIdle(KeepAliveLink link) => _idle.containsKey(link);
@@ -237,9 +259,25 @@ Duration? webRetry(int retryCount, Object error) {
 /// Warms the reads a page fires on mount (the web's `prefetchRoute`), from a
 /// sidebar or palette row under the pointer or in focus.
 class DashPrefetcher {
-  DashPrefetcher(this._container);
+  DashPrefetcher(
+    this._container, {
+    this.params = const {},
+    this.query = const {},
+  });
 
   final ProviderContainer _container;
+
+  /// The location's path parameters (`itemId` of `/menu/items/:itemId`):
+  /// a detail page's prefetch warms that record.
+  final Map<String, String> params;
+
+  /// The location's query (`?tab=`, a list's filters), for a page that
+  /// reads it on mount.
+  final Map<String, String> query;
+
+  /// A value the page's key is built from (the format, the excluded items),
+  /// read as the page reads it. Never a read that fetches: [call] those.
+  T read<T>(ProviderListenable<T> provider) => _container.read(provider);
 
   /// Start [provider] (a read using [WebQueryCache.webCache], with the exact
   /// argument the page passes): a fresh one is left as it is, a stale one is
@@ -249,6 +287,21 @@ class DashPrefetcher {
   void call<T>(FutureProvider<T> provider) {
     // Listened until it lands: the stale refetch starts a turn later and
     // needs a listener to rebuild in place.
+    final sub = _container.listen(provider, (_, _) {});
+    Future.microtask(() => _container.read(provider.future)).then<void>(
+      (_) => sub.close(),
+      onError: (Object _) {
+        sub.close();
+        _container.invalidate(provider);
+      },
+    );
+  }
+
+  /// [call] for a read kept in an [AsyncNotifier] (one a save writes its
+  /// answer into, the branch plan), with the same rules.
+  void notifier<N extends AsyncNotifier<T>, T>(
+    AsyncNotifierProvider<N, T> provider,
+  ) {
     final sub = _container.listen(provider, (_, _) {});
     Future.microtask(() => _container.read(provider.future)).then<void>(
       (_) => sub.close(),
