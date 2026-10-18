@@ -11,6 +11,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import 'counts_data.dart';
 
@@ -146,7 +147,8 @@ class _StartCountDialogState extends ConsumerState<StartCountDialog> {
                 if (!_items.contains(id)) setState(() => _items.add(id));
               },
               options: [
-                for (final i in catalog ?? const [])
+                // An archived (or inactive) ingredient is not offered.
+                for (final i in pickableOrChosen(catalog ?? const []))
                   if (!_items.contains(i.id))
                     DashOption(
                       value: i.id,

@@ -5,10 +5,10 @@
 ///
 /// | Route | Read by |
 /// |---|---|
-/// | GET /inventory/orgs/{org_id}/catalog | Today, Counts, Ingredients, Purchasing |
+/// | GET /inventory/orgs/{org_id}/catalog (`status`) | Today, Counts, Ingredients, Purchasing |
 /// | GET /inventory/orgs/{org_id}/categories | Counts, Ingredients, Settings |
 /// | GET /purchasing/orgs/{org_id}/suppliers | Today, Ingredients, Purchasing |
-/// | GET /inventory/branches/{branch_id}/stock | Today, Ingredients, Waste, Transfers |
+/// | GET /inventory/branches/{branch_id}/stock (`status`) | Today, Ingredients, Waste, Transfers |
 /// | GET /stocktakes/branches/{branch_id} | Today, Counts, Ingredients |
 /// | GET /purchasing/branches/{branch_id}/orders | Purchasing |
 /// | GET /purchasing/orgs/{org_id}/orders | Today |
@@ -23,6 +23,16 @@ import 'package:dashboard_api/mock.dart';
 import '../area_seed.dart';
 import 'inventory_views.dart';
 
+/// The `status` query (`ArchiveFilter`), 400 when it is none of
+/// `active` | `archived` | `all`; null when omitted (= all).
+String? archiveStatus(MockRequest req) {
+  final s = req.q('status');
+  if (s != null && !const ['active', 'archived', 'all'].contains(s)) {
+    req.badRequest('status must be one of: active, archived, all');
+  }
+  return s;
+}
+
 void registerInventorySharedReads(MockServer server, MockDb db) {
   String org(MockRequest req) {
     final id = req.param('org_id');
@@ -32,7 +42,9 @@ void registerInventorySharedReads(MockServer server, MockDb db) {
 
   server.on('GET', '/inventory/orgs/{org_id}/catalog', (req) {
     req.requireCap('inventory.read');
-    return MockResponse.ok(InvViews.catalog(db, org(req)));
+    return MockResponse.ok(
+      InvViews.catalog(db, org(req), status: archiveStatus(req)),
+    );
   });
 
   server.on('GET', '/inventory/orgs/{org_id}/categories', (req) {
@@ -49,7 +61,9 @@ void registerInventorySharedReads(MockServer server, MockDb db) {
     req.requireCap('inventory.read');
     final ids = InvScope.branchIds(req, db, req.param('branch_id'));
     if (ids.length != 1) req.badRequest('Pick a branch');
-    return MockResponse.ok(InvViews.branchStock(db, ids.single));
+    return MockResponse.ok(
+      InvViews.branchStock(db, ids.single, status: archiveStatus(req)),
+    );
   });
 
   server.on('GET', '/stocktakes/branches/{branch_id}', (req) {

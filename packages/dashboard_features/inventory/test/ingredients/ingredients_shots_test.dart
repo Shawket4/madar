@@ -1,6 +1,7 @@
 // The Ingredients screenshot matrix: the page with a branch and with All
 // branches at {phone, tablet, desktop} x {en light, ar dark}; loading, error,
-// empty, the dialog (create, edit), the drawer and its history states at
+// empty, the dialog (create, edit), the drawer and its history states, the
+// Archived view and the archive dialog at
 // desktop-en-light and phone-ar-light. Written only with FDASH_SHOTS set;
 // the pages still render (and must not overflow) without.
 import 'package:dashboard_api/mock.dart';
@@ -220,6 +221,33 @@ void main() {
       await h.shot('ingredients/drawer-history-loading');
       gate.release();
       await h.settle();
+    });
+
+    testWidgets('archived view, $tag', (tester) async {
+      final h = await pumpIngredients(
+        tester,
+        size: size,
+        locale: lang,
+        dark: dark,
+        branch: SeedIds.zamalek,
+      );
+      await h.tap(
+        inPage(find.text(h.t('inventory.archive.archivedTab'))).first,
+      );
+      await h.shot('ingredients/archived');
+    });
+
+    testWidgets('archive dialog (stock on hand), $tag', (tester) async {
+      final h = await pumpIngredients(
+        tester,
+        size: size,
+        locale: lang,
+        dark: dark,
+        branch: SeedIds.zamalek,
+      );
+      await openDrawer(h, 'Oat Milk');
+      await h.tap(inDrawer(byKey('ingredient-drawer-archive')));
+      await h.shot('ingredients/archive-dialog');
     });
 
     testWidgets('filter Low stock, $tag', (tester) async {

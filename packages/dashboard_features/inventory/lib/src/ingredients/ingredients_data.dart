@@ -40,24 +40,35 @@ final ingredientMovementsProvider = FutureProvider.autoDispose
           );
     });
 
-/// The segmented filter under the header (branch selected only).
+/// The segmented filter under the header (branch selected, Active view
+/// only).
 enum IngredientFilter { all, low, uncounted }
+
+/// Active or archived ingredients (always offered).
+enum IngredientView { active, archived }
 
 /// Branch stock by ingredient id (`stockByIngredient`).
 Map<String, BranchStockRow> stockByIngredient(List<BranchStockRow>? rows) => {
   for (final s in rows ?? const <BranchStockRow>[]) s.orgIngredientId: s,
 };
 
-/// The table's rows: the catalog, narrowed by [filter] only with a branch
-/// (INV-ING-006, -054). Low = the branch row is below par; never counted =
-/// no branch row or no `last_counted_at`.
+/// The table's rows: the catalog in [view] (archived or not), narrowed by
+/// [filter] only in the Active view with a branch (INV-ING-006, -054). Low =
+/// the branch row is below par; never counted = no branch row or no
+/// `last_counted_at`.
 List<OrgIngredient> filterIngredients(
-  List<OrgIngredient> catalog,
+  List<OrgIngredient> all,
   Map<String, BranchStockRow> stock,
   IngredientFilter filter, {
   required bool hasBranch,
+  IngredientView view = IngredientView.active,
 }) {
-  if (!hasBranch) return catalog;
+  final archived = view == IngredientView.archived;
+  final catalog = [
+    for (final it in all)
+      if ((it.archivedAt != null) == archived) it,
+  ];
+  if (!hasBranch || archived) return catalog;
   return switch (filter) {
     IngredientFilter.all => catalog,
     IngredientFilter.low => [

@@ -47,11 +47,15 @@ class InventoryApi {
   /// `GET /inventory/branches/{branch_id}/stock` (list_branch_stock)
   Future<List<BranchStockRow>> listBranchStock({
     required String branchId,
+    ArchiveFilter? status,
   }) async {
     final response = await _transport.send(
       ApiRequest(
         method: 'GET',
         path: '/inventory/branches/${pathSegment(branchId)}/stock',
+        query: {
+          if (status != null) 'status': [queryValue(status)],
+        },
       ),
     );
     return decodeResponse(
@@ -164,11 +168,17 @@ class InventoryApi {
   }
 
   /// `GET /inventory/orgs/{org_id}/catalog` (list_catalog)
-  Future<List<OrgIngredient>> listCatalog({required String orgId}) async {
+  Future<List<OrgIngredient>> listCatalog({
+    required String orgId,
+    ArchiveFilter? status,
+  }) async {
     final response = await _transport.send(
       ApiRequest(
         method: 'GET',
         path: '/inventory/orgs/${pathSegment(orgId)}/catalog',
+        query: {
+          if (status != null) 'status': [queryValue(status)],
+        },
       ),
     );
     return decodeResponse(
@@ -233,6 +243,75 @@ class InventoryApi {
       response,
       'update_catalog_item',
       (json) => decObject(json, 'update_catalog_item', OrgIngredient.fromJson),
+    );
+  }
+
+  /// Archive an ingredient: it leaves pickers, reorder suggestions and (once no
+  /// branch holds stock) stock-count sheets. Nothing else changes: recipes that
+  /// use it keep deducting and costing it, every till keeps it in its mirror,
+  /// history keeps showing it, no movement is posted and no balance moves.
+  ///
+  /// `POST /inventory/orgs/{org_id}/catalog/{id}/archive` (archive_catalog_item)
+  Future<OrgIngredient> archiveCatalogItem({
+    required String orgId,
+    required String id,
+    ArchiveIngredientRequest? body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path:
+            '/inventory/orgs/${pathSegment(orgId)}/catalog/${pathSegment(id)}/archive',
+        body: body?.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'archive_catalog_item',
+      (json) => decObject(json, 'archive_catalog_item', OrgIngredient.fromJson),
+    );
+  }
+
+  /// Bring an archived ingredient back: pickers and counts list it again. Its
+  /// name never left it, so this cannot conflict.
+  ///
+  /// `POST /inventory/orgs/{org_id}/catalog/{id}/unarchive` (unarchive_catalog_item)
+  Future<OrgIngredient> unarchiveCatalogItem({
+    required String orgId,
+    required String id,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path:
+            '/inventory/orgs/${pathSegment(orgId)}/catalog/${pathSegment(id)}/unarchive',
+      ),
+    );
+    return decodeResponse(
+      response,
+      'unarchive_catalog_item',
+      (json) =>
+          decObject(json, 'unarchive_catalog_item', OrgIngredient.fromJson),
+    );
+  }
+
+  /// `GET /inventory/orgs/{org_id}/catalog/{id}/usage` (get_catalog_item_usage)
+  Future<IngredientUsage> getCatalogItemUsage({
+    required String orgId,
+    required String id,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path:
+            '/inventory/orgs/${pathSegment(orgId)}/catalog/${pathSegment(id)}/usage',
+      ),
+    );
+    return decodeResponse(
+      response,
+      'get_catalog_item_usage',
+      (json) =>
+          decObject(json, 'get_catalog_item_usage', IngredientUsage.fromJson),
     );
   }
 

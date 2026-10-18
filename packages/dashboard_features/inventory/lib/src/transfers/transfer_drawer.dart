@@ -20,6 +20,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart' show jsNumberString;
@@ -420,9 +421,12 @@ class _Lines extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        l.ingredientName,
-                        style: body.copyWith(fontWeight: FontWeight.w500),
+                      WithArchivedBadge(
+                        ingredientId: l.orgIngredientId,
+                        child: Text(
+                          l.ingredientName,
+                          style: body.copyWith(fontWeight: FontWeight.w500),
+                        ),
                       ),
                       if (l.note case final note? when note.isNotEmpty)
                         Text(
@@ -576,12 +580,15 @@ class _ReceiveTransferDialogState extends ConsumerState<ReceiveTransferDialog> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            MadarClippedText(
-                              r.l.ingredientName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: DashType.bodyMedium.copyWith(
-                                color: c.textPrimary,
+                            WithArchivedBadge(
+                              ingredientId: r.l.orgIngredientId,
+                              child: MadarClippedText(
+                                r.l.ingredientName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: DashType.bodyMedium.copyWith(
+                                  color: c.textPrimary,
+                                ),
                               ),
                             ),
                             Text(

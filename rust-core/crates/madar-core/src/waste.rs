@@ -162,6 +162,15 @@ fn sizes_with_recipe(item: &crate::menu::MenuItemView) -> Vec<String> {
         .collect()
 }
 
+/// Whether the waste picker offers a feed ingredient row. An ingredient the
+/// office archived (`archived_at`, additive on the feed since server 2026-10)
+/// is not offered; an older server never sends the field, so every row is.
+/// Only the PICKER filters: the rows still value a menu item's waste, whose
+/// recipe may keep an archived ingredient.
+fn offered_in_waste_picker(row: &serde_json::Value) -> bool {
+    row.get("archived_at").is_none_or(serde_json::Value::is_null)
+}
+
 fn invalid(field: &str, detail: String) -> CoreError {
     CoreError::Validation { field: field.into(), detail }
 }
@@ -207,6 +216,7 @@ impl MadarCore {
         let mut out: Vec<WasteIngredientView> = self
             .waste_ingredient_rows(&branch)
             .iter()
+            .filter(|r| offered_in_waste_picker(r))
             .filter_map(|r| {
                 let s = |k: &str| r.get(k).and_then(|v| v.as_str()).map(str::to_string);
                 let name = s("name")?;
@@ -504,6 +514,16 @@ mod tests {
             recipe_steps: vec![],
             kind: "item".into(),
         }
+    }
+
+    #[test]
+    fn an_archived_ingredient_is_not_offered_but_an_old_feed_row_is() {
+        use serde_json::json;
+        assert!(offered_in_waste_picker(&json!({"id": "a", "name": "Milk"})));
+        assert!(offered_in_waste_picker(&json!({"id": "a", "name": "Milk", "archived_at": null})));
+        assert!(!offered_in_waste_picker(
+            &json!({"id": "a", "name": "Milk", "archived_at": "2026-10-18T09:00:00Z"})
+        ));
     }
 
     #[test]

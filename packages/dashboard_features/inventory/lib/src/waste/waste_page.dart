@@ -14,6 +14,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_export.dart';
 import '../shared/inventory_labels.dart';
@@ -251,19 +252,27 @@ class WasteTable extends ConsumerWidget {
     final f = ref.watch(formatProvider);
     final c = context.madarColors;
     final muted = DashType.small.copyWith(color: c.textMuted);
-    Widget lines(String main, List<String> under, {TextStyle? style}) => Column(
+    Widget lines(
+      String main,
+      List<String> under, {
+      TextStyle? style,
+      bool archived = false,
+    }) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       spacing: DashMetrics.hair,
       children: [
         // The web's cells never wrap (`whitespace-nowrap`): one line each.
-        MadarClippedText(
-          main,
-          textDirection: dashTextDirectionOf(main),
-          maxLines: 1,
-          softWrap: false,
-          overflow: TextOverflow.ellipsis,
-          style: style,
+        WithArchivedBadge(
+          archived: archived,
+          child: MadarClippedText(
+            main,
+            textDirection: dashTextDirectionOf(main),
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
         ),
         for (final u in under)
           MadarClippedText(
@@ -320,18 +329,23 @@ class WasteTable extends ConsumerWidget {
           id: 'ingredient_name',
           label: t('inventory.waste.ingredient'),
           text: (m) => m.ingredientName,
-          cell: (context, m) => lines(m.ingredientName, [
-            if (_fromItem(m))
-              t(
-                'inventory.waste.fromItem',
-                args: {
-                  'item': m.wasteSizeLabel == null
-                      ? m.wasteSubjectName
-                      : '${m.wasteSubjectName} (${m.wasteSizeLabel})',
-                  'qty': f.fmtNumber(m.wasteQuantity ?? 0),
-                },
-              ),
-          ], style: DashType.bodyMedium.copyWith(color: c.textPrimary)),
+          cell: (context, m) => lines(
+            m.ingredientName,
+            [
+              if (_fromItem(m))
+                t(
+                  'inventory.waste.fromItem',
+                  args: {
+                    'item': m.wasteSizeLabel == null
+                        ? m.wasteSubjectName
+                        : '${m.wasteSubjectName} (${m.wasteSizeLabel})',
+                    'qty': f.fmtNumber(m.wasteQuantity ?? 0),
+                  },
+                ),
+            ],
+            style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+            archived: m.ingredientArchivedAt != null,
+          ),
           phone: DashPhoneRole.title,
           // "From Latte (Medium) × 2" uncut.
           minWidth: Space.xxl * 6,

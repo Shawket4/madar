@@ -8,6 +8,7 @@ part of '../models.dart';
 @immutable
 class BranchStockRow {
   const BranchStockRow({
+    this.archivedAt,
     required this.belowPar,
     required this.branchId,
     required this.categoryId,
@@ -28,6 +29,7 @@ class BranchStockRow {
   });
 
   factory BranchStockRow.fromJson(Map<String, Object?> json) => BranchStockRow(
+    archivedAt: decDateTimeN(json['archived_at'], 'BranchStockRow.archived_at'),
     belowPar: decBool(json['below_par'], 'BranchStockRow.below_par'),
     branchId: decString(json['branch_id'], 'BranchStockRow.branch_id'),
     categoryId: decString(json['category_id'], 'BranchStockRow.category_id'),
@@ -66,6 +68,11 @@ class BranchStockRow {
     parMin: decDoubleN(json['par_min'], 'BranchStockRow.par_min'),
     unit: decString(json['unit'], 'BranchStockRow.unit'),
   );
+
+  /// The ingredient's archive time; `null` = active. An archived ingredient
+  /// still holding stock here keeps appearing so it can be counted or
+  /// wasted down.
+  final DateTime? archivedAt;
 
   final bool belowPar;
 
@@ -111,6 +118,8 @@ class BranchStockRow {
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    if (archivedAt != null || explicitNulls.contains('archived_at'))
+      'archived_at': encDateTimeN(archivedAt),
     'below_par': belowPar,
     'branch_id': branchId,
     'category_id': categoryId,

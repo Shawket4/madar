@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_lib.dart';
 import 'purchasing_data.dart';
@@ -333,9 +334,12 @@ class _ReceiveLines extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: Space.sm,
                 children: [
-                  Text(
-                    l.ingredientName,
-                    style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+                  WithArchivedBadge(
+                    ingredientId: l.orgIngredientId,
+                    child: Text(
+                      l.ingredientName,
+                      style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+                    ),
                   ),
                   LabelValueGrid(
                     entries: [
@@ -457,11 +461,14 @@ class _ReceiveLines extends ConsumerWidget {
               spacing: Space.md,
               children: [
                 cell(
-                  MadarClippedText(
-                    po.lines[i].ingredientName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+                  WithArchivedBadge(
+                    ingredientId: po.lines[i].orgIngredientId,
+                    child: MadarClippedText(
+                      po.lines[i].ingredientName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+                    ),
                   ),
                   end: false,
                 ),

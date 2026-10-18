@@ -24,6 +24,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart' show jsNumberString;
@@ -263,7 +264,12 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
     final options = <DashOption<String>>[
       ...asRequest
           ? [
-              for (final i in catalog ?? const <OrgIngredient>[])
+              // An archived ingredient is not requested anew; a line that
+              // already has one keeps its name.
+              for (final i in pickableOrChosen(
+                catalog ?? const <OrgIngredient>[],
+                [for (final l in _lines) l.ingredientId],
+              ))
                 DashOption(
                   value: i.id,
                   label: i.name,

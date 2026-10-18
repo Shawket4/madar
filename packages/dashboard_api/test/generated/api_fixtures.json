@@ -253,6 +253,28 @@
    "sizes_with_manual_packaging": 7,
    "sizes_with_rule": 7
   },
+  "archive_catalog_item": {
+   "archived_at": "2026-10-08T07:00:00.000Z",
+   "archived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "category_name": "text",
+   "category_slug": "text",
+   "cost_per_unit": 1.5,
+   "created_at": "2026-10-08T07:00:00.000Z",
+   "density_g_per_ml": 1.5,
+   "description": "text",
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "is_active": true,
+   "name": "text",
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "pack_size": 1.5,
+   "pack_unit": "text",
+   "supplier_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "supplier_name": "text",
+   "unit": "text",
+   "updated_at": "2026-10-08T07:00:00.000Z",
+   "yield_pct": 1.5
+  },
   "ask_swap": {
    "created_at": "2026-10-08T07:00:00.000Z",
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -1654,6 +1676,8 @@
    "updated_at": "2026-10-08T07:00:00.000Z"
   },
   "create_catalog_item": {
+   "archived_at": "2026-10-08T07:00:00.000Z",
+   "archived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "category_name": "text",
    "category_slug": "text",
@@ -3005,6 +3029,7 @@
    "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "device_name": "text",
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "ingredient_archived_at": "2026-10-08T07:00:00.000Z",
    "ingredient_name": "text",
    "movement_type": "text",
    "note": "text",
@@ -4403,6 +4428,29 @@
    "umbrella_fee": 7,
    "umbrella_open_time": "text",
    "umbrella_override": "text"
+  },
+  "get_catalog_item_usage": {
+   "archived_at": "2026-10-08T07:00:00.000Z",
+   "ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "name": "text",
+   "needs_confirmation": true,
+   "never_used": true,
+   "stock": [
+    {
+     "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "branch_name": "text",
+     "on_hand": 1.5
+    }
+   ],
+   "unit": "text",
+   "usages": [
+    {
+     "detail": "text",
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "kind": "text",
+     "name": "text"
+    }
+   ]
   },
   "get_combo": {
    "available_now": true,
@@ -6784,6 +6832,7 @@
   ],
   "list_branch_stock": [
    {
+    "archived_at": "2026-10-08T07:00:00.000Z",
     "below_par": true,
     "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -6850,6 +6899,8 @@
   ],
   "list_catalog": [
    {
+    "archived_at": "2026-10-08T07:00:00.000Z",
+    "archived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "category_name": "text",
     "category_slug": "text",
@@ -7568,6 +7619,7 @@
     "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "device_name": "text",
     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "ingredient_archived_at": "2026-10-08T07:00:00.000Z",
     "ingredient_name": "text",
     "movement_type": "text",
     "note": "text",
@@ -8500,6 +8552,7 @@
     "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
     "device_name": "text",
     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "ingredient_archived_at": "2026-10-08T07:00:00.000Z",
     "ingredient_name": "text",
     "movement_type": "text",
     "note": "text",
@@ -12727,6 +12780,7 @@
    "user_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
   "set_par_levels": {
+   "archived_at": "2026-10-08T07:00:00.000Z",
    "below_par": true,
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -13396,6 +13450,28 @@
     "name": "text"
    }
   ],
+  "unarchive_catalog_item": {
+   "archived_at": "2026-10-08T07:00:00.000Z",
+   "archived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "category_name": "text",
+   "category_slug": "text",
+   "cost_per_unit": 1.5,
+   "created_at": "2026-10-08T07:00:00.000Z",
+   "density_g_per_ml": 1.5,
+   "description": "text",
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "is_active": true,
+   "name": "text",
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "pack_size": 1.5,
+   "pack_unit": "text",
+   "supplier_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "supplier_name": "text",
+   "unit": "text",
+   "updated_at": "2026-10-08T07:00:00.000Z",
+   "yield_pct": 1.5
+  },
   "unwaive_deduction": {
    "amount_piastres": 7,
    "created_at": "2026-10-08T07:00:00.000Z",
@@ -13480,6 +13556,8 @@
    "updated_at": "2026-10-08T07:00:00.000Z"
   },
   "update_catalog_item": {
+   "archived_at": "2026-10-08T07:00:00.000Z",
+   "archived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "category_name": "text",
    "category_slug": "text",
@@ -14907,6 +14985,10 @@
    "sizes_with_manual_packaging": 7,
    "sizes_with_rule": 7
   },
+  "ArchiveFilter": "active",
+  "ArchiveIngredientRequest": {
+   "confirm": true
+  },
   "AskSwap": {
    "my_date": "2026-10-08",
    "my_shift_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -15801,6 +15883,7 @@
    ]
   },
   "BranchStockRow": {
+   "archived_at": "2026-10-08T07:00:00.000Z",
    "below_par": true,
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -19282,6 +19365,11 @@
    "dow": 7,
    "open": "text"
   },
+  "IngredientBranchStock": {
+   "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "branch_name": "text",
+   "on_hand": 1.5
+  },
   "IngredientCategory": {
    "created_at": "2026-10-08T07:00:00.000Z",
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -19292,6 +19380,35 @@
    "slug": "text",
    "sort_order": 7,
    "updated_at": "2026-10-08T07:00:00.000Z"
+  },
+  "IngredientUsage": {
+   "archived_at": "2026-10-08T07:00:00.000Z",
+   "ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "name": "text",
+   "needs_confirmation": true,
+   "never_used": true,
+   "stock": [
+    {
+     "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "branch_name": "text",
+     "on_hand": 1.5
+    }
+   ],
+   "unit": "text",
+   "usages": [
+    {
+     "detail": "text",
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "kind": "text",
+     "name": "text"
+    }
+   ]
+  },
+  "IngredientUsageRef": {
+   "detail": "text",
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "kind": "text",
+   "name": "text"
   },
   "InventoryValuationReport": {
    "items": [
@@ -22100,6 +22217,8 @@
    "to": "2026-10-08T07:00:00.000Z"
   },
   "OrgIngredient": {
+   "archived_at": "2026-10-08T07:00:00.000Z",
+   "archived_by": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "category_name": "text",
    "category_slug": "text",
@@ -26139,6 +26258,7 @@
    "device_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "device_name": "text",
    "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "ingredient_archived_at": "2026-10-08T07:00:00.000Z",
    "ingredient_name": "text",
    "movement_type": "text",
    "note": "text",

@@ -186,19 +186,25 @@ class _RecordWasteDialogState extends ConsumerState<RecordWasteDialog> {
                   ),
             options: [
               for (final s in rows)
-                DashOption(
-                  value: s.orgIngredientId,
-                  label: s.ingredientName,
-                  keywords: s.categoryName,
-                  hint: s.onHand > 0
-                      ? qtyWithUnit(f, s.onHand, s.unit)
-                      : s.onHand < 0
-                      ? t(
-                          'inventory.catalog.belowZeroHint',
-                          args: {'qty': qtyWithUnit(f, s.onHand, s.unit)},
-                        )
-                      : t('inventory.waste.nothingOnHand'),
-                ),
+                // An archived ingredient is offered only while there is
+                // stock to waste down (or when it is the one asked for).
+                if (s.archivedAt == null ||
+                    s.onHand > 0 ||
+                    s.orgIngredientId == widget.presetIngredientId ||
+                    s.orgIngredientId == _ingredientId)
+                  DashOption(
+                    value: s.orgIngredientId,
+                    label: s.ingredientName,
+                    keywords: s.categoryName,
+                    hint: s.onHand > 0
+                        ? qtyWithUnit(f, s.onHand, s.unit)
+                        : s.onHand < 0
+                        ? t(
+                            'inventory.catalog.belowZeroHint',
+                            args: {'qty': qtyWithUnit(f, s.onHand, s.unit)},
+                          )
+                        : t('inventory.waste.nothingOnHand'),
+                  ),
             ],
             onChanged: (v) => setState(() => _ingredientId = v),
           ),

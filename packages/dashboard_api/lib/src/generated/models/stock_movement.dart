@@ -17,6 +17,7 @@ class StockMovement {
     this.deviceId,
     this.deviceName,
     required this.id,
+    this.ingredientArchivedAt,
     required this.ingredientName,
     required this.movementType,
     this.note,
@@ -68,6 +69,10 @@ class StockMovement {
     deviceId: decStringN(json['device_id'], 'StockMovement.device_id'),
     deviceName: decStringN(json['device_name'], 'StockMovement.device_name'),
     id: decString(json['id'], 'StockMovement.id'),
+    ingredientArchivedAt: decDateTimeN(
+      json['ingredient_archived_at'],
+      'StockMovement.ingredient_archived_at',
+    ),
     ingredientName: decString(
       json['ingredient_name'],
       'StockMovement.ingredient_name',
@@ -146,6 +151,10 @@ class StockMovement {
   final String? deviceName;
 
   final String id;
+
+  /// The ingredient's archive time (history keeps showing an archived
+  /// ingredient, with a badge); `null` = active.
+  final DateTime? ingredientArchivedAt;
 
   final String ingredientName;
 
@@ -235,6 +244,9 @@ class StockMovement {
     if (deviceName != null || explicitNulls.contains('device_name'))
       'device_name': deviceName,
     'id': id,
+    if (ingredientArchivedAt != null ||
+        explicitNulls.contains('ingredient_archived_at'))
+      'ingredient_archived_at': encDateTimeN(ingredientArchivedAt),
     'ingredient_name': ingredientName,
     'movement_type': movementType,
     if (note != null || explicitNulls.contains('note')) 'note': note,

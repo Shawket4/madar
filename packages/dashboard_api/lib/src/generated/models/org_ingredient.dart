@@ -5,6 +5,8 @@ part of '../models.dart';
 @immutable
 class OrgIngredient {
   const OrgIngredient({
+    this.archivedAt,
+    this.archivedBy,
     required this.categoryId,
     required this.categoryName,
     required this.categorySlug,
@@ -27,6 +29,8 @@ class OrgIngredient {
   });
 
   factory OrgIngredient.fromJson(Map<String, Object?> json) => OrgIngredient(
+    archivedAt: decDateTimeN(json['archived_at'], 'OrgIngredient.archived_at'),
+    archivedBy: decStringN(json['archived_by'], 'OrgIngredient.archived_by'),
     categoryId: decString(json['category_id'], 'OrgIngredient.category_id'),
     categoryName: decString(
       json['category_name'],
@@ -61,6 +65,15 @@ class OrgIngredient {
     updatedAt: decDateTime(json['updated_at'], 'OrgIngredient.updated_at'),
     yieldPct: decDoubleN(json['yield_pct'], 'OrgIngredient.yield_pct'),
   );
+
+  /// Set when the ingredient is archived: hidden from pickers, stock-count
+  /// sheets (once no branch holds stock) and reorder suggestions, but kept
+  /// for history and still deducted by any recipe that uses it. `null` =
+  /// active. Independent of `is_active` (which the POS feed reads).
+  final DateTime? archivedAt;
+
+  /// Who archived it; `null` when active.
+  final String? archivedBy;
 
   final String categoryId;
 
@@ -110,6 +123,10 @@ class OrgIngredient {
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    if (archivedAt != null || explicitNulls.contains('archived_at'))
+      'archived_at': encDateTimeN(archivedAt),
+    if (archivedBy != null || explicitNulls.contains('archived_by'))
+      'archived_by': archivedBy,
     'category_id': categoryId,
     'category_name': categoryName,
     'category_slug': categorySlug,
