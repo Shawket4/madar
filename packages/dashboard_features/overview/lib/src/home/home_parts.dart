@@ -186,7 +186,9 @@ class _HomeRevealState extends State<HomeReveal>
         offset: Offset(0, _rise * (1 - _shown.value)),
         child: child,
       ),
-      child: widget.child,
+      // Rises as a painted layer: the card (a chart, a table) is never
+      // repainted while it travels.
+      child: RepaintBoundary(child: widget.child),
     ),
   );
 }
@@ -287,8 +289,17 @@ class RenderHomeEqualRow extends RenderBox
     }
     var x = 0.0;
     for (var i = 0; i < kids.length; i++) {
+      // At least the tallest, never tight: a child given tight constraints
+      // is a relayout boundary, so when its content changed on its own (a
+      // refetch landing in one card, the page not rebuilt) it relaid out
+      // inside the old height and overflowed, and the row never measured
+      // again. Not tight, its change relays out the row.
       kids[i].layout(
-        BoxConstraints.tight(Size(widths[i], tallest)),
+        BoxConstraints(
+          minWidth: widths[i],
+          maxWidth: widths[i],
+          minHeight: tallest,
+        ),
         parentUsesSize: true,
       );
       final dx = _textDirection == TextDirection.rtl

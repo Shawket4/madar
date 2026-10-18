@@ -100,14 +100,18 @@ class _DashAnimatedNumberState extends State<DashAnimatedNumber>
     super.dispose();
   }
 
+  // Its own layer: a figure counting for 1.1 s repaints itself each frame,
+  // never the card, the strip or the charts beside it.
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _c,
-    builder: (context, _) => Text(
-      widget.format(_shown(widget.value)),
-      style: widget.style,
-      maxLines: 1,
-      softWrap: false,
+  Widget build(BuildContext context) => RepaintBoundary(
+    child: AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) => Text(
+        widget.format(_shown(widget.value)),
+        style: widget.style,
+        maxLines: 1,
+        softWrap: false,
+      ),
     ),
   );
 }

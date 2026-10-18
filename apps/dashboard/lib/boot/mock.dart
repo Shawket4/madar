@@ -24,7 +24,10 @@ import '../real/preferences.dart';
 /// A little latency, so loading states show as they would.
 const Duration mockLatency = Duration(milliseconds: 120);
 
-Future<ProviderContainer> bootMock() async {
+/// [observers] watch every provider (the perf harness counts updates).
+Future<ProviderContainer> bootMock({
+  List<ProviderObserver> observers = const [],
+}) async {
   final dir = await getApplicationSupportDirectory();
   final sep = Platform.pathSeparator;
   final prefs = await FilePreferences.open(
@@ -58,6 +61,7 @@ Future<ProviderContainer> bootMock() async {
   }
 
   final container = ProviderContainer(
+    observers: observers,
     // The web's retry policy (queryRetry): never a refusal, a 429 thrice.
     retry: webRetry,
     overrides: [

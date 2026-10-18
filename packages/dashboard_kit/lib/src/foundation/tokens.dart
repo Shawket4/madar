@@ -305,7 +305,12 @@ abstract final class DashMotion {
 /// Fades [child] in once, after [delay], rising [rise] px as it does (the
 /// web's `fadeIn` / `listItem`, 160 ms); shown at once under reduced motion.
 /// Its semantics stay on while it is faint.
-class DashEntrance extends StatelessWidget {
+///
+/// Cheap per frame, so a page of staggered cards stays smooth: the fade is a
+/// [FadeTransition] (the layer's alpha changes; nothing rebuilds or
+/// repaints), and the rise moves [child] as an already painted layer
+/// ([RepaintBoundary]), never repainting it while it travels.
+class DashEntrance extends StatefulWidget {
   const DashEntrance({
     required this.child,
     this.delay = Duration.zero,
@@ -317,27 +322,64 @@ class DashEntrance extends StatelessWidget {
   final double rise;
 
   @override
+  State<DashEntrance> createState() => _DashEntranceState();
+}
+
+class _DashEntranceState extends State<DashEntrance>
+    with SingleTickerProviderStateMixin {
+  late final Duration _total = DashMotion.fast + widget.delay;
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: _total,
+  );
+  // The delay as a flat start: no timer to outlive the widget.
+  late final CurvedAnimation _t = CurvedAnimation(
+    parent: _c,
+    curve: Interval(
+      widget.delay.inMicroseconds / _total.inMicroseconds,
+      1,
+      curve: DashMotion.ease,
+    ),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Decided before the first frame, so a reduced-motion child is never
+    // faint.
+    if (DashMotion.reduced(context)) {
+      _c.value = 1;
+    } else if (!_started) {
+      _c.forward();
+    }
+    _started = true;
+  }
+
+  @override
+  void dispose() {
+    _t.dispose();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (DashMotion.reduced(context)) return child;
-    final total = DashMotion.fast + delay;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: total,
-      // The delay as a flat start: no timer to outlive the widget.
-      curve: Interval(
-        delay.inMicroseconds / total.inMicroseconds,
-        1,
-        curve: DashMotion.ease,
-      ),
-      builder: (context, t, child) => Opacity(
-        opacity: t,
-        alwaysIncludeSemantics: true,
-        child: Transform.translate(
-          offset: Offset(0, rise * (1 - t)),
-          child: child,
-        ),
-      ),
-      child: child,
+    if (DashMotion.reduced(context)) return widget.child;
+    final rise = widget.rise;
+    return FadeTransition(
+      opacity: _t,
+      alwaysIncludeSemantics: true,
+      child: rise == 0
+          ? widget.child
+          : AnimatedBuilder(
+              animation: _t,
+              builder: (context, child) => Transform.translate(
+                offset: Offset(0, rise * (1 - _t.value)),
+                child: child,
+              ),
+              child: RepaintBoundary(child: widget.child),
+            ),
     );
   }
 }

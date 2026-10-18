@@ -844,3 +844,10 @@ class DashSkeleton extends StatelessWidget {
           ),
         );
 }
+
+/// The pixel width to decode a thumbnail [extent] logical px across at
+/// (`Image.network(cacheWidth:)`): twice the tile on this screen, so a
+/// `BoxFit.cover` crop of a picture up to 2:1 stays sharp, never the
+/// upload's full size (a 4000 px photo decoded for a 40 px tile, per row).
+int dashThumbDecodeWidth(BuildContext context, double extent) =>
+    (extent * 2 * MediaQuery.devicePixelRatioOf(context)).ceil();

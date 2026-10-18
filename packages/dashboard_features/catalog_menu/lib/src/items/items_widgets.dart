@@ -196,6 +196,7 @@ class MenuImageTile extends StatelessWidget {
           : Image.network(
               url!,
               fit: BoxFit.cover,
+              cacheWidth: dashThumbDecodeWidth(context, size),
               errorBuilder: (_, _, _) => glyph,
             ),
     );

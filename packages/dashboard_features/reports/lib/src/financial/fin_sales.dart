@@ -482,7 +482,9 @@ class _FinRevealState extends State<FinReveal>
         offset: Offset(0, _rise * (1 - _shown.value)),
         child: child,
       ),
-      child: widget.child,
+      // Rises as a painted layer: the card (a chart, a table) is never
+      // repainted while it travels.
+      child: RepaintBoundary(child: widget.child),
     ),
   );
 }

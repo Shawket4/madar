@@ -468,6 +468,11 @@ class _SidebarBrand extends ConsumerWidget {
               ? Image.network(
                   logo,
                   height: Space.xxl - Space.xs,
+                  // Decoded at the height it shows, not the upload's.
+                  cacheHeight:
+                      ((Space.xxl - Space.xs) *
+                              MediaQuery.devicePixelRatioOf(context))
+                          .ceil(),
                   fit: BoxFit.contain,
                   errorBuilder: (_, _, _) => madar,
                 )
