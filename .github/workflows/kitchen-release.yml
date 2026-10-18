@@ -290,7 +290,9 @@ jobs:
           npx expo prebuild -p ios --clean
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" ios/MadarKitchen/Info.plist
 
-      - name: Archive (signed)
+      # Archived UNSIGNED, then ad-hoc signed with the app's entitlements; the
+      # export below signs for the App Store. Why: tool/ios_adhoc_sign.sh.
+      - name: Archive (unsigned) + entitlements
         if: steps.asc.outputs.ready == 'true'
         working-directory: apps/kitchen/ios
         run: |
@@ -299,11 +301,8 @@ jobs:
             -workspace MadarKitchen.xcworkspace -scheme MadarKitchen -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/MadarKitchen.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+          "$GITHUB_WORKSPACE/tool/ios_adhoc_sign.sh" "$RUNNER_TEMP/MadarKitchen.xcarchive" MadarKitchen/MadarKitchen.entitlements
 
       # destination=upload: the export IS the upload, no altool/Transporter.
       - name: Upload to App Store Connect (TestFlight)

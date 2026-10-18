@@ -317,7 +317,9 @@ jobs:
           flutter build ios --release --config-only --build-number=${{ github.run_number }}
           cd ios && pod install
 
-      - name: Archive (signed)
+      # Archived UNSIGNED, then ad-hoc signed with the app's entitlements; the
+      # export below signs for the App Store. Why: tool/ios_adhoc_sign.sh.
+      - name: Archive (unsigned) + entitlements
         if: steps.asc.outputs.ready == 'true'
         working-directory: apps/staff/ios
         run: |
@@ -326,11 +328,8 @@ jobs:
             -workspace Runner.xcworkspace -scheme Runner -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+          "$GITHUB_WORKSPACE/tool/ios_adhoc_sign.sh" "$RUNNER_TEMP/Runner.xcarchive" Runner/Runner.entitlements
 
       # destination=upload: the export IS the upload, no altool/Transporter.
       - name: Upload to App Store Connect (TestFlight)
