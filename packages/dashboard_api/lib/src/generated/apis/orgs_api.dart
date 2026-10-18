@@ -192,6 +192,50 @@ class OrgsApi {
     );
   }
 
+  /// The menu-without-prices settings.
+  ///
+  /// Every plan: no `branding` or `online` check, so a Free shop can reach it.
+  /// The organisation settings capabilities, as the links page.
+  ///
+  /// `GET /orgs/{id}/links-page/menu-display` (get_menu_display)
+  Future<MenuDisplaySettings> getMenuDisplay({required String id}) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/orgs/${pathSegment(id)}/links-page/menu-display',
+      ),
+    );
+    return decodeResponse(
+      response,
+      'get_menu_display',
+      (json) =>
+          decObject(json, 'get_menu_display', MenuDisplaySettings.fromJson),
+    );
+  }
+
+  /// Save the menu-without-prices settings. Writes ONLY its own columns: a
+  /// shop's links page (and a Free shop's lack of one) is left exactly as it was.
+  ///
+  /// `PUT /orgs/{id}/links-page/menu-display` (put_menu_display)
+  Future<MenuDisplaySettings> putMenuDisplay({
+    required String id,
+    required MenuDisplayInput body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'PUT',
+        path: '/orgs/${pathSegment(id)}/links-page/menu-display',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'put_menu_display',
+      (json) =>
+          decObject(json, 'put_menu_display', MenuDisplaySettings.fromJson),
+    );
+  }
+
   /// `PUT /orgs/{id}/logo` (upload_org_logo)
   Future<Org> uploadOrgLogo({
     required String id,
@@ -307,6 +351,35 @@ class OrgsApi {
       response,
       'put_active_till',
       (json) => decObject(json, 'put_active_till', PlanState.fromJson),
+    );
+  }
+
+  /// The shop's menu without prices.
+  ///
+  /// `org_id` or `slug` names the shop. Every plan, Free included. A shop that
+  /// has not switched the page on answers 404, exactly like a shop that does not
+  /// exist. The answer carries no price, cost, surcharge, discount or deal field.
+  ///
+  /// `GET /public/menu-display` (public_menu_display)
+  Future<PublicMenuDisplay> publicMenuDisplay({
+    String? orgId,
+    String? slug,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/public/menu-display',
+        query: {
+          if (orgId != null) 'org_id': [queryValue(orgId)],
+          if (slug != null) 'slug': [queryValue(slug)],
+        },
+      ),
+    );
+    return decodeResponse(
+      response,
+      'public_menu_display',
+      (json) =>
+          decObject(json, 'public_menu_display', PublicMenuDisplay.fromJson),
     );
   }
 

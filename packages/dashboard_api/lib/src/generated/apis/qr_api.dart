@@ -270,7 +270,8 @@ class QrApi {
   }
 
   /// The code for the shop's links page — the one address that leads to
-  /// everything else (menu, ordering, rewards, bookings, socials).
+  /// everything else (menu, ordering, rewards, bookings, socials) — or, with
+  /// `target=menu_display`, for the menu without prices on the same editor.
   ///
   /// `GET /orgs/{id}/links-qr` (org_links_qr)
   Future<QrResponse> orgLinksQr({
@@ -282,6 +283,7 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    String? target,
   }) async {
     final response = await _transport.send(
       ApiRequest(
@@ -295,6 +297,7 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (target != null) 'target': [queryValue(target)],
         },
       ),
     );

@@ -1,6 +1,7 @@
 // Operations › Overview (REP-OPS-034…046, 064, 065, 068, 069) and the
 // chart / KPI rules it shows (REP-ALL-020, 023, 024).
-import 'package:dashboard_api/dashboard_api.dart' show BranchSalesReport;
+import 'package:dashboard_api/dashboard_api.dart'
+    show BranchSalesReport, ServiceModeSales;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
@@ -8,6 +9,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/area_seed.dart';
 import 'package:dashboard_reports/src/mock/operations_mock.dart';
 import 'package:dashboard_reports/src/operations/ops_charts.dart';
+import 'package:dashboard_reports/src/operations/ops_overview.dart';
 import 'package:dashboard_reports/src/operations/ops_support.dart';
 import 'package:design_system/design_system.dart';
 import 'package:dashboard_core/mock.dart' show MemoryPreferences;
@@ -42,6 +44,9 @@ num _kpi(WidgetTester tester, String key) => tester
       ),
     )
     .value;
+
+Finder get _serviceMode =>
+    inPage(find.byKey(const ValueKey('ops-service-mode')));
 
 Finder get _trigger =>
     inPage(find.byKey(const ValueKey('ops-exclude-trigger')));
@@ -464,7 +469,38 @@ void main() {
       times: null,
     );
     final h = await _overview(tester, server: s.server, db: s.db);
-    expect(pageText("Couldn't load this"), findsNWidgets(3));
+    // Payment, category, Pickup / Dine in and top items (web d656cb9).
+    expect(pageText("Couldn't load this"), findsNWidgets(4));
+    expect(
+      find.descendant(of: _serviceMode, matching: find.byType(DashErrorState)),
+      findsOneWidget,
+    );
+    // Every KPI reads "—" with no hint; never a 0.
+    for (final key in [
+      'revenue',
+      'tax',
+      'orders',
+      'line_items',
+      'aov',
+      'voided',
+    ]) {
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.text('—'),
+        ),
+        findsOneWidget,
+        reason: key,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.byType(DashStatValue),
+        ),
+        findsNothing,
+        reason: key,
+      );
+    }
     for (final e in tester.widgetList<DashErrorState>(
       inPage(find.byType(DashErrorState)),
     )) {
@@ -480,6 +516,178 @@ void main() {
       inPage(find.byKey(const ValueKey('ops-payment-donut'))),
       findsOneWidget,
     );
+    expect(_kpi(tester, 'orders'), greaterThan(0));
+  });
+
+  testWidgets('d656cb9 a failed KPI hides its hint: "—" and no "excluded" '
+      'note even with items excluded; the exclude control stays', (
+    tester,
+  ) async {
+    final s = opsServer();
+    s.server.fail(
+      'GET',
+      salesRoute,
+      MockResponse.error(500, 'boom'),
+      times: null,
+    );
+    final id = MockSeed.menuItemId(seedMenu.first.key);
+    await _overview(
+      tester,
+      server: s.server,
+      db: s.db,
+      prefs: {
+        excludedItemsPrefKey(SeedIds.sabahOrg): _excludedPref([id]),
+      },
+    );
+    expect(pageText('1 item excluded'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('line_items')),
+        matching: _trigger,
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('d656cb9 loading keeps the KPI skeletons, never "—"', (
+    tester,
+  ) async {
+    final s = opsServer();
+    final h = await pumpOps(tester, server: s.server, db: s.db);
+    final gate = s.server.hold('GET', salesRoute);
+    await openTab(h, 'Overview');
+    expect(inPage(find.text('—')), findsNothing);
+    expect(
+      find.descendant(of: _serviceMode, matching: find.byType(DashSkeleton)),
+      findsNWidgets(2),
+    );
+    gate.release();
+    await h.settle();
+  });
+
+  group('Pickup / Dine in (ServiceModeSplit)', () {
+    testWidgets('both modes in order with orders, revenue and share; they add '
+        'up to the report\'s revenue', (tester) async {
+      final h = await _overview(tester);
+      final d = _expected(h, SeedIds.sabahBranches);
+      final f = h.container.read(formatProvider);
+      expect(
+        find.descendant(
+          of: _serviceMode,
+          matching: find.text('Pickup and Dine in'),
+        ),
+        findsOneWidget,
+      );
+      final rows = opsServiceModeRows(d.byServiceMode);
+      expect([for (final r in rows) r.mode], ['takeaway', 'dine_in']);
+      expect(rows.fold<int>(0, (a, r) => a + r.revenue), d.totalRevenue);
+      expect(rows.fold<int>(0, (a, r) => a + r.orders), d.totalOrders);
+      expect(rows.every((r) => r.orders > 0), isTrue);
+      final pickup = find.byKey(const ValueKey('ops-service-mode-takeaway'));
+      final dineIn = find.byKey(const ValueKey('ops-service-mode-dine_in'));
+      expect(
+        find.descendant(of: pickup, matching: find.text('Pickup')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: dineIn, matching: find.text('Dine in')),
+        findsOneWidget,
+      );
+      for (final (finder, r) in [(pickup, rows[0]), (dineIn, rows[1])]) {
+        expect(
+          find.descendant(
+            of: finder,
+            matching: find.text(dashFigure(f.fmtMoney(r.revenue))),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: finder,
+            matching: find.text(dashFigure(f.fmtPercent(r.share))),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: finder,
+            matching: find.text('${dashFigure(fmtNum(f, r.orders))} orders'),
+          ),
+          findsOneWidget,
+        );
+        final bar = tester.widget<DashProgressBar>(
+          find.descendant(of: finder, matching: find.byType(DashProgressBar)),
+        );
+        expect(bar.value, r.share);
+        expect(bar.semanticLabel, contains('share of revenue'));
+      }
+      // Between the chart grid and Top Items.
+      expect(
+        tester.getTopLeft(_serviceMode).dy,
+        greaterThan(tester.getTopLeft(chartCard('By Category')).dy),
+      );
+      expect(
+        tester.getTopLeft(_serviceMode).dy,
+        lessThan(tester.getTopLeft(chartCard('Top Items by Quantity Sold')).dy),
+      );
+    });
+
+    test('serviceModeRows: fixed order, unknown modes are Pickup, no revenue '
+        'means a 0 share', () {
+      final rows = opsServiceModeRows([
+        const ServiceModeSales(serviceMode: 'dine_in', orders: 2, revenue: 300),
+        const ServiceModeSales(
+          serviceMode: 'delivery',
+          orders: 1,
+          revenue: 100,
+        ),
+      ]);
+      expect([for (final r in rows) r.mode], ['takeaway', 'dine_in']);
+      expect(rows[0].revenue, 100);
+      expect(rows[0].share, 0.25);
+      expect(rows[1].share, 0.75);
+      final none = opsServiceModeRows(null);
+      expect([for (final r in none) (r.orders, r.share)], [(0, 0.0), (0, 0.0)]);
+    });
+
+    testWidgets('Arabic', (tester) async {
+      await _overview(tester, locale: 'ar');
+      expect(
+        find.descendant(
+          of: _serviceMode,
+          matching: find.text('الاستلام والتناول في المطعم'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: _serviceMode, matching: find.text('استلام')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: _serviceMode, matching: find.text('في المطعم')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a zero split reads 0, not "—"', (tester) async {
+      final h = await _overview(tester);
+      await h.container
+          .read(scopeProvider.notifier)
+          .setCustomRange(
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-02T00:00:00.000Z',
+          );
+      await h.settle();
+      expect(_kpi(tester, 'revenue'), 0);
+      expect(
+        find.descendant(
+          of: _serviceMode,
+          matching: find.text('${dashFigure('0')} orders'),
+        ),
+        findsNWidgets(2),
+      );
+      expect(inPage(find.text('—')), findsNothing);
+    });
   });
 
   testWidgets('REP-OPS-043…045 loading: chart skeletons and five top-item '

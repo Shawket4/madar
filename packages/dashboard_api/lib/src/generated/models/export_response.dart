@@ -2,6 +2,8 @@
 // ignore_for_file: type=lint
 part of '../models.dart';
 
+/// The export's body. Documented here and written by `export_orders` as a
+/// stream in exactly this shape (`ExportTail` is everything after `data`).
 @immutable
 class ExportResponse {
   const ExportResponse({
