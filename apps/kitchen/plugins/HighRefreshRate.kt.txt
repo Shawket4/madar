@@ -1,0 +1,68 @@
+package __PACKAGE__
+
+import android.app.Activity
+import android.hardware.display.DisplayManager
+import android.os.Build
+import android.view.Display
+
+/**
+ * Asks Android for the display's highest refresh rate (90/120/144 Hz) at the
+ * CURRENT resolution. Never changes resolution; every call is guarded so a
+ * device that misbehaves simply stays at its default rate. No-op below API 23.
+ * Same logic as the Flutter apps' HighRefreshRate.kt.
+ */
+class HighRefreshRate(private val activity: Activity) {
+    private val listener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {}
+        override fun onDisplayRemoved(displayId: Int) {}
+        override fun onDisplayChanged(displayId: Int) = apply()
+    }
+    private var listening = false
+
+    fun start() {
+        apply()
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !listening) {
+                val dm = activity.getSystemService(DisplayManager::class.java)
+                dm?.registerDisplayListener(listener, null)
+                listening = dm != null
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    fun stop() {
+        try {
+            if (listening) {
+                activity.getSystemService(DisplayManager::class.java)
+                    ?.unregisterDisplayListener(listener)
+            }
+        } catch (_: Throwable) {
+        }
+        listening = false
+    }
+
+    fun apply() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        try {
+            @Suppress("DEPRECATION")
+            val display: Display = (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                activity.display
+            } else {
+                activity.windowManager.defaultDisplay
+            }) ?: return
+            val current = display.mode
+            val best = display.supportedModes
+                .filter {
+                    it.physicalWidth == current.physicalWidth &&
+                        it.physicalHeight == current.physicalHeight
+                }
+                .maxByOrNull { it.refreshRate } ?: return
+            val attrs = activity.window.attributes
+            if (attrs.preferredDisplayModeId == best.modeId) return
+            attrs.preferredDisplayModeId = best.modeId
+            activity.window.attributes = attrs
+        } catch (_: Throwable) {
+        }
+    }
+}
