@@ -1070,6 +1070,28 @@ class MenuApi {
     );
   }
 
+  /// `POST /menu/bulk` (bulk_menu)
+  Future<BulkMenuResponse> bulkMenu({
+    bool? dryRun,
+    required BulkMenuRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/menu/bulk',
+        query: {
+          if (dryRun != null) 'dry_run': [queryValue(dryRun)],
+        },
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'bulk_menu',
+      (json) => decObject(json, 'bulk_menu', BulkMenuResponse.fromJson),
+    );
+  }
+
   /// `GET /menu/lint` (get_menu_lint)
   Future<List<LintIssue>> getMenuLint({
     required String orgId,

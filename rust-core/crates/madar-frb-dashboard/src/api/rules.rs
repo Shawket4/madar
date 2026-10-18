@@ -797,3 +797,36 @@ pub fn combo_quote(combo_json: String, picks_json: String, n: i64) -> String {
     };
     json(&madar_catalog::combo::quote(&combo, &picks, n))
 }
+
+// ── The menu import (madar-menu) ──────────────────────────────────────
+
+/// A Foodics console export read into a bulk menu: each file's text, in any
+/// order. `{"Ok": FoodicsParsed}` or `{"Err": FoodicsError}`. Not sync: a
+/// big export is read off the UI isolate.
+pub fn foodics_parse(files: Vec<String>) -> String {
+    let refs: Vec<&str> = files.iter().map(String::as_str).collect();
+    json(&madar_menu::foodics::parse(&refs))
+}
+
+/// The server's checks on a bulk menu (its JSON), for the preview:
+/// `{"Ok": BulkSummary}` or `{"Err": BulkRefusal}`.
+#[frb(sync)]
+pub fn bulk_validate(menu_json: String) -> String {
+    let menu: madar_menu::BulkMenu = match serde_json::from_str(&menu_json) {
+        Ok(m) => m,
+        Err(e) => return parse_err(e),
+    };
+    json(&madar_menu::validate(&menu))
+}
+
+/// The sentence an owner types to replace the whole menu, in `lang`.
+#[frb(sync)]
+pub fn replace_sentence(org_name: String, lang: String) -> String {
+    madar_menu::replace_sentence(&org_name, &lang)
+}
+
+/// Whether `typed` is that sentence, in either language.
+#[frb(sync)]
+pub fn confirms_replace(org_name: String, typed: String) -> bool {
+    madar_menu::confirms_replace(&org_name, &typed)
+}

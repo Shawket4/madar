@@ -95,6 +95,23 @@ class PlatformFileGateway implements FileGateway {
   }
 
   @override
+  Future<List<PickedFile>> pickFiles({List<String>? extensions}) async {
+    final any = extensions == null || extensions.isEmpty;
+    final picked = await fp.FilePicker.pickFiles(
+      type: any ? fp.FileType.any : fp.FileType.custom,
+      allowedExtensions: any ? null : extensions,
+    );
+    return [
+      for (final f in picked)
+        PickedFile(
+          name: f.name,
+          bytes: await f.xFile.readAsBytes(),
+          mimeType: f.xFile.mimeType,
+        ),
+    ];
+  }
+
+  @override
   Future<PickedFile?> pickImage() async {
     if (_desktop) {
       final x = await fs.openFile(

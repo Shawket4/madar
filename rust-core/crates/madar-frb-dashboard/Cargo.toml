@@ -40,15 +40,18 @@ chrono-tz = "0.10"
 # Dawam's salary money crosses as f64 and is read as the exact Decimal the
 # crate takes.
 rust_decimal = { version = "1", default-features = false }
-madar-time = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.9.0" }
-madar-units = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.9.0" }
-madar-dawam = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.9.0" }
-madar-ids = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.9.0" }
-madar-money = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.9.0" }
-madar-catalog = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.9.0" }
-madar-till = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.9.0" }
-madar-inventory = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.9.0" }
-madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.9.0" }
+madar-time = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0" }
+madar-units = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0" }
+madar-dawam = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0" }
+madar-ids = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0" }
+madar-money = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0" }
+madar-catalog = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0" }
+madar-till = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0" }
+madar-inventory = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0" }
+madar-loyalty = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0" }
+# The self-serve menu import (api/rules.rs): the Foodics reader and the bulk
+# menu's checks, the dashboard only (the POS binary never links the reader).
+madar-menu = { git = "https://github.com/Shawket4/madar-shared", tag = "v0.10.0", features = ["foodics"] }
 
 [dev-dependencies]
 # Reads the written workbook's XML in the xlsx tests (rust_xlsxwriter's own zip).

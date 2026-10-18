@@ -3235,6 +3235,19 @@ final List<OperationCall> operationCalls = [
     ),
   ),
   OperationCall(
+    'bulk_menu',
+    'POST',
+    '/menu/bulk',
+    '/menu/bulk',
+    ['dry_run'],
+    [],
+    'json',
+    (api, s) => api.menu.bulkMenu(
+      dryRun: true,
+      body: BulkMenuRequest.fromJson(s('BulkMenuRequest')),
+    ),
+  ),
+  OperationCall(
     'get_menu_lint',
     'GET',
     '/menu/lint',
