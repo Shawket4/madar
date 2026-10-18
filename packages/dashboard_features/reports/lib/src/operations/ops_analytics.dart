@@ -2,10 +2,10 @@
 /// (`features/reports/operations/volume-tabs.tsx`, REP-OPS-047…055, 063,
 /// 064): laid out like the Overview (the report kit): a chart card, then the
 /// detail table in a titled card. Items is a ranked table ([OpsRankTable]:
-/// picture and category, units, revenue, share, average price; sortable,
-/// searchable, filtered by category, with motion) above the add-ons. Revenue
-/// is chart colour 0 on every tab, and each card fails on its own with the
-/// card error and Retry.
+/// picture and category, units, revenue, share, menu price, average extra;
+/// sortable, searchable, filtered by category, with motion) above the
+/// add-ons. Revenue is chart colour 0 on every tab, and each card fails on
+/// its own with the card error and Retry.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -17,7 +17,7 @@ import 'package:dashboard_api/dashboard_api.dart'
         CategorySales,
         CombinedItemSalesRow,
         ItemSales,
-        MenuItem,
+        MenuItemFull,
         OrgComparisonReport,
         TellerStats,
         WaiterStats;
@@ -41,8 +41,9 @@ DashEmptyState _noData(Translator t) =>
 
 /// One line of the Items table: the combined units sold (the tab's own read,
 /// `items-combined`, combos included) with what the period's sales report
-/// says of the item sold on its own (revenue, units, category) and the menu's
-/// picture. Every figure is one a current read returns; none is estimated.
+/// says of the item sold on its own (revenue, units, category, what was paid
+/// on top of the size's price) and the menu's picture and price. Every figure
+/// is one a current read returns; none is estimated.
 @immutable
 class OpsItemRow {
   const OpsItemRow({
@@ -54,7 +55,9 @@ class OpsItemRow {
     required this.quantity,
     required this.revenue,
     required this.share,
-    required this.avgPrice,
+    required this.priceMin,
+    required this.priceMax,
+    required this.avgExtra,
   });
 
   final String id;
@@ -76,13 +79,40 @@ class OpsItemRow {
   /// [revenue] over the table's revenue, 0..1.
   final double share;
 
-  /// Revenue per unit sold on its own; null when none was.
-  final int? avgPrice;
+  /// The menu's price today (piastres): the cheapest and dearest active
+  /// size (equal for a one-size item); null when the menu does not list it.
+  final int? priceMin;
+  final int? priceMax;
+
+  /// Per unit sold on its own, what was paid on top of the menu price of
+  /// the size bought (add-ons, swaps, optional fields; before discounts),
+  /// piastres: the sales report's `extras_total` over `quantity_sold`.
+  /// Null when the report does not list the item or predates the field.
+  final int? avgExtra;
+}
+
+/// `n / d` rounded half away from zero (the server's `avg_extra` rule).
+int opsRoundedDiv(int n, int d) {
+  final q = (2 * n.abs() + d) ~/ (2 * d);
+  return n < 0 ? -q : q;
+}
+
+/// An item's menu price range today: its active sizes (`all_sizes`, which
+/// keeps a one-size item's `one_size` row; else the legacy `sizes`), else
+/// its base price.
+(int, int) opsMenuPriceRange(MenuItemFull m) {
+  final sizes = [
+    for (final s in m.allSizes ?? m.sizes)
+      if (s.isActive) s.priceOverride,
+  ];
+  if (sizes.isEmpty) return (m.basePrice, m.basePrice);
+  sizes.sort();
+  return (sizes.first, sizes.last);
 }
 
 /// The menu's picture of an item: a ready asset group's tile, else the legacy
 /// address (`menuImageUrl`).
-String? opsMenuImageUrl(MenuItem? m) {
+String? opsMenuImageUrl(MenuItemFull? m) {
   final image = m?.image;
   if (image is AssetGroupRefReadyGroupRef) {
     final v = image.value.variants;
@@ -97,44 +127,77 @@ String? opsMenuImageUrl(MenuItem? m) {
 List<OpsItemRow> opsItemRows({
   required List<CombinedItemSalesRow> items,
   required BranchSalesReport? sales,
-  required List<MenuItem>? menu,
+  required List<MenuItemFull>? menu,
   required String lang,
 }) {
-  final sold = <String, (ItemSales, String?)>{};
+  // The report, by item. An item renamed mid-window is listed once per
+  // name: its figures are summed (an extra only when every row has one).
+  final sold = <String, _Sold>{};
   for (final cat in sales?.byCategory ?? const <CategorySales>[]) {
     final name = cat.categoryName == null
         ? null
         : translatedName(cat.categoryName!, cat.categoryNameTranslations, lang);
-    for (final it in cat.items) {
-      sold[it.menuItemId] = (it, name);
+    for (final ItemSales it in cat.items) {
+      final prev = sold[it.menuItemId];
+      final extras = it.extrasTotal;
+      sold[it.menuItemId] = (
+        revenue: (prev?.revenue ?? 0) + it.revenue,
+        units: (prev?.units ?? 0) + it.quantitySold,
+        extras: prev != null && prev.extras == null
+            ? null
+            : (extras == null ? null : (prev?.extras ?? 0) + extras),
+        category: prev?.category ?? name,
+      );
     }
   }
-  final pictures = {
-    for (final m in menu ?? const <MenuItem>[]) m.id: opsMenuImageUrl(m),
-  };
+  final byId = {for (final m in menu ?? const <MenuItemFull>[]) m.id: m};
   final total = items.fold<int>(
     0,
-    (s, r) => s + (sold[r.itemId]?.$1.revenue ?? 0),
+    (s, r) => s + (sold[r.itemId]?.revenue ?? 0),
   );
   return [
     for (final (i, r) in items.indexed)
       () {
         final s = sold[r.itemId];
-        final revenue = s?.$1.revenue ?? 0;
-        final units = s?.$1.quantitySold ?? 0;
+        final revenue = s?.revenue ?? 0;
+        final units = s?.units ?? 0;
+        final extras = s?.extras;
+        final m = byId[r.itemId];
+        final price = m == null ? null : opsMenuPriceRange(m);
         return OpsItemRow(
           id: r.itemId,
           rank: i + 1,
           name: translatedName(r.itemName, r.itemNameTranslations, lang),
-          category: s?.$2,
-          imageUrl: pictures[r.itemId],
+          category: s?.category,
+          imageUrl: opsMenuImageUrl(m),
           quantity: r.totalQty,
           revenue: revenue,
           share: total > 0 ? revenue / total : 0,
-          avgPrice: units > 0 ? (revenue / units).round() : null,
+          priceMin: price?.$1,
+          priceMax: price?.$2,
+          avgExtra: extras != null && units > 0
+              ? opsRoundedDiv(extras, units)
+              : null,
         );
       }(),
   ];
+}
+
+typedef _Sold = ({int revenue, int units, int? extras, String? category});
+
+/// A price range in the app's money format: one price, or "min–max" with
+/// the currency said once, placed where `fmtMoney` puts it
+/// (`EGP 55.00–75.00` / `55.00–75.00 ج.م`, the figures one LTR run); "—"
+/// with none.
+String opsPriceRangeText(DashFormat f, int? min, int? max) {
+  if (min == null || max == null) return '—';
+  if (min == max) return f.fmtMoney(min);
+  String bare(int v) =>
+      f.fmtMoney(v, currency: false).replaceAll(RegExp('[\u2066\u2069]'), '');
+  final range = '${bare(min)}–${bare(max)}';
+  return f.isArabic
+      ? '${ltr(range)} ${f.currencyLabel()}'
+      : '${f.currencyLabel()} $range';
 }
 
 const String _allCategories = '__all__';
@@ -164,9 +227,10 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
       excludeItemsParam(ref.watch(excludedItemsProvider(scope.orgId))),
     );
     final sales = ref.watch(opsSalesProvider(salesKey));
-    // Pictures only: the table never waits for them, nor fails with them.
+    // Pictures and menu prices: the table never waits for them, nor fails
+    // with them.
     final org = scope.orgId;
-    final menu = org == null ? null : ref.watch(opsMenuItemsProvider(org));
+    final menu = org == null ? null : ref.watch(opsMenuFullProvider(org));
     final strong = DashType.monoStrong.copyWith(color: c.textPrimary);
     final figures = DashType.mono.copyWith(color: c.textPrimary);
 
@@ -308,13 +372,28 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
           ),
         ),
         OpsRankColumn<OpsItemRow>(
-          id: 'avg_price',
-          label: t('analytics.avgPrice'),
-          width: 144,
+          id: 'price',
+          label: t('common.price'),
+          width: 184,
           numeric: true,
-          sortValue: (r) => r.avgPrice ?? -1,
+          sortValue: (r) => r.priceMin,
           cell: (context, r) => Text(
-            r.avgPrice == null ? '—' : dashFigure(f.fmtMoney(r.avgPrice!)),
+            r.priceMin == null
+                ? '—'
+                : dashFigure(opsPriceRangeText(f, r.priceMin, r.priceMax)),
+            maxLines: 1,
+            softWrap: false,
+            style: figures,
+          ),
+        ),
+        OpsRankColumn<OpsItemRow>(
+          id: 'avg_extra',
+          label: t('analytics.avgExtra'),
+          width: 136,
+          numeric: true,
+          sortValue: (r) => r.avgExtra,
+          cell: (context, r) => Text(
+            r.avgExtra == null ? '—' : dashFigure(f.fmtMoney(r.avgExtra!)),
             maxLines: 1,
             softWrap: false,
             style: figures,

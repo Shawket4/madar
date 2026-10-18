@@ -636,11 +636,14 @@
    "to": "2026-10-08T07:00:00.000Z",
    "top_items": [
     {
+     "avg_extra": 7,
+     "extras_total": 7,
      "item_name": "text",
      "item_name_translations": {
       "a": 1
      },
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "menu_total": 7,
      "quantity_sold": 7,
      "revenue": 7
     }
@@ -15725,11 +15728,14 @@
    "to": "2026-10-08T07:00:00.000Z",
    "top_items": [
     {
+     "avg_extra": 7,
+     "extras_total": 7,
      "item_name": "text",
      "item_name_translations": {
       "a": 1
      },
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "menu_total": 7,
      "quantity_sold": 7,
      "revenue": 7
     }
@@ -16184,11 +16190,14 @@
    "item_count": 7,
    "items": [
     {
+     "avg_extra": 7,
+     "extras_total": 7,
      "item_name": "text",
      "item_name_translations": {
       "a": 1
      },
      "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "menu_total": 7,
      "quantity_sold": 7,
      "revenue": 7
     }
@@ -19349,11 +19358,14 @@
    "station_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
   },
   "ItemSales": {
+   "avg_extra": 7,
+   "extras_total": 7,
    "item_name": "text",
    "item_name_translations": {
     "a": 1
    },
    "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "menu_total": 7,
    "quantity_sold": 7,
    "revenue": 7
   },

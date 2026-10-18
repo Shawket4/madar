@@ -1,6 +1,9 @@
 // Operations › Items as a ranked table (OpsRankTable): sorting, search and
 // the category filter, the sticky lead column on a phone, Arabic, and the
 // motion (rows rise in from fully invisible; a re-sort slides them).
+import 'package:dashboard_api/dashboard_api.dart'
+    show BranchSalesReport, CombinedItemSalesRow, MenuItemFull;
+import 'package:dashboard_core/dashboard_core.dart' show formatProvider;
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/operations/ops_analytics.dart';
@@ -78,12 +81,141 @@ void main() {
     final byName = [...rows]
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     expect(_order(tester), [for (final r in byName) r.id]);
-    // Average price: an item never sold on its own sorts last.
-    await h.tap(_header('avg_price'));
-    final order = _order(tester);
+    // Price and average extra: largest first, then flipped; an item
+    // without the figure ("—") sorts last both ways.
     final byId = {for (final r in rows) r.id: r};
-    final prices = [for (final id in order) byId[id]!.avgPrice ?? -1];
-    expect(prices, [...prices]..sort((a, b) => b.compareTo(a)));
+    for (final (col, value) in [
+      ('price', (OpsItemRow r) => r.priceMin),
+      ('avg_extra', (OpsItemRow r) => r.avgExtra),
+    ]) {
+      for (final descending in [true, false]) {
+        await h.tap(_header(col));
+        final got = [for (final id in _order(tester)) value(byId[id]!)];
+        final known = got.whereType<int>().toList();
+        expect(
+          known,
+          [...known]..sort((a, b) => descending ? b - a : a - b),
+          reason: '$col ${descending ? 'desc' : 'asc'}',
+        );
+        expect(
+          got.skipWhile((v) => v != null).every((v) => v == null),
+          isTrue,
+          reason: '$col: "—" last',
+        );
+      }
+    }
+  });
+
+  test('avg extra: an item renamed mid-window sums its report rows; an older '
+      'server (no extras_total) or an item the report does not list is "—"; '
+      'price is the menu\'s active sizes as a range, else its base price', () {
+    MenuItemFull menuItem(String id, int base, List<(int, bool)> sizes) =>
+        MenuItemFull.fromJson({
+          'id': id,
+          'org_id': 'o',
+          'name': id,
+          'name_translations': <String, Object?>{},
+          'description_translations': <String, Object?>{},
+          'base_price': base,
+          'is_active': true,
+          'created_at': '2026-10-18T00:00:00Z',
+          'updated_at': '2026-10-18T00:00:00Z',
+          'addon_slots': const <Object?>[],
+          'allowed_addon_ids': const <Object?>[],
+          'optional_fields': const <Object?>[],
+          'recipes': const <Object?>[],
+          'sizes': const <Object?>[],
+          'all_sizes': [
+            for (final (i, (p, on)) in sizes.indexed)
+              {
+                'id': '$id-$i',
+                'menu_item_id': id,
+                'label': 'S$i',
+                'price_override': p,
+                'is_active': on,
+              },
+          ],
+        });
+    Map<String, Object?> sold(String id, String name, int q, int? extras) => {
+      'menu_item_id': id,
+      'item_name': name,
+      'item_name_translations': <String, Object?>{},
+      'quantity_sold': q,
+      'revenue': q * 1000,
+      'menu_total': ?(extras == null ? null : q * 1000),
+      'extras_total': ?extras,
+    };
+    final sales = BranchSalesReport.fromJson({
+      'branch_id': 'b',
+      'branch_name': 'B',
+      'total_orders': 1,
+      'voided_orders': 0,
+      'subtotal': 0,
+      'total_discount': 0,
+      'total_tax': 0,
+      'total_revenue': 0,
+      'gross_sales': 0,
+      'refunded_amount': 0,
+      'total_service_charge': 0,
+      'service_charge_waived_count': 0,
+      'service_charge_waived_amount': 0,
+      'total_delivery_fees': 0,
+      'total_line_items': 0,
+      'revenue_by_method': <String, Object?>{},
+      'total_tips': 0,
+      'cash_tips': 0,
+      'top_items': const <Object?>[],
+      'by_service_mode': const <Object?>[],
+      'by_category': [
+        {
+          'category_id': 'c',
+          'category_name': 'Coffee',
+          'category_name_translations': <String, Object?>{},
+          'item_count': 3,
+          'quantity_sold': 10,
+          'revenue': 10000,
+          'items': [
+            sold('latte', 'Latte', 3, 500),
+            sold('latte', 'Caffe latte', 1, 100),
+            sold('mocha', 'Mocha', 2, null),
+            sold('tea', 'Tea', 4, 0),
+          ],
+        },
+      ],
+    });
+    CombinedItemSalesRow unit(String id) => CombinedItemSalesRow.fromJson({
+      'item_id': id,
+      'item_name': id,
+      'item_name_translations': <String, Object?>{},
+      'standalone_qty': 1,
+      'total_qty': 1,
+    });
+    final rows = {
+      for (final r in opsItemRows(
+        items: [unit('latte'), unit('mocha'), unit('tea'), unit('scone')],
+        sales: sales,
+        menu: [
+          menuItem('latte', 5500, [(7500, true), (5500, true), (9900, false)]),
+          menuItem('tea', 3000, []),
+          menuItem('mocha', 6000, [(6000, true)]),
+        ],
+        lang: 'en',
+      ))
+        r.id: r,
+    };
+    // 600 piastres over 4 units = 150.
+    expect(rows['latte']!.avgExtra, 150);
+    expect((rows['latte']!.priceMin, rows['latte']!.priceMax), (5500, 7500));
+    expect(rows['mocha']!.avgExtra, isNull);
+    expect((rows['mocha']!.priceMin, rows['mocha']!.priceMax), (6000, 6000));
+    expect(rows['tea']!.avgExtra, 0);
+    expect((rows['tea']!.priceMin, rows['tea']!.priceMax), (3000, 3000));
+    expect(rows['scone']!.avgExtra, isNull);
+    expect(rows['scone']!.priceMin, isNull);
+    // Rounded half away from zero, like the server.
+    expect(opsRoundedDiv(5, 2), 3);
+    expect(opsRoundedDiv(1000, 3), 333);
+    expect(opsRoundedDiv(2000, 3), 667);
   });
 
   testWidgets('headers are buttons that say their sort to a screen reader', (
@@ -299,6 +431,58 @@ void main() {
           find.descendant(of: _table, matching: find.text('الصنف')),
           findsOneWidget,
         );
+      }
+    });
+  }
+
+  for (final (size, lang) in [
+    (DashSize.desktop, 'en'),
+    (DashSize.desktop, 'ar'),
+    (DashSize.phone, 'en'),
+    (DashSize.phone, 'ar'),
+  ]) {
+    testWidgets('price and avg extra (${size.name} $lang): the headers in the '
+        'reader\'s language, a range for several sizes, money figures', (
+      tester,
+    ) async {
+      final h = await _items(tester, size: size, locale: lang);
+      final heads = lang == 'ar'
+          ? ['السعر', 'متوسط الإضافات']
+          : ['Price', 'Avg extra'];
+      final columns = _widget(tester).columns;
+      expect([for (final c in columns.skip(3)) c.label], heads);
+      for (final id in ['price', 'avg_extra']) {
+        expect(_header(id), findsOneWidget);
+      }
+      final f = h.container.read(formatProvider);
+      final ranged = _widget(
+        tester,
+      ).rows.firstWhere((r) => r.priceMin != r.priceMax);
+      expect(
+        find.descendant(
+          of: _table,
+          matching: find.text(
+            dashFigure(opsPriceRangeText(f, ranged.priceMin, ranged.priceMax)),
+          ),
+        ),
+        findsWidgets,
+      );
+      expect(tester.takeException(), isNull);
+      await h.shot('operations/items-price-extra');
+      if (size == DashSize.phone) {
+        // The figures scrolled to their end: the two new columns in view.
+        final scroll = tester.state<ScrollableState>(
+          find.descendant(
+            of: find.descendant(
+              of: _table,
+              matching: find.byKey(const ValueKey('ops-rank-figures')),
+            ),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        scroll.position.jumpTo(scroll.position.maxScrollExtent);
+        await h.settle();
+        await h.shot('operations/items-price-extra-scrolled');
       }
     });
   }

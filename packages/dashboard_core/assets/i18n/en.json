@@ -1903,6 +1903,7 @@
  "analytics.serviceModeShare": "{{mode}} share of revenue",
  "analytics.serviceModeOrders": "{{orders}} orders",
  "analytics.avgPrice": "Avg price",
+ "analytics.avgExtra": "Avg extra",
  "analytics.sortedAscending": "sorted ascending",
  "analytics.sortedDescending": "sorted descending",
  "discounts.title": "Discounts",

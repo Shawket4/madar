@@ -295,6 +295,12 @@ class OpsSeed {
 
 int _int(Object? v) => v is num ? v.toInt() : 0;
 
+/// `n / d` rounded half away from zero (the server's `avg_extra`).
+int _roundedDiv(int n, int d) {
+  final q = (2 * n.abs() + d) ~/ (2 * d);
+  return n < 0 ? -q : q;
+}
+
 DateTime _at(MockRow r) => DateTime.parse(r['created_at']! as String).toUtc();
 
 bool _sold(MockRow o) => isSold(o);
@@ -549,6 +555,10 @@ BranchSalesReport opsBranchSales({
   var tips = 0;
   var cashTips = 0;
   final byItem = <String, (String, Map<String, Object?>, int, int)>{};
+  // The size prices and what was paid on top (`menu_total`, `extras_total`,
+  // as `order_line_extras` computes them).
+  final menuTotal = <String, int>{};
+  final extrasTotal = <String, int>{};
   for (final o in orders) {
     if (!_sold(o)) continue;
     final tip = _int(o['tip_amount']);
@@ -560,6 +570,14 @@ BranchSalesReport opsBranchSales({
       if (exclude == null || !exclude.contains(id.toLowerCase())) {
         lineItems += l.quantity;
       }
+      menuTotal[id] = (menuTotal[id] ?? 0) + l.unitPrice * l.quantity;
+      extrasTotal[id] =
+          (extrasTotal[id] ?? 0) +
+          l.addons.fold<int>(
+            0,
+            (s, a) => s + a.lineTotal + (a.staffCompMinor ?? 0),
+          ) +
+          l.quantity * l.optionals.fold<int>(0, (s, f) => s + f.price);
       final prev = byItem[id];
       byItem[id] = (
         l.itemName,
@@ -577,6 +595,11 @@ BranchSalesReport opsBranchSales({
     itemNameTranslations: e.value.$2,
     quantitySold: e.value.$3,
     revenue: e.value.$4,
+    menuTotal: menuTotal[e.key],
+    extrasTotal: extrasTotal[e.key],
+    avgExtra: e.value.$3 > 0
+        ? _roundedDiv(extrasTotal[e.key] ?? 0, e.value.$3)
+        : null,
   );
   int rank(
     MapEntry<String, (String, Map<String, Object?>, int, int)> a,
@@ -1156,13 +1179,41 @@ void registerOperationsMocks(MockServer server, MockDb db) {
         req.badRequest('Query deserialize error: missing field `org_id`');
       }
       req.requireSameOrg(orgId);
-      return MockResponse.ok(
-        db['menu_items'].query(
-          filters: {'org_id': orgId, 'category_id': req.q('category_id')},
-          where: (m) => m['deleted_at'] == null,
-          sort: 'name',
-        ),
+      final rows = db['menu_items'].query(
+        filters: {'org_id': orgId, 'category_id': req.q('category_id')},
+        where: (m) => m['deleted_at'] == null,
+        sort: 'name',
       );
+      if (req.qBool('full') != true) return MockResponse.ok(rows);
+      // `full=true` embeds the sizes: `sizes` (the real rows) and
+      // `all_sizes` (a one-size item's synthetic `one_size` at its price).
+      return MockResponse.ok([
+        for (final m in rows)
+          () {
+            final real = db['item_sizes'].rows
+                .where((z) => z['menu_item_id'] == m['id'])
+                .toList();
+            return {
+              ...m,
+              'sizes': real,
+              'all_sizes': real.isNotEmpty
+                  ? real
+                  : [
+                      {
+                        'id': mockUuid('size:${m['id']}:one_size'),
+                        'menu_item_id': m['id'],
+                        'label': 'one_size',
+                        'price_override': m['base_price'],
+                        'is_active': true,
+                      },
+                    ],
+              'addon_slots': const <Object?>[],
+              'allowed_addon_ids': const <Object?>[],
+              'optional_fields': const <Object?>[],
+              'recipes': const <Object?>[],
+            };
+          }(),
+      ]);
     });
   }
 

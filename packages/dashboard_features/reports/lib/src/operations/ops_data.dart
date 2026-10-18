@@ -15,14 +15,19 @@
 ///   `till.*` event (and `resync`) while a branch is selected (REP-ALL-009).
 library;
 
+import 'dart:convert';
+
 import 'package:dashboard_api/dashboard_api.dart'
     show
         AddonSalesRow,
+        ApiException,
+        ApiRequest,
         BranchSalesReport,
         CombinedItemSalesRow,
         Dir,
         FloorTable,
         MenuItem,
+        MenuItemFull,
         MetricsQueryRequest,
         MetricsQueryResponse,
         OrgComparisonReport,
@@ -183,6 +188,43 @@ final opsMenuItemsProvider = FutureProvider.autoDispose
       ref.webCache();
       ref.watch(realtimeEpochProvider('/menu-items'));
       return ref.watch(apiProvider).menu.listMenuItems(orgId: orgId);
+    });
+
+/// The Items table's menu: `GET /menu-items?org_id&full=true`, raw
+/// `MenuItemFull`s (the generated `listMenuItems` decodes `MenuItem`, which
+/// drops the sizes the Price column reads). Pictures come from it too.
+final opsMenuFullProvider = FutureProvider.autoDispose
+    .family<List<MenuItemFull>, String>((ref, orgId) async {
+      ref.webCache();
+      ref.watch(realtimeEpochProvider('/menu-items'));
+      final res = await ref
+          .watch(apiProvider)
+          .transport
+          .send(
+            ApiRequest(
+              method: 'GET',
+              path: '/menu-items',
+              query: {
+                'org_id': [orgId],
+                'full': ['true'],
+              },
+            ),
+          );
+      // A non-2xx answer already threw an ApiException in the transport.
+      final body = res.bodyBytes.isEmpty
+          ? const <Object?>[]
+          : jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is! List) {
+        throw ApiException(
+          status: res.status,
+          code: 'decode',
+          message: 'Unexpected server data for list_menu_items.',
+        );
+      }
+      return [
+        for (final e in body)
+          if (e is Map) MenuItemFull.fromJson(e.cast<String, Object?>()),
+      ];
     });
 
 // ── Items, Tellers, Waiters, Branches ─────────────────────────────────────
