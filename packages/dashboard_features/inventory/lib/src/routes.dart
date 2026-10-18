@@ -178,7 +178,7 @@ void _prefetchIngredients(DashPrefetcher warm, Scope s) {
 /// log and the period's waste by reason (nothing with All branches).
 void _prefetchWaste(DashPrefetcher warm, Scope s) {
   if (s.branchId == null) return;
-  warm(todayWasteProvider(s.branchId!));
+  warm(wasteLogProvider((branchId: s.branchId!, limit: wasteWindow)));
   warm(wasteReportProvider(s.wasteRange));
 }
 

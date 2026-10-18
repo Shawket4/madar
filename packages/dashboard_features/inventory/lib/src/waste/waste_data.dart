@@ -2,15 +2,37 @@
 /// (`waste-page.tsx`): the by-reason report keyed by the scope's period,
 /// the by-reason sums, and the export walk of the whole log.
 ///
-/// The log itself is the read Today also shows (`todayWasteProvider` in
-/// `shared/inventory_data.dart`, the same `/inventory/branches/{id}/waste`
-/// key), so the two pages share a cache.
+/// The log is a "Load more" window from the newest ([wasteLogProvider]);
+/// Today's waste section keeps its own read (`todayWasteProvider`).
 library;
 
 import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// The log's key: the branch (or the all-branches sentinel) and how far
+/// "Load more" went (`limit`, always sent from offset 0).
+typedef WasteLogKey = ({String branchId, int limit});
+
+/// The waste log is a "Load more" window from the newest: the endpoint
+/// answers 200 rows when no limit is sent and caps `limit` at 1000, so a
+/// plain read silently stopped at the latest 200 entries.
+const int wasteWindow = 100;
+const int wasteWindowMax = 1000;
+
+/// `GET /inventory/branches/{branch_id}/waste?limit=&offset=0` (listWaste).
+final wasteLogProvider = FutureProvider.autoDispose
+    .family<List<StockMovement>, WasteLogKey>((ref, k) {
+      ref.webCache();
+      ref.watch(
+        realtimeEpochProvider('/inventory/branches/${k.branchId}/waste'),
+      );
+      return ref
+          .watch(apiProvider)
+          .inventory
+          .listWaste(branchId: k.branchId, limit: k.limit, offset: 0);
+    });
 
 /// The report's key: the branch (or the all-branches sentinel) and the
 /// period it sends.

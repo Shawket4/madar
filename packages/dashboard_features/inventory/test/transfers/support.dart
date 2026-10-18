@@ -27,6 +27,17 @@ const String transfersPath = '/inventory/transfers';
 
 // Route templates.
 const String listRoute = '/inventory/branches/{branch_id}/transfers';
+
+/// A list read's query: [filters] plus the "Load more" window from the
+/// newest (always sent, so the server's silent 100-row default never applies).
+Map<String, List<String>> win([
+  Map<String, List<String>> filters = const {},
+  int limit = 100,
+]) => {
+  ...filters,
+  'limit': ['$limit'],
+  'offset': ['0'],
+};
 const String locationsRoute = '/inventory/orgs/{org_id}/transfer-locations';
 const String diffsRoute = '/inventory/orgs/{org_id}/transfer-differences';
 const String replenishRoute =

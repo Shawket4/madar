@@ -62,12 +62,17 @@ void main() {
       expect(record.variant, DashButtonVariant.primary);
     });
 
-    testWidgets('INV-WST-002 the branch\'s log (the server\'s default page) '
-        'and the period\'s report', (tester) async {
+    testWidgets('INV-WST-002 the branch\'s log (a window from the newest, '
+        'never the server\'s silent 200 default) and the period\'s report', (
+      tester,
+    ) async {
       final h = await pumpWaste(tester, branch: SeedIds.zamalek);
       final log = h.server.callsTo(logRoute, method: 'GET').single;
       expect(log.path, '/inventory/branches/${SeedIds.zamalek}/waste');
-      expect(log.query, isEmpty);
+      expect(log.query, {
+        'limit': ['100'],
+        'offset': ['0'],
+      });
       final scope = h.container.read(currentScopeProvider);
       final report = h.server.callsTo(reportRoute).single;
       expect(report.path, '/reports/branches/${SeedIds.zamalek}/waste-report');
@@ -235,16 +240,13 @@ void main() {
         'a refund names its order; a voided order is its own source', (
       tester,
     ) async {
-      final h = await pumpWaste(tester);
+      await pumpWaste(tester);
       final t = logTable(tester);
       expect(t.columns[1].label, 'Branch');
-      // Page 2 holds the older lines.
+      // One window, newest first: the older lines sit below, no pages.
       expect(inTable(find.text('Refund')), findsOneWidget);
-      await h.tap(inTable(find.bySemanticsLabel('Next')));
-      expect(inTable(find.text('Page 2 of 2')), findsOneWidget);
-      expect(inTable(find.text('Refund')), findsNothing);
       expect(inTable(find.text('Cocoa Powder')), findsOneWidget);
-      await h.tap(inTable(find.bySemanticsLabel('Previous')));
+      expect(inTable(find.text('Page 2 of 2')), findsNothing);
       expect(
         inTable(find.text('Refund of order MD-261006-T1-0031')),
         findsOneWidget,
@@ -289,12 +291,43 @@ void main() {
       expect(inTable(find.text('No waste recorded')), findsOneWidget);
     });
 
-    testWidgets('INV-WST-012 ten rows a page over the loaded rows', (
-      tester,
-    ) async {
+    testWidgets('INV-WST-012 a full window offers "Load more", which widens '
+        'it (never a silent cut at the server\'s 200)', (tester) async {
+      final s = wasteServer();
+      final table = s.db[InvTables.movements];
+      final base = table.rows.firstWhere(
+        (m) =>
+            m['movement_type'] == 'waste' && m['branch_id'] == SeedIds.zamalek,
+      );
+      for (var i = 0; i < 120; i++) {
+        table.insert({...base, 'id': 'many-waste-$i'}, timestamps: false);
+      }
+      final h = await pumpWaste(
+        tester,
+        server: s.server,
+        db: s.db,
+        branch: SeedIds.zamalek,
+      );
+      expect(logTable(tester).rows.length, 100);
+      final more = inTable(find.text('Load more'));
+      expect(more, findsOneWidget);
+      await tester.ensureVisible(more);
+      await h.tap(more);
+      expect(h.server.callsTo(logRoute).last.query, {
+        'limit': ['200'],
+        'offset': ['0'],
+      });
+      expect(logTable(tester).rows.length, 120 + zamalekOrder.length);
+      expect(inTable(find.text('Load more')), findsNothing);
+    });
+
+    testWidgets('INV-WST-012 the loaded window, no pages; "Load more" only '
+        'when the window is full', (tester) async {
       await pumpWaste(tester);
-      expect(logTable(tester).pageSize, 10);
-      expect(inTable(find.text('Page 1 of 2')), findsOneWidget);
+      expect(logTable(tester).loadMore, isNotNull);
+      expect(inTable(find.text('Page 1 of 2')), findsNothing);
+      // The seed is smaller than a window.
+      expect(inTable(find.text('Load more')), findsNothing);
     });
   });
 

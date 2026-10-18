@@ -52,6 +52,15 @@ class _TransfersPageState extends ConsumerState<TransfersPage>
   String? _dir;
   bool _exporting = false;
 
+  /// How far "Load more" went, and the list it went there on (another tab,
+  /// direction or location starts again from the first window).
+  int _limit = transfersWindow;
+  String? _limitFor;
+
+  /// The rows on screen while the window widens (`keepWhilePaging`).
+  List<StockTransfer>? _shown;
+  String? _shownFor;
+
   @override
   String get memoryKey => 'inventory.transfers';
 
@@ -66,8 +75,12 @@ class _TransfersPageState extends ConsumerState<TransfersPage>
     _dir = transferDirections.contains(dir) ? dir : null;
   }
 
-  TransfersKey _key(Scope s, {String? tab, String? dir}) =>
-      s.transfersKey(direction: dir ?? _dir, status: tabStatus(tab ?? _tab));
+  TransfersKey _key(Scope s, {String? tab, String? dir, int? limit}) =>
+      s.transfersKey(
+        direction: dir ?? _dir,
+        status: tabStatus(tab ?? _tab),
+        limit: limit ?? transfersWindow,
+      );
 
   /// INV-TRF-007: every page of the list (same scope, direction and status),
   /// one row per line, as `Madar-Transfers-<date>.xlsx`.
@@ -242,13 +255,32 @@ class _TransfersPageState extends ConsumerState<TransfersPage>
           Cap.inventoryTransfersCreate,
         );
     final diffTab = _tab == 'differences';
-    final key = _key(scope);
+    final listFor = '${scope.scopeBranchId}|$_tab|$_dir';
+    if (listFor != _limitFor) {
+      _limitFor = listFor;
+      _limit = transfersWindow;
+    }
+    final key = _key(scope, limit: _limit);
     final list = diffTab ? null : ref.watch(transfersProvider(key));
     final dkey = scope.differencesKey;
     final diffs = diffTab && dkey != null
         ? ref.watch(transferDifferencesProvider(dkey))
         : null;
-    final rows = list?.value ?? const <StockTransfer>[];
+    if (list?.value case final v?) {
+      _shown = v;
+      _shownFor = listFor;
+    }
+    final widening =
+        list != null &&
+        list.value == null &&
+        list.isLoading &&
+        _shownFor == listFor;
+    final rows =
+        list?.value ?? (widening ? _shown : null) ?? const <StockTransfer>[];
+    final hasMore =
+        list?.value != null &&
+        rows.length >= _limit &&
+        _limit < transfersWindowMax;
 
     /// The dialog's first reads in send mode from "here".
     void warmNew() {
@@ -358,7 +390,22 @@ class _TransfersPageState extends ConsumerState<TransfersPage>
             )
           : TransfersTable(
               rows: rows,
-              loading: list!.awaitingFirst,
+              loading: list!.awaitingFirst && !widening,
+              loadMore: DashLoadMore(
+                hasMore: hasMore,
+                loading: widening,
+                onIntent: () => ref.warm(
+                  transfersProvider(
+                    _key(scope, limit: _limit + transfersWindow),
+                  ),
+                ),
+                onLoadMore: () => setState(
+                  () => _limit = (_limit + transfersWindow).clamp(
+                    transfersWindow,
+                    transfersWindowMax,
+                  ),
+                ),
+              ),
               // Kept while Retry runs (no false "No transfers found" between).
               errorText: list.failedFirst ? errorMessage(list.error, t) : null,
               onRetry: () => ref.invalidate(transfersProvider(key)),
@@ -424,9 +471,12 @@ class TransfersTable extends ConsumerWidget {
     this.retrying = false,
     required this.onOpen,
     required this.onIntent,
+    this.loadMore,
     super.key,
   });
 
+  /// The "Load more" footer (the list is a window from the newest).
+  final DashLoadMore? loadMore;
   final List<StockTransfer> rows;
   final bool loading;
   final String? errorText;
@@ -443,6 +493,7 @@ class TransfersTable extends ConsumerWidget {
     return DashDataTable<StockTransfer>(
       key: const ValueKey('transfers-table'),
       rows: rows,
+      loadMore: loadMore,
       rowKey: (tr) => tr.id,
       loading: loading,
       errorMessage: errorText,

@@ -64,7 +64,7 @@ void main() {
     await hoverSidebar(h, mouse);
     final warmed = h.server.callsTo(listRoute).single;
     expect(warmed.path, '/inventory/branches/${SeedIds.zamalek}/transfers');
-    expect(warmed.query, isEmpty);
+    expect(warmed.query, win());
     await h.tap(row);
     expect(h.location.path, transfersPath);
     expect(_gets(h, listRoute), 1, reason: 'served from the cache');
@@ -96,9 +96,12 @@ void main() {
     );
     await _hover(h, mouse, tab);
     expect(_gets(h, listRoute), 2);
-    expect(h.server.callsTo(listRoute).last.query, {
-      'status': ['requested'],
-    });
+    expect(
+      h.server.callsTo(listRoute).last.query,
+      win({
+        'status': ['requested'],
+      }),
+    );
     await h.tap(tab);
     expect(_gets(h, listRoute), 2);
     expect(inTable(find.text('TR-5')), findsNothing);

@@ -49,6 +49,15 @@ class WastePage extends ConsumerStatefulWidget {
 class _WastePageState extends ConsumerState<WastePage> {
   bool _exporting = false;
 
+  /// How far "Load more" went, and the scope it went there in (another
+  /// branch starts again from the first window).
+  int _limit = wasteWindow;
+  String? _limitFor;
+
+  /// The rows on screen while the window widens (`keepWhilePaging`).
+  List<StockMovement>? _shown;
+  String? _shownFor;
+
   /// INV-WST-004: the whole log, walked, as `Madar-Waste-<date>.xlsx`.
   Future<void> _export(String branchId) async {
     final t = ref.read(tProvider);
@@ -173,18 +182,44 @@ class _WastePageState extends ConsumerState<WastePage> {
       authzProvider.select((a) => a.can(Cap.inventoryWasteRecord)),
     );
     final logKey = scope.scopeBranchId;
-    final log = ref.watch(todayWasteProvider(logKey));
-    final rows = log.value ?? const <StockMovement>[];
+    if (_limitFor != logKey) {
+      _limitFor = logKey;
+      _limit = wasteWindow;
+    }
+    final windowKey = (branchId: logKey, limit: _limit);
+    final log = ref.watch(wasteLogProvider(windowKey));
+    if (log.value case final v?) {
+      _shown = v;
+      _shownFor = logKey;
+    }
+    final widening = log.value == null && log.isLoading && _shownFor == logKey;
+    final rows =
+        log.value ?? (widening ? _shown : null) ?? const <StockMovement>[];
+    final hasMore =
+        log.value != null && rows.length >= _limit && _limit < wasteWindowMax;
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.lg;
 
     final table = WasteTable(
       rows: rows,
       allBranches: scope.isAllBranches,
-      loading: log.awaitingFirst,
+      loading: log.awaitingFirst && !widening,
       // Kept while Retry runs (no false "No waste recorded" in between).
       errorText: log.failedFirst ? errorMessage(log.error, t) : null,
-      onRetry: () => ref.invalidate(todayWasteProvider(logKey)),
-      retrying: log.isLoading,
+      onRetry: () => ref.invalidate(wasteLogProvider(windowKey)),
+      retrying: log.isLoading && !widening,
+      loadMore: DashLoadMore(
+        hasMore: hasMore,
+        loading: widening,
+        onIntent: () => ref.warm(
+          wasteLogProvider((branchId: logKey, limit: _limit + wasteWindow)),
+        ),
+        onLoadMore: () => setState(
+          () => _limit = (_limit + wasteWindow).clamp(
+            wasteWindow,
+            wasteWindowMax,
+          ),
+        ),
+      ),
     );
     final reasons = WasteByReason(range: scope.wasteRange);
 
@@ -226,7 +261,8 @@ class _WastePageState extends ConsumerState<WastePage> {
 }
 
 /// The log (INV-WST-005…013): Date, Branch (All branches only), Ingredient,
-/// Quantity, Reason, By, Source; 10 a page, searched over the raw values.
+/// Quantity, Reason, By, Source; the loaded window with "Load more",
+/// searched over the raw values.
 /// Below 760 each row is a card led by the ingredient.
 class WasteTable extends ConsumerWidget {
   const WasteTable({
@@ -236,9 +272,12 @@ class WasteTable extends ConsumerWidget {
     required this.errorText,
     required this.onRetry,
     this.retrying = false,
+    this.loadMore,
     super.key,
   });
 
+  /// The "Load more" footer (the log is a window from the newest).
+  final DashLoadMore? loadMore;
   final List<StockMovement> rows;
   final bool allBranches;
   final bool loading;
@@ -287,6 +326,7 @@ class WasteTable extends ConsumerWidget {
     return DashDataTable<StockMovement>(
       key: const ValueKey('waste-table'),
       rows: rows,
+      loadMore: loadMore,
       rowKey: (m) => m.id,
       loading: loading,
       errorMessage: errorText,
