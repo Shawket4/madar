@@ -29,6 +29,8 @@ backend-tests = []
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "io-util", "sync"] }
 tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }
 uuid = "1"
+# lan_offline reads the POS store to tell its own dead ops from a LAN peer's backups.
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 [[test]]
 name = "lan_offline"

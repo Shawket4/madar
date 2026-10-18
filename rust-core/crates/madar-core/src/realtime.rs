@@ -157,13 +157,28 @@ fn alert_for(event_type: &str, data: &str, locale: &str, tz: &str) -> Option<Ale
             id = format!("{id}#{n}");
         }
     }
-    let reff = pick(&[
-        "delivery_ref",
-        "ticket_ref",
-        "kitchen_ref",
-        "order_ref",
-        "ref",
-    ]);
+    // A ready kitchen ticket reads like its board card and its receipt
+    // ("#T-10", "#244-6"), not its long reference.
+    let short = (event_type == "kitchen.ticket_ready")
+        .then(|| {
+            let source = pick(&["source_type"]).unwrap_or_default();
+            // A round fired offline has no reference yet: the id's tail, as
+            // the kitchen board shows it, so the card and the alert agree.
+            let r = crate::kds::display_ref(pick(&["kitchen_ref"]).as_deref(), &source).or_else(
+                || pick(&["id"]).map(|id| id[id.len().saturating_sub(4)..].to_uppercase()),
+            )?;
+            Some(format!("#{r}"))
+        })
+        .flatten();
+    let reff = short.or_else(|| {
+        pick(&[
+            "delivery_ref",
+            "ticket_ref",
+            "kitchen_ref",
+            "order_ref",
+            "ref",
+        ])
+    });
     let who = pick(&["customer_name", "table_label", "name"]);
     let body = [reff, who]
         .into_iter()
@@ -220,6 +235,67 @@ pub(crate) fn alert_tag(event_type: &str, id: &str) -> String {
     format!("{event_type}:{id}")
 }
 
+/// What an event does to the alert memory, whether or not it alerts here:
+/// tags to FORGET (the thing they announced was undone, so the next time it
+/// happens is news again) and tags to REMEMBER without alerting (the same
+/// news already told another way).
+///
+/// "Order ready" comes two ways for one moment: `kitchen.ticket_ready` (a
+/// kitchen ticket, from the server or a kitchen's LAN announcement, both
+/// `kitchen.ticket_ready:<kitchen ticket>`) and, when that was the bill's
+/// last open line, `ticket.ready` (`ticket.ready:<open ticket>`, the tickets
+/// topic). A device on both topics alerts on the first and the kitchen copy
+/// covers the bill's tag, which the server publishes right after it on the
+/// same stream; a device the server does not give the kitchen topic (its
+/// person lacks `kitchen.display.read`) still hears `ticket.ready`.
+///
+/// Ready is not forever: an unbump reopens the kitchen ticket (and its bill),
+/// and a new round reopens the bill, so the ready that follows alerts again.
+/// The LAN and server copies of ONE ready still share a tag and alert once.
+fn alert_memory_effects(event_type: &str, data: &str) -> (Vec<String>, Vec<String>) {
+    let mut forget = Vec::new();
+    let mut remember = Vec::new();
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(data) else {
+        return (forget, remember);
+    };
+    let s = |k: &str| {
+        v.get(k)
+            .and_then(|x| x.as_str())
+            .filter(|x| !x.is_empty())
+            .map(str::to_string)
+    };
+    // The bill a kitchen ticket belongs to: the server's view names it as its
+    // source; a kitchen's LAN copy as `open_ticket_id` when it knows it.
+    let bill = s("open_ticket_id").or_else(|| {
+        (s("source_type").as_deref() == Some("open_ticket"))
+            .then(|| s("source_id"))
+            .flatten()
+    });
+    match event_type {
+        "kitchen.ticket_ready" => {
+            if let Some(ot) = bill {
+                remember.push(alert_tag("ticket.ready", &ot));
+            }
+        }
+        "kitchen.item_unbumped" => {
+            // The server's payload is the kitchen ticket; a LAN tap names it.
+            if let Some(kt) = s("kitchen_ticket_id").or_else(|| s("id")) {
+                forget.push(alert_tag("kitchen.ticket_ready", &kt));
+            }
+            if let Some(ot) = bill {
+                forget.push(alert_tag("ticket.ready", &ot));
+            }
+        }
+        "ticket.fired" | "ticket.round_added" => {
+            if let Some(ot) = s("id") {
+                forget.push(alert_tag("ticket.ready", &ot));
+            }
+        }
+        _ => {}
+    }
+    (forget, remember)
+}
+
 /// The 12-hour clock time of an RFC3339 instant in the branch zone, in
 /// `locale` (`None` when unparsable).
 fn local_hhmm(rfc3339: &str, tz: &str, locale: &str) -> Option<String> {
@@ -235,19 +311,26 @@ fn local_hhmm(rfc3339: &str, tz: &str, locale: &str) -> Option<String> {
 /// Teller / till RECEIVE delivery + tickets-to-settle + ready → everything alerts.
 fn role_wants_alert(event_type: &str, role: &str) -> bool {
     match role {
-        // The waiter's "go serve" signal is `ticket.ready` (their open ticket is up).
-        // The backend ALSO emits `kitchen.ticket_ready` on the kitchen topic for the
-        // SAME ready open ticket, and the waiter subscribes to both topics — alerting
-        // on both double-pinged the waiter (two notifications) for one order.
+        // The "go serve" signal is `kitchen.ticket_ready`: it carries the ticket
+        // (its ref, its table) and an id the kitchen knows offline, so the LAN
+        // copy a kitchen announces with no internet and the server's copy are
+        // ONE alert (same tag). `ticket.ready` ({open_ticket_id} only, the
+        // bill's last line) alerts too, for a person the server does not give
+        // the kitchen topic; with both, the kitchen copy has already covered
+        // its tag (`alert_memory_effects`), so one order pings once.
         // A waiter also hears the floor's bookings: a new reservation and a
         // party that is due are their work (walk over, greet, seat).
-        "waiter" => event_type == "ticket.ready" || event_type.starts_with("booking."),
+        "waiter" => {
+            matches!(event_type, "kitchen.ticket_ready" | "ticket.ready")
+                || event_type.starts_with("booking.")
+        }
         "kitchen" => event_type == "kitchen.fired",
         // Teller / cashier / manager: incoming work to settle / handle — but NOT
         // `kitchen.fired`. That's the kitchen device's new-work signal; one waiter
         // fire emits BOTH `ticket.fired` (the open ticket) and `kitchen.fired` (the
         // kitchen copy), so alerting on both double-pinged the till for one order.
         // The till already gets `ticket.fired`; the kitchen copy is not its concern.
+        // `ticket.ready` and `kitchen.ticket_ready` ping once together (above).
         _ => event_type != "kitchen.fired",
     }
 }
@@ -267,6 +350,12 @@ impl AlertDedup {
         Self {
             seen: std::collections::HashSet::new(),
             order: std::collections::VecDeque::new(),
+        }
+    }
+    /// Forget `tag`: what it announced was undone, so it is news again.
+    pub(crate) fn forget(&mut self, tag: &str) {
+        if self.seen.remove(tag) {
+            self.order.retain(|t| t != tag);
         }
     }
     /// `true` if `tag` was NOT seen before (→ raise the alert).
@@ -330,6 +419,17 @@ impl EventListener for AlertingListener {
     fn on_event(&self, event: RealtimeEvent) {
         // 1. Always refresh the host's board (the list updates regardless of alerts).
         self.inner.on_event(event.clone());
+        // What the event undoes or already told, for every role and every
+        // origin (a device's own round still reopens its bill).
+        let (forget, remember) = alert_memory_effects(&event.event_type, &event.data);
+        if !(forget.is_empty() && remember.is_empty()) {
+            if let Ok(mut d) = self.dedup.lock() {
+                forget.iter().for_each(|t| d.forget(t));
+                remember.iter().for_each(|t| {
+                    d.insert(t);
+                });
+            }
+        }
         // 2. Raise an alert ONLY for a NEW, alert-worthy event that is incoming work
         //    for THIS role (a waiter doesn't ping on the tickets it fires itself).
         if !role_wants_alert(&event.event_type, &self.role) {
@@ -1026,6 +1126,9 @@ mod tests {
         // Teller / till receives incoming work → those alert-worthy events ping…
         assert!(role_wants_alert("ticket.fired", "teller"));
         assert!(role_wants_alert("delivery.created", "teller"));
+        assert!(role_wants_alert("kitchen.ticket_ready", "teller"));
+        // Also ticket.ready, for a teller without the kitchen topic; with it,
+        // the kitchen copy covers it (a_ready_order_pings_once_on_both_topics).
         assert!(role_wants_alert("ticket.ready", "teller"));
         // …but NOT the kitchen copy of a fire — one waiter fire emits both
         // ticket.fired AND kitchen.fired, and the till must ping only once.
@@ -1034,14 +1137,49 @@ mod tests {
         assert!(!role_wants_alert("ticket.fired", "waiter"));
         assert!(!role_wants_alert("ticket.round_added", "waiter"));
         assert!(!role_wants_alert("kitchen.fired", "waiter"));
+        // "Go serve": kitchen.ticket_ready (it also comes over the LAN), and
+        // ticket.ready for a waiter the server gives no kitchen topic.
+        assert!(role_wants_alert("kitchen.ticket_ready", "waiter"));
         assert!(role_wants_alert("ticket.ready", "waiter"));
-        // NOT kitchen.ticket_ready: the backend emits it on the kitchen topic for the
-        // SAME ready open ticket as ticket.ready, and the waiter sees both topics —
-        // alerting on both double-pinged the waiter. ticket.ready is the one signal.
-        assert!(!role_wants_alert("kitchen.ticket_ready", "waiter"));
         // The kitchen COOKS → only a new kitchen ticket; not its own ready stamps.
         assert!(role_wants_alert("kitchen.fired", "kitchen"));
         assert!(!role_wants_alert("kitchen.ticket_ready", "kitchen"));
+    }
+
+    #[test]
+    fn a_ready_kitchen_ticket_reads_like_its_card_and_dedups_lan_with_the_server() {
+        // The server's kitchen.ticket_ready (a KitchenTicketView) and a kitchen's
+        // LAN announcement of the same round share the kitchen ticket id.
+        let server = serde_json::json!({
+            "id": "4f42d7bf-9470-5cea-9908-dbb59b1139e7", "branch_id": "b1",
+            "source_type": "open_ticket", "source_id": "s1", "table_label": "T4",
+            "kitchen_ref": "T-TESTBR-261011-0010", "status": "ready", "items": [],
+        })
+        .to_string();
+        let a = alert_for("kitchen.ticket_ready", &server, "en", "Africa/Cairo").unwrap();
+        assert_eq!(a.title, "Order ready");
+        assert_eq!(a.body, "#T-10 · T4");
+        // Offline: no reference yet; the id's tail, as the kitchen board shows it.
+        let lan = serde_json::json!({
+            "id": "4f42d7bf-9470-5cea-9908-dbb59b1139e7", "kitchen_ref": null,
+            "table_label": null, "source_type": "open_ticket", "status": "ready",
+            "items": [], "origin": { "device_id": "kitchen-1" },
+        })
+        .to_string();
+        let b = alert_for("kitchen.ticket_ready", &lan, "en", "Africa/Cairo").unwrap();
+        assert_eq!(b.body, "#39E7");
+        assert_eq!(
+            a.tag, b.tag,
+            "the LAN copy and the server's copy are one alert"
+        );
+        // A till sale reads like its receipt.
+        let sale = serde_json::json!({ "id": "k2", "source_type": "order", "kitchen_ref": "TEST2-260915-244-0006" }).to_string();
+        assert_eq!(
+            alert_for("kitchen.ticket_ready", &sale, "en", "Africa/Cairo")
+                .unwrap()
+                .body,
+            "#244-6"
+        );
     }
 
     #[test]
@@ -1161,13 +1299,17 @@ mod tests {
     }
 
     fn till(device: &str) -> (AlertingListener, Arc<Rec>, Arc<Rec>) {
+        device_as("teller", device)
+    }
+
+    fn device_as(role: &str, device: &str) -> (AlertingListener, Arc<Rec>, Arc<Rec>) {
         let board = Arc::new(Rec::default());
         let player = Arc::new(Rec::default());
         let l = AlertingListener::new(
             board.clone(),
             player.clone(),
             Arc::new(RwLock::new("en".into())),
-            "teller".into(),
+            role.into(),
             "Africa/Cairo".into(),
             Arc::new(std::sync::Mutex::new(AlertDedup::new())),
             device.into(),
@@ -1177,6 +1319,127 @@ mod tests {
 
     fn pings(p: &Rec) -> usize {
         p.0.lock().unwrap().iter().filter(|x| *x == "ping").count()
+    }
+
+    fn ev(event_type: &str, data: serde_json::Value) -> RealtimeEvent {
+        RealtimeEvent {
+            event_type: event_type.into(),
+            data: data.to_string(),
+        }
+    }
+
+    /// The server's kitchen ticket `kt` of bill `ot` (a KitchenTicketView).
+    fn kitchen_ticket(kt: &str, ot: &str) -> serde_json::Value {
+        serde_json::json!({ "id": kt, "source_type": "open_ticket", "source_id": ot, "table_label": "T4", "items": [] })
+    }
+
+    /// One bump that finishes the bill, as the server publishes it on one
+    /// stream: the kitchen ticket's ready, then the bill's. One ping, for a
+    /// waiter and for a till, and the kitchen's LAN copy changes nothing.
+    #[test]
+    fn a_ready_order_pings_once_on_both_topics() {
+        for role in ["waiter", "teller"] {
+            let (l, _, player) = device_as(role, "dev-W");
+            // The kitchen's LAN announcement first (no bill id: fired offline).
+            l.on_event(ev(
+                "kitchen.ticket_ready",
+                serde_json::json!({ "id": "kt1", "source_type": "open_ticket", "items": [] }),
+            ));
+            l.on_event(ev("kitchen.ticket_ready", kitchen_ticket("kt1", "ot1")));
+            l.on_event(ev(
+                "ticket.ready",
+                serde_json::json!({ "open_ticket_id": "ot1" }),
+            ));
+            assert_eq!(pings(&player), 1, "{role}: one order ready, one ping");
+        }
+    }
+
+    /// A person the server does not give the kitchen topic hears only the
+    /// bill's `ticket.ready`: that still pings, once per time the bill is ready.
+    #[test]
+    fn without_the_kitchen_topic_the_bill_ready_still_pings() {
+        let (l, _, player) = device_as("waiter", "dev-W");
+        l.on_event(ev(
+            "ticket.ready",
+            serde_json::json!({ "open_ticket_id": "ot1" }),
+        ));
+        assert_eq!(pings(&player), 1);
+        l.on_event(ev(
+            "ticket.ready",
+            serde_json::json!({ "open_ticket_id": "ot1" }),
+        ));
+        assert_eq!(pings(&player), 1, "a re-delivery pings once");
+        // A second round reopens the bill; its ready is news again.
+        l.on_event(ev(
+            "ticket.round_added",
+            serde_json::json!({ "id": "ot1", "items": [] }),
+        ));
+        l.on_event(ev(
+            "ticket.ready",
+            serde_json::json!({ "open_ticket_id": "ot1" }),
+        ));
+        assert_eq!(pings(&player), 2, "round 2 ready pings");
+    }
+
+    /// Ready, reopened (unbumped), ready again: the second ready pings, by the
+    /// server's unbump (the kitchen ticket) or a kitchen's LAN tap (which
+    /// names it), and each ready's LAN + server copies still ping once.
+    #[test]
+    fn a_reopened_ticket_pings_again_when_ready_again() {
+        let lan_ready = || {
+            ev(
+                "kitchen.ticket_ready",
+                serde_json::json!({ "id": "kt1", "open_ticket_id": "ot1", "items": [] }),
+            )
+        };
+        let server_ready = || ev("kitchen.ticket_ready", kitchen_ticket("kt1", "ot1"));
+        let bill_ready = || {
+            ev(
+                "ticket.ready",
+                serde_json::json!({ "open_ticket_id": "ot1" }),
+            )
+        };
+        let (l, _, player) = device_as("waiter", "dev-W");
+        l.on_event(lan_ready());
+        l.on_event(server_ready());
+        l.on_event(bill_ready());
+        assert_eq!(pings(&player), 1);
+        // The kitchen's LAN unbump names the kitchen ticket and the bill.
+        l.on_event(ev("kitchen.item_unbumped", serde_json::json!({ "item_id": "line-1", "kitchen_ticket_id": "kt1", "open_ticket_id": "ot1" })));
+        l.on_event(ev("kitchen.item_unbumped", kitchen_ticket("kt1", "ot1")));
+        l.on_event(lan_ready());
+        l.on_event(server_ready());
+        l.on_event(bill_ready());
+        assert_eq!(
+            pings(&player),
+            2,
+            "ready again after a reopen pings once more"
+        );
+        // Only the server's unbump (no LAN): still news again.
+        l.on_event(ev("kitchen.item_unbumped", kitchen_ticket("kt1", "ot1")));
+        l.on_event(server_ready());
+        l.on_event(bill_ready());
+        assert_eq!(pings(&player), 3);
+        // A till sale's kitchen ticket (no bill) reopens by its own id too.
+        l.on_event(ev("kitchen.ticket_ready", serde_json::json!({ "id": "kt9", "source_type": "order", "source_id": "o9", "items": [] })));
+        l.on_event(ev("kitchen.item_unbumped", serde_json::json!({ "id": "kt9", "source_type": "order", "source_id": "o9", "items": [] })));
+        l.on_event(ev("kitchen.ticket_ready", serde_json::json!({ "id": "kt9", "source_type": "order", "source_id": "o9", "items": [] })));
+        assert_eq!(pings(&player), 5);
+    }
+
+    #[test]
+    fn forgetting_a_tag_keeps_the_memory_consistent() {
+        let mut d = AlertDedup::new();
+        assert!(d.insert("a"));
+        d.forget("a");
+        d.forget("never-seen");
+        assert!(d.insert("a"), "news again");
+        assert!(!d.insert("a"));
+        assert_eq!(
+            d.order.iter().filter(|t| *t == "a").count(),
+            1,
+            "no stale FIFO entry left to evict the new one"
+        );
     }
 
     /// The till that fired a round hears it back: the board updates, nothing pings.

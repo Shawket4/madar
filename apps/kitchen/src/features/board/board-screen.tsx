@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { History, PartyPopper, RotateCcw } from "lucide-react-native";
+import { ClipboardList, History, RotateCcw } from "lucide-react-native";
 
 import { useKitchen } from "@/data/store";
 import { radius, space, wash, kitchen } from "@/theme/tokens";
@@ -13,7 +13,6 @@ import { EmptyState } from "@/components/app/empty-state";
 import { ErrorBanner } from "@/components/app/error-banner";
 import { NetBanner } from "@/components/app/net-banner";
 import { TopBar } from "@/components/app/top-bar";
-import { toneColors } from "@/components/app/status-pill";
 import { formatClock, useNow } from "@/lib/hooks";
 import { allDay, boardParts, recallable } from "./logic";
 import { sourceLabel, TicketCard } from "./ticket-card";
@@ -69,7 +68,7 @@ export function BoardScreen() {
       >
         {shown.length === 0 ? (
           <View style={{ flex: 1, justifyContent: "center" }}>
-            <EmptyState icon={PartyPopper} tone={toneColors(c, "success")} title={t("board.clearTitle")} description={t("board.clearBody")} />
+            <EmptyState icon={ClipboardList} title={t("board.clearTitle")} description={t("board.clearBody")} />
           </View>
         ) : (
           <View style={{ flexDirection: "row", gap, alignItems: "flex-start" }}>

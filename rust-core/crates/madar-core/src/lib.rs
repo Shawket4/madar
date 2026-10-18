@@ -1416,15 +1416,205 @@ impl MadarCore {
         };
         let envelope =
             serde_json::json!({ "op": op, "teller_id": user_id, "item_id": item_id }).to_string();
-        let data = serde_json::json!({ "item_id": item_id }).to_string();
+        let mut data = serde_json::json!({ "item_id": item_id });
+        // An unbump reopens a ready ticket: naming it (and its bill) lets a
+        // POS that said "Order ready" say it again when it is ready again.
+        if !bumped {
+            if let Some((kt, bill)) = self.kitchen_ticket_of_line(&item_id) {
+                data["kitchen_ticket_id"] = kt.into();
+                if let Some(ot) = bill {
+                    data["open_ticket_id"] = ot.into();
+                }
+            }
+        }
+        let data = data.to_string();
         let ev = if bumped {
             "kitchen.item_bumped"
         } else {
             "kitchen.item_unbumped"
         };
         self.lan_publish("kitchen", ev, data, Some(envelope)).await;
+        // The LAN copy of the round says so too: once the op is gone, a copy
+        // the feed has not replaced would show the line unbumped again.
+        lan_kds_apply_bump(&self.store, &item_id, bumped);
+        if bumped {
+            self.announce_ready_on_lan(&item_id).await;
+        }
         self.send_in_background(Vec::new());
         Ok(())
+    }
+
+    /// The bump that finishes a kitchen ticket tells the LAN the order is
+    /// ready (`kitchen.ticket_ready`, the server's own event and shape), so a
+    /// till or waiter on the same Wi-Fi gets "Order ready" with no internet.
+    /// Same id as the server's event (the kitchen ticket's, derived from the
+    /// round), so the server's copy arriving after a reconnect is the same
+    /// alert, deduped, not a second one. Best-effort: the board decides.
+    async fn announce_ready_on_lan(&self, item_id: &str) {
+        let Ok(board) = self.kds_list(None).await else { return };
+        let Some(t) = board.into_iter().find(|t| t.items.iter().any(|l| l.id == item_id)) else {
+            return;
+        };
+        if t.items.is_empty() || !t.items.iter().all(|l| l.bumped) {
+            return;
+        }
+        let Ok(serde_json::Value::Object(mut data)) = serde_json::to_value(&t) else {
+            return;
+        };
+        data.insert("status".into(), "ready".into());
+        // The bill it belongs to, when the feed has the ticket: a POS that
+        // also hears the bill's `ticket.ready` then pings once, not twice.
+        if let Some(ot) = self
+            .kitchen_ticket_of_line(item_id)
+            .and_then(|(_, bill)| bill)
+        {
+            data.insert("open_ticket_id".into(), ot.into());
+        }
+        // Marks the echo: the announcing device doesn't alert itself.
+        data.insert(
+            "origin".into(),
+            serde_json::json!({ "device_id": self.lan_device_id() }),
+        );
+        self.lan_publish(
+            "kitchen",
+            "kitchen.ticket_ready",
+            serde_json::Value::Object(data).to_string(),
+            None,
+        )
+        .await;
+    }
+
+    /// The kitchen ticket a line is on, and the bill (open ticket) behind it
+    /// when the feed says: a LAN copy of a round (no bill known), else the
+    /// synced ticket in any state (a recall unbumps a closed one).
+    fn kitchen_ticket_of_line(&self, item_id: &str) -> Option<(String, Option<String>)> {
+        if let Some(t) = lan_kds_read(&self.store)
+            .into_iter()
+            .find(|t| t.items.iter().any(|l| l.id == item_id))
+        {
+            return Some((t.id, None));
+        }
+        let branch = self.sync_branch()?;
+        let has_line = |v: &serde_json::Value| {
+            v.get("items")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|a| {
+                    a.iter()
+                        .any(|l| l.get("id").and_then(serde_json::Value::as_str) == Some(item_id))
+                })
+        };
+        let row = sync_pull::rows_of_type(&self.store, &branch, "kitchen_ticket")
+            .into_iter()
+            .find(has_line)?;
+        let s = |k: &str| {
+            row.get(k)
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        };
+        let bill = (s("source_type").as_deref() == Some("open_ticket"))
+            .then(|| s("source_id"))
+            .flatten();
+        Some((s("id")?, bill))
+    }
+
+    /// The kitchen ticket of the LAN copy of a round the feed has not
+    /// brought, when the bumped line is on one. One primary-key lookup in the
+    /// feed (the LAN board is a handful of rounds), per queued bump per pass.
+    fn bump_waits_for_its_round(&self, item: &store::OutboxItem) -> Option<String> {
+        let cmd = serde_json::from_str::<kds::BumpCommand>(&item.payload).ok()?;
+        let t = lan_kds_read(&self.store)
+            .into_iter()
+            .find(|t| t.items.iter().any(|l| l.id == cmd.item_id))?;
+        let branch = self.sync_branch()?;
+        (!sync_pull::has_row(&self.store, &branch, "kitchen_ticket", &t.id)).then_some(t.id)
+    }
+
+    /// Hold a bump for its round, or give up on it: once the op that carries
+    /// the round here is dead (it will not reach the server until someone
+    /// retries it), or after [`K_ROUND_WAIT_MS`] online without the round.
+    /// The give-up is a dead row in the stuck list, retryable and discardable
+    /// like every other, never a bump that waits silently forever. The wait is
+    /// measured from the first hold while online and restarts after an
+    /// offline spell (the round may still be on its way from a peer).
+    fn hold_bump_for_round(&self, item: &store::OutboxItem, round: &str) -> SendOutcome {
+        let key = format!("{HELD_FOR_ROUND}{}", item.id);
+        let locale = self.current_locale();
+        let give_up = |why: &str| {
+            let _ = self.store.kv_delete(&key);
+            SendOutcome::Dead(i18n::tr(&locale, why))
+        };
+        if self.round_op_is_dead(round) {
+            return give_up("sync.err_round_dead");
+        }
+        let online = self.current_session().map(|s| s.online).unwrap_or(false);
+        if !online {
+            let _ = self.store.kv_delete(&key);
+        } else {
+            let since = self
+                .store
+                .kv_get(&key)
+                .ok()
+                .flatten()
+                .and_then(|v| v.parse::<i64>().ok());
+            match since {
+                Some(t) if now_ms() - t >= K_ROUND_WAIT_MS => {
+                    return give_up("sync.err_round_missing")
+                }
+                Some(_) => {}
+                None => {
+                    let _ = self.store.kv_put(&key, &now_ms().to_string());
+                }
+            }
+        }
+        SendOutcome::Held("its round has not reached the server yet".into())
+    }
+
+    /// Is the op that would put `round` (a derived kitchen-ticket id) on the
+    /// server dead in this device's queue? Its own fire, or a LAN peer's fire
+    /// mirrored here.
+    fn round_op_is_dead(&self, round: &str) -> bool {
+        let Ok(ops) =
+            self.store
+                .list_active_of_types(&["open_ticket", "ticket_add_round", "lan_mirror"])
+        else {
+            return false;
+        };
+        ops.iter().filter(|o| o.status == "dead").any(|o| {
+            // A mirror IS the peer's envelope; this device's own fire is
+            // wrapped the way the drain sends it.
+            let env = if o.op_type == "lan_mirror" {
+                serde_json::from_str::<serde_json::Value>(&o.payload).ok()
+            } else {
+                self.replay_envelope(o).ok().map(|(e, _)| e)
+            };
+            let Some(env) = env else { return false };
+            let req = env.get("request").unwrap_or(&env);
+            req.get("round_idempotency_key")
+                .or_else(|| req.get("idempotency_key"))
+                .and_then(serde_json::Value::as_str)
+                .and_then(kds::derive_kitchen_ticket_id)
+                .is_some_and(|kt| kt == round)
+        })
+    }
+
+    /// Un-gate the bumps held for their round (a pull just brought changes,
+    /// maybe the round); true when there were any. Exactly the held ones,
+    /// by their marker: a bump in a counted server-error backoff keeps it.
+    pub(crate) fn release_waiting_bumps(&self) -> bool {
+        self.store
+            .with_conn(|c| {
+                Ok(c.execute(
+                    "UPDATE outbox SET next_attempt_at = 0 WHERE status = 'pending' \
+                     AND op_type IN ('bump_kitchen', 'unbump_kitchen') AND next_attempt_at > 0 \
+                     AND id IN (SELECT substr(k, ?2) FROM kv WHERE k LIKE ?1)",
+                    rusqlite::params![
+                        format!("{HELD_FOR_ROUND}%"),
+                        HELD_FOR_ROUND.len() as i64 + 1
+                    ],
+                )?)
+            })
+            .unwrap_or(0)
+            > 0
     }
 
     /// The still-pending bump intents `(line_id, bumped)` in FIFO order — overlaid
@@ -1962,6 +2152,20 @@ impl MadarCore {
         seq_out: &mut Option<i64>,
         refusal_out: &mut Option<(u16, String)>,
     ) -> SendOutcome {
+        // A bump on a round the kitchen only has by LAN must not reach the
+        // server first: replay answers a bump of a line it does not have with
+        // a clean 204 (so a queued bump never wedges the drain), which reads
+        // as an ack, and the bump would be lost. It waits for the round, a
+        // pull that brings it lets it go (`release_waiting_bumps`), and a
+        // round that never comes gives it up visibly (`hold_bump_for_round`).
+        if matches!(item.op_type.as_str(), "bump_kitchen" | "unbump_kitchen") {
+            if let Some(round) = self.bump_waits_for_its_round(item) {
+                return self.hold_bump_for_round(item, &round);
+            }
+            let _ = self
+                .store
+                .kv_delete(&format!("{HELD_FOR_ROUND}{}", item.id));
+        }
         // Dawam punches and pings go to their own `/staff/*` endpoint. A 409
         // is the server already holding it only for a resend after a lost
         // answer, or an uncoded check-out / any ping (`conflict_means_held`),
@@ -2666,6 +2870,12 @@ const K_NETWORK_RETRY_MS: i64 = 15_000; // fixed reschedule for connectivity bli
 /// How long an op held for the person (`SendOutcome::Held`) waits before the
 /// next try when nothing clears it sooner.
 const K_HELD_RETRY_MS: i64 = 300_000;
+/// How long a bump waits online for its round to reach the server before it
+/// gives up into the stuck list (`hold_bump_for_round`). A round normally
+/// lands within a pull or two of the reconnect.
+const K_ROUND_WAIT_MS: i64 = 10 * 60 * 1000;
+/// kv marker of a bump held for its round: `<prefix><op id>` → first hold (ms).
+const HELD_FOR_ROUND: &str = "outbox:held_for_round:";
 /// How long a 429 holds the queue before the next pass (the server's bucket
 /// refills a request every ~0.3 s, so a couple of seconds sends a few more).
 const K_THROTTLE_RETRY_MS: i64 = 2_000;
@@ -11275,6 +11485,136 @@ mod lifecycle_tests {
             }
         });
         (format!("http://{addr}"), hits)
+    }
+
+    /// A kitchen's bump on a round it has only by LAN (fired offline, the feed
+    /// has not brought it) waits for the round instead of reaching the server
+    /// first, where replay would 204 it as done and lose it. A pull lets the
+    /// held bump go, whatever its attempt count; a round that never comes, or
+    /// whose own op is dead here, turns the bump into a stuck row (said in the
+    /// till's words), never a bump waiting silently forever.
+    #[tokio::test]
+    async fn a_bump_held_for_its_round_is_released_or_given_up_visibly() {
+        let core = signed_in_offline_core().await;
+        let branch = core.sync_branch().unwrap();
+        let round_idem = "6f0a4c1e-6e1f-4c55-9a77-1d2b3c4d5e6f";
+        let kt = kds::derive_kitchen_ticket_id(round_idem).unwrap();
+        let line = kds::derive_kitchen_item_id(&kt, 0);
+        let lan: kds::KdsTicketView = serde_json::from_value(serde_json::json!({
+            "id": kt, "kitchen_ref": null, "table_label": "T4", "round_number": 1,
+            "source_type": "open_ticket", "status": "firing", "created_at": "2026-10-18T10:00:00Z",
+            "items": [{ "id": line, "name": "Tea", "qty": 1, "modifiers": [], "bumped": false }],
+        }))
+        .unwrap();
+        lan_kds_write(&core.store, &[lan]);
+        let seq = core
+            .store
+            .enqueue(&store::NewOutboxOp {
+                id: "bump-1".into(),
+                op_type: "bump_kitchen".into(),
+                idempotency_key: format!("{line}:bump"),
+                payload: serde_json::json!({ "item_id": line }).to_string(),
+                event_at: "2026-10-18T10:01:00Z".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        let item = || {
+            core.store
+                .list_active_of_types(&["bump_kitchen"])
+                .unwrap()
+                .remove(0)
+        };
+        let send = |i: store::OutboxItem| {
+            let core = core.clone();
+            async move {
+                core.send_outbox_item_body(&i, &mut None, &mut None, &mut None)
+                    .await
+            }
+        };
+        let marker = format!("{HELD_FOR_ROUND}bump-1");
+        assert_eq!(
+            core.bump_waits_for_its_round(&item()).as_deref(),
+            Some(kt.as_str())
+        );
+
+        // Offline the wait does not start (the round may be on its way).
+        assert!(matches!(send(item()).await, SendOutcome::Held(_)));
+        assert!(core.store.kv_get(&marker).unwrap().is_none());
+        core.set_online(true);
+        assert!(matches!(send(item()).await, SendOutcome::Held(_)));
+        assert!(
+            core.store.kv_get(&marker).unwrap().is_some(),
+            "online, the wait starts"
+        );
+
+        // Held after a counted 5xx (attempts > 0): a pull still lets it go.
+        core.store
+            .mark_retry(seq, "502", now_ms() + 60_000)
+            .unwrap();
+        core.store
+            .mark_retry_no_count(seq, now_ms() + K_HELD_RETRY_MS)
+            .unwrap();
+        assert_eq!(item().attempts, 1);
+        assert!(core.release_waiting_bumps());
+        assert_eq!(item().next_attempt_at, 0);
+        // A bump that is NOT held keeps its backoff.
+        core.store.kv_delete(&marker).unwrap();
+        core.store
+            .mark_retry(seq, "502", now_ms() + 60_000)
+            .unwrap();
+        assert!(!core.release_waiting_bumps());
+
+        // Online past the bound without the round: a stuck row, worded.
+        core.store
+            .kv_put(&marker, &(now_ms() - K_ROUND_WAIT_MS - 1).to_string())
+            .unwrap();
+        match send(item()).await {
+            SendOutcome::Dead(why) => assert_eq!(why, i18n::tr("en", "sync.err_round_missing")),
+            _ => panic!("past the bound the bump gives up"),
+        }
+        assert!(core.store.kv_get(&marker).unwrap().is_none());
+
+        // The round's own op (a peer's fire mirrored here) is dead: give up now.
+        let mirror = core
+            .store
+            .enqueue(&store::NewOutboxOp {
+                id: "lanmirror:ticket_add_round:r1".into(),
+                op_type: "lan_mirror".into(),
+                idempotency_key: "ticket_add_round:r1".into(),
+                payload: serde_json::json!({ "op": "ticket_add_round", "request": { "round_idempotency_key": round_idem } })
+                    .to_string(),
+                event_at: "2026-10-18T10:00:00Z".into(),
+                ..Default::default()
+            })
+            .unwrap();
+        core.store.mark_dead(mirror, "refused").unwrap();
+        match send(item()).await {
+            SendOutcome::Dead(why) => assert_eq!(why, i18n::tr("en", "sync.err_round_dead")),
+            _ => panic!("a dead round op gives the bump up at once"),
+        }
+
+        // The feed brings the round: nothing waits any more.
+        core.store
+            .with_conn(|c| {
+                Ok(c.execute(
+                    "INSERT INTO sync_rows(type,id,branch_id,seq,data) VALUES('kitchen_ticket',?1,?2,1,?3)",
+                    rusqlite::params![
+                        kt,
+                        branch,
+                        serde_json::json!({ "id": kt, "source_type": "open_ticket", "source_id": "ot-1", "items": [{ "id": line }] })
+                            .to_string()
+                    ],
+                )?)
+            })
+            .unwrap();
+        assert!(core.bump_waits_for_its_round(&item()).is_none());
+        // And a line on a synced ticket names its kitchen ticket and its bill
+        // (what a LAN unbump / ready announcement carries) once no LAN copy is left.
+        lan_kds_write(&core.store, &[]);
+        assert_eq!(
+            core.kitchen_ticket_of_line(&line),
+            Some((kt.clone(), Some("ot-1".into())))
+        );
     }
 
     /// A core signed in offline against `base`, holding a bearer so it drains.

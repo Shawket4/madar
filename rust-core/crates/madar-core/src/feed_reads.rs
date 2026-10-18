@@ -249,7 +249,16 @@ impl MadarCore {
     pub async fn kds_list(&self, station_id: Option<String>) -> Result<Vec<kds::KdsTicketView>, CoreError> {
         let branch = self.signed_in_branch()?;
         let station = station_id.as_deref().and_then(|s| uuid::Uuid::parse_str(s).ok());
-        let mut rows: Vec<madar_api::models::KitchenTicketView> = sync_pull::rows_of_type(&self.store, &branch, "kitchen_ticket")
+        let all = sync_pull::rows_of_type(&self.store, &branch, "kitchen_ticket");
+        // Every ticket the server knows, in ANY state: a LAN copy gives way to
+        // it even when the board won't show it (closed by its last bump, voided,
+        // nothing left at this station), or the stale copy came back as a ghost
+        // with every line unbumped once its queued bumps had drained.
+        let synced: std::collections::HashSet<String> = all
+            .iter()
+            .filter_map(|v| v.get("id").and_then(Value::as_str).map(str::to_string))
+            .collect();
+        let mut rows: Vec<madar_api::models::KitchenTicketView> = all
             .into_iter()
             .filter(|v| v.get("closed_at").map(Value::is_null).unwrap_or(true))
             .filter_map(|v| serde_json::from_value::<madar_api::models::KitchenTicketView>(v).ok())
@@ -263,7 +272,6 @@ impl MadarCore {
         rows.sort_by_key(|t| t.created_at);
         let mut out: Vec<kds::KdsTicketView> = rows.iter().map(kds::ticket_view).collect();
         let mut lan = crate::lan_kds_read(&self.store);
-        let synced: std::collections::HashSet<String> = out.iter().map(|t| t.id.clone()).collect();
         let before = lan.len();
         lan.retain(|t| !synced.contains(&t.id));
         if lan.len() != before {

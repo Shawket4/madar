@@ -29,7 +29,7 @@
     "recall": "Recall",
     "recallCount": "Recall · {{count}}",
     "allDay": "All day",
-    "clearTitle": "All clear",
+    "clearTitle": "No orders",
     "clearBody": "New orders for this section appear here the moment a waiter fires them."
   },
   "recall": {
