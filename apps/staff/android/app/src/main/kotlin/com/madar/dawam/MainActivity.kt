@@ -1,10 +1,28 @@
 package com.madar.dawam
 
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        highRefresh.start()
+    }
+
+    private val highRefresh = HighRefreshRate(this)
+
+    override fun onResume() {
+        super.onResume()
+        highRefresh.apply()
+    }
+
+    override fun onDestroy() {
+        highRefresh.stop()
+        super.onDestroy()
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         // On shift or not (CL-4, CL-17): the app starts and stops the native
