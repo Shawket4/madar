@@ -1,4 +1,6 @@
 // The web's `src/features/inventory/lib.test.ts` vectors, against the port.
+import 'package:dashboard_api/dashboard_api.dart'
+    show LastPrice, LastPriceSource, LastUnitPrice;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_inventory/src/shared/inventory_lib.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -188,6 +190,42 @@ void main() {
       expect(estimateLineTotal(90000, 500, 'g', 'kg'), 45000);
       // D6: rounded once at the end (1.5 g is not rounded to 0.002 kg first).
       expect(estimateLineTotal(50000, 1.5, 'g', 'kg'), 75);
+    });
+  });
+
+  group('last price (a new PO line\'s default)', () {
+    final last = LastPrice(
+      orderedAt: DateTime.utc(2026, 10, 10),
+      orgIngredientId: 'flour',
+      poId: 'po-1',
+      poStatus: 'received',
+      prices: const [
+        LastUnitPrice(unit: 'g', unitPrice: 4.5),
+        LastUnitPrice(unit: 'kg', unitPrice: 4500),
+        LastUnitPrice(unit: 'sack', unitPrice: 112500),
+      ],
+      received: true,
+      source: LastPriceSource.supplier,
+      unit: 'kg',
+      unitPrice: 4500,
+    );
+
+    test('the price in the line\'s unit; none in a unit that does not '
+        'convert', () {
+      expect(lastPriceIn(last, 'kg'), 4500);
+      expect(lastPriceIn(last, 'g'), 4.5);
+      expect(lastPriceIn(last, ' Sack '), 112500);
+      expect(lastPriceIn(last, 'ml'), isNull);
+      expect(lastPriceIn(null, 'kg'), isNull);
+    });
+
+    test('whole piastres on the quantity as stored; nothing until a '
+        'quantity is typed', () {
+      expect(lastPriceLineTotal(4500, 2), 9000);
+      expect(lastPriceLineTotal(4.5, 333), 1499);
+      expect(lastPriceLineTotal(4500, 0.0004), 0);
+      expect(lastPriceLineTotal(4500, 0), isNull);
+      expect(lastPriceLineTotal(4500, double.nan), isNull);
     });
   });
 }
