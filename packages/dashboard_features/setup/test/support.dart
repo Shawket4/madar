@@ -9,6 +9,7 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_setup/dashboard_setup.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
 /// [setupArea] as this package's own tests load it: the same pages and
@@ -36,6 +37,7 @@ Future<DashHarness> pumpSetup(
   MockDb? db,
   MockClock? clock,
   Map<String, String>? prefs,
+  List<Override> overrides = const [],
 }) => DashHarness.pump(
   tester,
   areas: [setupTestArea],
@@ -48,6 +50,7 @@ Future<DashHarness> pumpSetup(
   db: db,
   clock: clock,
   prefs: prefs,
+  overrides: overrides,
   shotArea: 'setup',
 );
 

@@ -26,6 +26,7 @@ void main() {
           'links-socials',
           'links-visit',
           'links-preview-0',
+          'menu-display-section',
         ]) {
           await _scrollTo(h, byKey(key));
           await h.shot('default-$key');
@@ -105,6 +106,28 @@ void main() {
       await h.settle();
       await h.shot('preview-wide-buttons');
     });
+  }
+
+  // Free: the menu without prices, usable, and the links page locked.
+  for (final size in [DashSize.desktop, DashSize.phone]) {
+    for (final (lang, dark) in [('en', false), ('ar', true)]) {
+      testWidgets('free, ${size.name} $lang', (tester) async {
+        // A Free shop has no host of its own: the generic one.
+        final m = setupMockServer();
+        m.db['orgs'].update(SeedIds.sabahOrg, {'custom_branding': false});
+        final h = await pumpLinks(
+          tester,
+          backend: m,
+          size: size,
+          locale: lang,
+          dark: dark,
+          overrides: [freePlan],
+        );
+        await h.shot('free');
+        await _scrollTo(h, byKey('paid-lock-branding'));
+        await h.shot('free-locked');
+      });
+    }
   }
 
   testWidgets('no address, no org, failed', (tester) async {
