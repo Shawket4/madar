@@ -134,6 +134,11 @@ class SettingsNotifier extends Notifier<SettingsState> {
 
   @override
   SettingsState build() {
+    // The plan decides the receipt footer (Free prints it, locked): re-read
+    // the device view the moment the plan changes.
+    ref.listen(entitlementsProvider.select((e) => e.plan), (_, _) {
+      state = state.copyWith(config: _bridge.deviceConfig());
+    });
     final config = ref.localizedBridge.deviceConfig();
     return SettingsState(config: config, brand: _brandOf(config.printerBrand));
   }

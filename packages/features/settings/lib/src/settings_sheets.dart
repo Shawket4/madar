@@ -132,12 +132,16 @@ class _Choice<T> extends StatelessWidget {
     required this.items,
     required this.value,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final String label;
   final List<MadarSegmentItem<T>> items;
   final T value;
   final ValueChanged<T> onChanged;
+
+  /// False holds the choice where it is (the plan decides it).
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -146,8 +150,59 @@ class _Choice<T> extends StatelessWidget {
       spacing: Space.sm,
       children: [
         MadarSectionHeader(text: label),
-        MadarSegmented<T>(items: items, value: value, onChanged: onChanged),
+        MadarSegmented<T>(
+          items: items,
+          value: value,
+          onChanged: onChanged,
+          enabled: enabled,
+        ),
       ],
+    );
+  }
+}
+
+/// A setting the plan holds: the lock, "Paid plan", and why, in the paid-plan
+/// lock's words (the dashboard's `PaidFeatureLock`).
+class _PlanLockNote extends StatelessWidget {
+  const _PlanLockNote({required this.badge, required this.note, super.key});
+
+  final String badge;
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    return Semantics(
+      container: true,
+      label: '$badge: $note',
+      child: ExcludeSemantics(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: Space.sm,
+          children: [
+            MadarGlyphIcon(
+              MadarGlyph.lock,
+              size: IconSize.sm,
+              color: colors.textSecondary,
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: Space.xs,
+                children: [
+                  MadarTag(label: badge),
+                  Text(
+                    note,
+                    style: MadarType.bodySm.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -266,7 +321,10 @@ class _PrinterSheetState extends ConsumerState<_PrinterSheet> {
             MadarSegmentItem(true, t('toggle.on')),
             MadarSegmentItem(false, t('toggle.off')),
           ],
+          // On Free the core prints the footer whatever was chosen; the
+          // view already reads both on, and the switches are held there.
           value: config.receiptStub,
+          enabled: !config.receiptFooterLocked,
           onChanged: (on) => unawaited(notifier.setReceiptStub(on: on)),
         ),
         if (config.receiptStub)
@@ -277,7 +335,14 @@ class _PrinterSheetState extends ConsumerState<_PrinterSheet> {
               MadarSegmentItem(false, t('toggle.off')),
             ],
             value: config.receiptGetMadar,
+            enabled: !config.receiptFooterLocked,
             onChanged: (on) => unawaited(notifier.setReceiptGetMadar(on: on)),
+          ),
+        if (config.receiptFooterLocked)
+          _PlanLockNote(
+            key: const ValueKey('receipt-footer-locked'),
+            badge: t('plan.lock_badge'),
+            note: t('settings.printer_footer_locked'),
           ),
         MadarButton(
           label: t('settings.printer_test'),

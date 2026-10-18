@@ -130,7 +130,8 @@ impl MadarCore {
     fn plan_branch(&self) -> Option<String> {
         self.current_session()
             .and_then(|s| s.branch_id)
-            .or_else(|| self.device_config().branch_id)
+            // The stored config, not `device_config()`: that view asks the plan.
+            .or_else(|| crate::device::load(&self.store).branch_id)
             .filter(|b| !b.is_empty())
     }
 

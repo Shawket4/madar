@@ -53,6 +53,10 @@ class DeviceConfigView {
   final String? scanCamera;
   final bool receiptStub;
   final bool receiptGetMadar;
+
+  /// Free prints the footer whatever the device chose: both flags above read
+  /// true and Settings shows them locked on.
+  final bool receiptFooterLocked;
   final bool configured;
 
   const DeviceConfigView({
@@ -71,6 +75,7 @@ class DeviceConfigView {
     this.scanCamera,
     this.receiptStub = true,
     this.receiptGetMadar = true,
+    this.receiptFooterLocked = false,
     required this.configured,
   });
 
@@ -91,6 +96,7 @@ class DeviceConfigView {
       scanCamera.hashCode ^
       receiptStub.hashCode ^
       receiptGetMadar.hashCode ^
+      receiptFooterLocked.hashCode ^
       configured.hashCode;
 
   @override
@@ -113,6 +119,7 @@ class DeviceConfigView {
           scanCamera == other.scanCamera &&
           receiptStub == other.receiptStub &&
           receiptGetMadar == other.receiptGetMadar &&
+          receiptFooterLocked == other.receiptFooterLocked &&
           configured == other.configured;
 }
 

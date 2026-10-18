@@ -15987,8 +15987,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   DeviceConfigView dco_decode_device_config_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 16)
-      throw Exception('unexpected arr length: expect 16 but see ${arr.length}');
+    if (arr.length != 17)
+      throw Exception('unexpected arr length: expect 17 but see ${arr.length}');
     return DeviceConfigView(
       branchId: dco_decode_opt_String(arr[0]),
       branchName: dco_decode_opt_String(arr[1]),
@@ -16005,7 +16005,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       scanCamera: dco_decode_opt_String(arr[12]),
       receiptStub: dco_decode_bool(arr[13]),
       receiptGetMadar: dco_decode_bool(arr[14]),
-      configured: dco_decode_bool(arr[15]),
+      receiptFooterLocked: dco_decode_bool(arr[15]),
+      configured: dco_decode_bool(arr[16]),
     );
   }
 
@@ -20534,6 +20535,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_scanCamera = sse_decode_opt_String(deserializer);
     var var_receiptStub = sse_decode_bool(deserializer);
     var var_receiptGetMadar = sse_decode_bool(deserializer);
+    var var_receiptFooterLocked = sse_decode_bool(deserializer);
     var var_configured = sse_decode_bool(deserializer);
     return DeviceConfigView(
       branchId: var_branchId,
@@ -20551,6 +20553,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       scanCamera: var_scanCamera,
       receiptStub: var_receiptStub,
       receiptGetMadar: var_receiptGetMadar,
+      receiptFooterLocked: var_receiptFooterLocked,
       configured: var_configured,
     );
   }
@@ -26188,6 +26191,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.scanCamera, serializer);
     sse_encode_bool(self.receiptStub, serializer);
     sse_encode_bool(self.receiptGetMadar, serializer);
+    sse_encode_bool(self.receiptFooterLocked, serializer);
     sse_encode_bool(self.configured, serializer);
   }
 

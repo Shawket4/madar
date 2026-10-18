@@ -51,6 +51,10 @@ pub struct _DeviceConfigView {
     pub receipt_stub: bool,
     #[frb(default = true)]
     pub receipt_get_madar: bool,
+    /// Free prints the footer whatever the device chose: both flags above read
+    /// true and Settings shows them locked on.
+    #[frb(default = false)]
+    pub receipt_footer_locked: bool,
     pub configured: bool,
 }
 

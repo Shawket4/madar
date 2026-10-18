@@ -319,6 +319,10 @@ class _FakeBridge implements MadarBridge {
   final SyncStatusView status;
   final bool tillOpen;
 
+  /// The device view the core answers (Settings › Printer reads it).
+  DeviceConfigView config = _config;
+  int footerWrites = 0;
+
   @override
   dynamic noSuchMethod(Invocation invocation) {
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
@@ -372,7 +376,11 @@ class _FakeBridge implements MadarBridge {
     if (name == #isRtl) return lang == 'ar';
     if (name == #currentSession) return session;
     if (name == #appRoute) return AppRoute.order;
-    if (name == #deviceConfig) return _config;
+    if (name == #deviceConfig) return config;
+    if (name == #setDeviceReceiptStub || name == #setDeviceReceiptGetMadar) {
+      footerWrites++;
+      return Future<void>.value();
+    }
     if (name == #deviceCode) return 'T1';
     if (name == #refreshConnectivity) return Future<bool>.value(true);
     if (name == #refreshCatalog) return Future<void>.value();
@@ -984,6 +992,84 @@ void main() {
     await open('Diagnostics', 'Environment', 'sheet-diagnostics');
     await open('Device', 'Reconfigure device', 'sheet-device');
     await open('Legal', 'Privacy Policy', 'sheet-legal');
+  });
+
+  testWidgets('on Free the receipt footer switches are locked on', (
+    tester,
+  ) async {
+    final bridge = _FakeBridge()
+      ..config = const DeviceConfigView(
+        branchId: 'b1',
+        printerTransport: 'lan',
+        reconfiguring: false,
+        configured: true,
+        receiptFooterLocked: true,
+      );
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      home: const SettingsScreen(),
+      bridge: bridge,
+      name: 'settings-free-footer-base',
+    );
+    await tester.ensureVisible(find.text('Printer'));
+    await tester.pump();
+    await tester.tap(find.text('Printer'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(tester.takeException(), isNull);
+    final note = find.byKey(const ValueKey('receipt-footer-locked'));
+    await tester.ensureVisible(note);
+    await tester.pump();
+    expect(note, findsOneWidget);
+    expect(
+      find.text(coreWord('plan.lock_badge').toUpperCase()),
+      findsOneWidget,
+    );
+    await _save(tester, 'sheet-printer-free');
+    // Both switches read On, and Off is disabled: a tap writes nothing.
+    final on = coreWord('toggle.on');
+    final off = coreWord('toggle.off');
+    MadarButton button(String label) => tester.widget<MadarButton>(
+      find.widgetWithText(MadarButton, label).first,
+    );
+    expect(find.widgetWithText(MadarButton, off), findsNWidgets(2));
+    for (final b in tester.widgetList<MadarButton>(
+      find.widgetWithText(MadarButton, off),
+    )) {
+      expect(b.enabled, isFalse);
+    }
+    expect(button(on).variant, MadarButtonVariant.primary);
+    await tester.tap(find.widgetWithText(MadarButton, off).first);
+    await tester.pump();
+    expect(bridge.footerWrites, 0);
+  });
+
+  testWidgets("on Paid the receipt footer switches are the device's", (
+    tester,
+  ) async {
+    final bridge = _FakeBridge();
+    await _shoot(
+      tester,
+      size: _ipad,
+      theme: MadarTheme.light(),
+      home: const SettingsScreen(),
+      bridge: bridge,
+      name: 'settings-paid-footer-base',
+    );
+    await tester.ensureVisible(find.text('Printer'));
+    await tester.pump();
+    await tester.tap(find.text('Printer'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    expect(find.byKey(const ValueKey('receipt-footer-locked')), findsNothing);
+    final off = find.widgetWithText(MadarButton, coreWord('toggle.off'));
+    await tester.ensureVisible(off.first);
+    await tester.pump();
+    for (final b in tester.widgetList<MadarButton>(off)) {
+      expect(b.enabled, isTrue);
+    }
   });
 
   testWidgets('settings_has_no_till_picker', (tester) async {

@@ -18440,6 +18440,7 @@ const _: fn() = || {
         let _: Option<String> = DeviceConfigView.scan_camera;
         let _: bool = DeviceConfigView.receipt_stub;
         let _: bool = DeviceConfigView.receipt_get_madar;
+        let _: bool = DeviceConfigView.receipt_footer_locked;
         let _: bool = DeviceConfigView.configured;
     }
     {
@@ -20889,6 +20890,7 @@ impl SseDecode for crate::api::device::DeviceConfigView {
         let mut var_scanCamera = <Option<String>>::sse_decode(deserializer);
         let mut var_receiptStub = <bool>::sse_decode(deserializer);
         let mut var_receiptGetMadar = <bool>::sse_decode(deserializer);
+        let mut var_receiptFooterLocked = <bool>::sse_decode(deserializer);
         let mut var_configured = <bool>::sse_decode(deserializer);
         return crate::api::device::DeviceConfigView {
             branch_id: var_branchId,
@@ -20906,6 +20908,7 @@ impl SseDecode for crate::api::device::DeviceConfigView {
             scan_camera: var_scanCamera,
             receipt_stub: var_receiptStub,
             receipt_get_madar: var_receiptGetMadar,
+            receipt_footer_locked: var_receiptFooterLocked,
             configured: var_configured,
         };
     }
@@ -28497,6 +28500,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::device::DeviceConf
             self.0.scan_camera.into_into_dart().into_dart(),
             self.0.receipt_stub.into_into_dart().into_dart(),
             self.0.receipt_get_madar.into_into_dart().into_dart(),
+            self.0.receipt_footer_locked.into_into_dart().into_dart(),
             self.0.configured.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -32740,6 +32744,7 @@ impl SseEncode for crate::api::device::DeviceConfigView {
         <Option<String>>::sse_encode(self.scan_camera, serializer);
         <bool>::sse_encode(self.receipt_stub, serializer);
         <bool>::sse_encode(self.receipt_get_madar, serializer);
+        <bool>::sse_encode(self.receipt_footer_locked, serializer);
         <bool>::sse_encode(self.configured, serializer);
     }
 }

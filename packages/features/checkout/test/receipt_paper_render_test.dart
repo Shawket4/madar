@@ -26,8 +26,12 @@ class _Bridge implements MadarBridge {
 
   /// Settings › Printer's "Powered by madar" stub, and its sub-toggle for the
   /// tagline and QR under it.
-  final bool stub;
-  final bool getMadar;
+  bool stub;
+  bool getMadar;
+
+  /// The plan the core answers. On Free the core's device view reads the
+  /// footer on whatever the device chose.
+  String plan = 'paid';
 
   @override
   dynamic noSuchMethod(Invocation i) {
@@ -41,11 +45,21 @@ class _Bridge implements MadarBridge {
     if (i.memberName == #isRtl) return rtl;
     if (i.memberName == #locale) return rtl ? 'ar' : 'en';
     if (i.memberName == #deviceConfig) {
+      final free = plan == 'free';
       return DeviceConfigView(
         reconfiguring: false,
         configured: true,
-        receiptStub: stub,
-        receiptGetMadar: getMadar,
+        receiptStub: stub || free,
+        receiptGetMadar: getMadar || free,
+        receiptFooterLocked: free,
+      );
+    }
+    if (i.memberName == #entitlements) {
+      return EntitlementsView(
+        plan: plan,
+        features: const [],
+        realtime: plan == 'paid',
+        tillInactive: false,
       );
     }
     return null;
@@ -507,6 +521,48 @@ void main() {
       }
     });
   }
+
+  // The preview follows the plan the moment it changes: a Paid device with
+  // the footer off shows none, a downgrade to Free shows it all, and the
+  // upgrade back gives the device's own choice again.
+  testWidgets('the footer follows the plan as it changes', (tester) async {
+    final bridge = _Bridge(rtl: false, stub: false, getMadar: false);
+    final container = ProviderContainer(
+      overrides: [bridgeProvider.overrideWithValue(bridge)],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      DefaultAssetBundle(
+        bundle: _PackageAssets(),
+        child: UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: MadarTheme.light(),
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: ReceiptPaper(
+                  receipt: _cases['cash']!,
+                  storeName: 'Rue Zamalek',
+                  currency: 'EGP',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    const url = 'get.madar-pos.cloud/en';
+    expect(find.text(url), findsNothing);
+    bridge.plan = 'free';
+    container.read(syncTickProvider.notifier).bump();
+    await tester.pump();
+    expect(find.text(url), findsOneWidget, reason: 'Free prints the footer');
+    bridge.plan = 'paid';
+    container.read(syncTickProvider.notifier).bump();
+    await tester.pump();
+    expect(find.text(url), findsNothing, reason: "the device's choice is back");
+  });
 }
 
 /// The app bundles the chit as `packages/feature_checkout/assets/…`; this

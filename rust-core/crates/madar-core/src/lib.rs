@@ -3040,8 +3040,15 @@ impl MadarCore {
     // device-setup / Settings and calls the setters. No host-side device state.
 
     /// The device's current binding (for device-setup / Settings + screen chrome).
+    /// The receipt footer reads as it prints: on Free both lines, locked.
     pub fn device_config(&self) -> device::DeviceConfigView {
-        device::load(&self.store).into()
+        device::DeviceConfigView::of(device::load(&self.store), self.receipt_footer_locked())
+    }
+
+    /// The plan prints the receipt footer ("Powered by madar" and the get-Madar
+    /// line under it) whatever the device chose: Free. Local; no network.
+    pub fn receipt_footer_locked(&self) -> bool {
+        self.current_plan() == madar_plan::Plan::Free
     }
 
     /// Bind the device to a branch (device setup). Clears the reconfigure flag.
@@ -4520,6 +4527,8 @@ impl MadarCore {
         // a 58 mm Bluetooth portable renders 384 dots with no cut, a 72 mm LAN
         // head renders 576 dots with a partial cut.
         let cfg = device::load(&self.store);
+        // Free prints the footer whatever the device chose (the stored flags stay).
+        let (stub, get_madar) = cfg.receipt_footer(self.receipt_footer_locked());
         let ctx = receipt::EscPosCtx {
             store_name,
             currency,
@@ -4557,8 +4566,8 @@ impl MadarCore {
                 pickup: tr("charge.pickup"),
                 dine_in: tr("charge.dine_in"),
                 thank_you: self.receipt_footer(),
-                powered_by: (!cfg.hide_receipt_stub).then(|| tr("receipt.powered_by")),
-                get_madar: !cfg.hide_receipt_get_madar,
+                powered_by: stub.then(|| tr("receipt.powered_by")),
+                get_madar,
                 locale: loc.clone(),
                 tz,
             },

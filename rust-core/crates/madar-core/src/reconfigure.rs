@@ -647,6 +647,51 @@ mod tests {
         assert!(core.device_config().receipt_get_madar);
     }
 
+    /// On Free the footer prints whatever the device chose: the view reads both
+    /// on and locked, and the stored choice is left alone, so moving to Paid
+    /// brings the device's own choice back.
+    #[test]
+    fn free_prints_the_receipt_footer_and_keeps_the_device_choice() {
+        let (_dir, db) = temp_db();
+        let core = core_at(&db);
+        core.set_device_receipt_stub(false).unwrap();
+        core.set_device_receipt_get_madar(false).unwrap();
+        let paid = core.device_config();
+        assert!(!paid.receipt_footer_locked);
+        assert!(!paid.receipt_stub && !paid.receipt_get_madar, "Paid respects the device's choice");
+
+        core.remember_plan(Some("free"));
+        let free = core.device_config();
+        assert!(free.receipt_footer_locked);
+        assert!(free.receipt_stub && free.receipt_get_madar, "Free prints both");
+        let stored = crate::device::load(&core.store);
+        assert!(stored.hide_receipt_stub && stored.hide_receipt_get_madar, "the stored flags are untouched");
+
+        core.remember_plan(Some("paid"));
+        let back = core.device_config();
+        assert!(!back.receipt_footer_locked);
+        assert!(!back.receipt_stub && !back.receipt_get_madar, "an upgrade restores the device's choice");
+    }
+
+    /// The printed receipt follows the same rule: a Free till with both lines
+    /// turned off prints the same paper as one with them on.
+    #[test]
+    fn a_free_receipt_prints_the_footer_the_device_turned_off() {
+        use crate::receipt::PrinterBrand;
+        let (_dir, db) = temp_db();
+        let core = core_at(&db);
+        let print = || core.render_receipt(Default::default(), "Shop".into(), "EGP".into(), 48, PrinterBrand::Epson).len();
+        let full = print();
+        core.set_device_receipt_stub(false).unwrap();
+        core.set_device_receipt_get_madar(false).unwrap();
+        let bare = print();
+        assert!(bare < full, "Paid: the device's choice drops the footer ({bare} < {full})");
+        core.remember_plan(Some("free"));
+        assert_eq!(print(), full, "Free: the footer prints anyway");
+        core.remember_plan(Some("paid"));
+        assert_eq!(print(), bare);
+    }
+
     #[test]
     fn wipe_is_a_fresh_install_keeping_the_printer() {
         let (dir, db) = temp_db();

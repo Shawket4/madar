@@ -1825,12 +1825,17 @@ class MadarSegmented<T> extends StatelessWidget {
     required this.onChanged,
     this.glyphOnly = false,
     this.style = MadarSegmentStyle.buttons,
+    this.enabled = true,
     super.key,
   });
 
   final List<MadarSegmentItem<T>> items;
   final T value;
   final ValueChanged<T> onChanged;
+
+  /// False locks the choice: the chosen segment still reads chosen, the
+  /// others dim and no tap changes it (a setting the plan holds fixed).
+  final bool enabled;
 
   /// The kit's buttons (the default), or a sunk track with a white thumb.
   final MadarSegmentStyle style;
@@ -1876,8 +1881,9 @@ class MadarSegmented<T> extends StatelessWidget {
                     ? MadarButtonVariant.primary
                     : MadarButtonVariant.secondary,
                 size: MadarButtonSize.compact,
+                enabled: enabled || item.value == value,
                 onTap: () {
-                  if (item.value == value) return;
+                  if (!enabled || item.value == value) return;
                   onTap(item.value);
                 },
               ),
@@ -1911,7 +1917,11 @@ class MadarSegmented<T> extends StatelessWidget {
               child: Builder(
                 builder: (context) {
                   final on = item.value == value;
-                  final fg = on ? colors.accent : colors.textSecondary;
+                  final fg = on
+                      ? colors.accent
+                      : enabled
+                      ? colors.textSecondary
+                      : colors.textMuted;
                   final words = !glyphOnly || item.glyph == null;
                   Widget face = AnimatedContainer(
                     duration: MotionSpec.standardDuration,
@@ -1960,7 +1970,7 @@ class MadarSegmented<T> extends StatelessWidget {
                   );
                   face = GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: on
+                    onTap: on || !enabled
                         ? null
                         : () {
                             MadarHaptics.selection();

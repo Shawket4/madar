@@ -12,6 +12,10 @@ class _Bridge implements MadarBridge {
   bool refuseHub = false;
   String? scanCamera;
 
+  /// The plan the core answers, and the device's stored footer choice (off).
+  String plan = 'paid';
+  int stubWrites = 0;
+
   @override
   dynamic noSuchMethod(Invocation invocation) {
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
@@ -22,7 +26,27 @@ class _Bridge implements MadarBridge {
     if (name == #appRoute) return AppRoute.login;
     if (name == #currentSession) return null;
     if (name == #deviceConfig) {
-      return const DeviceConfigView(reconfiguring: false, configured: true);
+      // As the core answers it: the device turned both off; Free prints them.
+      final free = plan == 'free';
+      return DeviceConfigView(
+        reconfiguring: false,
+        configured: true,
+        receiptStub: free,
+        receiptGetMadar: free,
+        receiptFooterLocked: free,
+      );
+    }
+    if (name == #entitlements) {
+      return EntitlementsView(
+        plan: plan,
+        features: const [],
+        realtime: plan == 'paid',
+        tillInactive: false,
+      );
+    }
+    if (name == #setDeviceReceiptStub) {
+      stubWrites++;
+      return Future<void>.value();
     }
     // The one owner's sync read: this person's OWN open till, or none.
     if (name == #ownOpenTill) {
@@ -65,6 +89,37 @@ void main() {
     bridge.refuseHub = false;
     await notifier.setLanHub('10.0.0.2');
     expect(container.read(settingsProvider).writeError, isNull);
+  });
+
+  test('the receipt footer follows the plan the moment it changes', () {
+    // Paid, with the footer turned off on this device.
+    container
+      ..listen(settingsProvider, (_, _) {})
+      ..listen(entitlementsProvider, (_, _) {});
+    var c = container.read(settingsProvider).config;
+    expect(
+      (c.receiptStub, c.receiptGetMadar, c.receiptFooterLocked),
+      (false, false, false),
+    );
+    // Downgraded to Free: the feed moves, and both print, locked on.
+    bridge.plan = 'free';
+    container.read(syncTickProvider.notifier).bump();
+    container.read(entitlementsProvider);
+    c = container.read(settingsProvider).config;
+    expect(
+      (c.receiptStub, c.receiptGetMadar, c.receiptFooterLocked),
+      (true, true, true),
+    );
+    // Back to Paid: the device's own off choice returns.
+    bridge.plan = 'paid';
+    container.read(syncTickProvider.notifier).bump();
+    container.read(entitlementsProvider);
+    c = container.read(settingsProvider).config;
+    expect(
+      (c.receiptStub, c.receiptGetMadar, c.receiptFooterLocked),
+      (false, false, false),
+    );
+    expect(bridge.stubWrites, 0, reason: 'the plan never rewrites the device');
   });
 
   test(

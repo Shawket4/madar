@@ -109,6 +109,17 @@ impl DeviceConfig {
     pub fn printer_has_cutter(&self) -> bool {
         self.printer_transport.as_deref() != Some("bluetooth")
     }
+
+    /// What the receipt footer prints: `(stub, get_madar)`. On a plan that
+    /// locks the footer (Free) both print, whatever this device chose; the
+    /// stored choice is left as it is, so an upgrade brings it back.
+    pub fn receipt_footer(&self, locked: bool) -> (bool, bool) {
+        if locked {
+            (true, true)
+        } else {
+            (!self.hide_receipt_stub, !self.hide_receipt_get_madar)
+        }
+    }
 }
 
 /// Load the device config (an empty default when nothing's been set yet).
@@ -160,12 +171,24 @@ pub struct DeviceConfigView {
     /// Whether, under the stub, receipts print the tagline, QR and web
     /// address (default on; only with the stub).
     pub receipt_get_madar: bool,
+    /// The plan prints the footer whatever this device chose (Free): both
+    /// flags above read true and Settings shows them locked on.
+    pub receipt_footer_locked: bool,
     pub configured: bool,
 }
 
 impl From<DeviceConfig> for DeviceConfigView {
     fn from(c: DeviceConfig) -> Self {
+        DeviceConfigView::of(c, false)
+    }
+}
+
+impl DeviceConfigView {
+    /// The view with the receipt footer as it prints: `receipt_footer_locked`
+    /// (a Free plan) prints both, whatever the device's stored choice.
+    pub(crate) fn of(c: DeviceConfig, receipt_footer_locked: bool) -> Self {
         let configured = c.configured();
+        let (receipt_stub, receipt_get_madar) = c.receipt_footer(receipt_footer_locked);
         DeviceConfigView {
             branch_id: c.branch_id,
             branch_name: c.branch_name,
@@ -180,8 +203,9 @@ impl From<DeviceConfig> for DeviceConfigView {
             reconfiguring: c.reconfiguring,
             lan_hub: c.lan_hub,
             scan_camera: c.scan_camera,
-            receipt_stub: !c.hide_receipt_stub,
-            receipt_get_madar: !c.hide_receipt_get_madar,
+            receipt_stub,
+            receipt_get_madar,
+            receipt_footer_locked,
             configured,
         }
     }
@@ -194,6 +218,29 @@ mod tests {
 
     fn store() -> Store {
         Store::open("").unwrap() // in-memory
+    }
+
+    /// Unlocked, the footer is the device's choice; locked (Free), both print
+    /// and the config itself is not changed.
+    #[test]
+    fn a_locked_receipt_footer_prints_both() {
+        let c = DeviceConfig {
+            hide_receipt_stub: true,
+            hide_receipt_get_madar: true,
+            ..Default::default()
+        };
+        assert_eq!(c.receipt_footer(false), (false, false));
+        assert_eq!(c.receipt_footer(true), (true, true));
+        assert!(c.hide_receipt_stub && c.hide_receipt_get_madar);
+        let v = DeviceConfigView::of(c.clone(), true);
+        assert!(v.receipt_stub && v.receipt_get_madar && v.receipt_footer_locked);
+        let v = DeviceConfigView::from(c);
+        assert!(!v.receipt_stub && !v.receipt_get_madar && !v.receipt_footer_locked);
+        let only_qr_off = DeviceConfig {
+            hide_receipt_get_madar: true,
+            ..Default::default()
+        };
+        assert_eq!(only_qr_off.receipt_footer(false), (true, false));
     }
 
     #[test]

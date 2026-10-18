@@ -124,6 +124,8 @@ class ReceiptPaper extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bridge = ref.bridge;
+    // The footer follows the plan (Free prints it): redraw when it changes.
+    ref.watch(entitlementsProvider.select((e) => e.plan));
     final device = bridge.deviceConfig();
     String tr(String key) => bridge.tr(key: key);
     final r = receipt;
