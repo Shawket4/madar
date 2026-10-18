@@ -354,10 +354,18 @@ void main() {
   testWidgets('SELL-TIL-015/056 All branches: the Branch column, no KPIs, no '
       'Open now, no Open till; only the list is read', (tester) async {
     final h = await pumpTills(tester, allBranches: true);
-    expect(
-      h.server.callsTo(tillsList).single.path,
+    // Only the list endpoint: the page of 20 and the menus' window of 200.
+    // No flagged count (there are no KPIs to feed).
+    final reads = h.server.callsTo(tillsList);
+    expect(reads, hasLength(2));
+    expect(reads.map((c) => c.path).toSet(), {
       '/tills/branches/$allBranchesId',
-    );
+    });
+    expect(reads.map((c) => c.query['per_page']!.single).toList()..sort(), [
+      '20',
+      '200',
+    ]);
+    expect(reads.any((c) => c.query.containsKey('flagged')), isFalse);
     expect(h.server.callsTo(tillsCurrent), isEmpty);
     expect(h.server.callsTo(tillsOpen), isEmpty);
     expect(h.server.callsTo(tillsNotice), isEmpty);
@@ -574,7 +582,15 @@ void main() {
       find.byKey(const ValueKey('tills-export')),
     );
     expect(export.enabled, isFalse);
-    expect(h.server.callsTo(tillsList), hasLength(1));
+    // The page, the Flagged KPI's count and the menus' window: nothing else.
+    final reads = h.server.callsTo(tillsList);
+    expect(reads, hasLength(3));
+    expect(reads.map((c) => c.query['per_page']!.single).toList()..sort(), [
+      '1',
+      '20',
+      '200',
+    ]);
+    expect(reads.where((c) => c.query.containsKey('flagged')), hasLength(1));
   });
 
   testWidgets('SELL-TIL-026 phone: till cards with Device, Status, Opening, '
@@ -603,6 +619,8 @@ void main() {
       'list and the open report', (tester) async {
     final h = await pumpTills(tester, query: 'report=${TillIds.helioMorning}');
     int count(String t) => h.server.callsTo(t).length;
+    // The list endpoint serves three reads (page, Flagged count, menus).
+    final listReads = tillsList;
     final before = {
       for (final t in [
         tillsOpen,
@@ -616,7 +634,9 @@ void main() {
     h.realtime.current!.emit('till.cash_moved', data: '{}');
     await h.settle();
     for (final e in before.entries) {
-      expect(count(e.key), e.value + 1, reason: e.key);
+      // Each of the list's three reads runs once more.
+      final reads = e.key == listReads ? 3 : 1;
+      expect(count(e.key), e.value + reads, reason: e.key);
     }
   });
 

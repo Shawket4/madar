@@ -69,12 +69,18 @@ void main() {
     expect(h.server.callsTo(trf.listRoute).last.query, {
       'direction': ['outgoing'],
       'status': ['received'],
+      // The list is always a window from the newest.
+      'limit': ['100'],
+      'offset': ['0'],
     });
     await h.go('/inventory/settings');
     await h.go(trf.transfersPath);
     expect(h.server.callsTo(trf.listRoute).last.query, {
       'direction': ['outgoing'],
       'status': ['received'],
+      // The list is always a window from the newest.
+      'limit': ['100'],
+      'offset': ['0'],
     });
   });
 }

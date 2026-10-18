@@ -295,8 +295,11 @@ class _TillsPageState extends ConsumerState<TillsPage> {
         : ref.watch(openBillsNoticeProvider(branchId));
     final key = _listKey(scope, search);
     final list = ref.watch(tillsListProvider(key));
-    // The Flagged KPI counts every page under the filters.
-    final flagged = ref.watch(tillsListProvider(_flaggedKey(scope, search)));
+    // The Flagged KPI counts every page under the filters; All branches has
+    // no KPIs, so it does not ask.
+    final flagged = branchId == null
+        ? null
+        : ref.watch(tillsListProvider(_flaggedKey(scope, search)));
     // The teller/device menus read the latest tills, not the page on screen.
     final recent = ref.watch(tillsListProvider(tillsOptionsKey(scope)));
 
@@ -367,7 +370,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
           TillsKpis(
             openNow: openNow!,
             notice: notice!,
-            flaggedCount: flagged.value?.total ?? 0,
+            flaggedCount: flagged!.value?.total ?? 0,
             flaggedLoading: flagged.awaitingFirst,
           ),
         if (branchId != null)
@@ -421,9 +424,10 @@ class _TillsPageState extends ConsumerState<TillsPage> {
           final next = TillsSearch.fromQuery(
             patchQuery(widget.query, {...patch, 'page': null}),
           );
-          ref
-            ..warm(tillsListProvider(_listKey(scope, next)))
-            ..warm(tillsListProvider(_flaggedKey(scope, next)));
+          ref.warm(tillsListProvider(_listKey(scope, next)));
+          if (branchId != null) {
+            ref.warm(tillsListProvider(_flaggedKey(scope, next)));
+          }
         },
       ),
       body: body,
