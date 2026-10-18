@@ -19,15 +19,18 @@ class TillsKpis extends ConsumerWidget {
   const TillsKpis({
     required this.openNow,
     required this.notice,
-    required this.rows,
-    required this.listLoading,
+    required this.flaggedCount,
+    required this.flaggedLoading,
     super.key,
   });
 
   final AsyncValue<List<Till>> openNow;
   final AsyncValue<OpenBillsNotice> notice;
-  final List<Till> rows;
-  final bool listLoading;
+
+  /// Flagged tills under the filters, across every page (the server's
+  /// `total` of the flagged-only list), never a count of the page on screen.
+  final int flaggedCount;
+  final bool flaggedLoading;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,7 +40,7 @@ class TillsKpis extends ConsumerWidget {
     final n = notice.value;
     final bills = n?.openBillsCount ?? 0;
     final old = n?.oldBillsCount ?? 0;
-    final flagged = rows.where(isFlaggedTill).length;
+    final flagged = flaggedCount;
     return DashLedgerStrip(
       key: const ValueKey('tills-kpis'),
       items: [
@@ -70,7 +73,7 @@ class TillsKpis extends ConsumerWidget {
           label: t('tills.flaggedKpi'),
           value: flagged,
           tone: flagged > 0 ? DashTone.warning : DashTone.neutral,
-          loading: listLoading,
+          loading: flaggedLoading,
         ),
       ],
     );
@@ -283,7 +286,7 @@ class OpenBillsLine extends ConsumerWidget {
 }
 
 /// The filter row (SELL-TIL-003–007, -064). Teller and device options come
-/// from the rows on screen.
+/// from [rows]: the branch's latest tills plus the page on screen.
 class TillFilters extends ConsumerWidget {
   const TillFilters({
     required this.search,
@@ -398,7 +401,13 @@ class AllTillsSection extends ConsumerWidget {
   const AllTillsSection({
     required this.list,
     required this.rows,
+    required this.pageIndex,
+    required this.pageCount,
+    required this.onPageChanged,
     required this.showBranch,
+    this.total,
+    this.loading = false,
+    this.onPageIntent,
     required this.onOpenReport,
     required this.onRetry,
     required this.menu,
@@ -406,7 +415,17 @@ class AllTillsSection extends ConsumerWidget {
   });
 
   final AsyncValue<PaginatedTills> list;
+
+  /// One server page.
   final List<Till> rows;
+
+  /// Every till under the filters (the server's `total`).
+  final int? total;
+  final bool loading;
+  final int pageIndex;
+  final int pageCount;
+  final ValueChanged<int> onPageChanged;
+  final ValueChanged<int>? onPageIntent;
   final bool showBranch;
   final ValueChanged<String> onOpenReport;
   final VoidCallback onRetry;
@@ -563,14 +582,14 @@ class AllTillsSection extends ConsumerWidget {
       children: [
         DashSectionHeader(
           title: t('tills.history'),
-          count: list.value?.total ?? rows.length,
+          count: total ?? rows.length,
         ),
         DashDataTable<Till>(
           key: const ValueKey('tills-table'),
           columns: columns,
           rows: rows,
           rowKey: (s) => s.id,
-          loading: list.awaitingFirst,
+          loading: loading,
           errorMessage: list.hasError && !list.retrying
               ? sellErrorText(list.error, t)
               : null,
@@ -580,7 +599,12 @@ class AllTillsSection extends ConsumerWidget {
           // Pointing at a row warms its report (`onRowPrefetch`).
           onRowIntent: (s) => warmTillReport(ref, s.id),
           rowSemanticLabel: (s) => s.tellerName,
-          pageSize: 20,
+          // The server pages: the table shows [rows] as they are.
+          pageSize: tillsPerPage,
+          pageIndex: pageIndex,
+          pageCount: pageCount,
+          onPageChanged: onPageChanged,
+          onPageIntent: onPageIntent,
           hideViewOptions: true,
           rowActions: (context, s) => DashMenu(
             items: menu(s),

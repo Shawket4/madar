@@ -4,6 +4,8 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_sell/dashboard_sell.dart';
+import 'package:dashboard_sell/src/tills/tills_data.dart'
+    show tillsOptionsWindow, tillsPerPage;
 import 'package:dashboard_sell/src/tills/tills_page.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +25,39 @@ const String tillSummary = '/reports/tills/{tillId}/summary';
 const String tillDeductions = '/reports/tills/{tillId}/deductions';
 const String tillSpotViews = '/tills/{tillId}/spot-views';
 const String tillClosePreview = '/tills/{tillId}/close-preview';
+
+/// "All tills" page reads: the table's server page (`per_page=20`), not the
+/// Flagged KPI's count (`per_page=1`) or the filter menus' window.
+List<MockCall> pageReads(DashHarness h) => [
+  for (final c in h.server.callsTo(tillsList))
+    if (c.query['per_page']?.single == '$tillsPerPage') c,
+];
+
+/// A page read's query: [filters] plus the page and its size.
+Map<String, List<String>> pageQuery([
+  Map<String, List<String>> filters = const {},
+  int page = 1,
+]) => {
+  ...filters,
+  'page': ['$page'],
+  'per_page': ['$tillsPerPage'],
+};
+
+/// The Flagged KPI's read under [filters]: flagged only, one row.
+Map<String, List<String>> flaggedQuery([
+  Map<String, List<String>> filters = const {},
+]) => {
+  ...filters,
+  'flagged': ['true'],
+  'page': ['1'],
+  'per_page': ['1'],
+};
+
+/// The teller/device menus' read: the latest tills, unfiltered.
+Map<String, List<String>> get optionsQuery => {
+  'page': ['1'],
+  'per_page': ['$tillsOptionsWindow'],
+};
 
 /// A seeded server (core + sell mocks) to edit before pumping.
 ({MockServer server, MockDb db}) tillsServer({

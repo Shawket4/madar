@@ -8,6 +8,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart'
     show
         CloseTillPreview,
+        DashboardApi,
         DeductionLogRow,
         OpenBillsNotice,
         PaginatedTills,
@@ -33,6 +34,7 @@ class TillsSearch {
     this.device,
     this.flagged = false,
     this.today = false,
+    this.page = 1,
   });
 
   /// `validateTillsSearch`: blank strings are absent, an unknown status is
@@ -45,6 +47,7 @@ class TillsSearch {
 
     bool flag(String key) => q[key] == 'true' || q[key] == '1';
     final status = str('status');
+    final page = int.tryParse(q['page'] ?? '');
     return TillsSearch(
       report: str('report'),
       status: statuses.contains(status) ? status : null,
@@ -52,6 +55,7 @@ class TillsSearch {
       device: str('device'),
       flagged: flag('flagged'),
       today: flag('today'),
+      page: page != null && page > 1 ? page : 1,
     );
   }
 
@@ -64,7 +68,18 @@ class TillsSearch {
   final String? device;
   final bool flagged;
   final bool today;
+
+  /// The server's page of "All tills" (`?page=`, 1-based; absent = 1).
+  final int page;
 }
+
+/// Rows per page of "All tills": the server pages, never the table.
+const int tillsPerPage = 20;
+
+/// How many of the latest tills the teller/device menus are read from (the
+/// server's per-page cap). The list is one page, so its rows cannot name
+/// every teller; this bounded window covers everyone who sold lately.
+const int tillsOptionsWindow = 200;
 
 /// The query after a filter change: the old params with [patch] laid over
 /// them (a null value removes its key), as the web's
@@ -85,7 +100,10 @@ Map<String, String> patchQuery(
   return out;
 }
 
-/// `useListTills` params after `cleanParams` (empty and false dropped).
+/// `useListTills` params after `cleanParams` (empty and false dropped),
+/// with the server page asked for. Always paged: without `page`/`per_page`
+/// the endpoint answers with every till the branch ever had (the old-client
+/// contract).
 typedef TillsListKey = ({
   String branchId,
   String? status,
@@ -93,21 +111,74 @@ typedef TillsListKey = ({
   String? deviceId,
   bool flagged,
   DateTime? from,
+  int page,
+  int perPage,
 });
 
 /// The list's key for [scope] under [s] (`?today` passes [from], the start
-/// of the day).
-TillsListKey tillsListKey(Scope scope, TillsSearch s, {DateTime? from}) => (
+/// of the day): the page in `?page=`, or [page] when given.
+TillsListKey tillsListKey(
+  Scope scope,
+  TillsSearch s, {
+  DateTime? from,
+  int? page,
+}) => (
   branchId: scope.scopeBranchId,
   status: s.status,
   tellerId: s.teller,
   deviceId: s.device,
   flagged: s.flagged,
   from: from,
+  page: page ?? s.page,
+  perPage: tillsPerPage,
 );
 
+/// The Flagged KPI's key: the same filters, flagged only, one row. The
+/// count is the response's `total`, across every page.
+TillsListKey tillsFlaggedKey(Scope scope, TillsSearch s, {DateTime? from}) => (
+  branchId: scope.scopeBranchId,
+  status: s.status,
+  tellerId: s.teller,
+  deviceId: s.device,
+  flagged: true,
+  from: from,
+  page: 1,
+  perPage: 1,
+);
+
+/// The teller/device menus' key: the scope's latest tills, unfiltered.
+TillsListKey tillsOptionsKey(Scope scope) => (
+  branchId: scope.scopeBranchId,
+  status: null,
+  tellerId: null,
+  deviceId: null,
+  flagged: false,
+  from: null,
+  page: 1,
+  perPage: tillsOptionsWindow,
+);
+
+/// Every till under [k]'s filters, for the export (`fetchAllPages`, with its
+/// row ceiling): the endpoint pages by number at [tillsOptionsWindow] a page,
+/// so the walk's offset is always a whole number of pages. Only on a
+/// person's Export; [api] carries the export header.
+Future<List<Till>> fetchAllTills(DashboardApi api, TillsListKey k) =>
+    fetchAllPages<Till>((offset, _) async {
+      final res = await api.tills.listTills(
+        branchId: k.branchId,
+        status: k.status,
+        tellerId: k.tellerId,
+        deviceId: k.deviceId,
+        flagged: k.flagged ? true : null,
+        from: k.from,
+        page: offset ~/ tillsOptionsWindow + 1,
+        perPage: tillsOptionsWindow,
+      );
+      return ExportPage(res.data, total: res.total);
+    });
+
 /// T3 `GET /tills/branches/{branch_id}` (the all-branches id with All
-/// branches selected).
+/// branches selected), one server page.
 final tillsListProvider = FutureProvider.autoDispose
     .family<PaginatedTills, TillsListKey>((ref, k) {
       ref.webCache();
@@ -122,6 +193,8 @@ final tillsListProvider = FutureProvider.autoDispose
             deviceId: k.deviceId,
             flagged: k.flagged ? true : null,
             from: k.from,
+            page: k.page,
+            perPage: k.perPage,
           );
     });
 

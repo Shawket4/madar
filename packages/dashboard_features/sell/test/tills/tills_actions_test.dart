@@ -136,7 +136,7 @@ void main() {
     testWidgets('SELL-TIL-027 Force close: confirm → {reason: null} → toast, '
         'the list and reports refetch', (tester) async {
       final h = await pumpTills(tester);
-      final lists = h.server.callsTo(tillsList).length;
+      final lists = pageReads(h).length;
       await openRowMenu(h, TillIds.helioSecond);
       await pickMenu(h, 'Force close');
       final dialog = find.byType(DashConfirmDialog);
@@ -157,7 +157,7 @@ void main() {
       expect(call.path, '/tills/${TillIds.helioSecond}/force-close');
       expect(call.body, {'reason': null});
       await h.expectToast('Till force-closed');
-      expect(h.server.callsTo(tillsList).length, lists + 1);
+      expect(pageReads(h).length, lists + 1);
       final badges = find.byKey(ValueKey('till-badges-${TillIds.helioSecond}'));
       expect(
         find.descendant(of: badges, matching: find.text('Force Closed')),
@@ -406,7 +406,7 @@ void main() {
       final s = tillsServer();
       ownHelioMorning(s.db);
       final h = await pumpTills(tester, server: s.server, db: s.db);
-      final lists = h.server.callsTo(tillsList).length;
+      final lists = pageReads(h).length;
       await openRowMenu(h, TillIds.helioMorning);
       await pickMenu(h, 'Cash Movement');
       expect(find.byType(CashMovementDialog), findsOneWidget);
@@ -439,7 +439,7 @@ void main() {
       expect(post.body, {'amount': -5000, 'note': 'Bank run'});
       await h.expectToast('Cash movement recorded');
       expect(find.byType(CashMovementDialog), findsNothing);
-      expect(h.server.callsTo(tillsList).length, lists + 1);
+      expect(pageReads(h).length, lists + 1);
     });
 
     testWidgets('SELL-TIL-037 a refused movement toasts and stays open', (
