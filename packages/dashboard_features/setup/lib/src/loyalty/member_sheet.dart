@@ -13,7 +13,6 @@ import 'dart:async';
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -580,8 +579,9 @@ class _ViewOrder extends ConsumerWidget {
         Navigator.of(context).maybePop();
         router.go(LedgerList.orderLink(orderId));
       },
-      onIntent: () =>
-          seam != null ? seam.warm(ref, orderId) : ref.prefetchRoute('/orders'),
+      onIntent: seam == null ? null : () => seam.warm(ref, orderId),
+      // Without the sheet, the press opens the orders page on this order.
+      to: seam == null ? LedgerList.orderLink(orderId) : null,
       semanticLabel: label,
       excludeChildSemantics: true,
       pressScale: false,

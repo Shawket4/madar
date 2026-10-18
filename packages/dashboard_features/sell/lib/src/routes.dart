@@ -34,6 +34,7 @@ const List<DashRoute> sellRoutes = [
   DashRoute(
     path: '/floor',
     builder: FloorPage.route,
+    prefetch: FloorPage.prefetch,
     titleKey: 'floor.title',
     titleFallback: 'Floor',
     module: OrgModule.pos,
@@ -41,6 +42,7 @@ const List<DashRoute> sellRoutes = [
   DashRoute(
     path: '/bookings',
     builder: BookingsPage.route,
+    prefetch: BookingsPage.prefetch,
     titleKey: 'bookings.title',
     titleFallback: 'Bookings',
     module: OrgModule.pos,
@@ -60,6 +62,7 @@ const List<DashRoute> sellRoutes = [
   DashRoute(
     path: '/customers',
     builder: CustomersPage.route,
+    prefetch: CustomersPage.prefetch,
     titleKey: 'customers.title',
     titleFallback: 'Customers',
     module: OrgModule.pos,

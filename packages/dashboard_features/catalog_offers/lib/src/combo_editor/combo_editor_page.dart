@@ -20,14 +20,12 @@ import 'dart:typed_data';
 import 'package:dashboard_api/dashboard_api.dart'
     show ApiException, ApiFilePart, Combo, UploadImageMultipart;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../combos/combos_providers.dart' show warmCombosList;
 import '../shared/menu_options.dart';
 import '../shared/offers_cache.dart';
 import '../shared/offers_page_gate.dart';
@@ -82,7 +80,7 @@ class _EditorSkeleton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) => DashPageScaffold(
     title: '',
     onBack: () => context.go(_backPath(context, ref)),
-    onBackIntent: () => warmCombosList(ref),
+    backTo: _listPath,
     subtitleWidget: const DashSkeleton(
       width: _titleWidth,
       height: Space.xl + Space.xs,
@@ -313,7 +311,7 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
         return DashPageScaffold(
           title: t('combos.title'),
           onBack: _goBack,
-          onBackIntent: () => warmCombosList(ref),
+          backTo: _listPath,
           body: DashErrorState(
             title: t('combos.loadError'),
             message: failed ? errorMessage(q.error, t) : null,
@@ -643,7 +641,7 @@ class _ComboEditorState extends ConsumerState<_ComboEditor> {
       title: title,
       subtitleWidget: pills,
       onBack: _goBack,
-      onBackIntent: () => warmCombosList(ref),
+      backTo: _listPath,
       fillBody: wide,
       actions: [
         if (!_isNew && canEdit)
@@ -803,7 +801,7 @@ class _LinkRow extends ConsumerWidget {
     final c = context.madarColors;
     return DashPressable(
       onTap: () => context.go(to),
-      onIntent: () => ref.prefetchRoute(to),
+      to: to,
       semanticLabel: '$label, $hint',
       excludeChildSemantics: true,
       pressScale: false,

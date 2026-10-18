@@ -346,6 +346,7 @@ class DashMenuItem {
     required this.label,
     this.onSelected,
     this.onIntent,
+    this.to,
     this.icon,
     this.destructive = false,
     this.enabled = true,
@@ -359,6 +360,7 @@ class DashMenuItem {
     : label = '',
       onSelected = null,
       onIntent = null,
+      to = null,
       icon = null,
       destructive = false,
       enabled = false,
@@ -373,6 +375,10 @@ class DashMenuItem {
   /// About to be chosen ([DashIntent]): warm the read [onSelected] opens (a
   /// dialog's data). Never a write.
   final VoidCallback? onIntent;
+
+  /// The location [onSelected] opens: its page is warmed on intent
+  /// ([DashIntent.to]).
+  final String? to;
 
   /// A `MadarIcon` name drawn before the label.
   final String? icon;
@@ -468,6 +474,7 @@ class _MenuListState extends State<_MenuList> {
     return DashPressable(
       enabled: item.enabled,
       onIntent: item.onIntent,
+      to: item.to,
       pressScale: false,
       checked: checked,
       semanticLabel: item.label,

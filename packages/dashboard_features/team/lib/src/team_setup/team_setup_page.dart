@@ -12,7 +12,6 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -540,7 +539,7 @@ class _AllSet extends ConsumerWidget {
                         key: const ValueKey('setup-go-schedule'),
                         label: t('dawam.setupGoSchedule'),
                         size: DashButtonSize.compact,
-                        onIntent: () => ref.prefetchRoute('/staff/schedule'),
+                        to: '/staff/schedule',
                         onPressed: () => context.go('/staff/schedule'),
                       ),
                       DashButton(
@@ -548,7 +547,7 @@ class _AllSet extends ConsumerWidget {
                         label: t('dawam.setupGoTeam'),
                         size: DashButtonSize.compact,
                         variant: DashButtonVariant.outline,
-                        onIntent: () => ref.prefetchRoute('/staff/team'),
+                        to: '/staff/team',
                         onPressed: () => context.go('/staff/team'),
                       ),
                     ],

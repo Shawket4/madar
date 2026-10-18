@@ -7,8 +7,7 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart'
-    show DashRoutePrefetch, linkOpenerProvider;
+import 'package:dashboard_core/shell.dart' show linkOpenerProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -68,7 +67,7 @@ class _SetupBranchesStepState extends ConsumerState<SetupBranchesStep> {
           label: t('dawam.setupAddBranch'),
           icon: 'plus',
           // The admin Branches page opens its new-branch editor from this.
-          onIntent: () => ref.prefetchRoute('/branches?edit=new'),
+          to: '/branches?edit=new',
           onPressed: () => context.go('/branches?edit=new'),
         ),
       );

@@ -23,7 +23,6 @@ import 'package:dashboard_api/dashboard_api.dart'
         Suggestion,
         WorkShiftBrief;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -465,7 +464,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView>
           label: t('dawamOps.openEmployees'),
           variant: DashButtonVariant.outline,
           size: DashButtonSize.compact,
-          onIntent: () => ref.prefetchRoute('/staff/employees'),
+          to: '/staff/employees',
           onPressed: () => context.go('/staff/employees'),
         ),
       );
@@ -525,7 +524,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView>
                       baseline: TextBaseline.alphabetic,
                       child: _Link(
                         label: t('dawamOps.editPattern'),
-                        onIntent: () => ref.prefetchRoute('/staff/shifts'),
+                        to: '/staff/shifts',
                         onTap: () => context.go('/staff/shifts'),
                       ),
                     ),
@@ -538,7 +537,7 @@ class _ScheduleViewState extends ConsumerState<ScheduleView>
         if (view != null && view.staff.isNotEmpty && index.templates.isEmpty)
           _NoBlocksBanner(
             onOpen: () => context.go('/staff/shifts'),
-            onIntent: () => ref.prefetchRoute('/staff/shifts'),
+            to: '/staff/shifts',
           ),
         if (canEdit && _showCoverage && branch != null)
           CoverageCard(branchId: branch),
@@ -609,18 +608,18 @@ class _Note extends StatelessWidget {
 
 /// An underlined in-text link (`font-medium text-foreground underline`).
 class _Link extends StatelessWidget {
-  const _Link({required this.label, required this.onTap, this.onIntent});
+  const _Link({required this.label, required this.onTap, this.to});
 
   final String label;
   final VoidCallback onTap;
-  final VoidCallback? onIntent;
+  final String? to;
 
   @override
   Widget build(BuildContext context) {
     final c = context.madarColors;
     return DashPressable(
       onTap: onTap,
-      onIntent: onIntent,
+      to: to,
       semanticLabel: label,
       excludeChildSemantics: true,
       pressScale: false,
@@ -639,10 +638,10 @@ class _Link extends StatelessWidget {
 
 /// No work shifts for this branch yet (TEAM-SCH-012).
 class _NoBlocksBanner extends ConsumerWidget {
-  const _NoBlocksBanner({required this.onOpen, required this.onIntent});
+  const _NoBlocksBanner({required this.onOpen, this.to});
 
   final VoidCallback onOpen;
-  final VoidCallback onIntent;
+  final String? to;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -682,7 +681,7 @@ class _NoBlocksBanner extends ConsumerWidget {
               label: t('dawamOps.openWorkShifts'),
               variant: DashButtonVariant.outline,
               size: DashButtonSize.compact,
-              onIntent: onIntent,
+              to: to,
               onPressed: onOpen,
             ),
           ],

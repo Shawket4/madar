@@ -23,7 +23,6 @@ import 'package:dashboard_api/dashboard_api.dart'
         StudioAggregate,
         UploadImageMultipart;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -229,9 +228,6 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
       _keepingQuery('/menu/items').toString(),
     ),
   );
-
-  /// Back is about to be pressed: the items page's first reads.
-  void _warmBack() => ref.prefetchRoute('/menu/items');
 
   Future<void> _duplicate() async {
     final t = ref.read(tProvider);
@@ -476,7 +472,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
         ),
         width: DashPageWidth.reading,
         onBack: _goBack,
-        onBackIntent: _warmBack,
+        backTo: _keepingQuery('/menu/items').toString(),
         body: const StudioLoadingSkeleton(),
       );
     }
@@ -485,7 +481,7 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
         title: t('menu.studio.itemTitle'),
         width: DashPageWidth.reading,
         onBack: _goBack,
-        onBackIntent: _warmBack,
+        backTo: _keepingQuery('/menu/items').toString(),
         body: DashErrorState(
           title: t('menu.studio.loadError'),
           message: errorMessage(q.error, t),
@@ -643,15 +639,14 @@ class _MenuStudioPageState extends ConsumerState<MenuStudioPage> {
               ),
         width: DashPageWidth.reading,
         onBack: _goBack,
-        onBackIntent: _warmBack,
+        backTo: _keepingQuery('/menu/items').toString(),
         actions: [
           DashButton(
             label: t('menu.studio.pricingLink'),
             variant: DashButtonVariant.ghost,
             size: DashButtonSize.compact,
             trailingIcon: DashIcon.arrowForward(context),
-            onIntent: () =>
-                ref.prefetchRoute(_keepingQuery('/menu/pricing').toString()),
+            to: _keepingQuery('/menu/pricing').toString(),
             onPressed: () =>
                 context.go(_keepingQuery('/menu/pricing').toString()),
           ),

@@ -46,6 +46,24 @@ class BookingsPage extends ConsumerStatefulWidget {
     );
   }
 
+  /// The picked branch's settings, tables and the day the page opens on
+  /// (`?date=`, else the service day by the clock and the org's zone), the
+  /// keys the page watches on mount; nothing with All branches.
+  static void prefetch(DashPrefetcher warm, Scope scope) {
+    final branchId = scope.branchId;
+    if (branchId == null) return;
+    final asked = warm.query['date'];
+    final date = isBookingYmd(asked)
+        ? asked!
+        : serviceToday(
+            warm.read(clockProvider)(),
+            warm.read(formatProvider).timezone,
+          );
+    warm(bookingSettingsProvider(branchId));
+    warm(floorTablesProvider(branchId));
+    warm(bookingDayProvider((branchId: branchId, date: date)));
+  }
+
   /// `?date=YYYY-MM-DD` (validated): that day (SELL-BKG-030).
   final String? date;
 

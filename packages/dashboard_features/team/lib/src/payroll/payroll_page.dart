@@ -6,8 +6,7 @@
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart'
-    show DashRoutePrefetch, publicBrandProvider;
+import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -282,7 +281,7 @@ class _PayrollBodyState extends ConsumerState<_PayrollBody> {
               label: t('dawamOps.setSalaries'),
               variant: DashButtonVariant.outline,
               size: DashButtonSize.compact,
-              onIntent: () => ref.prefetchRoute('/staff/employees'),
+              to: '/staff/employees',
               onPressed: () => context.go('/staff/employees'),
             ),
           ),

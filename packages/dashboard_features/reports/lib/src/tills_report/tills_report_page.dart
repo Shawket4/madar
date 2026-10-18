@@ -36,6 +36,11 @@ import 'tills_timing_tab.dart';
 Widget tillsReportPageBuilder(BuildContext context, GoRouterState state) =>
     const TillsReportPage();
 
+/// The route's prefetch: the sessions every tab reads, keyed as the page
+/// keys them.
+void prefetchTillsReport(DashPrefetcher warm, Scope s) =>
+    warm(tillSessionsProvider(tillSessionsKey(s)));
+
 /// The tabs (REP-TIL-005), page state; all three share the one read.
 const List<DashRouteTab> tillsReportTabs = [
   DashRouteTab(id: 'sessions', labelKey: 'reports.tills.tabSessions'),

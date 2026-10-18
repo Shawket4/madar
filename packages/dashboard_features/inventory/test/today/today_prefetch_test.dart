@@ -1,8 +1,8 @@
 // The web's `prefetchRoute('/inventory/today')`: pointing at the sidebar's
 // Today row warms the branch's valuation, low stock, stock and waste (or the
-// org roll-ups) and the org's suppliers and catalog, so opening the page asks
-// for none of them again. The org's orders (keyed by a wall-clock cutoff) and
-// the branch's counts are left to the page, as on the web.
+// org roll-ups), the branch's counts, the org's suppliers and catalog and the
+// orders due by the end of today (a key that holds all day), so opening the
+// page asks for none of them again.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:dashboard_core/testing.dart';
@@ -77,8 +77,10 @@ void main() {
         wasteRoute,
         suppliersRoute,
         catalogRoute,
+        orgOrders,
+        stocktakesRoute,
       ],
-      pageOwn: [orgOrders, stocktakesRoute],
+      pageOwn: const [],
     );
   });
 
@@ -89,8 +91,8 @@ void main() {
     await _hoverThenOpen(
       tester,
       h,
-      warmed: [orgValuation, orgLow, suppliersRoute, catalogRoute],
-      pageOwn: [orgOrders],
+      warmed: [orgValuation, orgLow, suppliersRoute, catalogRoute, orgOrders],
+      pageOwn: const [],
     );
     for (final r in [branchValuation, branchLow, stockRoute, wasteRoute]) {
       expect(h.server.callsTo(r), isEmpty, reason: r);

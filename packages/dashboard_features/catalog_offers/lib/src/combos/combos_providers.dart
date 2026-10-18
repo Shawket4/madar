@@ -42,12 +42,13 @@ final combosListProvider = FutureProvider.autoDispose
           );
     });
 
-/// The list as it opens (no search, no filter, page 1) and its categories,
-/// warmed from the editor's Back.
-void warmCombosList(WidgetRef ref) {
-  if (ref.read(orgIdProvider) == null) return;
-  ref.warm(
+/// The route's prefetch (`/menu/combos`): the list as it opens (no search,
+/// no filter, page 1) and its categories, warmed from any link to it (the
+/// editor's Back, the sidebar).
+void prefetchCombosList(DashPrefetcher warm, Scope s) {
+  if (s.orgId == null) return;
+  warm(
     combosListProvider((q: null, categoryId: null, isActive: null, page: 1)),
   );
-  ref.warm(offersCategoriesProvider);
+  warm(offersCategoriesProvider);
 }

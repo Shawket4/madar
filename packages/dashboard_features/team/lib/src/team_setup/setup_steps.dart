@@ -6,7 +6,6 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -275,7 +274,7 @@ class SetupShiftsStep extends ConsumerWidget {
               key: const ValueKey('setup-open-shifts'),
               label: t('dawam.setupOpenShifts'),
               variant: DashButtonVariant.link,
-              onIntent: () => ref.prefetchRoute('/staff/shifts'),
+              to: '/staff/shifts',
               onPressed: () => context.go('/staff/shifts'),
             ),
           ],
@@ -603,7 +602,7 @@ class _SetupRulesStepState extends ConsumerState<SetupRulesStep> {
               variant: saved
                   ? DashButtonVariant.primary
                   : DashButtonVariant.outline,
-              onIntent: () => ref.prefetchRoute('/staff/rules'),
+              to: '/staff/rules',
               onPressed: () => context.go('/staff/rules'),
             ),
           ],

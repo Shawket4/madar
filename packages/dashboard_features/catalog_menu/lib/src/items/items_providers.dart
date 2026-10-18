@@ -77,11 +77,13 @@ CatalogQuery firstCatalogPage(String orgId) =>
     (orgId: orgId, categoryId: null, search: null, hasRecipe: null, page: 1);
 
 /// The web's `prefetchRoute('/menu/items')`: catalog page 1 (24 per page),
-/// the categories and the add-ons, with the page's own keys.
+/// the categories and the add-ons, with the page's own keys; with a branch
+/// picked, its item overrides (the grid's branch prices).
 void prefetchMenuItems(DashPrefetcher warm, Scope s) {
   final org = s.orgId;
   if (org == null) return;
   warm(menuCatalogProvider(firstCatalogPage(org)));
   warm(menuCategoriesProvider(org));
   warm(addonItemsProvider(org));
+  if (s.branchId case final b?) warm(branchMenuOverridesProvider(b));
 }

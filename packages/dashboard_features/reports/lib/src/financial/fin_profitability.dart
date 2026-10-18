@@ -10,7 +10,6 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' hide Column;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -549,7 +548,7 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView>
                       signal: s,
                       busy: _pending > 0,
                       onFix: () => _fix(r, s, scope),
-                      onFixIntent: () => ref.prefetchRoute(_fixPath(r, s)),
+                      fixTo: _fixPath(r, s),
                       onDecide: (action) => _decide(r, s, action, scope),
                     ),
                 ],
@@ -675,7 +674,7 @@ class FinFlagChip extends ConsumerWidget {
     required this.busy,
     required this.onFix,
     required this.onDecide,
-    this.onFixIntent,
+    this.fixTo,
     super.key,
   });
 
@@ -684,8 +683,8 @@ class FinFlagChip extends ConsumerWidget {
   final VoidCallback onFix;
   final Future<void> Function(String action) onDecide;
 
-  /// About to press Fix: warm the page it opens.
-  final VoidCallback? onFixIntent;
+  /// The page Fix opens, warmed on intent.
+  final String? fixTo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -708,7 +707,7 @@ class FinFlagChip extends ConsumerWidget {
         signal: signal,
         busy: busy,
         onFix: onFix,
-        onFixIntent: onFixIntent,
+        fixTo: fixTo,
         onDecide: (a) async {
           await onDecide(a);
           pc.close();
@@ -723,14 +722,14 @@ class _FlagCard extends ConsumerWidget {
     required this.signal,
     required this.busy,
     required this.onFix,
-    required this.onFixIntent,
+    required this.fixTo,
     required this.onDecide,
   });
 
   final Signal signal;
   final bool busy;
   final VoidCallback onFix;
-  final VoidCallback? onFixIntent;
+  final String? fixTo;
   final Future<void> Function(String action) onDecide;
 
   @override
@@ -758,7 +757,7 @@ class _FlagCard extends ConsumerWidget {
                 icon: 'wrench',
                 size: DashButtonSize.compact,
                 onPressed: busy ? null : onFix,
-                onIntent: onFixIntent,
+                to: fixTo,
               ),
               DashButton(
                 label: t('insights.actions.dismiss'),

@@ -7,7 +7,6 @@ library;
 
 import 'package:dashboard_api/dashboard_api.dart' show GroupOut;
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -116,7 +115,7 @@ class StudioModifiersSection extends ConsumerWidget {
                     icon: 'pencil',
                     variant: DashButtonVariant.ghost,
                     size: DashButtonSize.compact,
-                    onIntent: () => ref.prefetchRoute('/menu/groups'),
+                    to: '/menu/groups',
                     onPressed: () => context.go(
                       Uri(
                         path: '/menu/groups',

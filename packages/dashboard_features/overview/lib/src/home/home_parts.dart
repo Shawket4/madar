@@ -61,7 +61,7 @@ class HomeLink extends StatelessWidget {
   const HomeLink({
     required this.label,
     required this.onTap,
-    this.onIntent,
+    this.to,
     this.arrow = false,
     this.style,
     this.color,
@@ -72,7 +72,7 @@ class HomeLink extends StatelessWidget {
   final VoidCallback onTap;
 
   /// Warms the target page when someone is about to follow the link.
-  final VoidCallback? onIntent;
+  final String? to;
 
   /// An arrow after the label (mirrored in Arabic).
   final bool arrow;
@@ -85,7 +85,7 @@ class HomeLink extends StatelessWidget {
     final tint = color ?? c.textPrimary;
     return DashPressable(
       onTap: onTap,
-      onIntent: onIntent,
+      to: to,
       pressScale: false,
       semanticLabel: label,
       excludeChildSemantics: true,

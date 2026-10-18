@@ -8,7 +8,28 @@ import 'tokens.dart';
 
 /// How long a mouse pointer must rest on a control before it counts as
 /// intent: a pointer sweeping across a table warms nothing.
-const Duration kDashIntentDwell = Duration(milliseconds: 90);
+const Duration kDashIntentDwell = Duration(milliseconds: 60);
+
+/// Warms the page at a path: the shell's route prefetch
+/// (`ref.prefetchRoute`), installed once above every page. A kit control
+/// given a destination ([DashIntent.to], `to:` on a button, card, row or
+/// tab) asks it on intent, so a new screen warms the page it opens for free.
+class DashRouteIntent extends InheritedWidget {
+  const DashRouteIntent({
+    required this.onRoute,
+    required super.child,
+    super.key,
+  });
+
+  /// Warm the page at this path (a location: path and query).
+  final ValueChanged<String> onRoute;
+
+  static ValueChanged<String>? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<DashRouteIntent>()?.onRoute;
+
+  @override
+  bool updateShouldNotify(DashRouteIntent oldWidget) => false;
+}
 
 /// Calls [onIntent] when someone is about to press [child]: a mouse pointer
 /// resting on it for [kDashIntentDwell], keyboard focus landing in it, or a
@@ -16,11 +37,22 @@ const Duration kDashIntentDwell = Duration(milliseconds: 90);
 /// completes. Warm the READ the press will make there, with the exact key it
 /// reads (`ref.warm(provider(key))`), so the press answers from the cache.
 /// Never a write.
+///
+/// [to] is the page the press opens: warmed through the [DashRouteIntent]
+/// above (the route registry's prefetch), as well as [onIntent].
+///
+/// Only one resting pointer is pending at a time: a new dwell starting
+/// anywhere cancels the last one, so a pointer moving over a list never
+/// queues a burst of warms.
 class DashIntent extends StatefulWidget {
-  const DashIntent({required this.child, this.onIntent, super.key});
+  const DashIntent({required this.child, this.onIntent, this.to, super.key});
 
-  /// Null: nothing fires (the tree stays the same, so focus is kept).
+  /// Null (with no [to]): nothing fires (the tree stays the same, so focus
+  /// is kept).
   final VoidCallback? onIntent;
+
+  /// The location the press opens, warmed on intent.
+  final String? to;
   final Widget child;
 
   @override
@@ -28,32 +60,46 @@ class DashIntent extends StatefulWidget {
 }
 
 class _DashIntentState extends State<DashIntent> {
+  /// The one dwell waiting to fire, app-wide.
+  static _DashIntentState? _dwelling;
   Timer? _dwell;
 
-  void _fire() {
+  bool get _armed => widget.onIntent != null || widget.to != null;
+
+  void _cancel() {
     _dwell?.cancel();
     _dwell = null;
+    if (identical(_dwelling, this)) _dwelling = null;
+  }
+
+  void _fire() {
+    _cancel();
+    if (!mounted) return;
     widget.onIntent?.call();
+    final to = widget.to;
+    if (to != null) DashRouteIntent.maybeOf(context)?.call(to);
   }
 
   @override
   void dispose() {
-    _dwell?.cancel();
+    _cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Listener(
-    onPointerDown: (_) => _fire(),
+    onPointerDown: (_) {
+      if (_armed) _fire();
+    },
     child: MouseRegion(
       onEnter: (_) {
-        _dwell?.cancel();
-        if (widget.onIntent != null) _dwell = Timer(kDashIntentDwell, _fire);
+        _cancel();
+        if (!_armed) return;
+        _dwelling?._cancel();
+        _dwelling = this;
+        _dwell = Timer(kDashIntentDwell, _fire);
       },
-      onExit: (_) {
-        _dwell?.cancel();
-        _dwell = null;
-      },
+      onExit: (_) => _cancel(),
       child: Focus(
         canRequestFocus: false,
         skipTraversal: true,
@@ -61,7 +107,7 @@ class _DashIntentState extends State<DashIntent> {
         // under it (a focused card's fields lose their own labels).
         includeSemantics: false,
         onFocusChange: (focused) {
-          if (focused) _fire();
+          if (focused && _armed) _fire();
         },
         child: widget.child,
       ),
@@ -99,6 +145,7 @@ class DashPressable extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.onIntent,
+    this.to,
     this.enabled = true,
     this.semanticLabel,
     this.tooltip,
@@ -120,6 +167,10 @@ class DashPressable extends StatefulWidget {
   /// About to be pressed ([DashIntent]): warm the read [onTap] makes. Fires
   /// only while the control is enabled.
   final VoidCallback? onIntent;
+
+  /// The location [onTap] opens: warmed on intent ([DashIntent.to]), while
+  /// the control is enabled.
+  final String? to;
   final bool enabled;
 
   /// What a screen reader calls it — REQUIRED for a glyph-only control.
@@ -205,9 +256,10 @@ class _DashPressableState extends State<DashPressable> {
       },
       child: child,
     );
-    if (widget.onIntent != null) {
+    if (widget.onIntent != null || widget.to != null) {
       child = DashIntent(
         onIntent: _active ? widget.onIntent : null,
+        to: _active ? widget.to : null,
         child: child,
       );
     }

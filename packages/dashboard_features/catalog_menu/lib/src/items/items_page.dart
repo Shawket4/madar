@@ -40,8 +40,6 @@ import '../shared/menu_no_org.dart';
 import '../shared/menu_providers.dart';
 import '../shared/menu_queries.dart';
 import '../shared/menu_text.dart';
-import '../studio/studio_providers.dart'
-    show menuStudioProvider, studioMenuItemProvider;
 import 'addon_dialog.dart';
 import 'addon_recipe_dialog.dart';
 import 'category_reorder_list.dart';
@@ -292,11 +290,12 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
     }
   }
 
-  /// The web's combo check: a combo opens its own editor.
+  /// The page an item opens: a combo its own editor (the web's combo check).
+  static String _editorPath(MenuItemWithCosts m) =>
+      m.kind == 'combo' ? '/menu/combos/${m.id}' : '/menu/items/${m.id}';
+
   void _openEditor(MenuItemWithCosts m) {
-    final to = m.kind == 'combo'
-        ? '/menu/combos/${m.id}'
-        : '/menu/items/${m.id}';
+    final to = _editorPath(m);
     // Its Back returns here, with this page's filters (`DashListMemory`).
     ref.dashOpenedFrom(context, to);
     context.go(to);
@@ -320,11 +319,9 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
     }
   }
 
-  /// An item's full read and its studio (`prefetchItem`): the card, the full
-  /// editor.
-  void _warmItem(MenuItemWithCosts m) => ref
-    ..warm(studioMenuItemProvider(m.id))
-    ..warm(menuStudioProvider(m.id));
+  /// The page a card opens (the studio, or a combo's editor), warmed
+  /// through the route registry.
+  void _warmItem(MenuItemWithCosts m) => ref.prefetchRoute(_editorPath(m));
 
   /// The catalog page [q] with other filters (page 1 unless given).
   static CatalogQuery _with(
@@ -575,7 +572,7 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
             ),
         ],
       ),
-      // Pointing at a card (or focusing in it) warms the item and its studio.
+      // Pointing at a card (or focusing in it) warms the page it opens.
       onItemIntent: _warmItem,
       actions: (m) => [
         if (m.kind == 'combo')
@@ -583,14 +580,14 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
             label: t('menu.grid.comboEditor'),
             icon: 'pencil',
             onSelected: () => _openEditor(m),
-            onIntent: () => ref.prefetchRoute('/menu/combos/${m.id}'),
+            to: '/menu/combos/${m.id}',
           )
         else ...[
           DashMenuItem(
             label: t('menu.grid.fullEditor'),
             icon: 'pencil',
             onSelected: () => _openEditor(m),
-            onIntent: () => _warmItem(m),
+            to: _editorPath(m),
           ),
           DashMenuItem(
             label: t('menu.grid.duplicate'),

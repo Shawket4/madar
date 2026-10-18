@@ -28,12 +28,16 @@ import 'ops_tables.dart';
 Widget operationsPageBuilder(BuildContext context, GoRouterState state) =>
     const OperationsReportPage();
 
-/// The web's `prefetchRoute('/reports/operations')`: the default tab is
-/// Tables (not prefetched); the Overview's branch sales are warmed when a
-/// branch is picked, with no exclusions (the web's key carries none, so a
-/// person with excluded items reads again, REP-ALL-029).
+/// The web's `prefetchRoute('/reports/operations')`: with a branch picked,
+/// the Overview's branch sales, with no exclusions (the web's key carries
+/// none, so a person with excluded items reads again, REP-ALL-029), and the
+/// default tab's (Tables) floor tables. Tables' metrics are a POST query,
+/// left to the page as on the web.
 void prefetchOperations(DashPrefetcher warm, Scope s) {
-  if (s.branchId != null) warm(opsSalesProvider(s.opsSales(null)));
+  final branchId = s.branchId;
+  if (branchId == null) return;
+  warm(opsSalesProvider(s.opsSales(null)));
+  warm(opsFloorTablesProvider(branchId));
 }
 
 /// Intent: warms what [tab]'s view reads when it mounts (its watches).

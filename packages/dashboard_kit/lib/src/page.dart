@@ -186,6 +186,7 @@ class DashPageScaffold extends StatelessWidget {
     this.actions = const [],
     this.onBack,
     this.onBackIntent,
+    this.backTo,
     this.tabs,
     this.filters,
     this.phoneBody,
@@ -211,6 +212,10 @@ class DashPageScaffold extends StatelessWidget {
   /// Back is about to be pressed ([DashIntent]): warm the page it returns to
   /// (`ref.prefetchRoute`).
   final VoidCallback? onBackIntent;
+
+  /// The location back returns to (the page this one sits under, the
+  /// breadcrumb): warmed on intent ([DashIntent.to]).
+  final String? backTo;
 
   /// A [DashSectionTabs] or [DashPageTabs] strip under the title.
   final Widget? tabs;
@@ -253,6 +258,7 @@ class DashPageScaffold extends StatelessWidget {
           actions: actions,
           onBack: onBack,
           onBackIntent: onBackIntent,
+          backTo: backTo,
           tabs: tabs,
           filters: filters,
           // A page that owns its height has nothing to pull.
@@ -488,6 +494,7 @@ class DashPageHeader extends StatelessWidget {
     this.actions = const [],
     this.onBack,
     this.onBackIntent,
+    this.backTo,
     this.tabs,
     this.filters,
     this.refreshAction = true,
@@ -502,6 +509,9 @@ class DashPageHeader extends StatelessWidget {
 
   /// Back is about to be pressed: warm the page it returns to.
   final VoidCallback? onBackIntent;
+
+  /// The location back returns to, warmed on intent ([DashIntent.to]).
+  final String? backTo;
   final Widget? tabs;
   final Widget? filters;
 
@@ -615,6 +625,7 @@ class DashPageHeader extends StatelessWidget {
                   iconSize: IconSize.lg,
                   onPressed: onBack,
                   onIntent: onBackIntent,
+                  to: backTo,
                 ),
               ),
             ),
@@ -684,9 +695,14 @@ class DashTab<T> {
     this.count,
     this.enabled = true,
     this.icon,
+    this.to,
   });
   final T value;
   final String label;
+
+  /// The location this tab opens, when it is a route of its own: its page
+  /// is warmed on intent ([DashIntent.to]).
+  final String? to;
 
   /// A 16 px glyph before the label, in the label's colour.
   final String? icon;
@@ -769,6 +785,7 @@ class _TabButton<T> extends StatelessWidget {
     return DashPressable(
       onTap: tab.enabled ? onTap : null,
       onIntent: onIntent,
+      to: active ? null : tab.to,
       enabled: tab.enabled,
       selected: active,
       pressScale: false,
@@ -868,6 +885,7 @@ class DashSectionTab {
 
 /// Route-level section tabs (Access: Users · Roles): the active tab is the
 /// one whose path is [currentPath] or a parent of it; [onNavigate] goes.
+/// Each tab warms its page on intent by itself ([DashTab.to]).
 class DashSectionTabs extends StatelessWidget {
   const DashSectionTabs({
     required this.tabs,
@@ -881,7 +899,8 @@ class DashSectionTabs extends StatelessWidget {
   final String currentPath;
   final ValueChanged<String> onNavigate;
 
-  /// A tab is about to be pressed: warm its page (`ref.prefetchRoute`).
+  /// A tab is about to be pressed: warm something besides its page (the
+  /// page itself is warmed through [DashRouteIntent]).
   final ValueChanged<String>? onIntent;
 
   /// The tab [path] that is active for [current].
@@ -898,7 +917,10 @@ class DashSectionTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DashTabStrip<String>(
-      tabs: [for (final t in tabs) DashTab(value: t.path, label: t.label)],
+      tabs: [
+        for (final t in tabs)
+          DashTab(value: t.path, label: t.label, to: t.path),
+      ],
       value: activeFor(tabs, currentPath) ?? '',
       onChanged: onNavigate,
       onIntent: onIntent,

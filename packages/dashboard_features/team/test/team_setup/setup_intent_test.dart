@@ -82,19 +82,27 @@ void main() {
 
   testWidgets('TEAM-SET-028/035/009 (intent) the links to Shifts, Rules, '
       'Schedule and the Team board warm their page', (tester) async {
-    VoidCallback? intentOf(String key) =>
-        tester.widget<DashButton>(byKey(key)).onIntent;
+    String? toOf(String key) => tester.widget<DashButton>(byKey(key)).to;
 
     final h = await pumpSetup(tester);
-    for (final key in [
-      'setup-open-rules',
-      'setup-go-schedule',
-      'setup-go-team',
-    ]) {
-      expect(intentOf(key), isNotNull, reason: key);
-      intentOf(key)!(); // a team page without a prefetch: nothing to warm
-    }
+    expect(toOf('setup-open-rules'), '/staff/rules');
+    expect(toOf('setup-go-schedule'), '/staff/schedule');
+    expect(toOf('setup-go-team'), '/staff/team');
+
+    // The page's own prefetch runs on hover: the rules' branch list.
+    const rulesT = '/staff/attendance/settings/branches';
+    h.container.read(queryCacheProvider).clear();
+    await h.settle();
+    final before = h.server.callsTo(rulesT, method: 'GET').length;
+    final mouse = await _mouse(tester);
+    await _hover(h, mouse, byKey('setup-open-rules'));
+    expect(
+      h.server.callsTo(rulesT, method: 'GET').length,
+      before + 1,
+      reason: 'the Rules page warmed through the route registry',
+    );
+
     await h.tapKey(const ValueKey('setup-step-shifts'));
-    expect(intentOf('setup-open-shifts'), isNotNull);
+    expect(toOf('setup-open-shifts'), '/staff/shifts');
   });
 }

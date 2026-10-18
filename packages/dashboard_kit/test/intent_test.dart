@@ -301,4 +301,133 @@ void main() {
     await rest(find.text('Maadi'));
     expect(warmed, ['back', 'more', 'add', 'date', 'quick:10/1', 'option:m']);
   });
+
+  group('to: the page a press opens, through DashRouteIntent', () {
+    Widget scope(List<String> log, Widget child) =>
+        DashRouteIntent(onRoute: log.add, child: child);
+
+    testWidgets('a card, a row, a button, a tab and back warm their page', (
+      tester,
+    ) async {
+      final log = <String>[];
+      await pumpDashApp(
+        tester,
+        scope(
+          log,
+          Scaffold(
+            body: DashPageScaffold(
+              title: 'Detail',
+              onBack: () {},
+              backTo: '/list',
+              body: Column(
+                children: [
+                  DashCard(
+                    onTap: () {},
+                    to: '/card',
+                    child: const Text('Card'),
+                  ),
+                  DashListRow(title: 'Row', onTap: () {}, to: '/row'),
+                  DashButton(label: 'View all', onPressed: () {}, to: '/all'),
+                  DashTabStrip<String>(
+                    tabs: const [
+                      DashTab(value: 'a', label: 'Tab A', to: '/a'),
+                      DashTab(value: 'b', label: 'Tab B', to: '/b'),
+                    ],
+                    value: 'a',
+                    onChanged: (_) {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      final mouse = await _mouse(tester);
+      Future<void> rest(Finder f) async {
+        await mouse.moveTo(tester.getCenter(f));
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+
+      await rest(find.bySemanticsLabel('Back'));
+      await rest(find.text('Card'));
+      await rest(find.text('Row'));
+      await rest(find.text('View all'));
+      await rest(find.text('Tab A'));
+      await rest(find.text('Tab B'));
+      expect(log, ['/list', '/card', '/row', '/all', '/b']);
+    });
+
+    testWidgets('the table: rowTo warms each row its own detail page', (
+      tester,
+    ) async {
+      final log = <String>[];
+      await pumpDashApp(
+        tester,
+        scope(
+          log,
+          SingleChildScrollView(
+            child: DashDataTable<String>(
+              columns: [
+                DashColumn<String>(id: 'name', label: 'Name', text: (s) => s),
+              ],
+              rows: const ['Alpha', 'Beta'],
+              rowKey: (s) => s,
+              onRowTap: (_) {},
+              rowTo: (s) => '/things/$s',
+            ),
+          ),
+        ),
+      );
+      final touch = await tester.startGesture(
+        tester.getCenter(find.text('Beta')),
+      );
+      await tester.pump();
+      expect(log, ['/things/Beta'], reason: 'a touch warms on pointer down');
+      await touch.up();
+      await tester.pump();
+    });
+
+    testWidgets('rapid hover over a long list fires no burst', (tester) async {
+      final log = <String>[];
+      await pumpDashApp(
+        tester,
+        scope(
+          log,
+          SingleChildScrollView(
+            child: Column(
+              children: [
+                for (var i = 0; i < 12; i++)
+                  DashListRow(title: 'Row $i', onTap: () {}, to: '/r/$i'),
+              ],
+            ),
+          ),
+        ),
+      );
+      final mouse = await _mouse(tester);
+      // Down the list and back up, 20 ms a row: faster than the dwell.
+      for (final i in [...List.generate(12, (i) => i), 10, 8, 6, 4, 2, 0]) {
+        await mouse.moveTo(tester.getCenter(find.text('Row $i')));
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await tester.pump(const Duration(milliseconds: 20));
+      expect(log, isEmpty, reason: 'nothing rested long enough');
+      // Stopping on the last row warms that one only, once.
+      await tester.pump(kDashIntentDwell);
+      await tester.pump(const Duration(seconds: 1));
+      expect(log, ['/r/0']);
+    });
+
+    testWidgets('without a scope above, to: does nothing', (tester) async {
+      await pumpDashApp(
+        tester,
+        Center(
+          child: DashButton(label: 'Open', onPressed: () {}, to: '/x'),
+        ),
+      );
+      final mouse = await _mouse(tester);
+      await mouse.moveTo(tester.getCenter(find.text('Open')));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

@@ -96,6 +96,7 @@ class HomeKeepBuildingCard extends ConsumerWidget {
                   label: t('onboarding.nudge.cta'),
                   size: DashButtonSize.compact,
                   trailingIcon: DashIcon.arrowForward(context),
+                  to: '/onboarding',
                   onPressed: () => context.go('/onboarding'),
                 ),
               ],

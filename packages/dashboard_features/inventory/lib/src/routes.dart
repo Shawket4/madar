@@ -119,8 +119,8 @@ void _prefetchSettings(DashPrefetcher warm, Scope s) {
 
 /// The web's `prefetchRoute('/inventory/today')` (`TodayData.watch`): the
 /// branch's valuation, low stock, stock and waste, or the org roll-up; the
-/// suppliers and catalog either way. The org purchase-order list is keyed by
-/// a wall-clock cutoff, so it is left to the page, as on the web.
+/// suppliers, catalog and the orders due by the end of today either way;
+/// the branch's counts too.
 void _prefetchToday(DashPrefetcher warm, Scope s) {
   final orgId = s.orgId;
   final b = s.branchId;
@@ -133,9 +133,13 @@ void _prefetchToday(DashPrefetcher warm, Scope s) {
     warm(todayOrgValuationProvider(orgId));
     warm(todayOrgLowStockProvider(orgId));
   }
+  if (b != null) warm(stocktakesProvider(b));
   if (orgId != null) {
     warm(inventorySuppliersProvider(orgId));
     warm(inventoryCatalogProvider(orgId));
+    // Keyed by the end of today in the shop's zone: the same key all day.
+    final bounds = warm.read(todayBoundsProvider);
+    warm(todayOrdersProvider((orgId: orgId, expectedBefore: bounds.endIso)));
   }
 }
 
@@ -158,13 +162,16 @@ void _prefetchPurchasing(DashPrefetcher warm, Scope s) {
 
 /// The web's `prefetchRoute('/inventory/ingredients')` (also
 /// `/inventory/items`): the org catalog, the org's branches and, with a
-/// branch, its stock — the keys the page watches.
+/// branch, its stock and its counts — the keys the page watches.
 void _prefetchIngredients(DashPrefetcher warm, Scope s) {
   if (s.orgId != null) {
     warm(inventoryCatalogProvider(s.orgId!));
     warm(branchesProvider);
   }
-  if (s.branchId != null) warm(branchStockProvider(s.branchId!));
+  if (s.branchId != null) {
+    warm(branchStockProvider(s.branchId!));
+    warm(stocktakesProvider(s.branchId!));
+  }
 }
 
 /// The web's `prefetchRoute('/inventory/waste')`: with a branch picked, its
@@ -176,8 +183,22 @@ void _prefetchWaste(DashPrefetcher warm, Scope s) {
 }
 
 /// The web's `prefetchRoute('/inventory/transfers')`: the org's branches
-/// and, with a location picked, its first list (both ways, every status).
+/// (and, with the cap, the places a transfer can go) and, with a location
+/// picked, its first list (both ways, every status) and the person's rights
+/// there.
 void _prefetchTransfers(DashPrefetcher warm, Scope s) {
-  if (s.orgId != null) warm(branchesProvider);
-  if (s.branchId != null) warm(transfersProvider(s.transfersKey()));
+  final orgId = s.orgId;
+  if (orgId != null) {
+    warm(branchesProvider);
+    // Only with the cap, as the page asks (INV-TRF-041).
+    if (warm.read(authzProvider).can(Cap.inventoryTransfersCreate)) {
+      warm(transferLocationsProvider(orgId));
+    }
+  }
+  final b = s.branchId;
+  if (b != null) {
+    warm(transfersProvider(s.transfersKey()));
+    // Whether this person may send from here.
+    warm(authzAtProvider(b));
+  }
 }

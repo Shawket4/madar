@@ -9,7 +9,6 @@
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
-import 'package:dashboard_core/shell.dart' show DashRoutePrefetch;
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
@@ -52,7 +51,7 @@ class RulesFirstBanner extends ConsumerWidget {
     final action = DashButton(
       label: more ? t('dawam.setupFinish') : t('dawam.rulesFirstAction'),
       onPressed: () => context.go(target),
-      onIntent: () => ref.prefetchRoute(target),
+      to: target,
     );
     return Semantics(
       liveRegion: true,
