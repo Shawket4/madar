@@ -1,1 +1,27 @@
-{}
+{
+  "inventory.archive.badge": "Archived",
+  "inventory.archive.active": "Active",
+  "inventory.archive.archivedTab": "Archived",
+  "inventory.archive.action": "Archive",
+  "inventory.archive.unarchive": "Unarchive",
+  "inventory.archive.none": "No archived ingredients",
+  "inventory.archive.title": "Archive {{name}}?",
+  "inventory.archive.consequence": "It leaves ingredient pickers, stock counts and reorder suggestions. Its history stays, and you can unarchive it any time.",
+  "inventory.archive.stillUsed": "Still used in",
+  "inventory.archive.keepsDeducting": "These keep deducting and costing it after you archive it. Remove it from them if they should stop.",
+  "inventory.archive.onHand": "Stock on hand",
+  "inventory.archive.stockStays": "Archiving doesn't change stock. Those branches still see it in counts until it is counted or wasted down to zero.",
+  "inventory.archive.unused": "Nothing uses it and no branch holds any.",
+  "inventory.archive.archived": "{{name}} archived",
+  "inventory.archive.unarchived": "{{name}} is active again",
+  "inventory.archive.kind.recipe": "Menu recipes",
+  "inventory.archive.kind.modifierOption": "Add-ons and options",
+  "inventory.archive.kind.swap": "Swaps",
+  "inventory.archive.kind.recipeBase": "Recipe bases",
+  "inventory.archive.kind.packagingRule": "Packaging rules",
+  "inventory.archive.kind.purchaseOrder": "Open purchase orders",
+  "inventory.archive.kind.stocktake": "Open stock counts",
+  "inventory.archive.kind.transfer": "Open transfers",
+  "errors.codes.INGREDIENT_NAME_ARCHIVED": "An archived ingredient already has this name. Unarchive it instead of creating a new one.",
+  "errors.codes.ARCHIVE_NEEDS_CONFIRMATION": "This ingredient is still used or holds stock. Review where it is used, then confirm the archive."
+}

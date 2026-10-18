@@ -29,6 +29,7 @@ final Map<String, Object Function(Map<String, Object?> json)> schemaDecoders = {
   'AnalyticsOrder': AnalyticsOrder.fromJson,
   'AnalyticsResponse': AnalyticsResponse.fromJson,
   'ApplyPackagingRulesResult': ApplyPackagingRulesResult.fromJson,
+  'ArchiveIngredientRequest': ArchiveIngredientRequest.fromJson,
   'AskSwap': AskSwap.fromJson,
   'AssetBundleRef': AssetBundleRef.fromJson,
   'AssetGroupRef': AssetGroupRef.fromJson,
@@ -283,7 +284,10 @@ final Map<String, Object Function(Map<String, Object?> json)> schemaDecoders = {
   'HolidayDecision': HolidayDecision.fromJson,
   'HolidayView': HolidayView.fromJson,
   'HoursEntry': HoursEntry.fromJson,
+  'IngredientBranchStock': IngredientBranchStock.fromJson,
   'IngredientCategory': IngredientCategory.fromJson,
+  'IngredientUsage': IngredientUsage.fromJson,
+  'IngredientUsageRef': IngredientUsageRef.fromJson,
   'InventoryValuationReport': InventoryValuationReport.fromJson,
   'ItemCountInput': ItemCountInput.fromJson,
   'ItemOptionInput': ItemOptionInput.fromJson,
@@ -814,6 +818,7 @@ final Map<String, Object Function(Map<String, Object?> json)> schemaDecoders = {
 /// Every enum schema's decoder, by schema name.
 final Map<String, Object Function(String value)> enumDecoders = {
   'ActivationCodeState': ActivationCodeState.fromJson,
+  'ArchiveFilter': ArchiveFilter.fromJson,
   'AttendanceStatus': AttendanceStatus.fromJson,
   'BranchKind': BranchKind.fromJson,
   'CashMovementKind': CashMovementKind.fromJson,

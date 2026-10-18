@@ -24,6 +24,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart';
@@ -339,7 +340,31 @@ class _IngredientDialogState extends ConsumerState<IngredientDialog> {
       }
       if (!mounted) return;
       setState(() => _busy = false);
-      DashToast.error(context, errorMessage(e, t));
+      // The name belongs to an archived ingredient: offer that one back
+      // instead (409 `INGREDIENT_NAME_ARCHIVED`).
+      final archivedId = archivedNameHolder(e);
+      if (archivedId == null) {
+        DashToast.error(context, errorMessage(e, t));
+        return;
+      }
+      final name = _name.trim();
+      DashToast.show(
+        context,
+        errorMessage(e, t),
+        kind: DashToastKind.error,
+        actionLabel: t('inventory.archive.unarchive'),
+        onAction: () async {
+          if (!mounted) return;
+          final ok = await unarchiveIngredient(
+            context,
+            ref,
+            orgId: widget.orgId,
+            id: archivedId,
+            name: name,
+          );
+          if (ok && mounted) Navigator.of(context).pop(true);
+        },
+      );
     }
   }
 

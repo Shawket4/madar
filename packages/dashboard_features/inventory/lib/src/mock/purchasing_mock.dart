@@ -483,7 +483,8 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
         b['id']! as String,
         ing['id']! as String,
       );
-      if (bs == null) continue;
+      // An archived ingredient is never suggested.
+      if (bs == null || ing['archived_at'] != null) continue;
       final parMin = (bs['par_min'] as num?)?.toDouble() ?? 0;
       final onHand = (bs['on_hand'] as num?)?.toDouble() ?? 0;
       if (parMin <= 0 || onHand > parMin) continue;

@@ -5,6 +5,11 @@
 /// No control here is gated by capability (INV-ING-052): New ingredient,
 /// Edit, Save par, Count this item and Record waste are offered to whoever
 /// reaches the page; a refusal comes back as the server's words in a toast.
+/// The one exception is the drawer's Archive / Unarchive, offered only with
+/// `inventory.adjust` (as the web's `useCan(Cap.inventoryAdjust)`).
+///
+/// Active / Archived (always shown, remembered with the stock filter): the
+/// Archived view lists the archived ingredients, each with its badge.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -16,12 +21,14 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_export.dart';
 import '../shared/inventory_lib.dart' show jsNumberString;
 import '../shared/no_org.dart';
 import '../shared/on_hand.dart';
 import '../waste/waste_dialog.dart';
+import 'archive_dialog.dart';
 import 'ingredient_dialog.dart';
 import 'ingredient_drawer.dart';
 import 'ingredients_data.dart';
@@ -36,6 +43,7 @@ class IngredientsPage extends ConsumerStatefulWidget {
 class _IngredientsPageState extends ConsumerState<IngredientsPage>
     with DashRememberedState {
   IngredientFilter _filter = IngredientFilter.all;
+  IngredientView _view = IngredientView.active;
   bool _exporting = false;
 
   // ── memory: the stock filter comes back with the page (the table keeps
@@ -45,14 +53,16 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage>
   String get memoryKey => 'inventory.ingredients';
 
   @override
-  Map<String, Object?> get rememberedValues => {'filter': _filter.name};
+  Map<String, Object?> get rememberedValues => {
+    'filter': _filter.name,
+    'view': _view.name,
+  };
 
   @override
-  void restoreRemembered(DashMemo m) => _filter = m.enumOr(
-    'filter',
-    IngredientFilter.values,
-    IngredientFilter.all,
-  );
+  void restoreRemembered(DashMemo m) {
+    _filter = m.enumOr('filter', IngredientFilter.values, IngredientFilter.all);
+    _view = m.enumOr('view', IngredientView.values, IngredientView.active);
+  }
 
   List<Branch> _activeBranches() => [
     for (final b in ref.read(branchesProvider).value ?? const <Branch>[])
@@ -95,6 +105,16 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage>
           context,
           branchId: branchId,
           presetIngredientId: item.id,
+        );
+      case IngredientDrawerAction.archive:
+        await showArchiveIngredientDialog(context, orgId: orgId, item: item);
+      case IngredientDrawerAction.unarchive:
+        await unarchiveIngredient(
+          context,
+          ref,
+          orgId: orgId,
+          id: item.id,
+          name: item.name,
         );
       case _:
         break;
@@ -206,7 +226,9 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage>
       byId,
       _filter,
       hasBranch: hasBranch,
+      view: _view,
     );
+    final archivedView = _view == IngredientView.archived;
 
     return DashPageScaffold(
       title: t('inventory.catalog.title'),
@@ -226,10 +248,29 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage>
           onIntent: () => warmIngredientDialog(ref, orgId),
         ),
       ],
-      filters: hasBranch
-          ? SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DashSegmentedControl<IngredientFilter>(
+      filters: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: Space.sm,
+          children: [
+            DashSegmentedControl<IngredientView>(
+              key: const ValueKey('ingredients-view'),
+              value: _view,
+              onChanged: (v) => setState(() => _view = v),
+              options: [
+                DashOption(
+                  value: IngredientView.active,
+                  label: t('inventory.archive.active'),
+                ),
+                DashOption(
+                  value: IngredientView.archived,
+                  label: t('inventory.archive.archivedTab'),
+                ),
+              ],
+            ),
+            if (hasBranch && !archivedView)
+              DashSegmentedControl<IngredientFilter>(
                 key: const ValueKey('ingredients-filter'),
                 value: _filter,
                 onChanged: (v) => setState(() => _filter = v),
@@ -248,12 +289,14 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage>
                   ),
                 ],
               ),
-            )
-          : null,
+          ],
+        ),
+      ),
       body: IngredientsTable(
         rows: rows,
         stock: byId,
         hasBranch: hasBranch,
+        archivedView: archivedView,
         loading: catalog.awaitingFirst,
         // Kept while Retry runs, as React Query keeps `error` (no false
         // "No ingredients yet" in between).
@@ -286,6 +329,7 @@ class IngredientsTable extends ConsumerWidget {
     required this.rows,
     required this.stock,
     required this.hasBranch,
+    this.archivedView = false,
     required this.loading,
     required this.errorText,
     required this.onRetry,
@@ -298,6 +342,9 @@ class IngredientsTable extends ConsumerWidget {
   final List<OrgIngredient> rows;
   final Map<String, BranchStockRow> stock;
   final bool hasBranch;
+
+  /// The Archived view: its own empty state.
+  final bool archivedView;
   final bool loading;
   final String? errorText;
   final VoidCallback onRetry;
@@ -323,22 +370,39 @@ class IngredientsTable extends ConsumerWidget {
       onRowTap: onOpen,
       onRowIntent: onIntent,
       searchPlaceholder: t('inventory.catalog.search'),
-      empty: DashEmptyState(
-        icon: 'boxes',
-        title: t('inventory.catalog.noItems'),
-      ),
+      empty: archivedView
+          ? DashEmptyState(
+              key: const ValueKey('ingredients-archived-empty'),
+              icon: archiveGlyph,
+              title: t('inventory.archive.none'),
+            )
+          : DashEmptyState(
+              icon: 'boxes',
+              title: t('inventory.catalog.noItems'),
+            ),
       columns: [
         DashColumn(
           id: 'name',
           label: t('inventory.catalog.name'),
           text: (it) => it.name,
-          cell: (context, it) => MadarClippedText(
-            it.name,
-            textDirection: dashTextDirectionOf(it.name),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: DashType.bodyMedium.copyWith(color: c.textPrimary),
-          ),
+          cell: (context, it) {
+            final name = MadarClippedText(
+              it.name,
+              textDirection: dashTextDirectionOf(it.name),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+            );
+            if (it.archivedAt == null) return name;
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: Space.sm,
+              children: [
+                Flexible(child: name),
+                const ArchivedBadge(),
+              ],
+            );
+          },
           phone: DashPhoneRole.title,
           minWidth: Space.xxl * 5,
         ),

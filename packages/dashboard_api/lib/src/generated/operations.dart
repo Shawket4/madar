@@ -886,6 +886,27 @@ const List<ApiOperation> apiOperations = [
     'updateCatalogItem',
   ),
   ApiOperation(
+    'archive_catalog_item',
+    'POST',
+    '/inventory/orgs/{org_id}/catalog/{id}/archive',
+    'inventory',
+    'archiveCatalogItem',
+  ),
+  ApiOperation(
+    'unarchive_catalog_item',
+    'POST',
+    '/inventory/orgs/{org_id}/catalog/{id}/unarchive',
+    'inventory',
+    'unarchiveCatalogItem',
+  ),
+  ApiOperation(
+    'get_catalog_item_usage',
+    'GET',
+    '/inventory/orgs/{org_id}/catalog/{id}/usage',
+    'inventory',
+    'getCatalogItemUsage',
+  ),
+  ApiOperation(
     'list_ingredient_categories',
     'GET',
     '/inventory/orgs/{org_id}/categories',

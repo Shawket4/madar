@@ -1,1 +1,27 @@
-{}
+{
+  "inventory.archive.badge": "مؤرشف",
+  "inventory.archive.active": "النشطة",
+  "inventory.archive.archivedTab": "المؤرشفة",
+  "inventory.archive.action": "أرشفة",
+  "inventory.archive.unarchive": "إلغاء الأرشفة",
+  "inventory.archive.none": "لا توجد مكوّنات مؤرشفة",
+  "inventory.archive.title": "أرشفة {{name}}؟",
+  "inventory.archive.consequence": "سيختفي من قوائم اختيار المكوّنات وجرد المخزون واقتراحات إعادة الطلب. يبقى سجلّه كما هو، ويمكنك إلغاء أرشفته في أي وقت.",
+  "inventory.archive.stillUsed": "ما زال مستخدمًا في",
+  "inventory.archive.keepsDeducting": "ستواصل هذه العناصر خصمه وحساب تكلفته بعد الأرشفة. أزِله منها إن أردت أن تتوقف.",
+  "inventory.archive.onHand": "المخزون المتوفر",
+  "inventory.archive.stockStays": "الأرشفة لا تغيّر المخزون. ستظل هذه الفروع تراه في الجرد حتى يُجرد أو يُسجَّل تالفًا حتى يصل إلى الصفر.",
+  "inventory.archive.unused": "لا يستخدمه أي عنصر، ولا يملك أي فرع منه مخزونًا.",
+  "inventory.archive.archived": "تمت أرشفة {{name}}",
+  "inventory.archive.unarchived": "عاد {{name}} نشطًا",
+  "inventory.archive.kind.recipe": "وصفات القائمة",
+  "inventory.archive.kind.modifierOption": "الإضافات والخيارات",
+  "inventory.archive.kind.swap": "الاستبدالات",
+  "inventory.archive.kind.recipeBase": "قواعد الوصفات",
+  "inventory.archive.kind.packagingRule": "قواعد التغليف",
+  "inventory.archive.kind.purchaseOrder": "أوامر شراء مفتوحة",
+  "inventory.archive.kind.stocktake": "عمليات جرد مفتوحة",
+  "inventory.archive.kind.transfer": "تحويلات مفتوحة",
+  "errors.codes.INGREDIENT_NAME_ARCHIVED": "يوجد مكوّن مؤرشف بهذا الاسم. ألغِ أرشفته بدلًا من إنشاء مكوّن جديد.",
+  "errors.codes.ARCHIVE_NEEDS_CONFIRMATION": "ما زال هذا المكوّن مستخدمًا أو لديه مخزون. راجع أماكن استخدامه ثم أكّد الأرشفة."
+}

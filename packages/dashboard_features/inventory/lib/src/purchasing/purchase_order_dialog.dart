@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_lib.dart';
 import 'purchasing_data.dart';
@@ -478,8 +479,12 @@ class _LineBox extends ConsumerWidget {
               Expanded(
                 child: DashSelect<String>(
                   key: ValueKey('po-line-ingredient-$index'),
+                  // An archived ingredient is not offered, but a line that
+                  // already has one keeps its name.
                   options: [
-                    for (final i in catalog)
+                    for (final i in pickableOrChosen(catalog, [
+                      line.ingredientId,
+                    ]))
                       DashOption(value: i.id, label: i.name),
                   ],
                   value: line.ingredientId,

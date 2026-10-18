@@ -1,7 +1,9 @@
 /// The ingredient drawer (INV-ING-033…048, -053, -056; web
 /// `item-drawer.tsx`): an ingredient at the picked branch. On hand is the
 /// ledger's figure and read-only; the way to correct it is to count it.
-/// With All branches it only offers Edit and View recipes.
+/// With All branches it only offers Edit and View recipes. Archive (or
+/// Unarchive, when archived) is offered with `inventory.adjust` only; an
+/// archived ingredient carries the Archived badge in the header.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -19,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart';
@@ -28,7 +31,7 @@ import 'ingredient_dialog.dart'
 import 'ingredients_data.dart';
 
 /// What the drawer hands back to the page when it closes for a dialog.
-enum IngredientDrawerAction { edit, recordWaste }
+enum IngredientDrawerAction { edit, recordWaste, archive, unarchive }
 
 /// Opens the drawer for [item] at [branchId] (null = All branches).
 Future<IngredientDrawerAction?> showIngredientDrawer(
@@ -185,6 +188,10 @@ class _IngredientDrawerState extends ConsumerState<IngredientDrawer> {
       ..write(': ')
       ..write(dashFigure(f.fmtMoney(cost.cost)));
     if (item.supplierName != null) costLine.write(' · ${item.supplierName}');
+    final archived = item.archivedAt != null;
+    final canArchive = ref.watch(
+      authzProvider.select((a) => a.can(Cap.inventoryAdjust)),
+    );
 
     return DashSurface(
       key: const ValueKey('ingredient-drawer'),
@@ -192,7 +199,14 @@ class _IngredientDrawerState extends ConsumerState<IngredientDrawer> {
       description: costLine.toString(),
       headerTrailing: Padding(
         padding: const EdgeInsets.only(top: Space.sm),
-        child: DashBadge(item.categoryName),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: Space.sm,
+          children: [
+            DashBadge(item.categoryName),
+            if (archived) const ArchivedBadge(small: false),
+          ],
+        ),
       ),
       body: branchId == null
           ? const _PickBranch()
@@ -251,6 +265,27 @@ class _IngredientDrawerState extends ConsumerState<IngredientDrawer> {
           onPressed: _viewRecipes,
           onIntent: () => ref.prefetchRoute('/menu/recipes'),
         ),
+        if (canArchive)
+          archived
+              ? DashButton(
+                  key: const ValueKey('ingredient-drawer-unarchive'),
+                  label: t('inventory.archive.unarchive'),
+                  icon: unarchiveGlyph,
+                  variant: DashButtonVariant.outline,
+                  size: DashButtonSize.compact,
+                  onPressed: () => Navigator.of(
+                    context,
+                  ).pop(IngredientDrawerAction.unarchive),
+                )
+              : DashButton(
+                  key: const ValueKey('ingredient-drawer-archive'),
+                  label: t('inventory.archive.action'),
+                  icon: archiveGlyph,
+                  variant: DashButtonVariant.outline,
+                  size: DashButtonSize.compact,
+                  onPressed: () =>
+                      Navigator.of(context).pop(IngredientDrawerAction.archive),
+                ),
       ],
     );
   }

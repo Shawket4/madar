@@ -106,7 +106,8 @@ void main() {
   });
 
   group('POST /stocktakes/branches/{branch_id}', () {
-    test('whole branch: every catalog ingredient, stocked or not', () async {
+    test('whole branch: every catalog ingredient, stocked or not (an '
+        'archived one only with stock there)', () async {
       final b = backend();
       final st = await b.api.stocktakes.createStocktake(
         branchId: SeedIds.zamalek,
@@ -118,7 +119,17 @@ void main() {
       expect(st.scope, {'kind': 'full'});
       expect(st.startedByName, 'Nour El-Sayed');
       final catalog = b.db[InvTables.ingredients].where(
-        (i) => i['org_id'] == SeedIds.sabahOrg,
+        (i) =>
+            i['org_id'] == SeedIds.sabahOrg &&
+            (i['archived_at'] == null ||
+                (b.db[InvTables.branchStock].firstWhere(
+                              (s) =>
+                                  s['branch_id'] == SeedIds.zamalek &&
+                                  s['org_ingredient_id'] == i['id'],
+                            )?['on_hand']
+                            as num? ??
+                        0) !=
+                    0),
       );
       expect(st.items, hasLength(catalog.length));
       for (final it in st.items) {

@@ -16,11 +16,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
 
-/// The Sabah catalog's names, as the server orders them.
+/// The Sabah catalog's active names (the Active view), as the server
+/// orders them.
 List<String> catalogNames(MockDb db) {
   final names = [
     for (final r in db[InvTables.ingredients].rows)
-      if (r['org_id'] == SeedIds.sabahOrg) r['name']! as String,
+      if (r['org_id'] == SeedIds.sabahOrg && r['archived_at'] == null)
+        r['name']! as String,
   ]..sort();
   return names;
 }

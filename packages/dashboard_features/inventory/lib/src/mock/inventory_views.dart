@@ -67,14 +67,38 @@ abstract final class InvViews {
     };
   }
 
-  /// `GET /inventory/orgs/{org_id}/catalog`: every ingredient, by name.
-  static List<MockRow> catalog(MockDb db, String orgId) => [
+  /// `GET /inventory/orgs/{org_id}/catalog`: every ingredient, by name;
+  /// [status] (`ArchiveFilter`: `active` | `archived` | `all`, null = all)
+  /// narrows it by archive state.
+  static List<MockRow> catalog(MockDb db, String orgId, {String? status}) => [
     for (final r in db[InvTables.ingredients].query(
       filters: {'org_id': orgId},
+      where: (r) => archiveMatches(status, r['archived_at']),
       sort: 'name',
     ))
       ingredient(db, r),
   ];
+
+  /// Whether a row archived at [archivedAt] passes the `status` filter.
+  static bool archiveMatches(String? status, Object? archivedAt) =>
+      switch (status) {
+        'active' => archivedAt == null,
+        'archived' => archivedAt != null,
+        _ => true,
+      };
+
+  /// Whether ingredient [id] is archived.
+  static bool isArchived(MockDb db, Object? id) =>
+      id is String &&
+      db[InvTables.ingredients].find(id)?['archived_at'] != null;
+
+  /// [m] (a movement row) with its ingredient's archive time
+  /// (`ingredient_archived_at`).
+  static MockRow withArchive(MockDb db, MockRow m) {
+    final id = m['org_ingredient_id'];
+    final ing = id is String ? db[InvTables.ingredients].find(id) : null;
+    return {...m, 'ingredient_archived_at': ing?['archived_at']};
+  }
 
   /// `GET /inventory/orgs/{org_id}/categories`: by sort order then name,
   /// with live ingredient counts.
@@ -120,13 +144,18 @@ abstract final class InvViews {
 
   /// `GET /inventory/branches/{branch_id}/stock`: the WHOLE catalog as seen
   /// from the branch (`BranchStockRow`), by category order then name.
-  static List<MockRow> branchStock(MockDb db, String branchId) {
+  static List<MockRow> branchStock(
+    MockDb db,
+    String branchId, {
+    String? status,
+  }) {
     final orgId = InvScope.orgOf(db, branchId);
     if (orgId == null) return const [];
     final cats = {for (final c in db[InvTables.categories].rows) c['id']: c};
     final rows = <MockRow>[];
     for (final i in db[InvTables.ingredients].query(
       filters: {'org_id': orgId},
+      where: (i) => archiveMatches(status, i['archived_at']),
     )) {
       final bs = stockRecord(db, branchId, i['id']! as String);
       final cat = cats[i['category_id']];
@@ -149,6 +178,7 @@ abstract final class InvViews {
         'last_counted_at': bs?['last_counted_at'],
         'last_movement_at': bs?['last_movement_at'],
         'has_activity': bs != null,
+        'archived_at': i['archived_at'],
         '_sort': cat?['sort_order'] ?? 0,
       });
     }
@@ -181,7 +211,8 @@ abstract final class InvViews {
       final ing = db[InvTables.ingredients].find(
         bs['org_ingredient_id']! as String,
       );
-      if (ing == null) continue;
+      // An archived ingredient is never suggested.
+      if (ing == null || ing['archived_at'] != null) continue;
       final parMax = (bs['par_max'] as num?)?.toDouble();
       final target = parMax ?? parMin;
       final sup = _supplier(db, ing['supplier_id']);
@@ -354,9 +385,12 @@ abstract final class InvViews {
   /// The waste log over [branchIds], latest first (by when it happened).
   static List<MockRow> waste(MockDb db, Iterable<String> branchIds) {
     final ids = branchIds.toSet();
-    final rows = db[InvTables.movements].where(
-      (m) => m['movement_type'] == 'waste' && ids.contains(m['branch_id']),
-    );
+    final rows = [
+      for (final m in db[InvTables.movements].where(
+        (m) => m['movement_type'] == 'waste' && ids.contains(m['branch_id']),
+      ))
+        withArchive(db, m),
+    ];
     rows.sort((a, b) {
       final c = DateTime.parse(
         wasteWhen(b),

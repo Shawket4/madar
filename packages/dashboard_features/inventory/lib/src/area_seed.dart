@@ -207,6 +207,7 @@ class InvIngredientSpec {
     this.dailyUse = 0,
     this.active = true,
     this.addedOn,
+    this.archivedAt,
   });
 
   final String key;
@@ -227,6 +228,9 @@ class InvIngredientSpec {
 
   /// When it joined the catalog (`yyyy-mm-dd`); default the catalog's start.
   final String? addedOn;
+
+  /// When it was archived (ISO); null = active. Archived by Nour.
+  final String? archivedAt;
 }
 
 const List<InvIngredientSpec> invIngredients = [
@@ -357,6 +361,7 @@ const List<InvIngredientSpec> invIngredients = [
     density: 1.02,
     description: 'Discontinued — kept for history',
     active: false,
+    archivedAt: '2026-08-01T09:00:00Z',
   ),
   InvIngredientSpec(
     'heavy-cream',
@@ -823,6 +828,22 @@ const List<InvWasteSpec> invWaste = [
     '2026-09-15T11:10:00Z',
     by: 'karim',
     note: 'Spilled during restock',
+  ),
+];
+
+/// The last waste of an archived ingredient (Soy Milk, archived 1 Aug): it
+/// emptied Zamalek's shelf, so the log and its drawer history show it with
+/// the Archived badge.
+const List<InvWasteSpec> invArchivedWaste = [
+  InvWasteSpec(
+    'zamalek',
+    'soy',
+    1000,
+    'expired',
+    'dashboard',
+    '2026-07-30T08:20:00Z',
+    by: 'karim',
+    note: 'Last cartons before soy left the menu',
   ),
 ];
 
@@ -1413,6 +1434,7 @@ class _InvBuilder {
       }
     }
     _walk();
+    _archivedHistory();
     _stocktakes();
     out[InvTables.movements]!.sort(
       (a, b) =>
@@ -1489,6 +1511,8 @@ class _InvBuilder {
         'supplier_id': sup == null ? null : InvIds.supplier(sup.key),
         'supplier_name': sup?.name,
         'yield_pct': i.yieldPct,
+        'archived_at': i.archivedAt,
+        'archived_by': i.archivedAt == null ? null : SeedIds.user('nour'),
         'created_at': iso(created),
         'updated_at': iso(i.active ? created : DateTime.utc(2026, 8, 1, 9)),
       });
@@ -1575,49 +1599,76 @@ class _InvBuilder {
 
   void _waste() {
     for (final w in invWaste) {
-      final ing = InventorySeed.ingredient(w.ingredient);
-      final cost = branchCost(w.branch, ing);
-      final row = _movement(
-        branch: w.branch,
-        ing: ing,
-        type: 'waste',
-        qty: -w.qty,
-        at: w.at,
-        id: mockUuid('waste:${w.branch}:${w.ingredient}:${w.at}'),
-        by: w.by,
-        note: w.note,
-        reason: w.reason,
-        sourceType: switch (w.source) {
-          'refund' => 'refund',
-          'order' => 'order',
-          _ => w.source,
-        },
-      );
-      row.addAll({
-        'occurred_at': w.occurredAt == null
-            ? null
-            : iso(DateTime.parse(w.occurredAt!)),
-        'received_at': w.occurredAt == null ? null : iso(DateTime.parse(w.at)),
-        'waste_source': w.source,
-        // The unrounded cost the waste report values the line at.
-        'unit_cost_exact': cost,
-        'waste_value_minor': cost == null ? null : (w.qty * cost + 0.5).floor(),
-        'approved_by_name': w.approvedBy == null
-            ? null
-            : InventorySeed.personName(w.approvedBy!),
-        'device_id': w.source == 'pos' ? InvIds.device(w.branch) : null,
-        'device_name': w.source == 'pos' ? 'Counter 1' : null,
-        'order_display_number': w.order,
-        'waste_subject_kind': w.subject == null ? 'ingredient' : 'menu_item',
-        'waste_subject_name': w.subject ?? ing.name,
-        'waste_size_label': w.subjectSize,
-        'waste_quantity': w.subjectQty ?? w.qty,
-        'waste_unit': w.subject == null ? ing.unit : 'pcs',
-      });
+      final row = _wasteRow(w);
       events(
         w.branch,
         w.ingredient,
       ).add(_Event(DateTime.parse(w.at), 'waste', qty: -w.qty, row: row));
+    }
+  }
+
+  /// A waste line as the log answers it (`balance_after` set by the walk).
+  Map<String, Object?> _wasteRow(InvWasteSpec w) {
+    final ing = InventorySeed.ingredient(w.ingredient);
+    final cost = branchCost(w.branch, ing);
+    final row = _movement(
+      branch: w.branch,
+      ing: ing,
+      type: 'waste',
+      qty: -w.qty,
+      at: w.at,
+      id: mockUuid('waste:${w.branch}:${w.ingredient}:${w.at}'),
+      by: w.by,
+      note: w.note,
+      reason: w.reason,
+      sourceType: switch (w.source) {
+        'refund' => 'refund',
+        'order' => 'order',
+        _ => w.source,
+      },
+    );
+    row.addAll({
+      'occurred_at': w.occurredAt == null
+          ? null
+          : iso(DateTime.parse(w.occurredAt!)),
+      'received_at': w.occurredAt == null ? null : iso(DateTime.parse(w.at)),
+      'waste_source': w.source,
+      // The unrounded cost the waste report values the line at.
+      'unit_cost_exact': cost,
+      'waste_value_minor': cost == null ? null : (w.qty * cost + 0.5).floor(),
+      'approved_by_name': w.approvedBy == null
+          ? null
+          : InventorySeed.personName(w.approvedBy!),
+      'device_id': w.source == 'pos' ? InvIds.device(w.branch) : null,
+      'device_name': w.source == 'pos' ? 'Counter 1' : null,
+      'order_display_number': w.order,
+      'waste_subject_kind': w.subject == null ? 'ingredient' : 'menu_item',
+      'waste_subject_name': w.subject ?? ing.name,
+      'waste_size_label': w.subjectSize,
+      'waste_quantity': w.subjectQty ?? w.qty,
+      'waste_unit': w.subject == null ? ing.unit : 'pcs',
+    });
+    return row;
+  }
+
+  /// The archived ingredients' history: the walk skips an inactive
+  /// ingredient, so their last lines are written here, each leaving the
+  /// branch at zero (the stock record stays, with no stock).
+  void _archivedHistory() {
+    for (final w in invArchivedWaste) {
+      final ing = InventorySeed.ingredient(w.ingredient);
+      out[InvTables.movements]!.add(_wasteRow(w));
+      out[InvTables.branchStock]!.add({
+        'id': InvIds.branchStock(w.branch, ing.key),
+        'branch_id': _branchId(w.branch),
+        'org_ingredient_id': InvIds.ingredient(ing.key),
+        'on_hand': 0.0,
+        'par_min': null,
+        'par_max': null,
+        'cost_per_unit': branchCost(w.branch, ing),
+        'last_counted_at': null,
+        'last_movement_at': iso(DateTime.parse(w.at)),
+      });
     }
   }
 

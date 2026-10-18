@@ -19,6 +19,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../shared/archive.dart';
 import '../shared/inventory_data.dart';
 import '../shared/inventory_labels.dart';
 import '../shared/inventory_lib.dart';
@@ -85,6 +86,9 @@ class _CountEditorState extends ConsumerState<CountEditor>
 
   /// The rows' ids as last built: what a save sends.
   List<String> _rowIds = const [];
+
+  /// The org's archived ingredients (their rows carry the badge).
+  Set<String> _archivedIds = const {};
 
   /// Rows the server holds a figure for, as far as this screen has seeded
   /// or sent: clearing one un-counts it (B2).
@@ -312,10 +316,18 @@ class _CountEditorState extends ConsumerState<CountEditor>
     );
     final newCount = rows.where((r) => r.isNew).length;
     final present = _rowIds.toSet();
+    // An archived (or inactive) ingredient is not offered to add.
     final addable = <OrgIngredient>[
       for (final i in catalog ?? const <OrgIngredient>[])
-        if (!present.contains(i.id)) i,
+        if (!present.contains(i.id) && isPickable(i)) i,
     ];
+    // The archived badge reads the catalog: a whole-branch count never
+    // fetches it for that alone (INV-CNT-031), but uses it once it is held.
+    _archivedIds =
+        orgId != null &&
+            (scopeKind != 'full' || ref.exists(inventoryCatalogProvider(orgId)))
+        ? ref.watch(archivedIngredientIdsProvider(orgId))
+        : const {};
 
     final header = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -708,6 +720,7 @@ class _CountEditorState extends ConsumerState<CountEditor>
           name: r.ingredientName,
           category: r.categoryName,
           pills: [
+            if (_archivedIds.contains(id)) const ArchivedBadge(),
             if (r.isNew)
               DashStatusPill(
                 label: t('inventory.stocktakes.newHere'),

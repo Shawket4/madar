@@ -221,12 +221,21 @@ void registerCountsMocks(MockServer server, MockDb db) {
       'finalized_by': null,
       'created_at': now,
     }, timestamps: false);
-    // Every live catalog ingredient in scope, stocked here or not.
+    // Every live catalog ingredient in scope, stocked here or not; a full or
+    // category count skips an archived one with nothing on hand here (one
+    // still holding stock stays, so it can be counted down).
+    bool archivedEmpty(MockRow i) =>
+        i['archived_at'] != null &&
+        ((InvViews.stockRecord(db, branchId, i['id']! as String)?['on_hand']
+                    as num?) ??
+                0) ==
+            0;
     for (final ing in db[InvTables.ingredients].where(
       (i) =>
           i['org_id'] == orgId &&
           (ids == null || ids.contains(i['id'])) &&
-          (categoryId == null || i['category_id'] == categoryId),
+          (categoryId == null || i['category_id'] == categoryId) &&
+          (ids != null || !archivedEmpty(i)),
     )) {
       newItem(st, ing, const {});
     }
