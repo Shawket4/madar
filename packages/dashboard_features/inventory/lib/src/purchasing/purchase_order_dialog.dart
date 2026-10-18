@@ -6,11 +6,21 @@
 ///
 /// Each line's TOTAL (EGP, as on the supplier's invoice) is what is typed
 /// and sent; the unit cost is worked out from it and only shown. Until a
-/// total is typed it follows the catalog's estimate for the quantity.
+/// total is typed it follows the last price paid for the ingredient (the
+/// chosen supplier's, else any supplier's) × the quantity, else the
+/// catalog's estimate; a hint under the line says where the price came
+/// from. A typed total is never overwritten; a new supplier re-defaults
+/// only the untouched lines.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show CreatePurchaseOrderRequest, OrgIngredient, POLineInput, Supplier;
+    show
+        CreatePurchaseOrderRequest,
+        LastPrice,
+        LastPriceSource,
+        OrgIngredient,
+        POLineInput,
+        Supplier;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -94,6 +104,12 @@ class _PurchaseOrderDialogState extends ConsumerState<PurchaseOrderDialog> {
   /// The catalog as last built (read in callbacks; [build] watches it).
   List<OrgIngredient> _catalog = const [];
 
+  /// The last price per ingredient for [_supplierId] (the previous
+  /// supplier's until the new one's land, like the web's keepPreviousData).
+  Map<String, LastPrice> _lastById = const {};
+  ProviderSubscription<AsyncValue<List<LastPrice>>>? _lastSub;
+  bool _initialised = false;
+
   String? get _orgId => ref.read(orgIdProvider);
 
   OrgIngredient? _ingredient(String? id) {
@@ -134,23 +150,67 @@ class _PurchaseOrderDialogState extends ConsumerState<PurchaseOrderDialog> {
     } else {
       _lines = [_Line(++_nextKey)];
     }
+    _listenLastPrices();
+    _initialised = true;
   }
 
-  /// Refills an untouched total from the catalog's cost for the quantity.
+  @override
+  void dispose() {
+    _lastSub?.close();
+    super.dispose();
+  }
+
+  /// Follows the last prices for the chosen supplier: each answer (a cached
+  /// one at once) re-defaults every line nobody typed a total on.
+  void _listenLastPrices() {
+    _lastSub?.close();
+    _lastSub = null;
+    final org = _orgId;
+    if (org == null) return;
+    _lastSub = ref.listenManual(
+      lastPricesProvider((orgId: org, supplierId: _supplierId)),
+      (_, next) {
+        final list = next.value;
+        if (list == null) return;
+        void apply() {
+          _lastById = {for (final p in list) p.orgIngredientId: p};
+          for (final l in _lines) {
+            _withEstimate(l);
+          }
+        }
+
+        // A cached answer arrives inside initState, before the first build.
+        _initialised ? setState(apply) : apply();
+      },
+      fireImmediately: true,
+    );
+  }
+
+  void _setSupplier(String? id) {
+    setState(() => _supplierId = id);
+    _listenLastPrices();
+  }
+
+  /// Refills an untouched total: the last price paid × the quantity, else
+  /// the catalog's cost for it. A total someone typed is left alone.
   _Line _withEstimate(_Line l, [List<OrgIngredient>? catalog]) {
     if (l.totalTouched) return l;
     final all = catalog ?? _catalog;
     final ing = l.ingredientId == null
         ? null
         : all.where((c) => c.id == l.ingredientId).firstOrNull;
+    final qty = parseInputNumber(l.qty);
+    final last = ing == null
+        ? null
+        : lastPriceIn(
+            _lastById[ing.id],
+            l.purchaseUnit.isNotEmpty ? l.purchaseUnit : ing.unit,
+          );
     final est = ing == null
         ? null
-        : estimateLineTotal(
-            ing.costPerUnit,
-            parseInputNumber(l.qty),
-            l.purchaseUnit,
-            ing.unit,
-          );
+        : last != null
+        ? lastPriceLineTotal(last, qty)
+        : estimateLineTotal(ing.costPerUnit, qty, l.purchaseUnit, ing.unit);
     l.total = est == null ? '' : piastresToEgpFixed(est);
     return l;
   }
@@ -275,7 +335,7 @@ class _PurchaseOrderDialogState extends ConsumerState<PurchaseOrderDialog> {
             DashOption(value: s.id, label: s.name),
         ],
         value: _supplierId,
-        onChanged: (v) => setState(() => _supplierId = v),
+        onChanged: _setSupplier,
         placeholder: t('inventory.purchasing.pickSupplier'),
         semanticLabel: t('inventory.purchasing.supplier'),
         searchable: true,
@@ -339,6 +399,8 @@ class _PurchaseOrderDialogState extends ConsumerState<PurchaseOrderDialog> {
                   line: _lines[i],
                   catalog: catalog,
                   ingredient: _ingredient(_lines[i].ingredientId),
+                  last: _lastById[_lines[i].ingredientId],
+                  otherSupplier: _supplierId != null,
                   linePiastres: _linePiastres(_lines[i]),
                   onPick: (id) => _setLine(_lines[i], (l) {
                     l
@@ -410,6 +472,8 @@ class _LineBox extends ConsumerWidget {
     required this.line,
     required this.catalog,
     required this.ingredient,
+    required this.last,
+    required this.otherSupplier,
     required this.linePiastres,
     required this.onPick,
     required this.onUnit,
@@ -423,6 +487,13 @@ class _LineBox extends ConsumerWidget {
   final _Line line;
   final List<OrgIngredient> catalog;
   final OrgIngredient? ingredient;
+
+  /// The last price paid for the ingredient, if any.
+  final LastPrice? last;
+
+  /// A supplier is chosen: a fallback price is marked "from another
+  /// supplier".
+  final bool otherSupplier;
   final double linePiastres;
   final ValueChanged<String> onPick;
   final ValueChanged<String> onUnit;
@@ -446,6 +517,11 @@ class _LineBox extends ConsumerWidget {
     final unitWord = line.purchaseUnit.isNotEmpty
         ? t('units.${line.purchaseUnit}', defaultValue: line.purchaseUnit)
         : t('inventory.purchasing.unitCostUnit');
+    final lastUnit = line.purchaseUnit.isNotEmpty
+        ? line.purchaseUnit
+        : (ing?.unit ?? '');
+    final last = this.last;
+    final lastPrice = ing == null ? null : lastPriceIn(last, lastUnit);
 
     Widget small(String label, Widget control) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -607,8 +683,65 @@ class _LineBox extends ConsumerWidget {
               ),
             ),
           ),
+          if (last != null && lastPrice != null)
+            _LastPriceHint(
+              key: ValueKey('po-line-last-price-$index'),
+              last: last,
+              price: lastPrice,
+              unit: lastUnit,
+              otherSupplier:
+                  otherSupplier && last.source == LastPriceSource.any,
+            ),
         ],
       ),
+    );
+  }
+}
+
+/// Where a line's default came from: "Last: EGP 45.00 / kg · 12 Oct 2026",
+/// plus "from another supplier" when the chosen one never sold it.
+class _LastPriceHint extends ConsumerWidget {
+  const _LastPriceHint({
+    required this.last,
+    required this.price,
+    required this.unit,
+    required this.otherSupplier,
+    super.key,
+  });
+
+  final LastPrice last;
+  final double price;
+  final String unit;
+  final bool otherSupplier;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(tProvider);
+    final f = ref.watch(formatProvider);
+    final c = context.madarColors;
+    final text = t(
+      'inventory.purchasing.lastPrice',
+      args: {
+        'price': f.fmtMoney(price, maxFractionDigits: 6),
+        'unit': t('units.$unit', defaultValue: unit),
+        'date': f.fmtDate(last.receivedAt ?? last.orderedAt),
+      },
+    );
+    return Row(
+      spacing: Space.xs + DashMetrics.hair,
+      children: [
+        DashIcon('history', size: IconSize.xs, color: c.textSecondary),
+        Flexible(
+          child: MadarClippedText(
+            otherSupplier
+                ? '$text · ${t('inventory.purchasing.lastPriceOtherSupplier')}'
+                : text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: DashType.small.copyWith(color: c.textSecondary),
+          ),
+        ),
+      ],
     );
   }
 }

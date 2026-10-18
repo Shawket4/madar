@@ -8031,6 +8031,27 @@
     "supplier_name": "text"
    }
   ],
+  "list_purchase_last_prices": [
+   {
+    "ordered_at": "2026-10-08T07:00:00.000Z",
+    "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "po_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "po_status": "text",
+    "prices": [
+     {
+      "unit": "text",
+      "unit_price": 1.5
+     }
+    ],
+    "received": true,
+    "received_at": "2026-10-08T07:00:00.000Z",
+    "source": "supplier",
+    "supplier_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+    "supplier_name": "text",
+    "unit": "text",
+    "unit_price": 1.5
+   }
+  ],
   "list_purchase_orders": [
    {
     "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
@@ -19658,11 +19679,35 @@
    "limit_minutes": 7,
    "minutes": 7
   },
+  "LastPrice": {
+   "ordered_at": "2026-10-08T07:00:00.000Z",
+   "org_ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "po_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "po_status": "text",
+   "prices": [
+    {
+     "unit": "text",
+     "unit_price": 1.5
+    }
+   ],
+   "received": true,
+   "received_at": "2026-10-08T07:00:00.000Z",
+   "source": "supplier",
+   "supplier_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "supplier_name": "text",
+   "unit": "text",
+   "unit_price": 1.5
+  },
+  "LastPriceSource": "supplier",
   "LastTillWarning": {
    "is_last_open_till": true,
    "open_bills_amount": 7,
    "open_bills_count": 7,
    "seated_tables_count": 7
+  },
+  "LastUnitPrice": {
+   "unit": "text",
+   "unit_price": 1.5
   },
   "LateDeductionKind": "minutes",
   "LateTier": {

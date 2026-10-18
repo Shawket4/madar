@@ -2302,6 +2302,13 @@ const List<ApiOperation> apiOperations = [
     'submitPurchaseOrder',
   ),
   ApiOperation(
+    'list_purchase_last_prices',
+    'GET',
+    '/purchasing/orgs/{org_id}/last-prices',
+    'purchasing',
+    'listPurchaseLastPrices',
+  ),
+  ApiOperation(
     'list_org_purchase_orders',
     'GET',
     '/purchasing/orgs/{org_id}/orders',

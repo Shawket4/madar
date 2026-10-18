@@ -9,7 +9,8 @@
 /// receives.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart' show ItemCountInput;
+import 'package:dashboard_api/dashboard_api.dart'
+    show ItemCountInput, LastPrice;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart' show DashTone;
 import 'package:rust_bridge_dashboard/rules.dart' as rules;
@@ -80,6 +81,30 @@ int? estimateLineTotal(
   purchaseUnit: purchaseUnit,
   stockUnit: stockUnit,
 );
+
+// ── Last price: a new PO line's default ────────────────────────────────────
+
+/// The last price paid for an ingredient in piastres per [unit] (the server
+/// converts it into every unit a line can use); null when it does not convert
+/// to that unit, so the line offers no default rather than a wrong one
+/// (`lastPriceIn`).
+double? lastPriceIn(LastPrice? last, String unit) {
+  if (last == null) return null;
+  final u = unit.trim().toLowerCase();
+  for (final p in last.prices) {
+    if (p.unit.trim().toLowerCase() == u) return p.unitPrice;
+  }
+  return null;
+}
+
+/// A line's default total from the last price, whole piastres: the price ×
+/// the quantity as the server stores it (3 dp, madar-inventory through the
+/// core). Null until a quantity is typed (`lastPriceLineTotal`).
+int? lastPriceLineTotal(double unitPrice, num qty) {
+  if (!qty.isFinite || qty <= 0) return null;
+  final stored = rules.quantityMilli(q: qty.toDouble()) / 1000;
+  return (unitPrice * stored).round();
+}
 
 /// Fraction digits a unit cost is shown with (EGP), always all of them.
 const int unitCostDigits = 6;

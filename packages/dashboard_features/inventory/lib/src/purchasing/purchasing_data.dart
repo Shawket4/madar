@@ -8,7 +8,12 @@
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show GoodsReceipt, PurchaseOrder, PurchaseOrderFull, ReorderSuggestion;
+    show
+        GoodsReceipt,
+        LastPrice,
+        PurchaseOrder,
+        PurchaseOrderFull,
+        ReorderSuggestion;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart' show dashParseNumber;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -62,6 +67,25 @@ final poReceiptsProvider = FutureProvider.autoDispose
       ref.webCache();
       ref.watch(realtimeEpochProvider('/purchasing/orders/$id/receipts'));
       return ref.watch(apiProvider).purchasing.listPoReceipts(id: id);
+    });
+
+/// `listPurchaseLastPrices(orgId, {supplier_id})`: [supplierId] null = no
+/// supplier chosen (any supplier's last price).
+typedef LastPricesKey = ({String orgId, String? supplierId});
+
+/// `GET /purchasing/orgs/{org_id}/last-prices?supplier_id=`: the last price
+/// paid per ingredient (the supplier's, else any supplier's), the New
+/// purchase order dialog's default for a line.
+final lastPricesProvider = FutureProvider.autoDispose
+    .family<List<LastPrice>, LastPricesKey>((ref, k) {
+      ref.webCache();
+      ref.watch(
+        realtimeEpochProvider('/purchasing/orgs/${k.orgId}/last-prices'),
+      );
+      return ref
+          .watch(apiProvider)
+          .purchasing
+          .listPurchaseLastPrices(orgId: k.orgId, supplierId: k.supplierId);
     });
 
 /// An order's name in a table, a title or a sheet: its reference, else `#`
