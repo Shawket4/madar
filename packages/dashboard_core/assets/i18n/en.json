@@ -1318,6 +1318,8 @@
  "inventory.purchasing.invoiceTotal": "Invoice total (EGP)",
  "inventory.purchasing.unitCostLocked": "Unit cost (EGP per {{unit}})",
  "inventory.purchasing.unitCostLockedHint": "Worked out from the line total ÷ the quantity. Change either to change it.",
+ "inventory.purchasing.lastPrice": "Last: {{price}} / {{unit}} · {{date}}",
+ "inventory.purchasing.lastPriceOtherSupplier": "from another supplier",
  "inventory.purchasing.unitCostUnit": "unit",
  "inventory.reports.title": "Inventory reports",
  "inventory.reports.valuation": "Valuation",

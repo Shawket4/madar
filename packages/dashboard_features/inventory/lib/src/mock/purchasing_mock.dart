@@ -10,6 +10,7 @@
 /// - POST /purchasing/orders/{id}/receive (receivePurchaseOrder) — also used by Today
 /// - GET /purchasing/orders/{id}/receipts (listPoReceipts) — also used by Today
 /// - GET /purchasing/branches/{branch_id}/reorder-suggestions (reorderSuggestions)
+/// - GET /purchasing/orgs/{org_id}/last-prices (listPurchaseLastPrices)
 ///
 /// The suppliers list, the order lists and `GET /purchasing/orders/{id}`
 /// are shared reads.
@@ -530,4 +531,159 @@ void registerPurchasingMocks(MockServer server, MockDb db) {
     }
     return MockResponse.ok(groups);
   });
+  // The last price paid per ingredient (`list_last_prices`): per ingredient
+  // the asked supplier's lines first, then received (at the delivery's
+  // invoiced price) before ordered before cancelled, then the newest; else
+  // the same pick over every supplier (`source: any`). The price comes in
+  // every unit a line can use: the measure's units and the named pack.
+  server.on('GET', '/purchasing/orgs/{org_id}/last-prices', (req) {
+    req.requireCap('purchasing.orders.read');
+    final orgId = org(req);
+    final supplierId = req.query['supplier_id'];
+    final only = req.query['ingredient_ids']
+        ?.split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toSet();
+    final best = <String, (List<int>, MockRow)>{};
+    for (final po in orders.query(filters: {'org_id': orgId})) {
+      for (final l in lines.query(filters: {'purchase_order_id': po['id']})) {
+        final ingId = l['org_ingredient_id']! as String;
+        if (only != null && !only.contains(ingId)) continue;
+        final ing = db[InvTables.ingredients].find(ingId);
+        if (ing == null) continue;
+        // The line's latest delivery (not a return) with a cost.
+        MockRow? receipt;
+        MockRow? receiptLine;
+        for (final r in receipts.query(
+          filters: {'purchase_order_id': po['id']},
+          sort: '-received_at',
+        )) {
+          if (r['is_return'] == true) continue;
+          for (final rl
+              in ((r['lines'] as List?) ?? const []).cast<MockRow>()) {
+            if (rl['purchase_order_line_id'] == l['id'] &&
+                ((rl['quantity'] as num?) ?? 0) > 0 &&
+                rl['unit_cost_exact'] != null) {
+              receipt = r;
+              receiptLine = rl;
+              break;
+            }
+          }
+          if (receipt != null) break;
+        }
+        final factor = (l['units_per_purchase_unit'] as num).toDouble();
+        final unitPrice = receiptLine != null
+            ? (receiptLine['unit_cost_exact']! as num).toDouble() * factor
+            : (l['unit_cost_exact'] as num).toDouble();
+        final fromSupplier =
+            supplierId != null && po['supplier_id'] == supplierId;
+        final tier = receipt != null
+            ? 0
+            : po['status'] == 'cancelled'
+            ? 2
+            : 1;
+        final at = (receipt?['received_at'] ?? po['created_at']) as String;
+        final rank = <int>[
+          fromSupplier ? 0 : 1,
+          tier,
+          -DateTime.parse(at).millisecondsSinceEpoch,
+        ];
+        final prev = best[ingId];
+        if (prev != null && !_ranksBefore(rank, prev.$1)) continue;
+        best[ingId] = (
+          rank,
+          {
+            'org_ingredient_id': ingId,
+            'source': fromSupplier ? 'supplier' : 'any',
+            'supplier_id': po['supplier_id'],
+            'supplier_name': po['supplier_id'] == null
+                ? null
+                : suppliers.find(po['supplier_id']! as String)?['name'],
+            'po_id': po['id'],
+            'po_status': po['status'],
+            'received': receipt != null,
+            'ordered_at': po['created_at'],
+            'received_at': receipt?['received_at'],
+            'unit': l['purchase_unit'],
+            'unit_price': _dp6(unitPrice),
+            'prices': _lastPriceUnits(
+              ing,
+              l['purchase_unit']! as String,
+              factor,
+              unitPrice,
+            ),
+          },
+        );
+      }
+    }
+    final out = best.values.map((e) => e.$2).toList()
+      ..sort(
+        (a, b) => compareJson(a['org_ingredient_id'], b['org_ingredient_id']),
+      );
+    return MockResponse.ok(out);
+  });
+}
+
+/// True when [a] sorts strictly before [b], element by element.
+bool _ranksBefore(List<int> a, List<int> b) {
+  for (var i = 0; i < a.length && i < b.length; i++) {
+    if (a[i] != b[i]) return a[i] < b[i];
+  }
+  return false;
+}
+
+/// Base stock units in one [unit] of [ing]: its named pack's size, else the
+/// unit conversion within its measure; null when it does not convert.
+double? _basePer(MockRow ing, String unit) {
+  final base = ing['unit']! as String;
+  final pack = ing['pack_unit'] as String?;
+  final size = (ing['pack_size'] as num?)?.toDouble();
+  if (pack != null &&
+      pack.isNotEmpty &&
+      size != null &&
+      size > 0 &&
+      unit.toLowerCase() == pack.toLowerCase()) {
+    return size;
+  }
+  // Scaled up so the conversion's 3 dp rounding costs nothing.
+  final v = rules.unitConvert(qty: 1e6, fromUnit: unit, toUnit: base);
+  return v == null || v <= 0 ? null : v / 1e6;
+}
+
+/// The remembered price in every unit a new line for [ing] may use
+/// (`last_price_in_units`): the remembered unit keeps its price exactly,
+/// another goes through the price per base unit.
+List<MockRow> _lastPriceUnits(
+  MockRow ing,
+  String unit,
+  double storedFactor,
+  double unitPrice,
+) {
+  final oldBasePer =
+      _basePer(ing, unit) ?? (storedFactor > 0 ? storedFactor : null);
+  final targets = [...rules.unitsOf(base: ing['unit']! as String)];
+  final pack = ing['pack_unit'] as String?;
+  final size = (ing['pack_size'] as num?)?.toDouble();
+  if (pack != null &&
+      pack.isNotEmpty &&
+      size != null &&
+      size > 0 &&
+      !targets.any((t) => t.toLowerCase() == pack.toLowerCase())) {
+    targets.add(pack);
+  }
+  final out = <MockRow>[];
+  for (final target in targets) {
+    double? price;
+    if (target.toLowerCase() == unit.toLowerCase()) {
+      price = unitPrice;
+    } else {
+      final newBasePer = _basePer(ing, target);
+      if (oldBasePer != null && newBasePer != null) {
+        price = unitPrice / oldBasePer * newBasePer;
+      }
+    }
+    if (price != null) out.add({'unit': target, 'unit_price': _dp6(price)});
+  }
+  return out;
 }

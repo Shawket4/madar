@@ -1330,6 +1330,8 @@
  "inventory.purchasing.invoiceTotal": "إجمالي الفاتورة (ج.م)",
  "inventory.purchasing.unitCostLocked": "تكلفة الوحدة (ج.م لكل {{unit}})",
  "inventory.purchasing.unitCostLockedHint": "محسوبة من إجمالي السطر ÷ الكمية. غيّر أيًا منهما لتتغير.",
+ "inventory.purchasing.lastPrice": "آخر سعر: {{price}} / {{unit}} · {{date}}",
+ "inventory.purchasing.lastPriceOtherSupplier": "من مورد آخر",
  "inventory.purchasing.unitCostUnit": "وحدة",
  "inventory.reports.title": "تقارير المخزون",
  "inventory.reports.valuation": "التقييم",
