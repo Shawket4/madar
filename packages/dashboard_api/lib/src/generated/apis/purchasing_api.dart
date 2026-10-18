@@ -198,6 +198,42 @@ class PurchasingApi {
     );
   }
 
+  /// The last price paid per ingredient, to prefill a new purchase order line.
+  ///
+  /// For each ingredient: the most recent PO line from `supplier_id`, preferring
+  /// a received line (at the price its delivery was invoiced at) over one only
+  /// ordered, and either over a cancelled order's; failing that, the same pick
+  /// over every supplier (`source = "any"`). Ingredients never purchased are
+  /// absent. Read-only, derived from purchase orders and goods receipts.
+  ///
+  /// `GET /purchasing/orgs/{org_id}/last-prices` (list_purchase_last_prices)
+  Future<List<LastPrice>> listPurchaseLastPrices({
+    required String orgId,
+    String? supplierId,
+    String? ingredientIds,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/purchasing/orgs/${pathSegment(orgId)}/last-prices',
+        query: {
+          if (supplierId != null) 'supplier_id': [queryValue(supplierId)],
+          if (ingredientIds != null)
+            'ingredient_ids': [queryValue(ingredientIds)],
+        },
+      ),
+    );
+    return decodeResponse(
+      response,
+      'list_purchase_last_prices',
+      (json) => decList<LastPrice>(
+        json,
+        'list_purchase_last_prices',
+        (e) => decObject(e, 'list_purchase_last_prices[]', LastPrice.fromJson),
+      ),
+    );
+  }
+
   /// `GET /purchasing/orgs/{org_id}/orders` (list_org_purchase_orders)
   Future<List<PurchaseOrder>> listOrgPurchaseOrders({
     required String orgId,

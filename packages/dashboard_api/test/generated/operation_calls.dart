@@ -4464,6 +4464,20 @@ final List<OperationCall> operationCalls = [
     (api, s) => api.purchasing.submitPurchaseOrder(id: 'p-id'),
   ),
   OperationCall(
+    'list_purchase_last_prices',
+    'GET',
+    '/purchasing/orgs/{org_id}/last-prices',
+    '/purchasing/orgs/p-org-id/last-prices',
+    ['supplier_id', 'ingredient_ids'],
+    [],
+    'json',
+    (api, s) => api.purchasing.listPurchaseLastPrices(
+      orgId: 'p-org-id',
+      supplierId: 'text',
+      ingredientIds: 'text',
+    ),
+  ),
+  OperationCall(
     'list_org_purchase_orders',
     'GET',
     '/purchasing/orgs/{org_id}/orders',
