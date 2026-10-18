@@ -148,6 +148,7 @@ its outbox op commit in ONE transaction; acks fold the server's answer in.
 - **A new POS-visible backend table needs a changefeed trigger** (MadarRust:
   `sync_emit` trigger + a `sync_source_tables()` entry + the migration header;
   the migration tests enforce it). Without one the POS silently never sees it.
+- **madar-shared is private.** CI authenticates with the `MADAR_SHARED_TOKEN` secret; local builds need git credentials for github.com (`gh auth setup-git`).
 - **Report formula changes regenerate the shared vectors.** The till report /
   drawer fold is madar-shared's (`madar_till::report`); a change to the figures
   regenerates `madar-shared/crates/madar-till/vectors/till_report_vectors.json`
