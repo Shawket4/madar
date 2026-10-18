@@ -12,8 +12,10 @@ class PullResponse {
     this.data,
     required this.full,
     required this.hasMore,
+    this.ledgerRetentionHours,
     this.ledgerWindow,
     this.next,
+    this.protocol,
     this.resyncRequired,
     required this.serverTime,
     this.since,
@@ -41,12 +43,17 @@ class PullResponse {
     data: decJsonMapN(json['data'], 'PullResponse.data'),
     full: decBool(json['full'], 'PullResponse.full'),
     hasMore: decBool(json['has_more'], 'PullResponse.has_more'),
+    ledgerRetentionHours: decIntN(
+      json['ledger_retention_hours'],
+      'PullResponse.ledger_retention_hours',
+    ),
     ledgerWindow: decObjectN(
       json['ledger_window'],
       'PullResponse.ledger_window',
       LedgerWindow.fromJson,
     ),
     next: decIntN(json['next'], 'PullResponse.next'),
+    protocol: decIntN(json['protocol'], 'PullResponse.protocol'),
     resyncRequired: decBoolN(
       json['resync_required'],
       'PullResponse.resync_required',
@@ -77,9 +84,16 @@ class PullResponse {
 
   final bool hasMore;
 
+  /// v2: how long (hours) a ledger row stays on the incremental feed; a
+  /// cursor older than that is answered `resync_required`.
+  final int? ledgerRetentionHours;
+
   final LedgerWindow? ledgerWindow;
 
   final int? next;
+
+  /// The negotiated sync protocol; only when the request named one.
+  final int? protocol;
 
   final bool? resyncRequired;
 
@@ -105,9 +119,14 @@ class PullResponse {
     if (data != null || explicitNulls.contains('data')) 'data': data,
     'full': full,
     'has_more': hasMore,
+    if (ledgerRetentionHours != null ||
+        explicitNulls.contains('ledger_retention_hours'))
+      'ledger_retention_hours': ledgerRetentionHours,
     if (ledgerWindow != null || explicitNulls.contains('ledger_window'))
       'ledger_window': ledgerWindow?.toJson(),
     if (next != null || explicitNulls.contains('next')) 'next': next,
+    if (protocol != null || explicitNulls.contains('protocol'))
+      'protocol': protocol,
     if (resyncRequired != null || explicitNulls.contains('resync_required'))
       'resync_required': resyncRequired,
     'server_time': serverTime,

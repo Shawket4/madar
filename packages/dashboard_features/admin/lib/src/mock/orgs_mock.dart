@@ -294,6 +294,8 @@ void registerOrgsMocks(MockServer server, MockDb db) {
       customBranding: false,
       isActive: true,
       modules: b.modules ?? const ['pos'],
+      plan: 'paid',
+      signupSource: 'admin',
       socialLinks: const {},
     );
     orgs.insert(org.toJson());

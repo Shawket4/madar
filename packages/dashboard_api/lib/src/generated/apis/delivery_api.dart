@@ -195,23 +195,14 @@ class DeliveryApi {
   }
 
   /// `PUT /delivery/channel-addon-overrides` (upsert_channel_addon_override)
-  Future<ChannelAddonOverride> upsertChannelAddonOverride({
+  Future<void> upsertChannelAddonOverride({
     required ChannelAddonOverrideInput body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'PUT',
         path: '/delivery/channel-addon-overrides',
         body: body.toJson(),
-      ),
-    );
-    return decodeResponse(
-      response,
-      'upsert_channel_addon_override',
-      (json) => decObject(
-        json,
-        'upsert_channel_addon_override',
-        ChannelAddonOverride.fromJson,
       ),
     );
   }
@@ -266,23 +257,14 @@ class DeliveryApi {
   }
 
   /// `PUT /delivery/channel-overrides` (upsert_channel_override)
-  Future<ChannelMenuOverride> upsertChannelOverride({
+  Future<void> upsertChannelOverride({
     required ChannelOverrideInput body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'PUT',
         path: '/delivery/channel-overrides',
         body: body.toJson(),
-      ),
-    );
-    return decodeResponse(
-      response,
-      'upsert_channel_override',
-      (json) => decObject(
-        json,
-        'upsert_channel_override',
-        ChannelMenuOverride.fromJson,
       ),
     );
   }

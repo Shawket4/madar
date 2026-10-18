@@ -257,6 +257,8 @@ void main() {
             customBranding: false,
             isActive: true,
             modules: const ['pos'],
+            plan: 'paid',
+            signupSource: 'admin',
             socialLinks: const {},
           ).toJson(),
         );

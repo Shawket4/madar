@@ -223,7 +223,7 @@ Signatures abbreviated; `→` is the return type. `[online]` = fails offline wit
   costCurrency, costAmount, costLabel}], recent[LoyaltyLedgerView], anyItem, anyItemCost}` [online].
 - `loyaltyAward(orderId?, orderKey?, orderCreatedAt, token?, phone?, customerId?) →
   LoyaltyAwardOutcome{member?, queued, alreadyCollected, pointsAwarded, headline, detail}`
-  (already phrased; works offline → `queued`) · `loyaltyAwardWindowOpen(orderCreatedAt, now) → bool` [sync].
+  (already phrased; ONLINE-ONLY: offline or a failed call is `MadarError.validation` worded `loyalty.award_offline`, nothing queued; `queued` is always false) · `loyaltyAwardWindowOpen(orderCreatedAt, now) → bool` [sync].
 
 ### Shift, drawer, reports
 - `currentShift() → ShiftView?{id, branchId, tellerId, tellerName, openingCashMinor, openedAt,
@@ -461,7 +461,7 @@ on the segment falls back to Bills.
 | ✓ Sale #1042 · amount · method · change | `ReceiptView{orderNumber, totalMinor, paymentLabel, changeMinor}`; for a bill, the acked order id → `orderReceiptView(orderId)`; for online, `orderReceiptView(finalize.orderId)` |
 | ◐ Queued · #local | `receipt.queuedOffline` → `receipt.localOrderId` (`order.queued_hint`); bill settle returned `null` → queued (`waiter.queued`) |
 | Printed ✓ / Not printed — no printer › | `renderReceipt(...)` + `PrinterService` (transport from `deviceConfig()`); `cashDrawerKick(brand)` when `isCash`; no binding → `receipt.no_printer` linking to printer settings |
-| Add points | `loyaltyAward(orderId / orderKey: localOrderId, orderCreatedAt: createdAt, customerId)` → show `headline`/`detail` (queued / already collected / added) — works offline |
+| Add points | `loyaltyAward(orderId / orderKey: localOrderId, orderCreatedAt: createdAt, customerId)` → show `headline`/`detail` (already collected / added); offline → the error sentence, press again online |
 | Reprint | `renderReceipt` again (or `renderOrderReceipt(orderId)`) |
 | T5: Cleared / Not yet | `clearTable(tableId)`; dismiss = not yet (table stays `dirty`) |
 

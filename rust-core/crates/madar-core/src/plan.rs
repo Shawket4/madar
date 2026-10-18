@@ -202,7 +202,8 @@ impl MadarCore {
 
     /// The plan holds no stream: make sure none is open, and poll instead.
     /// The poll is the core's own fallback (`ensure_fallback_poll`): a pull
-    /// after each acked op (`nudge_sync`) plus a beat once a minute when idle.
+    /// after each acked op (`nudge_sync`) plus a beat from once a minute (busy)
+    /// to once every five minutes (idle): `scheduler::FREE_POLL_IDLE_MAX`.
     pub(crate) fn go_without_stream(&self) {
         if let Some(old) = self.realtime.lock().unwrap_or_else(|e| e.into_inner()).take() {
             old.stop();

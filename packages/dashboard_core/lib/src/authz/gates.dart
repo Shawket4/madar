@@ -12,7 +12,13 @@ import 'package:dashboard_core/src/routes/nav.dart';
 import 'package:dashboard_core/src/shell/shell_prefs.dart'
     show linkOpenerProvider;
 import 'package:dashboard_kit/dashboard_kit.dart'
-    show DashButton, DashErrorState;
+    show
+        DashBadge,
+        DashButton,
+        DashButtonSize,
+        DashButtonVariant,
+        DashErrorState,
+        DashType;
 import 'package:design_system/design_system.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -223,6 +229,142 @@ class PlanLocked extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Does the plan have [feature]? Unknown (not loaded yet) means yes, as
+/// everywhere in the plan gate.
+bool planHasFeature(Set<String>? features, String feature) =>
+    features == null || features.contains(feature);
+
+/// A part of a page that belongs to a paid feature, shown to a Free shop as
+/// what it is (the web's `PaidFeatureLock`, `components/app/
+/// paid-feature-lock.tsx`): visible, labelled "Paid plan", disabled, and one
+/// tap from asking Madar.
+///
+/// [child] is the real thing and is built only when the plan has the
+/// feature, so its reads never run on Free. [preview] is the static stand-in
+/// a Free shop sees instead: no data, no inputs that act.
+class PaidFeatureLock extends ConsumerWidget {
+  const PaidFeatureLock({
+    required this.feature,
+    this.title,
+    this.preview,
+    this.child,
+    super.key,
+  });
+
+  /// The `madar_plan::Feature` word.
+  final String feature;
+
+  /// What is locked, in the page's words; null = just the note.
+  final String? title;
+  final Widget? preview;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (planHasFeature(ref.watch(planFeaturesProvider), feature)) {
+      return child ?? const SizedBox.shrink();
+    }
+    final t = ref.watch(tProvider);
+    final c = context.madarColors;
+    final note = t('plan.lock.note');
+    final name = t('plan.features.$feature');
+    return Semantics(
+      key: ValueKey('paid-lock-$feature'),
+      container: true,
+      label: title == null ? note : '${title!}: $note',
+      child: Container(
+        padding: const EdgeInsets.all(Space.lg),
+        decoration: BoxDecoration(
+          color: c.surfaceAlt.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(Radii.card),
+          border: Border.all(color: c.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
+          children: [
+            Wrap(
+              spacing: Space.md,
+              runSpacing: Space.sm,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: Space.md,
+                  children: [
+                    Container(
+                      width: Space.xxl + Space.xs,
+                      height: Space.xxl + Space.xs,
+                      decoration: BoxDecoration(
+                        color: c.surfaceAlt,
+                        borderRadius: BorderRadius.circular(Radii.xs),
+                      ),
+                      alignment: Alignment.center,
+                      child: MadarIcon(
+                        'lock',
+                        size: IconSize.sm,
+                        tint: c.textSecondary,
+                      ),
+                    ),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: Space.sm,
+                            runSpacing: Space.xs,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (title != null)
+                                Text(
+                                  title!,
+                                  style: DashType.bodyMedium.copyWith(
+                                    color: c.textPrimary,
+                                  ),
+                                ),
+                              DashBadge(t('plan.lock.badge')),
+                            ],
+                          ),
+                          Text(
+                            note,
+                            style: DashType.small.copyWith(
+                              color: c.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                DashButton(
+                  key: ValueKey('paid-lock-$feature-contact'),
+                  label: t('plan.lock.cta'),
+                  icon: 'message-circle',
+                  variant: DashButtonVariant.outline,
+                  size: DashButtonSize.compact,
+                  onPressed: () => unawaited(
+                    ref.read(linkOpenerProvider)(
+                      madarWhatsAppUri(
+                        t('plan.upgrade.message', args: {'feature': name}),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (preview != null)
+              ExcludeSemantics(
+                child: IgnorePointer(
+                  child: Opacity(opacity: 0.55, child: preview),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

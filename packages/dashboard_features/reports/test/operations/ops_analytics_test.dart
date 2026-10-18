@@ -1,19 +1,17 @@
 // Operations › Items, Tellers, Waiters, Branches (REP-OPS-047…055, 063,
 // 064, 065, 066) and the table kit's states there (REP-ALL-018, 019).
 import 'package:dashboard_api/dashboard_api.dart'
-    show
-        AddonSalesRow,
-        BranchComparison,
-        CombinedItemSalesRow,
-        TellerStats,
-        WaiterStats;
+    show AddonSalesRow, BranchComparison, TellerStats, WaiterStats;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/area_seed.dart';
 import 'package:dashboard_reports/src/mock/operations_mock.dart';
+import 'package:dashboard_reports/src/operations/ops_analytics.dart';
 import 'package:dashboard_reports/src/operations/ops_charts.dart';
+import 'package:dashboard_reports/src/operations/ops_rank_table.dart';
+import 'package:dashboard_reports/src/operations/ops_report_kit.dart';
 import 'package:dashboard_reports/src/operations/ops_support.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,6 +28,11 @@ List<MockRow> _orders(DashHarness h, List<String> branchIds) {
   );
 }
 
+Finder get _rankFinder => inPage(find.byKey(const ValueKey('ops-items-table')));
+
+OpsRankTable<OpsItemRow> _rankTable(WidgetTester tester) =>
+    tester.widget<OpsRankTable<OpsItemRow>>(_rankFinder);
+
 DashDataTable<T> _table<T>(WidgetTester tester, String key) =>
     tester.widget<DashDataTable<T>>(inPage(find.byKey(ValueKey(key))));
 
@@ -43,31 +46,66 @@ void _expectRange(DashHarness h, MockCall call) {
   expect(DateTime.parse(call.query['to']!.single), DateTime.parse(s.to));
 }
 
+/// The titled table card [title] (the report kit's `OpsTableCard`).
+Finder _tableCard(String title) => inPage(
+  find.ancestor(of: find.text(title), matching: find.byType(OpsTableCard)),
+);
+
 void main() {
   group('Items', () {
-    testWidgets('REP-OPS-047 combined item sales, top 50: Name and Total '
-        'sold, 50 a page, no Columns menu, frameless', (tester) async {
+    testWidgets('REP-OPS-047 / item 7 the ranked Items table: combined item '
+        'sales, top 50, joined with the period\'s sales (revenue, category) '
+        'and the menu (pictures)', (tester) async {
       final h = await pumpOps(tester);
       await openTab(h, 'Items');
       final call = h.server.callsTo(itemsRoute).single;
       expect(call.path, '/reports/branches/$allBranchesId/items-combined');
       expect(call.query['limit'], ['50']);
       _expectRange(h, call);
-      final t = _table<CombinedItemSalesRow>(tester, 'ops-items-table');
-      expect(_headers<CombinedItemSalesRow>(tester, 'ops-items-table'), [
-        'Name',
-        'Total sold',
-      ]);
-      expect(t.pageSize, 50);
-      expect(t.hideViewOptions, isTrue);
-      expect(t.framed, isFalse);
-      final want = opsCombinedItems(_orders(h, SeedIds.sabahBranches));
+      // The Overview's read, the same key: one cache for both tabs.
+      expect(h.server.callsTo(salesRoute), hasLength(1));
+      final t = _rankTable(tester);
       expect(
-        [for (final r in t.rows) r.itemId],
-        [for (final r in want) r.itemId],
+        [t.lead.label, for (final c in t.columns) c.label],
+        ['Item', 'Sold', 'Revenue', 'Share', 'Avg price'],
       );
-      expect(t.rows.first.totalQty, want.first.totalQty);
-      expect(inPage(find.text(want.first.itemName)), findsOneWidget);
+      expect(t.initialSort, (columnId: 'quantity', descending: true));
+      final want = opsCombinedItems(_orders(h, SeedIds.sabahBranches));
+      expect([for (final r in t.rows) r.id], [for (final r in want) r.itemId]);
+      expect(
+        [for (final r in t.rows) r.rank],
+        [for (var i = 1; i <= want.length; i++) i],
+      );
+      expect(t.rows.first.quantity, want.first.totalQty);
+      // Revenue, share and average price are the sales report's figures.
+      final sales = opsBranchSales(
+        branchId: allBranchesId,
+        branchName: 'x',
+        orders: _orders(h, SeedIds.sabahBranches),
+      );
+      final sold = {
+        for (final c in sales.byCategory)
+          for (final i in c.items) i.menuItemId: (i, c.categoryName),
+      };
+      final total = t.rows.fold<int>(0, (a, r) => a + r.revenue);
+      expect(total, greaterThan(0));
+      for (final r in t.rows) {
+        final s = sold[r.id];
+        expect(r.revenue, s?.$1.revenue ?? 0);
+        expect(r.category, s?.$2);
+        expect(r.share, closeTo(r.revenue / total, 1e-9));
+        if (s != null && s.$1.quantitySold > 0) {
+          expect(r.avgPrice, (s.$1.revenue / s.$1.quantitySold).round());
+        }
+      }
+      expect(t.rows.fold<double>(0, (a, r) => a + r.share), closeTo(1, 1e-9));
+      expect(inPage(find.text(t.rows.first.name)), findsOneWidget);
+      // The figures read end-aligned, in the app's money format.
+      final f = h.container.read(formatProvider);
+      expect(
+        inPage(find.text(dashFigure(f.fmtMoney(t.rows.first.revenue)))),
+        findsWidgets,
+      );
       expect(pageText(h.t('analytics.tabs.items')), findsWidgets);
       await h.shot('operations/items');
     });
@@ -105,21 +143,30 @@ void main() {
       }
     });
 
-    testWidgets('REP-OPS-047 / 048 errors: each table its own error and '
-        'Retry, asking only its read again', (tester) async {
+    testWidgets('REP-OPS-047 / 048 errors: each table card its own card '
+        'error and Retry (the charts\' look, web b448fd9), asking only its '
+        'read again', (tester) async {
       final s = opsServer();
       final refusal = MockResponse.error(500, 'The items read failed');
       s.server.fail('GET', itemsRoute, refusal, times: null);
       final h = await pumpOps(tester, server: s.server, db: s.db);
       await openTab(h, 'Items');
-      final items = inPage(find.byKey(const ValueKey('ops-items-table')));
+      final items = _tableCard('Items');
       expect(
         find.descendant(of: items, matching: find.text("Couldn't load this")),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: items, matching: textHas(h.refusalWords(refusal))),
-        findsOneWidget,
+        find.descendant(of: items, matching: find.byType(DashDataTable)),
+        findsNothing,
+      );
+      // The add-ons card is untouched.
+      expect(
+        find.descendant(
+          of: _tableCard('Addon Sales'),
+          matching: find.text("Couldn't load this"),
+        ),
+        findsNothing,
       );
       await h.shot('operations/items-failed');
       s.server.clearFailures();
@@ -157,9 +204,10 @@ void main() {
       final h = await pumpOps(tester, server: s.server, db: s.db);
       final gate = s.server.hold('GET', itemsRoute);
       await openTab(h, 'Items');
+      expect(_rankTable(tester).loading, isTrue);
       expect(
-        _table<CombinedItemSalesRow>(tester, 'ops-items-table').loading,
-        isTrue,
+        find.descendant(of: _rankFinder, matching: find.byType(DashSkeleton)),
+        findsWidgets,
       );
       gate.release();
       await h.settle();
@@ -209,12 +257,12 @@ void main() {
       await h.shot('operations/tellers');
     });
 
-    testWidgets('REP-OPS-050 Teller Details: Role, Orders, Revenue, AOV, '
+    testWidgets('REP-OPS-050 Teller Details: Teller, Orders, Revenue, AOV, '
         '"Order voided", Tills; 50 a page', (tester) async {
       final h = await pumpOps(tester);
       await openTab(h, 'Tellers');
       expect(_headers<TellerStats>(tester, 'ops-tellers-table'), [
-        'Role',
+        'Teller',
         'Orders',
         'Revenue',
         'AOV',
@@ -423,12 +471,12 @@ void main() {
       await h.shot('operations/branches');
     });
 
-    testWidgets('REP-OPS-055 Branch Details: Branches, Orders, Revenue, AOV, '
+    testWidgets('REP-OPS-055 Branch Details: Branch, Orders, Revenue, AOV, '
         'Void Rate (1 dp percent)', (tester) async {
       final h = await pumpOps(tester);
       await openTab(h, 'Branches');
       expect(_headers<BranchComparison>(tester, 'ops-branches-table'), [
-        'Branches',
+        'Branch',
         'Orders',
         'Revenue',
         'AOV',
@@ -473,7 +521,7 @@ void main() {
       final h = await pumpOps(tester, server: s.server, db: s.db);
       await openTab(h, 'Branches');
       expect(pageText("Couldn't load this"), findsNWidgets(2));
-      expect(inPage(textHas(h.refusalWords(refusal))), findsOneWidget);
+      expect(pageText('Retry'), findsNWidgets(2));
     });
   });
 

@@ -7,6 +7,7 @@ class LoginResponse {
   const LoginResponse({
     required this.currencyCode,
     this.openTill,
+    this.plan,
     this.requireTableForOrders,
     required this.taxPolicy,
     required this.taxRate,
@@ -25,6 +26,7 @@ class LoginResponse {
       'LoginResponse.open_till',
       TillBrief.fromJson,
     ),
+    plan: decStringN(json['plan'], 'LoginResponse.plan'),
     requireTableForOrders: decBoolN(
       json['require_table_for_orders'],
       'LoginResponse.require_table_for_orders',
@@ -42,6 +44,11 @@ class LoginResponse {
   final String currencyCode;
 
   final TillBrief? openTill;
+
+  /// The organization's plan: `free` | `paid` (`madar-plan`; an old client that
+  /// does not read it behaves as before, and a missing value is `paid`).
+  /// A till also learns it from the sync feed's branch settings.
+  final String? plan;
 
   /// Every dine-in sale belongs to a table.
   ///
@@ -72,6 +79,7 @@ class LoginResponse {
     'currency_code': currencyCode,
     if (openTill != null || explicitNulls.contains('open_till'))
       'open_till': openTill?.toJson(),
+    if (plan != null || explicitNulls.contains('plan')) 'plan': plan,
     if (requireTableForOrders != null ||
         explicitNulls.contains('require_table_for_orders'))
       'require_table_for_orders': requireTableForOrders,

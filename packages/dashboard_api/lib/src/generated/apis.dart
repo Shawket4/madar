@@ -49,6 +49,7 @@ part 'apis/refunds_api.dart';
 part 'apis/reports_api.dart';
 part 'apis/reservations_api.dart';
 part 'apis/shifts_api.dart';
+part 'apis/signup_api.dart';
 part 'apis/staff_api.dart';
 part 'apis/staff_auth_api.dart';
 part 'apis/staff_pool_api.dart';

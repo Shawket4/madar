@@ -32,6 +32,14 @@ pub struct PullResponse {
     pub full: bool,
     #[serde(rename = "has_more")]
     pub has_more: bool,
+    /// v2: how long (hours) a ledger row stays on the incremental feed; a cursor older than that is answered `resync_required`.
+    #[serde(
+        rename = "ledger_retention_hours",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ledger_retention_hours: Option<Option<i64>>,
     #[serde(
         rename = "ledger_window",
         default,
@@ -46,6 +54,14 @@ pub struct PullResponse {
         skip_serializing_if = "Option::is_none"
     )]
     pub next: Option<Option<i64>>,
+    /// The negotiated sync protocol; only when the request named one.
+    #[serde(
+        rename = "protocol",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub protocol: Option<Option<u32>>,
     #[serde(rename = "resync_required", skip_serializing_if = "Option::is_none")]
     pub resync_required: Option<bool>,
     #[serde(rename = "server_time")]
@@ -79,8 +95,10 @@ impl PullResponse {
             data: None,
             full,
             has_more,
+            ledger_retention_hours: None,
             ledger_window: None,
             next: None,
+            protocol: None,
             resync_required: None,
             server_time,
             since: None,

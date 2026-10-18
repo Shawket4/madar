@@ -74,6 +74,8 @@ abstract final class AdminSeed {
       customBranding: false,
       isActive: true,
       modules: const ['pos', 'dawam'],
+      plan: 'paid',
+      signupSource: 'admin',
       receiptFooter: 'Shukran — we hope to see you again soon.',
       socialLinks: const {'instagram': 'https://instagram.com/layalibistro'},
     ),
@@ -91,6 +93,8 @@ abstract final class AdminSeed {
       customBranding: false,
       isActive: false,
       modules: const ['pos'],
+      plan: 'paid',
+      signupSource: 'admin',
       socialLinks: const {},
     ),
   ];

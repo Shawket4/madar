@@ -18,10 +18,12 @@ class Org {
     this.maxWarehouses,
     required this.modules,
     required this.name,
+    required this.plan,
     this.receiptFooter,
     required this.requireTableForOrders,
     required this.serviceChargeRate,
     required this.serviceChargeTaxable,
+    required this.signupSource,
     this.slug,
     required this.socialLinks,
     required this.taxInclusive,
@@ -60,6 +62,7 @@ class Org {
       (e) => decString(e, 'Org.modules[]'),
     ),
     name: decString(json['name'], 'Org.name'),
+    plan: decString(json['plan'], 'Org.plan'),
     receiptFooter: decStringN(json['receipt_footer'], 'Org.receipt_footer'),
     requireTableForOrders: decBool(
       json['require_table_for_orders'],
@@ -73,6 +76,7 @@ class Org {
       json['service_charge_taxable'],
       'Org.service_charge_taxable',
     ),
+    signupSource: decString(json['signup_source'], 'Org.signup_source'),
     slug: decStringN(json['slug'], 'Org.slug'),
     socialLinks: decJsonMap(json['social_links'], 'Org.social_links'),
     taxInclusive: decBool(json['tax_inclusive'], 'Org.tax_inclusive'),
@@ -118,6 +122,11 @@ class Org {
 
   final String name;
 
+  /// `free` | `paid`. What the organization may use (madar-plan): Free is
+  /// POS only, one branch, one till; Paid is the whole product. Super admin
+  /// changes it (`PATCH /orgs/{id}`).
+  final String plan;
+
   final String? receiptFooter;
 
   /// Every dine-in sale must belong to a table. No effect where a branch has
@@ -130,6 +139,9 @@ class Org {
 
   /// Whether the service charge is itself taxed.
   final bool serviceChargeTaxable;
+
+  /// `admin` (the super admin made the org) | `self` (the shop signed up).
+  final String signupSource;
 
   /// `None` when the shop has no address of its own. Never an empty string —
   /// the column holds NULL for that and a CHECK keeps it so.
@@ -175,11 +187,13 @@ class Org {
       'max_warehouses': maxWarehouses,
     'modules': modules,
     'name': name,
+    'plan': plan,
     if (receiptFooter != null || explicitNulls.contains('receipt_footer'))
       'receipt_footer': receiptFooter,
     'require_table_for_orders': requireTableForOrders,
     'service_charge_rate': serviceChargeRate,
     'service_charge_taxable': serviceChargeTaxable,
+    'signup_source': signupSource,
     if (slug != null || explicitNulls.contains('slug')) 'slug': slug,
     'social_links': socialLinks,
     'tax_inclusive': taxInclusive,

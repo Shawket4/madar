@@ -590,6 +590,17 @@ BranchSalesReport opsBranchSales({
   }
 
   final ranked = byItem.entries.toList()..sort(rank);
+  // Pickup / Dine in (`by_service_mode`): a sale with no mode is Pickup, as
+  // is a delivery; both rows always come back.
+  final byMode = <String, (int, int)>{'takeaway': (0, 0), 'dine_in': (0, 0)};
+  for (final o in orders) {
+    if (!_sold(o)) continue;
+    final mode = (o['service_mode'] ?? o['order_type']) == 'dine_in'
+        ? 'dine_in'
+        : 'takeaway';
+    final (n, r) = byMode[mode]!;
+    byMode[mode] = (n + 1, r + _int(o['total_amount']));
+  }
   // Categories by name, items inside by quantity.
   final cats =
       <
@@ -625,6 +636,14 @@ BranchSalesReport opsBranchSales({
     totalTips: tips,
     cashTips: cashTips,
     revenueByMethod: s.byMethod,
+    byServiceMode: [
+      for (final e in byMode.entries)
+        ServiceModeSales(
+          serviceMode: e.key,
+          orders: e.value.$1,
+          revenue: e.value.$2,
+        ),
+    ],
     topItems: [for (final e in ranked.take(limit.clamp(1, 1000))) item(e)],
     byCategory: [
       for (final k in catKeys)

@@ -5,9 +5,8 @@
 ///   a dashed horizontal grid and a y axis of [OpsBarChart.yAxisWidth].
 /// - [OpsHBarChart]: horizontal bars (`layout="vertical"`) with a 110 px
 ///   name axis, the Tellers and Waiters leaderboards.
-/// - [OpsChartBody]: a chart card's body by state: a 288 px skeleton, a
-///   frameless error with Retry (never drawn as empty), the page's empty
-///   words, or the chart.
+/// - [OpsEqualRow]: two cards side by side at the taller one's height
+///   (the report kit's chart grid, `ops_report_kit.dart`).
 ///
 /// The plot area reads left to right in both languages (REP-ALL-020); the
 /// bars animate unless reduced motion is on. The kit's bar chart mirrors in
@@ -48,50 +47,6 @@ TextStyle _axisStyle(BuildContext context) => DashType.tableHeader.copyWith(
   color: context.madarColors.textSecondary,
   fontFeatures: const [FontFeature.tabularFigures()],
 );
-
-/// A chart card's body: loading, failed, empty or the chart.
-class OpsChartBody extends StatelessWidget {
-  const OpsChartBody({
-    required this.loading,
-    required this.failed,
-    required this.empty,
-    required this.emptyTitle,
-    required this.onRetry,
-    required this.chart,
-    this.height = opsChartHeight,
-    super.key,
-  });
-
-  final bool loading;
-  final bool failed;
-  final bool empty;
-  final String emptyTitle;
-  final VoidCallback onRetry;
-  final WidgetBuilder chart;
-
-  /// The skeleton's and the states' height (null = their own).
-  final double? height;
-
-  @override
-  Widget build(BuildContext context) {
-    if (loading) {
-      return DashSkeleton(height: height ?? opsChartHeight);
-    }
-    Widget sized(Widget w) => height == null
-        ? w
-        : SizedBox(
-            height: height,
-            child: Center(child: w),
-          );
-    if (failed) {
-      return sized(DashErrorState(framed: false, onRetry: onRetry));
-    }
-    if (empty) {
-      return sized(DashEmptyState(title: emptyTitle, framed: false));
-    }
-    return chart(context);
-  }
-}
 
 /// Vertical bars, every category labelled.
 class OpsBarChart extends StatelessWidget {

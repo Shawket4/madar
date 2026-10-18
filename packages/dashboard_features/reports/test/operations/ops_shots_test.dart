@@ -1,6 +1,6 @@
 // The Operations screenshot matrix: the default (Tables) at {phone, tablet,
 // desktop} x {en light, ar dark}, scrolled through the whole page; every
-// other tab, the history panel, the exclude list, the export menu and the
+// other tab at {desktop, phone} x {en, ar}; the history panel, the exclude list, the export menu and the
 // loading / failed / empty states at desktop-en-light and phone-ar-light.
 // Written only with FDASH_SHOTS set; the pages still render (and must not
 // overflow) without.
@@ -55,15 +55,27 @@ void main() {
     }
   }
 
+  // Every tab in both languages at both ends of the width range.
+  for (final size in [DashSize.desktop, DashSize.phone]) {
+    for (final lang in ['en', 'ar']) {
+      for (final tab in [
+        'overview',
+        'items',
+        'tellers',
+        'waiters',
+        'branches',
+      ]) {
+        testWidgets('tab $tab, ${size.name} $lang', (tester) async {
+          final h = await pumpOps(tester, size: size, locale: lang);
+          await openTab(h, h.t('reports.operations.tabs.$tab'));
+          await shootPage(h, tab);
+        });
+      }
+    }
+  }
+
   for (final (size, lang, dark) in _states) {
     final tag = '${size.name} $lang';
-    for (final tab in ['overview', 'items', 'tellers', 'waiters', 'branches']) {
-      testWidgets('tab $tab, $tag', (tester) async {
-        final h = await pumpOps(tester, size: size, locale: lang, dark: dark);
-        await openTab(h, h.t('reports.operations.tabs.$tab'));
-        await shootPage(h, tab);
-      });
-    }
 
     testWidgets('a branch picked (sections), $tag', (tester) async {
       final h = await pumpOps(

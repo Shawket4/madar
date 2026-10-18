@@ -101,6 +101,8 @@ const Map<String, String> coreDetailKeys = {
   'payment method not available here': 'err.payment_method_unavailable',
   'scan a card or type a phone number': 'err.scan_or_phone',
   'a reward can only be redeemed online': 'loyalty.reward_offline',
+  // Earning is online-only too: the press is refused, never queued.
+  'points can only be added online': 'loyalty.award_offline',
   // A line is a staff drink OR a reward, never both (the server refuses it).
   'a staff drink cannot also be taken as a reward': 'staff_pool.not_a_reward',
   // A combo is priced as a whole, and a deal already took its cut: neither

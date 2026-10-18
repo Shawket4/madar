@@ -26,4 +26,24 @@ class SyncApi {
       (json) => decObject(json, 'pull', PullResponse.fromJson),
     );
   }
+
+  /// POST /sync/replay/batch
+  ///
+  /// `POST /sync/replay/batch` (replay_batch)
+  Future<ReplayBatchResponse> replayBatch({
+    required ReplayBatchRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/sync/replay/batch',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'replay_batch',
+      (json) => decObject(json, 'replay_batch', ReplayBatchResponse.fromJson),
+    );
+  }
 }

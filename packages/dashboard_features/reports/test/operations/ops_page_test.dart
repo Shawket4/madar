@@ -85,7 +85,8 @@ void main() {
     expect(find.text(h.t('reports.noAccess')), findsNothing);
     expect(opsPage, findsOneWidget);
     expect(h.server.callsTo(metricsRoute, method: 'POST'), hasLength(1));
-    expect(pageText(h.t('tablesInsights.loadFailed')), findsOneWidget);
+    // Each card fails on its own (web b448fd9).
+    expect(pageText("Couldn't load this"), findsNWidgets(3));
   });
 
   testWidgets('REP-ALL-030 (divergence SH-10) nothing renders and nothing is '
@@ -117,13 +118,13 @@ void main() {
       'period\'s words; a preset change rewords it', (tester) async {
     final h = await pumpOps(tester);
     expect(pageText(h.t('reports.operations.title')), findsOneWidget);
-    // The page's subtitle and the Tables sub-heading's (REP-ALL-021).
-    expect(pageText('Last 30 days'), findsNWidgets(2));
+    // The page's subtitle only: Tables has no header of its own (b448fd9).
+    expect(pageText('Last 30 days'), findsOneWidget);
     await h.container
         .read(scopeProvider.notifier)
         .setPreset(ScopePreset.last7Days);
     await h.settle();
-    expect(pageText('Last 7 days'), findsNWidgets(2));
+    expect(pageText('Last 7 days'), findsOneWidget);
     expect(pageText('Last 30 days'), findsNothing);
   });
 

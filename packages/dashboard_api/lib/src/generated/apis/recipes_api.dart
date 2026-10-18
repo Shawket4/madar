@@ -47,22 +47,16 @@ class RecipesApi {
   }
 
   /// `POST /recipes/addons/{addon_item_id}` (upsert_addon_ingredient)
-  Future<AddonIngredient> upsertAddonIngredient({
+  Future<void> upsertAddonIngredient({
     required String addonItemId,
     required UpsertAddonIngredientRequest body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'POST',
         path: '/recipes/addons/${pathSegment(addonItemId)}',
         body: body.toJson(),
       ),
-    );
-    return decodeResponse(
-      response,
-      'upsert_addon_ingredient',
-      (json) =>
-          decObject(json, 'upsert_addon_ingredient', AddonIngredient.fromJson),
     );
   }
 
@@ -88,21 +82,16 @@ class RecipesApi {
   }
 
   /// `POST /recipes/drinks/{menu_item_id}` (upsert_drink_recipe)
-  Future<DrinkRecipe> upsertDrinkRecipe({
+  Future<void> upsertDrinkRecipe({
     required String menuItemId,
     required UpsertDrinkRecipeRequest body,
   }) async {
-    final response = await _transport.send(
+    await _transport.send(
       ApiRequest(
         method: 'POST',
         path: '/recipes/drinks/${pathSegment(menuItemId)}',
         body: body.toJson(),
       ),
-    );
-    return decodeResponse(
-      response,
-      'upsert_drink_recipe',
-      (json) => decObject(json, 'upsert_drink_recipe', DrinkRecipe.fromJson),
     );
   }
 

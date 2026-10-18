@@ -15,6 +15,7 @@ class Device {
     this.label,
     required this.lastSeenAt,
     required this.orgId,
+    this.planInactive,
     this.platform,
     this.retiredAt,
     this.explicitNulls = const {},
@@ -31,6 +32,7 @@ class Device {
     label: decStringN(json['label'], 'Device.label'),
     lastSeenAt: decDateTime(json['last_seen_at'], 'Device.last_seen_at'),
     orgId: decString(json['org_id'], 'Device.org_id'),
+    planInactive: decBoolN(json['plan_inactive'], 'Device.plan_inactive'),
     platform: decStringN(json['platform'], 'Device.platform'),
     retiredAt: decDateTimeN(json['retired_at'], 'Device.retired_at'),
   );
@@ -56,6 +58,11 @@ class Device {
 
   final String orgId;
 
+  /// The Free plan switched this till off (it is not its branch's active
+  /// one): it shows "This till isn't active" instead of the sell screen.
+  /// Always `false` on Paid.
+  final bool? planInactive;
+
   final String? platform;
 
   final DateTime? retiredAt;
@@ -77,6 +84,8 @@ class Device {
     if (label != null || explicitNulls.contains('label')) 'label': label,
     'last_seen_at': encDateTime(lastSeenAt),
     'org_id': orgId,
+    if (planInactive != null || explicitNulls.contains('plan_inactive'))
+      'plan_inactive': planInactive,
     if (platform != null || explicitNulls.contains('platform'))
       'platform': platform,
     if (retiredAt != null || explicitNulls.contains('retired_at'))

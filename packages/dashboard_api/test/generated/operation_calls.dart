@@ -145,6 +145,17 @@ final List<OperationCall> operationCalls = [
     ),
   ),
   OperationCall(
+    'device_session',
+    'POST',
+    '/auth/device-session',
+    '/auth/device-session',
+    [],
+    ['X-Madar-Device', 'X-Madar-Device-Token'],
+    'json',
+    (api, s) =>
+        api.auth.deviceSession(xMadarDevice: 'text', xMadarDeviceToken: 'text'),
+  ),
+  OperationCall(
     'login',
     'POST',
     '/auth/login',
@@ -941,7 +952,7 @@ final List<OperationCall> operationCalls = [
     '/delivery/channel-addon-overrides',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.delivery.upsertChannelAddonOverride(
       body: ChannelAddonOverrideInput.fromJson(s('ChannelAddonOverrideInput')),
     ),
@@ -978,7 +989,7 @@ final List<OperationCall> operationCalls = [
     '/delivery/channel-overrides',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.delivery.upsertChannelOverride(
       body: ChannelOverrideInput.fromJson(s('ChannelOverrideInput')),
     ),
@@ -2434,7 +2445,7 @@ final List<OperationCall> operationCalls = [
     '/addon-items',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.createAddonItem(
       body: CreateAddonItemRequest.fromJson(s('CreateAddonItemRequest')),
     ),
@@ -2484,7 +2495,7 @@ final List<OperationCall> operationCalls = [
     '/addon-items/p-id',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.updateAddonItem(
       id: 'p-id',
       body: UpdateAddonItemRequest.fromJson(s('UpdateAddonItemRequest')),
@@ -2520,7 +2531,7 @@ final List<OperationCall> operationCalls = [
     '/branch-addon-overrides',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.upsertBranchAddonOverride(
       body: BranchAddonOverrideInput.fromJson(s('BranchAddonOverrideInput')),
     ),
@@ -2553,7 +2564,7 @@ final List<OperationCall> operationCalls = [
     '/branch-menu-overrides',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.upsertBranchMenuOverride(
       body: BranchMenuOverrideInput.fromJson(s('BranchMenuOverrideInput')),
     ),
@@ -2816,7 +2827,7 @@ final List<OperationCall> operationCalls = [
     'GET',
     '/menu-items',
     '/menu-items',
-    ['org_id', 'category_id', 'full', 'branch_id'],
+    ['org_id', 'category_id', 'full', 'branch_id', 'shape'],
     [],
     'json',
     (api, s) => api.menu.listMenuItems(
@@ -2824,6 +2835,7 @@ final List<OperationCall> operationCalls = [
       categoryId: 'text',
       full: true,
       branchId: 'text',
+      shape: 'text',
     ),
   ),
   OperationCall(
@@ -2888,7 +2900,7 @@ final List<OperationCall> operationCalls = [
     '/menu-items/p-id/addon-slots',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.createAddonSlot(
       id: 'p-id',
       body: CreateAddonSlotRequest.fromJson(s('CreateAddonSlotRequest')),
@@ -2911,7 +2923,7 @@ final List<OperationCall> operationCalls = [
     '/menu-items/p-id/addon-slots/p-slot-id',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.updateAddonSlot(
       id: 'p-id',
       slotId: 'p-slot-id',
@@ -2925,7 +2937,7 @@ final List<OperationCall> operationCalls = [
     '/menu-items/p-id/allowed-addons',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.putAllowedAddons(
       id: 'p-id',
       body: PutAllowedAddonsRequest.fromJson(s('PutAllowedAddonsRequest')),
@@ -2994,7 +3006,7 @@ final List<OperationCall> operationCalls = [
     '/menu-items/p-id/optionals',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.createOptionalField(
       id: 'p-id',
       body: CreateOptionalFieldRequest.fromJson(
@@ -3019,7 +3031,7 @@ final List<OperationCall> operationCalls = [
     '/menu-items/p-id/optionals/p-field-id',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.updateOptionalField(
       id: 'p-id',
       fieldId: 'p-field-id',
@@ -3048,7 +3060,7 @@ final List<OperationCall> operationCalls = [
     '/menu-items/p-id/overrides',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.listAddonOverrides(id: 'p-id'),
   ),
   OperationCall(
@@ -3058,7 +3070,7 @@ final List<OperationCall> operationCalls = [
     '/menu-items/p-id/overrides',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.menu.upsertAddonOverride(
       id: 'p-id',
       body: UpsertAddonOverrideRequest.fromJson(
@@ -3812,10 +3824,10 @@ final List<OperationCall> operationCalls = [
     'GET',
     '/orgs',
     '/orgs',
-    [],
+    ['plan', 'signup_source'],
     [],
     'json',
-    (api, s) => api.orgs.listOrgs(),
+    (api, s) => api.orgs.listOrgs(plan: 'text', signupSource: 'text'),
   ),
   OperationCall(
     'create_org',
@@ -3921,6 +3933,29 @@ final List<OperationCall> operationCalls = [
     ),
   ),
   OperationCall(
+    'get_menu_display',
+    'GET',
+    '/orgs/{id}/links-page/menu-display',
+    '/orgs/p-id/links-page/menu-display',
+    [],
+    [],
+    'json',
+    (api, s) => api.orgs.getMenuDisplay(id: 'p-id'),
+  ),
+  OperationCall(
+    'put_menu_display',
+    'PUT',
+    '/orgs/{id}/links-page/menu-display',
+    '/orgs/p-id/links-page/menu-display',
+    [],
+    [],
+    'json',
+    (api, s) => api.orgs.putMenuDisplay(
+      id: 'p-id',
+      body: MenuDisplayInput.fromJson(s('MenuDisplayInput')),
+    ),
+  ),
+  OperationCall(
     'upload_org_logo',
     'PUT',
     '/orgs/{id}/logo',
@@ -3972,6 +4007,39 @@ final List<OperationCall> operationCalls = [
     [],
     'json',
     (api, s) => api.orgs.completeOnboarding(id: 'p-id'),
+  ),
+  OperationCall(
+    'get_org_plan',
+    'GET',
+    '/orgs/{id}/plan',
+    '/orgs/p-id/plan',
+    [],
+    [],
+    'json',
+    (api, s) => api.orgs.getOrgPlan(id: 'p-id'),
+  ),
+  OperationCall(
+    'put_active_till',
+    'PUT',
+    '/orgs/{id}/plan/active-till',
+    '/orgs/p-id/plan/active-till',
+    [],
+    [],
+    'json',
+    (api, s) => api.orgs.putActiveTill(
+      id: 'p-id',
+      body: ActiveTillRequest.fromJson(s('ActiveTillRequest')),
+    ),
+  ),
+  OperationCall(
+    'public_menu_display',
+    'GET',
+    '/public/menu-display',
+    '/public/menu-display',
+    ['org_id', 'slug'],
+    [],
+    'json',
+    (api, s) => api.orgs.publicMenuDisplay(orgId: 'text', slug: 'text'),
   ),
   OperationCall(
     'public_org_brand',
@@ -4626,7 +4694,16 @@ final List<OperationCall> operationCalls = [
     'GET',
     '/orgs/{id}/links-qr',
     '/orgs/p-id/links-qr',
-    ['card', 'caption', 'dpi', 'bleed_mm', 'crop_marks', 'svg', 'module_px'],
+    [
+      'card',
+      'caption',
+      'dpi',
+      'bleed_mm',
+      'crop_marks',
+      'svg',
+      'module_px',
+      'target',
+    ],
     [],
     'json',
     (api, s) => api.qr.orgLinksQr(
@@ -4638,6 +4715,7 @@ final List<OperationCall> operationCalls = [
       cropMarks: true,
       svg: true,
       modulePx: 7,
+      target: 'text',
     ),
   ),
   OperationCall(
@@ -4753,7 +4831,7 @@ final List<OperationCall> operationCalls = [
     '/recipes/addons/p-addon-item-id',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.recipes.upsertAddonIngredient(
       addonItemId: 'p-addon-item-id',
       body: UpsertAddonIngredientRequest.fromJson(
@@ -4778,7 +4856,7 @@ final List<OperationCall> operationCalls = [
     '/recipes/drinks/p-menu-item-id',
     [],
     [],
-    'json',
+    'void',
     (api, s) => api.recipes.upsertDrinkRecipe(
       menuItemId: 'p-menu-item-id',
       body: UpsertDrinkRecipeRequest.fromJson(s('UpsertDrinkRecipeRequest')),
@@ -5712,6 +5790,41 @@ final List<OperationCall> operationCalls = [
     [],
     'json',
     (api, s) => api.shifts.getShiftReport(shiftId: 'p-shift-id'),
+  ),
+  OperationCall(
+    'signup',
+    'POST',
+    '/public/signup',
+    '/public/signup',
+    [],
+    [],
+    'json',
+    (api, s) =>
+        api.signup.signup(body: SignupRequest.fromJson(s('SignupRequest'))),
+  ),
+  OperationCall(
+    'signup_otp',
+    'POST',
+    '/public/signup/otp',
+    '/public/signup/otp',
+    [],
+    [],
+    'json',
+    (api, s) => api.signup.signupOtp(
+      body: SignupOtpRequest.fromJson(s('SignupOtpRequest')),
+    ),
+  ),
+  OperationCall(
+    'signup_verify',
+    'POST',
+    '/public/signup/verify',
+    '/public/signup/verify',
+    [],
+    [],
+    'json',
+    (api, s) => api.signup.signupVerify(
+      body: SignupVerifyRequest.fromJson(s('SignupVerifyRequest')),
+    ),
   ),
   OperationCall(
     'list_adjustments',
@@ -7409,6 +7522,18 @@ final List<OperationCall> operationCalls = [
     'json',
     (api, s) =>
         api.sync.pull(since: 7, body: PullRequest.fromJson(s('PullRequest'))),
+  ),
+  OperationCall(
+    'replay_batch',
+    'POST',
+    '/sync/replay/batch',
+    '/sync/replay/batch',
+    [],
+    [],
+    'json',
+    (api, s) => api.sync.replayBatch(
+      body: ReplayBatchRequest.fromJson(s('ReplayBatchRequest')),
+    ),
   ),
   OperationCall(
     'legacy_list_till_entities',
