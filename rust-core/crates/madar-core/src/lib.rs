@@ -32,6 +32,7 @@ pub mod tax;
 pub mod bookings;
 pub mod cart;
 pub(crate) mod catalog_pricing;
+pub(crate) mod compact_menu;
 /// Combos on the till: the combo sheet, its live figures, "make it a meal".
 pub mod combos;
 /// The item sheet's "Last: …" chip: an item as this device last sold it.
@@ -7032,6 +7033,23 @@ impl MadarCore {
         out
     }
 
+    /// The `full=true` menu as the array `menu::K_MENU_ITEMS` holds. Asks for
+    /// the compact body (`compact_menu`) and puts its group options back; an
+    /// older server's array is kept as it came. A body this till cannot read
+    /// whole is never stored: the plain array is fetched once instead.
+    async fn fetch_menu_items(&self, q: &[(&str, String)]) -> Result<String, CoreError> {
+        let mut cq = q.to_vec();
+        cq.push((compact_menu::QUERY.0, compact_menu::QUERY.1.into()));
+        let body = self.api.get_text("/menu-items", &cq).await?;
+        match compact_menu::rows_to_store(body) {
+            Ok(rows) => Ok(rows),
+            Err(why) => {
+                obs::capture_bg_warning("catalog.compact_menu_fallback", format!("{why}; fetching the plain menu"));
+                self.api.get_text("/menu-items", q).await
+            }
+        }
+    }
+
     async fn refresh_catalog_inner(&self, force: bool) -> Result<(), CoreError> {
         use madar_api::apis::{discounts_api, menu_api, payment_methods_api};
 
@@ -7043,7 +7061,7 @@ impl MadarCore {
         if let Some(b) = &branch_id {
             q.push(("branch_id", b.clone()));
         }
-        let menu_items_json = self.api.get_text("/menu-items", &q).await?;
+        let menu_items_json = self.fetch_menu_items(&q).await?;
 
         // Addons — the plain `/addon-items` array (NOT `/catalog`): it's
         // branch-effective AND embeds each addon's ingredients (the recipe
