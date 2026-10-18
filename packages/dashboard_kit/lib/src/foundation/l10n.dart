@@ -210,19 +210,37 @@ class DashKitFormats {
   /// Western digits and separators, no bidi marks — `numberingSystem: latn`.
   static String _latin(String s) => s
       .replaceAllMapped(
-        RegExp('[٠-٩]'),
+        _arabicDigits,
         (m) => '${m.group(0)!.codeUnitAt(0) - 0x0660}',
       )
       .replaceAll('٫', '.')
       .replaceAll('٬', ',')
       .replaceAll('٪', '%')
-      .replaceAll(RegExp('[\u200e\u200f\u061c]'), '');
+      .replaceAll(_bidiMarks, '');
+
+  static final RegExp _arabicDigits = RegExp('[٠-٩]');
+  static final RegExp _bidiMarks = RegExp('[\u200e\u200f\u061c]');
+
+  // Formatters are built once per shape and kept: a KPI counting up formats
+  // every frame, and a table formats every cell, and building an intl
+  // formatter parses its pattern each time.
+  static final Map<String, NumberFormat> _numberFormats = {};
+  static final Map<String, DateFormat> _dateFormats = {};
+
+  static NumberFormat _nf(String key, NumberFormat Function() make) =>
+      _numberFormats[key] ??= make();
+
+  static DateFormat _df(String pattern, String locale) =>
+      _dateFormats['$pattern|$locale'] ??= DateFormat(pattern, locale);
 
   /// A grouped figure with Western digits: `12,500.5`.
   String figure(num n, {int minDecimals = 0, int maxDecimals = 2}) {
-    final f = NumberFormat.decimalPattern('en_US')
-      ..minimumFractionDigits = minDecimals
-      ..maximumFractionDigits = maxDecimals;
+    final f = _nf(
+      'fig|$minDecimals|$maxDecimals',
+      () => NumberFormat.decimalPattern('en_US')
+        ..minimumFractionDigits = minDecimals
+        ..maximumFractionDigits = maxDecimals,
+    );
     return f.format(n);
   }
 
@@ -265,30 +283,42 @@ class DashKitFormats {
   String moneyCompact(int? minor) {
     if (minor == null) return '—';
     final value = minor / 100;
-    final fig = (NumberFormat.compact(
-      locale: 'en_US',
-    )..maximumFractionDigits = 1).format(value.abs());
+    final fig = _nf(
+      'moneyCompact',
+      () => NumberFormat.compact(locale: 'en_US')..maximumFractionDigits = 1,
+    ).format(value.abs());
     return _moneyShape(fig, value < 0 && fig != '0' ? '-' : '');
   }
 
   /// A plain number in the language, Western digits, a true minus.
   String number(num n, {int maxDecimals = 3}) {
-    final f = NumberFormat.decimalPattern(arabic ? 'ar' : 'en_GB')
-      ..maximumFractionDigits = maxDecimals;
+    final locale = arabic ? 'ar' : 'en_GB';
+    final f = _nf(
+      'number|$locale|$maxDecimals',
+      () =>
+          NumberFormat.decimalPattern(locale)
+            ..maximumFractionDigits = maxDecimals,
+    );
     return _latin(f.format(n)).replaceAll('-', MadarFormat.minus);
   }
 
   /// `2.2K` / `2.2 ألف`.
   String numberCompact(num n) {
-    final f = NumberFormat.compact(locale: arabic ? 'ar' : 'en_GB')
-      ..maximumFractionDigits = 1;
+    final locale = arabic ? 'ar' : 'en_GB';
+    final f = _nf(
+      'compact|$locale',
+      () => NumberFormat.compact(locale: locale)..maximumFractionDigits = 1,
+    );
     return _latin(f.format(n)).replaceAll('-', MadarFormat.minus);
   }
 
   /// A ratio as a percent, one decimal: `12.3%`.
   String percent(num ratio) {
-    final f = NumberFormat.percentPattern(arabic ? 'ar' : 'en_GB')
-      ..maximumFractionDigits = 1;
+    final locale = arabic ? 'ar' : 'en_GB';
+    final f = _nf(
+      'percent|$locale',
+      () => NumberFormat.percentPattern(locale)..maximumFractionDigits = 1,
+    );
     return _latin(f.format(ratio)).replaceAll('-', MadarFormat.minus);
   }
 
@@ -296,19 +326,19 @@ class DashKitFormats {
   String date(DateTime? d) {
     if (d == null) return '—';
     _ensureDates();
-    return _latin(DateFormat('dd MMM yyyy', arabic ? 'ar' : 'en_GB').format(d));
+    return _latin(_df('dd MMM yyyy', arabic ? 'ar' : 'en_GB').format(d));
   }
 
   /// `October 2026`.
   String monthYear(DateTime d) {
     _ensureDates();
-    return _latin(DateFormat('MMMM yyyy', arabic ? 'ar' : 'en_GB').format(d));
+    return _latin(_df('MMMM yyyy', arabic ? 'ar' : 'en_GB').format(d));
   }
 
   /// Short weekday names, Saturday first (the app's week).
   List<String> weekdaysShort() {
     _ensureDates();
-    final f = DateFormat('EEE', arabic ? 'ar' : 'en_GB');
+    final f = _df('EEE', arabic ? 'ar' : 'en_GB');
     // 2024-01-06 is a Saturday.
     return [for (var i = 0; i < 7; i++) f.format(DateTime(2024, 1, 6 + i))];
   }

@@ -4,6 +4,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'foundation/defer.dart';
 import 'foundation/l10n.dart';
 import 'foundation/press.dart';
 import 'foundation/tokens.dart';
@@ -321,6 +322,76 @@ class _DashTextInputState extends State<DashTextInput> {
       ),
     );
   }
+}
+
+/// Lays out one [DashTextInput] offstage, once, [delay] after the app
+/// starts, so the first text field a person meets (a list's search on the
+/// first visit to Orders, the menu, a report's table) does not pay the
+/// engine's one-time text-input setup in that page's first frame. Nothing
+/// is painted, focused or announced; [child] lays out as if it were alone.
+class DashInputWarmup extends StatefulWidget {
+  const DashInputWarmup({
+    required this.child,
+    this.delay = const Duration(seconds: 2),
+    super.key,
+  });
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  State<DashInputWarmup> createState() => _DashInputWarmupState();
+}
+
+class _DashInputWarmupState extends State<DashInputWarmup> {
+  Timer? _timer;
+  bool _laying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!dashStagedBuild) return;
+    _timer = Timer(widget.delay, () {
+      if (!mounted) return;
+      setState(() => _laying = true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _laying = false);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.passthrough,
+    children: [
+      widget.child,
+      if (_laying)
+        PositionedDirectional(
+          start: 0,
+          top: 0,
+          width: DashMetrics.searchWidth,
+          child: Offstage(
+            child: ExcludeFocus(
+              child: Material(
+                type: MaterialType.transparency,
+                child: DashTextInput(
+                  value: '',
+                  onChanged: (_) {},
+                  placeholder: ' ',
+                  leadingIcon: 'search',
+                ),
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
 }
 
 /// The search box over a list (the web's `SearchInput`): a magnifier, the

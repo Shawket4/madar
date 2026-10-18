@@ -294,14 +294,18 @@ class RenderHomeEqualRow extends RenderBox
       // refetch landing in one card, the page not rebuilt) it relaid out
       // inside the old height and overflowed, and the row never measured
       // again. Not tight, its change relays out the row.
-      kids[i].layout(
-        BoxConstraints(
-          minWidth: widths[i],
-          maxWidth: widths[i],
-          minHeight: tallest,
-        ),
-        parentUsesSize: true,
-      );
+      // Already the tallest: laid out once (the trend chart and the payment
+      // mix do not lay out twice on every page visit).
+      if (kids[i].size.height < tallest) {
+        kids[i].layout(
+          BoxConstraints(
+            minWidth: widths[i],
+            maxWidth: widths[i],
+            minHeight: tallest,
+          ),
+          parentUsesSize: true,
+        );
+      }
       final dx = _textDirection == TextDirection.rtl
           ? width - x - widths[i]
           : x;

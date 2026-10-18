@@ -8,6 +8,7 @@ import 'buttons.dart';
 import 'controls.dart';
 import 'display.dart';
 import 'fields.dart';
+import 'foundation/defer.dart';
 import 'foundation/l10n.dart';
 import 'foundation/popover.dart';
 import 'foundation/press.dart';
@@ -154,6 +155,10 @@ class _DashEditableCardGridState<T> extends State<DashEditableCardGrid<T>> {
   String _search = '';
   int _page = 0;
 
+  /// Two rows of cards at once, then a row a frame ([DashStager]): a first
+  /// visit spreads the grid's build.
+  final DashStager _stager = DashStager(step: 4);
+
   bool get _serverPaging => widget.onPageChanged != null;
   bool get _serverSearch => widget.onSearchChanged != null;
 
@@ -270,6 +275,9 @@ class _DashEditableCardGridState<T> extends State<DashEditableCardGrid<T>> {
           );
 
     Widget grid;
+    if (widget.loading || filtered.isEmpty) {
+      _stager.count(0, showing: false, grow: (_) {});
+    }
     if (widget.loading) {
       grid = _GridLayout(
         children: [
@@ -280,9 +288,16 @@ class _DashEditableCardGridState<T> extends State<DashEditableCardGrid<T>> {
     } else if (filtered.isEmpty) {
       grid = widget.empty ?? DashEmptyState(title: t.noResults);
     } else {
+      final built = _stager.count(
+        paged.length,
+        showing: true,
+        grow: (fn) {
+          if (mounted) setState(fn);
+        },
+      );
       grid = _GridLayout(
         children: [
-          for (final r in paged)
+          for (final r in paged.take(built))
             DashIntent(
               onIntent: widget.onItemIntent == null
                   ? null

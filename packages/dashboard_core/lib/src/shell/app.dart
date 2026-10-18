@@ -9,6 +9,7 @@ import 'package:dashboard_core/src/session/session.dart';
 import 'package:dashboard_core/src/shell/prefetch.dart';
 import 'package:dashboard_core/src/shell/router.dart';
 import 'package:dashboard_core/src/shell/shell_prefs.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashInputWarmup;
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,7 +52,11 @@ class DashApp extends ConsumerWidget {
             child: DashKitScope(
               // Every kit control given `to:` warms that page on intent.
               child: DashRoutePrefetchScope(
-                child: _SessionGate(child: child ?? const SizedBox.shrink()),
+                // The first text field's one-time setup, off the first
+                // visit to a page with a search.
+                child: DashInputWarmup(
+                  child: _SessionGate(child: child ?? const SizedBox.shrink()),
+                ),
               ),
             ),
           ),

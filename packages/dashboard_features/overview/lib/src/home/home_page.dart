@@ -97,12 +97,16 @@ class HomePage extends ConsumerWidget {
             HomeReveal(child: trend),
             HomeReveal(order: 1, child: payments),
           ],
-          _WithHomeData(
-            scope: scope,
-            builder: (data) => HomeBranchPerformanceCard(data: data),
+          // Below the fold: built a frame apart after the first, so a first
+          // visit spreads its build instead of dropping frames in one.
+          DashDeferred(
+            child: _WithHomeData(
+              scope: scope,
+              builder: (data) => HomeBranchPerformanceCard(data: data),
+            ),
           ),
-          HomeMarginWatchCard(scope: scope),
-          HomeDeliverySection(scope: scope),
+          DashDeferred(frames: 2, child: HomeMarginWatchCard(scope: scope)),
+          DashDeferred(frames: 3, child: HomeDeliverySection(scope: scope)),
         ],
       ),
     );

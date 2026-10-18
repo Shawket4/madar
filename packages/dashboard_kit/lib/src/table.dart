@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'buttons.dart';
 import 'controls.dart';
 import 'display.dart';
+import 'foundation/defer.dart';
 import 'foundation/l10n.dart';
 import 'foundation/popover.dart';
 import 'foundation/press.dart';
@@ -317,6 +318,20 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
   /// A page restored from the page's memory, applied once rows arrive
   /// (the rows loading in would otherwise send it back to page 1).
   int? _pendingPage;
+
+  /// A first screenful of rows at once, the rest a chunk a frame
+  /// ([DashStager]): a first visit spreads the table's build.
+  final DashStager _stager = DashStager();
+
+  int _stage(List<T> shown, bool lazy) => _stager.count(
+    shown.length,
+    showing: !widget.loading && shown.isNotEmpty,
+    staged: !lazy,
+    // Not [setState]: nothing about the table's memory changed.
+    grow: (fn) {
+      if (mounted) super.setState(fn);
+    },
+  );
 
   bool get _manualPaging => widget.onPageChanged != null;
   bool get _usePages => widget.loadMore == null;
@@ -747,6 +762,8 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
                 : null,
             expandable: widget.expandedBuilder != null,
           );
+          final lazy = widget.expand && constraints.hasBoundedHeight;
+          final built = _stage(shown, lazy);
           final rowWidgets = widget.loading
               ? [
                   for (var i = 0; i < math.min(widget.pageSize, 6); i++)
@@ -757,7 +774,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
                     ),
                 ]
               : [
-                  for (var i = 0; i < shown.length; i++)
+                  for (var i = 0; i < built; i++)
                     _row(
                       context,
                       shown[i],
@@ -765,10 +782,15 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
                       widths,
                       i == shown.length - 1,
                     ),
+                  if (built < shown.length)
+                    SizedBox(
+                      height:
+                          (shown.length - built) * (DashMetrics.tableRow + 1),
+                    ),
                 ];
 
           Widget table;
-          if (widget.expand && constraints.hasBoundedHeight) {
+          if (lazy) {
             table = SizedBox(
               width: tableWidth,
               child: Column(
@@ -956,6 +978,7 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
   // ── Phone: cards ─────────────────────────────────────────────────────
 
   Widget _phoneList(BuildContext context, List<T> shown) {
+    final built = _stage(shown, false);
     if (widget.loading) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -969,7 +992,11 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: Space.sm,
-      children: [for (final r in shown) _phoneCard(context, r)],
+      children: [
+        for (final r in shown.take(built)) _phoneCard(context, r),
+        if (built < shown.length)
+          SizedBox(height: (shown.length - built) * (Space.xxl * 3 + Space.sm)),
+      ],
     );
   }
 
