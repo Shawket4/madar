@@ -31,6 +31,19 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         requestedOrientation = resolveLaunchOrientation()
         super.onCreate(savedInstanceState)
+        highRefresh.start()
+    }
+
+    private val highRefresh = HighRefreshRate(this)
+
+    override fun onResume() {
+        super.onResume()
+        highRefresh.apply()
+    }
+
+    override fun onDestroy() {
+        highRefresh.stop()
+        super.onDestroy()
     }
 
     private fun resolveLaunchOrientation(): Int {
