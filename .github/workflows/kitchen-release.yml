@@ -290,13 +290,8 @@ jobs:
           npx expo prebuild -p ios --clean
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" ios/MadarKitchen/Info.plist
 
-      # Archived UNSIGNED, then ad-hoc signed with the app's entitlements:
-      # signing the archive asked Apple for a new Apple Development
-      # certificate on every run (each runner is a fresh machine), until the
-      # team hit Apple's limit and every iOS release failed ("maximum number of
-      # certificates"). The export below signs for the App Store with Apple's
-      # cloud-managed distribution certificate and keeps the entitlements the
-      # ad-hoc signature carries (push: aps-environment → production).
+      # Archived UNSIGNED, then ad-hoc signed with the app's entitlements; the
+      # export below signs for the App Store. Why: tool/ios_adhoc_sign.sh.
       - name: Archive (unsigned) + entitlements
         if: steps.asc.outputs.ready == 'true'
         working-directory: apps/kitchen/ios
@@ -307,11 +302,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/MadarKitchen.xcarchive" \
             CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
-          APP=$(ls -d "$RUNNER_TEMP/MadarKitchen.xcarchive/Products/Applications/"*.app)
-          codesign --force --sign - --entitlements MadarKitchen/MadarKitchen.entitlements "$APP"
-          codesign -d --entitlements :- "$APP" > "$RUNNER_TEMP/entitlements.plist"
-          grep -q aps-environment "$RUNNER_TEMP/entitlements.plist" \
-            || { echo "::error::The archived app lost its push entitlement."; exit 1; }
+          "$GITHUB_WORKSPACE/tool/ios_adhoc_sign.sh" "$RUNNER_TEMP/MadarKitchen.xcarchive" MadarKitchen/MadarKitchen.entitlements
 
       # destination=upload: the export IS the upload, no altool/Transporter.
       - name: Upload to App Store Connect (TestFlight)

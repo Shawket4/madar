@@ -197,7 +197,10 @@ jobs:
       - name: Pub get
         run: dart pub get
 
-      - name: Archive (signed) + upload to TestFlight
+      # Archived UNSIGNED, then ad-hoc signed (the dashboard declares no
+      # entitlements: no Runner.entitlements); only the export signs, for the
+      # App Store. Why: tool/ios_adhoc_sign.sh.
+      - name: Archive (unsigned) + upload to TestFlight
         id: upload
         if: steps.asc.outputs.signed == 'true'
         continue-on-error: true
@@ -209,8 +212,9 @@ jobs:
                 -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
           xcodebuild archive -workspace ios/Runner.xcworkspace -scheme Runner \
             -configuration Release -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/Runner.xcarchive" "${AUTH[@]}" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic
+            -archivePath "$RUNNER_TEMP/Runner.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+          "$GITHUB_WORKSPACE/tool/ios_adhoc_sign.sh" "$RUNNER_TEMP/Runner.xcarchive"
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
