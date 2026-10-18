@@ -52,6 +52,17 @@ const String _only = String.fromEnvironment('PERF_ONLY');
 /// see what rebuilds and what a provider change cascades into.
 const bool _count = String.fromEnvironment('PERF_COUNT') == '1';
 
+/// `--dart-define=PERF_PATHS=/orders,/`: the pages `sidebar_navigation`
+/// visits, in place of its own list (one page with `PERF_TRACE=widgets`
+/// keeps that page's first frames in the timeline buffer).
+const String _paths = String.fromEnvironment('PERF_PATHS');
+
+/// `--dart-define=PERF_SEMANTICS=0`: run without the semantics tree.
+/// `testWidgets` turns semantics on by default, which a release app only
+/// builds with an assistive technology on; a first page visit then pays
+/// for its semantics too. Off, the timings are what most people get.
+const bool _semantics = String.fromEnvironment('PERF_SEMANTICS') != '0';
+
 /// Provider updates by provider (the hot shared ones by name).
 final class _ProviderCounts extends ProviderObserver {
   final Map<String, int> updates = {};
@@ -94,7 +105,9 @@ void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
 
-  testWidgets('dashboard frame timings', (tester) async {
+  testWidgets('dashboard frame timings', semanticsEnabled: _semantics, (
+    tester,
+  ) async {
     if (_dylib.isNotEmpty) await MadarCore.initForTest(dylibPath: _dylib);
     late ProviderContainer container;
     final providers = _ProviderCounts();
@@ -236,17 +249,20 @@ void main() {
     });
 
     await flow('sidebar_navigation', () async {
-      for (final p in const [
-        '/orders',
-        '/menu/items',
-        '/reports/operations',
-        '/inventory/ingredients',
-        '/staff/team',
-        '/customers',
-        '/reports/financial',
-        '/settings',
-        '/',
-      ]) {
+      for (final p
+          in _paths.isNotEmpty
+              ? _paths.split(',')
+              : const [
+                  '/orders',
+                  '/menu/items',
+                  '/reports/operations',
+                  '/inventory/ingredients',
+                  '/staff/team',
+                  '/customers',
+                  '/reports/financial',
+                  '/settings',
+                  '/',
+                ]) {
         await go(p, settle: 1200);
       }
     });

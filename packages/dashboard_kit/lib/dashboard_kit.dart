@@ -15,6 +15,7 @@ export 'src/display.dart';
 export 'src/editable_cards.dart';
 export 'src/fields.dart';
 export 'src/filters.dart';
+export 'src/foundation/defer.dart';
 export 'src/foundation/l10n.dart';
 export 'src/foundation/popover.dart';
 export 'src/foundation/press.dart';

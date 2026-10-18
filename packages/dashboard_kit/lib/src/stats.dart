@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import 'display.dart';
 import 'foundation/l10n.dart';
@@ -163,16 +164,15 @@ class DashStatValue extends StatelessWidget {
         var rep = reps.last;
         var size = sizes.last;
         var found = false;
+        // One painter for every candidate, each text formatted once.
+        final tp = TextPainter(textDirection: dir, maxLines: 1);
         for (final r in reps) {
+          final text = r(v);
           for (final s in sizes) {
-            final tp = TextPainter(
-              text: TextSpan(text: r(v), style: DashType.statFigure(s)),
-              textDirection: dir,
-              maxLines: 1,
-            )..layout();
-            final w = tp.width;
-            tp.dispose();
-            if (w <= avail) {
+            tp
+              ..text = TextSpan(text: text, style: DashType.statFigure(s))
+              ..layout();
+            if (tp.width <= avail) {
               rep = r;
               size = s;
               found = true;
@@ -181,6 +181,7 @@ class DashStatValue extends StatelessWidget {
           }
           if (found) break;
         }
+        tp.dispose();
         final shortened = rep(v) != exact;
         final isDecimal =
             format == DashStatFormat.money || format == DashStatFormat.percent;
@@ -567,40 +568,36 @@ class DashLedgerStrip extends StatelessWidget {
       final slice = items.sublist(i, math.min(i + cols, items.length));
       final footer = slice.any((it) => it.trend != null || it.hint != null);
       rows.add(
-        // Stretched to the row's tallest card (the web's grid cells).
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: gap,
-            children: [
-              for (final (j, it) in slice.indexed)
-                Expanded(
-                  // The web's staggerContainer(0.05) over listItem.
-                  child: DashEntrance(
-                    delay: Duration(milliseconds: 50 * (i + j)),
-                    rise: Space.xs + 2,
-                    child: DashStatCard(
-                      key: ValueKey(it.key),
-                      label: it.label,
-                      value: it.value,
-                      valueText: it.valueText,
-                      valueWidget: it.valueWidget,
-                      format: it.format,
-                      icon: it.icon,
-                      tone: it.tone,
-                      trend: it.trend,
-                      hint: it.hint,
-                      loading: it.loading,
-                      action: it.action,
-                      dense: isDense,
-                      reserveFooter: footer,
-                    ),
-                  ),
+        // Stretched to the row's tallest card (the web's grid cells), in
+        // one layout pass: no intrinsic pass over the cards first.
+        _EqualHeightRow(
+          slots: cols,
+          gap: gap,
+          textDirection: Directionality.of(context),
+          children: [
+            for (final (j, it) in slice.indexed)
+              // The web's staggerContainer(0.05) over listItem.
+              DashEntrance(
+                delay: Duration(milliseconds: 50 * (i + j)),
+                rise: Space.xs + 2,
+                child: DashStatCard(
+                  key: ValueKey(it.key),
+                  label: it.label,
+                  value: it.value,
+                  valueText: it.valueText,
+                  valueWidget: it.valueWidget,
+                  format: it.format,
+                  icon: it.icon,
+                  tone: it.tone,
+                  trend: it.trend,
+                  hint: it.hint,
+                  loading: it.loading,
+                  action: it.action,
+                  dense: isDense,
+                  reserveFooter: footer,
                 ),
-              for (var k = slice.length; k < cols; k++)
-                const Expanded(child: SizedBox.shrink()),
-            ],
-          ),
+              ),
+          ],
         ),
       );
     }
@@ -711,4 +708,164 @@ class DashAnimatedFigure extends StatelessWidget {
       ),
     );
   }
+}
+
+/// [children] side by side in [slots] equal columns [gap] apart (a short
+/// last row leaves its trailing slots empty), every child as tall as the
+/// tallest: each child is laid out once at its column's width, and only a
+/// shorter one again, at the tallest height. An [IntrinsicHeight] over a
+/// stretched [Row] did the same with an intrinsic pass over every card
+/// first, on every layout.
+class _EqualHeightRow extends MultiChildRenderObjectWidget {
+  const _EqualHeightRow({
+    required this.slots,
+    required this.gap,
+    required this.textDirection,
+    required super.children,
+  });
+
+  final int slots;
+  final double gap;
+  final TextDirection textDirection;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderEqualHeightRow(
+        slots: slots,
+        gap: gap,
+        textDirection: textDirection,
+      );
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderEqualHeightRow renderObject,
+  ) {
+    renderObject
+      ..slots = slots
+      ..gap = gap
+      ..textDirection = textDirection;
+  }
+}
+
+class _EqualHeightRowParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderEqualHeightRow extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _EqualHeightRowParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, _EqualHeightRowParentData> {
+  _RenderEqualHeightRow({
+    required int slots,
+    required double gap,
+    required TextDirection textDirection,
+  }) : _slots = slots,
+       _gap = gap,
+       _textDirection = textDirection;
+
+  int _slots;
+  set slots(int v) {
+    if (v == _slots) return;
+    _slots = v;
+    markNeedsLayout();
+  }
+
+  double _gap;
+  set gap(double v) {
+    if (v == _gap) return;
+    _gap = v;
+    markNeedsLayout();
+  }
+
+  TextDirection _textDirection;
+  set textDirection(TextDirection v) {
+    if (v == _textDirection) return;
+    _textDirection = v;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _EqualHeightRowParentData) {
+      child.parentData = _EqualHeightRowParentData();
+    }
+  }
+
+  double _slotWidth(double width) =>
+      math.max(0, (width - _gap * (_slots - 1)) / _slots);
+
+  @override
+  void performLayout() {
+    final width = constraints.maxWidth;
+    final w = _slotWidth(width);
+    var tallest = 0.0;
+    var child = firstChild;
+    while (child != null) {
+      // Never tight: a child with tight constraints is a relayout boundary,
+      // and a card whose content changes on its own must measure the row
+      // again.
+      child.layout(
+        BoxConstraints(minWidth: w, maxWidth: w),
+        parentUsesSize: true,
+      );
+      tallest = math.max(tallest, child.size.height);
+      child = childAfter(child);
+    }
+    var x = 0.0;
+    child = firstChild;
+    while (child != null) {
+      if (child.size.height < tallest) {
+        child.layout(
+          BoxConstraints(minWidth: w, maxWidth: w, minHeight: tallest),
+          parentUsesSize: true,
+        );
+      }
+      final dx = _textDirection == TextDirection.rtl ? width - x - w : x;
+      (child.parentData! as _EqualHeightRowParentData).offset = Offset(dx, 0);
+      x += w + _gap;
+      child = childAfter(child);
+    }
+    size = constraints.constrain(Size(width, tallest));
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      _tallest(width, (c, w) => c.getMinIntrinsicHeight(w));
+
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      _tallest(width, (c, w) => c.getMaxIntrinsicHeight(w));
+
+  double _tallest(double width, double Function(RenderBox, double) of) {
+    final w = width.isFinite ? _slotWidth(width) : double.infinity;
+    var h = 0.0;
+    var child = firstChild;
+    while (child != null) {
+      h = math.max(h, of(child, w));
+      child = childAfter(child);
+    }
+    return h;
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final w = _slotWidth(constraints.maxWidth);
+    var h = 0.0;
+    var child = firstChild;
+    while (child != null) {
+      h = math.max(
+        h,
+        child.getDryLayout(BoxConstraints(minWidth: w, maxWidth: w)).height,
+      );
+      child = childAfter(child);
+    }
+    return constraints.constrain(Size(constraints.maxWidth, h));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }
