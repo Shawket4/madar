@@ -16,7 +16,20 @@ import '../shared/inventory_labels.dart';
 
 /// The list's key: the location it reads (or the all-branches id), the
 /// direction and the status it sends (null = omitted).
-typedef TransfersKey = ({String branchId, String? direction, String? status});
+/// The list's key: the location, the direction, the status and how far
+/// "Load more" went (the window from the newest, `limit`).
+typedef TransfersKey = ({
+  String branchId,
+  String? direction,
+  String? status,
+  int limit,
+});
+
+/// The transfers list is a "Load more" window from the newest: the endpoint
+/// answers 100 rows when no limit is sent and caps `limit` at 500, so a
+/// plain read silently stopped at the latest 100 transfers.
+const int transfersWindow = 100;
+const int transfersWindowMax = 500;
 
 /// The differences report's key: the org and the scope's period.
 typedef DifferencesKey = ({String orgId, String from, String to});
@@ -52,8 +65,16 @@ String? tabStatus(String tab) => transferStatuses.contains(tab) ? tab : null;
 
 extension TransfersKeys on Scope {
   /// INV-TRF-002: the scoped location, or the all-branches id.
-  TransfersKey transfersKey({String? direction, String? status}) =>
-      (branchId: scopeBranchId, direction: direction, status: status);
+  TransfersKey transfersKey({
+    String? direction,
+    String? status,
+    int limit = transfersWindow,
+  }) => (
+    branchId: scopeBranchId,
+    direction: direction,
+    status: status,
+    limit: limit,
+  );
 
   /// INV-TRF-011: the org and the scope's period; null without an org.
   DifferencesKey? get differencesKey =>
@@ -61,7 +82,7 @@ extension TransfersKeys on Scope {
 }
 
 /// `GET /inventory/branches/{branch_id}/transfers` (listTransfers): the
-/// server's 100 newest.
+/// [TransfersKey.limit] newest (always sent, from offset 0).
 final transfersProvider = FutureProvider.autoDispose
     .family<List<StockTransfer>, TransfersKey>((ref, k) {
       ref.webCache();
@@ -75,6 +96,8 @@ final transfersProvider = FutureProvider.autoDispose
             branchId: k.branchId,
             direction: k.direction,
             status: k.status,
+            limit: k.limit,
+            offset: 0,
           );
     });
 

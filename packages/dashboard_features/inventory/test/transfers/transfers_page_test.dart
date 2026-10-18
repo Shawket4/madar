@@ -84,7 +84,7 @@ void main() {
     final h = await pumpTransfers(tester, branch: SeedIds.zamalek);
     final list = h.server.callsTo(listRoute).single;
     expect(list.path, '/inventory/branches/${SeedIds.zamalek}/transfers');
-    expect(list.query, isEmpty);
+    expect(list.query, win());
     expect(
       h.server.callsTo(locationsRoute).single.path,
       '/inventory/orgs/${SeedIds.sabahOrg}/transfer-locations',
@@ -202,9 +202,12 @@ void main() {
       'hides the direction control', (tester) async {
     final h = await pumpTransfers(tester, branch: SeedIds.zamalek);
     await h.tap(inPage(find.text('Requested')));
-    expect(h.server.callsTo(listRoute).last.query, {
-      'status': ['requested'],
-    });
+    expect(
+      h.server.callsTo(listRoute).last.query,
+      win({
+        'status': ['requested'],
+      }),
+    );
     expect(_refs(tester), ['TR-6']);
     await h.tap(inPage(find.text('All transfers')));
     expect(_refs(tester), _zamalek);
@@ -217,19 +220,28 @@ void main() {
       'direction is kept across status tabs', (tester) async {
     final h = await pumpTransfers(tester, branch: SeedIds.zamalek);
     await h.tap(inPage(find.text('Outgoing')));
-    expect(h.server.callsTo(listRoute).last.query, {
-      'direction': ['outgoing'],
-    });
+    expect(
+      h.server.callsTo(listRoute).last.query,
+      win({
+        'direction': ['outgoing'],
+      }),
+    );
     expect(_refs(tester), ['TR-3']);
     await h.tap(inPage(find.text('Received')));
-    expect(h.server.callsTo(listRoute).last.query, {
-      'direction': ['outgoing'],
-      'status': ['received'],
-    });
+    expect(
+      h.server.callsTo(listRoute).last.query,
+      win({
+        'direction': ['outgoing'],
+        'status': ['received'],
+      }),
+    );
     await h.tap(inPage(find.text('Both ways')));
-    expect(h.server.callsTo(listRoute).last.query, {
-      'status': ['received'],
-    });
+    expect(
+      h.server.callsTo(listRoute).last.query,
+      win({
+        'status': ['received'],
+      }),
+    );
     expect(_refs(tester), ['TR-5', 'TR-3', 'TR-2']);
   });
 
@@ -396,7 +408,8 @@ void main() {
     expect(inTable(find.text('No transfers found')), findsOneWidget);
   });
 
-  testWidgets('INV-TRF-010 ten rows a page, no search box', (tester) async {
+  testWidgets('INV-TRF-010 a window from the newest, no pages, no search '
+      'box', (tester) async {
     final s = transfersServer();
     final base = doc(s.db, 't1');
     for (var i = 0; i < 6; i++) {
@@ -408,9 +421,35 @@ void main() {
       }, timestamps: false);
     }
     final h = await pumpTransfers(tester, server: s.server, db: s.db);
-    expect(inTable(find.text('Page 1 of 2')), findsOneWidget);
+    // Fewer than a window: every row, no pager and no "Load more".
+    expect(inTable(find.text('Page 1 of 2')), findsNothing);
+    expect(inTable(find.text('Load more')), findsNothing);
     expect(inTable(find.byType(DashSearchInput)), findsNothing);
     expect(h.server.callsTo(listRoute), hasLength(1));
+    expect(h.server.callsTo(listRoute).single.query, win());
+  });
+
+  testWidgets('INV-TRF-010 a full window offers "Load more", which widens '
+      'it (never a silent cut at the server\'s 100)', (tester) async {
+    final s = transfersServer();
+    final base = doc(s.db, 't1');
+    for (var i = 0; i < 120; i++) {
+      s.db[InvTables.transfers].insert({
+        ...base,
+        'id': 'many-$i',
+        'number': 100 + i,
+        'reference': 'TR-${100 + i}',
+      }, timestamps: false);
+    }
+    final h = await pumpTransfers(tester, server: s.server, db: s.db);
+    expect(h.server.callsTo(listRoute).single.query, win());
+    final more = inTable(find.text('Load more'));
+    expect(more, findsOneWidget);
+    await h.tester.ensureVisible(more);
+    await h.tap(more);
+    expect(h.server.callsTo(listRoute).last.query, win({}, 200));
+    // Everything fits in the wider window: no more "Load more".
+    expect(inTable(find.text('Load more')), findsNothing);
   });
 
   testWidgets('INV-TRF-011 Differences: the org\'s received lines that '

@@ -14,11 +14,10 @@ import 'tills_support.dart';
 int _for(DashHarness h, String route, String id) =>
     h.server.callsTo(route).where((c) => c.path.contains(id)).length;
 
-/// List reads whose [param] is [value].
-int _lists(DashHarness h, String param, String value) => h.server
-    .callsTo(tillsList)
-    .where((c) => c.query[param]?.single == value)
-    .length;
+/// "All tills" page reads whose [param] is [value] (the Flagged KPI's own
+/// count read always has `flagged=true`, so it is left out).
+int _lists(DashHarness h, String param, String value) =>
+    pageReads(h).where((c) => c.query[param]?.single == value).length;
 
 Future<TestGesture> _mouse(WidgetTester tester) async {
   final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);

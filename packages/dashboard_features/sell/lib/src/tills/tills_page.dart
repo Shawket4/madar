@@ -7,7 +7,7 @@ library;
 import 'dart:async';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ForceCloseRequest, Till, TillPreFill;
+    show ForceCloseRequest, PaginatedTills, Till, TillPreFill;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show publicBrandProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -45,7 +45,12 @@ class TillsPage extends ConsumerStatefulWidget {
       warm(openBillsNoticeProvider(branchId));
     }
     final search = TillsSearch.fromQuery(warm.query);
-    if (!search.today) warm(tillsListProvider(tillsListKey(scope, search)));
+    // The page's server page, the Flagged KPI's count and the filter menus.
+    if (!search.today) {
+      warm(tillsListProvider(tillsListKey(scope, search)));
+      warm(tillsListProvider(tillsFlaggedKey(scope, search)));
+    }
+    warm(tillsListProvider(tillsOptionsKey(scope)));
     // `?report=`: the panel's report, summary and deductions.
     if (search.report case final till?) {
       warm(tillReportProvider(till));
@@ -68,6 +73,11 @@ class _TillsPageState extends ConsumerState<TillsPage> {
   );
   bool _panelOpen = false;
   bool _exporting = false;
+
+  /// The page on screen while the next page of the SAME filters loads
+  /// (`keepWhilePaging`), and the filters it was read under.
+  PaginatedTills? _shown;
+  TillsListKey? _shownKey;
 
   TillsSearch get _search => TillsSearch.fromQuery(widget.query);
 
@@ -142,8 +152,31 @@ class _TillsPageState extends ConsumerState<TillsPage> {
     return DateTime(now.year, now.month, now.day).toUtc();
   }
 
-  TillsListKey _listKey(Scope scope, TillsSearch s) =>
-      tillsListKey(scope, s, from: s.today ? _startOfToday() : null);
+  TillsListKey _listKey(Scope scope, TillsSearch s, {int? page}) =>
+      tillsListKey(
+        scope,
+        s,
+        from: s.today ? _startOfToday() : null,
+        page: page,
+      );
+
+  TillsListKey _flaggedKey(Scope scope, TillsSearch s) =>
+      tillsFlaggedKey(scope, s, from: s.today ? _startOfToday() : null);
+
+  /// A filter change starts again at page 1; `?report=` keeps the page.
+  void _setFilters(Map<String, String?> patch) =>
+      _setSearch({...patch, 'page': null});
+
+  void _setPage(int page) => _setSearch({'page': page > 1 ? '$page' : null});
+
+  /// Two keys for the same filters, whatever their page.
+  static bool _sameFilters(TillsListKey a, TillsListKey b) =>
+      a.branchId == b.branchId &&
+      a.status == b.status &&
+      a.tellerId == b.tellerId &&
+      a.deviceId == b.deviceId &&
+      a.flagged == b.flagged &&
+      a.from == b.from;
 
   // ── Actions ──────────────────────────────────────────────────────────
 
@@ -197,12 +230,18 @@ class _TillsPageState extends ConsumerState<TillsPage> {
     }
   }
 
-  /// The loaded rows, as they are, to `Madar-Tills-<today>.xlsx`
-  /// (SELL-TIL-058/059).
-  Future<void> _export(List<Till> rows) async {
+  /// Every till under the filters (every server page, not the one on
+  /// screen) to `Madar-Tills-<today>.xlsx` (SELL-TIL-058/059).
+  Future<void> _export(TillsListKey key) async {
     final t = ref.read(tProvider);
     setState(() => _exporting = true);
     try {
+      final api = apiWithHeaders(
+        ref.read(transportProvider),
+        exportRequestHeaders,
+      );
+      final rows = await fetchAllTills(api, key);
+      if (!mounted) return;
       final title = t('nav.tills');
       final config = ExcelConfig(
         filename: 'Madar-Tills',
@@ -256,8 +295,30 @@ class _TillsPageState extends ConsumerState<TillsPage> {
         : ref.watch(openBillsNoticeProvider(branchId));
     final key = _listKey(scope, search);
     final list = ref.watch(tillsListProvider(key));
+    // The Flagged KPI counts every page under the filters.
+    final flagged = ref.watch(tillsListProvider(_flaggedKey(scope, search)));
+    // The teller/device menus read the latest tills, not the page on screen.
+    final recent = ref.watch(tillsListProvider(tillsOptionsKey(scope)));
 
-    final rows = list.value?.data ?? const <Till>[];
+    // Paging keeps the previous page on screen (count, page total) while the
+    // next one loads; a filter change shows the skeleton.
+    if (list.value case final v?) {
+      _shown = v;
+      _shownKey = key;
+    }
+    final paging =
+        list.value == null &&
+        list.isLoading &&
+        _shownKey != null &&
+        _sameFilters(_shownKey!, key);
+    final data = list.value ?? (paging ? _shown : null);
+    final rows = data?.data ?? const <Till>[];
+    final totalPages = data?.totalPages ?? 0;
+    // A page past the end (tills deleted meanwhile): the last real page.
+    if (list.value != null && search.page > 1 && search.page > totalPages) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _setPage(totalPages));
+    }
+    final optionRows = [...?recent.value?.data, ...rows];
     final pre = current?.value;
     final myOpen = branchId != null && pre != null && pre.hasOpenTill
         ? pre.openTill
@@ -306,8 +367,8 @@ class _TillsPageState extends ConsumerState<TillsPage> {
           TillsKpis(
             openNow: openNow!,
             notice: notice!,
-            rows: rows,
-            listLoading: list.awaitingFirst,
+            flaggedCount: flagged.value?.total ?? 0,
+            flaggedLoading: flagged.awaitingFirst,
           ),
         if (branchId != null)
           OpenNowSection(
@@ -319,6 +380,13 @@ class _TillsPageState extends ConsumerState<TillsPage> {
         AllTillsSection(
           list: list,
           rows: rows,
+          total: data?.total,
+          loading: data == null && list.awaitingFirst || paging,
+          pageIndex: search.page - 1,
+          pageCount: list.hasError ? 0 : totalPages,
+          onPageChanged: (i) => _setPage(i + 1),
+          onPageIntent: (i) =>
+              ref.warm(tillsListProvider(_listKey(scope, search, page: i + 1))),
           showBranch: scope.isAllBranches,
           onOpenReport: _openReport,
           onRetry: () => ref.invalidate(tillsListProvider(key)),
@@ -334,8 +402,8 @@ class _TillsPageState extends ConsumerState<TillsPage> {
         DashExportButton(
           key: const ValueKey('tills-export'),
           loading: _exporting,
-          enabled: rows.isNotEmpty && !_exporting,
-          onExport: () => _export(rows),
+          enabled: (data?.total ?? 0) > 0 && !_exporting,
+          onExport: () => _export(key),
         ),
         if (branchId != null && myOpen == null)
           DashButton(
@@ -347,16 +415,16 @@ class _TillsPageState extends ConsumerState<TillsPage> {
       ],
       filters: TillFilters(
         search: search,
-        rows: rows,
-        onChange: _setSearch,
-        onIntent: (patch) => ref.warm(
-          tillsListProvider(
-            _listKey(
-              scope,
-              TillsSearch.fromQuery(patchQuery(widget.query, patch)),
-            ),
-          ),
-        ),
+        rows: optionRows,
+        onChange: _setFilters,
+        onIntent: (patch) {
+          final next = TillsSearch.fromQuery(
+            patchQuery(widget.query, {...patch, 'page': null}),
+          );
+          ref
+            ..warm(tillsListProvider(_listKey(scope, next)))
+            ..warm(tillsListProvider(_flaggedKey(scope, next)));
+        },
       ),
       body: body,
     );

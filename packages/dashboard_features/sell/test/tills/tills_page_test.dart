@@ -61,9 +61,14 @@ void main() {
       h.server.callsTo(tillsNotice).single.path,
       '/tills/branches/$_helio/open-bills-notice',
     );
-    final list = h.server.callsTo(tillsList).single;
+    // The table's first server page, never the unpaged full history.
+    final list = pageReads(h).single;
     expect(list.path, '/tills/branches/$_helio');
-    expect(list.query, isEmpty);
+    expect(list.query, pageQuery());
+    // Plus the Flagged KPI's count and the filter menus' window: three reads.
+    expect([
+      for (final c in h.server.callsTo(tillsList)) c.query,
+    ], unorderedEquals([pageQuery(), flaggedQuery(), optionsQuery]));
   });
 
   testWidgets('SELL-TIL-003 Status filter → ?status= → status', (tester) async {
@@ -74,27 +79,37 @@ void main() {
     );
     await pickFilter(h, 'filter-status', 'Closed');
     expect(h.location.queryParameters['status'], 'closed');
-    expect(h.server.callsTo(tillsList).last.query, {
-      'status': ['closed'],
-    });
+    expect(
+      pageReads(h).last.query,
+      pageQuery({
+        'status': ['closed'],
+      }),
+    );
     expect(inKey('tills-table', find.text('Open')), findsNothing);
     await pickFilter(h, 'filter-status', 'All statuses');
     expect(h.location.queryParameters.containsKey('status'), isFalse);
   });
 
-  testWidgets('SELL-TIL-004/064 Teller filter: the tellers of the loaded rows; '
-      'picking one leaves only that teller', (tester) async {
+  testWidgets('SELL-TIL-004/064 Teller filter: the tellers of the latest '
+      'tills; picking one leaves only that teller', (tester) async {
     final h = await pumpTills(tester);
     final options = filterOptions(h, 'filter-teller');
     expect(options.first, 'All tellers');
     expect(options, containsAll(['Ali Hassan', 'Farida Wael']));
     await pickFilter(h, 'filter-teller', 'Farida Wael');
     expect(h.location.queryParameters['teller'], SeedIds.user('farida'));
-    expect(h.server.callsTo(tillsList).last.query, {
-      'teller_id': [SeedIds.user('farida')],
-    });
-    // The rows now hold Farida only, so the other tellers are gone.
-    expect(filterOptions(h, 'filter-teller'), ['All tellers', 'Farida Wael']);
+    expect(
+      pageReads(h).last.query,
+      pageQuery({
+        'teller_id': [SeedIds.user('farida')],
+      }),
+    );
+    // The menu comes from the latest tills, not the page on screen: the
+    // other tellers stay pickable.
+    expect(
+      filterOptions(h, 'filter-teller'),
+      containsAll(['All tellers', 'Ali Hassan', 'Farida Wael']),
+    );
   });
 
   testWidgets('SELL-TIL-005 Device filter: label, else code → device_id', (
@@ -108,9 +123,12 @@ void main() {
     await pickFilter(h, 'filter-device', 'Counter 3');
     final id = mockUuid('device:heliopolis:T3');
     expect(h.location.queryParameters['device'], id);
-    expect(h.server.callsTo(tillsList).last.query, {
-      'device_id': [id],
-    });
+    expect(
+      pageReads(h).last.query,
+      pageQuery({
+        'device_id': [id],
+      }),
+    );
     expect(inKey('tills-table', find.text('Farida Wael')), findsNothing);
   });
 
@@ -122,7 +140,7 @@ void main() {
     expect(h.location.queryParameters['today'], 'true');
     final now = h.container.read(clockProvider)().toLocal();
     final midnight = DateTime(now.year, now.month, now.day).toUtc();
-    final from = h.server.callsTo(tillsList).last.query['from']!.single;
+    final from = pageReads(h).last.query['from']!.single;
     expect(DateTime.parse(from), midnight);
     // Only the tills opened since then.
     final today = [
@@ -139,15 +157,18 @@ void main() {
     final h = await pumpTills(tester);
     await h.tap(inKey('filter-flagged', find.text('Flagged only')));
     expect(h.location.queryParameters['flagged'], 'true');
-    expect(h.server.callsTo(tillsList).last.query, {
-      'flagged': ['true'],
-    });
+    expect(
+      pageReads(h).last.query,
+      pageQuery({
+        'flagged': ['true'],
+      }),
+    );
     expect(inPage(find.text('All tills')), findsOneWidget);
     expect(inKey('all-tills', find.text('1')), findsOneWidget);
     await h.tap(inKey('filter-flagged', find.text('Flagged only')));
     expect(h.location.queryParameters.containsKey('flagged'), isFalse);
     // The unfiltered list is still fresh in the cache: no request.
-    expect(h.server.callsTo(tillsList), hasLength(2));
+    expect(pageReads(h), hasLength(2));
     expect(
       inKey('all-tills', find.text('${tillsAt(h.db!, _helio).length}')),
       findsOneWidget,
@@ -161,10 +182,17 @@ void main() {
       tester,
       query: 'status=nope&flagged=1&teller=$farida&device=&today=false',
     );
-    expect(h.server.callsTo(tillsList).single.query, {
-      'teller_id': [farida],
-      'flagged': ['true'],
-    });
+    expect(
+      pageReads(h).single.query,
+      pageQuery({
+        'teller_id': [farida],
+        'flagged': ['true'],
+      }),
+    );
+    expect(TillsSearch.fromQuery({'page': '3'}).page, 3);
+    for (final junk in ['1', '0', '-2', 'x', '']) {
+      expect(TillsSearch.fromQuery({'page': junk}).page, 1, reason: junk);
+    }
     expect(TillsSearch.fromQuery({'status': 'open'}).status, 'open');
     expect(TillsSearch.fromQuery({'flagged': 'true'}).flagged, isTrue);
     expect(TillsSearch.fromQuery({'today': '0'}).today, isFalse);
@@ -185,6 +213,16 @@ void main() {
     );
     expect(text('old'), allOf(contains('Older than 3h'), contains('1')));
     expect(text('flagged'), allOf(contains('Flagged in list'), contains('1')));
+    // Counted by the server across every page (a one-row flagged read's
+    // total), never from the page on screen.
+    expect(
+      h.server
+          .callsTo(tillsList)
+          .where((c) => c.query['per_page']?.single == '1')
+          .single
+          .query,
+      flaggedQuery(),
+    );
     expect(tester.widget<DashStatCard>(card('open')).tone, DashTone.success);
     expect(tester.widget<DashStatCard>(card('old')).tone, DashTone.warning);
     expect(tester.widget<DashStatCard>(card('flagged')).tone, DashTone.warning);
@@ -428,11 +466,13 @@ void main() {
     expect(find.text('Till Report'), findsOneWidget);
   });
 
-  testWidgets('SELL-TIL-024 client paging, 20 a page, no Columns menu', (
+  testWidgets('SELL-TIL-024 server paging: 20 a page from the server, '
+      '?page= in the URL, a filter change is page 1, no Columns menu', (
     tester,
   ) async {
     final h = await pumpTills(tester);
     final pages = (tillsAt(h.db!, _helio).length / 20).ceil();
+    expect(pages, greaterThan(1), reason: 'the seed needs a second page');
     expect(inKey('tills-table', find.text('Page 1 of $pages')), findsOneWidget);
     expect(inKey('tills-table', find.text('Columns')), findsNothing);
     final next = find.descendant(
@@ -440,8 +480,32 @@ void main() {
       matching: find.bySemanticsLabel('Next'),
     );
     await h.tap(next);
+    expect(h.location.queryParameters['page'], '2');
+    expect(pageReads(h).last.query, pageQuery({}, 2));
     expect(inKey('tills-table', find.text('Page 2 of $pages')), findsOneWidget);
-    expect(h.server.callsTo(tillsList), hasLength(1));
+    expect(pageReads(h), hasLength(2));
+    // The total and the Flagged KPI are the server's, whatever the page.
+    expect(
+      inKey('all-tills', find.text('${tillsAt(h.db!, _helio).length}')),
+      findsOneWidget,
+    );
+    await pickFilter(h, 'filter-status', 'Closed');
+    expect(h.location.queryParameters.containsKey('page'), isFalse);
+    expect(
+      pageReads(h).last.query,
+      pageQuery({
+        'status': ['closed'],
+      }),
+    );
+  });
+
+  testWidgets('SELL-TIL-024 a page past the end goes to the last page', (
+    tester,
+  ) async {
+    final h = await pumpTills(tester, query: 'page=999');
+    final pages = (tillsAt(h.db!, _helio).length / 20).ceil();
+    await h.settle();
+    expect(h.location.queryParameters['page'], '$pages');
   });
 
   testWidgets('SELL-TIL-025 list loading: skeleton rows', (tester) async {
@@ -556,8 +620,8 @@ void main() {
     }
   });
 
-  testWidgets('SELL-TIL-058/059 Export: the loaded rows, one sheet "Tills", '
-      'the web columns', (tester) async {
+  testWidgets('SELL-TIL-058/059 Export: every till under the filters, one '
+      'sheet "Tills", the web columns', (tester) async {
     final h = await pumpTills(tester, query: 'flagged=true');
     await h.tap(find.byKey(const ValueKey('tills-export')));
     await h.expectToast('Exported 1 row');
@@ -583,8 +647,24 @@ void main() {
     expect(sheet.rows.single[7], '✓');
     expect(h.files.saved.single.filename, startsWith('Madar-Tills-'));
     expect(h.files.saved.single.filename, endsWith('.xlsx'));
-    // No re-read for the file.
-    expect(h.server.callsTo(tillsList), hasLength(1));
+    // The file walks the server's pages under the same filters.
+    expect(
+      h.server
+          .callsTo(tillsList)
+          .where(
+            (c) =>
+                c.query['per_page']?.single == '200' &&
+                c.query['flagged']?.single == 'true',
+          )
+          .map((c) => c.query),
+      [
+        {
+          'flagged': ['true'],
+          'page': ['1'],
+          'per_page': ['200'],
+        },
+      ],
+    );
   });
 
   testWidgets('SELL-TIL-058 Export failure toasts', (tester) async {
