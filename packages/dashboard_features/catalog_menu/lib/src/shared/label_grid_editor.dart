@@ -70,10 +70,14 @@ class LabelGridEditor extends ConsumerStatefulWidget {
 }
 
 class _LabelGridEditorState extends ConsumerState<LabelGridEditor> {
+  /// One focus node per cell, by the row's key (its ingredient) and the
+  /// column, never by the row's position: an edit can move a row (rows
+  /// follow the first column that carries them), and a node held by position
+  /// would hand the focus to the row that moved into its place.
   final Map<String, FocusNode> _nodes = {};
   String _newLabel = '';
 
-  FocusNode _node(int row, String col) =>
+  FocusNode _node(String row, String col) =>
       _nodes.putIfAbsent('$row|$col', FocusNode.new);
 
   @override
@@ -84,7 +88,7 @@ class _LabelGridEditorState extends ConsumerState<LabelGridEditor> {
     super.dispose();
   }
 
-  KeyEventResult _onKey(int row, String col, int rows, KeyEvent e) {
+  KeyEventResult _onKey(int row, String col, List<GridRow> rows, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     final shift = HardwareKeyboard.instance.isShiftPressed;
     final enter =
@@ -97,8 +101,8 @@ class _LabelGridEditorState extends ConsumerState<LabelGridEditor> {
         : 0;
     if (dr == 0) return KeyEventResult.ignored;
     final next = row + dr;
-    if (next >= 0 && next < rows) {
-      _node(next, col).requestFocus();
+    if (next >= 0 && next < rows.length) {
+      _node(rows[next].key, col).requestFocus();
       return KeyEventResult.handled;
     }
     if (enter && !shift && widget.onSubmit != null) {
@@ -189,6 +193,9 @@ class _LabelGridEditorState extends ConsumerState<LabelGridEditor> {
         ),
         for (final (i, r) in rows.indexed)
           TableRow(
+            // Keyed by its ingredient, so a moved row keeps its boxes (and
+            // the box being typed in keeps the keyboard).
+            key: ValueKey(r.key),
             decoration: i == rows.length - 1
                 ? null
                 : BoxDecoration(
@@ -227,8 +234,8 @@ class _LabelGridEditorState extends ConsumerState<LabelGridEditor> {
                           'size': b.label,
                         },
                       ),
-                      focusNode: _node(i, b.key),
-                      onKeyEvent: (_, e) => _onKey(i, b.key, rows.length, e),
+                      focusNode: _node(r.key, b.key),
+                      onKeyEvent: (_, e) => _onKey(i, b.key, rows, e),
                       trailing: Padding(
                         padding: const EdgeInsetsDirectional.only(
                           end: Space.sm,
