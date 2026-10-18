@@ -1085,6 +1085,22 @@ pub(crate) fn rows_of_type(store: &Store, branch: &str, ty: &str) -> Vec<serde_j
         .collect()
 }
 
+/// Does the feed hold the row `ty`/`id` (any state)? One primary-key lookup.
+pub(crate) fn has_row(store: &Store, branch: &str, ty: &str, id: &str) -> bool {
+    store
+        .with_conn(|c| {
+            use rusqlite::OptionalExtension;
+            Ok(c.query_row(
+                "SELECT 1 FROM sync_rows WHERE branch_id=?1 AND type=?2 AND id=?3",
+                rusqlite::params![branch, ty, id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
+        })
+        .unwrap_or(false)
+}
+
 // ── single-flight ───────────────────────────────────────────────────────────
 
 /// One pull at a time PER CORE; a caller arriving while one runs waits and then

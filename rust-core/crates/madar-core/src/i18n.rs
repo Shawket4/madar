@@ -2239,6 +2239,8 @@ fn en(key: &str) -> Option<&'static str> {
         "sync.refused" => "The server refused it",
         // Why the server refused a queued op, in the till's language (B-POS-6).
         "sync.err_missing" => "The server doesn't have something this needs yet. Try again once everything has synced.",
+        "sync.err_round_missing" => "This kitchen tap is for an order that never reached the server. Try again once everything has synced.",
+        "sync.err_round_dead" => "This kitchen tap is for an order that failed to sync. Fix or discard that order first.",
         "sync.err_sale_missing" => "This sale never reached the server, so it can't be voided there.",
         // Loyalty award refusals (server codes LOYALTY_*): said to the teller who
         // pressed "add points" and in the stuck list alike (`loyalty::AWARD_REFUSAL_CODES`).
@@ -4679,6 +4681,8 @@ fn ar(key: &str) -> Option<&'static str> {
         "sync.see_all" => "عرض الكل",
         "sync.refused" => "رفضه الخادم",
         "sync.err_missing" => "الخادم لسه ماعندوش حاجة العملية دي محتاجاها. جرّب تاني بعد ما كل حاجة تتزامن.",
+        "sync.err_round_missing" => "اللمسة دي في المطبخ لطلب عمره ما وصل للخادم. جرّب تاني بعد ما كل حاجة تتزامن.",
+        "sync.err_round_dead" => "اللمسة دي في المطبخ لطلب فشل في المزامنة. صلّح الطلب ده أو الغيه الأول.",
         "sync.err_sale_missing" => "البيعة دي عمرها ما وصلت للخادم، فمينفعش تتلغي عنده.",
         "sync.err_loyalty_card_not_member" => "الكارت ده تابع لمحل تاني",
         "sync.err_loyalty_sale_not_on_server" => "البيعة دي لسه ماوصلتش للخادم، جرّب تاني بعد ما تتزامن",
