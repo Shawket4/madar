@@ -38,8 +38,10 @@ class OpsRankColumn<T> {
   final double width;
   final Widget Function(BuildContext context, T row) cell;
 
-  /// What the column sorts by; null = not sortable.
-  final Comparable<Object> Function(T row)? sortValue;
+  /// What the column sorts by; null = not sortable. A row whose value is
+  /// null (a figure it does not have, "—") sorts after every other row in
+  /// both directions.
+  final Comparable<Object>? Function(T row)? sortValue;
 
   /// Figures: end-aligned, sorted largest first on the first press.
   final bool numeric;
@@ -143,7 +145,14 @@ class _OpsRankTableState<T> extends State<OpsRankTable<T>> {
     if (by == null) return widget.rows;
     final indexed = widget.rows.indexed.toList()
       ..sort((a, b) {
-        final c = by(a.$2).compareTo(by(b.$2));
+        final va = by(a.$2);
+        final vb = by(b.$2);
+        if (va == null || vb == null) {
+          if (va != null) return -1;
+          if (vb != null) return 1;
+          return a.$1.compareTo(b.$1);
+        }
+        final c = va.compareTo(vb);
         if (c != 0) return _sort.descending ? -c : c;
         return a.$1.compareTo(b.$1);
       });

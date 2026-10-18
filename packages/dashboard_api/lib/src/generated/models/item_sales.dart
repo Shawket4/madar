@@ -5,23 +5,41 @@ part of '../models.dart';
 @immutable
 class ItemSales {
   const ItemSales({
+    this.avgExtra,
+    this.extrasTotal,
     required this.itemName,
     required this.itemNameTranslations,
     required this.menuItemId,
+    this.menuTotal,
     required this.quantitySold,
     required this.revenue,
+    this.explicitNulls = const {},
   });
 
   factory ItemSales.fromJson(Map<String, Object?> json) => ItemSales(
+    avgExtra: decIntN(json['avg_extra'], 'ItemSales.avg_extra'),
+    extrasTotal: decIntN(json['extras_total'], 'ItemSales.extras_total'),
     itemName: decString(json['item_name'], 'ItemSales.item_name'),
     itemNameTranslations: decJsonMap(
       json['item_name_translations'],
       'ItemSales.item_name_translations',
     ),
     menuItemId: decString(json['menu_item_id'], 'ItemSales.menu_item_id'),
+    menuTotal: decIntN(json['menu_total'], 'ItemSales.menu_total'),
     quantitySold: decInt(json['quantity_sold'], 'ItemSales.quantity_sold'),
     revenue: decInt(json['revenue'], 'ItemSales.revenue'),
   );
+
+  /// Piastres per unit sold: `extras_total / quantity_sold`, rounded to the
+  /// piastre (half away from zero). Additive.
+  final int? avgExtra;
+
+  /// Piastres charged on top of those size prices, before any discount:
+  /// every add-on and swap on the lines (their charge, a staff comp added
+  /// back) plus optional fields × quantity. `paid − menu price of the size`,
+  /// summed; never below zero (see `order_line_extras` in
+  /// migrations/20261023100000_rollup_item_extras.sql). Additive.
+  final int? extrasTotal;
 
   final String itemName;
 
@@ -29,14 +47,30 @@ class ItemSales {
 
   final String menuItemId;
 
+  /// Piastres: the menu price of the size each unit was sold in, AT SALE
+  /// TIME, summed (`order_items.unit_price × quantity`; no add-ons, swaps,
+  /// optional fields, discounts or rewards). Additive (2026-10-18): absent
+  /// from older servers.
+  final int? menuTotal;
+
   final int quantitySold;
 
   final int revenue;
 
+  /// Wire names of optional fields to send as an explicit `null` when unset
+  /// (a PATCH that clears a value). Unset optional fields are omitted.
+  final Set<String> explicitNulls;
+
   Map<String, Object?> toJson() => <String, Object?>{
+    if (avgExtra != null || explicitNulls.contains('avg_extra'))
+      'avg_extra': avgExtra,
+    if (extrasTotal != null || explicitNulls.contains('extras_total'))
+      'extras_total': extrasTotal,
     'item_name': itemName,
     'item_name_translations': itemNameTranslations,
     'menu_item_id': menuItemId,
+    if (menuTotal != null || explicitNulls.contains('menu_total'))
+      'menu_total': menuTotal,
     'quantity_sold': quantitySold,
     'revenue': revenue,
   };

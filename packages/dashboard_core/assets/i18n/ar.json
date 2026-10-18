@@ -1923,6 +1923,7 @@
  "analytics.serviceModeShare": "حصة {{mode}} من الإيرادات",
  "analytics.serviceModeOrders": "{{orders}} طلب",
  "analytics.avgPrice": "متوسط السعر",
+ "analytics.avgExtra": "متوسط الإضافات",
  "analytics.sortedAscending": "مرتّب تصاعديًا",
  "analytics.sortedDescending": "مرتّب تنازليًا",
  "discounts.title": "الخصومات",

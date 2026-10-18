@@ -67,7 +67,7 @@ void main() {
       final t = _rankTable(tester);
       expect(
         [t.lead.label, for (final c in t.columns) c.label],
-        ['Item', 'Sold', 'Revenue', 'Share', 'Avg price'],
+        ['Item', 'Sold', 'Revenue', 'Share', 'Price', 'Avg extra'],
       );
       expect(t.initialSort, (columnId: 'quantity', descending: true));
       final want = opsCombinedItems(_orders(h, SeedIds.sabahBranches));
@@ -77,7 +77,8 @@ void main() {
         [for (var i = 1; i <= want.length; i++) i],
       );
       expect(t.rows.first.quantity, want.first.totalQty);
-      // Revenue, share and average price are the sales report's figures.
+      // Revenue, share and the average extra are the sales report's
+      // figures; the price is the menu's.
       final sales = opsBranchSales(
         branchId: allBranchesId,
         branchName: 'x',
@@ -95,9 +96,32 @@ void main() {
         expect(r.category, s?.$2);
         expect(r.share, closeTo(r.revenue / total, 1e-9));
         if (s != null && s.$1.quantitySold > 0) {
-          expect(r.avgPrice, (s.$1.revenue / s.$1.quantitySold).round());
+          expect(r.avgExtra, s.$1.avgExtra);
+          expect(r.avgExtra, isNotNull);
+        } else {
+          expect(r.avgExtra, isNull);
+        }
+        final sizes = [
+          for (final m in seedMenu)
+            if (MockSeed.menuItemId(m.key) == r.id)
+              for (final (_, egp) in m.sizes) egp * 100,
+        ]..sort();
+        if (sizes.isNotEmpty) {
+          expect((r.priceMin, r.priceMax), (sizes.first, sizes.last));
         }
       }
+      // Some item was sold with add-ons: an extra above zero shows.
+      expect(t.rows.any((r) => (r.avgExtra ?? 0) > 0), isTrue);
+      // A several-size item reads as a range, the currency once.
+      final ranged = t.rows.firstWhere((r) => r.priceMin != r.priceMax);
+      expect(
+        opsPriceRangeText(
+          h.container.read(formatProvider),
+          ranged.priceMin,
+          ranged.priceMax,
+        ),
+        matches(RegExp(r'^EGP \d[\d,]*\.\d\d–\d[\d,]*\.\d\d$')),
+      );
       expect(t.rows.fold<double>(0, (a, r) => a + r.share), closeTo(1, 1e-9));
       expect(inPage(find.text(t.rows.first.name)), findsOneWidget);
       // The figures read end-aligned, in the app's money format.
