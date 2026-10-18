@@ -67,7 +67,6 @@ void main() {
       '/settings/loyalty',
       '/settings/delivery',
       '/settings/brand',
-      '/settings/links',
       '/settings/bookings',
       '/settings/kitchen-stations',
     ]) {
@@ -107,7 +106,6 @@ void main() {
     final free = panes(_free);
     for (final gone in [
       '/settings/brand',
-      '/settings/links',
       '/settings/delivery',
       '/settings/bookings',
       '/settings/qr',
@@ -118,7 +116,44 @@ void main() {
       expect(free, isNot(contains(gone)), reason: gone);
     }
     expect(free, contains('/settings/payment-methods'));
+    // Every plan opens the links pane, for its "Menu (no prices)" section.
+    expect(free, contains('/settings/links'));
     expect(panes(_paid), panes(null));
+  });
+
+  test('only /settings/links left the gate; every other gated route stays', () {
+    expect(featureOfPath('/settings/links'), isNull);
+    expect(planHasPath(_free, '/settings/links'), isTrue);
+    expect(
+      {for (final r in featureRoutes) r.$1: r.$2},
+      {
+        '/inventory': 'inventory',
+        '/reports/inventory': 'inventory',
+        '/menu/bases': 'inventory',
+        '/menu/packaging': 'inventory',
+        '/settings/loyalty': 'loyalty',
+        '/reports/loyalty': 'loyalty',
+        '/delivery': 'online',
+        '/settings/delivery': 'online',
+        '/settings/delivery-zones': 'online',
+        '/settings/qr': 'online',
+        '/qr': 'online',
+        '/bookings': 'bookings',
+        '/settings/bookings': 'bookings',
+        '/floor': 'floor',
+        '/kitchen': 'kitchen',
+        '/settings/kitchen-stations': 'kitchen',
+        '/settings/kitchen-routing': 'kitchen',
+        '/staff': 'dawam',
+        '/reports/staff': 'dawam',
+        '/settings/brand': 'branding',
+        '/basira': 'basira',
+      },
+    );
+    for (final r in featureRoutes) {
+      if (r.$2 == 'floor') continue; // Free's own feature here.
+      expect(planHasPath(_free, r.$1), isFalse, reason: r.$1);
+    }
   });
 
   test('the plan check answers for a path, unknown meaning yes', () {

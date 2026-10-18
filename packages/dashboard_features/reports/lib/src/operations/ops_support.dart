@@ -1,6 +1,6 @@
-/// What the Operations tabs share: the web's `fmtDwell` and a stay's
-/// elapsed form, the chart and payment colours and the words a failed read
-/// shows.
+/// What the Operations tabs share: the web's `fmtDwell` (in the reader's
+/// units) and a stay's elapsed form, the chart and payment colours and the
+/// words a failed read shows.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart' show ApiException;
@@ -10,16 +10,22 @@ import 'package:flutter/widgets.dart';
 
 // ── formatting ────────────────────────────────────────────────────────────
 
-/// `fmtDwell` (`tables-util.ts:131-138`): "—" under a minute, "42m", "1h",
-/// "1h 05m" — English letters in both languages, as the web writes them
-/// (a clock-like unit; see the divergence log's question).
-String fmtDwell(num minutes) {
+/// `fmtDwell(minutes, units)` (`tables-util.ts`): "—" under a minute, else
+/// the reader's units: "42m", "1h", "1h 05m"; Arabic "42 د", "1 س",
+/// "1 س 05 د" (`tablesInsights.dwellMinutes` / `dwellHours` /
+/// `dwellHoursMinutes`).
+String fmtDwell(num minutes, Translator t) {
   final m = (minutes + 0.5).floor();
   if (m < 1) return '—';
-  if (m < 60) return '${m}m';
+  if (m < 60) return t('tablesInsights.dwellMinutes', args: {'m': '$m'});
   final h = m ~/ 60;
   final r = m % 60;
-  return r == 0 ? '${h}h' : '${h}h ${r.toString().padLeft(2, '0')}m';
+  return r == 0
+      ? t('tablesInsights.dwellHours', args: {'h': '$h'})
+      : t(
+          'tablesInsights.dwellHoursMinutes',
+          args: {'h': '$h', 'm': r.toString().padLeft(2, '0')},
+        );
 }
 
 /// A sitting's stay (`table-history.tsx` `stay`): "—" under a minute, else

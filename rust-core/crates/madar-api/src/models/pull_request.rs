@@ -38,6 +38,14 @@ pub struct PullRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub limit: Option<Option<i64>>,
+    /// The sync protocol the till speaks (`sync::protocol`). Absent = v1, and the response is exactly what v1 always got.
+    #[serde(
+        rename = "protocol",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub protocol: Option<Option<u32>>,
     /// The `snapshot_cursor` of the previous page of a paged full snapshot.
     #[serde(
         rename = "snapshot_cursor",
@@ -63,6 +71,7 @@ impl PullRequest {
             device_id: None,
             ledger_page_size: None,
             limit: None,
+            protocol: None,
             snapshot_cursor: None,
             types: None,
         }

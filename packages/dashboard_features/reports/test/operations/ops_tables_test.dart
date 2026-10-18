@@ -11,6 +11,7 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_reports/src/mock/operations_mock.dart';
 import 'package:design_system/design_system.dart' show MadarClippedText;
 import 'package:dashboard_reports/src/operations/ops_charts.dart';
+import 'package:dashboard_reports/src/operations/ops_report_kit.dart';
 import 'package:dashboard_reports/src/operations/ops_support.dart';
 import 'package:dashboard_reports/src/operations/ops_table_sheet.dart';
 import 'package:dashboard_reports/src/operations/ops_tables.dart';
@@ -47,6 +48,52 @@ Finder get _byTable =>
 Finder get _busiest => inPage(find.byKey(const ValueKey('ops-busiest-hours')));
 Finder get _section => inPage(find.byKey(const ValueKey('ops-section-filter')));
 Finder get _sheet => find.byType(OpsTableSheet);
+
+/// A failed read (web b448fd9): every KPI reads "—" with no hint, both charts
+/// and the ledger's card show the card error with Retry, no figures.
+void _expectFailedCards(WidgetTester tester) {
+  final cards = tester.widgetList<DashStatCard>(
+    inPage(find.byType(DashStatCard)),
+  );
+  expect(cards, hasLength(6));
+  for (final key in [
+    'turns',
+    'covers',
+    'revenue',
+    'per_table',
+    'per_cover',
+    'dwell',
+  ]) {
+    expect(
+      find.descendant(of: find.byKey(ValueKey(key)), matching: find.text('—')),
+      findsOneWidget,
+      reason: key,
+    );
+  }
+  expect(pageText('per table a day'), findsNothing);
+  expect(inPage(find.textContaining('tables used')), findsNothing);
+  for (final title in ['Busiest hours', 'Revenue by table']) {
+    expect(
+      find.descendant(
+        of: chartCard(title),
+        matching: find.byType(DashErrorState),
+      ),
+      findsOneWidget,
+      reason: title,
+    );
+  }
+  expect(
+    find.descendant(
+      of: inPage(find.byType(OpsTableCard)),
+      matching: find.byType(DashErrorState),
+    ),
+    findsOneWidget,
+  );
+  expect(_table, findsNothing);
+  expect(_busiest, findsNothing);
+  // The old whole-tab error copy is gone.
+  expect(pageText("Couldn't load table insights"), findsNothing);
+}
 
 List<OpsTableRow> _rows(WidgetTester tester) =>
     tester.widget<DashDataTable<OpsTableRow>>(_table).rows;
@@ -143,25 +190,33 @@ void main() {
           },
         });
       });
-      final h = await pumpOps(tester, server: s.server, db: s.db);
-      expect(pageText(h.t('tablesInsights.loadFailed')), findsOneWidget);
-      expect(inPage(find.byType(DashLedgerStrip)), findsNothing);
+      await pumpOps(tester, server: s.server, db: s.db);
+      // Every card fails on its own; a failed KPI reads "—".
+      _expectFailedCards(tester);
     });
   });
 
-  testWidgets('REP-OPS-007 / REP-ALL-021 the nested page: a "Tables" '
-      'sub-heading with the period under it', (tester) async {
-    await pumpOps(tester);
-    final heading = inPage(find.byType(DashEmbeddedPages));
-    expect(heading, findsOneWidget);
+  testWidgets('REP-OPS-007 one header: no nested page header; KPIs first, '
+      'the ledger in a "Table details" card whose toolbar holds the section '
+      'filter (web b448fd9)', (tester) async {
+    await pumpOps(tester, branchId: SeedIds.heliopolis);
+    expect(inPage(find.byType(DashEmbeddedPages)), findsNothing);
+    // The page's own header only: one title, one period line.
+    expect(inPage(find.byType(DashPageHeader)), findsOneWidget);
+    expect(pageText('Last 30 days'), findsOneWidget);
+    final card = inPage(find.byType(OpsTableCard));
+    expect(card, findsOneWidget);
     expect(
-      find.descendant(of: heading, matching: find.text('Tables')),
+      find.descendant(of: card, matching: find.text('Table details')),
       findsOneWidget,
     );
-    expect(
-      find.descendant(of: heading, matching: find.text('Last 30 days')),
-      findsOneWidget,
-    );
+    expect(find.descendant(of: card, matching: _section), findsOneWidget);
+    expect(find.descendant(of: card, matching: _table), findsOneWidget);
+    // KPIs before the charts, the charts before the table card.
+    final strip = tester.getTopLeft(inPage(find.byType(DashLedgerStrip))).dy;
+    final chart = tester.getTopLeft(chartCard('Busiest hours')).dy;
+    expect(strip, lessThan(chart));
+    expect(chart, lessThan(tester.getTopLeft(card).dy));
   });
 
   testWidgets('REP-OPS-008 loading: KPI skeletons, both charts\' skeletons, '
@@ -200,26 +255,24 @@ void main() {
       times: null,
     );
     final h = await pumpOps(tester, server: s.server, db: s.db);
-    expect(pageText("Couldn't load table insights"), findsOneWidget);
-    expect(inPage(find.byType(DashLedgerStrip)), findsNothing);
-    expect(inPage(find.byType(DashChartCard)), findsNothing);
-    expect(_table, findsNothing);
+    _expectFailedCards(tester);
     await h.shot('operations/tables-failed');
     s.server.clearFailures();
     final gate = s.server.hold('POST', metricsRoute);
     await h.tap(
-      find.descendant(
-        of: inPage(find.byType(DashErrorState)),
-        matching: find.text('Retry'),
-      ),
+      find
+          .descendant(
+            of: inPage(find.byType(DashErrorState)),
+            matching: find.text('Retry'),
+          )
+          .first,
     );
-    // Retrying: the button spins.
-    expect(
-      tester
-          .widget<DashErrorState>(inPage(find.byType(DashErrorState)))
-          .retrying,
-      isTrue,
-    );
+    // Retrying: every card's button spins.
+    for (final e in tester.widgetList<DashErrorState>(
+      inPage(find.byType(DashErrorState)),
+    )) {
+      expect(e.retrying, isTrue);
+    }
     gate.release();
     await h.settle();
     expect(h.server.callsTo(metricsRoute, method: 'POST'), hasLength(2));
@@ -251,7 +304,9 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('dwell')),
-        matching: find.text(fmtDwell(m['avg_dwell_minutes']! as num)),
+        matching: find.text(
+          fmtDwell(m['avg_dwell_minutes']! as num, h.container.read(tProvider)),
+        ),
       ),
       findsOneWidget,
     );
@@ -278,14 +333,27 @@ void main() {
     expect(cards.every((c) => c.dense), isTrue);
   });
 
-  test('REP-OPS-015 fmtDwell: "—" under a minute, "42m", "1h", "1h 05m"', () {
-    expect(fmtDwell(0), '—');
-    expect(fmtDwell(0.4), '—');
-    expect(fmtDwell(0.5), '1m');
-    expect(fmtDwell(42), '42m');
-    expect(fmtDwell(60), '1h');
-    expect(fmtDwell(65), '1h 05m');
-    expect(fmtDwell(125.6), '2h 06m');
+  testWidgets('REP-OPS-015 fmtDwell in the reader\'s units: "—" under a '
+      'minute, "42m", "1h", "1h 05m"; Arabic "42 د", "1 س 05 د"', (
+    tester,
+  ) async {
+    final h = await pumpOps(tester);
+    final en = h.container.read(tProvider);
+    expect(fmtDwell(0, en), '—');
+    expect(fmtDwell(0.4, en), '—');
+    expect(fmtDwell(0.5, en), '1m');
+    expect(fmtDwell(42, en), '42m');
+    expect(fmtDwell(60, en), '1h');
+    expect(fmtDwell(65, en), '1h 05m');
+    expect(fmtDwell(120, en), '2h');
+    expect(fmtDwell(125.6, en), '2h 06m');
+    await h.container.read(localeProvider.notifier).set('ar');
+    await h.settle();
+    final ar = h.container.read(tProvider);
+    expect(fmtDwell(0, ar), '—');
+    expect(fmtDwell(45, ar), '45 د');
+    expect(fmtDwell(65, ar), '1 س 05 د');
+    expect(fmtDwell(180, ar), '3 س');
   });
 
   test('REP-OPS-017 / 018 / 049 Recharts\' tick step: the rough step '
@@ -530,7 +598,9 @@ void main() {
     expect(
       find.descendant(
         of: _table,
-        matching: find.text(fmtDwell(r.avgDwellMinutes)),
+        matching: find.text(
+          fmtDwell(r.avgDwellMinutes, h.container.read(tProvider)),
+        ),
       ),
       findsWidgets,
     );
@@ -1179,8 +1249,7 @@ void main() {
           .read(scopeProvider.notifier)
           .setPreset(ScopePreset.last7Days);
       await h.settle();
-      expect(pageText("Couldn't load table insights"), findsOneWidget);
-      expect(_table, findsNothing);
+      _expectFailedCards(tester);
     });
   });
 }

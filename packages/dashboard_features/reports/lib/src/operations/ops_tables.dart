@@ -2,10 +2,13 @@
 /// 067, 069): which tables turn, how long parties stay, and what each table
 /// and each guest is worth — from the metrics layer's `tables` dataset.
 ///
-/// A full page nested in Operations: its header is a sub-heading (REP-ALL-021)
-/// with the section filter under it; then the KPI strip, Busiest hours beside
-/// Revenue by table (two columns from 1024 px), and the per-table ledger.
-/// A row opens the table's history in a side panel.
+/// Laid out like the Overview (`operations/tables-tab.tsx`, the report kit):
+/// no header of its own (the page's title and period serve every tab), the
+/// KPI strip, Busiest hours beside Revenue by table (two columns from
+/// 1024 px), and the per-table ledger in a titled card whose toolbar holds
+/// the section filter. Each card fails on its own: a failed KPI reads "—",
+/// the charts and the ledger show the card error with Retry. A row opens the
+/// table's history in a side panel.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
@@ -23,6 +26,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/report_shared.dart';
 import 'ops_charts.dart';
 import 'ops_data.dart';
+import 'ops_report_kit.dart';
 import 'ops_support.dart';
 import 'ops_table_sheet.dart';
 
@@ -221,105 +225,89 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView>
       ..sort((a, b) => b.tableRevenue.compareTo(a.tableRevenue));
     final top = topRevenue.take(12).toList();
 
-    final header = DashEmbeddedPages(
-      child: DashPageHeader(
-        title: t('tablesInsights.title'),
-        subtitleWidget: const ReportPeriodSubtitle(),
-        filters: sections.length > 1
-            ? Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: DashSelect<String>(
-                  key: const ValueKey('ops-section-filter'),
-                  expand: false,
-                  minWidth: 160,
-                  semanticLabel: t('tablesInsights.section'),
-                  value: section,
-                  options: [
-                    DashOption(
-                      value: _allSections,
-                      label: t('tablesInsights.allSections'),
-                    ),
-                    for (final s in sections) DashOption(value: s, label: s),
-                  ],
-                  onChanged: (v) => setState(() => _section = v),
-                ),
-              )
-            : null,
-      ),
-    );
+    void retry() => ref.invalidate(opsTablesProvider(key));
+    final sectionFilter = sections.length > 1
+        ? DashSelect<String>(
+            key: const ValueKey('ops-section-filter'),
+            expand: false,
+            minWidth: 160,
+            semanticLabel: t('tablesInsights.section'),
+            value: section,
+            options: [
+              DashOption(
+                value: _allSections,
+                label: t('tablesInsights.allSections'),
+              ),
+              for (final s in sections) DashOption(value: s, label: s),
+            ],
+            onChanged: (v) => setState(() => _section = v),
+          )
+        : null;
+    // The section the ledger and its chart are narrowed to, said on both.
+    final sectionName = section == _allSections ? null : section;
 
-    if (failed) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: Space.xl,
-        children: [
-          header,
-          DashErrorState(
-            title: t('tablesInsights.loadFailed'),
-            retrying: q.isLoading,
-            onRetry: () => ref.invalidate(opsTablesProvider(key)),
-          ),
-        ],
-      );
-    }
-
+    // One answer for the whole tab: a widget that failed fails every card.
+    // A failed KPI reads "—", never 0.
     final kpis = DashLedgerStrip(
       items: [
-        DashLedgerItem(
-          key: 'turns',
-          label: t('tablesInsights.turns'),
-          icon: 'rotate-ccw',
-          value: summary?.turns ?? 0,
-          format: DashStatFormat.number,
-          loading: loading,
-          hint: t(
-            'tablesInsights.perDay',
-            args: {'value': fmtNum(f, summary?.turnsPerDay ?? 0, maxDp: 2)},
+        for (final item in [
+          DashLedgerItem(
+            key: 'turns',
+            label: t('tablesInsights.turns'),
+            icon: 'rotate-ccw',
+            value: summary?.turns ?? 0,
+            format: DashStatFormat.number,
+            loading: loading,
+            hint: t(
+              'tablesInsights.perDay',
+              args: {'value': fmtNum(f, summary?.turnsPerDay ?? 0, maxDp: 2)},
+            ),
           ),
-        ),
-        DashLedgerItem(
-          key: 'covers',
-          label: t('tablesInsights.covers'),
-          icon: 'users',
-          value: summary?.covers ?? 0,
-          format: DashStatFormat.number,
-          loading: loading,
-        ),
-        DashLedgerItem(
-          key: 'revenue',
-          label: t('tablesInsights.revenue'),
-          icon: 'coins',
-          value: summary?.tableRevenue ?? 0,
-          format: DashStatFormat.money,
-          loading: loading,
-        ),
-        DashLedgerItem(
-          key: 'per_table',
-          label: t('tablesInsights.revenuePerTable'),
-          icon: 'armchair',
-          value: summary?.revenuePerTable ?? 0,
-          format: DashStatFormat.money,
-          loading: loading,
-          hint: t(
-            'tablesInsights.tablesUsed',
-            count: summary?.activeTables ?? 0,
+          DashLedgerItem(
+            key: 'covers',
+            label: t('tablesInsights.covers'),
+            icon: 'users',
+            value: summary?.covers ?? 0,
+            format: DashStatFormat.number,
+            loading: loading,
           ),
-        ),
-        DashLedgerItem(
-          key: 'per_cover',
-          label: t('tablesInsights.revenuePerCover'),
-          icon: 'user-round',
-          value: summary?.revenuePerCover ?? 0,
-          format: DashStatFormat.money,
-          loading: loading,
-        ),
-        DashLedgerItem(
-          key: 'dwell',
-          label: t('tablesInsights.avgDwell'),
-          icon: 'clock',
-          valueText: fmtDwell(summary?.avgDwellMinutes ?? 0),
-          loading: loading,
-        ),
+          DashLedgerItem(
+            key: 'revenue',
+            label: t('tablesInsights.revenue'),
+            icon: 'coins',
+            value: summary?.tableRevenue ?? 0,
+            format: DashStatFormat.money,
+            loading: loading,
+          ),
+          DashLedgerItem(
+            key: 'per_table',
+            label: t('tablesInsights.revenuePerTable'),
+            icon: 'armchair',
+            value: summary?.revenuePerTable ?? 0,
+            format: DashStatFormat.money,
+            loading: loading,
+            hint: t(
+              'tablesInsights.tablesUsed',
+              count: summary?.activeTables ?? 0,
+            ),
+          ),
+          DashLedgerItem(
+            key: 'per_cover',
+            label: t('tablesInsights.revenuePerCover'),
+            icon: 'user-round',
+            value: summary?.revenuePerCover ?? 0,
+            format: DashStatFormat.money,
+            loading: loading,
+          ),
+          DashLedgerItem(
+            key: 'dwell',
+            label: t('tablesInsights.avgDwell'),
+            icon: 'clock',
+            valueText: fmtDwell(summary?.avgDwellMinutes ?? 0, t),
+            loading: loading,
+          ),
+        ])
+          opsKpi(item, failed: failed),
       ],
     );
 
@@ -329,15 +317,16 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView>
       description: t('tablesInsights.busiestHoursHint'),
       child: OpsChartBody(
         loading: loading,
-        failed: false,
+        failed: failed,
+        retrying: q.isLoading,
         empty: hours.isEmpty,
         emptyTitle: empty,
-        onRetry: () => ref.invalidate(opsTablesProvider(key)),
+        onRetry: retry,
         chart: (_) => OpsBarChart(
           key: const ValueKey('ops-busiest-hours'),
           labels: [for (final (h, _) in hours) f.fmtWireTime(h)],
           values: [for (final (_, v) in hours) v.toDouble()],
-          color: opsChartColor(c, 0),
+          color: opsChartColor(c, 1),
           integerAxis: true,
           thinLabels: true,
           yAxisWidth: Space.xxl,
@@ -349,32 +338,35 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView>
     );
     final byTable = DashChartCard(
       title: t('tablesInsights.topRevenue'),
+      description: sectionName,
       child: OpsChartBody(
         loading: loading,
-        failed: false,
+        failed: failed,
+        retrying: q.isLoading,
         empty: top.isEmpty,
         emptyTitle: empty,
-        onRetry: () => ref.invalidate(opsTablesProvider(key)),
+        onRetry: retry,
         chart: (_) => OpsBarChart(
           key: const ValueKey('ops-revenue-by-table'),
           labels: [for (final r in top) r.table],
           values: [for (final r in top) r.tableRevenue.toDouble()],
-          color: opsChartColor(c, 1),
+          color: opsChartColor(c, 0),
           formatAxis: f.fmtMoneyCompact,
           tooltip: (i) =>
               '${t('tablesInsights.revenue')}: ${f.fmtMoney(top[i].tableRevenue)}',
         ),
       ),
     );
-    final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.lg;
-
     final table = DashDataTable<OpsTableRow>(
       key: const ValueKey('ops-tables-table'),
+      framed: false,
+      toolbarPadding: opsTableToolbarPadding(context),
       rows: rows,
       rowKey: (r) => r.key,
       loading: loading,
-      empty: DashEmptyState(title: empty),
+      empty: DashEmptyState(title: empty, framed: false),
       searchPlaceholder: t('tablesInsights.search'),
+      toolbar: sectionFilter,
       onRowTap: _open,
       onRowIntent: _warm,
       rowSemanticLabel: (r) => r.table,
@@ -465,27 +457,24 @@ class _OpsTablesViewState extends ConsumerState<OpsTablesView>
           hideable: false,
           minWidth: 112,
           text: (r) => '${r.avgDwellMinutes}',
-          cell: (context, r) => Text(fmtDwell(r.avgDwellMinutes)),
+          cell: (context, r) => Text(fmtDwell(r.avgDwellMinutes, t)),
         ),
       ],
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.lg,
+    return OpsReportStack(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: Space.sm),
-          child: header,
-        ),
         kpis,
-        if (wide)
-          OpsEqualRow(children: [busiest, byTable])
-        else ...[
-          busiest,
-          byTable,
-        ],
-        table,
+        OpsChartGrid(children: [busiest, byTable]),
+        OpsTableCard(
+          title: t('tablesInsights.byTable'),
+          description: sectionName,
+          failed: failed,
+          loading: loading,
+          retrying: q.isLoading,
+          onRetry: retry,
+          child: table,
+        ),
       ],
     );
   }

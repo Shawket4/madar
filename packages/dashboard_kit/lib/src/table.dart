@@ -169,6 +169,7 @@ class DashDataTable<T> extends StatefulWidget {
     this.rowActions,
     this.rowActionsWidth = DashMetrics.target + Space.lg,
     this.toolbar,
+    this.toolbarPadding,
     this.searchPlaceholder,
     this.rowCardBuilder,
     this.pageSize = 10,
@@ -229,6 +230,11 @@ class DashDataTable<T> extends StatefulWidget {
 
   /// Extra toolbar controls (filters) between the search and Columns.
   final Widget? toolbar;
+
+  /// The toolbar's and the pager's inset (the web's `toolbarClassName`): a
+  /// frameless table in a card puts its search, filters and pages on the
+  /// card's gutter.
+  final EdgeInsetsGeometry? toolbarPadding;
 
   /// A client-side search over the columns' text, with this placeholder.
   final String? searchPlaceholder;
@@ -539,32 +545,37 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
 
     final children = <Widget>[
       if (hasToolbar)
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: Space.sm,
-          children: [
-            Expanded(
-              child: Wrap(
-                spacing: Space.sm,
-                runSpacing: Space.sm,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  if (widget.searchPlaceholder != null)
-                    DashSearchInput(
-                      value: _query,
-                      width: phone ? double.infinity : DashMetrics.searchWidth,
-                      placeholder: widget.searchPlaceholder!,
-                      onChanged: (v) => setState(() {
-                        _query = v;
-                        _page = 0;
-                      }),
-                    ),
-                  ?widget.toolbar,
-                ],
+        Padding(
+          padding: widget.toolbarPadding ?? EdgeInsets.zero,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: Space.sm,
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: Space.sm,
+                  runSpacing: Space.sm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (widget.searchPlaceholder != null)
+                      DashSearchInput(
+                        value: _query,
+                        width: phone
+                            ? double.infinity
+                            : DashMetrics.searchWidth,
+                        placeholder: widget.searchPlaceholder!,
+                        onChanged: (v) => setState(() {
+                          _query = v;
+                          _page = 0;
+                        }),
+                      ),
+                    ?widget.toolbar,
+                  ],
+                ),
               ),
-            ),
-            if (showColumns) _columnsMenu(context, hideable),
-          ],
+              if (showColumns) _columnsMenu(context, hideable),
+            ],
+          ),
         ),
       if (widget.selectable &&
           widget.bulkActions != null &&
@@ -591,11 +602,14 @@ class _DashDataTableState<T> extends State<DashDataTable<T>> {
           ),
         ),
       if (_usePages && totalPages > 1 && widget.errorMessage == null)
-        DashPagination(
-          pageIndex: pageIndex,
-          pageCount: totalPages,
-          onChanged: _goPage,
-          onIntent: widget.onPageIntent,
+        Padding(
+          padding: widget.toolbarPadding ?? EdgeInsets.zero,
+          child: DashPagination(
+            pageIndex: pageIndex,
+            pageCount: totalPages,
+            onChanged: _goPage,
+            onIntent: widget.onPageIntent,
+          ),
         ),
     ];
     return Semantics(

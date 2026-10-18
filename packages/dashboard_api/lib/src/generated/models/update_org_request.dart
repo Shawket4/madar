@@ -12,6 +12,7 @@ class UpdateOrgRequest {
     this.maxWarehouses,
     this.modules,
     this.name,
+    this.plan,
     this.receiptFooter,
     this.requireTableForOrders,
     this.serviceChargeRate,
@@ -46,6 +47,7 @@ class UpdateOrgRequest {
           (e) => decString(e, 'UpdateOrgRequest.modules[]'),
         ),
         name: decStringN(json['name'], 'UpdateOrgRequest.name'),
+        plan: decStringN(json['plan'], 'UpdateOrgRequest.plan'),
         receiptFooter: decStringN(
           json['receipt_footer'],
           'UpdateOrgRequest.receipt_footer',
@@ -99,6 +101,12 @@ class UpdateOrgRequest {
 
   final String? name;
 
+  /// `free` | `paid`. Super admin only. Paid -> Free keeps every branch and
+  /// all data, switches the paid features off (the capability ceiling), and
+  /// leaves ONE till per branch active (the most recently used); Free -> Paid
+  /// switches every till back on. A repeat of the current plan changes nothing.
+  final String? plan;
+
   final String? receiptFooter;
 
   final bool? requireTableForOrders;
@@ -142,6 +150,7 @@ class UpdateOrgRequest {
     if (modules != null || explicitNulls.contains('modules'))
       'modules': modules,
     if (name != null || explicitNulls.contains('name')) 'name': name,
+    if (plan != null || explicitNulls.contains('plan')) 'plan': plan,
     if (receiptFooter != null || explicitNulls.contains('receipt_footer'))
       'receipt_footer': receiptFooter,
     if (requireTableForOrders != null ||

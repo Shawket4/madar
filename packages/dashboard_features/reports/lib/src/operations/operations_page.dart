@@ -3,9 +3,11 @@
 /// Branches (`features/reports/operations/operations-reports-page.tsx`).
 ///
 /// The tabs are page state, not routes (REP-ALL-022): a reload or a deep
-/// link opens Tables. The header carries the period and, on the four tabs
-/// that put rows in a table, the export (REP-OPS-004). Tables is a whole
-/// page nested in this one, its header a sub-heading (REP-ALL-021).
+/// link opens Tables. One page header (title, period and, on the four tabs
+/// that put rows in a table, the export, REP-OPS-004) and one tab row for
+/// every tab; each tab body is built from the Overview's parts
+/// (`ops_report_kit.dart`, the web's `report-kit.tsx`), so none brings a
+/// header, filter row or card style of its own.
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
@@ -44,6 +46,11 @@ void opsWarmTab(WidgetRef ref, String tab) {
     case 'items':
       ref.warm(opsItemsProvider(s.opsRange));
       ref.warm(opsAddonsProvider(s.opsRange));
+      // The ranked table's revenue and category (the Overview's read) and
+      // its pictures.
+      final ex = excludeItemsParam(ref.read(excludedItemsProvider(s.orgId)));
+      ref.warm(opsSalesProvider(s.opsSales(ex)));
+      if (s.orgId != null) ref.warm(opsMenuItemsProvider(s.orgId!));
     case 'tellers':
       ref.warm(opsTellersProvider(s.opsRange));
     case 'waiters':

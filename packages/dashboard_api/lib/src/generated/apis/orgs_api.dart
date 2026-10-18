@@ -2,16 +2,23 @@
 // ignore_for_file: type=lint
 part of '../apis.dart';
 
-/// Organization CRUD. Super-admin only.
+/// Organization CRUD. Super-admin only. Also the plan (`free` | `paid`): `GET /orgs/{id}/plan`, the owner's choice of active till.
 class OrgsApi {
   const OrgsApi(this._transport);
 
   final ApiTransport _transport;
 
   /// `GET /orgs` (list_orgs)
-  Future<List<Org>> listOrgs() async {
+  Future<List<Org>> listOrgs({String? plan, String? signupSource}) async {
     final response = await _transport.send(
-      ApiRequest(method: 'GET', path: '/orgs'),
+      ApiRequest(
+        method: 'GET',
+        path: '/orgs',
+        query: {
+          if (plan != null) 'plan': [queryValue(plan)],
+          if (signupSource != null) 'signup_source': [queryValue(signupSource)],
+        },
+      ),
     );
     return decodeResponse(
       response,
@@ -185,6 +192,50 @@ class OrgsApi {
     );
   }
 
+  /// The menu-without-prices settings.
+  ///
+  /// Every plan: no `branding` or `online` check, so a Free shop can reach it.
+  /// The organisation settings capabilities, as the links page.
+  ///
+  /// `GET /orgs/{id}/links-page/menu-display` (get_menu_display)
+  Future<MenuDisplaySettings> getMenuDisplay({required String id}) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/orgs/${pathSegment(id)}/links-page/menu-display',
+      ),
+    );
+    return decodeResponse(
+      response,
+      'get_menu_display',
+      (json) =>
+          decObject(json, 'get_menu_display', MenuDisplaySettings.fromJson),
+    );
+  }
+
+  /// Save the menu-without-prices settings. Writes ONLY its own columns: a
+  /// shop's links page (and a Free shop's lack of one) is left exactly as it was.
+  ///
+  /// `PUT /orgs/{id}/links-page/menu-display` (put_menu_display)
+  Future<MenuDisplaySettings> putMenuDisplay({
+    required String id,
+    required MenuDisplayInput body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'PUT',
+        path: '/orgs/${pathSegment(id)}/links-page/menu-display',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'put_menu_display',
+      (json) =>
+          decObject(json, 'put_menu_display', MenuDisplaySettings.fromJson),
+    );
+  }
+
   /// `PUT /orgs/{id}/logo` (upload_org_logo)
   Future<Org> uploadOrgLogo({
     required String id,
@@ -263,6 +314,72 @@ class OrgsApi {
       'complete_onboarding',
       (json) =>
           decObject(json, 'complete_onboarding', OnboardingStatus.fromJson),
+    );
+  }
+
+  /// The org's plan, what it allows, and each branch's tills.
+  ///
+  /// `GET /orgs/{id}/plan` (get_org_plan)
+  Future<PlanState> getOrgPlan({required String id}) async {
+    final response = await _transport.send(
+      ApiRequest(method: 'GET', path: '/orgs/${pathSegment(id)}/plan'),
+    );
+    return decodeResponse(
+      response,
+      'get_org_plan',
+      (json) => decObject(json, 'get_org_plan', PlanState.fromJson),
+    );
+  }
+
+  /// Choose which till a branch sells on (Free plan). The chosen till is active,
+  /// every other POS till of the branch is switched off. The org's owner, or a
+  /// super admin; a paid org has no inactive tills (409 `PLAN_NOT_FREE`).
+  ///
+  /// `PUT /orgs/{id}/plan/active-till` (put_active_till)
+  Future<PlanState> putActiveTill({
+    required String id,
+    required ActiveTillRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'PUT',
+        path: '/orgs/${pathSegment(id)}/plan/active-till',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'put_active_till',
+      (json) => decObject(json, 'put_active_till', PlanState.fromJson),
+    );
+  }
+
+  /// The shop's menu without prices.
+  ///
+  /// `org_id` or `slug` names the shop. Every plan, Free included. A shop that
+  /// has not switched the page on answers 404, exactly like a shop that does not
+  /// exist. The answer carries no price, cost, surcharge, discount or deal field.
+  ///
+  /// `GET /public/menu-display` (public_menu_display)
+  Future<PublicMenuDisplay> publicMenuDisplay({
+    String? orgId,
+    String? slug,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/public/menu-display',
+        query: {
+          if (orgId != null) 'org_id': [queryValue(orgId)],
+          if (slug != null) 'slug': [queryValue(slug)],
+        },
+      ),
+    );
+    return decodeResponse(
+      response,
+      'public_menu_display',
+      (json) =>
+          decObject(json, 'public_menu_display', PublicMenuDisplay.fromJson),
     );
   }
 

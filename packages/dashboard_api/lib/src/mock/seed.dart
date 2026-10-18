@@ -117,6 +117,8 @@ class MockSeed {
     customBranding: true,
     isActive: true,
     modules: const ['pos', 'dawam'],
+    plan: 'paid',
+    signupSource: 'admin',
     receiptFooter: 'Thank you for stopping by. See you tomorrow morning!',
     brandAccent: '#C2410C',
     brandBackground: '#FFF7ED',
@@ -143,6 +145,8 @@ class MockSeed {
     customBranding: false,
     isActive: true,
     modules: const ['dawam'],
+    plan: 'paid',
+    signupSource: 'admin',
     socialLinks: const {},
   );
 

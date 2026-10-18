@@ -9,6 +9,7 @@ import 'package:dashboard_setup/src/links/links_preview.dart';
 import 'package:dashboard_setup/src/mock/links_mock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support.dart';
@@ -19,6 +20,15 @@ abstract final class LinksRoutes {
   static const String page = '/orgs/{id}/links-page';
   static const String qr = '/orgs/{id}/links-qr';
   static const String public = '/public/orgs/links';
+  static const String menuDisplay = '/orgs/{id}/links-page/menu-display';
+}
+
+/// A Free organisation's plan: the floor and nothing else paid.
+final Override freePlan = planFeaturesProvider.overrideWith(_FreePlan.new);
+
+class _FreePlan extends PlanFeaturesNotifier {
+  @override
+  Set<String>? build() => const {'floor'};
 }
 
 /// A platform admin's picked org, as the header stores it.
@@ -34,6 +44,7 @@ Future<DashHarness> pumpLinks(
   bool dark = false,
   ({MockServer server, MockDb db})? backend,
   Map<String, String>? prefs,
+  List<Override> overrides = const [],
 }) => pumpSetup(
   tester,
   path: linksPath,
@@ -44,6 +55,7 @@ Future<DashHarness> pumpLinks(
   server: backend?.server,
   db: backend?.db,
   prefs: prefs,
+  overrides: overrides,
 );
 
 Finder inLinks(Finder f) =>

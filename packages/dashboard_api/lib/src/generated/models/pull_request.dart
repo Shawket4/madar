@@ -9,6 +9,7 @@ class PullRequest {
     this.deviceId,
     this.ledgerPageSize,
     this.limit,
+    this.protocol,
     this.snapshotCursor,
     this.types,
     this.explicitNulls = const {},
@@ -22,6 +23,7 @@ class PullRequest {
       'PullRequest.ledger_page_size',
     ),
     limit: decIntN(json['limit'], 'PullRequest.limit'),
+    protocol: decIntN(json['protocol'], 'PullRequest.protocol'),
     snapshotCursor: decObjectN(
       json['snapshot_cursor'],
       'PullRequest.snapshot_cursor',
@@ -46,6 +48,10 @@ class PullRequest {
   /// Page size for incremental pulls, 1..5000 (default 2000).
   final int? limit;
 
+  /// The sync protocol the till speaks (`sync::protocol`). Absent = v1, and
+  /// the response is exactly what v1 always got.
+  final int? protocol;
+
   final SnapshotCursor? snapshotCursor;
 
   /// Full-fetch ONLY these types (checksum self-heal). Invalid with `since`.
@@ -62,6 +68,8 @@ class PullRequest {
     if (ledgerPageSize != null || explicitNulls.contains('ledger_page_size'))
       'ledger_page_size': ledgerPageSize,
     if (limit != null || explicitNulls.contains('limit')) 'limit': limit,
+    if (protocol != null || explicitNulls.contains('protocol'))
+      'protocol': protocol,
     if (snapshotCursor != null || explicitNulls.contains('snapshot_cursor'))
       'snapshot_cursor': snapshotCursor?.toJson(),
     if (types != null || explicitNulls.contains('types')) 'types': types,

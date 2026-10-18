@@ -4,15 +4,25 @@
 /// (one map with Brand), "Visit us", and beside it the public page as saved.
 ///
 /// Rendered inside the settings shell (`routes.dart`), so its
-/// [DashPageScaffold] draws as a pane. No client gate: the reads 403 into
-/// the error state; module `pos` at the route.
+/// [DashPageScaffold] draws as a pane. Module `pos` at the route; every plan
+/// opens it. A paid shop gets the links page editor and, under it, the menu
+/// without prices ([MenuDisplaySection]). A Free shop has no links page (the
+/// paid `branding` feature) but has the menu without prices: it gets that
+/// section, usable, and the links page's sections shown locked
+/// ([PaidFeatureLock]) — nothing behind them is fetched, and the server
+/// refuses the links page's own reads and writes (403).
 library;
 
 import 'dart:async';
 
 import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart'
-    show LinksItemKind, LinksModuleStatus, LinksPageItem, LinksPageSettings;
+    show
+        ApiException,
+        LinksItemKind,
+        LinksModuleStatus,
+        LinksPageItem,
+        LinksPageSettings;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show linkOpenerProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -27,6 +37,7 @@ import '../shared/sticky_beside.dart';
 import 'links_data.dart';
 import 'links_preview.dart';
 import 'links_providers.dart';
+import 'menu_display_section.dart';
 
 /// The pane's fixed sizes.
 abstract final class LinksMetrics {
@@ -60,19 +71,51 @@ class LinksPage extends ConsumerWidget {
         body: DashEmptyState(icon: 'link-2', title: t('branches.pickOrg')),
       );
     }
+    if (!planHasFeature(ref.watch(planFeaturesProvider), 'branding')) {
+      return DashPageScaffold(
+        key: const ValueKey('links-free'),
+        title: t('links.editor.title'),
+        subtitle: t('links.editor.desc'),
+        width: DashPageWidth.reading,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.xl,
+          children: [
+            MenuDisplaySection(orgId: orgId),
+            PaidFeatureLock(
+              feature: 'branding',
+              title: t('links.editor.lockedTitle'),
+              preview: const _LockedSections(),
+            ),
+          ],
+        ),
+      );
+    }
     final q = ref.watch(linksPageProvider(orgId));
-    if (q.awaitingFirst) return const _LinksSkeleton();
+    final menu = MenuDisplaySection(orgId: orgId);
+    if (q.awaitingFirst) return _LinksSkeleton(footer: menu);
     if (q.failedFirst) {
       return DashPageScaffold(
         title: t('links.editor.title'),
         subtitle: t('links.editor.desc'),
         width: DashPageWidth.reading,
-        body: DashErrorState(
-          title: t('common.loadFailed'),
-          message: errorMessage(q.error, t),
-          retryLabel: t('common.retry'),
-          retrying: q.isLoading,
-          onRetry: () => ref.invalidate(linksPageProvider(orgId)),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.xl,
+          children: [
+            DashErrorState(
+              title: t('common.loadFailed'),
+              message: errorMessage(q.error, t),
+              retryLabel: t('common.retry'),
+              retrying: q.isLoading,
+              onRetry: () => ref.invalidate(linksPageProvider(orgId)),
+            ),
+            // A refusal is the settings capability, which the section needs
+            // too: say it once.
+            if (!(q.error is ApiException &&
+                (q.error! as ApiException).status == 403))
+              menu,
+          ],
         ),
       );
     }
@@ -81,41 +124,109 @@ class LinksPage extends ConsumerWidget {
       key: ValueKey(orgId),
       orgId: orgId,
       saved: q.requireValue,
+      footer: menu,
+    );
+  }
+}
+
+/// What the links page's editor holds, as a Free shop sees it: headings, no
+/// inputs (the web's `LockedSections`).
+class _LockedSections extends ConsumerWidget {
+  const _LockedSections();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(tProvider);
+    final c = context.madarColors;
+    final sections = [
+      ('links.editor.address', 'links.editor.addressHint'),
+      ('links.editor.about', 'links.editor.aboutHint'),
+      ('links.editor.buttons', 'links.editor.buttonsHint'),
+      ('links.editor.socials', 'links.editor.socialsHint'),
+      ('links.editor.visit', 'links.editor.visitHint'),
+    ];
+    return Column(
+      key: const ValueKey('links-locked-sections'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.sm,
+      children: [
+        for (final (title, hint) in sections)
+          Container(
+            padding: const EdgeInsets.all(Space.md),
+            decoration: BoxDecoration(
+              color: c.surface,
+              borderRadius: BorderRadius.circular(Radii.xs),
+              border: Border.all(color: c.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: DashMetrics.hair,
+              children: [
+                Text(
+                  t(title),
+                  style: DashType.bodyStrong.copyWith(color: c.textPrimary),
+                ),
+                Text(
+                  t(hint),
+                  style: DashType.small.copyWith(color: c.textSecondary),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
 
 /// The loading state (the web shows only these bars, no header).
 class _LinksSkeleton extends ConsumerWidget {
-  const _LinksSkeleton();
+  const _LinksSkeleton({required this.footer});
+
+  /// The menu without prices, which loads on its own.
+  final Widget footer;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Semantics(
-    key: const ValueKey('links-loading'),
-    label: ref.watch(tProvider)('common.loading'),
-    child: const Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.md,
-      children: [
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: DashSkeleton(
-            width: LinksMetrics.titleBarWidth,
-            height: Space.xxl,
-          ),
+  Widget build(BuildContext context, WidgetRef ref) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    spacing: Space.xl,
+    children: [
+      Semantics(
+        key: const ValueKey('links-loading'),
+        label: ref.watch(tProvider)('common.loading'),
+        child: const Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.md,
+          children: [
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: DashSkeleton(
+                width: LinksMetrics.titleBarWidth,
+                height: Space.xxl,
+              ),
+            ),
+            DashSkeleton(height: LinksMetrics.cardBar, radius: Radii.card),
+            DashSkeleton(height: LinksMetrics.tallBar, radius: Radii.card),
+          ],
         ),
-        DashSkeleton(height: LinksMetrics.cardBar, radius: Radii.card),
-        DashSkeleton(height: LinksMetrics.tallBar, radius: Radii.card),
-      ],
-    ),
+      ),
+      footer,
+    ],
   );
 }
 
 class LinksEditor extends ConsumerStatefulWidget {
-  const LinksEditor({required this.orgId, required this.saved, super.key});
+  const LinksEditor({
+    required this.orgId,
+    required this.saved,
+    this.footer,
+    super.key,
+  });
 
   final String orgId;
   final LinksPageSettings saved;
+
+  /// Under the editor and its preview: the menu without prices.
+  final Widget? footer;
 
   @override
   ConsumerState<LinksEditor> createState() => _LinksEditorState();
@@ -314,18 +425,24 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
           onPressed: _busy ? null : _save,
         ),
       ],
-      body: viewport >= LinksMetrics.besideFrom
-          ? StickyBeside(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.xl,
+        children: [
+          if (viewport >= LinksMetrics.besideFrom)
+            StickyBeside(
               main: form,
               side: preview,
               sideWidth: LinksMetrics.preview,
               gap: Space.xl,
             )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: Space.xl,
-              children: [form, preview],
-            ),
+          else ...[
+            form,
+            preview,
+          ],
+          ?widget.footer,
+        ],
+      ),
     );
   }
 

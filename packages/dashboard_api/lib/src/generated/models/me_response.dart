@@ -6,6 +6,7 @@ part of '../models.dart';
 class MeResponse {
   const MeResponse({
     required this.currencyCode,
+    this.plan,
     this.requireTableForOrders,
     required this.taxPolicy,
     required this.taxRate,
@@ -15,6 +16,7 @@ class MeResponse {
 
   factory MeResponse.fromJson(Map<String, Object?> json) => MeResponse(
     currencyCode: decString(json['currency_code'], 'MeResponse.currency_code'),
+    plan: decStringN(json['plan'], 'MeResponse.plan'),
     requireTableForOrders: decBoolN(
       json['require_table_for_orders'],
       'MeResponse.require_table_for_orders',
@@ -30,6 +32,9 @@ class MeResponse {
 
   /// Org currency code (e.g. "EGP").
   final String currencyCode;
+
+  /// The organization's plan: `free` | `paid`. Re-read on every `/auth/me`.
+  final String? plan;
 
   /// Every dine-in sale belongs to a table. Re-read on every `/auth/me`, so
   /// switching it on reaches a till that has been running for weeks.
@@ -55,6 +60,7 @@ class MeResponse {
 
   Map<String, Object?> toJson() => <String, Object?>{
     'currency_code': currencyCode,
+    if (plan != null || explicitNulls.contains('plan')) 'plan': plan,
     if (requireTableForOrders != null ||
         explicitNulls.contains('require_table_for_orders'))
       'require_table_for_orders': requireTableForOrders,

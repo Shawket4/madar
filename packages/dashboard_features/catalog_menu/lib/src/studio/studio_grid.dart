@@ -190,12 +190,22 @@ class StudioRecipeGrid extends ConsumerStatefulWidget {
 }
 
 class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
+  /// One focus node per cell, by the row's key (`own:<ingredient>`, …, or
+  /// [_priceRow]) and the column, never by the row's position: an edit can
+  /// move a row (rows follow the first size that carries them), and a node
+  /// held by position would hand the focus to the row that moved into its
+  /// place.
   final Map<String, FocusNode> _nodes = {};
 
-  /// The cells that hold an input this frame (`row|column`; row -1 = Price).
+  /// The cells that hold an input this frame (`row key|column`).
   final Set<String> _inputs = {};
 
-  FocusNode _node(int row, String col) =>
+  /// This frame's ingredient rows, top to bottom, for Enter / ↑ / ↓.
+  List<String> _rowKeys = const [];
+
+  static const String _priceRow = r'$price';
+
+  FocusNode _node(String row, String col) =>
       _nodes.putIfAbsent('$row|$col', FocusNode.new);
 
   @override
@@ -220,8 +230,14 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
         ? -1
         : 0;
     if (dr == 0) return KeyEventResult.ignored;
-    final next = '${row + dr}|$col';
-    if (!_inputs.contains(next)) return KeyEventResult.ignored;
+    final to = row + dr;
+    final key = to == -1
+        ? _priceRow
+        : to >= 0 && to < _rowKeys.length
+        ? _rowKeys[to]
+        : null;
+    final next = '$key|$col';
+    if (key == null || !_inputs.contains(next)) return KeyEventResult.ignored;
     _nodes[next]?.requestFocus();
     return KeyEventResult.handled;
   }
@@ -246,6 +262,7 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
     };
     String? slugOf(String id) => catalogById[id]?.categorySlug;
     _inputs.clear();
+    _rowKeys = [for (final r in rows) r.key];
 
     String? tagOf(GridRow r) => switch (r.source) {
       LineSource.base => t(
@@ -384,7 +401,7 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
           ),
         );
       }
-      _inputs.add('$rowIndex|${b.key}');
+      _inputs.add('${r.key}|${b.key}');
       return DashTextInput(
         value: value ?? '',
         placeholder: '—',
@@ -399,7 +416,7 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
             'size': b.label,
           },
         ),
-        focusNode: _node(rowIndex, b.key),
+        focusNode: _node(r.key, b.key),
         onKeyEvent: (_, e) => _onKey(rowIndex, b.key, e),
         trailing: Padding(
           padding: const EdgeInsetsDirectional.only(end: Space.sm),
@@ -412,7 +429,7 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
     }
 
     Widget priceCell(SizeBlock b) {
-      _inputs.add('-1|${b.key}');
+      _inputs.add('$_priceRow|${b.key}');
       return DashTextInput(
         value: b.price,
         enabled: !locked,
@@ -420,7 +437,7 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
         textAlign: TextAlign.end,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         semanticLabel: t('modeling.grid.priceAria', args: {'size': b.label}),
-        focusNode: _node(-1, b.key),
+        focusNode: _node(_priceRow, b.key),
         onKeyEvent: (_, e) => _onKey(-1, b.key, e),
         onChanged: (v) => _set([
           for (final x in blocks)
@@ -525,6 +542,9 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
         ),
         for (final (i, r) in rows.indexed)
           TableRow(
+            // Keyed by the row, so a moved row keeps its boxes (and the box
+            // being typed in keeps the keyboard).
+            key: ValueKey(r.key),
             decoration: BoxDecoration(
               color: r.source == LineSource.own
                   ? null
@@ -613,13 +633,8 @@ class _StudioRecipeGridState extends ConsumerState<StudioRecipeGrid> {
                   // Focus the new row's cell in the first size.
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted) return;
-                    var last = -2;
-                    for (final k in _inputs) {
-                      final parts = k.split('|');
-                      final row = int.parse(parts.first);
-                      if (parts.last == first && row > last) last = row;
-                    }
-                    if (last >= 0) _nodes['$last|$first']?.requestFocus();
+                    final cell = '${LineSource.own.name}:$id|$first';
+                    if (_inputs.contains(cell)) _nodes[cell]?.requestFocus();
                   });
                 },
               ),

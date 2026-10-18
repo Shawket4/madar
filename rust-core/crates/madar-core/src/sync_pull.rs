@@ -175,13 +175,27 @@ fn record_stream_outcome(
 /// nothing on screen suggesting otherwise. The catalog is half the data a till
 /// sells from; a view of freshness that cannot see it is not a view of
 /// freshness.
+#[cfg(test)]
 pub(crate) fn freshness(store: &Store, branch: &str, realtime_live: bool, now_ms: i64) -> FreshnessView {
+    freshness_within(store, branch, realtime_live, FRESH_FOR_MS, now_ms)
+}
+
+/// The branch's freshness, given the age a pull stays fresh for: a stream-less (Free)
+/// till polls every few minutes when idle (`scheduler::FREE_FRESH_FOR`), and a
+/// gap between two of its beats is not staleness.
+pub(crate) fn freshness_within(
+    store: &Store,
+    branch: &str,
+    realtime_live: bool,
+    fresh_for_ms: i64,
+    now_ms: i64,
+) -> FreshnessView {
     let complete = store
         .kv_get(&format!("{K_LAST_FULL}{branch}"))
         .ok()
         .flatten()
         .is_some();
-    let pull = stream_freshness(store, &stream_key(branch), complete, realtime_live, now_ms);
+    let pull = stream_freshness(store, &stream_key(branch), complete, realtime_live, fresh_for_ms, now_ms);
     worse_of(pull, catalog_freshness(store, branch, now_ms))
 }
 
@@ -246,6 +260,7 @@ fn stream_freshness(
     key: &str,
     complete: bool,
     realtime_live: bool,
+    fresh_for_ms: i64,
     now_ms: i64,
 ) -> FreshnessView {
     let row = stream_row(store, key);
@@ -258,7 +273,7 @@ fn stream_freshness(
         ("bootstrapping", Some(err_kind.as_deref().map(reason_of).unwrap_or_else(|| "never_synced".into())))
     } else if let Some(k) = err_kind.as_deref() {
         ("stale", Some(reason_of(k)))
-    } else if last_ok.map(|t| now_ms - t <= FRESH_FOR_MS).unwrap_or(false) || (realtime_live && last_ok.is_some()) {
+    } else if last_ok.map(|t| now_ms - t <= fresh_for_ms).unwrap_or(false) || (realtime_live && last_ok.is_some()) {
         ("fresh", None)
     } else {
         ("stale", Some(if last_ok.is_some() { "offline" } else { "never_synced" }.to_string()))
@@ -309,6 +324,44 @@ pub(crate) const K_LAST_FULL: &str = "sync:last_full_at:";
 /// The types the branch's last complete snapshot listed (a mirror built from a
 /// type the server does not send yet must not overwrite the legacy fetch).
 pub(crate) const K_TYPES: &str = "sync:types:";
+/// The ledger retention (hours) the server last advertised for this branch
+/// (sync protocol v2, `ledger_retention_hours`). Absent = the server has not
+/// said (an older server, or one that answers v1 only).
+pub(crate) const K_RETENTION_H: &str = "sync:ledger_retention_h:";
+
+/// The sync protocol this core speaks on `/sync/pull` (MadarRust
+/// `sync::protocol`; DB audit Phase 6). v2 adds the ledger retention hint on
+/// every pull response. A server that predates the field ignores it and
+/// answers exactly as before, so no version check is needed on our side.
+/// The batched replay (`/sync/replay/batch`) is also v2 but is NOT used here:
+/// the outbox keeps replaying one op per request.
+pub(crate) const SYNC_PROTOCOL: u32 = 2;
+
+/// Has a till's cursor outlived the feed? The server keeps a ledger row on the
+/// incremental feed for `retention_h` hours and then purges it, so a cursor
+/// from before that is answered `resync_required`. A till whose last complete
+/// pull (`last_ok`) is older than the advertised retention skips that doomed
+/// round trip and asks for the snapshot directly. Without both facts, or with
+/// a nonsense retention, the till asks incrementally as always and the
+/// server's own `resync_required` stays the authority.
+pub(crate) fn cursor_past_retention(
+    last_ok: Option<chrono::DateTime<chrono::Utc>>,
+    retention_h: Option<i64>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> bool {
+    match (last_ok, retention_h) {
+        (Some(at), Some(h)) if h > 0 => now - at > chrono::Duration::hours(h),
+        _ => false,
+    }
+}
+
+/// What a pull response says about the protocol: the retention to remember,
+/// or `None` to forget a remembered one (a server that no longer sends it, an
+/// older build after a rollback, must not leave a stale hint acting).
+pub(crate) fn advertised_retention(resp: &PullResponse) -> Option<i64> {
+    let v2 = resp.protocol.flatten().is_some_and(|p| p >= 2);
+    resp.ledger_retention_hours.flatten().filter(|h| v2 && *h > 0)
+}
 
 /// Did the branch's last complete snapshot list `ty`?
 pub(crate) fn feed_has_type(store: &Store, branch: &str, ty: &str) -> bool {
@@ -1123,6 +1176,7 @@ impl MadarCore {
         let mut request = madar_api::models::PullRequest::new(branch_id);
         request.device_id = uuid::Uuid::parse_str(&self.lan_device_id()).ok().map(Some);
         request.types = types.map(Some);
+        request.protocol = Some(Some(SYNC_PROTOCOL));
         // A full snapshot of everything asks for paged ledger rows (an older
         // server ignores the fields and answers in one response).
         if let Some(cursor) = page {
@@ -1206,6 +1260,13 @@ impl MadarCore {
                 .kv_get(&format!("{K_NEXT}{branch}"))?
                 .and_then(|v| v.parse().ok())
         };
+        if since.is_some() && self.cursor_outlived_feed(&branch) {
+            crate::obs::capture_bg_warning(
+                "sync.retention_resync",
+                "the last pull is older than the server's ledger retention: full snapshot",
+            );
+            since = None;
+        }
         let mut applied = 0u32;
         let mut bundle: Option<madar_api::models::AssetBundleRef> = None;
         let mut paging: Option<SnapshotPaging> = None;
@@ -1216,6 +1277,7 @@ impl MadarCore {
             let page = since.is_none().then(|| page_cursor.clone());
             let body = self.post_pull(since, &branch, None, page).await?;
             let (resp, raw) = decode_pull(&body)?;
+            self.remember_retention(&branch, &resp);
             if resp.resync_required.unwrap_or(false) {
                 if since.is_none() {
                     // A full pull never asks for a resync; refuse to loop on one.
@@ -1335,6 +1397,25 @@ impl MadarCore {
             self.money_parity_check().await;
             return Ok(applied);
         }
+    }
+
+    /// [`cursor_past_retention`] for this branch, from what the store holds.
+    fn cursor_outlived_feed(&self, branch: &str) -> bool {
+        let kv = |k: &str| self.store.kv_get(&format!("{k}{branch}")).ok().flatten();
+        let last_ok = kv(K_LAST_OK).as_deref().and_then(parse_ts);
+        let retention = kv(K_RETENTION_H).and_then(|v| v.parse().ok());
+        cursor_past_retention(last_ok, retention, chrono::Utc::now())
+    }
+
+    /// Keep the server's latest retention hint (written only when it changes).
+    fn remember_retention(&self, branch: &str, resp: &PullResponse) {
+        let key = format!("{K_RETENTION_H}{branch}");
+        let held = self.store.kv_get(&key).ok().flatten();
+        let _ = match advertised_retention(resp) {
+            Some(h) if held.as_deref() != Some(h.to_string().as_str()) => self.store.kv_put(&key, &h.to_string()),
+            None if held.is_some() => self.store.kv_delete(&key),
+            _ => Ok(()),
+        };
     }
 
     /// Has this branch completed a full snapshot? Only then are the synced rows
@@ -1598,10 +1679,15 @@ impl MadarCore {
             blocked_close: blocked
                 .iter()
                 .any(|(_, op)| matches!(op.as_str(), "close_till" | "close_shift")),
-            freshness: freshness(
+            freshness: freshness_within(
                 &self.store,
                 &branch,
                 self.realtime_live(),
+                if self.stream_less_plan() {
+                    crate::scheduler::FREE_FRESH_FOR.as_millis() as i64
+                } else {
+                    FRESH_FOR_MS
+                },
                 chrono::Utc::now().timestamp_millis(),
             ),
             repaired_types: st.repaired_types.clone(),
@@ -2326,5 +2412,183 @@ mod tests {
             })
             .unwrap();
         assert_eq!(old_bill_hours(&store, B), 5);
+    }
+}
+
+/// Sync protocol v2 (DB audit Phase 6): the till names its protocol, keeps the
+/// server's ledger retention hint, and resyncs when its cursor outlived it.
+#[cfg(test)]
+mod protocol_v2_tests {
+    use super::*;
+    use crate::testkit::{self, Stub, StubResponse};
+    use chrono::{Duration, TimeZone, Utc};
+
+    const B: &str = testkit::BRANCH;
+
+    fn snapshot(next: i64, extra: serde_json::Value) -> serde_json::Value {
+        let mut data = serde_json::Map::new();
+        for t in REQUIRED_TYPES {
+            data.insert(t.to_string(), serde_json::json!([]));
+        }
+        let mut body = serde_json::json!({"full": true, "next": next, "has_more": false,
+            "server_time": "2026-10-17T10:00:00Z", "types": REQUIRED_TYPES, "data": data,
+            "ledger_window": {"from": "2026-10-15T10:00:00Z"}});
+        body.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        body
+    }
+
+    fn incremental(since: i64, next: i64, extra: serde_json::Value) -> serde_json::Value {
+        let mut body = serde_json::json!({"full": false, "since": since, "next": next,
+            "has_more": false, "server_time": "2026-10-17T10:00:00Z"});
+        body.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        body
+    }
+
+    const V2: &str = r#"{"protocol": 2, "ledger_retention_hours": 384}"#;
+
+    fn v2() -> serde_json::Value {
+        serde_json::from_str(V2).unwrap()
+    }
+
+    /// A stub `/sync/pull`: incremental requests get `incr`, full ones `full`.
+    async fn stub(
+        incr: impl Fn(i64) -> serde_json::Value + Send + Sync + 'static,
+        full: serde_json::Value,
+    ) -> Stub {
+        Stub::start(move |r| {
+            if !r.path.starts_with("/sync/pull") {
+                return None;
+            }
+            let since = r.path.split("since=").nth(1).and_then(|v| v.split('&').next()).and_then(|v| v.parse().ok());
+            Some(StubResponse::json(200, match since {
+                Some(s) => incr(s),
+                None => full.clone(),
+            }))
+        })
+        .await
+    }
+
+    fn since_of(r: &testkit::SeenRequest) -> Option<String> {
+        r.path.split("since=").nth(1).map(|v| v.split('&').next().unwrap_or("").to_string())
+    }
+
+    #[test]
+    fn a_cursor_older_than_the_retention_is_past_it_and_nothing_else_is() {
+        let now = Utc.with_ymd_and_hms(2026, 10, 17, 12, 0, 0).unwrap();
+        let h = Some(384);
+        assert!(cursor_past_retention(Some(now - Duration::hours(385)), h, now));
+        assert!(!cursor_past_retention(Some(now - Duration::hours(384)), h, now), "at the retention it still holds");
+        assert!(!cursor_past_retention(Some(now - Duration::hours(2)), h, now));
+        assert!(!cursor_past_retention(Some(now - Duration::days(400)), None, now), "no hint (old server): ask incrementally");
+        assert!(!cursor_past_retention(None, h, now), "no last pull: nothing to judge");
+        assert!(!cursor_past_retention(Some(now - Duration::days(400)), Some(0), now), "a nonsense hint is ignored");
+        assert!(!cursor_past_retention(Some(now + Duration::days(3)), h, now), "a clock that ran ahead is not past");
+    }
+
+    #[test]
+    fn the_hint_counts_only_on_a_v2_answer() {
+        let (v2_resp, _) = decode_pull(&incremental(1, 2, v2()).to_string()).unwrap();
+        assert_eq!(v2_resp.protocol.flatten(), Some(2));
+        assert_eq!(advertised_retention(&v2_resp), Some(384));
+        // What every server before Phase 6 answers: no protocol, no hint.
+        let (v1_resp, _) = decode_pull(&incremental(1, 2, serde_json::json!({})).to_string()).unwrap();
+        assert_eq!(v1_resp.protocol.flatten(), None);
+        assert_eq!(advertised_retention(&v1_resp), None);
+        let (odd, _) = decode_pull(&incremental(1, 2, serde_json::json!({"protocol": 1, "ledger_retention_hours": 384})).to_string()).unwrap();
+        assert_eq!(advertised_retention(&odd), None, "a v1 answer carries no v2 semantics");
+    }
+
+    #[test]
+    fn the_request_names_protocol_2_and_an_old_server_body_still_decodes() {
+        let mut req = madar_api::models::PullRequest::new(uuid::Uuid::nil());
+        req.protocol = Some(Some(SYNC_PROTOCOL));
+        let wire = serde_json::to_value(&req).unwrap();
+        assert_eq!(wire["protocol"], 2);
+        assert!(wire.get("limit").is_none(), "the other optional fields stay off the wire");
+        // A full v1 snapshot body decodes exactly as before.
+        let body = snapshot(9, serde_json::json!({})).to_string();
+        let (resp, raw) = decode_pull(&body).unwrap();
+        assert!(resp.full && raw.is_some() && resp.ledger_retention_hours.flatten().is_none());
+    }
+
+    #[tokio::test]
+    async fn every_pull_says_protocol_2_and_the_retention_is_kept_and_forgotten() {
+        let with_hint = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let flag = with_hint.clone();
+        let s = stub(
+            move |since| {
+                let extra = if flag.load(std::sync::atomic::Ordering::SeqCst) { v2() } else { serde_json::json!({}) };
+                incremental(since, since, extra)
+            },
+            snapshot(9, v2()),
+        )
+        .await;
+        let core = testkit::online_core(&s.base, "").await;
+        core.pull(true).await.unwrap();
+        core.pull(false).await.unwrap();
+        let seen = s.requests("/sync/pull");
+        assert_eq!(seen.len(), 2);
+        assert!(seen.iter().all(|r| r.json()["protocol"] == 2), "full and incremental both name v2");
+        assert_eq!(since_of(&seen[1]).as_deref(), Some("9"));
+        assert_eq!(core.store.kv_get(&format!("{K_RETENTION_H}{B}")).unwrap().as_deref(), Some("384"));
+
+        // The server rolled back to a build without the hint: it is forgotten.
+        with_hint.store(false, std::sync::atomic::Ordering::SeqCst);
+        core.pull(false).await.unwrap();
+        assert_eq!(core.store.kv_get(&format!("{K_RETENTION_H}{B}")).unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn a_till_whose_last_pull_outlived_the_retention_goes_straight_to_the_snapshot() {
+        let s = stub(|since| incremental(since, since, v2()), snapshot(50, v2())).await;
+        let core = testkit::online_core(&s.base, "").await;
+        core.pull(true).await.unwrap();
+        // Off for 20 days: the server keeps ledger rows on the feed for 16.
+        let old = (Utc::now() - Duration::days(20)).to_rfc3339();
+        core.store.kv_put(&format!("{K_LAST_OK}{B}"), &old).unwrap();
+        core.store.kv_put(&format!("{K_NEXT}{B}"), "7").unwrap();
+        core.pull(false).await.unwrap();
+        let seen = s.requests("/sync/pull");
+        assert_eq!(seen.len(), 2, "one snapshot, no doomed incremental first: {:?}", seen.iter().map(|r| &r.path).collect::<Vec<_>>());
+        assert_eq!(since_of(&seen[1]), None, "the resync is a full pull");
+        assert_eq!(core.store.kv_get(&format!("{K_NEXT}{B}")).unwrap().as_deref(), Some("50"));
+        // Fresh again: the next pull is incremental from the snapshot's cursor.
+        core.pull(false).await.unwrap();
+        assert_eq!(since_of(&s.requests("/sync/pull")[2]).as_deref(), Some("50"));
+    }
+
+    #[tokio::test]
+    async fn without_a_hint_an_old_cursor_still_asks_incrementally_and_obeys_resync_required() {
+        // An older server: no protocol echo, no hint; it answers resync_required.
+        let s = stub(
+            |since| serde_json::json!({"full": false, "resync_required": true, "since": since,
+                "has_more": false, "server_time": "2026-10-17T10:00:00Z"}),
+            snapshot(60, serde_json::json!({})),
+        )
+        .await;
+        let core = testkit::online_core(&s.base, "").await;
+        core.store.kv_put(&format!("{K_LAST_FULL}{B}"), "2026-09-01T10:00:00Z").unwrap();
+        core.store.kv_put(&format!("{K_LAST_OK}{B}"), &(Utc::now() - Duration::days(40)).to_rfc3339()).unwrap();
+        core.store.kv_put(&format!("{K_NEXT}{B}"), "7").unwrap();
+        core.pull(false).await.unwrap();
+        let seen = s.requests("/sync/pull");
+        assert_eq!(seen.len(), 2);
+        assert_eq!(since_of(&seen[0]).as_deref(), Some("7"), "no hint: the server decides");
+        assert_eq!(since_of(&seen[1]), None, "resync_required: the snapshot follows");
+        assert_eq!(core.store.kv_get(&format!("{K_NEXT}{B}")).unwrap().as_deref(), Some("60"));
+    }
+
+    #[test]
+    fn a_stream_less_till_between_its_beats_is_not_stale() {
+        let store = Store::open("").unwrap();
+        let branch = "b1";
+        let now = 1_700_000_000_000i64;
+        store.kv_put(&format!("{K_LAST_FULL}{branch}"), "2026-10-17T10:00:00Z").unwrap();
+        record_pull_outcome(&store, branch, Ok(()), now);
+        let four_min = now + 4 * 60_000;
+        assert_eq!(freshness(&store, branch, false, four_min).state, "stale", "a paid till's minute beat");
+        let free = crate::scheduler::FREE_FRESH_FOR.as_millis() as i64;
+        assert_eq!(freshness_within(&store, branch, false, free, four_min).state, "fresh", "inside the Free idle beat");
+        assert_eq!(freshness_within(&store, branch, false, free, now + free + 1).state, "stale", "a missed Free beat is");
     }
 }

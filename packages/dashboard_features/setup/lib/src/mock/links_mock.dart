@@ -11,7 +11,13 @@
 ///   tagline over 160, a branch not the shop's, a social off the closed
 ///   list); new links get ids; `social_links` replaces the map (cleaned).
 /// - `GET /orgs/{id}/links-qr`: same org, `org.settings.read`; 409 without
-///   the shop's own address (custom branding + slug).
+///   the shop's own address (custom branding + slug). With
+///   `target=menu_display`, the menu without prices' code instead, which
+///   every shop has (on the generic host without an address of its own).
+/// - `GET/PUT /orgs/{id}/links-page/menu-display` (`orgs/menu_display.rs`):
+///   same org, `org.settings.read` / `.edit`, every plan; the menu without
+///   prices' switch, titles (at most 60) and branch (one of the shop's open
+///   branches, else 400), stored beside the links page and never touching it.
 /// - `GET /public/orgs/links`: no session; what a customer sees (visible
 ///   buttons that can show, socials, the shown branches with directions).
 library;
@@ -27,6 +33,10 @@ import 'support.dart';
 /// The saved pages, one row per org (`id` = the org's id).
 const String linksPagesTable = 'links_pages';
 
+/// The menu without prices' settings, one row per org (`id` = the org's
+/// id): `org_links_pages.menu_display_*` on the server.
+const String menuDisplayTable = 'menu_display';
+
 const int _maxCustom = 20;
 const int _maxTitle = 60;
 const int _maxTagline = 160;
@@ -36,6 +46,10 @@ const List<String> _modules = ['order', 'menu', 'rewards', 'book'];
 const String _orderHost = 'https://order.madar-pos.cloud';
 const String _bookHost = 'https://reservations.madar-pos.cloud';
 const String _rewardsHost = 'https://loyalty.madar-pos.cloud';
+
+/// Where the menu without prices lives on a shop's own host
+/// (`MENU_DISPLAY_PATH`).
+const String _menuDisplayPath = '/menu';
 
 /// Sabah's own link: its catering form.
 final String linksCateringId = mockUuid('links:sabah:catering');
@@ -374,8 +388,69 @@ PublicLinksPage _public(MockDb db, MockRow org) {
   );
 }
 
+/// `menu_display_url`: `/menu` on the shop's own host, else the generic
+/// loyalty host's `/menu/<org id>`.
+String menuDisplayUrl(MockRow org) => switch (_origin(org)) {
+  final origin? => '$origin$_menuDisplayPath',
+  null => '$_rewardsHost$_menuDisplayPath/${org['id']}',
+};
+
+/// `settings_view`: the stored switch, titles and pick, the open branches
+/// (oldest first), the branch shown now, and the address.
+MenuDisplaySettings _menuDisplayView(MockDb db, String orgId) {
+  final org = db['orgs'].get(orgId, what: 'Organization not found');
+  final s = db[menuDisplayTable].find(orgId);
+  final branches = db['branches']
+      .query(filters: {'org_id': orgId, 'is_active': true}, sort: 'created_at')
+      .where((b) => (b['kind'] ?? 'branch') == 'branch')
+      .toList();
+  final picked = s?['branch_id'] as String?;
+  final effective = branches.any((b) => b['id'] == picked)
+      ? picked
+      : branches.isEmpty
+      ? null
+      : branches.first['id']! as String;
+  return MenuDisplaySettings(
+    enabled: s?['enabled'] == true,
+    titleEn: s?['title_en'] as String?,
+    titleAr: s?['title_ar'] as String?,
+    branchId: picked,
+    effectiveBranchId: effective,
+    branches: [
+      for (final b in branches)
+        MenuDisplayBranchOption(
+          id: b['id']! as String,
+          name: b['name']! as String,
+        ),
+    ],
+    publicUrl: menuDisplayUrl(org),
+  );
+}
+
+String? _menuTitle(MockRequest req, Object? v) {
+  final s = _clean(v);
+  if (s != null && s.runes.length > _maxTitle) {
+    req.badRequest('A menu title can be at most $_maxTitle characters');
+  }
+  return s;
+}
+
 void registerLinksMocks(MockServer server, MockDb db) {
   seedTableIfAbsent(db, linksPagesTable, _seed);
+  // Sabah shows its menu without prices; Nakhla never switched it on.
+  seedTableIfAbsent(
+    db,
+    menuDisplayTable,
+    () => [
+      {
+        'id': SeedIds.sabahOrg,
+        'enabled': true,
+        'title_en': 'Our menu',
+        'title_ar': 'قائمتنا',
+        'branch_id': null,
+      },
+    ],
+  );
 
   onIfAbsent(server, 'GET', '/orgs/{id}/links-page', (req) {
     final id = req.param('id');
@@ -432,6 +507,20 @@ void registerLinksMocks(MockServer server, MockDb db) {
     req.requireSameOrg(id);
     req.requireCap('org.settings.read');
     final org = db['orgs'].get(id, what: 'Organization not found');
+    switch (req.q('target')) {
+      case null || 'links':
+        break;
+      case 'menu_display':
+        return MockResponse.ok(
+          mockQrResponse(
+            kind: 'org_menu_display',
+            longUrl: menuDisplayUrl(org),
+            key: 'org_menu_display:$id',
+          ),
+        );
+      default:
+        req.badRequest('target is `links` or `menu_display`');
+    }
     final origin = _origin(org);
     if (origin == null) {
       req.conflict(
@@ -446,6 +535,42 @@ void registerLinksMocks(MockServer server, MockDb db) {
         key: 'org_links:$id',
       ),
     );
+  });
+
+  onIfAbsent(server, 'GET', '/orgs/{id}/links-page/menu-display', (req) {
+    final id = req.param('id');
+    req.requireSameOrg(id);
+    req.requireCap('org.settings.read');
+    return MockResponse.ok(_menuDisplayView(db, id));
+  });
+
+  onIfAbsent(server, 'PUT', '/orgs/{id}/links-page/menu-display', (req) {
+    final id = req.param('id');
+    req.requireSameOrg(id);
+    req.requireCap('org.settings.edit');
+    final body = req.json;
+    final titleEn = _menuTitle(req, body['title_en']);
+    final titleAr = _menuTitle(req, body['title_ar']);
+    final branch = body['branch_id'] as String?;
+    if (branch != null &&
+        db['branches'].firstWhere(
+              (b) =>
+                  b['id'] == branch &&
+                  b['org_id'] == id &&
+                  b['is_active'] == true &&
+                  (b['kind'] ?? 'branch') == 'branch',
+            ) ==
+            null) {
+      req.badRequest("That branch is not one of this shop's");
+    }
+    db[menuDisplayTable].put({
+      'id': id,
+      'enabled': body['enabled'] == true,
+      'title_en': titleEn,
+      'title_ar': titleAr,
+      'branch_id': branch,
+    });
+    return MockResponse.ok(_menuDisplayView(db, id));
   });
 
   onIfAbsent(server, 'GET', '/public/orgs/links', (req) {

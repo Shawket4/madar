@@ -1,12 +1,15 @@
 /// Operations › Overview (`features/analytics/analytics-page.tsx`
-/// `OverviewTab`, REP-OPS-034…046, 064, 068, 069): branch sales for the
+/// `OverviewTab`, REP-OPS-034…046, 064, 068, 069;
+/// `features/reports/operations/overview-tab.tsx`): branch sales for the
 /// period as six KPIs (Items Sold carrying the exclude control), revenue by
-/// payment method beside revenue by category (two columns from 1024 px), and
-/// the top items by quantity.
+/// payment method beside revenue by category (two columns from 1024 px), the
+/// Pickup / Dine in split and the top items by quantity — built from the
+/// report kit. A failed read: every KPI reads "—" (no hint), every card shows
+/// the card error with Retry; loading keeps the skeletons, a real zero reads 0.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show BranchSalesReport, MenuItem;
+    show BranchSalesReport, MenuItem, ServiceModeSales;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -16,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/report_shared.dart';
 import 'ops_charts.dart';
 import 'ops_data.dart';
+import 'ops_report_kit.dart';
 import 'ops_support.dart';
 
 /// One payment method's slice: value > 0, largest first (`ap:71-74`).
@@ -83,65 +87,69 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
     ]..sort((a, b) => b.$2.compareTo(a.$2));
     final topCategories = byCategory.take(10).toList();
 
+    // A failed KPI reads "—", never 0 (as on the Tables tab).
     final kpis = DashLedgerStrip(
       items: [
-        DashLedgerItem(
-          key: 'revenue',
-          label: t('dashboard.revenue'),
-          icon: 'coins',
-          value: d?.totalRevenue ?? 0,
-          format: DashStatFormat.money,
-          loading: loading,
-        ),
-        DashLedgerItem(
-          key: 'tax',
-          label: t('orders.tax'),
-          icon: 'percent',
-          tone: DashTone.info,
-          value: d?.totalTax ?? 0,
-          format: DashStatFormat.money,
-          loading: loading,
-        ),
-        DashLedgerItem(
-          key: 'orders',
-          label: t('dashboard.orders'),
-          icon: 'receipt',
-          tone: DashTone.accent,
-          value: d?.totalOrders ?? 0,
-          format: DashStatFormat.number,
-          loading: loading,
-        ),
-        DashLedgerItem(
-          key: 'line_items',
-          label: t('analytics.itemsSold'),
-          icon: 'shopping-basket',
-          tone: DashTone.info,
-          value: d?.totalLineItems ?? 0,
-          format: DashStatFormat.number,
-          loading: loading,
-          hint: excluded.isEmpty
-              ? null
-              : t('analytics.nExcluded', count: excluded.length),
-          action: OpsExcludeItemsControl(orgId: scope.orgId),
-        ),
-        DashLedgerItem(
-          key: 'aov',
-          label: t('analytics.avgOrder'),
-          icon: 'trending-up',
-          tone: DashTone.info,
-          value: aov,
-          format: DashStatFormat.money,
-          loading: loading,
-        ),
-        DashLedgerItem(
-          key: 'voided',
-          label: t('orders.voided'),
-          icon: 'ban',
-          tone: DashTone.warning,
-          value: d?.voidedOrders ?? 0,
-          format: DashStatFormat.number,
-          loading: loading,
-        ),
+        for (final item in [
+          DashLedgerItem(
+            key: 'revenue',
+            label: t('dashboard.revenue'),
+            icon: 'coins',
+            value: d?.totalRevenue ?? 0,
+            format: DashStatFormat.money,
+            loading: loading,
+          ),
+          DashLedgerItem(
+            key: 'tax',
+            label: t('orders.tax'),
+            icon: 'percent',
+            tone: DashTone.info,
+            value: d?.totalTax ?? 0,
+            format: DashStatFormat.money,
+            loading: loading,
+          ),
+          DashLedgerItem(
+            key: 'orders',
+            label: t('dashboard.orders'),
+            icon: 'receipt',
+            tone: DashTone.accent,
+            value: d?.totalOrders ?? 0,
+            format: DashStatFormat.number,
+            loading: loading,
+          ),
+          DashLedgerItem(
+            key: 'line_items',
+            label: t('analytics.itemsSold'),
+            icon: 'shopping-basket',
+            tone: DashTone.info,
+            value: d?.totalLineItems ?? 0,
+            format: DashStatFormat.number,
+            loading: loading,
+            hint: excluded.isEmpty
+                ? null
+                : t('analytics.nExcluded', count: excluded.length),
+            action: OpsExcludeItemsControl(orgId: scope.orgId),
+          ),
+          DashLedgerItem(
+            key: 'aov',
+            label: t('analytics.avgOrder'),
+            icon: 'trending-up',
+            tone: DashTone.info,
+            value: aov,
+            format: DashStatFormat.money,
+            loading: loading,
+          ),
+          DashLedgerItem(
+            key: 'voided',
+            label: t('orders.voided'),
+            icon: 'ban',
+            tone: DashTone.warning,
+            value: d?.voidedOrders ?? 0,
+            format: DashStatFormat.number,
+            loading: loading,
+          ),
+        ])
+          opsKpi(item, failed: failed),
       ],
     );
 
@@ -243,99 +251,291 @@ class _OpsOverviewViewState extends ConsumerState<OpsOverviewView> {
       title: t('analytics.topItemsQty'),
       child: OpsChartBody(
         height: null,
-        loading: false,
+        loading: loading,
+        skeleton: Column(
+          spacing: Space.sm,
+          children: [
+            for (var i = 0; i < 5; i++)
+              const DashSkeleton(height: Space.xxl + Space.xs),
+          ],
+        ),
         failed: failed,
-        empty: !loading && top.isEmpty,
+        empty: top.isEmpty,
         emptyTitle: noData,
         onRetry: retry,
-        chart: (_) => loading
-            ? Column(
-                spacing: Space.sm,
-                children: [
-                  for (var i = 0; i < 5; i++)
-                    const DashSkeleton(height: Space.xxl + Space.xs),
-                ],
-              )
-            : Column(
-                children: [
-                  for (final (i, it) in top.indexed)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: Space.sm + DashMetrics.hair,
-                      ),
-                      decoration: BoxDecoration(
-                        border: i == top.length - 1
-                            ? null
-                            : Border(bottom: BorderSide(color: c.hairline)),
-                      ),
-                      child: Row(
-                        spacing: Space.md,
-                        children: [
-                          SizedBox(
-                            width: Space.xl,
-                            child: Text(
-                              dashFigure('${i + 1}'),
-                              textAlign: TextAlign.end,
-                              style: DashType.mono.copyWith(
-                                fontSize: 12,
-                                color: c.textSecondary,
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: MadarClippedText(
-                              translatedName(
-                                it.itemName,
-                                it.itemNameTranslations,
-                                lang,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: DashType.bodyMedium.copyWith(
-                                color: c.textPrimary,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            '${dashFigure(fmtNum(f, it.quantitySold))} '
-                            '${t('analytics.sold')}',
-                            style: DashType.small.copyWith(
-                              color: c.textSecondary,
-                            ),
-                          ),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              minWidth: Space.xxl * 3,
-                            ),
-                            child: Text(
-                              dashFigure(f.fmtMoney(it.revenue)),
-                              textAlign: TextAlign.end,
-                              style: DashType.monoStrong.copyWith(
-                                color: c.textPrimary,
-                              ),
-                            ),
-                          ),
-                        ],
+        chart: (_) => Column(
+          children: [
+            for (final (i, it) in top.indexed)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: Space.sm + DashMetrics.hair,
+                ),
+                decoration: BoxDecoration(
+                  border: i == top.length - 1
+                      ? null
+                      : Border(bottom: BorderSide(color: c.hairline)),
+                ),
+                child: Row(
+                  spacing: Space.md,
+                  children: [
+                    SizedBox(
+                      width: Space.xl,
+                      child: Text(
+                        dashFigure('${i + 1}'),
+                        textAlign: TextAlign.end,
+                        style: DashType.mono.copyWith(
+                          fontSize: 12,
+                          color: c.textSecondary,
+                        ),
                       ),
                     ),
-                ],
+                    Expanded(
+                      child: MadarClippedText(
+                        translatedName(
+                          it.itemName,
+                          it.itemNameTranslations,
+                          lang,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DashType.bodyMedium.copyWith(
+                          color: c.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${dashFigure(fmtNum(f, it.quantitySold))} '
+                      '${t('analytics.sold')}',
+                      style: DashType.small.copyWith(color: c.textSecondary),
+                    ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: Space.xxl * 3,
+                      ),
+                      child: Text(
+                        dashFigure(f.fmtMoney(it.revenue)),
+                        textAlign: TextAlign.end,
+                        style: DashType.monoStrong.copyWith(
+                          color: c.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+          ],
+        ),
       ),
     );
 
-    final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.lg;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: Space.lg,
+    return OpsReportStack(
       children: [
         kpis,
-        if (wide)
-          OpsEqualRow(children: [paymentCard, categoryCard])
-        else ...[
-          paymentCard,
-          categoryCard,
-        ],
+        OpsChartGrid(children: [paymentCard, categoryCard]),
+        OpsServiceModeSplit(
+          rows: d?.byServiceMode,
+          loading: loading,
+          failed: failed,
+          onRetry: retry,
+        ),
         topCard,
+      ],
+    );
+  }
+}
+
+// ── Pickup / Dine in (`analytics/service-mode-split.tsx`) ─────────────────
+
+/// One service mode's line of the split: its orders, revenue and share of
+/// the two rows' revenue (0..1; 0 when there was none).
+typedef OpsServiceModeRow = ({
+  String mode,
+  int orders,
+  int revenue,
+  double share,
+});
+
+/// `serviceModeRows`: the report's `by_service_mode` in a fixed order
+/// (Pickup, then Dine in), both always present. A mode that is not
+/// `dine_in` is Pickup, as a delivery is on the order.
+List<OpsServiceModeRow> opsServiceModeRows(List<ServiceModeSales>? rows) {
+  const modes = ['takeaway', 'dine_in'];
+  final by = <String, (int, int)>{};
+  for (final r in rows ?? const <ServiceModeSales>[]) {
+    final mode = r.serviceMode == 'dine_in' ? 'dine_in' : 'takeaway';
+    final (o, v) = by[mode] ?? (0, 0);
+    by[mode] = (o + r.orders, v + r.revenue);
+  }
+  final total = modes.fold<int>(0, (s, m) => s + (by[m]?.$2 ?? 0));
+  return [
+    for (final m in modes)
+      (
+        mode: m,
+        orders: by[m]?.$1 ?? 0,
+        revenue: by[m]?.$2 ?? 0,
+        share: total > 0 ? (by[m]?.$2 ?? 0) / total : 0.0,
+      ),
+  ];
+}
+
+/// Sales split by how the customer takes the order (Pickup / Dine in), from
+/// the sales report's `by_service_mode`, on every plan. The two rows add up
+/// to the report's revenue. A failed load shows the card error with Retry,
+/// never a zero split.
+class OpsServiceModeSplit extends ConsumerWidget {
+  const OpsServiceModeSplit({
+    required this.rows,
+    required this.loading,
+    required this.failed,
+    required this.onRetry,
+    super.key,
+  });
+
+  final List<ServiceModeSales>? rows;
+  final bool loading;
+  final bool failed;
+  final VoidCallback onRetry;
+
+  static const Map<String, String> _icons = {
+    'takeaway': 'shopping-bag',
+    'dine_in': 'utensils-crossed',
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(tProvider);
+    final f = ref.watch(formatProvider);
+    final c = context.madarColors;
+    final Widget body;
+    if (loading) {
+      body = const Column(
+        spacing: Space.md,
+        children: [
+          DashSkeleton(height: Space.xxl + Space.lg),
+          DashSkeleton(height: Space.xxl + Space.lg),
+        ],
+      );
+    } else if (failed) {
+      body = DashErrorState(framed: false, onRetry: onRetry);
+    } else {
+      final split = opsServiceModeRows(rows);
+      final cells = [
+        for (final r in split)
+          _ServiceModeCell(
+            key: ValueKey('ops-service-mode-${r.mode}'),
+            icon: _icons[r.mode]!,
+            label: t('orders.serviceMode.${r.mode}'),
+            share: r.share,
+            shareText: dashFigure(f.fmtPercent(r.share)),
+            revenueText: dashFigure(f.fmtMoney(r.revenue)),
+            ordersText: t(
+              'analytics.serviceModeOrders',
+              args: {'orders': dashFigure(fmtNum(f, r.orders))},
+            ),
+            semanticLabel: t(
+              'analytics.serviceModeShare',
+              args: {'mode': t('orders.serviceMode.${r.mode}')},
+            ),
+            colors: c,
+          ),
+      ];
+      // `grid gap-4 sm:grid-cols-2`.
+      body = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: Space.lg,
+              children: [for (final w in cells) Expanded(child: w)],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: Space.lg,
+              children: cells,
+            );
+    }
+    return DashChartCard(
+      key: const ValueKey('ops-service-mode'),
+      title: t('analytics.byServiceMode'),
+      child: body,
+    );
+  }
+}
+
+class _ServiceModeCell extends StatelessWidget {
+  const _ServiceModeCell({
+    required this.icon,
+    required this.label,
+    required this.share,
+    required this.shareText,
+    required this.revenueText,
+    required this.ordersText,
+    required this.semanticLabel,
+    required this.colors,
+    super.key,
+  });
+
+  final String icon;
+  final String label;
+  final double share;
+  final String shareText;
+  final String revenueText;
+  final String ordersText;
+  final String semanticLabel;
+  final MadarColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colors;
+    final figures = [const FontFeature.tabularFigures()];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      spacing: Space.sm,
+      children: [
+        Row(
+          spacing: Space.sm,
+          children: [
+            DashIcon(icon, size: IconSize.sm, color: c.textSecondary),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: DashType.bodyMedium.copyWith(color: c.textPrimary),
+              ),
+            ),
+            Text(
+              shareText,
+              style: DashType.mono.copyWith(
+                fontSize: 12,
+                color: c.textSecondary,
+                fontFeatures: figures,
+              ),
+            ),
+          ],
+        ),
+        DashProgressBar(value: share, max: 1, semanticLabel: semanticLabel),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Expanded(
+              child: Text(
+                revenueText,
+                style: DashType.monoStrong.copyWith(
+                  color: c.textPrimary,
+                  fontFeatures: figures,
+                ),
+              ),
+            ),
+            Text(
+              ordersText,
+              style: DashType.small.copyWith(
+                color: c.textSecondary,
+                fontFeatures: figures,
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

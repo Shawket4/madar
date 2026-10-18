@@ -643,7 +643,8 @@ def build_ops(g):
                 req = rb.get("required", False)
                 op.body = {"ct": ct, "t": t if req else t.n(), "required": req}
             oks = sorted(c for c in o["responses"] if c.startswith("2"))
-            r = o["responses"][oks[0]]
+            # Retired operations (410 SHIM_WRITE_REMOVED) declare no 2xx response.
+            r = o["responses"][oks[0]] if oks else {}
             content = r.get("content") or {}
             op.result = ("void", None)
             if "application/json" in content:

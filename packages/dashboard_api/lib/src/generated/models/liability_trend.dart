@@ -5,7 +5,7 @@ part of '../models.dart';
 /// A weekly trend of the programme's liability, in the org's live currency
 /// (points or visits — never both; see [`PointsLiability`]).
 ///
-/// `loyalty_customers.points_balance`/`visits_balance` are CURRENT balances
+/// `loyalty_memberships.points_balance`/`visits_balance` are CURRENT balances
 /// with no history table, so this is not a snapshot of the outstanding
 /// balance at each week — it is each week's *net change* (earned minus
 /// redeemed, reversals netted in), read straight off the ledger. Summing
