@@ -1998,6 +1998,20 @@ const List<ApiOperation> apiOperations = [
     'putLinksPage',
   ),
   ApiOperation(
+    'get_menu_display',
+    'GET',
+    '/orgs/{id}/links-page/menu-display',
+    'orgs',
+    'getMenuDisplay',
+  ),
+  ApiOperation(
+    'put_menu_display',
+    'PUT',
+    '/orgs/{id}/links-page/menu-display',
+    'orgs',
+    'putMenuDisplay',
+  ),
+  ApiOperation(
     'upload_org_logo',
     'PUT',
     '/orgs/{id}/logo',
@@ -2039,6 +2053,13 @@ const List<ApiOperation> apiOperations = [
     '/orgs/{id}/plan/active-till',
     'orgs',
     'putActiveTill',
+  ),
+  ApiOperation(
+    'public_menu_display',
+    'GET',
+    '/public/menu-display',
+    'orgs',
+    'publicMenuDisplay',
   ),
   ApiOperation(
     'public_org_brand',

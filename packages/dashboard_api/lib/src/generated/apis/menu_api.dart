@@ -587,6 +587,7 @@ class MenuApi {
     String? categoryId,
     bool? full,
     String? branchId,
+    String? shape,
   }) async {
     final response = await _transport.send(
       ApiRequest(
@@ -597,6 +598,7 @@ class MenuApi {
           if (categoryId != null) 'category_id': [queryValue(categoryId)],
           if (full != null) 'full': [queryValue(full)],
           if (branchId != null) 'branch_id': [queryValue(branchId)],
+          if (shape != null) 'shape': [queryValue(shape)],
         },
       ),
     );
