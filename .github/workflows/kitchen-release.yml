@@ -69,6 +69,24 @@ jobs:
       LANG: en_US.UTF-8
     steps:
       - uses: actions/checkout@v7
+      # madar-shared is private: with MADAR_SHARED_TOKEN set, cargo fetches it
+      # through the git CLI with the token; with the secret empty this is a no-op
+      # (anonymous fetch, as before). GIT_CONFIG_* also reaches Docker actions.
+      - name: Authenticate to private madar-shared
+        shell: bash
+        env:
+          MADAR_SHARED_TOKEN: ${{ secrets.MADAR_SHARED_TOKEN }}
+        run: |
+          if [ -n "$MADAR_SHARED_TOKEN" ]; then
+            base=https://github.com/Shawket4/madar-shared
+            git config --global url."https://x-access-token:${MADAR_SHARED_TOKEN}@github.com/Shawket4/madar-shared".insteadOf "$base"
+            {
+              echo CARGO_NET_GIT_FETCH_WITH_CLI=true
+              echo GIT_CONFIG_COUNT=1
+              echo "GIT_CONFIG_KEY_0=url.https://x-access-token:${MADAR_SHARED_TOKEN}@github.com/Shawket4/madar-shared.insteadOf"
+              echo "GIT_CONFIG_VALUE_0=$base"
+            } >> "$GITHUB_ENV"
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v6
@@ -228,6 +246,24 @@ jobs:
 
       - uses: actions/checkout@v7
         if: steps.asc.outputs.ready == 'true'
+      # madar-shared is private: with MADAR_SHARED_TOKEN set, cargo fetches it
+      # through the git CLI with the token; with the secret empty this is a no-op
+      # (anonymous fetch, as before). GIT_CONFIG_* also reaches Docker actions.
+      - name: Authenticate to private madar-shared
+        shell: bash
+        env:
+          MADAR_SHARED_TOKEN: ${{ secrets.MADAR_SHARED_TOKEN }}
+        run: |
+          if [ -n "$MADAR_SHARED_TOKEN" ]; then
+            base=https://github.com/Shawket4/madar-shared
+            git config --global url."https://x-access-token:${MADAR_SHARED_TOKEN}@github.com/Shawket4/madar-shared".insteadOf "$base"
+            {
+              echo CARGO_NET_GIT_FETCH_WITH_CLI=true
+              echo GIT_CONFIG_COUNT=1
+              echo "GIT_CONFIG_KEY_0=url.https://x-access-token:${MADAR_SHARED_TOKEN}@github.com/Shawket4/madar-shared.insteadOf"
+              echo "GIT_CONFIG_VALUE_0=$base"
+            } >> "$GITHUB_ENV"
+          fi
 
       - name: Setup Rust (from rust-toolchain.toml)
         if: steps.asc.outputs.ready == 'true'
