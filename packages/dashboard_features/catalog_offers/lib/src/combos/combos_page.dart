@@ -600,6 +600,7 @@ class ComboThumb extends StatelessWidget {
           : Image.network(
               url!,
               fit: BoxFit.cover,
+              cacheWidth: dashThumbDecodeWidth(context, CombosMetrics.thumb),
               errorBuilder: (_, _, _) => glyph,
             ),
     );

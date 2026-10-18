@@ -436,8 +436,11 @@ void main() {
       final image = tester.widget<Image>(
         inRow('Extra combo 01', find.byType(Image)),
       );
+      // Decoded at the tile's size (a ResizeImage over the network one).
+      final provider = image.image as ResizeImage;
+      expect(provider.width, isNotNull);
       expect(
-        (image.image as NetworkImage).url,
+        (provider.imageProvider as NetworkImage).url,
         'https://cdn.madar.test/combos/extra.jpg',
       );
       expect(

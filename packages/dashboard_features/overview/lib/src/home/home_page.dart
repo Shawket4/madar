@@ -45,17 +45,26 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final scope = ref.watch(currentScopeProvider);
-    final data = HomeData.watch(ref, scope);
+    // The page does not watch the home's reads itself: each part that shows
+    // them watches them ([_WithHomeData]), so a realtime refetch (a till
+    // event, every few seconds on a busy branch) rebuilds the KPI strip and
+    // the cards that show those figures, not the whole page with its charts.
     final name = ref.watch(currentSessionProvider.select((s) => s?.user.name));
     final title = name != null && name.isNotEmpty
         ? t('dashboard.greetingName', args: {'name': name})
         : t('dashboard.greeting');
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.lg;
     final trend = HomeRevenueTrendCard(scope: scope);
-    final payments = HomePaymentMixCard(data: data);
+    final payments = _WithHomeData(
+      scope: scope,
+      builder: (data) => HomePaymentMixCard(data: data),
+    );
     return DashPageScaffold(
       title: title,
-      subtitleWidget: HomeScopeLine(data: data),
+      subtitleWidget: _WithHomeData(
+        scope: scope,
+        builder: (data) => HomeScopeLine(data: data),
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.xl,
@@ -67,7 +76,10 @@ class HomePage extends ConsumerWidget {
               // OVW-HOME-045: the web's `space-y-4`, 16 at every width.
               spacing: Space.lg,
               children: [
-                HomeKpiStrip(data: data),
+                _WithHomeData(
+                  scope: scope,
+                  builder: (data) => HomeKpiStrip(data: data),
+                ),
                 if (scope.branchId != null)
                   HomeOpenTillsCard(branchId: scope.branchId!),
               ],
@@ -85,13 +97,29 @@ class HomePage extends ConsumerWidget {
             HomeReveal(child: trend),
             HomeReveal(order: 1, child: payments),
           ],
-          HomeBranchPerformanceCard(data: data),
+          _WithHomeData(
+            scope: scope,
+            builder: (data) => HomeBranchPerformanceCard(data: data),
+          ),
           HomeMarginWatchCard(scope: scope),
           HomeDeliverySection(scope: scope),
         ],
       ),
     );
   }
+}
+
+/// [builder] over the home's reads for [scope] ([HomeData.watch]), watched
+/// here, below the page.
+class _WithHomeData extends ConsumerWidget {
+  const _WithHomeData({required this.scope, required this.builder});
+
+  final Scope scope;
+  final Widget Function(HomeData data) builder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) =>
+      builder(HomeData.watch(ref, scope));
 }
 
 /// The ledger's header: which branch, which period, which zone — parts

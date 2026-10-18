@@ -1172,16 +1172,20 @@ class AnimatedBrandMark extends StatefulWidget {
   State<AnimatedBrandMark> createState() => _AnimatedBrandMarkState();
 }
 
-class _AnimatedBrandMarkState extends State<AnimatedBrandMark>
-    with TickerProviderStateMixin {
-  late final AnimationController _orbit = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 8),
-  );
-  late final AnimationController _pulse = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 3500),
-  );
+class _AnimatedBrandMarkState extends State<AnimatedBrandMark> {
+  static const Duration _orbitPeriod = Duration(seconds: 8);
+  static const Duration _pulsePeriod = Duration(milliseconds: 3500);
+
+  /// How often the mark steps. The satellite travels about 8 px a second at
+  /// the rail's size, so 15 steps a second still read as a glide (half a
+  /// pixel a step) — while a mark driven at the display's full rate kept
+  /// the whole app drawing a new frame every vsync, forever: nothing on
+  /// screen ever went idle, and every frame re-rasterised the full scene.
+  static const Duration _step = Duration(milliseconds: 66);
+
+  final Stopwatch _clock = Stopwatch();
+  final ValueNotifier<Duration> _at = ValueNotifier(Duration.zero);
+  Timer? _timer;
 
   @override
   void didChangeDependencies() {
@@ -1189,21 +1193,30 @@ class _AnimatedBrandMarkState extends State<AnimatedBrandMark>
     // Reduced motion (the platform's, or the app's own setting) draws the
     // still mark: an orbit that never stops is motion nobody asked for, and
     // it kept every pumpAndSettle in a reduced-motion test from settling.
-    if (MediaQuery.disableAnimationsOf(context)) {
-      _orbit.stop();
-      _pulse.stop();
-    } else if (!_orbit.isAnimating) {
-      _orbit.repeat();
-      _pulse.repeat();
+    // Off screen (a covered route, a hidden tab) it rests too, as a ticker
+    // would.
+    final run =
+        !MediaQuery.disableAnimationsOf(context) &&
+        TickerMode.valuesOf(context).enabled;
+    if (!run) {
+      _timer?.cancel();
+      _timer = null;
+      _clock.stop();
+    } else if (_timer == null) {
+      _clock.start();
+      _timer = Timer.periodic(_step, (_) => _at.value = _clock.elapsed);
     }
   }
 
   @override
   void dispose() {
-    _orbit.dispose();
-    _pulse.dispose();
+    _timer?.cancel();
+    _at.dispose();
     super.dispose();
   }
+
+  static double _phase(Duration at, Duration period) =>
+      (at.inMicroseconds % period.inMicroseconds) / period.inMicroseconds;
 
   @override
   Widget build(BuildContext context) {
@@ -1212,13 +1225,13 @@ class _AnimatedBrandMarkState extends State<AnimatedBrandMark>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedBuilder(
-            animation: Listenable.merge([_orbit, _pulse]),
-            builder: (context, _) => CustomPaint(
+          ValueListenableBuilder<Duration>(
+            valueListenable: _at,
+            builder: (context, at, _) => CustomPaint(
               size: Size.square(widget.symbolSize),
               painter: _BrandMarkPainter(
-                orbit: _orbit.value,
-                pulse: _pulse.value,
+                orbit: _phase(at, _orbitPeriod),
+                pulse: _phase(at, _pulsePeriod),
                 // textPrimary mirrors the PNG marks: ink on paper, paper
                 // on ink — the reversed variant for free.
                 ink: widget.ink ?? colors.textPrimary,

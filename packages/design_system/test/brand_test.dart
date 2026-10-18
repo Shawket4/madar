@@ -224,10 +224,22 @@ void main() {
         ),
       ),
     );
+    // The mark steps on its own clock (a timer, not a ticker), so "moving"
+    // is read off what it paints a second apart.
+    final mark = find.descendant(
+      of: find.byType(AnimatedBrandMark),
+      matching: find.byType(CustomPaint),
+    );
+    Future<bool> moves() async {
+      final before = tester.widget<CustomPaint>(mark).painter!;
+      await tester.pump(const Duration(seconds: 1));
+      return tester.widget<CustomPaint>(mark).painter!.shouldRepaint(before);
+    }
+
     await pumpMark(reduced: true);
-    expect(tester.hasRunningAnimations, isFalse);
+    expect(await moves(), isFalse);
     await pumpMark(reduced: false);
-    expect(tester.hasRunningAnimations, isTrue);
+    expect(await moves(), isTrue);
   });
 
   testWidgets('on the ink chrome the satellite turns the lighter teal', (

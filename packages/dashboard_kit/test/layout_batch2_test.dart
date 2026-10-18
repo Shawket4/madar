@@ -21,9 +21,19 @@ void _window(WidgetTester tester, double width) {
   tester.view.physicalSize = Size(width, 900) * DashSize.pixelRatio;
 }
 
-double _opacity(WidgetTester tester, Finder of) => tester
-    .widgetList<Opacity>(find.ancestor(of: of, matching: find.byType(Opacity)))
-    .fold(1.0, (o, w) => o * w.opacity);
+/// The opacity [of] is drawn at: every [Opacity] and [FadeTransition] over
+/// it (an entrance fades with the latter).
+double _opacity(WidgetTester tester, Finder of) =>
+    tester
+        .widgetList<Opacity>(
+          find.ancestor(of: of, matching: find.byType(Opacity)),
+        )
+        .fold(1.0, (o, w) => o * w.opacity) *
+    tester
+        .widgetList<FadeTransition>(
+          find.ancestor(of: of, matching: find.byType(FadeTransition)),
+        )
+        .fold(1.0, (o, w) => o * w.opacity.value);
 
 void main() {
   // Real faces: whether a figure or label is cut depends on its real width.

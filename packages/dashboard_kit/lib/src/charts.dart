@@ -743,10 +743,15 @@ class DashLineChart extends StatelessWidget {
                     ),
                 ],
               );
-              return DashChartSelection<int>(
-                builder: (context, at, touch) => LineChart(
-                  duration: DashMotion.of(context, DashMotion.slow),
-                  dashLineSelected(data, at, touch),
+              // Its own layer: the draw-in and a hover repaint the plot
+              // alone, and a count-up or an entrance beside it never
+              // repaints the plot.
+              return RepaintBoundary(
+                child: DashChartSelection<int>(
+                  builder: (context, at, touch) => LineChart(
+                    duration: DashMotion.of(context, DashMotion.slow),
+                    dashLineSelected(data, at, touch),
+                  ),
                 ),
               );
             },
@@ -958,10 +963,13 @@ class DashBarChart extends StatelessWidget {
                     }(),
                 ],
               );
-              return DashChartSelection<(int, int)>(
-                builder: (context, at, touch) => BarChart(
-                  duration: DashMotion.of(context, DashMotion.slow),
-                  dashBarSelected(data, at, touch),
+              // Its own layer (as [DashLineChart]'s).
+              return RepaintBoundary(
+                child: DashChartSelection<(int, int)>(
+                  builder: (context, at, touch) => BarChart(
+                    duration: DashMotion.of(context, DashMotion.slow),
+                    dashBarSelected(data, at, touch),
+                  ),
                 ),
               );
             },
@@ -1365,39 +1373,42 @@ class DashDonutChart extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              PieChart(
-                duration: DashMotion.of(context, DashMotion.slow),
-                PieChartData(
-                  sectionsSpace: slices.length > 1 ? 2 : 0,
-                  centerSpaceRadius: pie ? 0 : radius - ring,
-                  startDegreeOffset: -90,
-                  pieTouchData: PieTouchData(
-                    touchCallback: (e, r) =>
-                        touch(e, switch (r?.touchedSection) {
-                          // The grey ring of an all-zero chart is no slice.
-                          final t?
-                              when total > 0 && t.touchedSectionIndex >= 0 =>
-                            t.touchedSectionIndex,
-                          _ => null,
-                        }),
-                  ),
-                  sections: [
-                    if (total <= 0)
-                      PieChartSectionData(
-                        value: 1,
-                        color: c.muted,
-                        radius: ring,
-                        showTitle: false,
-                      )
-                    else
-                      for (var i = 0; i < slices.length; i++)
+              // Its own layer (as [DashLineChart]'s).
+              RepaintBoundary(
+                child: PieChart(
+                  duration: DashMotion.of(context, DashMotion.slow),
+                  PieChartData(
+                    sectionsSpace: slices.length > 1 ? 2 : 0,
+                    centerSpaceRadius: pie ? 0 : radius - ring,
+                    startDegreeOffset: -90,
+                    pieTouchData: PieTouchData(
+                      touchCallback: (e, r) =>
+                          touch(e, switch (r?.touchedSection) {
+                            // The grey ring of an all-zero chart is no slice.
+                            final t?
+                                when total > 0 && t.touchedSectionIndex >= 0 =>
+                              t.touchedSectionIndex,
+                            _ => null,
+                          }),
+                    ),
+                    sections: [
+                      if (total <= 0)
                         PieChartSectionData(
-                          value: slices[i].value,
-                          color: colors[i],
-                          radius: i == touched ? ring + Space.xs : ring,
+                          value: 1,
+                          color: c.muted,
+                          radius: ring,
                           showTitle: false,
-                        ),
-                  ],
+                        )
+                      else
+                        for (var i = 0; i < slices.length; i++)
+                          PieChartSectionData(
+                            value: slices[i].value,
+                            color: colors[i],
+                            radius: i == touched ? ring + Space.xs : ring,
+                            showTitle: false,
+                          ),
+                    ],
+                  ),
                 ),
               ),
               if (!pie && (centerValue != null || centerLabel != null))
