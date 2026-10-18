@@ -15,6 +15,13 @@ ignore = [
     # ttf-parser is unmaintained; cosmic-text (receipt rendering) depends on it
     # and has no release without it.
     { id = "RUSTSEC-2026-0192", reason = "transitive via cosmic-text; no maintained alternative release yet" },
+    # zip 8.6 advisories (2026-10-18), fixed only in zip 9, which calamine and
+    # rust_xlsxwriter do not accept yet. All three concern ZipArchive::extract;
+    # neither crate extracts archives to disk (they read and write workbook
+    # parts in memory). Drop these when both crates move to zip 9.
+    { id = "RUSTSEC-2026-0367", reason = "zip 8 ZipArchive::extract; never called (calamine/rust_xlsxwriter read/write in memory); fix needs zip 9" },
+    { id = "RUSTSEC-2026-0368", reason = "zip 8 ZipArchive::extract; never called (calamine/rust_xlsxwriter read/write in memory); fix needs zip 9" },
+    { id = "RUSTSEC-2026-0369", reason = "zip 8 ZipArchive::extract; never called (calamine/rust_xlsxwriter read/write in memory); fix needs zip 9" },
 ]
 
 [licenses]
