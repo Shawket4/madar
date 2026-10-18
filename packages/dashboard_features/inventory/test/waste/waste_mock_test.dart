@@ -49,7 +49,8 @@ void main() {
       expect(stockRow(s.db, SeedIds.zamalek, 'matcha')!['on_hand'], 65);
       final log = await api.inventory.listWaste(branchId: SeedIds.zamalek);
       expect(log.first.id, m.id, reason: 'latest first');
-      expect(log.length, 9);
+      // The seed's eight, Soy Milk's last (archived) line, and this one.
+      expect(log.length, 10);
     });
 
     test('a blank note is stored as null', () async {
@@ -156,10 +157,13 @@ void main() {
       expect(row('spoiled', 'full-cream'), {'qty': 440, 'value': 1980});
       expect(row('spoiled', 'house-blend'), {'qty': 36, 'value': 3326});
       expect(row('damaged', 'croissant'), {'qty': 4, 'value': 3600});
-      expect(rows.length, 8);
+      // An archived ingredient's past waste still counts: Soy Milk's last
+      // 1,000 ml at 11 piastres/ml.
+      expect(row('expired', 'soy'), {'qty': 1000, 'value': 11000});
+      expect(rows.length, 9);
       // Largest quantity first.
-      expect(rows.first.wasteQty, 500);
-      expect(wasteTotal(rows), 32656);
+      expect(rows.first.wasteQty, 1000);
+      expect(wasteTotal(rows), 32656 + 11000);
     });
 
     test('the period cuts by when the server got it', () async {

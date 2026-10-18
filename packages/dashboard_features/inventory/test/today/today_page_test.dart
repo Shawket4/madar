@@ -448,13 +448,18 @@ void main() {
         of: find.text('Stock value'),
         matching: find.byType(DashEntrance),
       );
+      // The entrance fades with a FadeTransition (its layer's alpha).
       double opacity() => tester
-          .widget<Opacity>(
+          .widget<FadeTransition>(
             find
-                .descendant(of: card.first, matching: find.byType(Opacity))
+                .descendant(
+                  of: card.first,
+                  matching: find.byType(FadeTransition),
+                )
                 .first,
           )
-          .opacity;
+          .opacity
+          .value;
       double rise() => tester
           .widget<Transform>(
             find

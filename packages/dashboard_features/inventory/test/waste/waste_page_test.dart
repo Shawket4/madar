@@ -9,13 +9,15 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_inventory/src/area_seed.dart';
+import 'package:dashboard_inventory/src/shared/archive.dart';
 import 'package:dashboard_inventory/src/waste/waste_dialog.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
 
-/// Zamalek's eight waste lines, latest first (by when they happened).
+/// Zamalek's nine waste lines, latest first (by when they happened): the
+/// seed's eight and Soy Milk's last, from before it was archived.
 const List<String> zamalekOrder = [
   'Full Cream Milk', // spoiled, 06:29 (from the Latte), sorts before House
   'House Blend Beans',
@@ -25,6 +27,7 @@ const List<String> zamalekOrder = [
   'Matcha Powder',
   'Vanilla Ice Cream',
   'Cocoa Powder',
+  'Soy Milk', // expired 30 Jul, archived since
 ];
 
 DashDataTable<StockMovement> logTable(WidgetTester tester) =>
@@ -76,7 +79,7 @@ void main() {
         DateTime.parse(report.query['to']!.single),
         DateTime.parse(scope.to),
       );
-      expect(logTable(tester).rows.length, 8);
+      expect(logTable(tester).rows.length, zamalekOrder.length);
     });
 
     testWidgets('INV-WST-002 / INV-WST-030 All branches: the sentinel for '
@@ -90,7 +93,10 @@ void main() {
         h.server.callsTo(reportRoute).single.path,
         '/reports/branches/$allBranches/waste-report',
       );
-      expect(logTable(tester).rows.length, invWaste.length);
+      expect(
+        logTable(tester).rows.length,
+        invWaste.length + invArchivedWaste.length,
+      );
     });
 
     testWidgets('INV-WST-025 the log does not follow the period; the report '
@@ -198,14 +204,25 @@ void main() {
       expect(inTable(find.text('500 ml')), findsOneWidget);
       expect(inTable(find.text('4 pcs')), findsOneWidget);
       // INV-WST-009: reasons in words.
-      expect(inTable(find.text('Expired')), findsNWidgets(3));
+      expect(inTable(find.text('Expired')), findsNWidgets(4));
       expect(inTable(find.text('Spoiled')), findsNWidgets(2));
       expect(inTable(find.text('Theft')), findsOneWidget);
+      // The archived ingredient's line keeps its name, with the badge.
+      expect(
+        find.descendant(
+          of: find.ancestor(
+            of: inTable(find.text('Soy Milk')),
+            matching: find.byType(WithArchivedBadge),
+          ),
+          matching: byKey('archived-badge'),
+        ),
+        findsOneWidget,
+      );
       // INV-WST-010: who, and the manager who approved it on the till.
       expect(inTable(find.text('Approved by Karim Adel')), findsNWidgets(2));
       // INV-WST-011: the source badge; a till's names its device.
       expect(inTable(find.text('Till')), findsNWidgets(4));
-      expect(inTable(find.text('Dashboard')), findsNWidgets(4));
+      expect(inTable(find.text('Dashboard')), findsNWidgets(5));
       expect(inTable(find.text('Device Counter 1')), findsNWidgets(4));
       final till = tester.widget<DashBadge>(
         inTable(find.byType(DashBadge)).first,
@@ -259,8 +276,8 @@ void main() {
       final h = await pumpWaste(tester, branch: SeedIds.zamalek);
       final search = inTable(find.byType(DashSearchInput));
       await h.enterText(search, 'expired');
-      expect(logTable(tester).rows.length, 8);
-      expect(inTable(find.text('Expired')), findsNWidgets(3));
+      expect(logTable(tester).rows.length, zamalekOrder.length);
+      expect(inTable(find.text('Expired')), findsNWidgets(4));
       expect(inTable(find.text('Spoiled')), findsNothing);
       await h.enterText(search, '-500');
       expect(inTable(find.text('500 ml')), findsOneWidget);
@@ -302,7 +319,7 @@ void main() {
       gate.release();
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(logTable(tester).rows.length, 8);
+      expect(logTable(tester).rows.length, zamalekOrder.length);
     });
 
     testWidgets('INV-WST-013 error: the server\'s words and Retry (only the '
@@ -323,7 +340,7 @@ void main() {
       await h.tap(inTable(find.text('Retry')));
       expect(h.server.callsTo(logRoute).length, 2);
       expect(h.server.callsTo(reportRoute).length, reports);
-      expect(logTable(tester).rows.length, 8);
+      expect(logTable(tester).rows.length, zamalekOrder.length);
     });
 
     testWidgets('INV-WST-013 empty: "No waste recorded"; Export disabled', (
@@ -532,12 +549,12 @@ void main() {
       final h = await pumpWaste(tester, branch: SeedIds.zamalek);
       await h.tap(inPage(byKey('waste-export')));
       final walk = h.server.callsTo(logRoute).skip(1).toList();
-      expect([for (final c in walk) c.query['offset']!.single], ['0', '8']);
+      expect([for (final c in walk) c.query['offset']!.single], ['0', '9']);
       for (final c in walk) {
         expect(c.query['limit'], ['500']);
         expect(c.headers['X-Madar-Export'], '1');
       }
-      await h.expectToast('Exported 8 rows');
+      await h.expectToast('Exported 9 rows');
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'Waste log');
       expect(sheet.title, 'Waste log');
@@ -571,7 +588,8 @@ void main() {
       expect(latte[10], 'Counter 1');
       final whipped = sheet.rows.firstWhere((r) => r[2] == 'Whipped Cream');
       expect(whipped[1], isNotNull, reason: 'received a day late');
-      final cocoa = sheet.rows.last;
+      final cocoa = sheet.rows[sheet.rows.length - 2];
+      expect(cocoa[2], 'Cocoa Powder');
       expect(cocoa[7], '');
       expect(cocoa[8], '');
       expect(cocoa[9], 'Dashboard');
@@ -609,7 +627,7 @@ void main() {
       );
       hold.complete();
       await h.settle();
-      await h.expectToast('Exported 8 rows');
+      await h.expectToast('Exported 9 rows');
     });
   });
 
@@ -637,7 +655,7 @@ void main() {
     ) async {
       await pumpWaste(tester, persona: Persona.manager);
       final rows = logTable(tester).rows;
-      expect(rows.length, 8);
+      expect(rows.length, zamalekOrder.length);
       expect(rows.every((m) => m.branchId == SeedIds.zamalek), isTrue);
     });
   });

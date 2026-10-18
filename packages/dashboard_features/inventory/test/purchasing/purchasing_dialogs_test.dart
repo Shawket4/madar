@@ -291,12 +291,20 @@ void main() {
       );
       await h.tap(byKey('po-line-ingredient-0'));
       final all = tester.widget<DashOptionList<String>>(_options).options;
+      // The whole pickable catalog: an archived ingredient (Soy Milk) is not
+      // ordered anew.
       expect(
         all.length,
         s.db[InvTables.ingredients]
-            .where((r) => r['org_id'] == SeedIds.sabahOrg)
+            .where(
+              (r) =>
+                  r['org_id'] == SeedIds.sabahOrg &&
+                  r['is_active'] == true &&
+                  r['archived_at'] == null,
+            )
             .length,
       );
+      expect(all.where((o) => o.label == 'Soy Milk'), isEmpty);
       await h.enterText(_options, 'beans');
       expect(
         find.descendant(of: _options, matching: find.text('Decaf Beans')),

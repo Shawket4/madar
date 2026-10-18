@@ -235,14 +235,18 @@ void main() {
       'request warms the catalogue, not stock', (tester) async {
     final h = await pumpTransfers(tester);
     await openRow(h, 'TR-6');
+    // The drawer already holds the catalogue (its lines' Archived badge
+    // reads it), so resting on Edit keeps it warm without asking again.
     final stock = _gets(h, stockRoute), catalog = _gets(h, catalogRoute);
+    expect(catalog, 1);
     final mouse = await _mouse(tester);
     await _hover(h, mouse, inDrawer(byKey('transfer-step-edit')));
-    expect(_gets(h, catalogRoute), catalog + 1);
+    expect(_gets(h, catalogRoute), catalog);
     expect(_gets(h, stockRoute), stock);
     await h.tap(inDrawer(byKey('transfer-step-edit')));
     expect(dialog, findsOneWidget);
-    expect(_gets(h, catalogRoute), catalog + 1);
+    expect(_gets(h, catalogRoute), catalog);
+    expect(_gets(h, stockRoute), stock);
   });
 
   testWidgets('INV-TRF-020 / INV-TRF-036 (intent) resting on Accept warms '

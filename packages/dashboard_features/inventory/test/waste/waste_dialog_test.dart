@@ -252,10 +252,13 @@ void main() {
     final list = tester.widget<DashOptionList<String>>(
       find.byType(DashOptionList<String>),
     );
+    // An archived ingredient is offered only while there is stock to waste:
+    // Soy Milk (archived, nothing left at Zamalek) is not.
     final catalog = h.db![InvTables.ingredients].rows.where(
-      (i) => i['org_id'] == SeedIds.sabahOrg,
+      (i) => i['org_id'] == SeedIds.sabahOrg && i['archived_at'] == null,
     );
     expect(list.options.length, catalog.length);
+    expect(list.options.where((o) => o.label == 'Soy Milk'), isEmpty);
     String? hint(String label) =>
         list.options.firstWhere((o) => o.label == label).hint;
     expect(hint('Matcha Powder'), '80 g');
