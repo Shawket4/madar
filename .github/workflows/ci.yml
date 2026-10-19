@@ -329,11 +329,14 @@ jobs:
           path: madar
           fetch-depth: 0
 
+      # MadarRust is private: the shared token reads it (the default token
+      # sees only this repo); with the secret empty, the default as before.
       - uses: actions/checkout@v7
         with:
           repository: Shawket4/MadarRust
           path: MadarRust
           sparse-checkout: tests/fixtures
+          token: ${{ secrets.MADAR_SHARED_TOKEN || github.token }}
       # madar-shared is private: with MADAR_SHARED_TOKEN set, cargo fetches it
       # through the git CLI with the token; with the secret empty this is a no-op
       # (anonymous fetch, as before). GIT_CONFIG_* also reaches Docker actions.
