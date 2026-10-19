@@ -1694,6 +1694,7 @@ const List<ApiOperation> apiOperations = [
     'menu',
     'putPriceOverride',
   ),
+  ApiOperation('bulk_menu', 'POST', '/menu/bulk', 'menu', 'bulkMenu'),
   ApiOperation('get_menu_lint', 'GET', '/menu/lint', 'menu', 'getMenuLint'),
   ApiOperation('list_groups', 'GET', '/modifier-groups', 'menu', 'listGroups'),
   ApiOperation(

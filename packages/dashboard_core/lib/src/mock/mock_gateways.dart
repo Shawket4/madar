@@ -205,6 +205,9 @@ class RecordingFileGateway implements FileGateway {
 
   /// The next [pickFile] answers (null = cancelled); empty = cancelled.
   final List<PickedFile?> fileQueue = [];
+
+  /// The next [pickFiles] answers; empty = cancelled.
+  final List<List<PickedFile>> filesQueue = [];
   final List<PickedFile?> imageQueue = [];
 
   /// Make the next save cancel (returns null).
@@ -246,6 +249,10 @@ class RecordingFileGateway implements FileGateway {
   @override
   Future<PickedFile?> pickFile({List<String>? extensions}) async =>
       fileQueue.isEmpty ? null : fileQueue.removeAt(0);
+
+  @override
+  Future<List<PickedFile>> pickFiles({List<String>? extensions}) async =>
+      filesQueue.isEmpty ? const [] : filesQueue.removeAt(0);
 
   @override
   Future<PickedFile?> pickImage() async =>

@@ -25,6 +25,7 @@ import 'dialogs/menu_item_dialog.dart';
 import 'dialogs/menu_reads.dart';
 import 'dialogs/menu_text.dart';
 import 'dialogs/payment_method_dialog.dart';
+import 'foodics_import.dart';
 import 'onboarding_config.dart';
 import 'onboarding_data.dart';
 import 'org_identity_step.dart';
@@ -200,8 +201,18 @@ class _StepBody extends ConsumerWidget {
         (context) => showCreateIngredientDialog(context, orgId: orgId),
         () => ref.warm(ingredientCategoriesProvider(orgId)),
       ),
-      OnbStep.categories => add(
-        (context) => showCategoryDialog(context, orgId: orgId),
+      // "Already on Foodics?" above the editor (web `step-panel.tsx`).
+      OnbStep.categories => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: Space.xl,
+        children: [
+          OnbFoodicsImportCard(
+            orgId: orgId,
+            categories: _count('categories'),
+            items: _count('menu_items'),
+          ),
+          add((context) => showCategoryDialog(context, orgId: orgId)),
+        ],
       ),
       OnbStep.menuItems => _MenuItemsBody(
         orgId: orgId,

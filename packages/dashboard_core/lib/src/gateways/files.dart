@@ -38,6 +38,10 @@ abstract interface class FileGateway {
   /// Asks for one file; null when cancelled. [extensions] without dots.
   Future<PickedFile?> pickFile({List<String>? extensions});
 
+  /// Asks for several files at once (the web's `<input multiple>`, the
+  /// Foodics exports); empty when cancelled. [extensions] without dots.
+  Future<List<PickedFile>> pickFiles({List<String>? extensions});
+
   /// Asks for one image (photos / files); null when cancelled.
   Future<PickedFile?> pickImage();
 }

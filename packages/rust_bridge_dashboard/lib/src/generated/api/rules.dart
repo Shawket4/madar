@@ -432,6 +432,31 @@ String comboQuote({
   n: n,
 );
 
+/// A Foodics console export read into a bulk menu: each file's text, in any
+/// order. `{"Ok": FoodicsParsed}` or `{"Err": FoodicsError}`. Not sync: a
+/// big export is read off the UI isolate.
+Future<String> foodicsParse({required List<String> files}) =>
+    DashboardBridge.instance.api.crateApiRulesFoodicsParse(files: files);
+
+/// The server's checks on a bulk menu (its JSON), for the preview:
+/// `{"Ok": BulkSummary}` or `{"Err": BulkRefusal}`.
+String bulkValidate({required String menuJson}) =>
+    DashboardBridge.instance.api.crateApiRulesBulkValidate(menuJson: menuJson);
+
+/// The sentence an owner types to replace the whole menu, in `lang`.
+String replaceSentence({required String orgName, required String lang}) =>
+    DashboardBridge.instance.api.crateApiRulesReplaceSentence(
+      orgName: orgName,
+      lang: lang,
+    );
+
+/// Whether `typed` is that sentence, in either language.
+bool confirmsReplace({required String orgName, required String typed}) =>
+    DashboardBridge.instance.api.crateApiRulesConfirmsReplace(
+      orgName: orgName,
+      typed: typed,
+    );
+
 /// One recipe line: its quantity and its cost per unit (`None`: unknown; 0
 /// is known, free).
 class CostLine {

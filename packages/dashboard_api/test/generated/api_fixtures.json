@@ -821,6 +821,25 @@
     "waste_value": 7
    }
   ],
+  "bulk_menu": {
+   "archived": {
+    "categories": 7,
+    "groups": 7,
+    "items": 7
+   },
+   "dry_run": true,
+   "import_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "mode": "add",
+   "summary": {
+    "categories": 7,
+    "groups": 7,
+    "items": 7,
+    "links": 7,
+    "optionals": 7,
+    "options": 7,
+    "sizes": 7
+   }
+  },
   "bulk_review_flags": {
    "pending": [
     {
@@ -15935,6 +15954,164 @@
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "target_pct": 1.5
   },
+  "BulkArchived": {
+   "categories": 7,
+   "groups": 7,
+   "items": 7
+  },
+  "BulkCategory": {
+   "key": "text",
+   "name": "text",
+   "name_ar": "text"
+  },
+  "BulkFamily": "milk_type",
+  "BulkGroup": {
+   "family": "milk_type",
+   "key": "text",
+   "max": 7,
+   "min": 7,
+   "name": "text",
+   "name_ar": "text",
+   "options": [
+    {
+     "is_active": true,
+     "name": "text",
+     "name_ar": "text",
+     "price": 7
+    }
+   ]
+  },
+  "BulkItem": {
+   "category": "text",
+   "description": "text",
+   "description_ar": "text",
+   "groups": [
+    {
+     "group": "text",
+     "max": 7,
+     "min": 7
+    }
+   ],
+   "is_active": true,
+   "name": "text",
+   "name_ar": "text",
+   "optionals": [
+    {
+     "name": "text",
+     "name_ar": "text",
+     "price": 7
+    }
+   ],
+   "price": 7,
+   "sizes": [
+    {
+     "is_active": true,
+     "label": "text",
+     "price": 7
+    }
+   ]
+  },
+  "BulkLink": {
+   "group": "text",
+   "max": 7,
+   "min": 7
+  },
+  "BulkMenu": {
+   "categories": [
+    {
+     "key": "text",
+     "name": "text",
+     "name_ar": "text"
+    }
+   ],
+   "groups": [
+    {
+     "family": "milk_type",
+     "key": "text",
+     "max": 7,
+     "min": 7,
+     "name": "text",
+     "name_ar": "text",
+     "options": []
+    }
+   ],
+   "items": [
+    {
+     "category": "text",
+     "description": "text",
+     "description_ar": "text",
+     "groups": [],
+     "is_active": true,
+     "name": "text",
+     "name_ar": "text",
+     "optionals": [],
+     "price": 7,
+     "sizes": []
+    }
+   ],
+   "version": 7
+  },
+  "BulkMenuRequest": {
+   "confirm": "text",
+   "menu": {
+    "categories": [
+     {
+      "key": "text",
+      "name": "text"
+     }
+    ],
+    "groups": [
+     {
+      "family": "milk_type",
+      "key": "text",
+      "min": 7,
+      "name": "text",
+      "options": []
+     }
+    ],
+    "items": [
+     {
+      "category": "text",
+      "is_active": true,
+      "name": "text",
+      "price": 7
+     }
+    ],
+    "version": 7
+   },
+   "mode": "add"
+  },
+  "BulkMenuResponse": {
+   "archived": {
+    "categories": 7,
+    "groups": 7,
+    "items": 7
+   },
+   "dry_run": true,
+   "import_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "mode": "add",
+   "summary": {
+    "categories": 7,
+    "groups": 7,
+    "items": 7,
+    "links": 7,
+    "optionals": 7,
+    "options": 7,
+    "sizes": 7
+   }
+  },
+  "BulkMode": "add",
+  "BulkOption": {
+   "is_active": true,
+   "name": "text",
+   "name_ar": "text",
+   "price": 7
+  },
+  "BulkOptional": {
+   "name": "text",
+   "name_ar": "text",
+   "price": 7
+  },
   "BulkReviewPending": {
    "id": 7,
    "reason": "text"
@@ -15963,6 +16140,20 @@
    "resolved": [
     7
    ]
+  },
+  "BulkSize": {
+   "is_active": true,
+   "label": "text",
+   "price": 7
+  },
+  "BulkSummary": {
+   "categories": 7,
+   "groups": 7,
+   "items": 7,
+   "links": 7,
+   "optionals": 7,
+   "options": 7,
+   "sizes": 7
   },
   "BundlesReport": {
    "from": "2026-10-08",
@@ -25867,6 +26058,15 @@
     "a": 1
    }
   },
+  "SignupAttribution": {
+   "fbclid": "text",
+   "gclid": "text",
+   "utm_campaign": "text",
+   "utm_content": "text",
+   "utm_medium": "text",
+   "utm_source": "text",
+   "utm_term": "text"
+  },
   "SignupOtpRequest": {
    "phone": "text"
   },
@@ -25876,6 +26076,15 @@
    "sent": true
   },
   "SignupRequest": {
+   "attribution": {
+    "fbclid": "text",
+    "gclid": "text",
+    "utm_campaign": "text",
+    "utm_content": "text",
+    "utm_medium": "text",
+    "utm_source": "text",
+    "utm_term": "text"
+   },
    "code": "text",
    "email": "text",
    "owner_name": "text",
