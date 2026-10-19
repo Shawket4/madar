@@ -49,6 +49,17 @@ jobs:
       diawi_url: ${{ steps.diawi.outputs.diawi_url }}
     steps:
       - uses: actions/checkout@v7
+      # Since the repo went private (2026-10-18) its runner is smaller, and the
+      # Rust bridge for each Android ABI filled the disk (dash-v0.5.0: "No space
+      # left on device"). Drop the SDKs an Android build never uses.
+      - name: Free runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift \
+            /usr/local/share/powershell /usr/local/share/chromium /usr/local/share/boost \
+            /opt/microsoft /opt/hostedtoolcache/CodeQL /opt/hostedtoolcache/PyPy \
+            /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/go
+          docker image prune -af > /dev/null
+          df -h /
       # madar-shared is private: with MADAR_SHARED_TOKEN set, cargo fetches it
       # through the git CLI with the token; with the secret empty this is a no-op
       # (anonymous fetch, as before). GIT_CONFIG_* also reaches Docker actions.
