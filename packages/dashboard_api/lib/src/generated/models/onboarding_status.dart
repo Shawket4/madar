@@ -38,19 +38,15 @@ class OnboardingStatus {
         ),
       );
 
-  /// True when every `required` step is done (the Finish button enabler).
   final bool canComplete;
 
-  /// Derived terminal flag (`completed_at IS NOT NULL`) — the dashboard
-  /// routes into the wizard while this is false.
+  /// Always true: old builds never open their wizard.
   final bool completed;
 
   final DateTime? completedAt;
 
   final String orgId;
 
-  /// Recipe coverage across active menu items (0..1) — drives the cost
-  /// engine; surfaced separately because it's a percentage, not a bool.
   final double recipeCoverage;
 
   final List<OnboardingStep> steps;

@@ -12,6 +12,7 @@ Method | HTTP request | Description
 [**get_org**](OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 [**get_org_modules**](OrgsApi.md#get_org_modules) | **GET** /orgs/{id}/modules | The org's modules, for anyone who works there: the dashboard routes by the server's answer (PS-3), and a branch manager cannot read the org itself (`orgs:read` is the owner's). Switching them is `PATCH /orgs/{id}`, a super admin's alone (SA-1).
 [**get_org_plan**](OrgsApi.md#get_org_plan) | **GET** /orgs/{id}/plan | The org's plan, what it allows, and each branch's tills.
+[**get_readiness**](OrgsApi.md#get_readiness) | **GET** /orgs/{id}/readiness | 
 [**list_orgs**](OrgsApi.md#list_orgs) | **GET** /orgs | 
 [**list_templates**](OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 [**offline_auth_bundle**](OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
@@ -250,6 +251,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::PlanState**](PlanState.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_readiness
+
+> models::Readiness get_readiness(id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+
+### Return type
+
+[**models::Readiness**](Readiness.md)
 
 ### Authorization
 

@@ -4087,6 +4087,16 @@ final List<OperationCall> operationCalls = [
     ),
   ),
   OperationCall(
+    'get_readiness',
+    'GET',
+    '/orgs/{id}/readiness',
+    '/orgs/p-id/readiness',
+    [],
+    [],
+    'json',
+    (api, s) => api.orgs.getReadiness(id: 'p-id'),
+  ),
+  OperationCall(
     'public_menu_display',
     'GET',
     '/public/menu-display',
