@@ -699,6 +699,7 @@ part 'models/shift_report_response.dart';
 part 'models/shift_summary.dart';
 part 'models/shrinkage_row.dart';
 part 'models/signal.dart';
+part 'models/signup_attribution.dart';
 part 'models/signup_otp_request.dart';
 part 'models/signup_otp_response.dart';
 part 'models/signup_request.dart';

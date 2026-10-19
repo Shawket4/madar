@@ -5,6 +5,7 @@ part of '../models.dart';
 @immutable
 class SignupRequest {
   const SignupRequest({
+    this.attribution,
     this.code,
     required this.email,
     required this.ownerName,
@@ -18,6 +19,11 @@ class SignupRequest {
   });
 
   factory SignupRequest.fromJson(Map<String, Object?> json) => SignupRequest(
+    attribution: decObjectN(
+      json['attribution'],
+      'SignupRequest.attribution',
+      SignupAttribution.fromJson,
+    ),
     code: decStringN(json['code'], 'SignupRequest.code'),
     email: decString(json['email'], 'SignupRequest.email'),
     ownerName: decString(json['owner_name'], 'SignupRequest.owner_name'),
@@ -31,6 +37,8 @@ class SignupRequest {
       'SignupRequest.terms_version',
     ),
   );
+
+  final SignupAttribution? attribution;
 
   final String? code;
 
@@ -63,6 +71,8 @@ class SignupRequest {
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    if (attribution != null || explicitNulls.contains('attribution'))
+      'attribution': attribution?.toJson(),
     if (code != null || explicitNulls.contains('code')) 'code': code,
     'email': email,
     'owner_name': ownerName,

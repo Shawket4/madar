@@ -675,6 +675,7 @@ final Map<String, Object Function(Map<String, Object?> json)> schemaDecoders = {
   'ShiftSummary': ShiftSummary.fromJson,
   'ShrinkageRow': ShrinkageRow.fromJson,
   'Signal': Signal.fromJson,
+  'SignupAttribution': SignupAttribution.fromJson,
   'SignupOtpRequest': SignupOtpRequest.fromJson,
   'SignupOtpResponse': SignupOtpResponse.fromJson,
   'SignupRequest': SignupRequest.fromJson,
