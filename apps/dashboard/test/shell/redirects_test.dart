@@ -17,13 +17,11 @@ void main() {
       String loc, {
       SessionStatus s = SessionStatus.signedIn,
       SignOutReason? why,
-      bool onboarding = false,
       OrgModulesState modules = known,
     }) => dashRedirect(
       uri: Uri.parse(loc),
       session: s,
       signedOutBecause: why,
-      toOnboarding: onboarding,
       modules: modules,
     );
 
@@ -81,10 +79,9 @@ void main() {
     });
 
     test(
-      'ADM-APP-082 ADM-APP-084: the onboarding gate and a Dawam-only home',
+      'ADM-APP-082: no set-up gate sends anyone anywhere; a Dawam-only home',
       () {
-        expect(r('/orders', onboarding: true), '/onboarding');
-        expect(r('/onboarding', onboarding: true), isNull);
+        expect(r('/orders'), isNull);
         const dawam = OrgModulesState(modules: ['dawam'], known: true);
         expect(r('/', modules: dawam), '/staff/team');
         expect(r('/', modules: const OrgModulesState()), isNull);

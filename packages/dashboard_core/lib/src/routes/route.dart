@@ -139,6 +139,7 @@ class DashArea {
     required this.routes,
     this.registerMocks,
     this.i18nSupplements = const [],
+    this.footer,
   });
 
   /// `sell`, `catalog_menu`, …
@@ -149,6 +150,9 @@ class DashArea {
   /// Asset keys of the area's supplement tables, one per language
   /// (`packages/dashboard_sell/assets/i18n/en.json`); see [supplementAssets].
   final List<String> i18nSupplements;
+
+  /// What the area adds to the frame's foot (the overview's Madar apps).
+  final WidgetBuilder? footer;
 
   /// The conventional supplement asset keys of package `dashboard_<area>`.
   static List<String> supplementAssets(String area) => [

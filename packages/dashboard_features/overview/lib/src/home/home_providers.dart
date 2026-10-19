@@ -142,19 +142,6 @@ final homeOpenTillsProvider = FutureProvider.autoDispose
       return ref.watch(apiProvider).tills.listOpenTills(branchId: branchId);
     });
 
-/// The Keep-building card was dismissed: for the rest of this app session
-/// (the web's `sessionStorage["madar.onboarding.nudge.dismissed"]`).
-class NudgeDismissed extends Notifier<bool> {
-  @override
-  bool build() => false;
-
-  void dismiss() => state = true;
-}
-
-final homeNudgeDismissedProvider = NotifierProvider<NudgeDismissed, bool>(
-  NudgeDismissed.new,
-);
-
 /// The state of a read the web keeps disabled until [enabled]: a disabled
 /// query is neither loading nor failed and has no data, so the card shows
 /// its empty (or zero) state. [provider] is built only when enabled (its

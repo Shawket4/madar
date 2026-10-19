@@ -354,6 +354,18 @@ class OrgsApi {
     );
   }
 
+  /// `GET /orgs/{id}/readiness` (get_readiness)
+  Future<Readiness> getReadiness({required String id}) async {
+    final response = await _transport.send(
+      ApiRequest(method: 'GET', path: '/orgs/${pathSegment(id)}/readiness'),
+    );
+    return decodeResponse(
+      response,
+      'get_readiness',
+      (json) => decObject(json, 'get_readiness', Readiness.fromJson),
+    );
+  }
+
   /// The shop's menu without prices.
   ///
   /// `org_id` or `slug` names the shop. Every plan, Free included. A shop that

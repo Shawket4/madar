@@ -13,10 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OnboardingStatus {
-    /// True when every `required` step is done (the Finish button enabler).
     #[serde(rename = "can_complete")]
     pub can_complete: bool,
-    /// Derived terminal flag (`completed_at IS NOT NULL`) — the dashboard routes into the wizard while this is false.
+    /// Always true: old builds never open their wizard.
     #[serde(rename = "completed")]
     pub completed: bool,
     #[serde(
@@ -28,7 +27,6 @@ pub struct OnboardingStatus {
     pub completed_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "org_id")]
     pub org_id: uuid::Uuid,
-    /// Recipe coverage across active menu items (0..1) — drives the cost engine; surfaced separately because it's a percentage, not a bool.
     #[serde(rename = "recipe_coverage")]
     pub recipe_coverage: f64,
     #[serde(rename = "steps")]

@@ -52,15 +52,15 @@ Feature areas (package `dashboard_<area>`):
 
 | Area | Pages (web paths) |
 |---|---|
-| overview | `/` home (8 cards) |
+| overview | `/` home (8 cards + the Setup card), `/setup` (shop readiness; `/onboarding` redirects here), the frame foot's Madar apps |
 | sell | `/orders`, `/floor`, `/bookings`, `/tills`, `/customers` |
-| catalog_menu | `/menu/items`, `/menu/items/:itemId` (+ menu studio), `/menu/groups`, `/menu/pricing`, `/menu/bases`, `/menu/packaging` |
+| catalog_menu | `/menu/items`, `/menu/items/:itemId` (+ menu studio), `/menu/groups`, `/menu/pricing`, `/menu/bases`, `/menu/packaging`, `/menu/import` (Foodics) |
 | catalog_offers | `/menu/combos`, `/menu/combos/:comboId`, `/menu/deals`, `/discounts` |
 | reports | `/reports/operations` (+ tabs), `/reports/financial`, `/reports/inventory`, `/reports/legal`, `/reports/loyalty`, `/reports/bundles`, `/reports/staff`, `/reports/staff-pool`, `/reports/tills`, `/basira` |
 | inventory | `/inventory/today`, `/inventory/counts`, `/inventory/ingredients`, `/inventory/purchasing`, `/inventory/waste`, `/inventory/transfers`, `/inventory/settings` |
 | team | `/staff/setup`, `/staff/employees`, `/staff/attendance`, `/staff/shifts`, `/staff/team`, `/staff/approvals`, `/staff/schedule`, `/staff/requests`, `/staff/payroll`, `/staff/reports`, `/staff/rules` |
 | setup | `/settings` (appearance), `/settings/brand`, `/settings/links`, `/settings/delivery`, `/settings/delivery-zones`, `/settings/bookings`, `/settings/loyalty`, `/settings/qr`, `/settings/combos`, `/settings/payment-methods`, `/settings/staff-pool`, `/settings/kitchen-stations`, `/settings/kitchen-routing`, `/settings/integrations`, `/settings/whatsapp` |
-| admin | `/orgs`, `/branches`, `/devices`, `/access/users`, `/access/roles`, `/access/review`, `/onboarding` |
+| admin | `/orgs`, `/branches`, `/devices`, `/access/users`, `/access/roles`, `/access/review` |
 
 App-wide pieces owned by the shell (apps/dashboard + dashboard_core): sign-in (port the web's new
 sign-in screen), org picker (platform admins), branch picker, period picker, user menu (language,

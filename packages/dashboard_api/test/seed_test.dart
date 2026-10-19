@@ -141,12 +141,6 @@ void main() {
     _roundTrips('order (full)', full, (o) => o.toJson(), OrderFull.fromJson);
     for (final id in [SeedIds.sabahOrg, SeedIds.nakhlaOrg]) {
       _roundTrips(
-        'onboarding',
-        [seed.onboarding(id)],
-        (o) => o.toJson(),
-        OnboardingStatus.fromJson,
-      );
-      _roundTrips(
         'brand',
         [seed.brand(id)],
         (o) => o.toJson(),

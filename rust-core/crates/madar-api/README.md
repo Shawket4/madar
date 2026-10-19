@@ -349,6 +349,7 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**get_org**](docs/OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 *OrgsApi* | [**get_org_modules**](docs/OrgsApi.md#get_org_modules) | **GET** /orgs/{id}/modules | The org's modules, for anyone who works there: the dashboard routes by the server's answer (PS-3), and a branch manager cannot read the org itself (`orgs:read` is the owner's). Switching them is `PATCH /orgs/{id}`, a super admin's alone (SA-1).
 *OrgsApi* | [**get_org_plan**](docs/OrgsApi.md#get_org_plan) | **GET** /orgs/{id}/plan | The org's plan, what it allows, and each branch's tills.
+*OrgsApi* | [**get_readiness**](docs/OrgsApi.md#get_readiness) | **GET** /orgs/{id}/readiness | 
 *OrgsApi* | [**list_orgs**](docs/OrgsApi.md#list_orgs) | **GET** /orgs | 
 *OrgsApi* | [**list_templates**](docs/OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
@@ -794,6 +795,7 @@ Class | Method | HTTP request | Description
  - [ChatFrameOneOf4](docs/ChatFrameOneOf4.md)
  - [ChatFrameOneOf5](docs/ChatFrameOneOf5.md)
  - [CheckInRequest](docs/CheckInRequest.md)
+ - [CheckLevel](docs/CheckLevel.md)
  - [CheckOutRequest](docs/CheckOutRequest.md)
  - [ClaimDecision](docs/ClaimDecision.md)
  - [ClearTableRequest](docs/ClearTableRequest.md)
@@ -1239,6 +1241,9 @@ Class | Method | HTTP request | Description
  - [QuotedDeal](docs/QuotedDeal.md)
  - [QuotedLine](docs/QuotedLine.md)
  - [ReadNotifications](docs/ReadNotifications.md)
+ - [Readiness](docs/Readiness.md)
+ - [ReadinessCheck](docs/ReadinessCheck.md)
+ - [ReadinessProblem](docs/ReadinessProblem.md)
  - [ReadyGroupRef](docs/ReadyGroupRef.md)
  - [ReassignExpenseAdvance](docs/ReassignExpenseAdvance.md)
  - [ReceiveLineInput](docs/ReceiveLineInput.md)

@@ -42,6 +42,16 @@ Future<DashHarness> pumpHome(
   return (server: server, db: db);
 }
 
+/// [homeServer] with Sabah's payment methods gone: the payment check blocks
+/// at every branch, so the Setup card shows.
+({MockServer server, MockDb db}) unfinishedServer({
+  Persona persona = Persona.owner,
+}) {
+  final s = homeServer(persona: persona);
+  s.db['payment_methods'].removeWhere((r) => r['org_id'] == SeedIds.sabahOrg);
+  return s;
+}
+
 /// Text widgets whose text contains [s] (spans included).
 Finder textHas(String s) => find.textContaining(s, findRichText: true);
 

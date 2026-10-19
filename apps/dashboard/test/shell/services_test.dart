@@ -49,8 +49,8 @@ void main() {
       expect(h.realtime.connections, hasLength(1));
     });
 
-    testWidgets('ADM-APP-086: the full-screen onboarding has no connection; '
-        'the frame coming back reconnects', (tester) async {
+    testWidgets('ADM-APP-086: an old /onboarding link opens Setup inside '
+        'the frame, on the same connection', (tester) async {
       final h = await pumpShell(
         tester,
         prefs: {
@@ -59,14 +59,11 @@ void main() {
         },
       );
       final first = h.realtime.current!;
-      expect(first.hasListener, isTrue);
       await h.go('/onboarding');
-      expect(find.byType(DashShell), findsNothing);
-      expect(first.hasListener, isFalse);
-      await h.go('/tills');
-      expect(h.realtime.connections, hasLength(2));
-      expect(h.realtime.current!.branchId, SeedIds.zamalek);
-      expect(h.realtime.current!.hasListener, isTrue);
+      expect(h.location.path, '/setup');
+      expect(find.byType(DashShell), findsOneWidget);
+      expect(h.realtime.connections, hasLength(1));
+      expect(first.hasListener, isTrue);
     });
 
     testWidgets('ADM-APP-086: all branches: no connection', (tester) async {

@@ -1,7 +1,7 @@
 /// The create-ingredient dialog (the web's
 /// `features/recipes/create-ingredient-dialog.tsx`, MENU-RCP-017..022): name,
 /// ingredient category (defaults to `general`), unit and optional unit cost;
-/// creates an org ingredient. Opened from the recipe builder and onboarding;
+/// creates an org ingredient. Opened from the recipe builder;
 /// exported from the package.
 ///
 /// It is not a form on the web (no implicit Enter submit): Save is the only

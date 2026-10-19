@@ -1,7 +1,7 @@
 /// The dashboard's router (the web's TanStack route tree): sign-in outside
-/// the frame, `/onboarding` full screen, every area's pages inside the frame
-/// ([DashShell]), the legacy redirects, and the guards the web runs before a
-/// page loads (`requireAuth`, the onboarding gate, a Dawam-only org's home).
+/// the frame, every area's pages inside the frame ([DashShell]), the legacy
+/// redirects, and the guards the web runs before a page loads
+/// (`requireAuth`, a Dawam-only org's home).
 library;
 
 import 'dart:async';
@@ -41,10 +41,6 @@ final dashRouterProvider = Provider<GoRouter>((ref) {
 /// The sign-in page's path.
 const String signInPath = '/login';
 
-/// Pages that are signed in but drawn without the frame (the web's
-/// `routes/onboarding.tsx`).
-const Set<String> fullScreenPaths = {'/onboarding'};
-
 /// Whether the session is known yet.
 enum SessionStatus { loading, signedOut, signedIn }
 
@@ -57,13 +53,11 @@ enum SessionStatus { loading, signedOut, signedIn }
 /// 3. Nothing is decided while the session is still being restored.
 /// 4. Signed out, every other page goes to `/login?redirect=<where>` (a
 ///    bare `/login` after the person signed out themselves).
-/// 5. An owner whose POS set-up is unfinished goes to `/onboarding`.
-/// 6. A Dawam-only org's home is its team (`/staff/team`).
+/// 5. A Dawam-only org's home is its team (`/staff/team`).
 String? dashRedirect({
   required Uri uri,
   required SessionStatus session,
   SignOutReason? signedOutBecause,
-  bool toOnboarding = false,
   OrgModulesState modules = const OrgModulesState(),
 }) {
   final legacy = resolveLegacyRedirect(uri);
@@ -83,7 +77,6 @@ String? dashRedirect({
       queryParameters: {'redirect': uri.toString()},
     ).toString();
   }
-  if (toOnboarding && !fullScreenPaths.contains(path)) return '/onboarding';
   if (path == '/' &&
       modules.known &&
       !modules.has('pos') &&
@@ -153,14 +146,12 @@ String? rememberedQueryRedirect({
   return null;
 }
 
-/// Re-runs the redirect when the session, the onboarding gate or the org's
-/// modules change — after the change has settled (a redirect that read
+/// Re-runs the redirect when the session or the org's modules change — after the change has settled (a redirect that read
 /// providers while Riverpod was still rebuilding them would re-enter them).
 class _RouterRefresh extends ChangeNotifier {
   _RouterRefresh(Ref ref) {
     ref
       ..listen(sessionProvider, (_, _) => _soon())
-      ..listen(sendsToOnboardingProvider, (_, _) => _soon())
       ..listen(
         orgModulesProvider.select((m) => (m.known, m.modules.join(','))),
         (_, _) => _soon(),
@@ -224,20 +215,11 @@ GoRouter buildDashRouter(
         )
       : null;
 
-  final framed = <RouteBase>[];
-  final fullScreen = <RouteBase>[];
-  for (final area in areas) {
-    for (final r in area.routes) {
-      (fullScreenPaths.contains(r.path) ? fullScreen : framed).add(
-        _goRoute(
-          r,
-          framed: !fullScreenPaths.contains(r.path),
-          onExit: leave,
-          remember: remember,
-        ),
-      );
-    }
-  }
+  final framed = <RouteBase>[
+    for (final area in areas)
+      for (final r in area.routes)
+        _goRoute(r, onExit: leave, remember: remember),
+  ];
 
   return router = GoRouter(
     navigatorKey: navigatorKey,
@@ -247,7 +229,6 @@ GoRouter buildDashRouter(
       uri: state.uri,
       session: status(),
       signedOutBecause: ref.read(sessionProvider.notifier).lastSignOutReason,
-      toOnboarding: ref.read(sendsToOnboardingProvider),
       modules: ref.read(orgModulesProvider),
     ),
     errorPageBuilder: (context, state) => _fadePage(
@@ -261,7 +242,6 @@ GoRouter buildDashRouter(
         pageBuilder: (context, state) =>
             _fadePage(context, state, const DashSignInPage()),
       ),
-      ...fullScreen,
       if (framed.isNotEmpty)
         ShellRoute(
           builder: (context, state, child) =>
@@ -274,7 +254,6 @@ GoRouter buildDashRouter(
 
 GoRoute _goRoute(
   DashRoute r, {
-  required bool framed,
   required ExitCallback onExit,
   required String? Function(DashRoute r, GoRouterState state) remember,
 }) {
@@ -285,14 +264,11 @@ GoRoute _goRoute(
         ? null
         : (c, s) => redirect?.call(c, s) ?? remember(r, s),
     onExit: onExit,
-    pageBuilder: (context, state) => _fadePage(
-      context,
-      state,
-      DashRouteHost(route: r, state: state, framed: framed),
-    ),
+    pageBuilder: (context, state) =>
+        _fadePage(context, state, DashRouteHost(route: r, state: state)),
     routes: [
       for (final c in r.children)
-        _goRoute(c, framed: framed, onExit: onExit, remember: remember),
+        _goRoute(c, onExit: onExit, remember: remember),
     ],
   );
 }

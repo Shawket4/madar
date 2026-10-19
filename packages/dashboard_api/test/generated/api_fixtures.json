@@ -5804,6 +5804,23 @@
    "supplier_name": "text",
    "updated_at": "2026-10-08T07:00:00.000Z"
   },
+  "get_readiness": {
+   "checks": [
+    {
+     "count": 7,
+     "key": "text",
+     "level": "blocking",
+     "more": 7,
+     "ok": true,
+     "problems": [],
+     "total": 7
+    }
+   ],
+   "first_order_at": "2026-10-08T07:00:00.000Z",
+   "live": true,
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "ready": true
+  },
   "get_recipe_link": {
    "in_sync": true,
    "linked_copy_ids": [
@@ -16575,6 +16592,7 @@
    },
    "tracking_off": true
   },
+  "CheckLevel": "blocking",
   "CheckOutRequest": {
    "accuracy_meters": 1.5,
    "is_mock": true,
@@ -24585,6 +24603,51 @@
    "ids": [
     "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
    ]
+  },
+  "Readiness": {
+   "checks": [
+    {
+     "count": 7,
+     "key": "text",
+     "level": "blocking",
+     "more": 7,
+     "ok": true,
+     "problems": [],
+     "total": 7
+    }
+   ],
+   "first_order_at": "2026-10-08T07:00:00.000Z",
+   "live": true,
+   "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "ready": true
+  },
+  "ReadinessCheck": {
+   "count": 7,
+   "key": "text",
+   "level": "blocking",
+   "more": 7,
+   "ok": true,
+   "problems": [
+    {
+     "entity_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "entity_type": "text",
+     "group_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "message": "text",
+     "name": "text",
+     "rule": "text"
+    }
+   ],
+   "total": 7
+  },
+  "ReadinessProblem": {
+   "entity_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "entity_type": "text",
+   "group_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "message": "text",
+   "name": "text",
+   "rule": "text"
   },
   "ReadyGroupRef": {
    "group_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",

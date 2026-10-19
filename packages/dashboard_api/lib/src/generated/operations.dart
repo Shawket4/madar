@@ -2077,6 +2077,13 @@ const List<ApiOperation> apiOperations = [
     'putActiveTill',
   ),
   ApiOperation(
+    'get_readiness',
+    'GET',
+    '/orgs/{id}/readiness',
+    'orgs',
+    'getReadiness',
+  ),
+  ApiOperation(
     'public_menu_display',
     'GET',
     '/public/menu-display',

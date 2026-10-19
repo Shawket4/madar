@@ -2,7 +2,7 @@
 /// `auth.store.ts`, `lib/auth-guard.ts`, `data/scope/**`, `data/authz`,
 /// `hooks/use-org-modules.ts`, `components/layout/**` and the `/_app` route):
 /// sign-in, the current user, `/authz/me`, the org with its modules and
-/// onboarding status, the org list for platform admins, branches, the public
+/// its readiness, the org list for platform admins, branches, the public
 /// brand, timezones, the realtime stream, and the Dawam set-up progress reads
 /// (employees, work shifts, attendance settings) the sidebar asks for.
 ///
@@ -15,6 +15,7 @@ import '../mock_db.dart';
 import '../mock_server.dart';
 import '../personas.dart';
 import '../seed.dart';
+import 'readiness.dart';
 
 /// The `/timezones` list.
 const List<String> mockTimezones = [
@@ -151,12 +152,11 @@ void registerCoreMocks(MockServer server, MockDb db) {
     );
   });
 
-  server.on('GET', '/orgs/{id}/onboarding', (req) {
+  server.on('GET', '/orgs/{id}/readiness', (req) {
     req.requireCap('org.settings.read');
     final id = req.param('id');
     req.requireSameOrg(id);
-    db['orgs'].get(id, what: 'Organization not found');
-    return MockResponse.ok(MockSeed.instance.onboarding(id));
+    return MockResponse.ok(mockReadiness(db, id));
   });
 
   server.on('GET', '/public/orgs/brand', (req) {

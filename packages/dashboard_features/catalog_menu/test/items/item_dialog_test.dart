@@ -1,5 +1,5 @@
 // The item dialog (MENU-ITEMS-072..092, 112, 115, MENU-AREA-013/014): create
-// from the page, edit as the onboarding opens it, driven through the shell.
+// from the page and edit, driven through the shell.
 import 'dart:async';
 import 'dart:convert';
 
@@ -23,8 +23,8 @@ final List<int> _png = base64Decode(
 
 Future<void> _openNew(DashHarness h) => h.tapText('New item');
 
-/// Opens the dialog in edit mode on seeded item [key] (the onboarding's
-/// way), or on the copy [stale] the opener holds.
+/// Opens the dialog in edit mode on seeded item [key], or on the copy
+/// [stale] the opener holds.
 Future<void> _openEdit(DashHarness h, String key, {MenuItem? stale}) async {
   final row = h.db![MenuTables.menuItems].find(item(key))!;
   unawaited(
@@ -559,7 +559,7 @@ void main() {
     });
   });
 
-  group('edit (onboarding)', () {
+  group('edit', () {
     testWidgets('MENU-ITEMS-073 loads the full item: active sizes in pounds, '
         'recipe rows, offered add-ons', (tester) async {
       final h = await pumpItems(tester);

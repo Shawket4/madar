@@ -3,8 +3,8 @@
 /// and which items have no recipe yet. Everything else the home shows comes
 /// from the shared seed's orders, tills and branches.
 ///
-/// Sabah Coffee's onboarding records 85 % recipe coverage: 34 of its 40
-/// items carry a recipe cost, the six below do not.
+/// 34 of Sabah Coffee's 40 items carry a recipe cost, the six below do
+/// not.
 library;
 
 import 'package:dashboard_api/mock.dart';
@@ -104,7 +104,3 @@ Map<String, Object?> homeItemNames(String itemId) {
   final m = _itemsById[itemId];
   return m == null ? const {} : MockSeed.tr(m.name, m.ar);
 }
-
-/// How many active menu items have a recipe (the onboarding `recipes` step).
-int homeItemsWithRecipes() =>
-    seedMenu.where((m) => !homeItemsWithoutRecipe.contains(m.key)).length;

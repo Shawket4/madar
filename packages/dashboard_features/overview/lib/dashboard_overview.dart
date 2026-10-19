@@ -1,10 +1,11 @@
-/// The dashboard's overview area: its pages ([overviewRoutes]), its mock
-/// backend ([registerOverviewMocks]) and its i18n supplement, as
-/// [overviewArea].
+/// The dashboard's overview area: its pages ([overviewRoutes]: the home and
+/// Setup), its mock backend ([registerOverviewMocks]), its i18n supplement
+/// and the frame foot's Madar apps, as [overviewArea].
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
 
+import 'src/apps/app_tiles.dart';
 import 'src/mock/register.dart';
 import 'src/routes.dart';
 
@@ -20,4 +21,5 @@ const DashArea overviewArea = DashArea(
     'packages/dashboard_overview/assets/i18n/en.json',
     'packages/dashboard_overview/assets/i18n/ar.json',
   ],
+  footer: madarAppsFooter,
 );

@@ -3,7 +3,7 @@
 /// and margin per size, scaling from the base size, and either its own
 /// "Save recipe" footer (the add-on recipe dialog) or deferred mode (the item
 /// dialog streams the cleaned rows to its host). Shared by the item dialogs,
-/// the add-on recipe dialog, the studio and onboarding.
+/// the add-on recipe dialog and the studio.
 ///
 /// ## Public API (exported by `package:dashboard_catalog_menu`)
 ///

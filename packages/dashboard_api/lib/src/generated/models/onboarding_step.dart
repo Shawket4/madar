@@ -2,7 +2,7 @@
 // ignore_for_file: type=lint
 part of '../models.dart';
 
-/// One derived setup step.
+/// One step of the old checklist. The shim sends none.
 @immutable
 class OnboardingStep {
   const OnboardingStep({
@@ -19,17 +19,12 @@ class OnboardingStep {
     required_: decBool(json['required'], 'OnboardingStep.required'),
   );
 
-  /// Supporting count (branches created, items added, …).
   final int count;
 
-  /// True when the underlying data exists.
   final bool done;
 
-  /// Stable key the dashboard switches on — never localized.
   final String key;
 
-  /// Steps that are encouraged but not blocking (`required = false`
-  /// never gates `can_complete`).
   final bool required_;
 
   Map<String, Object?> toJson() => <String, Object?>{

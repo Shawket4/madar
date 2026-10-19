@@ -164,8 +164,10 @@ void main() {
         'more"', (tester) async {
       final h = await pumpShell(tester);
       expect(text('Customers'), findsNothing);
-      expect(text('1 more'), findsOneWidget);
-      await h.tapText('1 more');
+      // Sell folds Customers; Setup folds its fifth entry too. Sell is first.
+      expect(text('1 more'), findsNWidgets(2));
+      await tester.tap(text('1 more').first);
+      await tester.pumpAndSettle();
       expect(text('Customers'), findsOneWidget);
       expect(text('Show less'), findsWidgets);
       await h.tapText('Show less');

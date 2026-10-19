@@ -1,8 +1,0 @@
-{
-  "menu.addonsHint": "Which addons customers can pick for this item",
-  "menu.addonsEmpty": "No addons selected — the full org catalog applies.",
-  "menu.noAddonsMatch": "No addons match",
-  "onboarding.form.priceMin": "Enter an amount of 0 or more",
-  "onboarding.form.notANumber": "Enter a number",
-  "menuImport.chooseFiles": "Choose files"
-}

@@ -11,25 +11,21 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// OnboardingStep : One derived setup step.
+/// OnboardingStep : One step of the old checklist. The shim sends none.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OnboardingStep {
-    /// Supporting count (branches created, items added, …).
     #[serde(rename = "count")]
     pub count: i64,
-    /// True when the underlying data exists.
     #[serde(rename = "done")]
     pub done: bool,
-    /// Stable key the dashboard switches on — never localized.
     #[serde(rename = "key")]
     pub key: String,
-    /// Steps that are encouraged but not blocking (`required = false` never gates `can_complete`).
     #[serde(rename = "required")]
     pub required: bool,
 }
 
 impl OnboardingStep {
-    /// One derived setup step.
+    /// One step of the old checklist. The shim sends none.
     pub fn new(count: i64, done: bool, key: String, required: bool) -> OnboardingStep {
         OnboardingStep {
             count,

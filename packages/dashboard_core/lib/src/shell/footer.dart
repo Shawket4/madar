@@ -9,6 +9,7 @@ import 'package:dashboard_core/src/format/tz.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/scope/scope.dart';
 import 'package:dashboard_core/src/session/session.dart';
+import 'package:dashboard_core/src/shell/router.dart' show dashAreasProvider;
 import 'package:dashboard_core/src/shell/shell_prefs.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
@@ -95,7 +96,8 @@ class DashLegalLinks extends ConsumerWidget {
 }
 
 /// The frame's foot: the copyright, "Powered by Madar" for a shop on its own
-/// branding, and the legal links.
+/// branding, what the areas add (the Madar apps) and the legal links. On a
+/// phone the areas' part sits on its own line above.
 class DashFooter extends ConsumerWidget {
   const DashFooter({super.key});
 
@@ -104,28 +106,49 @@ class DashFooter extends ConsumerWidget {
     final c = context.madarColors;
     final brand = ref.watch(publicBrandProvider).value;
     final style = DashType.small.copyWith(color: c.textMuted);
+    final extras = [
+      for (final a in ref.watch(dashAreasProvider))
+        if (a.footer case final build?) build(context),
+    ];
+    final narrow = MediaQuery.sizeOf(context).width < DashBreakpoints.md;
+    final line = Row(
+      spacing: Space.md,
+      children: [
+        Expanded(
+          child: Text(
+            copyrightLine(ref),
+            style: style,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (brand?.customBranding ?? false)
+          Flexible(child: PoweredByMadar(style: style)),
+        if (!narrow) ...extras,
+        const DashLegalLinks(center: false),
+      ],
+    );
     return Container(
       decoration: BoxDecoration(
         color: c.bg,
         border: Border(top: BorderSide(color: c.hairline)),
       ),
       padding: const EdgeInsetsDirectional.symmetric(horizontal: Space.lg),
-      child: Row(
-        spacing: Space.md,
-        children: [
-          Expanded(
-            child: Text(
-              copyrightLine(ref),
-              style: style,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (brand?.customBranding ?? false)
-            Flexible(child: PoweredByMadar(style: style)),
-          const DashLegalLinks(center: false),
-        ],
-      ),
+      child: narrow && extras.isNotEmpty
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: Space.xs),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    children: extras,
+                  ),
+                ),
+                line,
+              ],
+            )
+          : line,
     );
   }
 }
