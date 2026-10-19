@@ -484,6 +484,44 @@ async fn the_boards_read_offline_from_the_synced_rows() {
 
     let all = core.kds_list(None).await.unwrap();
     assert_eq!(all.len(), 1, "a closed kitchen ticket is off the board");
+    // The POS's LAN copy of a ticket the kitchen has since finished (every line
+    // still open in it) must not bring the ticket back.
+    let mut lan_copy = crate::kds::ticket_view(&closed_kt);
+    lan_copy.items.iter_mut().for_each(|l| l.bumped = false);
+    lan_copy.status = "firing".into();
+    crate::lan_kds_write(&core.store, &[lan_copy]);
+    assert_eq!(core.kds_list(None).await.unwrap().len(), 1, "a done ticket stays done");
+    assert!(crate::lan_kds_read(&core.store).is_empty(), "the stale LAN copy is dropped");
+    // A fire only the LAN brought: a tap on it stays (the server cannot echo
+    // it), done leaves the board, and a lost one ages out.
+    let mut lan_only = crate::kds::ticket_view(&kt);
+    lan_only.id = uid("kt-lan");
+    lan_only.items.iter_mut().for_each(|l| l.id = uid("kt-lan-line"));
+    let mut lost = lan_only.clone();
+    lost.id = uid("kt-lost");
+    lost.created_at = (now - chrono::Duration::hours(13)).to_rfc3339();
+    crate::lan_kds_write(&core.store, &[lan_only, lost]);
+    assert_eq!(core.kds_list(None).await.unwrap().len(), 2, "the LAN fire shows; the lost one does not");
+    assert_eq!(crate::lan_kds_read(&core.store).len(), 1, "the lost one is dropped");
+    core.kds_bump(uid("kt-lan-line")).await.unwrap();
+    core.store.with_conn(|c| Ok(c.execute("UPDATE outbox SET status='acked' WHERE op_type = 'bump_kitchen'", [])?)).unwrap();
+    assert_eq!(core.kds_list(None).await.unwrap().len(), 1, "bumped done, and it stays done after the ack");
+    core.kds_unbump(uid("kt-lan-line")).await.unwrap();
+    assert_eq!(core.kds_list(None).await.unwrap().len(), 2, "a recall brings it back");
+    crate::lan_kds_write(&core.store, &[]);
+    // A bump the server acked stays done until the pull reaches the feed
+    // position the ack named: no flicker back to open in between.
+    let line = kt.items[0].id.to_string();
+    let cursor_key = format!("{}{}", crate::sync_pull::K_NEXT, testkit::BRANCH);
+    core.store.kv_put(&cursor_key, "50").unwrap();
+    core.kds_bump(line.clone()).await.unwrap();
+    core.store
+        .with_conn(|c| Ok(c.execute("UPDATE outbox SET status='acked', server_id='100' WHERE op_type='bump_kitchen' AND status<>'acked'", [])?))
+        .unwrap();
+    let open = |v: Vec<crate::kds::KdsTicketView>| v.iter().flat_map(|t| t.items.iter()).filter(|l| l.id == line && !l.bumped).count();
+    assert_eq!(open(core.kds_list(None).await.unwrap()), 0, "acked, the feed not there yet: still done");
+    core.store.kv_put(&cursor_key, "100").unwrap();
+    assert_eq!(open(core.kds_list(None).await.unwrap()), 1, "the feed reached it: the synced row decides");
     assert_eq!(core.kds_list(Some(station.to_string())).await.unwrap().len(), 1);
     assert_eq!(core.kds_list(Some(uid("bar"))).await.unwrap().len(), 0, "nothing for another station");
 
@@ -2794,4 +2832,75 @@ async fn with_the_grant_the_shift_totals_are_the_plain_ones() {
     let p = core.close_till_preview_checked().await.unwrap();
     assert!(!p.figures_hidden);
     assert!(p.methods.iter().any(|m| m.order_count > 0));
+}
+
+/// A counter cart's "Send to kitchen" reaches the kitchen screen when the
+/// branch has one, and the sale charged afterwards takes the same key, so its
+/// kitchen ticket is the one already on the board, not a second.
+#[tokio::test]
+async fn send_to_kitchen_then_charge_is_one_kitchen_ticket() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    seed_methods(&core);
+    core.open_till(0, None).await.unwrap();
+    core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 1_000).unwrap();
+
+    seed_rows(&core, &[("branch_settings", serde_json::json!({"id": testkit::BRANCH, "kitchen_routing_effective": "till"}))]);
+    assert!(!core.kitchen_send_cart(None).await.unwrap(), "no kitchen screen: only the printer");
+
+    seed_rows(&core, &[("branch_settings", serde_json::json!({"id": testkit::BRANCH, "kitchen_routing_effective": "kds"}))]);
+    assert!(!core.kitchen_send_cart(Some(uid("t1"))).await.unwrap(), "a table's cart goes by its fire");
+    assert!(core.kitchen_send_cart(None).await.unwrap(), "the counter cart goes to the screen");
+    let key = crate::cart::kitchen_key(&core.store, None).unwrap().expect("keyed");
+    assert!(core.kitchen_send_cart(None).await.unwrap());
+    assert_eq!(crate::cart::kitchen_key(&core.store, None).unwrap(), Some(key), "sent again: the same ticket");
+    // Each send also goes to the server through the queue, under the cart's key.
+    let sends: Vec<serde_json::Value> = core
+        .store
+        .list_active()
+        .unwrap()
+        .iter()
+        .filter(|o| o.op_type == "send_cart_to_kitchen")
+        .map(|o| serde_json::from_str(&o.payload).unwrap())
+        .collect();
+    assert_eq!(sends.len(), 2, "one op per send");
+    assert_eq!(sends[0]["cart_key"], key.to_string());
+    assert_eq!(sends[0]["branch_id"], testkit::BRANCH);
+    assert_eq!(sends[0]["lines"][0]["name"], "Latte");
+
+    let okey = core.checkout(None, sale_input(None, None)).await.unwrap().local_order_id;
+    assert_eq!(okey, key.to_string(), "the sale is the ticket already on the board");
+    assert_eq!(crate::cart::kitchen_key(&core.store, None).unwrap(), None, "the next cart is a new order");
+}
+
+/// The same ticket sent twice over the LAN keeps what the cook finished.
+#[tokio::test]
+async fn a_resent_lan_ticket_keeps_its_finished_lines() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    let store = &core.store;
+    let line = |id: &str, bumped: bool| crate::kds::KdsLineView {
+        id: id.into(),
+        name: "Latte".into(),
+        qty: 1,
+        size_label: None,
+        modifiers: vec![],
+        notes: None,
+        station_id: None,
+        station_name: None,
+        bumped,
+        combo: None,
+    };
+    let ticket = |items| crate::kds::KdsTicketView {
+        id: "kt".into(),
+        kitchen_ref: None,
+        table_label: None,
+        round_number: 1,
+        source_type: "order".into(),
+        status: "firing".into(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        items,
+    };
+    crate::lan_kds_merge_ticket(store, ticket(vec![line("a", true), line("b", false)]));
+    crate::lan_kds_merge_ticket(store, ticket(vec![line("a", false), line("b", false), line("c", false)]));
+    let v = crate::lan_kds_read(store);
+    assert_eq!(v[0].items.iter().map(|l| l.bumped).collect::<Vec<_>>(), vec![true, false, false]);
 }

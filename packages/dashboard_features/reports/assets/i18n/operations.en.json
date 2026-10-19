@@ -1,1 +1,5 @@
-{}
+{
+  "analytics.avgExtra": "Avg extra",
+  "analytics.sortedAscending": "sorted ascending",
+  "analytics.sortedDescending": "sorted descending"
+}

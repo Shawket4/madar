@@ -427,6 +427,49 @@ pub(crate) fn build_fire_projection(
     })
 }
 
+/// The `send_cart_to_kitchen` request (madar-shared `SendCartRequest`) for a
+/// counter cart, built from its fire projection so its lines come in the
+/// projection's order: the server numbers them by position, as the
+/// projection's derived ids do. A combo's parts are its lines, as on the board.
+pub(crate) fn cart_send_request(
+    branch_id: &str,
+    cart_key: &str,
+    lines: &[crate::cart::CartLineView],
+    projection: &KdsTicketView,
+) -> serde_json::Value {
+    let menu_ids: Vec<&str> = lines
+        .iter()
+        .flat_map(|l| -> Vec<&str> {
+            if l.kind == crate::menu::KIND_COMBO {
+                l.parts.iter().map(|p| p.item_id.as_str()).collect()
+            } else {
+                vec![l.item_id.as_str()]
+            }
+        })
+        .collect();
+    let wire: Vec<serde_json::Value> = projection
+        .items
+        .iter()
+        .enumerate()
+        .map(|(i, d)| {
+            serde_json::json!({
+                "menu_item_id": menu_ids.get(i).and_then(|m| uuid::Uuid::parse_str(m).ok()),
+                "name": d.name,
+                "qty": d.qty,
+                "size_label": d.size_label,
+                "modifiers": d.modifiers,
+                "notes": d.notes,
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "branch_id": branch_id,
+        "cart_key": cart_key,
+        "kitchen_ref": projection.kitchen_ref,
+        "lines": wire,
+    })
+}
+
 /// The KDS projection of a fire or round from its replay envelope (catch-up of an
 /// op rung while no relay ran): the SAME derived ids as the live projection, line
 /// names from the catalogue.

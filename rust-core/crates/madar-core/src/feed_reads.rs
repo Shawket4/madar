@@ -273,10 +273,20 @@ impl MadarCore {
         let mut out: Vec<kds::KdsTicketView> = rows.iter().map(kds::ticket_view).collect();
         let mut lan = crate::lan_kds_read(&self.store);
         let before = lan.len();
-        lan.retain(|t| !synced.contains(&t.id));
+        // A LAN copy the server never got within its own live window for a
+        // closed ticket (12 h) is a fire that was lost: it would sit on the
+        // board for ever, and no bump on it can reach the server.
+        let stale = chrono::Utc::now() - chrono::Duration::hours(12);
+        lan.retain(|t| {
+            !synced.contains(&t.id)
+                && chrono::DateTime::parse_from_rfc3339(&t.created_at).map_or(true, |c| c >= stale)
+        });
         if lan.len() != before {
             crate::lan_kds_write(&self.store, &lan);
         }
+        // Done is off the board, as the server closes a ticket whose lines are
+        // all bumped; the copy stays stored so a recall can bring it back.
+        lan.retain(|t| t.items.is_empty() || !t.items.iter().all(|l| l.bumped));
         kds::overlay_lan_tickets(&mut out, lan);
         kds::overlay_pending_bumps(&mut out, &self.pending_bumps());
         kds::sort_feed(&mut out);

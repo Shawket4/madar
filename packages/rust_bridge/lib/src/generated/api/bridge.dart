@@ -835,6 +835,10 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// server — hide kitchen work rather than guess a mode.
   Future<String?> kitchenRoutingMode();
 
+  /// The counter cart's "Send to kitchen": puts it on the kitchen screen now
+  /// when the branch has one. `false` when nothing went.
+  Future<bool> kitchenSendCart({String? tableId});
+
   /// Whether the LAN relay is currently running.
   bool lanActive();
 

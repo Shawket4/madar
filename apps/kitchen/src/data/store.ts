@@ -4,7 +4,7 @@ import type { ColorScheme } from "@/theme/tokens";
 import { backend, KitchenFailure, type LanStatus } from "./backend";
 import type { LanBonjour } from "@/lib/lan-bonjour";
 import type { DeviceMode, DeviceState, KitchenLine, KitchenPart, Section, Ticket } from "./types";
-import { toParts } from "@/features/board/logic";
+import { anyLate, LATE_REPEAT_MS, newParts, toParts } from "@/features/board/logic";
 
 /*
  * The device's state. The truth lives behind `backend()` — madar-core on a
@@ -88,7 +88,21 @@ export const useKitchen = create<KitchenState>((set, get) => {
   const defaultSection = () => get().sections.find((s) => s.isDefault)?.id ?? get().sections[0]?.id;
 
   /** Re-split the last tickets (after sections load, or an optimistic change). */
-  const reparts = (tickets: Ticket[]) => set({ tickets, parts: toParts(tickets, defaultSection()) });
+  // KB-5: the parts already announced; null until the board's first read, so
+  // opening the app on a full board does not ring for every order on it.
+  let seen: Set<string> | null = null;
+  let lateTimer: ReturnType<typeof setInterval> | null = null;
+  const ring = () => {
+    if (get().chime) require("@/lib/chime").playChime();
+  };
+  const reparts = (tickets: Ticket[]) => {
+    const parts = toParts(tickets, defaultSection());
+    if (get().device.route === "board") {
+      if (seen && newParts(seen, parts).length) ring();
+      seen = new Set(parts.map((p) => p.id));
+    }
+    set({ tickets, parts });
+  };
 
   const loadSections = async () => {
     try {
@@ -105,13 +119,16 @@ export const useKitchen = create<KitchenState>((set, get) => {
       await backend().startRealtime({
         onChange: () => void get().refresh(),
         onConnection: (connected) => set({ connected }),
-        onPing: () => {}, // KB-5: no chime asset yet
+        onPing: () => {}, // KB-5 rings on the board's own read (`reparts`), whichever path brought the order
       });
     } catch {
       // Offline at boot: the poll still reads local rows, and the core reconnects.
     }
     void backend().syncNow().catch(() => {});
     void startLan();
+    lateTimer ??= setInterval(() => {
+      if (get().device.route === "board" && anyLate(get().parts, Date.now())) ring();
+    }, LATE_REPEAT_MS);
     if (!backend().mock) {
       // The last of the three ways new work arrives (LAN, stream, push).
       require("@/lib/push").startPush(backend(), get().lang, () => void get().refresh());
@@ -151,6 +168,7 @@ export const useKitchen = create<KitchenState>((set, get) => {
     recallOpen: false,
 
     async boot() {
+      if (!backend().mock) set(require("@/lib/prefs-file").loadPrefs());
       backend().setLocale(get().lang);
       readState();
       const { route } = get().device;
@@ -237,6 +255,10 @@ export const useKitchen = create<KitchenState>((set, get) => {
 
     set: (k, v) => {
       set({ [k]: v } as Partial<KitchenState>);
+      if ((k === "theme" || k === "lang" || k === "chime") && !backend().mock) {
+        const { theme, lang, chime } = get();
+        require("@/lib/prefs-file").savePrefs({ theme, lang, chime });
+      }
       if (k === "lang") {
         backend().setLocale(v as string);
         if (get().device.route === "board" || get().device.route === "sections") {

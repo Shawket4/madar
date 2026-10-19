@@ -32,6 +32,19 @@ export function ageTone(part: KitchenPart, now: number): AgeTone {
   return min >= RED_MIN ? "red" : min >= AMBER_MIN ? "amber" : "fresh";
 }
 
+/** KB-5: while a part is late the chime rings again this often. */
+export const LATE_REPEAT_MS = 30_000;
+
+/** KB-5: the parts a chime announces, those not on the board last time. */
+export function newParts(seen: ReadonlySet<string>, parts: KitchenPart[]): KitchenPart[] {
+  return parts.filter((p) => !p.done && !seen.has(p.id));
+}
+
+/** KB-5: is any part late (red), so the alert repeats? */
+export function anyLate(parts: KitchenPart[], now: number): boolean {
+  return parts.some((p) => ageTone(p, now) === "red");
+}
+
 /** A waiter's bill is dine-in (with or without a table yet); a counter order is takeaway. */
 export function sourceOf(t: Pick<Ticket, "sourceType" | "tableLabel">): SourceType {
   if (t.sourceType === "online") return "online";
