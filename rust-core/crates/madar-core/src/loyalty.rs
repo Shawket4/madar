@@ -250,24 +250,6 @@ pub struct LoyaltyScanInput {
 }
 
 impl LoyaltyScanInput {
-    fn partial() -> Self {
-        Self {
-            kind: "partial".into(),
-            value: String::new(),
-        }
-    }
-    fn token(v: String) -> Self {
-        Self {
-            kind: "token".into(),
-            value: v,
-        }
-    }
-    fn phone(v: String) -> Self {
-        Self {
-            kind: "phone".into(),
-            value: v,
-        }
-    }
     pub fn is_ready(&self) -> bool {
         self.kind != "partial"
     }
@@ -279,35 +261,20 @@ impl LoyaltyScanInput {
 #[cfg(test)]
 const TOKEN_LEN: usize = madar_ids::member::TOKEN_LEN;
 
-/// Classify a captured string. Never panics and never allocates on the hot
-/// path's common answer (a partial buffer).
+/// Classify a captured string. The rule is madar-shared's (`madar_ids::scan`),
+/// the one the loyalty teller page runs too; this only fits it to the bridge.
 pub fn classify_scan_input(raw: &str) -> LoyaltyScanInput {
-    let s = raw.trim();
-    if s.is_empty() {
-        return LoyaltyScanInput::partial();
-    }
-
-    // A card: exact length, the `M` sentinel, and a base64url tail.
-    if madar_ids::member::is_member_token(s) {
-        return LoyaltyScanInput::token(s.to_string());
-    }
-
-    // A phone: digits once the punctuation people type is removed — Arabic
-    // numerals too. It leaves here in the ONE canonical form (`crate::phone`),
-    // the form the server keys members and customers by, so `0100…`, `+20 100…`
-    // and `٠١٠٠…` all look the same person up.
-    let folded = crate::phone::digits(s);
-    let only_phone_chars = s.chars().all(|c| {
-        c.is_ascii_digit()
-            || matches!(c, '+' | ' ' | '-' | '(' | ')' | '\u{0660}'..='\u{0669}' | '\u{06F0}'..='\u{06F9}')
-    });
-    if only_phone_chars && (10..=15).contains(&folded.len()) {
-        if let Some(canonical) = crate::phone::canonical(s) {
-            return LoyaltyScanInput::phone(canonical);
+    use madar_ids::scan::{classify, Kind};
+    let s = classify(raw);
+    LoyaltyScanInput {
+        kind: match s.kind {
+            Kind::Token => "token",
+            Kind::Phone => "phone",
+            Kind::Partial => "partial",
         }
+        .into(),
+        value: s.value,
     }
-
-    LoyaltyScanInput::partial()
 }
 
 /// "30 / 100", or the earned line once the threshold is reached, in `locale`.
