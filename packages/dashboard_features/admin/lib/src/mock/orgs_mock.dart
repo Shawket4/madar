@@ -23,7 +23,8 @@ import '../area_seed.dart';
 /// The backend's reserved slugs (`slugs.rs` `RESERVED`).
 const Set<String> reservedSlugs = {
   'api', 'demo', 'demo-api', 'get', 'legal', 'loyalty', 'order', //
-  'reservations', 'sentry', 'www', 'autoconfig', 'autodiscover', 'mail',
+  'reservations', 'rewards', 'sentry', 'wafa', 'www', 'autoconfig',
+  'autodiscover', 'mail',
   'smtp', 'imap', 'pop', 'mx', 'ns', 'ns1', 'ns2', 'ftp', 'postmaster',
   'hostmaster', 'webmaster', 'abuse', 'noreply', 'no-reply', 'madar',
   'madarpos',
