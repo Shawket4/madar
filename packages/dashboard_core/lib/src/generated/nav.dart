@@ -350,6 +350,15 @@ const List<NavGroup> dashNav = <NavGroup>[
     fallback: 'Setup',
     entries: <NavEntry>[
       NavLeaf(
+        to: '/setup',
+        labelKey: 'nav.shopSetup',
+        fallback: 'Shop setup',
+        icon: 'checkmark.seal',
+        lucide: 'clipboard-check',
+        caps: <String>['org.settings.edit'],
+        module: 'pos',
+      ),
+      NavLeaf(
         to: '/settings',
         labelKey: 'nav.settings',
         fallback: 'Settings',
