@@ -61,7 +61,15 @@
       ],
       "./plugins/with-firebase-pods",
       "./plugins/with-android-release",
-      "./plugins/with-high-refresh"
+      "./plugins/with-high-refresh",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ]
     ]
   }
 }

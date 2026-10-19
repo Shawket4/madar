@@ -1242,7 +1242,11 @@ impl MadarCore {
                     // version together, so an acked sale never disappears.
                     let methods = ledger::views::payment_method_rows(&self.store);
                     self.store.with_tx_touch(|tx, touched| {
-                        store::mark_acked_on(tx, item.seq, server_id.as_deref())?;
+                        // A bump's ack keeps the feed position it is visible by (see `pending_bumps`).
+                        let bump_seq = sync_seq
+                            .filter(|_| matches!(item.op_type.as_str(), "bump_kitchen" | "unbump_kitchen"))
+                            .map(|s| s.to_string());
+                        store::mark_acked_on(tx, item.seq, server_id.as_deref().or(bump_seq.as_deref()))?;
                         touched.extend(ledger::fold::fold(tx, &item, body.as_ref(), &methods)?);
                         // The horizon that includes this op: the feed decides by
                         // seq, not by time, when the row may be treated as gone.
@@ -1619,21 +1623,42 @@ impl MadarCore {
 
     /// The still-pending bump intents `(line_id, bumped)` in FIFO order — overlaid
     /// onto the KDS feed so the board reflects un-synced taps. Best-effort.
+    ///
+    /// An acked bump stays in until the pull has reached the feed position its
+    /// ack named (kept in `server_id`, which a bump never gets): between the
+    /// ack and that pull the synced row still shows the line open, and the
+    /// ticket would come back for a moment.
     fn pending_bumps(&self) -> Vec<(String, bool)> {
-        self.store
-            .pending()
+        let parse = |op_type: &str, payload: &str| {
+            let bumped = match op_type {
+                "bump_kitchen" => true,
+                "unbump_kitchen" => false,
+                _ => return None,
+            };
+            let cmd: kds::BumpCommand = serde_json::from_str(payload).ok()?;
+            Some((cmd.item_id, bumped))
+        };
+        let cursor = self
+            .session_branch_id()
+            .ok()
+            .and_then(|b: String| self.store.with_conn(|c| ledger::cursor_of(c, &b)).ok())
+            .unwrap_or(0);
+        let mut out: Vec<(String, bool)> = self
+            .store
+            .with_conn(|c| {
+                let mut st = c.prepare(
+                    "SELECT op_type, payload FROM outbox WHERE status='acked' \
+                     AND op_type IN ('bump_kitchen','unbump_kitchen') AND CAST(server_id AS INTEGER) > ?1 ORDER BY seq",
+                )?;
+                let rows = st.query_map([cursor], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+                Ok(rows.filter_map(Result::ok).collect::<Vec<_>>())
+            })
             .unwrap_or_default()
             .iter()
-            .filter_map(|i| {
-                let bumped = match i.op_type.as_str() {
-                    "bump_kitchen" => true,
-                    "unbump_kitchen" => false,
-                    _ => return None,
-                };
-                let cmd: kds::BumpCommand = serde_json::from_str(&i.payload).ok()?;
-                Some((cmd.item_id, bumped))
-            })
-            .collect()
+            .filter_map(|(t, p)| parse(t, p))
+            .collect();
+        out.extend(self.store.pending().unwrap_or_default().iter().filter_map(|i| parse(&i.op_type, &i.payload)));
+        out
     }
 
     /// The `/sync/replay` envelope for a queued op (timestamps re-based to the
@@ -1993,6 +2018,16 @@ impl MadarCore {
             // Idempotent on the line: a re-bump, or a bump of a line that is
             // gone, is a 204 on replay. The server has no 409 for a bump, so one
             // is a refusal like any other. 204 No Content — handled below.
+            "send_cart_to_kitchen" => {
+                let request: serde_json::Value = match serde_json::from_str(&item.payload) {
+                    Ok(r) => r,
+                    Err(e) => return Err(SendOutcome::Dead(format!("payload: {e}"))),
+                };
+                (
+                    serde_json::json!({ "op": "send_cart_to_kitchen", "teller_id": teller_id, "request": request }),
+                    Idem::Yes(&[]),
+                )
+            }
             "bump_kitchen" | "unbump_kitchen" => {
                 let cmd: kds::BumpCommand = match serde_json::from_str(&item.payload) {
                     Ok(c) => c,
@@ -3564,10 +3599,17 @@ fn lan_kds_write(store: &store::Store, v: &[kds::KdsTicketView]) {
     }
 }
 /// Upsert a LAN-projected kitchen ticket (by derived id) into the overlay.
-fn lan_kds_merge_ticket(store: &store::Store, t: kds::KdsTicketView) {
+fn lan_kds_merge_ticket(store: &store::Store, mut t: kds::KdsTicketView) {
     let mut v = lan_kds_read(store);
     match v.iter_mut().find(|x| x.id == t.id) {
-        Some(slot) => *slot = t,
+        Some(slot) => {
+            // The same ticket sent again (a counter cart sent early, then
+            // charged): a line the cook already finished stays finished.
+            for l in t.items.iter_mut() {
+                l.bumped |= slot.items.iter().any(|o| o.id == l.id && o.bumped);
+            }
+            *slot = t
+        }
         None => v.push(t),
     }
     lan_kds_write(store, &v);
@@ -7813,7 +7855,20 @@ impl MadarCore {
         if let Some(id) = cart::draft_in_hand(&self.store, table_id.as_deref()) {
             let _ = self.complete_draft(id, None);
         }
+        let sold_lines = cart::lines(&self.store, table_id.as_deref()).unwrap_or_default();
         cart::clear(&self.store, table_id.as_deref())?;
+        // A counter sale goes to the kitchen too (spec PS-2): the KDS sees it
+        // NOW over the LAN, under the ids the server derives from the sale's
+        // key, so the synced ticket replaces this copy. The sale itself rides
+        // the LAN as its ledger row; this is only the board's projection.
+        let routed = kds::kitchen_is_routed(self.kitchen_routing_mode().await.ok().flatten().as_deref());
+        if let Some(mut t) = kds::build_fire_projection(&okey, &sold_lines, None, 1, prepared.event_at.clone()).filter(|_| routed) {
+            t.source_type = "order".into();
+            t.kitchen_ref = Some(prepared.receipt.display_number.clone()).filter(|n| !n.is_empty());
+            if let Ok(data) = serde_json::to_string(&t) {
+                self.lan_publish("kitchen", "kitchen.fired", data, None).await;
+            }
+        }
         // The counter's other till must not spend the same drink: the peers
         // hear each one now. No replay op of its own — the drink rides the
         // ORDER's envelope, which the LAN already carries.
@@ -9759,6 +9814,52 @@ impl MadarCore {
         }
         // No stations known yet reads as none (the picker shows an empty list).
         Ok(src.value().unwrap_or_default().iter().map(kds::station_view).collect())
+    }
+
+    /// The counter cart's "Send to kitchen": puts it on the kitchen screen now
+    /// over the LAN when the branch routes to one (`kds` / `both`). The ticket
+    /// is keyed by the cart's kitchen key, which the sale later takes as its
+    /// own, so sending again updates it and charging replaces it. `false` when
+    /// nothing went (no kitchen screen here, an empty cart).
+    ///
+    /// shortcut: counter carts only; a table's cart reaches the screen by its
+    /// fire, whose round key is its own. Upgrade if tables need an early send.
+    pub async fn kitchen_send_cart(&self, table_id: Option<String>) -> Result<bool, CoreError> {
+        if table_id.is_some() {
+            return Ok(false);
+        }
+        if !matches!(self.kitchen_routing_mode().await?.as_deref(), Some("kds") | Some("both")) {
+            return Ok(false);
+        }
+        let lines = cart::lines(&self.store, None)?;
+        if lines.is_empty() {
+            return Ok(false);
+        }
+        let key = cart::kitchen_key_or_new(&self.store, None)?.to_string();
+        let now = self.corrected_now().to_rfc3339();
+        let Some(mut t) = kds::build_fire_projection(&key, &lines, None, 1, now.clone()) else {
+            return Ok(false);
+        };
+        t.source_type = "order".into();
+        // To the server too, through the queue (a blip only delays it): that is
+        // what reaches a screen on another network, or one that is closed (a
+        // push). Each send is its own op; the server updates the cart's ticket.
+        let request = kds::cart_send_request(&self.session_branch_id()?, &key, &lines, &t);
+        let (user_id, clock_offset_ms) = self.outbox_meta();
+        let op_id = uuid::Uuid::new_v4().to_string();
+        self.store.enqueue(&store::NewOutboxOp {
+            id: op_id.clone(),
+            op_type: "send_cart_to_kitchen".into(),
+            idempotency_key: op_id,
+            payload: request.to_string(),
+            event_at: now,
+            user_id,
+            clock_offset_ms,
+            ..Default::default()
+        })?;
+        self.lan_publish("kitchen", "kitchen.fired", serde_json::to_string(&t)?, None).await;
+        self.send_in_background(Vec::new());
+        Ok(true)
     }
 
     /// Bump a kitchen line (mark it done at its station). OUTBOX-FIRST (Phase E §2):
@@ -14166,6 +14267,13 @@ mod lifecycle_tests {
             ),
             ("bump_kitchen", ser(&kds::BumpCommand { item_id: u(21) })),
             ("unbump_kitchen", ser(&kds::BumpCommand { item_id: u(21) })),
+            (
+                "send_cart_to_kitchen",
+                json(serde_json::json!({
+                    "branch_id": branch, "cart_key": u(22), "kitchen_ref": null,
+                    "lines": [{ "menu_item_id": u(23), "name": "Latte", "qty": 1, "size_label": null, "modifiers": [], "notes": null }]
+                })),
+            ),
             (
                 "swap_tables",
                 ser(&held::SwapCommand {

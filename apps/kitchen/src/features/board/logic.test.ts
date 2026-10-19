@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import type { Ticket } from "../../data/types.ts";
-import { ageTone, allDay, boardParts, formatAge, orderReady, partStatus, recallable, toParts } from "./logic.ts";
+import { ageTone, allDay, anyLate, boardParts, formatAge, newParts, orderReady, partStatus, recallable, RED_MIN, toParts } from "./logic.ts";
 
 const NOW = Date.parse("2026-10-08T12:00:00Z");
 const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
@@ -71,4 +71,20 @@ test("expo: waiting, cooking, done, ready", () => {
   t.items.forEach((l) => (l.bumped = true));
   assert.equal(orderReady(toParts([t], "grill")), true);
   assert.equal(orderReady([grill, cold]), false);
+});
+
+test("KB-5: only a part not seen before rings, and only while it is not done", () => {
+  const parts = toParts([ticket({ id: "a" }), ticket({ id: "b" })], undefined);
+  const seen = new Set(parts.filter((p) => p.orderId === "a").map((p) => p.id));
+  const fresh = newParts(seen, parts);
+  assert.ok(fresh.length > 0 && fresh.every((p) => p.orderId === "b"), "only the new order's parts");
+  assert.deepEqual(newParts(new Set(parts.map((p) => p.id)), parts), [], "nothing new, no chime");
+  assert.deepEqual(newParts(new Set(), parts.map((p) => ({ ...p, done: true }))), [], "a finished part is not news");
+});
+
+test("KB-5: the alert repeats while a part is red", () => {
+  const [late] = toParts([ticket({ id: "a", createdAt: ago(RED_MIN) })], undefined);
+  const [fresh] = toParts([ticket({ id: "b", createdAt: ago(1) })], undefined);
+  assert.equal(anyLate([fresh], NOW), false);
+  assert.equal(anyLate([fresh, late], NOW), true);
 });

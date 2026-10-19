@@ -2261,6 +2261,13 @@ Future<void> _printWholeCartToKitchen(
   String? ticketRef,
 }) async {
   final bridge = ref.read(bridgeProvider);
+  // The kitchen screen gets it too when the branch has one, printer or not.
+  var onScreen = false;
+  try {
+    onScreen = await bridge.kitchenSendCart(tableId: tableId);
+  } on Object {
+    onScreen = false;
+  }
   PrintState result;
   try {
     final chit = await buildCartKitchenChit(
@@ -2280,6 +2287,16 @@ Future<void> _printWholeCartToKitchen(
     result = PrintState.failed;
   }
   if (!context.mounted) return;
+  if (onScreen && result == PrintState.noPrinter) {
+    ref
+        .read(appToastProvider.notifier)
+        .show(
+          bridge.tr(key: 'printing.chit_on_screen'),
+          tone: ChipTone.success,
+          icon: 'printer',
+        );
+    return;
+  }
   sayChitPrint(ref.read(appToastProvider.notifier), bridge, result);
 }
 

@@ -79,6 +79,12 @@ impl MadarBridge {
             .map_err(MadarError::from)
     }
 
+    /// The counter cart's "Send to kitchen": puts it on the kitchen screen now
+    /// when the branch has one. `false` when nothing went.
+    pub async fn kitchen_send_cart(&self, table_id: Option<String>) -> Result<bool, MadarError> {
+        self.inner.kitchen_send_cart(table_id).await.map_err(MadarError::from)
+    }
+
     /// Bump a kitchen line (mark it done at its station). Outbox-first.
     pub async fn kds_bump(&self, item_id: String) -> Result<(), MadarError> {
         self.inner.kds_bump(item_id).await.map_err(MadarError::from)

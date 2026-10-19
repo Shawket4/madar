@@ -45,6 +45,25 @@ pub(crate) const K_KITCHEN_NOTES: &str = "cart:kitchen_notes";
 /// note, distinct from [`K_NOTE`]'s order note). Same rule: local only,
 /// kitchen-chit only, cleared when the whole-cart chit prints.
 pub(crate) const K_KITCHEN_NOTE: &str = "cart:kitchen_note";
+/// kv key — the order key a counter cart was sent to the kitchen screen under
+/// before it was charged. The sale takes it as its own, so the ticket the
+/// charge fires replaces the one already on the board instead of doubling it.
+const K_KITCHEN_KEY: &str = "cart:kitchen_key";
+
+/// The key this cart was sent to the kitchen under, if it was.
+pub(crate) fn kitchen_key(store: &Store, ctx: Ctx<'_>) -> CoreResult<Option<uuid::Uuid>> {
+    Ok(store.kv_get(&key_for(ctx, K_KITCHEN_KEY))?.and_then(|v| uuid::Uuid::parse_str(&v).ok()))
+}
+
+/// That key, minted the first time the cart goes to the kitchen.
+pub(crate) fn kitchen_key_or_new(store: &Store, ctx: Ctx<'_>) -> CoreResult<uuid::Uuid> {
+    if let Some(k) = kitchen_key(store, ctx)? {
+        return Ok(k);
+    }
+    let k = uuid::Uuid::new_v4();
+    store.kv_put(&key_for(ctx, K_KITCHEN_KEY), &k.to_string())?;
+    Ok(k)
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 struct StoredAddon {
@@ -510,6 +529,7 @@ pub(crate) fn clear_all(store: &Store) -> CoreResult<()> {
         store.kv_put(&key_for(t, K_LAST_REMOVED), "[]")?;
         store.kv_put(&key_for(t, K_META), "{}")?;
         store.kv_put(&key_for(t, K_KITCHEN_NOTES), "{}")?;
+        store.kv_put(&key_for(t, K_KITCHEN_KEY), "")?;
         store.kv_put(&key_for(t, K_KITCHEN_NOTE), "")?;
         store.kv_put(&key_for(t, K_OWNER), "")?;
         store.kv_put(&key_for(t, crate::deals::K_APPS), "[]")?;
@@ -1913,6 +1933,7 @@ pub(crate) fn clear(store: &Store, ctx: Ctx<'_>) -> CoreResult<()> {
     store.kv_put(&ctx_key(ctx, K_LAST_REMOVED)?, "[]")?; // a stale undo must not resurrect a sold line
     store.kv_put(&key_for(ctx, K_META), "{}")?; // the spent cart forgets its name/draft/booking
     store.kv_put(&key_for(ctx, K_OWNER), "")?; // and whose it was
+    store.kv_put(&key_for(ctx, K_KITCHEN_KEY), "")?; // the next cart is a new order
     save(store, ctx, &[])
 }
 

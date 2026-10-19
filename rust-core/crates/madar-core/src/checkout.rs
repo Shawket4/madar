@@ -751,7 +751,9 @@ pub(crate) fn prepare(
         });
     }
 
-    let order_id = uuid::Uuid::new_v4();
+    // A cart already sent to the kitchen screen sells under that key: its
+    // ticket there is this order's (`cart::kitchen_key`).
+    let order_id = cart::kitchen_key(store, ctx)?.unwrap_or_else(uuid::Uuid::new_v4);
 
     let mut items = lines_to_wire_items(&lines)?;
     // A staff drink rides its order line (staff-drink-comp-contract §2): the

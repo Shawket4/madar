@@ -90,7 +90,7 @@ pub fn tables_for_op(op_type: &str) -> Vec<&'static str> {
         "open_ticket" | "ticket_add_round" | "void_ticket" | "void_ticket_line" => {
             &[OPEN_TICKETS, FLOOR, KITCHEN][..]
         }
-        "bump_kitchen" | "unbump_kitchen" => &[KITCHEN][..],
+        "bump_kitchen" | "unbump_kitchen" | "send_cart_to_kitchen" => &[KITCHEN][..],
         "seat_booking" | "no_show_booking" => &[BOOKINGS, FLOOR][..],
         "swap_tables" | "create_table_transfer" | "cancel_table_transfer" | "fulfill_table_transfer"
         | "clear_table" | "hold_table" | "release_table" => &[FLOOR][..],
