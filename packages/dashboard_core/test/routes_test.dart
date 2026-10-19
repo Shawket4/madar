@@ -16,7 +16,6 @@ AuthzState _state(
   setup: setupIncomplete
       ? const SetupProgress(ready: true, done: {}, count: 1, complete: false)
       : SetupProgress.unknown,
-  sendsToOnboarding: false,
 );
 
 Authz _holding(List<String> caps) => Authz.from(

@@ -46,8 +46,7 @@ final realtimeBusProvider = Provider<RealtimeBus>((ref) {
 /// The one connection, for the selected branch (`useBranchRealtime`). The
 /// shell watches this once; it reconnects only when the branch changes.
 /// Null when no single branch is selected. The frame stops it while it is
-/// not shown (the full-screen onboarding has no live updates, as on the web)
-/// and resumes it when it comes back.
+/// not shown and resumes it when it comes back.
 final branchRealtimeProvider = Provider<BranchRealtime?>((ref) {
   final session = ref.watch(currentSessionProvider);
   final branchId = ref.watch(scopeProvider.select((s) => s.branchId));

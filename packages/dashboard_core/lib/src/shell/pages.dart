@@ -30,18 +30,10 @@ String routeTitle(DashRoute route, Translator t) {
 /// for platform admins only. A set-up-only page is a nav rule: the page
 /// itself opens for whoever holds its capabilities (the web's `SetupPage`).
 class DashRouteHost extends ConsumerWidget {
-  const DashRouteHost({
-    required this.route,
-    required this.state,
-    this.framed = true,
-    super.key,
-  });
+  const DashRouteHost({required this.route, required this.state, super.key});
 
   final DashRoute route;
   final GoRouterState state;
-
-  /// Inside the frame (module-gated, as the web's `_app` layout).
-  final bool framed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -56,7 +48,7 @@ class DashRouteHost extends ConsumerWidget {
             : builder(context, state),
       ),
     );
-    if (framed) body = ModuleGate(path: state.uri.path, child: body);
+    body = ModuleGate(path: state.uri.path, child: body);
     // The page's widgets (its scroll, its tables) keep their state in its
     // location's bucket, so they come back with it (`DashListMemory`);
     // another org starts a fresh one.

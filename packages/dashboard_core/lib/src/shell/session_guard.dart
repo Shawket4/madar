@@ -50,8 +50,7 @@ ApiTransport dashTransport(Ref ref, ApiTransport network) {
         ..invalidate(branchesProvider)
         ..invalidate(currentOrgProvider)
         ..invalidate(orgsProvider)
-        ..invalidate(orgModulesQueryProvider)
-        ..invalidate(onboardingCompletedProvider);
+        ..invalidate(orgModulesQueryProvider);
       unawaited(ref.container.read(authzProvider.notifier).refresh());
       ref.container.read(realtimeBusProvider).invalidate(const ['/']);
     });

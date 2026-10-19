@@ -1,4 +1,4 @@
-// Session, authz, modules, onboarding, set-up and scope against the mock
+// Session, authz, modules, set-up and scope against the mock
 // backend (package:dashboard_api/mock.dart) and its personas.
 import 'dart:convert';
 
@@ -295,7 +295,7 @@ void main() {
     });
   });
 
-  group('modules, onboarding, set-up', () {
+  group('modules, set-up', () {
     test(
       'ADM-APP-044 ADM-APP-076: a two-module org; a Dawam-only org; no org = every module',
       () async {
@@ -337,108 +337,13 @@ void main() {
       expect(r.c.read(orgModulesProvider).known, isTrue);
     });
 
-    test('ADM-APP-084 ADM-APP-085: the onboarding gate (gate.ts)', () async {
-      expect(
-        sendsToOnboarding(
-          role: 'org_admin',
-          skipped: false,
-          modules: ['pos'],
-          modulesKnown: true,
-          completed: false,
-        ),
-        isTrue,
-      );
-      for (final s in [
-        sendsToOnboarding(
-          role: 'branch_manager',
-          skipped: false,
-          modules: ['pos'],
-          modulesKnown: true,
-          completed: false,
-        ),
-        sendsToOnboarding(
-          role: 'org_admin',
-          skipped: true,
-          modules: ['pos'],
-          modulesKnown: true,
-          completed: false,
-        ),
-        sendsToOnboarding(
-          role: 'org_admin',
-          skipped: false,
-          modules: ['dawam'],
-          modulesKnown: true,
-          completed: false,
-        ),
-        sendsToOnboarding(
-          role: 'org_admin',
-          skipped: false,
-          modules: ['pos'],
-          modulesKnown: false,
-          completed: false,
-        ),
-        sendsToOnboarding(
-          role: 'org_admin',
-          skipped: false,
-          modules: ['pos'],
-          modulesKnown: true,
-          completed: true,
-        ),
-        sendsToOnboarding(
-          role: 'org_admin',
-          skipped: false,
-          modules: ['pos'],
-          modulesKnown: true,
-          completed: null,
-        ),
-      ]) {
-        expect(s, isFalse);
-      }
-      // Sabah's checklist is complete in the seed: no wizard.
+    test('the shell never asks the frozen onboarding checklist (only '
+        'released builds do): nothing gates on set-up any more', () async {
       final r = Rig(as: Persona.owner);
       addTearDown(r.dispose);
       await r.ready();
-      expect(r.c.read(onboardingCompletedProvider).value, isTrue);
-      expect(r.c.read(sendsToOnboardingProvider), isFalse);
-      // One read: the home card and the wizard share the gate's answer.
-      final card = r.c.listen(
-        onboardingStatusProvider(SeedIds.sabahOrg),
-        (_, _) {},
-      );
-      addTearDown(card.close);
-      await settle();
-      expect(card.read().value?.completed, isTrue);
-      expect(r.server.callsTo('/orgs/{id}/onboarding'), hasLength(1));
-      // A Dawam-only owner is never asked.
-      final d = Rig(as: Persona.dawamOnly);
-      addTearDown(d.dispose);
-      await d.ready();
-      expect(d.server.callsTo('/orgs/{id}/onboarding'), isEmpty);
+      expect(r.server.callsTo('/orgs/{id}/onboarding'), isEmpty);
     });
-
-    test(
-      'an unfinished checklist sends the owner to the wizard until skipped',
-      () async {
-        final r = Rig(as: Persona.owner);
-        addTearDown(r.dispose);
-        r.server.on('GET', '/orgs/{id}/onboarding', (req) {
-          return MockResponse.ok(
-            OnboardingStatus(
-              orgId: req.param('id'),
-              completed: false,
-              canComplete: false,
-              recipeCoverage: 0,
-              steps: const [],
-            ),
-          );
-        });
-        await r.ready();
-        expect(r.c.read(sendsToOnboardingProvider), isTrue);
-        r.c.read(onboardingSkippedProvider.notifier).skip();
-        await settle();
-        expect(r.c.read(sendsToOnboardingProvider), isFalse);
-      },
-    );
 
     test(
       'the Dawam set-up checklist is read from real data (setup.ts)',

@@ -362,7 +362,7 @@ class _SidebarEdgeState extends ConsumerState<_SidebarEdge> {
 
 /// Holds the selected branch's realtime connection while the frame is up
 /// (`useBranchRealtime`, mounted once so navigating never reconnects); a
-/// page outside the frame (the onboarding) has none.
+/// page outside the frame (sign-in) has none.
 class _LiveUpdates extends ConsumerStatefulWidget {
   const _LiveUpdates();
 

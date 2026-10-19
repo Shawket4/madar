@@ -11,6 +11,7 @@ import '../area_seed.dart';
 import 'bases_mock.dart';
 import 'groups_mock.dart';
 import 'items_mock.dart';
+import 'menu_import_mock.dart';
 import 'pricing_mock.dart';
 import 'recipes_mock.dart';
 import 'shared_mock.dart';
@@ -25,4 +26,5 @@ void registerCatalogMenuMocks(MockServer server, MockDb db) {
   registerGroupsMocks(server, db);
   registerPricingMocks(server, db);
   registerBasesMocks(server, db);
+  registerMenuImportMocks(server, db);
 }

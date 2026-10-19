@@ -16,6 +16,7 @@ library;
 
 export 'src/generated/mock_capabilities.dart';
 export 'src/mock/handlers/core_handlers.dart';
+export 'src/mock/handlers/readiness.dart' show mockReadiness;
 export 'src/mock/mock_clock.dart';
 export 'src/mock/mock_db.dart';
 export 'src/mock/mock_ids.dart';

@@ -16,7 +16,7 @@ import 'package:dashboard_overview/src/home/home_kpis.dart';
 import 'package:dashboard_overview/src/home/home_page.dart';
 import 'package:dashboard_overview/src/home/home_parts.dart';
 import 'package:dashboard_overview/src/home/home_providers.dart';
-import 'package:dashboard_overview/src/home/keep_building.dart';
+import 'package:dashboard_overview/src/setup/setup_card.dart';
 import 'package:dashboard_overview/src/mock/home_figures.dart';
 import 'package:design_system/design_system.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -264,24 +264,25 @@ void main() {
     });
 
     for (final (lang, rtl) in [('en', false), ('ar', true)]) {
-      testWidgets('OVW-HOME-031 keep building: one row on a phone, the X at '
-          'the top end ($lang)', (tester) async {
-        await pumpHome(tester, size: DashSize.phone, locale: lang);
-        final card = find.byType(HomeKeepBuildingCard);
+      testWidgets('OVW-HOME-031 the Setup card on a phone: the words, then '
+          'the button under them at the end ($lang)', (tester) async {
+        final s = unfinishedServer();
+        await pumpHome(
+          tester,
+          server: s.server,
+          db: s.db,
+          size: DashSize.phone,
+          locale: lang,
+        );
+        final card = find.byType(SetupHomeCard);
         final box = tester.getRect(card);
         final cta = tester.getRect(
           find.descendant(of: card, matching: find.byType(DashButton)),
         );
-        final x = tester.getRect(
-          find.descendant(of: card, matching: find.byType(DashIconButton)),
-        );
-        expect(cta.center.dy, closeTo(box.center.dy, box.height / 4));
-        expect(x.top, closeTo(box.top, 1));
+        expect(cta.center.dy, greaterThan(box.center.dy));
         if (rtl) {
-          expect(x.left, closeTo(box.left, 1));
           expect(cta.left, lessThan(box.center.dx));
         } else {
-          expect(x.right, closeTo(box.right, 1));
           expect(cta.right, greaterThan(box.center.dx));
         }
       });
@@ -377,11 +378,12 @@ void main() {
     ]) {
       testWidgets('OVW-HOME-108 the page frame at ${size.name}: gutter '
           '$gutter, 24 between sections', (tester) async {
-        await pumpHome(tester, size: size);
+        final s = unfinishedServer();
+        await pumpHome(tester, server: s.server, db: s.db, size: size);
         final page = tester.getRect(find.byType(HomePage));
         final title = tester.getRect(homeText('Welcome back, Nour El-Sayed'));
         expect(title.left - page.left, gutter);
-        final kb = tester.getRect(find.byType(HomeKeepBuildingCard));
+        final kb = tester.getRect(find.byType(SetupHomeCard));
         final strip = tester.getRect(find.byType(HomeKpiStrip));
         expect(strip.top - kb.bottom, Space.xl);
       });
@@ -653,21 +655,17 @@ void main() {
   group('keyboard', () {
     testWidgets('OVW-HOME-111 Tab walks the page in order; Enter follows a '
         'link', (tester) async {
-      final h = await pumpHome(tester, path: '/?branchId=${SeedIds.maadi}');
-      h.allowUnmatched = true; // the profitability ledger is another area's
-      final kb = find.byType(HomeKeepBuildingCard);
-      final cta = find.descendant(of: kb, matching: find.byType(DashButton));
-      expect(await tabTo(tester, cta), isTrue, reason: 'Keep building');
-      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await tester.pump();
-      expect(
-        focusedOn(
-          tester,
-          find.descendant(of: kb, matching: find.byType(DashIconButton)),
-        ),
-        isTrue,
-        reason: 'Dismiss',
+      final s = unfinishedServer();
+      final h = await pumpHome(
+        tester,
+        server: s.server,
+        db: s.db,
+        path: '/?branchId=${SeedIds.maadi}',
       );
+      h.allowUnmatched = true; // the profitability ledger is another area's
+      final kb = find.byType(SetupHomeCard);
+      final cta = find.descendant(of: kb, matching: find.byType(DashButton));
+      expect(await tabTo(tester, cta), isTrue, reason: 'Continue setup');
       final viewAll = find.ancestor(
         of: homeText('View all'),
         matching: find.byType(HomeLink),

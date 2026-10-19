@@ -1,7 +1,7 @@
 /// The dashboard home (`/`): `routes/_app/index.tsx` and
 /// `features/dashboard/dashboard-page.tsx`.
 ///
-/// Top to bottom: the greeting with the scope line; the Keep-building nudge;
+/// Top to bottom: the greeting with the scope line; the Setup card;
 /// the KPI strip with the Open tills card under it (a branch picked); the
 /// revenue trend beside the payment mix; branch performance; margin watch;
 /// the delivery section.
@@ -19,8 +19,8 @@ import 'home_charts.dart';
 import 'home_data.dart';
 import 'home_kpis.dart';
 import 'home_parts.dart';
-import 'keep_building.dart';
 import 'margin_watch.dart';
+import '../setup/setup_card.dart';
 
 /// The route's page: nothing until the org's modules are known (and nothing
 /// for a Dawam-only org, which the router sends to its team), then the home.
@@ -69,7 +69,7 @@ class HomePage extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.xl,
         children: [
-          if (HomeKeepBuildingCard.visible(ref)) const HomeKeepBuildingCard(),
+          if (SetupHomeCard.visible(ref)) const SetupHomeCard(),
           HomeReveal(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

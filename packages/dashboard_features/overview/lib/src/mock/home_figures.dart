@@ -1,6 +1,6 @@
 /// The home's figures computed from the seeded tables the way the backend
 /// computes them (MadarRust `reports/handlers.rs`, `insights/handlers.rs`,
-/// `tills/handlers.rs`, `orgs/onboarding.rs`), so every card agrees with
+/// `tills/handlers.rs`), so every card agrees with
 /// every other: the KPI revenue is the sum of the branch rows, the payment
 /// mix adds up to it, the Talabat buckets are the delivery revenue, and the
 /// trend's periods add up to the same total.

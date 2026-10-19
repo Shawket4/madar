@@ -50,7 +50,11 @@ import 'items_providers.dart';
 import 'items_widgets.dart';
 
 class MenuItemsPage extends ConsumerStatefulWidget {
-  const MenuItemsPage({super.key});
+  const MenuItemsPage({this.recipe, super.key});
+
+  /// `?recipe=missing|has` (the Setup page's recipes row): opens the items
+  /// tab on that filter, over what the page remembered.
+  final String? recipe;
 
   @override
   ConsumerState<MenuItemsPage> createState() => _MenuItemsPageState();
@@ -104,6 +108,12 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
     _itemsSearch = m.getOr('itemsSearch', '');
     _gridSearch = m.getOr('gridSearch', '');
     _gridPage = m.getOr('gridPage', 0);
+    final asked = RecipeFilter.values.asNameMap()[widget.recipe];
+    if (asked != null) {
+      _tab = MenuTab.items;
+      _recipe = asked;
+      _itemsPage = 0;
+    }
   }
 
   /// A remembered category or add-on type that is gone (deleted, renamed

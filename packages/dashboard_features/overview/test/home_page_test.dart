@@ -1,8 +1,9 @@
 // The home, driven through the real app shell (inventory rows OVW-HOME-001
-// to -056): routing and scope, the header, the Keep-building card, the KPI
+// to -056): routing and scope, the header, the Setup card, the KPI
 // strip and the Open tills card.
 import 'dart:convert';
 
+import 'package:dashboard_api/dashboard_api.dart' show Readiness;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
@@ -12,8 +13,8 @@ import 'package:design_system/design_system.dart';
 import 'package:dashboard_overview/src/home/home_kpis.dart';
 import 'package:dashboard_overview/src/home/home_page.dart';
 import 'package:dashboard_overview/src/home/home_parts.dart';
+import 'package:dashboard_overview/src/setup/setup_card.dart';
 import 'package:dashboard_overview/src/mock/home_figures.dart';
-import 'package:dashboard_overview/src/mock/register.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -24,6 +25,7 @@ const _cmp = '/reports/orgs/{orgId}/comparison';
 const _delivery = '/reports/branches/{branchId}/delivery-sales';
 const _watch = '/insights/branches/{branchId}/margin-watch';
 const _tills = '/tills/branches/{branchId}/open';
+const _readiness = '/orgs/{id}/readiness';
 const _onboarding = '/orgs/{id}/onboarding';
 const _modules = '/orgs/{id}/modules';
 
@@ -139,25 +141,22 @@ void main() {
       expect(kpi(tester, 'Delivery revenue').value, 0);
       expect(homeText('In-mall delivery'), findsNothing);
       expect(homeText('Open tills'), findsNothing);
-      expect(homeText('Keep building'), findsNothing);
+      expect(find.byType(SetupHomeCard), findsNothing);
       expect(scopePart('All branches'), findsOneWidget);
-      for (final t in [_sales, _series, _cmp, _delivery, _watch, _onboarding]) {
+      for (final t in [_sales, _series, _cmp, _delivery, _watch, _readiness]) {
         expect(h.server.callsTo(t), isEmpty, reason: t);
       }
     });
 
-    testWidgets('OVW-HOME-006 an unfinished set-up sends the owner to it', (
+    testWidgets('OVW-HOME-006 an unfinished set-up sends nobody anywhere: '
+        'the home opens with its card, the old checklist is never asked', (
       tester,
     ) async {
-      final s = homeServer();
-      final real = s.server;
-      real.on('GET', _onboarding, (req) {
-        final o = homeOnboarding(s.db, SeedIds.sabahOrg).toJson();
-        return MockResponse.ok({...o, 'completed': false});
-      });
-      final h = await pumpHome(tester, server: real, db: s.db);
-      h.allowUnmatched = true;
-      expect(h.location.path, '/onboarding');
+      final s = unfinishedServer();
+      final h = await pumpHome(tester, server: s.server, db: s.db);
+      expect(h.location.path, '/');
+      expect(find.byType(SetupHomeCard), findsOneWidget);
+      expect(h.server.callsTo(_onboarding), isEmpty);
     });
 
     testWidgets('OVW-HOME-008 the sidebar\'s Overview › Dashboard is active', (
@@ -296,8 +295,8 @@ void main() {
       expect(homeText('Open tills'), findsNothing);
       expect(kpi(tester, 'Revenue').value, totals(h, _sabah).revenue);
       expect(h.server.callsTo(_series).last.path, contains(nilBranchId));
-      expect(homeText('Keep building'), findsNothing);
-      expect(h.server.callsTo(_onboarding), isEmpty);
+      expect(find.byType(SetupHomeCard), findsNothing);
+      expect(h.server.callsTo(_readiness), isEmpty);
     });
   });
 
@@ -368,101 +367,139 @@ void main() {
     });
   });
 
-  group('keep building', () {
-    testWidgets('OVW-HOME-023/024 shown with the finished count', (
-      tester,
-    ) async {
+  group('setup card', () {
+    /// The server answers [edit] of Sabah's real readiness.
+    void answer(
+      MockServer server,
+      MockDb db,
+      Readiness Function(Readiness) edit,
+    ) => server.on('GET', _readiness, (req) {
+      req.requireCap('org.settings.read');
+      return MockResponse.ok(edit(mockReadiness(db, req.param('id'))));
+    });
+
+    testWidgets('a shop that is ready and has sold: no card, but the '
+        'answer was asked', (tester) async {
       final h = await pumpHome(tester);
-      expect(homeText('Your café is open · 8/10 set up'), findsOneWidget);
+      expect(find.byType(SetupHomeCard), findsNothing);
+      expect(h.server.callsTo(_readiness), isNotEmpty);
+    });
+
+    testWidgets('a blocking check: how many, the next one, Continue setup '
+        'opens Setup', (tester) async {
+      final s = unfinishedServer();
+      final h = await pumpHome(tester, server: s.server, db: s.db);
+      expect(homeText('One thing before your first sale'), findsOneWidget);
       expect(
         homeText(
-          'Keep building — add recipes, your team and more to unlock cost insights.',
+          'Next: Payment. Nothing is left to pay with at Heliopolis, Maadi, '
+          'New Cairo and 1 more.',
         ),
         findsOneWidget,
       );
-      expect(h.server.callsTo(_onboarding), isNotEmpty);
+      await h.tapText('Continue setup');
+      expect(h.location.path, '/setup');
     });
 
-    testWidgets('OVW-HOME-025 Keep building opens the set-up wizard', (
-      tester,
-    ) async {
-      final h = await pumpHome(tester);
-      h.allowUnmatched = true;
-      await h.tapText('Keep building');
-      expect(h.location.path, '/onboarding');
-    });
-
-    testWidgets('OVW-HOME-026 dismiss: gone for the session, no more reads', (
-      tester,
-    ) async {
-      final h = await pumpHome(tester);
-      await h.tapLabel('Dismiss');
-      expect(homeText('Keep building'), findsNothing);
-      final before = h.server.callsTo(_onboarding).length;
-      h.allowUnmatched = true;
-      await h.go('/tills');
-      await h.go('/');
-      expect(homeText('Keep building'), findsNothing);
-      expect(h.server.callsTo(_onboarding).length, before);
-    });
-
-    testWidgets('OVW-HOME-027 hidden when every step is done', (tester) async {
+    testWidgets('ready but no sale yet: ring up a first order', (tester) async {
       final s = homeServer();
-      s.db['orgs'].update(SeedIds.sabahOrg, {
-        'logo_url': 'https://cdn.test/l.png',
-      });
-      s.db['ingredients'].insert({'id': 'i1', 'org_id': SeedIds.sabahOrg});
+      answer(
+        s.server,
+        s.db,
+        (r) => Readiness(
+          orgId: r.orgId,
+          ready: true,
+          live: false,
+          checks: r.checks,
+        ),
+      );
       await pumpHome(tester, server: s.server, db: s.db);
-      expect(homeText('Keep building'), findsNothing);
+      expect(homeText('Ready to sell'), findsOneWidget);
+      expect(
+        homeText('Ring up a first order on the tablet and you\'re live.'),
+        findsOneWidget,
+      );
+      expect(homeText('Get the apps'), findsOneWidget);
     });
 
-    testWidgets('OVW-HOME-028 hidden while loading and on failure', (
+    testWidgets('a new blocking problem brings it back, without a reload', (
+      tester,
+    ) async {
+      final h = await pumpHome(tester);
+      expect(find.byType(SetupHomeCard), findsNothing);
+      h.db!['payment_methods'].removeWhere(
+        (r) => r['org_id'] == SeedIds.sabahOrg,
+      );
+      h.container.read(realtimeBusProvider).invalidate([
+        '/orgs/${SeedIds.sabahOrg}/readiness',
+      ]);
+      await h.settle();
+      expect(find.byType(SetupHomeCard), findsOneWidget);
+    });
+
+    testWidgets('a Dawam-only answer (no checks) shows nothing', (
       tester,
     ) async {
       final s = homeServer();
-      final gate = s.server.hold('GET', _onboarding);
+      answer(
+        s.server,
+        s.db,
+        (r) => Readiness(
+          orgId: r.orgId,
+          ready: true,
+          live: false,
+          checks: const [],
+        ),
+      );
+      await pumpHome(tester, server: s.server, db: s.db);
+      expect(find.byType(SetupHomeCard), findsNothing);
+    });
+
+    testWidgets('hidden while loading and on a refusal', (tester) async {
+      final s = unfinishedServer();
+      final gate = s.server.hold('GET', _readiness);
       final h = await pumpHome(tester, server: s.server, db: s.db);
-      expect(homeText('Keep building'), findsNothing);
-      expect(find.byType(DashSkeleton), findsNothing);
+      expect(find.byType(SetupHomeCard), findsNothing);
       gate.release();
       await h.settle();
-      expect(homeText('Keep building'), findsOneWidget);
-    });
+      expect(find.byType(SetupHomeCard), findsOneWidget);
 
-    testWidgets('OVW-HOME-028 a refused read hides it', (tester) async {
-      final s = homeServer();
-      s.server.fail(
+      final refused = unfinishedServer();
+      refused.server.fail(
         'GET',
-        _onboarding,
+        _readiness,
         MockResponse.denied('org.settings.read'),
         times: null,
       );
-      await pumpHome(tester, server: s.server, db: s.db);
-      expect(homeText('Keep building'), findsNothing);
+      await pumpHome(tester, server: refused.server, db: refused.db);
+      expect(find.byType(SetupHomeCard), findsNothing);
     });
 
-    testWidgets('OVW-HOME-029 a teller never sees it, nothing is asked', (
-      tester,
-    ) async {
-      final h = await pumpHome(tester, persona: Persona.limited);
-      expect(homeText('Keep building'), findsNothing);
-      expect(h.server.callsTo(_onboarding), isEmpty);
-    });
-
-    testWidgets('OVW-HOME-030 a platform admin in a shop sees it', (
-      tester,
-    ) async {
+    testWidgets('a teller never sees it, nothing is asked', (tester) async {
+      final s = unfinishedServer(persona: Persona.limited);
       final h = await pumpHome(
         tester,
+        server: s.server,
+        db: s.db,
+        persona: Persona.limited,
+      );
+      expect(find.byType(SetupHomeCard), findsNothing);
+      expect(h.server.callsTo(_readiness), isEmpty);
+    });
+
+    testWidgets('a platform admin in a shop sees it', (tester) async {
+      final s = unfinishedServer(persona: Persona.platform);
+      final h = await pumpHome(
+        tester,
+        server: s.server,
+        db: s.db,
         persona: Persona.platform,
         prefs: {
           ScopePrefKeys.org: jsonEncode({'id': SeedIds.sabahOrg}),
         },
       );
-      expect(homeText('Keep building'), findsOneWidget);
+      expect(find.byType(SetupHomeCard), findsOneWidget);
       expect(h.location.path, '/');
-      await h.tapLabel('Dismiss');
-      expect(homeText('Keep building'), findsNothing);
     });
   });
 

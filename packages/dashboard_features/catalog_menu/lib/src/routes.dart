@@ -1,6 +1,6 @@
 /// The menu catalogue area's pages (`/menu/items`, `/menu/items/:itemId`,
-/// `/menu/groups`, `/menu/pricing`, `/menu/bases`, `/menu/packaging`), module
-/// `pos`.
+/// `/menu/groups`, `/menu/pricing`, `/menu/bases`, `/menu/packaging`,
+/// `/menu/import`), module `pos`.
 ///
 /// No page carries capabilities: the web's route files have no guard and no
 /// page of this area renders `<Restricted>` (MENU-AREA-008), so a person who
@@ -21,7 +21,9 @@ import 'bases/bases_providers.dart';
 import 'bases/packaging_rules_page.dart';
 import 'groups/groups_page.dart';
 import 'items/items_page.dart';
-import 'items/items_providers.dart' show prefetchMenuItems;
+import 'items/items_providers.dart'
+    show firstCatalogPage, menuCatalogProvider, prefetchMenuItems;
+import 'menu_import/menu_import_page.dart';
 import 'pricing/pricing_page.dart';
 import 'pricing/pricing_providers.dart' show prefetchPricing;
 import 'shared/menu_providers.dart';
@@ -29,7 +31,7 @@ import 'studio/menu_studio_page.dart';
 import 'studio/studio_providers.dart';
 
 Widget _items(BuildContext context, GoRouterState state) =>
-    const MenuItemsPage();
+    MenuItemsPage(recipe: state.uri.queryParameters['recipe']);
 
 Widget _studio(BuildContext context, GoRouterState state) => MenuStudioPage(
   itemId: state.pathParameters['itemId']!,
@@ -47,6 +49,9 @@ Widget _bases(BuildContext context, GoRouterState state) =>
 
 Widget _packaging(BuildContext context, GoRouterState state) =>
     const PackagingRulesPage();
+
+Widget _import(BuildContext context, GoRouterState state) =>
+    const MenuImportPage();
 
 const List<DashRoute> catalogMenuRoutes = [
   DashRoute(
@@ -97,7 +102,26 @@ const List<DashRoute> catalogMenuRoutes = [
     module: OrgModule.pos,
     prefetch: _prefetchPackaging,
   ),
+  // The Foodics import, opened from the Setup page's menu row. Unlike the
+  // pages above it gates itself: it only writes.
+  DashRoute(
+    path: MenuImportPage.path,
+    builder: _import,
+    titleKey: 'menuImport.title',
+    titleFallback: 'Import your menu from Foodics',
+    caps: [Cap.menuItemsCreate],
+    module: OrgModule.pos,
+    prefetch: _prefetchImport,
+  ),
 ];
+
+/// `/menu/import`: what the menu holds (add or replace).
+void _prefetchImport(DashPrefetcher warm, Scope s) {
+  final org = s.orgId;
+  if (org == null) return;
+  warm(menuCategoriesProvider(org));
+  warm(menuCatalogProvider(firstCatalogPage(org)));
+}
 
 /// The studio's mount reads (`/menu/items/:itemId`): the aggregate, the item
 /// (the meal section's target), the step library, the area's shared reads

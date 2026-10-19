@@ -1,10 +1,6 @@
 /// The user editor (ADM-USR-020..032, 053, 054; web `features/users/user-dialog.tsx`):
 /// a dialog on a wide screen, a full-screen sheet on a phone.
 ///
-/// CROSS-UNIT CONTRACT: the onboarding wizard's team step (ADM-ONB-020)
-/// opens this same dialog in create mode, so keep [showUserDialog]'s
-/// signature stable.
-///
 /// A PIN and an email + password are INDEPENDENT credentials: both are
 /// offered to every role, the role only decides which one is required, and
 /// both reach the API when filled in. On edit a blank credential means

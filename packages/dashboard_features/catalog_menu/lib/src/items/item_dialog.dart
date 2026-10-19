@@ -2,7 +2,7 @@
 /// 112, 115): name, description, category (with "+" for a new one), active,
 /// the picture, the price or the sizes, the recipe per size (the embedded
 /// recipe builder) and the add-ons offered. Create from the items page; edit
-/// is the onboarding's (same dialog).
+/// opens the same dialog.
 ///
 /// Save, in the web's order: the item (create / patch), its sizes
 /// (replace-set), each returned size's recipe, the staged picture (create),

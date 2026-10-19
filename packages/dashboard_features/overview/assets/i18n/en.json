@@ -1,5 +1,174 @@
 {
-  "common": {
-    "dismiss": "Dismiss"
+  "setup": {
+    "title": "Set up your shop",
+    "subtitle": "Everything a cashier needs to ring up the first sale, checked against your shop as it is now.",
+    "healthTitle": "Shop health",
+    "healthSubtitle": "What still reads wrong on the till, and what's worth doing next.",
+    "noPos": {
+      "title": "Nothing to set up for the till",
+      "body": "This organisation doesn't sell with Madar POS. Dawam has its own set-up under Staff.",
+      "cta": "Open Staff set-up"
+    },
+    "sellHeading": "To start selling",
+    "worthHeading": "Worth doing",
+    "showList": "See which",
+    "hideList": "Hide list",
+    "andMore": "and {{count}} more",
+    "state": {
+      "done": "Done",
+      "todo": "To do before selling",
+      "advice": "Worth doing"
+    },
+    "progress": "{{done}} of {{total}} done",
+    "hero": {
+      "yourShop": "Your shop",
+      "welcome": "Welcome to Madar",
+      "readyEyebrow": "Ready to sell",
+      "liveEyebrow": "Live",
+      "setupTitle": "{{shop}}, let's get you selling.",
+      "readyTitle": "{{shop}} is ready to sell.",
+      "liveTitle": "{{shop}} is live.",
+      "setupBody_one": "One thing stands between you and your first sale. It ticks itself off as soon as it's done.",
+      "setupBody_other": "{{count}} things stand between you and your first sale. Each one ticks itself off as soon as it's done.",
+      "readyBody": "Ring up a first order on the tablet and you're live. The rest of the family is here when you need it.",
+      "liveBody": "First sale on {{date}}. Everything below is advice."
+    },
+    "tablet": {
+      "title": "Connect a tablet",
+      "subtitle": "Two steps and {{branch}} can sell.",
+      "subtitleAny": "Two steps and the tablet can sell.",
+      "install": "Install Madar Cashier on the tablet",
+      "scan": "Open the tablet's camera and point it at the code. It opens the download page.",
+      "code": "Open it and enter a code",
+      "codeHint": "Make a code here and type it on the tablet. It joins this branch at once.",
+      "codeHintDevices": "Make a code on the Devices page and type it on the tablet. It joins that branch at once.",
+      "openDevices": "Open Devices"
+    },
+    "card": {
+      "title_one": "One thing before your first sale",
+      "title_other": "{{count}} things before your first sale",
+      "next": "Next: {{what}}.",
+      "cta": "Continue setup",
+      "readyTitle": "Ready to sell",
+      "readyBody": "Ring up a first order on the tablet and you're live.",
+      "readyCta": "Get the apps"
+    },
+    "checks": {
+      "branch": {
+        "title": "Branch",
+        "action": "Add a branch",
+        "ok_one": "{{count}} branch open.",
+        "ok_other": "{{count}} branches open.",
+        "todo": "Add a branch: every till signs in to one."
+      },
+      "menu": {
+        "title": "Menu",
+        "action": "Add items myself",
+        "ok_one": "{{count}} item on the till.",
+        "ok_other": "{{count}} items on the till.",
+        "todo": "Your menu is empty, so the till has nothing to sell."
+      },
+      "payment": {
+        "title": "Payment",
+        "action": "Payment methods",
+        "ok": "Every branch can take payment.",
+        "todo": "Nothing is left to pay with at {{names}}."
+      },
+      "sign_in": {
+        "title": "Who signs in on the till",
+        "action": "Add a PIN",
+        "ok": "Someone can sign in at every branch.",
+        "todo": "Nobody at {{names}} can sign in yet. Add your PIN, or a cashier's."
+      },
+      "tablet": {
+        "title": "Tablet",
+        "action": "Connect a tablet",
+        "ok": "A tablet is connected at every branch.",
+        "todo": "No tablet at {{names}} yet."
+      },
+      "items_no_category": {
+        "title": "Items without a category",
+        "action": "Open the menu",
+        "ok": "Every item is in a category.",
+        "todo_one": "{{count}} item has no category, so it shows only in search.",
+        "todo_other": "{{count}} items have no category, so they show only in search."
+      },
+      "items_zero_price": {
+        "title": "Prices",
+        "action": "Set prices",
+        "ok": "Every item has a price.",
+        "todo_one": "{{count}} item sells for 0.",
+        "todo_other": "{{count}} items sell for 0."
+      },
+      "required_group_empty": {
+        "title": "Required choices",
+        "action": "Open choices",
+        "ok": "Every required choice has something to pick.",
+        "todo_one": "{{count}} required choice has nothing to pick, so the till skips it.",
+        "todo_other": "{{count}} required choices have nothing to pick, so the till skips them."
+      },
+      "menu_lint": {
+        "title": "Menu checks",
+        "action": "Open the menu",
+        "ok": "The menu reads right on the till.",
+        "todo_one": "{{count}} thing on the menu reads wrong on the till.",
+        "todo_other": "{{count}} things on the menu read wrong on the till."
+      },
+      "recipes": {
+        "title": "Recipes",
+        "action": "Add recipes",
+        "ok": "Every item has a recipe.",
+        "todo": "{{done}} of {{total}} items have a recipe, so costs and stock are missing for the rest."
+      },
+      "ingredient_costs": {
+        "title": "Ingredient costs",
+        "action": "Add costs",
+        "ok": "Every ingredient has a cost.",
+        "todo_one": "{{count}} ingredient costs 0, so margins read too high.",
+        "todo_other": "{{count}} ingredients cost 0, so margins read too high."
+      },
+      "team": {
+        "title": "Team",
+        "action": "Add people",
+        "ok_one": "{{count}} person on the team.",
+        "ok_other": "{{count}} people on the team.",
+        "todo": "Just you so far. Add the people who work the till."
+      },
+      "receipt": {
+        "title": "Receipt",
+        "action": "Upload a logo",
+        "ok": "Your logo is on the receipt.",
+        "todo": "Your receipts show no logo yet."
+      }
+    }
+  },
+  "apps": {
+    "cashier": {
+      "name": "Madar Cashier",
+      "line": "The till, on iPad and iPhone.",
+      "scan": "Point the tablet's camera here to install it."
+    },
+    "kitchen": {
+      "name": "Madar Kitchen",
+      "line": "A live screen for each station.",
+      "scan": "Point the kitchen tablet's camera here."
+    },
+    "dashboard": {
+      "name": "Madar Dashboard",
+      "line": "This dashboard, on your phone and desktop.",
+      "scan": "Scan with your phone to take the dashboard with you."
+    },
+    "dawam": {
+      "name": "Dawam",
+      "line": "Staff clock in; the hours become payslips.",
+      "scan": "Your team scan this to get Dawam on their phones."
+    },
+    "qrLabel": "QR code: download {{name}}",
+    "appStoreAlt": "Download {{name}} on the App Store",
+    "googlePlayAlt": "Get {{name}} on Google Play",
+    "allDownloads": "Android, Mac and Windows downloads",
+    "open": "Get {{name}}",
+    "footerLabel": "Madar on every screen",
+    "startHere": "Start here: put it on your tablet"
   }
 }

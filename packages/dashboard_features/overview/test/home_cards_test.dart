@@ -14,7 +14,7 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
-import 'package:dashboard_overview/src/home/keep_building.dart';
+import 'package:dashboard_overview/src/setup/setup_card.dart';
 import 'package:dashboard_overview/src/home/home_charts.dart';
 import 'package:dashboard_overview/src/home/home_data.dart';
 import 'package:dashboard_overview/src/home/home_parts.dart';
@@ -765,7 +765,13 @@ void main() {
     for (final (lang, arrow) in [('en', 'arrow-right'), ('ar', 'arrow-left')]) {
       testWidgets('OVW-HOME-110 $lang: direction, Western digits, arrows '
           'toward the end', (tester) async {
-        final h = await pumpHome(tester, locale: lang);
+        final s = unfinishedServer();
+        final h = await pumpHome(
+          tester,
+          server: s.server,
+          db: s.db,
+          locale: lang,
+        );
         final rtl = lang == 'ar';
         expect(
           Directionality.of(tester.element(find.byType(DashLineChart))),
@@ -800,7 +806,7 @@ void main() {
         // Arrows point toward the end of the line.
         final cta = tester.widget<DashButton>(
           find.descendant(
-            of: find.byType(HomeKeepBuildingCard),
+            of: find.byType(SetupHomeCard),
             matching: find.byType(DashButton),
           ),
         );

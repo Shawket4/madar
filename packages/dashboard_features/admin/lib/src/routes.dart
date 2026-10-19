@@ -1,5 +1,5 @@
 /// The admin area's pages (`/orgs`, `/branches`, `/devices`, `/access/users`,
-/// `/access/roles`, `/access/review`, `/onboarding`).
+/// `/access/roles`, `/access/review`).
 ///
 /// Page gates are the web's own, which are NOT its nav gates: none of these
 /// web routes has a route guard or a `<Restricted>` wrapper, so whoever
@@ -8,8 +8,7 @@
 /// leaf rules (platform only, `branches.read`, …) live in the generated nav.
 /// The one page that gates itself, Roles & Permissions (ADM-ROL-001), does it
 /// inside the page so the Access tabs stay above the refusal. `/devices` is a
-/// POS page (the module gate also derives it from the path); `/onboarding`
-/// is full screen, outside the shell and never module-gated.
+/// POS page (the module gate also derives it from the path).
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
@@ -21,8 +20,6 @@ import 'branch_setup/branch_setup_providers.dart' show branchPlanProvider;
 import 'branches/branches_page.dart';
 import 'devices/devices_data.dart';
 import 'devices/devices_page.dart';
-import 'onboarding/onboarding_data.dart' show onbOrgProvider;
-import 'onboarding/onboarding_page.dart';
 import 'orgs/orgs_page.dart';
 import 'orgs/orgs_providers.dart';
 import 'review/review_data.dart' show reviewFlagsProvider;
@@ -48,9 +45,6 @@ Widget _users(BuildContext context, GoRouterState state) => const UsersPage();
 Widget _roles(BuildContext context, GoRouterState state) => const RolesPage();
 
 Widget _review(BuildContext context, GoRouterState state) => const ReviewPage();
-
-Widget _onboarding(BuildContext context, GoRouterState state) =>
-    const OnboardingPage();
 
 const List<DashRoute> adminRoutes = [
   DashRoute(
@@ -112,13 +106,6 @@ const List<DashRoute> adminRoutes = [
     titleFallback: 'Review',
     prefetch: _prefetchReview,
   ),
-  DashRoute(
-    path: OnboardingPage.path,
-    builder: _onboarding,
-    titleKey: 'onboarding.title',
-    titleFallback: 'Let\'s open your café',
-    prefetch: _prefetchOnboarding,
-  ),
 ];
 
 /// No web `prefetchRoute` case: resting on the Access "Review" tab warms the
@@ -162,12 +149,4 @@ void _prefetchDevices(DashPrefetcher warm, Scope s) {
       warm(activationCodesProvider(b));
     }
   }
-}
-
-/// The checklist and the org's identity (the step panel and the mirror).
-void _prefetchOnboarding(DashPrefetcher warm, Scope s) {
-  final orgId = s.orgId;
-  if (orgId == null) return;
-  warm(onboardingStatusProvider(orgId));
-  warm(onbOrgProvider(orgId));
 }

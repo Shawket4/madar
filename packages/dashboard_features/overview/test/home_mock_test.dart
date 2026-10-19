@@ -251,32 +251,22 @@ void main() {
     expect((e as ApiException).status, 403);
   });
 
-  test('onboarding: the backend\'s ten steps, from the org\'s data', () async {
-    final o = await api.orgs.getOnboarding(id: SeedIds.sabahOrg);
-    expect(o.steps.map((s) => s.key), [
-      'org_profile',
-      'branch',
-      'payment_methods',
-      'categories',
-      'menu_items',
-      'ingredients',
-      'recipes',
-      'addons',
-      'team',
-      'first_order',
-    ]);
-    expect(o.steps.where((s) => s.done), hasLength(8));
-    expect(o.completed, isTrue);
-    expect(o.canComplete, isTrue);
-    expect(o.steps.firstWhere((s) => s.key == 'recipes').count, 34);
-    // The read needs org.settings.read: a teller is refused.
-    server.persona = Persona.limited;
-    final e = await refusal(() => api.orgs.getOnboarding(id: SeedIds.sabahOrg));
-    expect((e as ApiException).status, 403);
-  });
+  test(
+    'readiness (E7, the core\'s): Sabah sells, from the org\'s data',
+    () async {
+      final r = await api.orgs.getReadiness(id: SeedIds.sabahOrg);
+      expect(r.ready, isTrue);
+      expect(r.live, isTrue);
+      // The read needs org.settings.read: a teller is refused.
+      server.persona = Persona.limited;
+      final e = await refusal(
+        () => api.orgs.getReadiness(id: SeedIds.sabahOrg),
+      );
+      expect((e as ApiException).status, 403);
+    },
+  );
 
   test('the recipe costs: six items without, ratios by category', () {
-    expect(homeItemsWithRecipes(), 34);
     expect(homeUnitCost(MockSeed.menuItemId('v60'), 'one_size'), isNull);
     // An espresso single: EGP 70 at 24 %.
     expect(homeUnitCost(MockSeed.menuItemId('espresso'), 'Single'), 1680);

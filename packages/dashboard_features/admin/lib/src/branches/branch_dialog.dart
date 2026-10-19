@@ -3,10 +3,6 @@
 /// (Branch / Warehouse) hides the till settings, the printer and the tax
 /// override for a warehouse.
 ///
-/// CROSS-UNIT CONTRACT: the onboarding wizard's branch step (ADM-ONB-015)
-/// opens this same dialog in create mode, so keep [showBranchDialog]'s
-/// signature stable.
-///
 /// What it sends (the web's `submit`):
 /// - edit: one `PATCH /branches/{id}` with every field — name, address,
 ///   phone, timezone, the printer (explicit nulls with no model), the

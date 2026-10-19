@@ -26,8 +26,6 @@ const DashArea adminArea = DashArea(
     'packages/dashboard_admin/assets/i18n/users.ar.json',
     'packages/dashboard_admin/assets/i18n/branches.en.json',
     'packages/dashboard_admin/assets/i18n/branches.ar.json',
-    'packages/dashboard_admin/assets/i18n/onboarding.en.json',
-    'packages/dashboard_admin/assets/i18n/onboarding.ar.json',
     'packages/dashboard_admin/assets/i18n/devices.en.json',
     'packages/dashboard_admin/assets/i18n/devices.ar.json',
     'packages/dashboard_admin/assets/i18n/roles.en.json',

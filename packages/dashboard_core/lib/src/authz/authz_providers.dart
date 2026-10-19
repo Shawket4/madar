@@ -1,7 +1,6 @@
 /// Loading what the person may do and what the org has switched on, the way
-/// the web does: `use-authz.ts`, `use-org-modules.ts`, the onboarding gate
-/// (`features/onboarding/gate.ts`) and the Dawam set-up checklist
-/// (`features/dawam/setup.ts`).
+/// the web does: `use-authz.ts`, `use-org-modules.ts` and the Dawam set-up
+/// checklist (`features/dawam/setup.ts`).
 library;
 
 import 'dart:async';
@@ -14,7 +13,6 @@ import 'package:dashboard_api/dashboard_api.dart'
         Employee,
         LinkableUser,
         MyAuthz,
-        OnboardingStatus,
         WorkShift;
 import 'package:dashboard_core/src/api_provider.dart';
 import 'package:dashboard_core/src/authz/authz.dart';
@@ -152,71 +150,6 @@ final orgModulesProvider = Provider<OrgModulesState>((ref) {
 
 /// Asks for the modules again (the module gate's retry).
 void retryOrgModules(WidgetRef ref) => ref.invalidate(orgModulesQueryProvider);
-
-// ── Onboarding (the POS first-run wizard) ─────────────────────────────────
-
-/// "Skip for now" in the wizard: for this session only.
-class OnboardingSkipNotifier extends Notifier<bool> {
-  @override
-  bool build() {
-    ref.watch(currentSessionProvider.select((s) => s?.user.id));
-    return false;
-  }
-
-  void skip() => state = true;
-}
-
-final onboardingSkippedProvider =
-    NotifierProvider<OnboardingSkipNotifier, bool>(OnboardingSkipNotifier.new);
-
-/// `GET /orgs/{id}/onboarding`: the org's set-up checklist. One read (the
-/// web's one query key) for the shell's [onboardingCompletedProvider], the
-/// wizard and the home's Keep-building card.
-final onboardingStatusProvider = FutureProvider.autoDispose
-    .family<OnboardingStatus, String>((ref, orgId) {
-      ref.webCache();
-      ref.watch(realtimeEpochProvider('/orgs/$orgId/onboarding'));
-      return ref.watch(apiProvider).orgs.getOnboarding(id: orgId);
-    });
-
-/// [onboardingStatusProvider]'s `completed`, asked only of an owner whose org
-/// sells with Madar POS and who has not skipped; null otherwise / until known.
-final onboardingCompletedProvider = FutureProvider<bool?>((ref) async {
-  final orgId = ref.watch(orgIdProvider);
-  final role = ref.watch(currentSessionProvider.select((s) => s?.user.role));
-  final skipped = ref.watch(onboardingSkippedProvider);
-  final mods = ref.watch(orgModulesProvider);
-  final hasPos = mods.known && mods.has(OrgModule.pos);
-  if (orgId == null || role != 'org_admin' || skipped || !hasPos) return null;
-  return (await ref.watch(onboardingStatusProvider(orgId).future)).completed;
-}, retry: (_, _) => null);
-
-/// `sendsToOnboarding`: only an owner whose org has POS switched on, whose
-/// checklist the server says is unfinished, and who has not skipped it this
-/// session. Nothing is decided before the modules are known.
-bool sendsToOnboarding({
-  required String? role,
-  required bool skipped,
-  required List<String> modules,
-  required bool modulesKnown,
-  required bool? completed,
-}) =>
-    role == 'org_admin' &&
-    !skipped &&
-    modulesKnown &&
-    modules.contains(OrgModule.pos) &&
-    completed == false;
-
-final sendsToOnboardingProvider = Provider<bool>((ref) {
-  final mods = ref.watch(orgModulesProvider);
-  return sendsToOnboarding(
-    role: ref.watch(currentSessionProvider.select((s) => s?.user.role)),
-    skipped: ref.watch(onboardingSkippedProvider),
-    modules: mods.modules,
-    modulesKnown: mods.known,
-    completed: ref.watch(onboardingCompletedProvider).value,
-  );
-});
 
 // ── Dawam set-up checklist (SA-4) ─────────────────────────────────────────
 
@@ -415,15 +348,11 @@ class AuthzState {
     required this.authz,
     required this.modules,
     required this.setup,
-    required this.sendsToOnboarding,
   });
 
   final Authz authz;
   final OrgModulesState modules;
   final SetupProgress setup;
-
-  /// The shell routes to the POS first-run wizard.
-  final bool sendsToOnboarding;
 
   bool get platform => authz.platform;
   bool can(String cap) => authz.can(cap);
@@ -438,6 +367,5 @@ final authzStateProvider = Provider<AuthzState>(
     authz: ref.watch(authzProvider),
     modules: ref.watch(orgModulesProvider),
     setup: ref.watch(setupProgressProvider),
-    sendsToOnboarding: ref.watch(sendsToOnboardingProvider),
   ),
 );

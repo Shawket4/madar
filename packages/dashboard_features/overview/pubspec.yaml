@@ -26,6 +26,7 @@ dependencies:
   pdf: ^3.11.0
   printing: ^5.13.0
   lottie: ^3.3.0
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   rust_bridge_dashboard: ^0.1.0
@@ -36,3 +37,7 @@ dev_dependencies:
 flutter:
   assets:
     - assets/i18n/
+    # The Madar apps (MadarDashboard `shared/apps/`, copied as they are).
+    - assets/apps/icons/
+    - assets/apps/stores/
+    - assets/apps/qr/

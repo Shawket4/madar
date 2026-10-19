@@ -2,8 +2,8 @@
 /// mock backend ([registerCatalogMenuMocks]) and its i18n supplements, as
 /// [catalogMenuArea].
 ///
-/// Also exported for other areas (onboarding): the recipe builder, the
-/// create-ingredient dialog and the category dialog.
+/// Also exported: the recipe builder, the create-ingredient dialog and the
+/// category dialog.
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';

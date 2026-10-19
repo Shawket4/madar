@@ -1,5 +1,5 @@
 // What the app shell calls at start, through the typed client, for every
-// persona: sign-in, me, authz, org + modules + onboarding, orgs, branches,
+// persona: sign-in, me, authz, org + modules + readiness, orgs, branches,
 // brand, realtime and the Dawam set-up reads.
 import 'dart:convert';
 
@@ -88,7 +88,7 @@ void main() {
   });
 
   group('org', () {
-    test('the owner reads the org, its modules and its onboarding', () async {
+    test('the owner reads the org, its modules and its readiness', () async {
       final api = _boot().api;
       final org = await api.orgs.getOrg(id: SeedIds.sabahOrg);
       expect(org.name, 'Sabah Coffee');
@@ -97,9 +97,49 @@ void main() {
         'pos',
         'dawam',
       ]);
-      final onboarding = await api.orgs.getOnboarding(id: SeedIds.sabahOrg);
-      expect(onboarding.completed, isTrue);
-      expect(onboarding.steps, isNotEmpty);
+      // Sabah sells: every blocking check passes, it has orders, and the
+      // advice in server order (paid plan: recipes and costs; no logo yet).
+      final r = await api.orgs.getReadiness(id: SeedIds.sabahOrg);
+      expect(r.ready, isTrue);
+      expect(r.live, isTrue);
+      expect(r.firstOrderAt, isNotNull);
+      expect(
+        [for (final c in r.checks) c.key],
+        [
+          'branch',
+          'menu',
+          'payment',
+          'sign_in',
+          'tablet',
+          'items_no_category',
+          'items_zero_price',
+          'required_group_empty',
+          'menu_lint',
+          'recipes',
+          'ingredient_costs',
+          'team',
+          'receipt',
+        ],
+      );
+      final byKey = {for (final c in r.checks) c.key: c};
+      expect(byKey['branch']!.count, 4);
+      expect(byKey['payment']!.total, 4);
+      expect(byKey['team']!.ok, isTrue);
+      expect(byKey['receipt']!.ok, isFalse);
+    });
+
+    test('a shop with no branch yet: the per-branch checks fail without '
+        'naming one', () async {
+      final b = _boot();
+      b.db['branches'].removeWhere((r) => r['org_id'] == SeedIds.sabahOrg);
+      final r = await b.api.orgs.getReadiness(id: SeedIds.sabahOrg);
+      expect(r.ready, isFalse);
+      expect(r.live, isFalse);
+      final byKey = {for (final c in r.checks) c.key: c};
+      for (final k in ['branch', 'payment', 'sign_in', 'tablet']) {
+        expect(byKey[k]!.ok, isFalse, reason: k);
+        expect(byKey[k]!.problems, isEmpty, reason: k);
+      }
     });
 
     test(
@@ -123,16 +163,15 @@ void main() {
     );
 
     test(
-      'the Dawam-only org has only the dawam module and an incomplete POS checklist',
+      'the Dawam-only org has only the dawam module and no POS checks',
       () async {
         final api = _boot(Persona.dawamOnly).api;
         expect((await api.orgs.getOrgModules(id: SeedIds.nakhlaOrg)).modules, [
           'dawam',
         ]);
-        expect(
-          (await api.orgs.getOnboarding(id: SeedIds.nakhlaOrg)).completed,
-          isFalse,
-        );
+        final r = await api.orgs.getReadiness(id: SeedIds.nakhlaOrg);
+        expect(r.checks, isEmpty);
+        expect(r.ready, isTrue);
         await expectLater(
           api.orgs.getOrg(id: SeedIds.sabahOrg),
           throwsA(_status(403)),
@@ -337,7 +376,7 @@ void main() {
       await b.api.branches.listBranches(orgId: orgId);
       if (p.can('org.settings.read')) {
         await b.api.orgs.getOrg(id: orgId);
-        await b.api.orgs.getOnboarding(id: orgId);
+        await b.api.orgs.getReadiness(id: orgId);
       }
       if (p.can('hr.rules.edit')) {
         await b.api.staff.listEmployees(employmentStatus: 'active');

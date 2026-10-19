@@ -44,7 +44,7 @@ final orgTimezonesProvider = FutureProvider.autoDispose<List<String>>((ref) {
 
 /// `invalidateOrgs()`: every read keyed under `/orgs` asks again — this
 /// page's list, the org picker's list, the current org, its modules, its
-/// onboarding status and anything else that watches an `/orgs…` epoch.
+/// readiness and anything else that watches an `/orgs…` epoch.
 ///
 /// Captured BEFORE the await and run after it, always: the dialog or page
 /// may close mid-save and the web's query client refetches regardless.

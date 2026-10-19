@@ -580,56 +580,6 @@ class MockSeed {
   OrgModules modules(String orgId) =>
       OrgModules(orgId: orgId, modules: orgById(orgId).modules);
 
-  /// Sabah finished its first-run checklist; Nakhla (Dawam only) never sees it.
-  OnboardingStatus onboarding(String orgId) {
-    final done = orgId == SeedIds.sabahOrg;
-    return OnboardingStatus(
-      orgId: orgId,
-      completed: done,
-      completedAt: done ? DateTime.utc(2026, 1, 12, 10) : null,
-      canComplete: done,
-      recipeCoverage: done ? 0.85 : 0,
-      steps: [
-        OnboardingStep(
-          key: 'branches',
-          count: done ? 4 : 0,
-          done: done,
-          required_: true,
-        ),
-        OnboardingStep(
-          key: 'categories',
-          count: done ? categories.length : 0,
-          done: done,
-          required_: true,
-        ),
-        OnboardingStep(
-          key: 'menu_items',
-          count: done ? menuItems.length : 0,
-          done: done,
-          required_: true,
-        ),
-        OnboardingStep(
-          key: 'staff',
-          count: done ? sabahStaff.length - 1 : 0,
-          done: done,
-          required_: true,
-        ),
-        OnboardingStep(
-          key: 'payment_methods',
-          count: done ? 5 : 0,
-          done: done,
-          required_: false,
-        ),
-        OnboardingStep(
-          key: 'recipes',
-          count: done ? 34 : 0,
-          done: done,
-          required_: false,
-        ),
-      ],
-    );
-  }
-
   PublicBrand brand(String orgId) {
     final o = orgById(orgId);
     return PublicBrand(

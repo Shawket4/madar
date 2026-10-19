@@ -10,7 +10,6 @@ import '../area_seed.dart';
 import 'branch_setup_mock.dart';
 import 'branches_mock.dart';
 import 'devices_mock.dart';
-import 'onboarding_mock.dart';
 import 'orgs_mock.dart';
 import 'review_mock.dart';
 import 'roles_mock.dart';
@@ -21,7 +20,6 @@ void registerAdminMocks(MockServer server, MockDb db) {
   registerOrgsMocks(server, db);
   registerUsersMocks(server, db);
   registerBranchesMocks(server, db);
-  registerOnboardingMocks(server, db);
   registerDevicesMocks(server, db);
   registerRolesMocks(server, db);
   registerReviewMocks(server, db);
