@@ -6632,7 +6632,7 @@
  "menuImport.hint": "Your files are read on this device. Nothing is saved until you confirm, and only the menu is sent to Madar.",
  "menuImport.howTitle": "In the Foodics console",
  "menuImport.how1": "Sign in as a user who can manage the menu (the owner can).",
- "menuImport.how2": "Open Menu, then each list below, then Import/Export, then Export.",
+ "menuImport.how2": "Open Menu, then each list below, then Import/Export, then Export. On Products, also export the product modifiers (which item offers which choices).",
  "menuImport.how3": "Choose all the downloaded files here at once.",
  "menuImport.filesLabel": "The exports",
  "menuImport.choose": "Foodics export files (.csv)",

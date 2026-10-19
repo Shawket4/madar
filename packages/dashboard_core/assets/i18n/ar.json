@@ -6835,7 +6835,7 @@
  "menuImport.hint": "تُقرأ ملفاتك على هذا الجهاز. لا يُحفظ شيء قبل تأكيدك، ولا يُرسَل إلى مدار إلا القائمة.",
  "menuImport.howTitle": "في لوحة تحكم Foodics",
  "menuImport.how1": "سجّل الدخول بحساب يملك صلاحية إدارة القائمة (حساب المالك يملكها).",
- "menuImport.how2": "افتح Menu، ثم كل قائمة أدناه، ثم Import/Export، ثم Export.",
+ "menuImport.how2": "افتح Menu، ثم كل قائمة أدناه، ثم Import/Export، ثم Export. ومن Products صدّر أيضًا Product modifiers (أي صنف يقدّم أي اختيارات).",
  "menuImport.how3": "اختر جميع الملفات التي نزّلتها هنا دفعة واحدة.",
  "menuImport.filesLabel": "ملفات التصدير",
  "menuImport.choose": "ملفات تصدير Foodics بصيغة CSV",
