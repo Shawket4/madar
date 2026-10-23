@@ -163,7 +163,7 @@ def generate(web):
     nav = open(os.path.join(web, "src", "config", "nav.ts"), encoding="utf-8").read()
     modules = re.findall(r'"([^"]+)"', re.search(r"export type OrgModule = ([^;]+);", nav).group(1))
     mods_src = open(os.path.join(web, "src", "hooks", "use-org-modules.ts"), encoding="utf-8").read()
-    all_modules = re.findall(r'"([^"]+)"', re.search(r"export const ALL_MODULES: readonly string\[\] = \[([^\]]*)\]", mods_src).group(1))
+    all_modules = re.findall(r'"([^"]+)"', re.search(r"(?:export )?const ALL_MODULES: readonly string\[\] = \[([^\]]*)\]", mods_src).group(1))
 
     def camel(s):
         parts = re.split(r"[_\-.]", s)

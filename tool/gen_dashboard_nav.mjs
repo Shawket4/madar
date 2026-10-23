@@ -32,6 +32,14 @@ const WEB = resolve(webAt >= 0 ? argv[webAt + 1] : "/Users/shawket/Desktop/Madar
 const JSON_MODE = argv.includes("--json");
 const CHECK = argv.includes("--check");
 
+/**
+ * Web settings panes the Flutter dashboard has no page for yet: left out of
+ * the generated nav, its module routes and the --json the parity test reads,
+ * so the rail never offers a dead link. Remove an entry when its page lands.
+ *   /settings/plan  Settings > Plan (web 2026-10-13, Free plan); owner call 2026-10-19.
+ */
+const WEB_ONLY = ["/settings/plan"];
+
 const require = createRequire(join(WEB, "package.json"));
 const esbuild = require("esbuild");
 
@@ -203,11 +211,17 @@ async function evaluate() {
       redirects.push({ from, to: thrown.to, query, keys, replace: !!thrown.replace, source: rel });
     }
     if (redirects.length !== 25) throw new Error(`expected the web's 25 redirect-only routes, found ${redirects.length}`);
+    for (const p of WEB_ONLY) {
+      if (!nav.SETTINGS_NAV.some((g) => g.items.some((i) => i.to === p))) {
+        throw new Error(`WEB_ONLY ${p} is no longer a web settings pane: drop it from the list`);
+      }
+    }
+    const kept = (p) => !WEB_ONLY.includes(p);
     return {
       nav: nav.NAV,
-      settings: nav.SETTINGS_NAV,
-      extraModuleRoutes: nav.__EXTRA_MODULE_ROUTES,
-      moduleRoutes: nav.__MODULE_ROUTES,
+      settings: nav.SETTINGS_NAV.map((g) => ({ ...g, items: g.items.filter((i) => kept(i.to)) })),
+      extraModuleRoutes: nav.__EXTRA_MODULE_ROUTES.filter(([p]) => kept(p)),
+      moduleRoutes: nav.__MODULE_ROUTES.filter(([p]) => kept(p)),
       redirects,
     };
   } finally {
