@@ -341,6 +341,7 @@ class _Fake implements MadarBridge {
         balanceAfter: 120,
         unitsClaimed: 0,
         coveredMinor: 0,
+        tracksAfter: [],
       );
     }
     if (name == #rewardRedemptions) return const <CheckoutRedemption>[];
@@ -362,11 +363,13 @@ LoyaltyScanView _scan(String memberId) => LoyaltyScanView(
     canRedeem: true,
     progressLabel: '',
     balanceLabel: '120 points',
+    tracks: const [],
   ),
   rewards: const [],
   recent: const [],
   anyItem: false,
   anyItemCost: 0,
+  trackRewards: const [],
 );
 
 const _mona = CustomerView(

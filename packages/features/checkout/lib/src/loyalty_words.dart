@@ -39,7 +39,17 @@ String loyaltyAwardHeadline(Tr tr, LoyaltyAwardOutcome o) => tr(switch (o) {
 /// balance to show.
 String loyaltyAwardDetail(Tr tr, LoyaltyAwardOutcome o) => switch (o.member) {
   null => tr('loyalty.queued_hint'),
-  final m =>
-    '${m.name} — ${m.balance} ${loyaltyUnit(tr, m.mode)} · '
-        '${loyaltyProgress(tr, m)}',
+  final m => [
+    '${m.name} — ${m.balance} ${loyaltyUnit(tr, m.mode)} · ${loyaltyProgress(tr, m)}',
+    // A card with several tracks: one line per other track that it has.
+    for (final t in o.tracks)
+      if (t.position > 1)
+        '${t.name} +${t.awarded} · ${loyaltyTrackProgress(tr, t.balance, t.size)}',
+  ].join('\n'),
 };
+
+/// A track's "3 / 6", or the earned line once it holds a reward.
+String loyaltyTrackProgress(Tr tr, int balance, int size) =>
+    size > 0 && balance >= size
+    ? tr('loyalty.reward_earned')
+    : '$balance / $size';

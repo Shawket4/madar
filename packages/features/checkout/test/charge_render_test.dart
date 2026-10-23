@@ -14,6 +14,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:app_core/app_core.dart';
@@ -225,6 +226,7 @@ const _member = LoyaltyMemberView(
   canRedeem: true,
   progressLabel: '240 / 200',
   balanceLabel: 'pts',
+  tracks: [],
 );
 
 const _scan = LoyaltyScanView(
@@ -242,6 +244,7 @@ const _scan = LoyaltyScanView(
   recent: [],
   anyItem: false,
   anyItemCost: 0,
+  trackRewards: [],
 );
 
 const _online = DeliveryOrderView(
@@ -311,8 +314,12 @@ class _FakeBridge implements MadarBridge {
     this.tillOpen = true,
     this.loyaltyEnabled = true,
     this.canWaive = false,
+    this.tracks = false,
     List<PaymentMethodView>? methods,
   }) : methods = methods ?? _methods;
+
+  /// The member's card has three stamp tracks (a visits programme).
+  final bool tracks;
 
   /// The signed-in user's effective `orders:waive_service` grant.
   final bool canWaive;
@@ -437,7 +444,13 @@ class _FakeBridge implements MadarBridge {
             : null,
       );
     }
-    if (name == #loyaltyLookup) return Future<LoyaltyScanView>.value(_scan);
+    if (name == #loyaltyLookup) {
+      return Future<LoyaltyScanView>.value(tracks ? _scan3(rtl) : _scan);
+    }
+    if (tracks) {
+      final board = _tracksBoard(name, a, rtl);
+      if (board != null) return board;
+    }
     // The reward rules are the core's (tested there); the fake keeps one
     // shape — the bill's first line claimable, a tap adds a unit.
     if (name == #ticketRewardLines || name == #cartRewardLines) {
@@ -461,7 +474,7 @@ class _FakeBridge implements MadarBridge {
       final had = picks.where((p) => p.line == line).firstOrNull;
       return [
         ...picks.where((p) => p.line != line),
-        RewardPick(line: line, units: (had?.units ?? 0) + 1),
+        RewardPick(line: line, units: (had?.units ?? 0) + 1, track: 1),
       ];
     }
     if (name == #rewardBoard) {
@@ -483,6 +496,8 @@ class _FakeBridge implements MadarBridge {
                   : null,
               coveredMinor: 4500 * (units[i] ?? 0),
               costLabel: '200 pts',
+              track: (units[i] ?? 0) > 0 ? 1 : 0,
+              trackChoices: Uint32List(0),
             ),
         ],
         picks: picks,
@@ -490,6 +505,7 @@ class _FakeBridge implements MadarBridge {
         balanceAfter: 240 - cost,
         unitsClaimed: picks.fold(0, (x, p) => x + p.units),
         coveredMinor: picks.fold(0, (x, p) => x + 4500 * p.units),
+        tracksAfter: const [],
       );
     }
     if (name == #rewardRedemptions) {
@@ -699,6 +715,155 @@ const _ar = {
   'common.cancel': 'إلغاء',
   'delivery.outside': 'خارجي',
 };
+
+// ── Three stamp tracks ──────────────────────────────────────────────────
+//
+// A visits card: track 1 (5 orders; the latte, and any item), an espresso
+// card (6 stamps; espresso and flat white), and a pastries card nothing on
+// the bill earns. The core's board is tested in the core; this fake keeps
+// its shape so the drawer can be LOOKED at.
+
+LoyaltyScanView _scan3(bool rtl) => LoyaltyScanView(
+  member: LoyaltyMemberView(
+    id: 'm-omar',
+    name: 'Omar Adel',
+    phone: '0100 555 1234',
+    mode: 'visits',
+    balance: 5,
+    nextRewardCost: 5,
+    rewardsReady: 1,
+    progressToNext: 0,
+    pointsToNextReward: 5,
+    canRedeem: true,
+    progressLabel: '',
+    balanceLabel: 'orders',
+    tracks: [
+      LoyaltyTrackView(
+        position: 1,
+        name: coreWord('loyalty.unit_orders', arabic: rtl),
+        size: 5,
+        balance: 5,
+        rewardsReady: 1,
+      ),
+      LoyaltyTrackView(
+        position: 2,
+        name: rtl ? 'بطاقة الإسبريسو' : 'Espresso card',
+        size: 6,
+        balance: 7,
+        rewardsReady: 1,
+        colour: '#8D5524',
+      ),
+      LoyaltyTrackView(
+        position: 3,
+        name: rtl ? 'المخبوزات' : 'Pastries',
+        size: 4,
+        balance: 2,
+        rewardsReady: 0,
+        colour: '#2E7D32',
+      ),
+    ],
+  ),
+  rewards: const [],
+  recent: const [],
+  anyItem: true,
+  anyItemCost: 5,
+  trackRewards: const [],
+);
+
+/// Per line: the tracks that offer it and what one unit costs on each.
+const _trackOffers = {
+  'latte': {1: 5},
+  'espresso': {2: 6},
+  'flat': {1: 5, 2: 6},
+};
+const _trackBalance = {1: 5, 2: 7, 3: 2};
+
+Object? _tracksBoard(Symbol name, Map<Symbol, dynamic> a, bool rtl) {
+  if (name != #rewardBoard &&
+      name != #toggleReward &&
+      name != #toggleRewardOnTrack) {
+    return null;
+  }
+  final picks = a[#picks] as List<RewardPick>;
+  final lines = a[#lines] as List<RewardLineInput>;
+  final scan = _scan3(rtl);
+  String nameOf(int t) =>
+      scan.member.tracks.firstWhere((x) => x.position == t).name;
+  String costOf(int t, int u) => t == 1
+      ? '$u ${coreWord('loyalty.unit_orders', arabic: rtl)}'
+      : '$u ${coreWord('loyalty.unit_stamps', arabic: rtl)} · ${nameOf(t)}';
+  final spent = <int, int>{};
+  for (final p in picks) {
+    final cost = _trackOffers[lines[p.line].menuItemId]![p.track]!;
+    spent[p.track] = (spent[p.track] ?? 0) + cost * p.units;
+  }
+  bool affords(int t, int u) => _trackBalance[t]! - (spent[t] ?? 0) >= u;
+  RewardBoardView board() => RewardBoardView(
+    lines: [
+      for (var i = 0; i < lines.length; i++)
+        () {
+          final offers = _trackOffers[lines[i].menuItemId] ?? const {};
+          final pick = picks.where((p) => p.line == i).firstOrNull;
+          final choices = [
+            for (final e in offers.entries)
+              if (pick == null && affords(e.key, e.value)) e.key,
+          ];
+          return RewardLineState(
+            line: i,
+            claimable: offers.isNotEmpty,
+            unitCost: offers.values.firstOrNull ?? 0,
+            units: pick?.units ?? 0,
+            canAdd: choices.isNotEmpty,
+            blockedReason: offers.isNotEmpty && pick == null && choices.isEmpty
+                ? coreWord('loyalty.reward_balance_short', arabic: rtl)
+                : null,
+            coveredMinor: pick == null
+                ? 0
+                : lines[i].lineTotalMinor ~/ lines[i].qty * pick.units,
+            costLabel: pick != null
+                ? costOf(pick.track, offers[pick.track]!)
+                : [
+                    for (final e in offers.entries) costOf(e.key, e.value),
+                  ].join(' / '),
+            track: pick?.track ?? 0,
+            trackChoices: Uint32List.fromList(choices),
+          );
+        }(),
+    ],
+    picks: picks,
+    cost: spent.values.fold(0, (x, y) => x + y),
+    balanceAfter: 5 - (spent[1] ?? 0),
+    unitsClaimed: picks.fold(0, (x, p) => x + p.units),
+    coveredMinor: 0,
+    tracksAfter: [
+      for (final t in scan.member.tracks)
+        LoyaltyTrackAfter(
+          position: t.position,
+          name: t.name,
+          balanceAfter: t.balance - (spent[t.position] ?? 0),
+        ),
+    ],
+  );
+  return switch (name) {
+    #toggleRewardOnTrack => [
+      ...picks,
+      RewardPick(line: a[#line] as int, units: 1, track: a[#track] as int),
+    ],
+    #toggleReward => () {
+      final line = a[#line] as int;
+      final had = picks.where((p) => p.line == line).firstOrNull;
+      if (had != null) return [...picks.where((p) => p.line != line)];
+      final b = board().lines[line];
+      return b.trackChoices.length == 1
+          ? [
+              ...picks,
+              RewardPick(line: line, units: 1, track: b.trackChoices.first),
+            ]
+          : picks;
+    }(),
+    _ => board(),
+  };
+}
 
 // ── Harness ────────────────────────────────────────────────────────────
 
@@ -1256,6 +1421,97 @@ void main() {
     expect(find.text('بالضبط'), findsOneWidget);
     await _capture(tester, 'charge-bill-phone-ar');
   });
+
+  // ── Stamp tracks ──────────────────────────────────────────────────────
+  //
+  // The scan sheet, and Charge with a member on a one-track card (today's
+  // drawer, unchanged) and on a three-track card: the tracks under the
+  // member, the "which card pays?" chooser with nothing preselected, and
+  // the board once two tracks pay.
+  for (final (label, size) in [('phone', _phone), ('tablet', _ipad)]) {
+    for (final rtl in [false, true]) {
+      final sfx = '$label${rtl ? '-ar' : ''}';
+      Future<void> open(WidgetTester tester, {bool tracks = false}) async {
+        await _mount(
+          tester,
+          size: size,
+          bridge: _FakeBridge(rtl: rtl, tracks: tracks),
+          rtl: rtl,
+        );
+        unawaited(
+          showCharge(
+            tester.element(find.byType(_Host)),
+            ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+            presentDoneCard: false,
+          ),
+        );
+        await _settle(tester);
+      }
+
+      // Laid out only, never painted to PNG: painting runs the real event
+      // loop, where mobile_scanner's double start (the capture's own start()
+      // beside the widget's autoStart) throws `controllerInitializing`.
+      testWidgets('the scan sheet on the $sfx', (tester) async {
+        await open(tester);
+        await tester.tap(
+          find.text(coreWord('loyalty.scan_card', arabic: rtl)).first,
+        );
+        await _settle(tester);
+        expect(find.byType(LoyaltyScanSheet), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('a one-track card on the $sfx reads as before', (
+        tester,
+      ) async {
+        await open(tester);
+        await _session0(tester).scanLoyalty(token: 'tok');
+        await _settle(tester);
+        _session0(tester).toggleReward(0);
+        await _settle(tester);
+        expect(
+          find.text(
+            'Omar Adel · 240 ${coreWord('loyalty.unit_points', arabic: rtl)}',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('200 pts'), findsOneWidget, reason: 'cost at the end');
+        expect(find.text('2 / 4'), findsNothing, reason: 'no track lines');
+        await _capture(tester, 'onetrack-charge-$sfx');
+      });
+
+      testWidgets('a three-track card on the $sfx', (tester) async {
+        await open(tester, tracks: true);
+        await _session0(tester).scanLoyalty(token: 'tok');
+        await _settle(tester);
+        final espresso = rtl ? 'بطاقة الإسبريسو' : 'Espresso card';
+        expect(find.text(espresso), findsOneWidget);
+        expect(find.text('2 / 4'), findsOneWidget, reason: 'pastries 2 of 4');
+        await _capture(tester, 'tracks-member-$sfx');
+        // The flat white: two cards could pay, so the teller is asked.
+        final stamps = coreWord('loyalty.unit_stamps', arabic: rtl);
+        final orders = coreWord('loyalty.unit_orders', arabic: rtl);
+        await tester.tap(find.text('5 $orders / 6 $stamps · $espresso'));
+        await _settle(tester);
+        expect(
+          find.text(coreWord('loyalty.pick_track', arabic: rtl)),
+          findsOneWidget,
+        );
+        expect(_state0(tester).rewardPicks, isEmpty, reason: 'no preselect');
+        await _capture(tester, 'tracks-chooser-$sfx');
+        await tester.tap(find.widgetWithText(MadarButton, espresso));
+        await _settle(tester);
+        expect(
+          _state0(tester).rewardPicks.single,
+          const RewardPick(line: 2, units: 1, track: 2),
+        );
+        _session0(tester).toggleReward(0);
+        await _settle(tester);
+        expect(_state0(tester).rewardPicks.length, 2);
+        await _capture(tester, 'tracks-board-$sfx');
+      });
+    }
+  }
 
   testWidgets('an online order on an iPad: methods only, nothing picked', (
     tester,

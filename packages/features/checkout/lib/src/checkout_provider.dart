@@ -979,6 +979,22 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     _update((st) => st.copyWith(rewardPicks: next));
   }
 
+  /// The teller's answer for a line two stamp tracks could cover: one unit
+  /// of it, paid by [track]. The core checks the track may still pay.
+  void chooseRewardTrack(int lineIndex, int track) {
+    final s = state;
+    final scan = s.loyaltyScan;
+    if (scan == null) return;
+    final next = _bridge.toggleRewardOnTrack(
+      lines: s.rewardLines,
+      scan: scan,
+      picks: s.rewardBoard?.picks ?? s.rewardPicks,
+      line: lineIndex,
+      track: track,
+    );
+    _update((st) => st.copyWith(rewardPicks: next));
+  }
+
   /// Re-read the attached member after the server (or the core's check
   /// against it) refused the rewards: the balance, catalogue and cap are the
   /// server's again, the board re-trims the picks, and the hero re-prices.

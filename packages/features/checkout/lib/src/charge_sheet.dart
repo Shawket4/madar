@@ -354,6 +354,7 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
                   ),
             onUseLoyalty: () => unawaited(notifier.useCustomerLoyalty()),
             onToggleReward: notifier.toggleReward,
+            onChooseRewardTrack: notifier.chooseRewardTrack,
             onOpenTip: notifier.openTip,
             onCloseTip: notifier.closeTip,
             onTip: notifier.setTip,
@@ -852,6 +853,7 @@ class _QuietRows extends StatelessWidget {
     required this.onRemoveCustomer,
     required this.onUseLoyalty,
     required this.onToggleReward,
+    required this.onChooseRewardTrack,
     required this.onOpenTip,
     required this.onCloseTip,
     required this.onTip,
@@ -870,6 +872,7 @@ class _QuietRows extends StatelessWidget {
   final VoidCallback onRemoveCustomer;
   final VoidCallback onUseLoyalty;
   final ValueChanged<int> onToggleReward;
+  final void Function(int line, int track) onChooseRewardTrack;
   final VoidCallback onOpenTip;
   final VoidCallback onCloseTip;
   final ValueChanged<int> onTip;
@@ -1015,6 +1018,20 @@ class _QuietRows extends StatelessWidget {
                 ),
         ),
       );
+      // A card with several stamp tracks: one line each under the member.
+      // A one-track card (or an older server) has none, and reads as before.
+      for (final t in member?.tracks ?? const <LoyaltyTrackView>[]) {
+        rows.add(
+          _TrackLine(
+            track: t,
+            progress: loyaltyTrackProgress(
+              (k) => bridge.tr(key: k),
+              t.balance,
+              t.size,
+            ),
+          ),
+        );
+      }
     }
     if (s.loyaltyOffered && member != null) {
       final board = s.rewardBoard;
@@ -1033,18 +1050,25 @@ class _QuietRows extends StatelessWidget {
           ),
         );
       } else {
+        final tracked = member.tracks.isNotEmpty;
         for (final l in claimable) {
           rows.add(
             _RewardLine(
               name: s.rewardLines[l.line].name,
               costLabel: l.costLabel,
+              costUnder: tracked,
               covered: l.units,
               quantity: s.rewardLines[l.line].qty,
               freeWord: tr('charge.free'),
               // The core's reason a row cannot take another: the shop's cap,
               // the balance. Said under the row, never guessed.
               reason: l.canAdd || l.units > 0 ? null : l.blockedReason,
-              onTap: l.claimable ? () => onToggleReward(l.line) : null,
+              onTap: !l.claimable
+                  ? null
+                  // Two tracks could pay: the teller says which (D5).
+                  : l.units == 0 && l.trackChoices.length > 1
+                  ? () => unawaited(_chooseTrack(context, l, member))
+                  : () => onToggleReward(l.line),
             ),
           );
         }
@@ -1054,11 +1078,15 @@ class _QuietRows extends StatelessWidget {
             padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
             child: Text(
               // What is left AFTER what is ticked — the number the customer
-              // will ask about — and why a tap did not all go through.
-              '${board?.balanceAfter ?? member.balance} '
-              '${loyaltyUnit((k) => bridge.tr(key: k), member.mode)} '
-              '${bridge.tr(key: 'loyalty.left')}'
-              '${adjusted == null ? '' : ' · $adjusted'}',
+              // will ask about — and why a tap did not all go through. With
+              // several tracks, each track's.
+              tracked && (board?.tracksAfter.isNotEmpty ?? false)
+                  ? '${[for (final t in board!.tracksAfter) '${t.name} ${t.balanceAfter} ${bridge.tr(key: 'loyalty.left')}'].join(' · ')}'
+                        '${adjusted == null ? '' : ' · $adjusted'}'
+                  : '${board?.balanceAfter ?? member.balance} '
+                        '${loyaltyUnit((k) => bridge.tr(key: k), member.mode)} '
+                        '${bridge.tr(key: 'loyalty.left')}'
+                        '${adjusted == null ? '' : ' · $adjusted'}',
               style: MadarType.bodySm.copyWith(color: colors.textMuted),
             ),
           ),
@@ -1131,6 +1159,99 @@ class _QuietRows extends StatelessWidget {
           if (i < rows.length - 1) const MadarHairline.row(),
         ],
       ],
+    );
+  }
+}
+
+/// "Which card pays for it?": the tracks that can cover the line, none of them
+/// preselected (no-preselect rule); a tap answers, a dismissal is no answer.
+extension on _QuietRows {
+  Future<void> _chooseTrack(
+    BuildContext context,
+    RewardLineState line,
+    LoyaltyMemberView member,
+  ) async {
+    final track = await showMadarSheet<int>(
+      context,
+      size: SheetSize.hug,
+      maxWidth: Responsive.sheetCompactMaxWidth,
+      builder: (sheet) => Padding(
+        padding: const EdgeInsetsDirectional.all(Space.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: Space.sm,
+          children: [
+            Text(
+              bridge.tr(key: 'loyalty.pick_track'),
+              textAlign: TextAlign.center,
+              style: MadarType.h3.copyWith(
+                color: sheet.madarColors.textPrimary,
+              ),
+            ),
+            for (final t in member.tracks)
+              if (line.trackChoices.contains(t.position))
+                MadarButton(
+                  label: t.name,
+                  variant: MadarButtonVariant.outline,
+                  onTap: () => MadarSheet.close(sheet, t.position),
+                ),
+          ],
+        ),
+      ),
+    );
+    if (track != null) onChooseRewardTrack(line.line, track);
+  }
+}
+
+/// One stamp track under the member: its colour, name and progress.
+class _TrackLine extends StatelessWidget {
+  const _TrackLine({required this.track, required this.progress});
+
+  final LoyaltyTrackView track;
+  final String progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.madarColors;
+    final hex = int.tryParse(
+      track.colour?.replaceFirst('#', '') ?? '',
+      radix: 16,
+    );
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(bottom: Space.xs),
+      child: Row(
+        spacing: Space.sm,
+        children: [
+          SizedBox.square(
+            dimension: Space.sm,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: hex == null ? colors.accent : Color(0xFF000000 | hex),
+              ),
+            ),
+          ),
+          Expanded(
+            child: MadarClippedText(
+              track.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: MadarType.bodySm.copyWith(color: colors.textSecondary),
+            ),
+          ),
+          Text(
+            progress,
+            // "2 / 4" is a figure: it reads left to right in Arabic too.
+            textDirection: TextDirection.ltr,
+            style: MadarType.bodySm.copyWith(
+              color: track.rewardsReady > 0
+                  ? colors.success
+                  : colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1235,10 +1356,15 @@ class _RewardLine extends StatelessWidget {
     required this.freeWord,
     required this.onTap,
     this.reason,
+    this.costUnder = false,
   });
 
   final String name;
   final String costLabel;
+
+  /// The cost goes under the name rather than at the end: a several-track
+  /// cost ("6 stamps · Sandwiches") is too long to sit beside it.
+  final bool costUnder;
   final int covered;
   final int quantity;
   final String freeWord;
@@ -1282,6 +1408,13 @@ class _RewardLine extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: MadarType.bodySm.copyWith(color: colors.textMuted),
+                    )
+                  else if (costUnder && costLabel.isNotEmpty)
+                    MadarClippedText(
+                      costLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: MadarType.bodySm.copyWith(color: colors.textMuted),
                     ),
                 ],
               ),
@@ -1306,10 +1439,11 @@ class _RewardLine extends StatelessWidget {
                   color: colors.success,
                 ),
               ),
-            Text(
-              costLabel,
-              style: MadarType.bodySm.copyWith(color: colors.textMuted),
-            ),
+            if (!costUnder)
+              Text(
+                costLabel,
+                style: MadarType.bodySm.copyWith(color: colors.textMuted),
+              ),
           ],
         ),
       ),
