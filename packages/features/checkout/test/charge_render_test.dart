@@ -737,6 +737,38 @@ const _ar = {
   'delivery.outside': 'خارجي',
 };
 
+/// A camera plugin that grants and starts, drawing nothing; returns how many
+/// times the camera was started.
+int Function() _fakeCamera(WidgetTester tester) {
+  const scanner = 'dev.steenbakker.mobile_scanner/scanner';
+  final messenger = tester.binding.defaultBinaryMessenger;
+  for (final c in ['$scanner/event', '$scanner/deviceOrientation']) {
+    messenger.setMockStreamHandler(
+      EventChannel(c),
+      MockStreamHandler.inline(onListen: (_, _) {}),
+    );
+    addTearDown(() => messenger.setMockStreamHandler(EventChannel(c), null));
+  }
+  var starts = 0;
+  const method = MethodChannel('$scanner/method');
+  messenger.setMockMethodCallHandler(method, (call) async {
+    switch (call.method) {
+      case 'state':
+        return 1;
+      case 'start':
+        starts++;
+        return {
+          'textureId': 1,
+          'numberOfCameras': 1,
+          'size': {'width': 1280.0, 'height': 720.0},
+        };
+    }
+    return null;
+  });
+  addTearDown(() => messenger.setMockMethodCallHandler(method, null));
+  return () => starts;
+}
+
 // ── The birthday gift ─────────────────────────────────────────────────
 
 LoyaltyScanView _scanGift(bool rtl) => LoyaltyScanView(
@@ -1521,17 +1553,17 @@ void main() {
         await _settle(tester);
       }
 
-      // Laid out only, never painted to PNG: painting runs the real event
-      // loop, where mobile_scanner's double start (the capture's own start()
-      // beside the widget's autoStart) throws `controllerInitializing`.
       testWidgets('the scan sheet on the $sfx', (tester) async {
+        _fakeCamera(tester);
         await open(tester);
         await tester.tap(
           find.text(coreWord('loyalty.scan_card', arabic: rtl)).first,
         );
         await _settle(tester);
         expect(find.byType(LoyaltyScanSheet), findsOneWidget);
-        expect(tester.takeException(), isNull);
+        await _capture(tester, 'scan-sheet-$sfx');
+        MadarSheet.close<void>(tester.element(find.byType(LoyaltyScanSheet)));
+        await _settle(tester);
       });
 
       testWidgets('a one-track card on the $sfx reads as before', (
@@ -1585,6 +1617,33 @@ void main() {
       });
     }
   }
+
+  // The scan sheet starts the camera ONCE. It used to call start() itself
+  // beside MobileScanner's own autoStart, so the second start met the first
+  // still initializing and threw `controllerInitializing` on every open.
+  testWidgets('the scan sheet starts the camera once', (tester) async {
+    final starts = _fakeCamera(tester);
+    await _mount(tester, size: _phone, bridge: _FakeBridge());
+    unawaited(
+      showCharge(
+        tester.element(find.byType(_Host)),
+        ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+        presentDoneCard: false,
+      ),
+    );
+    await _settle(tester);
+    await tester.tap(find.text(coreWord('loyalty.scan_card')).first);
+    // Let the platform answer on the real event loop, as on a device.
+    for (var i = 0; i < 5; i++) {
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+    }
+    expect(find.byType(LoyaltyScanSheet), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    expect(starts(), 1);
+    MadarSheet.close<void>(tester.element(find.byType(LoyaltyScanSheet)));
+    await _settle(tester);
+  });
 
   // ── The birthday gift ─────────────────────────────────────────────────
   for (final (label, size) in [('phone', _phone), ('tablet', _ipad)]) {

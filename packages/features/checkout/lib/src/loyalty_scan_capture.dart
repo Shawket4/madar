@@ -111,7 +111,9 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
         formats: const [BarcodeFormat.qrCode],
         facing: front ? CameraFacing.front : CameraFacing.back,
       );
-      unawaited(_camera!.start());
+      // No start() here: the MobileScanner below auto-starts this
+      // controller, and a second start while the first is still
+      // initializing throws `controllerInitializing` on every open.
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_phoneMode) _wedgeFocus.requestFocus();
