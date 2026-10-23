@@ -1,8 +1,9 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:app_core/app_core.dart';
 import 'package:design_system/design_system.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart'
     show CircularProgressIndicator, InputDecoration, TextField;
 import 'package:flutter/widgets.dart';
@@ -91,13 +92,25 @@ class _LoyaltyScanCaptureState extends ConsumerState<LoyaltyScanCapture> {
   /// is not a scanner, and a stalled buffer is garbage.
   static const Duration _wedgeIdle = Duration(milliseconds: 400);
 
-  /// The camera plugin exists on these platforms only. Checked once so a
-  /// Windows till never constructs a controller that would throw.
-  static final bool _cameraSupported =
-      Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
+  /// The camera plugin exists on these platforms only, so a Windows till
+  /// never constructs a controller that would throw. Asked of
+  /// [defaultTargetPlatform], not `dart:io`'s host OS: on a device they
+  /// agree, and a widget test on a Linux CI runner then gets the camera a
+  /// tablet has instead of silently testing a till without one.
+  static bool get _cameraSupported =>
+      !kIsWeb &&
+      switch (defaultTargetPlatform) {
+        TargetPlatform.android ||
+        TargetPlatform.iOS ||
+        TargetPlatform.macOS => true,
+        _ => false,
+      };
 
   /// Only a phone or tablet has a second camera to flip to.
-  static final bool _canFlip = Platform.isAndroid || Platform.isIOS;
+  static bool get _canFlip =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS);
 
   @override
   void initState() {

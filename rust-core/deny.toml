@@ -22,6 +22,10 @@ ignore = [
     { id = "RUSTSEC-2026-0367", reason = "zip 8 ZipArchive::extract; never called (calamine/rust_xlsxwriter read/write in memory); fix needs zip 9" },
     { id = "RUSTSEC-2026-0368", reason = "zip 8 ZipArchive::extract; never called (calamine/rust_xlsxwriter read/write in memory); fix needs zip 9" },
     { id = "RUSTSEC-2026-0369", reason = "zip 8 ZipArchive::extract; never called (calamine/rust_xlsxwriter read/write in memory); fix needs zip 9" },
+    # basic-toml is unmaintained (2026-10-23), with no replacement release. It
+    # is build-time only: askama_derive reads its config with it, under
+    # uniffi_bindgen. Drop this when uniffi moves to an askama without it.
+    { id = "RUSTSEC-2026-0374", reason = "build-time only via uniffi -> askama_derive; no maintained release" },
 ]
 
 [licenses]
