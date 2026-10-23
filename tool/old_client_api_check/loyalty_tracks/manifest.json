@@ -1,0 +1,9 @@
+{
+  "about": "Responses of the Rewards-dashboard backend (MadarRust rewards-dashboard-api) for a member of a THREE-track stamp card, captured 2026-10-23. Every released POS (v0.13.0+) must decode them, and the fields it reads must keep track 1's meaning.",
+  "files": [
+    { "file": "scan_result.json", "model": "ScanResult" },
+    { "file": "award_result.json", "model": "AwardResult" },
+    { "file": "member_detail.json", "model": "MemberDetail" },
+    { "file": "order_full.json", "model": "OrderFull" }
+  ]
+}

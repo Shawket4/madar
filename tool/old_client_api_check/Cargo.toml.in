@@ -11,10 +11,30 @@ publish = false
 
 [features]
 # Exactly one: which POS release's generated models are being checked.
-v050 = []
-v051 = []
-v060 = []
-v061 = []
+v050 = ["till"]
+v051 = ["till"]
+v060 = ["till"]
+v061 = ["till"]
+# The till goldens and envelopes name models only those releases have.
+till = []
+# The releases on stores when stamp tracks landed (loyalty_tracks_parse).
+v0130 = []
+v0140 = []
+v0171 = []
+
+[[bin]]
+name = "gen_envelopes"
+path = "src/bin/gen_envelopes.rs"
+required-features = ["till"]
+
+[[test]]
+name = "golden_parse"
+path = "tests/golden_parse.rs"
+required-features = ["till"]
+
+[[test]]
+name = "loyalty_tracks_parse"
+path = "tests/loyalty_tracks_parse.rs"
 
 [dependencies]
 madar-api = { path = "@MADAR_API@" }

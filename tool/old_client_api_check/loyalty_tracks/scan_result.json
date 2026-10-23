@@ -1,0 +1,145 @@
+{
+    "any_item": false,
+    "any_item_cost": 8,
+    "max_rewards_per_order": null,
+    "member": {
+        "balance": 11,
+        "can_redeem": true,
+        "enrolled_at": "2026-10-23T08:49:14.149146Z",
+        "id": "5fd67fbc-b90f-468b-8d51-a30e95d86e00",
+        "lifetime_points": 0,
+        "lifetime_visits": 11,
+        "locale": "en",
+        "mode": "visits",
+        "name": "Capture",
+        "next_reward_cost": 5,
+        "org_id": "8930f3c0-47b3-44c3-9b3a-731462916175",
+        "phone": "201000000199",
+        "points_balance": 0,
+        "points_to_next_reward": 4,
+        "progress_to_next": 1,
+        "rewards_ready": 2,
+        "tracks": [
+            {
+                "balance": 11,
+                "can_redeem": true,
+                "colour": null,
+                "earns_from_sales": true,
+                "name_ar": "\u0642\u0647\u0648\u0629",
+                "name_en": "Coffee",
+                "points_to_next_reward": 4,
+                "position": 1,
+                "progress_to_next": 1,
+                "rewards_ready": 2,
+                "shape": "cup",
+                "size": 5
+            },
+            {
+                "balance": 5,
+                "can_redeem": true,
+                "colour": "#F2B33D",
+                "earns_from_sales": true,
+                "name_ar": "\u0633\u0627\u0646\u062f\u0648\u062a\u0634",
+                "name_en": "Sandwich",
+                "points_to_next_reward": 3,
+                "position": 2,
+                "progress_to_next": 1,
+                "rewards_ready": 1,
+                "shape": null,
+                "size": 4
+            },
+            {
+                "balance": 0,
+                "can_redeem": false,
+                "colour": null,
+                "earns_from_sales": false,
+                "name_ar": "\u0639\u0635\u064a\u0631",
+                "name_en": "Juice",
+                "points_to_next_reward": 5,
+                "position": 3,
+                "progress_to_next": 0,
+                "rewards_ready": 0,
+                "shape": null,
+                "size": 5
+            }
+        ],
+        "visits_balance": 11
+    },
+    "recent": [
+        {
+            "basis_piastres": 45500,
+            "branch_id": "ee522fda-f1a0-4b25-895c-a5473a88b872",
+            "branch_name": "Main",
+            "created_at": "2026-10-23T08:49:14.206376Z",
+            "created_by": "a3a7c58e-e36d-4415-bb95-e601b412a0b2",
+            "created_by_name": "teller-a3a7c58e-e36d-4415-bb95-e601b412a0b2",
+            "currency": "visits",
+            "id": "12dc5e4a-da88-46f4-b0ee-21a4238b50be",
+            "kind": "earn",
+            "note": null,
+            "order_id": "41ef728e-02e4-4463-ae35-0bfafcdeddd5",
+            "points": 11,
+            "reverses_id": null,
+            "reward_name": null,
+            "source": "sale"
+        },
+        {
+            "basis_piastres": null,
+            "branch_id": "ee522fda-f1a0-4b25-895c-a5473a88b872",
+            "branch_name": "Main",
+            "created_at": "2026-10-23T08:49:14.206376Z",
+            "created_by": "a3a7c58e-e36d-4415-bb95-e601b412a0b2",
+            "created_by_name": "teller-a3a7c58e-e36d-4415-bb95-e601b412a0b2",
+            "currency": "visits",
+            "id": "9a532d01-31de-46cd-94bd-3ed1e0101118",
+            "kind": "earn",
+            "note": null,
+            "order_id": "41ef728e-02e4-4463-ae35-0bfafcdeddd5",
+            "points": 5,
+            "reverses_id": null,
+            "reward_name": null,
+            "source": "sale",
+            "track": 2
+        }
+    ],
+    "rewards": [
+        {
+            "base_price": 3000,
+            "cost_amount": 5,
+            "cost_currency": "visits",
+            "image_url": null,
+            "menu_item_id": "04c7ed2d-9f51-499a-8394-4baeabc5bc2a",
+            "name": "Cola",
+            "sort_order": 0
+        }
+    ],
+    "track_rewards": [
+        {
+            "position": 2,
+            "rewards": [
+                {
+                    "base_price": 4000,
+                    "cost_amount": 4,
+                    "cost_currency": "visits",
+                    "image_url": null,
+                    "menu_item_id": "5d0e645f-98c4-4598-ac72-aa7b4909fa6d",
+                    "name": "Cookie",
+                    "sort_order": 0
+                },
+                {
+                    "base_price": 5500,
+                    "cost_amount": 4,
+                    "cost_currency": "visits",
+                    "image_url": null,
+                    "menu_item_id": "edc7699d-f45a-48ad-aa63-8440f1531cc6",
+                    "name": "Croissant",
+                    "sort_order": 1
+                }
+            ]
+        },
+        {
+            "position": 3,
+            "rewards": []
+        }
+    ]
+}

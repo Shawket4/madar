@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Old-client API compatibility check (tills rework guard).
+# Old-client API compatibility check (tills rework guard; stamp tracks).
 #
 # POS v0.5.0, v0.5.1, v0.6.0 and v0.6.1 are in the field and must keep working against the new
-# backend. This checks out the madar-api crate (generated models) of each old
+# backend. v0.13.0, v0.14.0 and v0.17.1 are checked against the three-track
+# loyalty responses in tool/old_client_api_check/loyalty_tracks/
+# (tests/loyalty_tracks_parse.rs) instead of the till goldens.
+#
+# This checks out the madar-api crate (generated models) of each old
 # release into a temp git worktree, builds a tiny harness against it, and:
 #   1. (always) deserializes every golden backend response in
 #      MadarRust/tests/fixtures/legacy_till_api/ into that release's models
@@ -29,15 +33,16 @@ TARGET="${CARGO_TARGET_DIR:-${TMPDIR:-/tmp}/old_client_api_check_target}"
 # release label -> git ref : cargo feature
 # v0.5.0 is checked against the goldens listed for v0.5.1 (a patch release on
 # the same endpoints), with its own feature for where its models differ.
-declare -a RELEASES=("v0.5.0:v0.5.0:v050" "v0.5.1:v0.5.1:v051" "v0.6.0:97c4a29:v060" "v0.6.1:v0.6.1:v061")
+declare -a RELEASES=("v0.5.0:v0.5.0:v050" "v0.5.1:v0.5.1:v051" "v0.6.0:97c4a29:v060" "v0.6.1:v0.6.1:v061"
+                     "v0.13.0:v0.13.0:v0130" "v0.14.0:v0.14.0:v0140" "v0.17.1:v0.17.1:v0171")
 
 REGEN=0
 ONLY=""
 for a in "$@"; do
   case "$a" in
     --regen-envelopes) REGEN=1 ;;
-    v0.5.0|v0.5.1|v0.6.0|v0.6.1) ONLY="$a" ;;
-    -h|--help) sed -n 2,21p "$0"; exit 0 ;;
+    v0.5.0|v0.5.1|v0.6.0|v0.6.1|v0.13.0|v0.14.0|v0.17.1) ONLY="$a" ;;
+    -h|--help) sed -n 2,25p "$0"; exit 0 ;;
     *) echo "unknown arg $a" >&2; exit 2 ;;
   esac
 done
@@ -63,6 +68,15 @@ for spec in "${RELEASES[@]}"; do
   sed "s#@MADAR_API@#$wt/rust-core/crates/madar-api#" "$h/Cargo.toml.in" >"$h/Cargo.toml"
   # Pin dependency versions to what that release actually shipped with.
   cp "$wt/rust-core/Cargo.lock" "$h/Cargo.lock"
+  case "$feat" in
+    v0130|v0140|v0171)
+      if ! (cd "$h" && CARGO_TARGET_DIR="$TARGET" \
+            cargo test -q --features "$feat" --test loyalty_tracks_parse -- --nocapture); then
+        echo "FAIL: $label cannot decode the three-track loyalty responses" >&2
+        status=1
+      fi
+      continue ;;
+  esac
   if [ "$REGEN" = 1 ]; then
     out="$MADAR_RUST/tests/fixtures/legacy_replay/$label"
     rm -rf "$out"

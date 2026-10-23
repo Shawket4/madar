@@ -1,0 +1,74 @@
+{
+    "already_awarded": false,
+    "member": {
+        "balance": 11,
+        "can_redeem": true,
+        "enrolled_at": "2026-10-23T08:49:14.149146Z",
+        "id": "5fd67fbc-b90f-468b-8d51-a30e95d86e00",
+        "lifetime_points": 0,
+        "lifetime_visits": 11,
+        "locale": "en",
+        "mode": "visits",
+        "name": "Capture",
+        "next_reward_cost": 5,
+        "org_id": "8930f3c0-47b3-44c3-9b3a-731462916175",
+        "phone": "201000000199",
+        "points_balance": 0,
+        "points_to_next_reward": 4,
+        "progress_to_next": 1,
+        "rewards_ready": 2,
+        "tracks": [
+            {
+                "balance": 11,
+                "can_redeem": true,
+                "colour": null,
+                "earns_from_sales": true,
+                "name_ar": "\u0642\u0647\u0648\u0629",
+                "name_en": "Coffee",
+                "points_to_next_reward": 4,
+                "position": 1,
+                "progress_to_next": 1,
+                "rewards_ready": 2,
+                "shape": "cup",
+                "size": 5
+            },
+            {
+                "balance": 5,
+                "can_redeem": true,
+                "colour": "#F2B33D",
+                "earns_from_sales": true,
+                "name_ar": "\u0633\u0627\u0646\u062f\u0648\u062a\u0634",
+                "name_en": "Sandwich",
+                "points_to_next_reward": 3,
+                "position": 2,
+                "progress_to_next": 1,
+                "rewards_ready": 1,
+                "shape": null,
+                "size": 4
+            },
+            {
+                "balance": 0,
+                "can_redeem": false,
+                "colour": null,
+                "earns_from_sales": false,
+                "name_ar": "\u0639\u0635\u064a\u0631",
+                "name_en": "Juice",
+                "points_to_next_reward": 5,
+                "position": 3,
+                "progress_to_next": 0,
+                "rewards_ready": 0,
+                "shape": null,
+                "size": 5
+            }
+        ],
+        "visits_balance": 11
+    },
+    "order_id": "41ef728e-02e4-4463-ae35-0bfafcdeddd5",
+    "points_awarded": 11,
+    "tracks": [
+        {
+            "points_awarded": 5,
+            "position": 2
+        }
+    ]
+}
