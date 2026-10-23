@@ -549,6 +549,7 @@ fn combo_receipt_line(
 /// the full breakdown (modifiers, delivery block) so a
 /// reprint is byte-identical to the original. `locale` localizes the address
 /// "Unit"/"Floor" prefixes.
+#[cfg(test)]
 pub(crate) fn order_to_receipt(
     o: &models::OrderFull,
     locale: &str,
