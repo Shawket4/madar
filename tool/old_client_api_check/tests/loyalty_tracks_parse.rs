@@ -1,4 +1,4 @@
-//! Three-track loyalty responses (loyalty_tracks/) decoded into THIS release's
+//! Three-track (and birthday-gift) loyalty responses (loyalty_tracks/) decoded into THIS release's
 //! generated models, the types a released POS (v0.13.0+) decodes them into,
 //! and a check that what it reads still means track 1: `member.balance` is
 //! track 1's balance and `ScanResult.rewards` offers no track 2-4 item.

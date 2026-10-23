@@ -2,7 +2,7 @@
 # Old-client API compatibility check (tills rework guard; stamp tracks).
 #
 # POS v0.5.0, v0.5.1, v0.6.0 and v0.6.1 are in the field and must keep working against the new
-# backend. v0.13.0, v0.14.0 and v0.17.1 are checked against the three-track
+# backend. v0.13.0, v0.14.0 and v0.17.1 are checked against the three-track and gift
 # loyalty responses in tool/old_client_api_check/loyalty_tracks/
 # (tests/loyalty_tracks_parse.rs) instead of the till goldens.
 #

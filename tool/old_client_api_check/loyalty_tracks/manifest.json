@@ -1,9 +1,25 @@
 {
-  "about": "Responses of the Rewards-dashboard backend (MadarRust rewards-dashboard-api) for a member of a THREE-track stamp card, captured 2026-10-23. Every released POS (v0.13.0+) must decode them, and the fields it reads must keep track 1's meaning.",
+  "about": "Responses of the Rewards-dashboard backend (MadarRust rewards-dashboard-api) for a member of a THREE-track stamp card, captured 2026-10-23. Every released POS (v0.13.0+) must decode them, and the fields it reads must keep track 1's meaning. gift_scan_result.json: a member with an open birthday gift (MadarRust main 5b5396a8), captured 2026-10-23.",
   "files": [
-    { "file": "scan_result.json", "model": "ScanResult" },
-    { "file": "award_result.json", "model": "AwardResult" },
-    { "file": "member_detail.json", "model": "MemberDetail" },
-    { "file": "order_full.json", "model": "OrderFull" }
+    {
+      "file": "scan_result.json",
+      "model": "ScanResult"
+    },
+    {
+      "file": "award_result.json",
+      "model": "AwardResult"
+    },
+    {
+      "file": "member_detail.json",
+      "model": "MemberDetail"
+    },
+    {
+      "file": "order_full.json",
+      "model": "OrderFull"
+    },
+    {
+      "file": "gift_scan_result.json",
+      "model": "ScanResult"
+    }
   ]
 }

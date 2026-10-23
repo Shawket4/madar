@@ -2201,4 +2201,32 @@ mod tests {
         assert!(picks_from_redemptions(&[line("latte", 1, 5_000)], &[r]).is_empty());
     }
 
+
+    /// The real backend's answers (tool/old_client_api_check/loyalty_tracks)
+    /// read by THIS build: three tracks, and an open birthday gift.
+    #[test]
+    fn the_backends_captures_read_as_tracks_and_a_gift() {
+        let three: madar_api::models::ScanResult = serde_json::from_str(include_str!(
+            "../../../../tool/old_client_api_check/loyalty_tracks/scan_result.json"
+        ))
+        .unwrap();
+        let v = scan_view(&three, "en");
+        assert_eq!(v.member.tracks.len(), 3);
+        assert_eq!(v.member.tracks[0].balance, v.member.balance, "track 1 is the card");
+        assert_eq!(v.track_rewards.iter().map(|t| t.position).collect::<Vec<_>>(), [2, 3]);
+        let gift: madar_api::models::ScanResult = serde_json::from_str(include_str!(
+            "../../../../tool/old_client_api_check/loyalty_tracks/gift_scan_result.json"
+        ))
+        .unwrap();
+        let g = gift_view(
+            gift.birthday_gift.clone().flatten().as_deref().unwrap(),
+            "2026-11-01T10:00:00+02:00".parse().unwrap(),
+            "en",
+        );
+        // Valid until 22:00Z on the 22nd = midnight in Cairo: the 22nd is the last day.
+        assert!(g.open);
+        assert_eq!(g.until_label, "22 Nov");
+        assert!(scan_view(&gift, "en").member.tracks.is_empty());
+    }
+
 }
