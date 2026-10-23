@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **apple_devices** | **i64** |  | 
 **apple_registered_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> |  | [optional]
+**birthday_gift** | Option<[**models::BirthdayGiftView**](BirthdayGiftView.md)> | Their birthday gift while open, or claimed and still in its window; absent otherwise (`gifts::current`). | [optional]
 **google_card** | **bool** |  | 
 **marketing_opt_out** | **bool** |  | 
 **messages_received** | **i64** | Dashboard messages this member was sent. | 

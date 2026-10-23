@@ -147,6 +147,14 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub live_approval: Option<Option<Box<models::ReplayApproval>>>,
+    /// The member's birthday gift on ONE line: one unit of it free, whatever it costs, no balance spent (`loyalty::gifts`). Needs `loyalty_customer_id`. Refused live with `LOYALTY_GIFT_NONE`, `LOYALTY_GIFT_NOT_A_REWARD` or `LOYALTY_GIFT_LINE`. Additive.
+    #[serde(
+        rename = "loyalty_birthday_gift",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub loyalty_birthday_gift: Option<Option<Box<models::LoyaltyGiftInput>>>,
     /// The loyalty member spending a balance on this sale. Required when `loyalty_redemptions` is non-empty, and ONLY for that: earning is a separate, later act (`POST /loyalty/award`), so a sale that redeems nothing never names a member here.
     #[serde(
         rename = "loyalty_customer_id",
@@ -254,14 +262,6 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub verification: Option<Option<String>>,
-    /// The member's birthday gift on ONE line: one unit of it free, whatever it costs, no balance spent (`loyalty::gifts`). Needs `loyalty_customer_id`. Refused live with `LOYALTY_GIFT_NONE`, `LOYALTY_GIFT_NOT_A_REWARD` or `LOYALTY_GIFT_LINE`. Additive.
-    #[serde(
-        rename = "loyalty_birthday_gift",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub loyalty_birthday_gift: Option<Option<Box<models::LoyaltyGiftInput>>>,
 }
 
 impl CreateOrderRequest {
@@ -292,6 +292,7 @@ impl CreateOrderRequest {
             idempotency_key: None,
             items,
             live_approval: None,
+            loyalty_birthday_gift: None,
             loyalty_customer_id: None,
             loyalty_redemptions: None,
             notes: None,
@@ -308,7 +309,6 @@ impl CreateOrderRequest {
             tip_payment_method: None,
             total_amount: None,
             verification: None,
-            loyalty_birthday_gift: None,
         }
     }
 }

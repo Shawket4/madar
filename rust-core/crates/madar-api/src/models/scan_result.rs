@@ -20,6 +20,14 @@ pub struct ScanResult {
     /// What one line costs when `any_item` is on, in the branch's currency.
     #[serde(rename = "any_item_cost")]
     pub any_item_cost: i32,
+    /// The member's birthday gift: `open` is one free item to hand over (`loyalty_birthday_gift` on the order, or the counter's `/loyalty/counter/birthday-gift`); `claimed` was used this time. Absent when there is none or it expired.
+    #[serde(
+        rename = "birthday_gift",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub birthday_gift: Option<Option<Box<models::BirthdayGiftView>>>,
     /// The shop's card design for the teller's member card (absent = classic).
     #[serde(
         rename = "card",
@@ -52,14 +60,6 @@ pub struct ScanResult {
         skip_serializing_if = "Option::is_none"
     )]
     pub track_rewards: Option<Option<Vec<models::TrackRewards>>>,
-    /// The member's birthday gift: `open` is one free item to hand over (`loyalty_birthday_gift` on the order, or the counter's `/loyalty/counter/birthday-gift`); `claimed` was used this time. Absent when there is none or it expired.
-    #[serde(
-        rename = "birthday_gift",
-        default,
-        with = "::serde_with::rust::double_option",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub birthday_gift: Option<Option<Box<models::BirthdayGiftView>>>,
 }
 
 impl ScanResult {
@@ -74,13 +74,13 @@ impl ScanResult {
         ScanResult {
             any_item,
             any_item_cost,
+            birthday_gift: None,
             card: None,
             max_rewards_per_order: None,
             member: Box::new(member),
             recent,
             rewards,
             track_rewards: None,
-            birthday_gift: None,
         }
     }
 }

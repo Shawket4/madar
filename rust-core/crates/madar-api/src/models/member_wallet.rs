@@ -23,6 +23,14 @@ pub struct MemberWallet {
         skip_serializing_if = "Option::is_none"
     )]
     pub apple_registered_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Their birthday gift while open, or claimed and still in its window; absent otherwise (`gifts::current`).
+    #[serde(
+        rename = "birthday_gift",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub birthday_gift: Option<Option<Box<models::BirthdayGiftView>>>,
     #[serde(rename = "google_card")]
     pub google_card: bool,
     #[serde(rename = "marketing_opt_out")]
@@ -80,6 +88,7 @@ impl MemberWallet {
         MemberWallet {
             apple_devices,
             apple_registered_at: None,
+            birthday_gift: None,
             google_card,
             marketing_opt_out,
             messages_received,

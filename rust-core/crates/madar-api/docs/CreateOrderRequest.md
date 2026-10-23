@@ -24,6 +24,7 @@ Name | Type | Description | Notes
 **idempotency_key** | Option<**uuid::Uuid**> |  | [optional]
 **items** | [**Vec<models::OrderItemInput>**](OrderItemInput.md) |  | 
 **live_approval** | Option<[**models::ReplayApproval**](ReplayApproval.md)> | A manager's one-time PIN approval for the LIVE route (owner, 2026-09-17): the offline queue has always carried an `approval` on the replay envelope; this is the same object, sent with the live request instead, so a live over-cap discount need not queue to be approved. Verified the same way replay verifies one; `discount_approval_id` above is set from its `id` once verified. Additive. | [optional]
+**loyalty_birthday_gift** | Option<[**models::LoyaltyGiftInput**](LoyaltyGiftInput.md)> | The member's birthday gift on ONE line: one unit of it free, whatever it costs, no balance spent (`loyalty::gifts`). Needs `loyalty_customer_id`. Refused live with `LOYALTY_GIFT_NONE`, `LOYALTY_GIFT_NOT_A_REWARD` or `LOYALTY_GIFT_LINE`. Additive. | [optional]
 **loyalty_customer_id** | Option<**uuid::Uuid**> | The loyalty member spending a balance on this sale. Required when `loyalty_redemptions` is non-empty, and ONLY for that: earning is a separate, later act (`POST /loyalty/award`), so a sale that redeems nothing never names a member here. | [optional]
 **loyalty_redemptions** | Option<[**Vec<models::LoyaltyRedemptionInput>**](LoyaltyRedemptionInput.md)> | Rewards covering lines of this cart. Each names a line by its index in `items` and how many of that line's units the reward pays for, so a mixed basket can have one free coffee among four paid ones. | [optional]
 **notes** | Option<**String**> |  | [optional]
@@ -40,7 +41,6 @@ Name | Type | Description | Notes
 **tip_payment_method** | Option<**String**> |  | [optional]
 **total_amount** | Option<**i32**> |  | [optional]
 **verification** | Option<**String**> | `server` | `lan` | `unverified` — the till's verification as the device knew it. | [optional]
-**loyalty_birthday_gift** | Option<[**models::LoyaltyGiftInput**](LoyaltyGiftInput.md)> | The member's birthday gift on ONE line: one unit of it free, whatever it costs, no balance spent (`loyalty::gifts`). Needs `loyalty_customer_id`. Refused live with `LOYALTY_GIFT_NONE`, `LOYALTY_GIFT_NOT_A_REWARD` or `LOYALTY_GIFT_LINE`. Additive. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 
