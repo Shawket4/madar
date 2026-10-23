@@ -388,7 +388,7 @@ class _OpsItemsViewState extends ConsumerState<OpsItemsView> {
         ),
         OpsRankColumn<OpsItemRow>(
           id: 'avg_extra',
-          label: t('analytics.avgExtra'),
+          label: t('reports.operations.ranked.avgExtra'),
           width: 136,
           numeric: true,
           sortValue: (r) => r.avgExtra,

@@ -10,6 +10,9 @@
   "menu.studio.steps.noteEn": "Note (English)",
   "menu.studio.steps.notePlaceholder": "For this drink — e.g. 40ml condensed milk",
   "menu.studio.steps.notePlaceholderAr": "ملاحظة لهذا المشروب",
-  "recipes.builder.catalogFailed": "Couldn't load the ingredients",
-  "menuImport.chooseFiles": "Choose files"
+  "menuImport.cardAdd": "Bring your whole menu over from Foodics: categories, items, sizes and choices.",
+  "menuImport.cardReplace": "Replace this menu with the one you have in Foodics, in one go.",
+  "menuImport.cardTitle": "Already on Foodics?",
+  "menuImport.chooseFiles": "Choose files",
+  "recipes.builder.catalogFailed": "Couldn't load the ingredients"
 }

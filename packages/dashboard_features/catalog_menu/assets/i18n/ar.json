@@ -10,6 +10,9 @@
   "menu.studio.steps.noteEn": "ملاحظة (بالإنجليزية)",
   "menu.studio.steps.notePlaceholder": "لهذا المشروب — مثلًا 40 مل حليب مكثف",
   "menu.studio.steps.notePlaceholderAr": "ملاحظة لهذا المشروب",
-  "recipes.builder.catalogFailed": "تعذّر تحميل المكوّنات",
-  "menuImport.chooseFiles": "اختيار الملفات"
+  "menuImport.cardAdd": "انقل قائمتك كاملة من Foodics: الفئات والأصناف والأحجام والاختيارات.",
+  "menuImport.cardReplace": "استبدل هذه القائمة بقائمتك في Foodics دفعة واحدة.",
+  "menuImport.cardTitle": "هل تستخدم Foodics؟",
+  "menuImport.chooseFiles": "اختيار الملفات",
+  "recipes.builder.catalogFailed": "تعذّر تحميل المكوّنات"
 }

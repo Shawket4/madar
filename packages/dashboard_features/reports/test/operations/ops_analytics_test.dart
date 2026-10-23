@@ -67,7 +67,7 @@ void main() {
       final t = _rankTable(tester);
       expect(
         [t.lead.label, for (final c in t.columns) c.label],
-        ['Item', 'Sold', 'Revenue', 'Share', 'Price', 'Avg extra'],
+        ['Item', 'Sold', 'Revenue', 'Share', 'Price', 'Avg. extra'],
       );
       expect(t.initialSort, (columnId: 'quantity', descending: true));
       final want = opsCombinedItems(_orders(h, SeedIds.sabahBranches));

@@ -448,7 +448,7 @@ void main() {
       final h = await _items(tester, size: size, locale: lang);
       final heads = lang == 'ar'
           ? ['السعر', 'متوسط الإضافات']
-          : ['Price', 'Avg extra'];
+          : ['Price', 'Avg. extra'];
       final columns = _widget(tester).columns;
       expect([for (final c in columns.skip(3)) c.label], heads);
       for (final id in ['price', 'avg_extra']) {
