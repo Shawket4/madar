@@ -315,8 +315,12 @@ class _FakeBridge implements MadarBridge {
     this.loyaltyEnabled = true,
     this.canWaive = false,
     this.tracks = false,
+    this.gift = false,
     List<PaymentMethodView>? methods,
   }) : methods = methods ?? _methods;
+
+  /// The member has an open birthday gift (one free item).
+  final bool gift;
 
   /// The member's card has three stamp tracks (a visits programme).
   final bool tracks;
@@ -445,7 +449,23 @@ class _FakeBridge implements MadarBridge {
       );
     }
     if (name == #loyaltyLookup) {
-      return Future<LoyaltyScanView>.value(tracks ? _scan3(rtl) : _scan);
+      return Future<LoyaltyScanView>.value(
+        tracks
+            ? _scan3(rtl)
+            : gift
+            ? _scanGift(rtl)
+            : _scan,
+      );
+    }
+    if (name == #giftBoard) return _giftBoard(a, rtl);
+    if (name == #giftRedemption) {
+      final lines = a[#lines] as List<RewardLineInput>;
+      return CheckoutRedemption(
+        itemIndex: 0,
+        ticketLineId: lines[a[#line] as int].ticketLineId,
+        units: 1,
+        gift: true,
+      );
     }
     if (tracks) {
       final board = _tracksBoard(name, a, rtl);
@@ -516,6 +536,7 @@ class _FakeBridge implements MadarBridge {
             itemIndex: 0,
             ticketLineId: lines[p.line].ticketLineId,
             units: p.units,
+            gift: false,
           ),
       ];
     }
@@ -716,6 +737,54 @@ const _ar = {
   'delivery.outside': 'خارجي',
 };
 
+// ── The birthday gift ─────────────────────────────────────────────────
+
+LoyaltyScanView _scanGift(bool rtl) => LoyaltyScanView(
+  member: _member,
+  rewards: _scan.rewards,
+  recent: const [],
+  anyItem: false,
+  anyItemCost: 0,
+  trackRewards: const [],
+  birthdayGift: LoyaltyGiftView(
+    open: true,
+    validUntil: '2026-11-22T00:00:00+02:00',
+    untilLabel: rtl ? '21 نوفمبر' : '21 Nov',
+  ),
+);
+
+/// The core's gift rule, as the fixture needs it: the latte and the
+/// espresso may be the gift, unless a reward already covers them.
+GiftBoardView _giftBoard(Map<Symbol, dynamic> a, bool rtl) {
+  final lines = a[#lines] as List<RewardLineInput>;
+  final picks = a[#picks] as List<RewardPick>;
+  final eligible = [
+    for (var i = 0; i < lines.length; i++)
+      if ({'latte', 'espresso'}.contains(lines[i].menuItemId) &&
+          !picks.any((p) => p.line == i))
+        i,
+  ];
+  final asked = a[#line] as int?;
+  final line = eligible.contains(asked) ? asked : null;
+  return GiftBoardView(
+    open: true,
+    headline: coreWord(
+      'loyalty.gift_headline',
+      arabic: rtl,
+    ).replaceAll('{date}', rtl ? '21 نوفمبر' : '21 Nov'),
+    eligible: Uint32List.fromList(eligible),
+    line: line,
+    coveredMinor: line == null
+        ? 0
+        : lines[line].lineTotalMinor ~/ lines[line].qty,
+  );
+}
+
+class _Offline extends ConnectivityNotifier {
+  @override
+  ConnectivitySignal build() => const ConnectivitySignal(reachable: false);
+}
+
 // ── Three stamp tracks ──────────────────────────────────────────────────
 //
 // A visits card: track 1 (5 orders; the latte, and any item), an espresso
@@ -913,6 +982,7 @@ Future<void> _mount(
   ThemeData? theme,
   bool rtl = false,
   String hostTitle = 'Floor',
+  bool offline = false,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = size;
@@ -924,7 +994,10 @@ Future<void> _mount(
     RepaintBoundary(
       key: const ValueKey('shot'),
       child: ProviderScope(
-        overrides: [bridgeProvider.overrideWithValue(bridge)],
+        overrides: [
+          bridgeProvider.overrideWithValue(bridge),
+          if (offline) connectivityProvider.overrideWith(_Offline.new),
+        ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: theme ?? MadarTheme.light(),
@@ -1509,6 +1582,66 @@ void main() {
         await _settle(tester);
         expect(_state0(tester).rewardPicks.length, 2);
         await _capture(tester, 'tracks-board-$sfx');
+      });
+    }
+  }
+
+  // ── The birthday gift ─────────────────────────────────────────────────
+  for (final (label, size) in [('phone', _phone), ('tablet', _ipad)]) {
+    for (final rtl in [false, true]) {
+      final sfx = '$label${rtl ? '-ar' : ''}';
+      Future<void> open(WidgetTester tester, {bool offline = false}) async {
+        await _mount(
+          tester,
+          size: size,
+          bridge: _FakeBridge(rtl: rtl, gift: true),
+          rtl: rtl,
+          offline: offline,
+        );
+        unawaited(
+          showCharge(
+            tester.element(find.byType(_Host)),
+            ChargeTarget.bill(_ticket, tableLabel: 'T5'),
+            presentDoneCard: false,
+          ),
+        );
+        await _settle(tester);
+        await _session0(tester).scanLoyalty(token: 'tok');
+        await _settle(tester);
+      }
+
+      final headline = coreWord(
+        'loyalty.gift_headline',
+        arabic: rtl,
+      ).replaceAll('{date}', rtl ? '21 نوفمبر' : '21 Nov');
+
+      testWidgets('a birthday gift on the $sfx: picked by the teller', (
+        tester,
+      ) async {
+        await open(tester);
+        expect(find.text(headline), findsOneWidget);
+        expect(_state0(tester).giftLine, isNull, reason: 'no preselect');
+        expect(_state0(tester).rewardRedemptions, isEmpty);
+        await _capture(tester, 'gift-open-$sfx');
+        await tester.tap(find.text('Espresso').last);
+        await _settle(tester);
+        final r = _state0(tester).rewardRedemptions.single;
+        expect((r.gift, r.ticketLineId, r.units), (true, 'l2', 1));
+        await _capture(tester, 'gift-picked-$sfx');
+      });
+
+      testWidgets('a birthday gift offline on the $sfx says why', (
+        tester,
+      ) async {
+        await open(tester, offline: true);
+        expect(
+          find.text(coreWord('loyalty.gift_offline', arabic: rtl)),
+          findsWidgets,
+        );
+        await tester.tap(find.text('Espresso').last);
+        await _settle(tester);
+        expect(_state0(tester).rewardRedemptions, isEmpty, reason: 'disabled');
+        await _capture(tester, 'gift-offline-$sfx');
       });
     }
   }

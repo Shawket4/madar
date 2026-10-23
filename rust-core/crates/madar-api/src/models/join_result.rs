@@ -51,6 +51,22 @@ pub struct JoinResult {
     /// This phone already has a card and the device has not proved it owns the phone. The page should run the ordinary OTP flow (`/public/otp/request` then `/public/otp/verify`) and POST here again with the `device_token` it is handed; the card comes back on that call.
     #[serde(rename = "verify_required")]
     pub verify_required: bool,
+    /// The card size: how many stamps (or points) fill one card, the cheapest reward on offer (`model::card_size`), the same figure the till and the passes count towards. Equal to `next_reward_cost`, under its own name.
+    #[serde(
+        rename = "card_size",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub card_size: Option<Option<i32>>,
+    /// What one stamp stands for: `order`, `item` or `stamp` (a counter shop); absent for points. The join info's rule (`earn::StampUnit`).
+    #[serde(
+        rename = "stamp_unit",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub stamp_unit: Option<Option<String>>,
 }
 
 impl JoinResult {
@@ -76,6 +92,8 @@ impl JoinResult {
             next_reward_cost,
             passes: None,
             verify_required,
+            card_size: None,
+            stamp_unit: None,
         }
     }
 }

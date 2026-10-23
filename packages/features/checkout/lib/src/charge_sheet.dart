@@ -355,6 +355,11 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
             onUseLoyalty: () => unawaited(notifier.useCustomerLoyalty()),
             onToggleReward: notifier.toggleReward,
             onChooseRewardTrack: notifier.chooseRewardTrack,
+            onToggleGift: notifier.toggleGift,
+            // Read only while a gift is on offer: nothing else here needs it.
+            giftReachable:
+                !(s.giftBoard?.open ?? false) ||
+                ref.watch(connectivityProvider).reachable,
             onOpenTip: notifier.openTip,
             onCloseTip: notifier.closeTip,
             onTip: notifier.setTip,
@@ -854,6 +859,8 @@ class _QuietRows extends StatelessWidget {
     required this.onUseLoyalty,
     required this.onToggleReward,
     required this.onChooseRewardTrack,
+    required this.onToggleGift,
+    required this.giftReachable,
     required this.onOpenTip,
     required this.onCloseTip,
     required this.onTip,
@@ -873,6 +880,10 @@ class _QuietRows extends StatelessWidget {
   final VoidCallback onUseLoyalty;
   final ValueChanged<int> onToggleReward;
   final void Function(int line, int track) onChooseRewardTrack;
+  final ValueChanged<int> onToggleGift;
+
+  /// The server can be reached, so the birthday gift may be picked.
+  final bool giftReachable;
   final VoidCallback onOpenTip;
   final VoidCallback onCloseTip;
   final ValueChanged<int> onTip;
@@ -1091,6 +1102,50 @@ class _QuietRows extends StatelessWidget {
             ),
           ),
         );
+      }
+      // The birthday gift: one free item, whatever it costs, no balance
+      // spent. The teller picks the line (even a lone candidate: the gift
+      // is the customer's to keep for another visit). Online only.
+      if (s.giftBoard case final gift? when gift.open) {
+        rows.add(
+          Padding(
+            padding: const EdgeInsetsDirectional.only(top: Space.sm),
+            child: Text(
+              gift.headline,
+              style: MadarType.body.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colors.accent,
+              ),
+            ),
+          ),
+        );
+        for (final i in gift.eligible) {
+          final l = s.rewardLines[i];
+          rows.add(
+            _RewardLine(
+              name: l.name,
+              costLabel: '',
+              covered: gift.line == i ? 1 : 0,
+              quantity: l.qty,
+              freeWord: tr('charge.free'),
+              reason: giftReachable
+                  ? null
+                  : bridge.tr(key: 'loyalty.gift_offline'),
+              onTap: giftReachable ? () => onToggleGift(i) : null,
+            ),
+          );
+        }
+        if (gift.note case final why?) {
+          rows.add(
+            Padding(
+              padding: const EdgeInsetsDirectional.only(bottom: Space.sm),
+              child: Text(
+                why,
+                style: MadarType.bodySm.copyWith(color: colors.textMuted),
+              ),
+            ),
+          );
+        }
       }
     }
 

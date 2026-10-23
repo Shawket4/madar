@@ -151,6 +151,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CheckoutInput dco_decode_box_autoadd_checkout_input(dynamic raw);
 
   @protected
+  CheckoutRedemption dco_decode_box_autoadd_checkout_redemption(dynamic raw);
+
+  @protected
   CheckoutSplit dco_decode_box_autoadd_checkout_split(dynamic raw);
 
   @protected
@@ -193,6 +196,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   LoginRequest dco_decode_box_autoadd_login_request(dynamic raw);
+
+  @protected
+  LoyaltyGiftView dco_decode_box_autoadd_loyalty_gift_view(dynamic raw);
 
   @protected
   LoyaltyMemberView dco_decode_box_autoadd_loyalty_member_view(dynamic raw);
@@ -414,6 +420,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   FreshnessView dco_decode_freshness_view(dynamic raw);
+
+  @protected
+  GiftBoardView dco_decode_gift_board_view(dynamic raw);
 
   @protected
   GroupViolationView dco_decode_group_violation_view(dynamic raw);
@@ -798,6 +807,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   LoyaltyAwardOutcome dco_decode_loyalty_award_outcome(dynamic raw);
 
   @protected
+  LoyaltyGiftView dco_decode_loyalty_gift_view(dynamic raw);
+
+  @protected
   LoyaltyLedgerView dco_decode_loyalty_ledger_view(dynamic raw);
 
   @protected
@@ -890,6 +902,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   CartStaffSummary? dco_decode_opt_box_autoadd_cart_staff_summary(dynamic raw);
 
   @protected
+  CheckoutRedemption? dco_decode_opt_box_autoadd_checkout_redemption(
+    dynamic raw,
+  );
+
+  @protected
   CheckoutSplit? dco_decode_opt_box_autoadd_checkout_split(dynamic raw);
 
   @protected
@@ -926,6 +943,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   LastTillWarningView? dco_decode_opt_box_autoadd_last_till_warning_view(
     dynamic raw,
   );
+
+  @protected
+  LoyaltyGiftView? dco_decode_opt_box_autoadd_loyalty_gift_view(dynamic raw);
 
   @protected
   LoyaltyMemberView? dco_decode_opt_box_autoadd_loyalty_member_view(
@@ -1334,6 +1354,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  CheckoutRedemption sse_decode_box_autoadd_checkout_redemption(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CheckoutSplit sse_decode_box_autoadd_checkout_split(
     SseDeserializer deserializer,
   );
@@ -1388,6 +1413,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   LoginRequest sse_decode_box_autoadd_login_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LoyaltyGiftView sse_decode_box_autoadd_loyalty_gift_view(
     SseDeserializer deserializer,
   );
 
@@ -1661,6 +1691,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   FreshnessView sse_decode_freshness_view(SseDeserializer deserializer);
+
+  @protected
+  GiftBoardView sse_decode_gift_board_view(SseDeserializer deserializer);
 
   @protected
   GroupViolationView sse_decode_group_violation_view(
@@ -2217,6 +2250,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  LoyaltyGiftView sse_decode_loyalty_gift_view(SseDeserializer deserializer);
+
+  @protected
   LoyaltyLedgerView sse_decode_loyalty_ledger_view(
     SseDeserializer deserializer,
   );
@@ -2343,6 +2379,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  CheckoutRedemption? sse_decode_opt_box_autoadd_checkout_redemption(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   CheckoutSplit? sse_decode_opt_box_autoadd_checkout_split(
     SseDeserializer deserializer,
   );
@@ -2393,6 +2434,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   LastTillWarningView? sse_decode_opt_box_autoadd_last_till_warning_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LoyaltyGiftView? sse_decode_opt_box_autoadd_loyalty_gift_view(
     SseDeserializer deserializer,
   );
 
@@ -2888,6 +2934,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_checkout_redemption(
+    CheckoutRedemption self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_checkout_split(
     CheckoutSplit self,
     SseSerializer serializer,
@@ -2962,6 +3014,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_box_autoadd_login_request(
     LoginRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_loyalty_gift_view(
+    LoyaltyGiftView self,
     SseSerializer serializer,
   );
 
@@ -3327,6 +3385,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   void sse_encode_freshness_view(FreshnessView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_gift_board_view(GiftBoardView self, SseSerializer serializer);
 
   @protected
   void sse_encode_group_violation_view(
@@ -4025,6 +4086,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_loyalty_gift_view(
+    LoyaltyGiftView self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_loyalty_ledger_view(
     LoyaltyLedgerView self,
     SseSerializer serializer,
@@ -4187,6 +4254,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_checkout_redemption(
+    CheckoutRedemption? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_checkout_split(
     CheckoutSplit? self,
     SseSerializer serializer,
@@ -4249,6 +4322,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_opt_box_autoadd_last_till_warning_view(
     LastTillWarningView? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_loyalty_gift_view(
+    LoyaltyGiftView? self,
     SseSerializer serializer,
   );
 

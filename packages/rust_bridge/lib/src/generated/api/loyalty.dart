@@ -6,6 +6,46 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+/// The gift's part of the Charge screen.
+class GiftBoardView {
+  final bool open;
+  final String headline;
+  final Uint32List eligible;
+  final int? line;
+  final PlatformInt64 coveredMinor;
+  final String? note;
+
+  const GiftBoardView({
+    required this.open,
+    required this.headline,
+    required this.eligible,
+    this.line,
+    required this.coveredMinor,
+    this.note,
+  });
+
+  @override
+  int get hashCode =>
+      open.hashCode ^
+      headline.hashCode ^
+      eligible.hashCode ^
+      line.hashCode ^
+      coveredMinor.hashCode ^
+      note.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GiftBoardView &&
+          runtimeType == other.runtimeType &&
+          open == other.open &&
+          headline == other.headline &&
+          eligible == other.eligible &&
+          line == other.line &&
+          coveredMinor == other.coveredMinor &&
+          note == other.note;
+}
+
 /// What came of pressing "add points" on a sale.
 ///
 /// Three outcomes a teller must be able to tell apart — added, already
@@ -68,6 +108,31 @@ class LoyaltyAwardOutcome {
           headline == other.headline &&
           detail == other.detail &&
           tracks == other.tracks;
+}
+
+/// The birthday gift as the till shows it.
+class LoyaltyGiftView {
+  final bool open;
+  final String validUntil;
+  final String untilLabel;
+
+  const LoyaltyGiftView({
+    required this.open,
+    required this.validUntil,
+    required this.untilLabel,
+  });
+
+  @override
+  int get hashCode => open.hashCode ^ validUntil.hashCode ^ untilLabel.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoyaltyGiftView &&
+          runtimeType == other.runtimeType &&
+          open == other.open &&
+          validUntil == other.validUntil &&
+          untilLabel == other.untilLabel;
 }
 
 /// One line of the member's recent history, already phrased for display.
@@ -341,6 +406,9 @@ class LoyaltyScanView {
   /// Tracks 2-4's rewards; empty on a one-track card.
   final List<LoyaltyTrackRewardsView> trackRewards;
 
+  /// The birthday gift; `None` without one (and from an older server).
+  final LoyaltyGiftView? birthdayGift;
+
   const LoyaltyScanView({
     required this.member,
     required this.rewards,
@@ -349,6 +417,7 @@ class LoyaltyScanView {
     required this.anyItemCost,
     this.maxRewardsPerOrder,
     required this.trackRewards,
+    this.birthdayGift,
   });
 
   @override
@@ -359,7 +428,8 @@ class LoyaltyScanView {
       anyItem.hashCode ^
       anyItemCost.hashCode ^
       maxRewardsPerOrder.hashCode ^
-      trackRewards.hashCode;
+      trackRewards.hashCode ^
+      birthdayGift.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -372,7 +442,8 @@ class LoyaltyScanView {
           anyItem == other.anyItem &&
           anyItemCost == other.anyItemCost &&
           maxRewardsPerOrder == other.maxRewardsPerOrder &&
-          trackRewards == other.trackRewards;
+          trackRewards == other.trackRewards &&
+          birthdayGift == other.birthdayGift;
 }
 
 /// A track's balance once the ticked rewards are taken.

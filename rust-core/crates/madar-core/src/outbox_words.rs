@@ -136,6 +136,28 @@ mod tests {
         assert_eq!(refusal("ar", "award_loyalty_points", 409, old), tr("ar", "sync.refused"));
     }
 
+    /// The birthday-gift and stamp-track refusals a sale can meet are worded
+    /// in both languages (the server's 409 codes).
+    #[test]
+    fn a_gift_or_track_refusal_says_why_in_both_languages() {
+        for code in [
+            "LOYALTY_GIFT_NONE",
+            "LOYALTY_GIFT_NOT_A_REWARD",
+            "LOYALTY_GIFT_LINE",
+            "LOYALTY_TRACK_UNKNOWN",
+            "LOYALTY_TRACK_BALANCE_SHORT",
+            "LOYALTY_TRACK_NOT_ON_OFFER",
+        ] {
+            let body = format!(r#"{{"error":"Conflict: x","code":"{code}"}}"#);
+            let key = format!("sync.err_{}", code.to_lowercase());
+            for locale in ["en", "ar"] {
+                let said = refusal(locale, "create_order", 409, &body);
+                assert_eq!(said, tr(locale, &key), "{code} {locale}");
+                assert!(!said.starts_with("sync."), "{code} {locale}: {said}");
+            }
+        }
+    }
+
     /// Every coded refusal a queued op can meet through `/sync/replay` is
     /// worded in both languages, and an older server's uncoded 409 keeps
     /// today's wording: its own sentence in English, the plain one in Arabic.

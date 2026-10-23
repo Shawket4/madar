@@ -168,6 +168,14 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub waive_service_charge: Option<bool>,
+    /// The member's birthday gift on one line, named by `ticket_line_id`.
+    #[serde(
+        rename = "loyalty_birthday_gift",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub loyalty_birthday_gift: Option<Option<Box<models::LoyaltyGiftInput>>>,
 }
 
 impl SettleOpenTicketRequest {
@@ -195,6 +203,7 @@ impl SettleOpenTicketRequest {
             tip_payment_method: None,
             total_amount: None,
             waive_service_charge: None,
+            loyalty_birthday_gift: None,
         }
     }
 }

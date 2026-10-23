@@ -32,6 +32,8 @@ Name | Type | Description | Notes
 **winback_enabled** | Option<**bool**> | Nudge a member who has not been in for a while. Off by default, like everything here that speaks to a customer unprompted.  The timing is not a per-shop setting: how long \"a while\" is, whether it repeats, and how stale is too stale are one operational judgement across the estate, and they live in the environment (`LOYALTY_WINBACK_*`) rather than in a form where a shop could set it to a day and burn its own list down. | [optional]
 **winback_message** | Option<**String**> | ONE override, in whichever language the shop writes it, replacing the built-in English and Arabic both. `{name}` is substituted; nothing else.  Unset is the better default: the built-ins are written in each language rather than translated into one, so a customer reads a sentence that was composed for them. | [optional]
 **winback_reward_amount** | Option<**i32**> | Points or stamps to arrive with the nudge. `None` is words only. | [optional]
+**birthday_gift** | Option<**String**> | What the birthday gives: `\"none\"` (a greeting only), `\"amount\"` (`birthday_reward_amount` on the balance) or `\"item\"` (one free item from the rewards, whatever it costs, valid `birthday_gift_days` days). `None` on the way IN keeps the stored value, so a dashboard that has never heard of it cannot switch it; always `Some` on the way out. | [optional]
+**birthday_gift_days** | Option<**i32**> | How many days an `\"item\"` gift stays valid from the birthday, 7 to 60 (30 by default). `None` on the way IN keeps the stored value. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

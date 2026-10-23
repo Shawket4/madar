@@ -123,11 +123,15 @@ class CheckoutRedemption {
   /// The stamp track (2-4) that pays; `None` = track 1.
   final int? track;
 
+  /// The member's birthday gift rather than a reward (one unit, no balance).
+  final bool gift;
+
   const CheckoutRedemption({
     required this.itemIndex,
     this.ticketLineId,
     required this.units,
     this.track,
+    required this.gift,
   });
 
   @override
@@ -135,7 +139,8 @@ class CheckoutRedemption {
       itemIndex.hashCode ^
       ticketLineId.hashCode ^
       units.hashCode ^
-      track.hashCode;
+      track.hashCode ^
+      gift.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -145,7 +150,8 @@ class CheckoutRedemption {
           itemIndex == other.itemIndex &&
           ticketLineId == other.ticketLineId &&
           units == other.units &&
-          track == other.track;
+          track == other.track &&
+          gift == other.gift;
 }
 
 /// One leg of a split payment (a method + the amount paid on it).

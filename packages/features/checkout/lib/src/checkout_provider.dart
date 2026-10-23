@@ -118,6 +118,8 @@ class CheckoutState {
     this.rewardPicks = const [],
     this.rewardBoard,
     this.rewardRedemptions = const [],
+    this.giftLine,
+    this.giftBoard,
     this.loyaltyBusy = false,
     this.loyaltyError,
     this.loyaltyProgramme,
@@ -256,8 +258,16 @@ class CheckoutState {
   /// costs and what it takes off the bill. Null with no member attached.
   final RewardBoardView? rewardBoard;
 
-  /// The surviving picks in the shape checkout/settle sends.
+  /// The surviving picks in the shape checkout/settle sends (the birthday
+  /// gift among them, flagged `gift`).
   final List<CheckoutRedemption> rewardRedemptions;
+
+  /// The line the teller picked as the member's birthday gift.
+  final int? giftLine;
+
+  /// The core's gift section: open, which lines may be the gift, and whether
+  /// [giftLine] still may. Null without a member or a gift.
+  final GiftBoardView? giftBoard;
 
   /// The summary before rewards (the cart's totals, the server's bill) — what
   /// [summary] is re-priced from whenever the rewards change.
@@ -461,6 +471,8 @@ class CheckoutState {
     List<RewardPick>? rewardPicks,
     Object? rewardBoard = _unset,
     List<CheckoutRedemption>? rewardRedemptions,
+    Object? giftLine = _unset,
+    Object? giftBoard = _unset,
     bool? loyaltyBusy,
     Object? loyaltyError = _unset,
     LoyaltyProgrammeView? loyaltyProgramme,
@@ -527,6 +539,10 @@ class CheckoutState {
           ? this.rewardBoard
           : rewardBoard as RewardBoardView?,
       rewardRedemptions: rewardRedemptions ?? this.rewardRedemptions,
+      giftLine: giftLine == _unset ? this.giftLine : giftLine as int?,
+      giftBoard: giftBoard == _unset
+          ? this.giftBoard
+          : giftBoard as GiftBoardView?,
       loyaltyBusy: loyaltyBusy ?? this.loyaltyBusy,
       loyaltyError: loyaltyError == _unset
           ? this.loyaltyError
@@ -607,6 +623,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     final base = s.baseSummary;
     final bridge = _bridge;
     RewardBoardView? board;
+    GiftBoardView? gift;
     var redemptions = const <CheckoutRedemption>[];
     if (scan != null) {
       board = bridge.rewardBoard(
@@ -618,6 +635,20 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         lines: s.rewardLines,
         picks: board.picks,
       );
+      // The birthday gift: one line, one unit free, priced like a reward.
+      if (scan.birthdayGift != null) {
+        gift = bridge.giftBoard(
+          lines: s.rewardLines,
+          scan: scan,
+          picks: board.picks,
+          line: s.giftLine,
+        );
+        final on = gift.line;
+        final g = on == null
+            ? null
+            : bridge.giftRedemption(lines: s.rewardLines, line: on);
+        if (g != null) redemptions = [...redemptions, g];
+      }
     }
     var summary = base ?? s.summary;
     switch (s.target) {
@@ -656,12 +687,14 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     }
     if (scan == null &&
         s.rewardBoard == null &&
+        s.giftBoard == null &&
         s.rewardRedemptions.isEmpty &&
         identical(summary, s.summary)) {
       return s;
     }
     return s.copyWith(
       rewardBoard: board,
+      giftBoard: gift,
       rewardRedemptions: redemptions,
       summary: summary,
     );
@@ -949,6 +982,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
         (s) => s.copyWith(
           loyaltyScan: scan,
           rewardPicks: const [],
+          giftLine: null,
           loyaltyError: null,
           customer: person,
         ),
@@ -977,6 +1011,15 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       line: lineIndex,
     );
     _update((st) => st.copyWith(rewardPicks: next));
+  }
+
+  /// Make [lineIndex] the member's birthday gift, or take it off again.
+  /// One line at most; the core says which lines may be it.
+  void toggleGift(int lineIndex) {
+    _update(
+      (st) =>
+          st.copyWith(giftLine: st.giftLine == lineIndex ? null : lineIndex),
+    );
   }
 
   /// The teller's answer for a line two stamp tracks could cover: one unit
@@ -1039,6 +1082,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
               customer: customer,
               loyaltyScan: null,
               rewardPicks: const [],
+              giftLine: null,
               loyaltyError: null,
             );
     });
@@ -1071,6 +1115,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       (s) => s.copyWith(
         loyaltyScan: null,
         rewardPicks: const [],
+        giftLine: null,
         loyaltyError: null,
         customer: null,
       ),

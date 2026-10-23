@@ -162,6 +162,22 @@ pub struct LoyaltySettings {
         skip_serializing_if = "Option::is_none"
     )]
     pub winback_reward_amount: Option<Option<i32>>,
+    /// What the birthday gives: `\"none\"` (a greeting only), `\"amount\"` (`birthday_reward_amount` on the balance) or `\"item\"` (one free item from the rewards, whatever it costs, valid `birthday_gift_days` days). `None` on the way IN keeps the stored value, so a dashboard that has never heard of it cannot switch it; always `Some` on the way out.
+    #[serde(
+        rename = "birthday_gift",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub birthday_gift: Option<Option<String>>,
+    /// How many days an `\"item\"` gift stays valid from the birthday, 7 to 60 (30 by default). `None` on the way IN keeps the stored value.
+    #[serde(
+        rename = "birthday_gift_days",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub birthday_gift_days: Option<Option<i32>>,
 }
 
 impl LoyaltySettings {
@@ -205,6 +221,8 @@ impl LoyaltySettings {
             winback_enabled: None,
             winback_message: None,
             winback_reward_amount: None,
+            birthday_gift: None,
+            birthday_gift_days: None,
         }
     }
 }

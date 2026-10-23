@@ -228,6 +228,7 @@ Class | Method | HTTP request | Description
 *LoyaltyApi* | [**list_loyalty_members**](docs/LoyaltyApi.md#list_loyalty_members) | **GET** /loyalty/members | 
 *LoyaltyApi* | [**loyalty_adjust**](docs/LoyaltyApi.md#loyalty_adjust) | **POST** /loyalty/adjust | 
 *LoyaltyApi* | [**loyalty_award**](docs/LoyaltyApi.md#loyalty_award) | **POST** /loyalty/award | The live route. Tellers press the button; the permission is the same `update` the redeem action needs.
+*LoyaltyApi* | [**loyalty_counter_birthday_gift**](docs/LoyaltyApi.md#loyalty_counter_birthday_gift) | **POST** /loyalty/counter/birthday-gift | Hand over the member's birthday gift at the counter: one free item, the shop's pick. No balance moves.
 *LoyaltyApi* | [**loyalty_counter_redeem**](docs/LoyaltyApi.md#loyalty_counter_redeem) | **POST** /loyalty/counter/redeem | Complete a full card: deduct exactly the card's size; extra stamps stay.
 *LoyaltyApi* | [**loyalty_counter_stamp**](docs/LoyaltyApi.md#loyalty_counter_stamp) | **POST** /loyalty/counter/stamp | Stamp a member's card for a visit (no order).
 *LoyaltyApi* | [**loyalty_lookup**](docs/LoyaltyApi.md#loyalty_lookup) | **POST** /loyalty/lookup | Identify the member in front of the till.
@@ -762,6 +763,7 @@ Class | Method | HTTP request | Description
  - [AvailabilityResponse](docs/AvailabilityResponse.md)
  - [AwardRequest](docs/AwardRequest.md)
  - [AwardResult](docs/AwardResult.md)
+ - [BirthdayGiftView](docs/BirthdayGiftView.md)
  - [BirthdayPreview](docs/BirthdayPreview.md)
  - [BoardInfo](docs/BoardInfo.md)
  - [BookingSettings](docs/BookingSettings.md)
@@ -893,6 +895,8 @@ Class | Method | HTTP request | Description
  - [ConversationList](docs/ConversationList.md)
  - [ConversationSummary](docs/ConversationSummary.md)
  - [CorrectRecordRequest](docs/CorrectRecordRequest.md)
+ - [CounterGiftRequest](docs/CounterGiftRequest.md)
+ - [CounterGiftResult](docs/CounterGiftResult.md)
  - [CounterRedeemRequest](docs/CounterRedeemRequest.md)
  - [CounterResult](docs/CounterResult.md)
  - [CounterStampRequest](docs/CounterStampRequest.md)
@@ -1104,6 +1108,7 @@ Class | Method | HTTP request | Description
  - [LowStockRow](docs/LowStockRow.md)
  - [LoyaltyAnalytics](docs/LoyaltyAnalytics.md)
  - [LoyaltyBehavior](docs/LoyaltyBehavior.md)
+ - [LoyaltyGiftInput](docs/LoyaltyGiftInput.md)
  - [LoyaltyRedemptionInput](docs/LoyaltyRedemptionInput.md)
  - [LoyaltySettings](docs/LoyaltySettings.md)
  - [ManualRecordRequest](docs/ManualRecordRequest.md)

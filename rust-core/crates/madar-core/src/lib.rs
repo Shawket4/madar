@@ -6307,9 +6307,10 @@ impl MadarCore {
             detail: i18n::tr(&locale, key),
         };
         if !self.current_session().map(|s| s.online).unwrap_or(false) {
+            let gift_only = asked.iter().all(|r| r.gift);
             return Err(CoreError::Validation {
                 field: String::new(),
-                detail: REWARD_OFFLINE.into(),
+                detail: if gift_only { GIFT_OFFLINE } else { REWARD_OFFLINE }.into(),
             });
         }
         let customer_id = customer_id.ok_or_else(|| refuse("loyalty.reward_member_changed"))?;
@@ -6317,6 +6318,19 @@ impl MadarCore {
             return Err(refuse("loyalty.reward_programme_off"));
         }
         let scan = self.loyalty_refresh(customer_id.to_string()).await?;
+        // The gift: still open on the server's card, on a line that may be it.
+        if let Some(g) = asked.iter().find(|r| r.gift) {
+            if !scan.birthday_gift.as_ref().is_some_and(|b| b.open) {
+                return Err(refuse("loyalty.gift_gone"));
+            }
+            let at = match &g.ticket_line_id {
+                Some(id) => lines.iter().find(|l| l.ticket_line_id.as_deref() == Some(id)),
+                None => lines.iter().find(|l| l.cart_index == Some(g.item_index)),
+            };
+            if !at.is_some_and(|l| loyalty::gift_eligible(l, &scan)) {
+                return Err(refuse("loyalty.gift_not_eligible"));
+            }
+        }
         let picks = loyalty::picks_from_redemptions(lines, asked);
         let board = loyalty::reward_board(lines, &scan, &picks, &locale);
         let norm = |mut p: Vec<loyalty::RewardPick>| {
@@ -6350,6 +6364,10 @@ impl MadarCore {
 /// The detail a reward refused for want of a connection carries; the host
 /// maps it to `loyalty.reward_offline` (see `coreDetailKeys`).
 pub const REWARD_OFFLINE: &str = "a reward can only be redeemed online";
+
+/// The same for a sale whose only cover is the birthday gift
+/// (`loyalty.gift_offline`).
+pub const GIFT_OFFLINE: &str = "the birthday gift can only be used online";
 
 fn loyalty_refusal_key(op_id: &str) -> String {
     format!("loyalty_refused:{op_id}")
@@ -8418,8 +8436,10 @@ impl MadarCore {
         order_id: &str,
     ) -> Result<checkout::ReceiptView, CoreError> {
         let old_server = self.staff_old_server_notice(order_id.to_string());
+        let locale = self.current_locale();
+        let names = loyalty::feed_track_names(&self.store, &self.session_branch_id().unwrap_or_default(), &locale);
         if let Some(full) = ledger::views::order_full(&self.store, order_id)? {
-            let mut r = orders::order_to_receipt(&full, &self.current_locale());
+            let mut r = orders::order_to_receipt_with(&full, &locale, &names);
             r.staff_notice = old_server;
             return Ok(r);
         }
@@ -8427,7 +8447,7 @@ impl MadarCore {
             return Ok(receipt);
         }
         let o = self.order_full_for(order_id).await?;
-        let mut r = orders::order_to_receipt(&o, &self.current_locale());
+        let mut r = orders::order_to_receipt_with(&o, &locale, &names);
         r.staff_notice = old_server;
         Ok(r)
     }
@@ -9554,9 +9574,20 @@ impl MadarCore {
                 request.payment_splits = Some(Some(legs));
             }
         }
-        if !loyalty_redemptions.is_empty() {
+        let (gift, rewards) = checkout::split_gift(&loyalty_redemptions);
+        if let Some(g) = gift {
+            request.loyalty_birthday_gift = Some(Some(Box::new(madar_api::models::LoyaltyGiftInput {
+                item_index: None,
+                ticket_line_id: g
+                    .ticket_line_id
+                    .as_deref()
+                    .and_then(|s| uuid::Uuid::parse_str(s).ok())
+                    .map(Some),
+            })));
+        }
+        if !rewards.is_empty() {
             request.loyalty_redemptions = Some(
-                loyalty_redemptions
+                rewards
                     .iter()
                     .map(|r| madar_api::models::LoyaltyRedemptionInput {
                         // A ticket names its LINE; the server resolves the index.
@@ -11656,6 +11687,7 @@ mod lifecycle_tests {
         }];
         let asked = vec![checkout::CheckoutRedemption {
             track: None,
+            gift: false,
             item_index: 0,
             ticket_line_id: None,
             units: 1,
@@ -11682,6 +11714,7 @@ mod lifecycle_tests {
                 Some("00000000-0000-0000-0000-00000000c0de".into()),
                 vec![checkout::CheckoutRedemption {
                     track: None,
+                    gift: false,
                     item_index: 0,
                     ticket_line_id: Some("00000000-0000-0000-0000-0000000000f2".into()),
                     units: 1,
@@ -11694,6 +11727,16 @@ mod lifecycle_tests {
             .await;
         assert!(settle.is_err());
         assert_eq!(core.store.pending().unwrap().len(), 0, "nothing queued");
+        // The birthday gift alone says so in its own words.
+        let gift = vec![loyalty::gift_redemption(&lines, 0).unwrap()];
+        let err = core
+            .verify_rewards(Some("00000000-0000-0000-0000-00000000c0de"), &lines, &gift)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&err, CoreError::Validation { detail, .. } if detail == GIFT_OFFLINE),
+            "{err:?}"
+        );
         // No rewards, no check: a plain sale is never held up by loyalty.
         assert!(core.verify_rewards(None, &lines, &[]).await.is_ok());
     }

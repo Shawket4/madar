@@ -254,6 +254,14 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub verification: Option<Option<String>>,
+    /// The member's birthday gift on ONE line: one unit of it free, whatever it costs, no balance spent (`loyalty::gifts`). Needs `loyalty_customer_id`. Refused live with `LOYALTY_GIFT_NONE`, `LOYALTY_GIFT_NOT_A_REWARD` or `LOYALTY_GIFT_LINE`. Additive.
+    #[serde(
+        rename = "loyalty_birthday_gift",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub loyalty_birthday_gift: Option<Option<Box<models::LoyaltyGiftInput>>>,
 }
 
 impl CreateOrderRequest {
@@ -300,6 +308,7 @@ impl CreateOrderRequest {
             tip_payment_method: None,
             total_amount: None,
             verification: None,
+            loyalty_birthday_gift: None,
         }
     }
 }

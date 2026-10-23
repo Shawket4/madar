@@ -12,8 +12,27 @@ use flutter_rust_bridge::frb;
 pub use madar_core::loyalty::{
     LoyaltyAwardOutcome, LoyaltyLedgerView, LoyaltyMemberView, LoyaltyProgrammeView,
     LoyaltyRewardView, LoyaltyScanInput, LoyaltyScanView, LoyaltyTrackAfter, LoyaltyTrackAward,
-    LoyaltyTrackRewardsView, LoyaltyTrackView,
+    LoyaltyTrackRewardsView, LoyaltyTrackView, LoyaltyGiftView, GiftBoardView,
 };
+
+/// The birthday gift as the till shows it.
+#[frb(mirror(LoyaltyGiftView))]
+pub struct _LoyaltyGiftView {
+    pub open: bool,
+    pub valid_until: String,
+    pub until_label: String,
+}
+
+/// The gift's part of the Charge screen.
+#[frb(mirror(GiftBoardView))]
+pub struct _GiftBoardView {
+    pub open: bool,
+    pub headline: String,
+    pub eligible: Vec<u32>,
+    pub line: Option<u32>,
+    pub covered_minor: i64,
+    pub note: Option<String>,
+}
 
 /// One stamp track on a member's card.
 #[frb(mirror(LoyaltyTrackView))]
@@ -154,6 +173,8 @@ pub struct _LoyaltyScanView {
     pub max_rewards_per_order: Option<i64>,
     /// Tracks 2-4's rewards; empty on a one-track card.
     pub track_rewards: Vec<LoyaltyTrackRewardsView>,
+    /// The birthday gift; `None` without one (and from an older server).
+    pub birthday_gift: Option<LoyaltyGiftView>,
 }
 
 pub use madar_core::loyalty::{RewardBoardView, RewardLineInput, RewardLineState, RewardPick};
@@ -306,6 +327,30 @@ impl MadarBridge {
         line: u32,
     ) -> Vec<RewardPick> {
         madar_core::loyalty::toggle_reward(&lines, &scan, &picks, line, &self.inner.current_locale())
+    }
+
+    /// The birthday gift section: which lines may be the free item (rewards in
+    /// `picks` set aside) and whether `line` still may be.
+    #[frb(sync)]
+    pub fn gift_board(
+        &self,
+        lines: Vec<RewardLineInput>,
+        scan: LoyaltyScanView,
+        picks: Vec<RewardPick>,
+        line: Option<u32>,
+    ) -> GiftBoardView {
+        madar_core::loyalty::gift_board(&lines, &scan, &picks, line, &self.inner.current_locale())
+    }
+
+    /// The gift on `line` as a checkout or settle carries it, appended to the
+    /// board's redemptions (priced like a reward, sent as the gift).
+    #[frb(sync)]
+    pub fn gift_redemption(
+        &self,
+        lines: Vec<RewardLineInput>,
+        line: u32,
+    ) -> Option<crate::api::orders::CheckoutRedemption> {
+        madar_core::loyalty::gift_redemption(&lines, line)
     }
 
     /// The teller's answer to "which card pays?" for a line two tracks could

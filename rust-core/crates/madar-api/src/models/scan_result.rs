@@ -52,6 +52,14 @@ pub struct ScanResult {
         skip_serializing_if = "Option::is_none"
     )]
     pub track_rewards: Option<Option<Vec<models::TrackRewards>>>,
+    /// The member's birthday gift: `open` is one free item to hand over (`loyalty_birthday_gift` on the order, or the counter's `/loyalty/counter/birthday-gift`); `claimed` was used this time. Absent when there is none or it expired.
+    #[serde(
+        rename = "birthday_gift",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub birthday_gift: Option<Option<Box<models::BirthdayGiftView>>>,
 }
 
 impl ScanResult {
@@ -72,6 +80,7 @@ impl ScanResult {
             recent,
             rewards,
             track_rewards: None,
+            birthday_gift: None,
         }
     }
 }

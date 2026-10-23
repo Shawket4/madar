@@ -135,6 +135,43 @@ pub struct LoyaltyScanView {
     /// Tracks 2-4's rewards (`rewards` stays track 1's). Empty unless the
     /// card has more than one track.
     pub track_rewards: Vec<LoyaltyTrackRewardsView>,
+    /// The member's birthday gift (one free item), while it is open or was
+    /// used this time; `None` otherwise and from an older server.
+    pub birthday_gift: Option<LoyaltyGiftView>,
+}
+
+/// The birthday gift as the till shows it.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoyaltyGiftView {
+    /// Ready to hand over (`open` and not past its last day); `false` once
+    /// claimed.
+    pub open: bool,
+    /// RFC3339: usable until this instant.
+    pub valid_until: String,
+    /// The last day it can be used ("21 Nov"), in the till's language.
+    pub until_label: String,
+}
+
+/// The gift's part of the Charge screen: which lines may be the free item
+/// and the one picked, if it still may be.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GiftBoardView {
+    /// An open gift is on the card: the section shows.
+    pub open: bool,
+    /// "Birthday gift: one free item · until 21 Nov".
+    pub headline: String,
+    /// Lines that may be the gift (positions in the board's lines). The
+    /// teller picks one; even a single candidate is never picked for them,
+    /// the gift being theirs to keep for another day.
+    pub eligible: Vec<u32>,
+    /// The picked line, if it still may be the gift.
+    pub line: Option<u32>,
+    /// Minor units the gift takes off the bill (one unit of its line).
+    pub covered_minor: i64,
+    /// Why nothing can be the gift on this sale, in the till's language.
+    pub note: Option<String>,
 }
 
 /// What came of pressing "add points" on a sale.
@@ -548,6 +585,11 @@ pub fn scan_view(s: &madar_api::models::ScanResult, locale: &str) -> LoyaltyScan
                     .collect(),
             })
             .collect(),
+        birthday_gift: s
+            .birthday_gift
+            .clone()
+            .flatten()
+            .map(|g| gift_view(&g, chrono::Utc::now().fixed_offset(), locale)),
         any_item: s.any_item,
         any_item_cost: s.any_item_cost as i64,
         max_rewards_per_order: s.max_rewards_per_order.flatten().map(i64::from),
@@ -565,6 +607,135 @@ pub fn scan_view(s: &madar_api::models::ScanResult, locale: &str) -> LoyaltyScan
             })
             .collect(),
     }
+}
+
+// ── The birthday gift ────────────────────────────────────────────────────────
+
+/// The gift as of `now`: open only while the server says `open` and its
+/// window has not passed (a lookup held on screen past midnight on the last
+/// day shows it used up rather than offering what the server will refuse).
+pub fn gift_view(
+    g: &madar_api::models::BirthdayGiftView,
+    now: chrono::DateTime<chrono::FixedOffset>,
+    locale: &str,
+) -> LoyaltyGiftView {
+    // The last day: the instant it ends, minus a second (an end at midnight
+    // is the day before), in the offset the server wrote.
+    let last = g.valid_until - chrono::Duration::seconds(1);
+    use chrono::Datelike;
+    LoyaltyGiftView {
+        open: g.status == "open" && g.valid_until > now,
+        valid_until: g.valid_until.to_rfc3339(),
+        until_label: format!(
+            "{} {}",
+            last.day(),
+            crate::i18n::tr(locale, &format!("staff.month_{}", last.month()))
+        ),
+    }
+}
+
+/// May `line` be the birthday gift? A menu item, not a staff drink, not in a
+/// combo or a deal, and a reward here: in the catalogue, or any item when the
+/// programme rewards any item. The server's `loyalty::gifts` rule.
+///
+/// ponytail: `rewards` is the catalogue the member can AFFORD, so with "any
+/// item" off a gift is only offered on what the balance could buy anyway
+/// (never over-offers). Needs the full catalogue on `ScanResult` to offer the
+/// rest; the rule then moves to madar-shared beside `madar_loyalty::plan`.
+pub fn gift_eligible(line: &RewardLineInput, scan: &LoyaltyScanView) -> bool {
+    if line.is_staff_drink || line.in_combo || line.in_deal || line.qty < 1 {
+        return false;
+    }
+    let Some(item) = line.menu_item_id.as_deref() else {
+        return false;
+    };
+    scan.any_item || scan.rewards.iter().any(|r| r.menu_item_id == item)
+}
+
+/// The gift section for these lines: what may be the gift once the rewards
+/// in `picks` are set aside (a line is a reward OR the gift), and whether the
+/// teller's `asked` line still may.
+pub fn gift_board(
+    lines: &[RewardLineInput],
+    scan: &LoyaltyScanView,
+    picks: &[RewardPick],
+    asked: Option<u32>,
+    locale: &str,
+) -> GiftBoardView {
+    let Some(g) = scan.birthday_gift.as_ref().filter(|g| g.open) else {
+        return GiftBoardView {
+            open: false,
+            headline: String::new(),
+            eligible: Vec::new(),
+            line: None,
+            covered_minor: 0,
+            note: None,
+        };
+    };
+    let covered = reward_board(lines, scan, picks, locale).picks;
+    let eligible: Vec<u32> = lines
+        .iter()
+        .enumerate()
+        .filter(|(i, l)| gift_eligible(l, scan) && !covered.iter().any(|p| p.line as usize == *i))
+        .map(|(i, _)| i as u32)
+        .collect();
+    let line = asked.filter(|a| eligible.contains(a));
+    GiftBoardView {
+        open: true,
+        headline: crate::i18n::tr(locale, "loyalty.gift_headline").replace("{date}", &g.until_label),
+        note: eligible
+            .is_empty()
+            .then(|| crate::i18n::tr(locale, "loyalty.gift_nothing")),
+        covered_minor: line
+            .and_then(|i| lines.get(i as usize))
+            .map_or(0, |l| covered_minor(l.line_total_minor, l.qty as i64, 1)),
+        eligible,
+        line,
+    }
+}
+
+/// The gift on `line` in the shape a checkout or settle carries it (one unit,
+/// priced like a reward; the core sends it as `loyalty_birthday_gift`).
+pub fn gift_redemption(
+    lines: &[RewardLineInput],
+    line: u32,
+) -> Option<crate::checkout::CheckoutRedemption> {
+    let l = lines.get(line as usize)?;
+    Some(crate::checkout::CheckoutRedemption {
+        item_index: l.cart_index.unwrap_or(0),
+        ticket_line_id: l.ticket_line_id.clone(),
+        units: 1,
+        track: None,
+        gift: true,
+    })
+}
+
+/// The receipt's word for a covered line: "Birthday gift", or "Reward"
+/// (×units) with the track's name for a track 2-4 reward.
+pub fn cover_label(units: i64, track_name: Option<&str>, gift: bool, locale: &str) -> String {
+    if gift {
+        return crate::i18n::tr(locale, "loyalty.gift_line");
+    }
+    match track_name.filter(|n| !n.is_empty()) {
+        Some(n) => format!("{} · {n}", reward_label(units, locale)),
+        None => reward_label(units, locale),
+    }
+}
+
+/// Tracks 2-4's names from the branch's synced loyalty settings (the feed's
+/// `loyalty.tracks`), in the till's language; empty for a one-track card or
+/// an older server.
+pub(crate) fn feed_track_names(store: &crate::store::Store, branch_id: &str, locale: &str) -> Vec<(u32, String)> {
+    crate::sync_pull::branch_setting(store, branch_id, "loyalty")
+        .and_then(|v| v.get("tracks").and_then(serde_json::Value::as_array).cloned())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|t| {
+            let pos = t.get("position")?.as_u64()? as u32;
+            let s = |k: &str| t.get(k).and_then(serde_json::Value::as_str).unwrap_or_default().to_string();
+            (pos > 1).then(|| (pos, crate::menu::pick_lang(&s("name_en"), &s("name_ar"), locale)))
+        })
+        .collect()
 }
 
 // ── Rewards on a basket ──────────────────────────────────────────────────────
@@ -719,6 +890,8 @@ pub fn picks_from_redemptions(
 ) -> Vec<RewardPick> {
     asked
         .iter()
+        // The birthday gift is not a reward pick (see `gift_board`).
+        .filter(|r| !r.gift)
         .map(|r| {
             let found = match &r.ticket_line_id {
                 Some(id) => lines
@@ -752,6 +925,7 @@ pub fn redemptions_from_picks(
                 units: p.units,
                 // Track 1 is named by saying nothing, as every released till does.
                 track: (p.track > 1).then_some(p.track),
+                gift: false,
             })
         })
         .collect()
@@ -1448,6 +1622,7 @@ mod tests {
             any_item_cost: 8,
             max_rewards_per_order: cap,
             track_rewards: vec![],
+            birthday_gift: None,
         }
     }
 
@@ -1941,6 +2116,89 @@ mod tests {
             checked += 1;
         }
         assert!(checked >= 8, "checked {checked}");
+    }
+
+
+    // ── the birthday gift ────────────────────────────────────────────────────
+
+    fn api_gift(status: &str, until: &str) -> madar_api::models::BirthdayGiftView {
+        madar_api::models::BirthdayGiftView::new(status.into(), until.parse().unwrap())
+    }
+
+    #[test]
+    fn a_gift_is_open_until_its_last_day_and_names_it() {
+        let now = "2026-11-10T12:00:00+02:00".parse().unwrap();
+        // Ends at midnight (shop time) after 21 Nov: the last day is the 21st.
+        let g = gift_view(&api_gift("open", "2026-11-22T00:00:00+02:00"), now, "en");
+        assert!(g.open);
+        assert_eq!(g.until_label, "21 Nov");
+        assert_eq!(gift_view(&api_gift("open", "2026-11-21T23:59:59+02:00"), now, "ar").until_label, "21 نوفمبر");
+        assert!(!gift_view(&api_gift("claimed", "2026-11-22T00:00:00+02:00"), now, "en").open);
+        assert!(!gift_view(&api_gift("open", "2026-11-10T11:59:00+02:00"), now, "en").open, "past its window");
+    }
+
+    fn with_gift(any_item: bool) -> LoyaltyScanView {
+        let mut s = scan(2, None, any_item);
+        s.birthday_gift = Some(LoyaltyGiftView {
+            open: true,
+            valid_until: "2026-11-22T00:00:00+02:00".into(),
+            until_label: "21 Nov".into(),
+        });
+        s
+    }
+
+    #[test]
+    fn the_gift_goes_on_one_reward_line_never_a_staff_drink_combo_deal_or_a_reward() {
+        let mut staff = line("latte", 1, 5_000);
+        staff.is_staff_drink = true;
+        let mut combo = line("latte", 1, 5_000);
+        combo.in_combo = true;
+        let mut dealt = line("latte", 1, 5_000);
+        dealt.in_deal = true;
+        let lines = [line("latte", 2, 10_000), line("cake", 1, 9_000), staff, combo, dealt];
+        // Catalogue only: the latte; the cake is not a reward here.
+        let b = gift_board(&lines, &with_gift(false), &[], None, "en");
+        assert!(b.open);
+        assert_eq!(b.eligible, vec![0]);
+        assert_eq!(b.line, None, "never picked for the teller");
+        assert_eq!(b.headline, "Birthday gift: one free item · until 21 Nov");
+        // Any item: the cake too.
+        let any = gift_board(&lines, &with_gift(true), &[], Some(1), "en");
+        assert_eq!(any.eligible, vec![0, 1]);
+        assert_eq!(any.line, Some(1));
+        assert_eq!(any.covered_minor, 9_000);
+        // A line a reward covers cannot also be the gift (balance 2 < 5, so
+        // give the member enough for the latte reward first).
+        let mut rich = with_gift(false);
+        rich.member.balance = 10;
+        let taken = gift_board(&lines, &rich, &[pick(0, 1)], Some(0), "en");
+        assert!(taken.eligible.is_empty());
+        assert_eq!(taken.line, None, "the reward won the line");
+        assert_eq!(taken.note.as_deref(), Some("Nothing on this sale can be the gift"));
+        // One unit of a two-latte line.
+        assert_eq!(gift_board(&lines, &with_gift(false), &[], Some(0), "en").covered_minor, 5_000);
+    }
+
+    #[test]
+    fn no_gift_or_an_older_server_shows_no_section() {
+        let lines = [line("latte", 1, 5_000)];
+        let b = gift_board(&lines, &scan(2, None, true), &[], Some(0), "en");
+        assert!(!b.open && b.eligible.is_empty() && b.line.is_none());
+        let s = madar_api::models::ScanResult::default();
+        assert!(scan_view(&s, "en").birthday_gift.is_none());
+    }
+
+    #[test]
+    fn the_gift_and_a_track_reward_are_named_on_the_receipt() {
+        assert_eq!(cover_label(1, None, true, "en"), "Birthday gift");
+        assert_eq!(cover_label(1, None, true, "ar"), "هدية عيد الميلاد");
+        assert_eq!(cover_label(2, Some("Cakes"), false, "en"), "Reward ×2 · Cakes");
+        assert_eq!(cover_label(1, None, false, "en"), "Reward");
+        let r = gift_redemption(&[line("latte", 1, 5_000)], 0).unwrap();
+        assert!(r.gift && r.units == 1 && r.track.is_none());
+        assert!(gift_redemption(&[], 0).is_none());
+        // A gift in the asked list is not a reward pick.
+        assert!(picks_from_redemptions(&[line("latte", 1, 5_000)], &[r]).is_empty());
     }
 
 }

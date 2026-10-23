@@ -2455,6 +2455,7 @@ async fn no_reward_and_no_staff_drink_inside_a_combo_or_a_deal() {
     let ask = |i: u32| {
         vec![checkout::CheckoutRedemption {
             track: None,
+            gift: false,
             item_index: i,
             ticket_line_id: None,
             units: 1,

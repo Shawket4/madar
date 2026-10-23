@@ -28,6 +28,7 @@ Method | HTTP request | Description
 [**list_loyalty_members**](LoyaltyApi.md#list_loyalty_members) | **GET** /loyalty/members | 
 [**loyalty_adjust**](LoyaltyApi.md#loyalty_adjust) | **POST** /loyalty/adjust | 
 [**loyalty_award**](LoyaltyApi.md#loyalty_award) | **POST** /loyalty/award | The live route. Tellers press the button; the permission is the same `update` the redeem action needs.
+[**loyalty_counter_birthday_gift**](LoyaltyApi.md#loyalty_counter_birthday_gift) | **POST** /loyalty/counter/birthday-gift | Hand over the member's birthday gift at the counter: one free item, the shop's pick. No balance moves.
 [**loyalty_counter_redeem**](LoyaltyApi.md#loyalty_counter_redeem) | **POST** /loyalty/counter/redeem | Complete a full card: deduct exactly the card's size; extra stamps stay.
 [**loyalty_counter_stamp**](LoyaltyApi.md#loyalty_counter_stamp) | **POST** /loyalty/counter/stamp | Stamp a member's card for a visit (no order).
 [**loyalty_lookup**](LoyaltyApi.md#loyalty_lookup) | **POST** /loyalty/lookup | Identify the member in front of the till.
@@ -721,6 +722,34 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::AwardResult**](AwardResult.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## loyalty_counter_birthday_gift
+
+> models::CounterGiftResult loyalty_counter_birthday_gift(counter_gift_request)
+Hand over the member's birthday gift at the counter: one free item, the shop's pick. No balance moves.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**counter_gift_request** | [**CounterGiftRequest**](CounterGiftRequest.md) |  | [required] |
+
+### Return type
+
+[**models::CounterGiftResult**](CounterGiftResult.md)
 
 ### Authorization
 

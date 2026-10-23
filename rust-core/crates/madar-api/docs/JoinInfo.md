@@ -18,6 +18,10 @@ Name | Type | Description | Notes
 **rewards** | [**Vec<models::PublicReward>**](PublicReward.md) | The rewards on offer, each with what it costs. | 
 **terms** | Option<**String**> |  | [optional]
 **terms_ar** | Option<**String**> |  | [optional]
+**birthday_gift** | Option<**String**> | What the birthday gives here: `item` (one free item) or `amount` (`birthday_reward_amount` on the card). Absent when birthdays are off or give nothing. | [optional]
+**card_size** | Option<**i32**> | The card size: how many stamps (or points) fill one card, the cheapest reward on offer (`model::card_size`), the same figure the till and the passes count towards. Equal to `next_reward_cost`, under its own name. | [optional]
+**member_count** | Option<**i64**> | \"N+ people already have this card\": the programme's live members, floored to a step (100, 150, 200, 250, 300, 400, 500, 750, 1000, ...; `loyalty::social`). Absent at 100 members or fewer, and never exact. | [optional]
+**stamp_unit** | Option<**String**> | What one stamp stands for: `order` (one per sale), `item` (one per item bought) or `stamp` (a Rewards by Madar counter shop: the teller stamps the card). Absent for a points programme. The same rule the passes and messages use (`earn::StampUnit`). | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

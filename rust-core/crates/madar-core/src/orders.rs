@@ -553,6 +553,16 @@ pub(crate) fn order_to_receipt(
     o: &models::OrderFull,
     locale: &str,
 ) -> crate::checkout::ReceiptView {
+    order_to_receipt_with(o, locale, &[])
+}
+
+/// [`order_to_receipt`], naming a track 2-4 reward's track ("Reward · Cakes")
+/// from `track_names` (the feed's, [`crate::loyalty::feed_track_names`]).
+pub(crate) fn order_to_receipt_with(
+    o: &models::OrderFull,
+    locale: &str,
+    track_names: &[(u32, String)],
+) -> crate::checkout::ReceiptView {
     use crate::checkout::{ReceiptLineView, ReceiptModifierView};
 
     let lines = o
@@ -598,7 +608,14 @@ pub(crate) fn order_to_receipt(
                     .then(|| crate::i18n::tr(locale, "staff_pool.badge")),
                 staff_comp_minor: staff_comp,
                 reward_label: it.is_reward.unwrap_or(false).then(|| {
-                    crate::loyalty::reward_label(it.reward_units.unwrap_or(0) as i64, locale)
+                    let track = it.reward_track.and_then(|t| u32::try_from(t).ok());
+                    let name = track.and_then(|t| track_names.iter().find(|(p, _)| *p == t));
+                    crate::loyalty::cover_label(
+                        it.reward_units.unwrap_or(0) as i64,
+                        name.map(|(_, n)| n.as_str()),
+                        false,
+                        locale,
+                    )
                 }),
                 addons,
                 optionals,

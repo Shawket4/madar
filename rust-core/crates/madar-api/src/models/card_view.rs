@@ -69,6 +69,30 @@ pub struct CardView {
         skip_serializing_if = "Option::is_none"
     )]
     pub tracks: Option<Option<Vec<models::MemberTrack>>>,
+    /// The member's birthday gift while it is open, or claimed and still in its window. Absent otherwise.
+    #[serde(
+        rename = "birthday_gift",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub birthday_gift: Option<Option<Box<models::BirthdayGiftView>>>,
+    /// The card size: how many stamps (or points) fill one card, the cheapest reward on offer (`model::card_size`), the same figure the till and the passes count towards. Equal to `next_reward_cost`, under its own name.
+    #[serde(
+        rename = "card_size",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub card_size: Option<Option<i32>>,
+    /// What one stamp stands for: `order`, `item` or `stamp` (a counter shop); absent for points. The join info's rule (`earn::StampUnit`).
+    #[serde(
+        rename = "stamp_unit",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub stamp_unit: Option<Option<String>>,
 }
 
 impl CardView {
@@ -105,6 +129,9 @@ impl CardView {
             rewards,
             rewards_ready,
             tracks: None,
+            birthday_gift: None,
+            card_size: None,
+            stamp_unit: None,
         }
     }
 }

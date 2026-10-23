@@ -83,6 +83,38 @@ pub struct JoinInfo {
         skip_serializing_if = "Option::is_none"
     )]
     pub terms_ar: Option<Option<String>>,
+    /// What the birthday gives here: `item` (one free item) or `amount` (`birthday_reward_amount` on the card). Absent when birthdays are off or give nothing.
+    #[serde(
+        rename = "birthday_gift",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub birthday_gift: Option<Option<String>>,
+    /// The card size: how many stamps (or points) fill one card, the cheapest reward on offer (`model::card_size`), the same figure the till and the passes count towards. Equal to `next_reward_cost`, under its own name.
+    #[serde(
+        rename = "card_size",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub card_size: Option<Option<i32>>,
+    /// \"N+ people already have this card\": the programme's live members, floored to a step (100, 150, 200, 250, 300, 400, 500, 750, 1000, ...; `loyalty::social`). Absent at 100 members or fewer, and never exact.
+    #[serde(
+        rename = "member_count",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub member_count: Option<Option<i64>>,
+    /// What one stamp stands for: `order` (one per sale), `item` (one per item bought) or `stamp` (a Rewards by Madar counter shop: the teller stamps the card). Absent for a points programme. The same rule the passes and messages use (`earn::StampUnit`).
+    #[serde(
+        rename = "stamp_unit",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub stamp_unit: Option<Option<String>>,
 }
 
 impl JoinInfo {
@@ -112,6 +144,10 @@ impl JoinInfo {
             rewards,
             terms: None,
             terms_ar: None,
+            birthday_gift: None,
+            card_size: None,
+            member_count: None,
+            stamp_unit: None,
         }
     }
 }

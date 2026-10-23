@@ -399,6 +399,18 @@ pub struct CheckoutRedemption {
     /// JSON when `None`, so a track-1 sale's bytes are what they always were.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub track: Option<u32>,
+    /// The member's birthday gift rather than a reward: one unit free, no
+    /// balance spent; sent as `loyalty_birthday_gift`, never as a redemption.
+    /// Left out of the JSON when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gift: bool,
+}
+
+/// The birthday gift a sale names, if any, and its rewards (everything else).
+pub(crate) fn split_gift(
+    asked: &[CheckoutRedemption],
+) -> (Option<&CheckoutRedemption>, Vec<&CheckoutRedemption>) {
+    (asked.iter().find(|r| r.gift), asked.iter().filter(|r| !r.gift).collect())
 }
 
 /// Everything the FFI needs to commit a checkout: the queued command + the
@@ -822,10 +834,16 @@ pub(crate) fn prepare(
         .as_deref()
         .and_then(|id| uuid::Uuid::parse_str(id).ok())
         .map(Some);
-    if !input.loyalty_redemptions.is_empty() {
+    let (gift, rewards) = split_gift(&input.loyalty_redemptions);
+    if let Some(g) = gift {
+        request.loyalty_birthday_gift = Some(Some(Box::new(models::LoyaltyGiftInput {
+            item_index: Some(Some(g.item_index)),
+            ticket_line_id: None,
+        })));
+    }
+    if !rewards.is_empty() {
         request.loyalty_redemptions = Some(
-            input
-                .loyalty_redemptions
+            rewards
                 .iter()
                 .map(|r| models::LoyaltyRedemptionInput {
                     item_index: Some(Some(r.item_index)),
@@ -906,6 +924,11 @@ pub(crate) fn prepare(
         None => (None, None),
     };
     request.order_ref = mint_ref.clone().map(Some);
+    let track_names = if input.loyalty_redemptions.iter().any(|r| r.track.is_some_and(|t| t > 1)) {
+        crate::loyalty::feed_track_names(store, branch_id, locale)
+    } else {
+        Vec::new()
+    };
     let receipt = ReceiptView {
         local_order_id: order_id.to_string(),
         order_number: mint_number,
@@ -923,7 +946,15 @@ pub(crate) fn prepare(
                 if units > 0 {
                     line.line_total_minor -=
                         crate::loyalty::covered_minor(l.line_total_minor, l.qty, units);
-                    line.reward_label = Some(crate::loyalty::reward_label(units, locale));
+                    let asked = input.loyalty_redemptions.iter().find(|r| r.item_index as usize == i);
+                    let track = asked.and_then(|r| r.track).filter(|t| *t > 1);
+                    let name = track.and_then(|t| track_names.iter().find(|(p, _)| *p == t)).map(|(_, n)| n.as_str());
+                    line.reward_label = Some(crate::loyalty::cover_label(
+                        units,
+                        name,
+                        asked.is_some_and(|r| r.gift),
+                        locale,
+                    ));
                 }
                 if let Some(s) = staff_at(i) {
                     line.staff_label = Some(crate::i18n::tr(locale, "staff_pool.badge"));
@@ -2231,6 +2262,7 @@ mod tests {
         input.loyalty_customer_id = Some("00000000-0000-0000-0000-00000000c0de".into());
         let red = |track| CheckoutRedemption {
             track,
+            gift: false,
             item_index: 0,
             ticket_line_id: None,
             units: 1,
@@ -2265,6 +2297,60 @@ mod tests {
         );
     }
 
+    /// The birthday gift rides as `loyalty_birthday_gift` (one unit of its
+    /// line at zero), never as a redemption; the receipt says so.
+    #[test]
+    fn the_birthday_gift_is_its_own_field_and_prints_as_one() {
+        let store = Store::open("").unwrap();
+        seed_methods(&store);
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+        cart::set_qty(&store, None, ITEM, 2).unwrap();
+        cart::add(&store, None, CAKE, "Cake", 2000).unwrap();
+        let mut input = mk_input(CASH, 5000);
+        input.loyalty_customer_id = Some("00000000-0000-0000-0000-00000000c0de".into());
+        input.loyalty_redemptions = vec![CheckoutRedemption {
+            track: None,
+            gift: true,
+            item_index: 0,
+            ticket_line_id: None,
+            units: 1,
+        }];
+        let p = prepare(
+            &store,
+            None,
+            "en",
+            BRANCH,
+            SHIFT,
+            &input,
+            &tax_policy_at(0.14),
+            "2026-06-20T12:00:00+00:00".into(),
+        )
+        .unwrap();
+        let r = &p.command.request;
+        assert_eq!(r.loyalty_redemptions, None, "no reward, no balance spent");
+        assert_eq!(
+            serde_json::to_value(&r.loyalty_birthday_gift).unwrap(),
+            serde_json::json!({ "item_index": 0 })
+        );
+        assert_eq!(r.subtotal, Some(Some(3000)), "one latte free of two, the cake");
+        assert_eq!(p.receipt.lines[0].reward_label.as_deref(), Some("Birthday gift"));
+        assert_eq!(p.receipt.lines[0].line_total_minor, 1000);
+        // No gift: the field is not there at all.
+        input.loyalty_redemptions.clear();
+        let none = prepare(
+            &store,
+            None,
+            "en",
+            BRANCH,
+            SHIFT,
+            &input,
+            &tax_policy_at(0.14),
+            "2026-06-20T12:00:00+00:00".into(),
+        )
+        .unwrap();
+        assert!(!serde_json::to_string(&none.command).unwrap().contains("birthday_gift"));
+    }
+
     /// Three lattes (two free) and a cake, 10% off, 14% on top. The till must
     /// send — and collect — what the server records: covered first, then the
     /// discount on what is left (the order `loyalty_reward_vectors.json` pins).
@@ -2281,6 +2367,7 @@ mod tests {
         input.loyalty_customer_id = Some("00000000-0000-0000-0000-00000000c0de".into());
         input.loyalty_redemptions = vec![CheckoutRedemption {
             track: None,
+            gift: false,
             item_index: 0,
             ticket_line_id: None,
             units: 2,
@@ -2362,6 +2449,7 @@ mod tests {
             let mut input = mk_input(CASH, 5000);
             input.loyalty_redemptions = vec![CheckoutRedemption {
                 track: None,
+                gift: false,
                 item_index: index,
                 ticket_line_id: None,
                 units,

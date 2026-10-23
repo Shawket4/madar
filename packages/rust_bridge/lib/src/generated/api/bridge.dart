@@ -766,6 +766,22 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// ticket has no server id yet — read it from `list_open_tickets` instead.
   Future<TicketView> getTicket({required String ticketId});
 
+  /// The birthday gift section: which lines may be the free item (rewards in
+  /// `picks` set aside) and whether `line` still may be.
+  GiftBoardView giftBoard({
+    required List<RewardLineInput> lines,
+    required LoyaltyScanView scan,
+    required List<RewardPick> picks,
+    int? line,
+  });
+
+  /// The gift on `line` as a checkout or settle carries it, appended to the
+  /// board's redemptions (priced like a reward, sent as the gift).
+  CheckoutRedemption? giftRedemption({
+    required List<RewardLineInput> lines,
+    required int line,
+  });
+
   /// Cached ACL check (optimistic while offline).
   bool hasPermission({required String resource, required String action});
 

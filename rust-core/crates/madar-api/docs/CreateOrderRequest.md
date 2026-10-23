@@ -40,6 +40,7 @@ Name | Type | Description | Notes
 **tip_payment_method** | Option<**String**> |  | [optional]
 **total_amount** | Option<**i32**> |  | [optional]
 **verification** | Option<**String**> | `server` | `lan` | `unverified` — the till's verification as the device knew it. | [optional]
+**loyalty_birthday_gift** | Option<[**models::LoyaltyGiftInput**](LoyaltyGiftInput.md)> | The member's birthday gift on ONE line: one unit of it free, whatever it costs, no balance spent (`loyalty::gifts`). Needs `loyalty_customer_id`. Refused live with `LOYALTY_GIFT_NONE`, `LOYALTY_GIFT_NOT_A_REWARD` or `LOYALTY_GIFT_LINE`. Additive. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

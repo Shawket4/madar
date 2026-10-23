@@ -294,6 +294,8 @@ pub struct _CheckoutRedemption {
     pub units: i32,
     /// The stamp track (2-4) that pays; `None` = track 1.
     pub track: Option<u32>,
+    /// The member's birthday gift rather than a reward (one unit, no balance).
+    pub gift: bool,
 }
 
 // ── order view mirrors (madar-core/src/orders.rs) ───────────────────────────
