@@ -27,6 +27,14 @@ pub struct AdjustRequest {
     /// Signed. Negative takes points away.
     #[serde(rename = "points")]
     pub points: i32,
+    /// The stamp track (2–4) to adjust; absent = track 1 (the balance above).
+    #[serde(
+        rename = "track",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub track: Option<Option<u32>>,
 }
 
 impl AdjustRequest {
@@ -36,6 +44,7 @@ impl AdjustRequest {
             customer_id,
             note: None,
             points,
+            track: None,
         }
     }
 }

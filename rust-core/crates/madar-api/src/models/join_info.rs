@@ -43,6 +43,14 @@ pub struct JoinInfo {
     /// Whose programme this is, and how the page should look.
     #[serde(rename = "brand")]
     pub brand: Box<models::CardBrand>,
+    /// The shop's card design, when it published one (or runs several stamp tracks): the page draws it with the `card` wasm package. Absent = the classic card, and the page loads nothing extra.
+    #[serde(
+        rename = "card",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub card: Option<Option<Box<models::PublicCard>>>,
     /// EGP that earns one point — the page's \"a point for every N EGP\" line. Piastres on the wire, as everywhere; the page divides by 100. Only meaningful when `mode` is `\"points\"`.
     #[serde(rename = "earn_piastres_per_point")]
     pub earn_piastres_per_point: i32,
@@ -95,6 +103,7 @@ impl JoinInfo {
             branch_id: None,
             branch_name: None,
             brand: Box::new(brand),
+            card: None,
             earn_piastres_per_point,
             enabled,
             mode,

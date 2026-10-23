@@ -10,8 +10,10 @@ Name | Type | Description | Notes
 **data** | Option<**serde_json::Value**> |  | [optional]
 **full** | **bool** |  | 
 **has_more** | **bool** |  | 
+**ledger_retention_hours** | Option<**i64**> | v2: how long (hours) a ledger row stays on the incremental feed; a cursor older than that is answered `resync_required`. | [optional]
 **ledger_window** | Option<[**models::LedgerWindow**](LedgerWindow.md)> |  | [optional]
 **next** | Option<**i64**> |  | [optional]
+**protocol** | Option<**u32**> | The negotiated sync protocol; only when the request named one. | [optional]
 **resync_required** | Option<**bool**> |  | [optional]
 **server_time** | **String** |  | 
 **since** | Option<**i64**> |  | [optional]

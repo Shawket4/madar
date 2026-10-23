@@ -185,6 +185,7 @@ pub enum DeleteChannelAddonOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -198,6 +199,7 @@ pub enum DeleteChannelOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -393,6 +395,7 @@ pub enum UpsertChannelAddonOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -406,6 +409,7 @@ pub enum UpsertChannelOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1240,7 +1244,7 @@ pub async fn update_zone(
 pub async fn upsert_channel_addon_override(
     configuration: &configuration::Configuration,
     params: UpsertChannelAddonOverrideParams,
-) -> Result<models::ChannelAddonOverride, Error<UpsertChannelAddonOverrideError>> {
+) -> Result<(), Error<UpsertChannelAddonOverrideError>> {
     let uri_str = format!(
         "{}/delivery/channel-addon-overrides",
         configuration.base_path
@@ -1259,20 +1263,9 @@ pub async fn upsert_channel_addon_override(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ChannelAddonOverride`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ChannelAddonOverride`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpsertChannelAddonOverrideError> = serde_json::from_str(&content).ok();
@@ -1287,7 +1280,7 @@ pub async fn upsert_channel_addon_override(
 pub async fn upsert_channel_override(
     configuration: &configuration::Configuration,
     params: UpsertChannelOverrideParams,
-) -> Result<models::ChannelMenuOverride, Error<UpsertChannelOverrideError>> {
+) -> Result<(), Error<UpsertChannelOverrideError>> {
     let uri_str = format!("{}/delivery/channel-overrides", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
 
@@ -1303,20 +1296,9 @@ pub async fn upsert_channel_override(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::ChannelMenuOverride`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::ChannelMenuOverride`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpsertChannelOverrideError> = serde_json::from_str(&content).ok();

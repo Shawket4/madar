@@ -176,6 +176,8 @@ pub struct OrgLinksQrParams {
     pub svg: Option<bool>,
     /// Pixels per module for the plain receipt QR (1–40). Default 16.
     pub module_px: Option<u32>,
+    /// Omitted: the links page itself (the paid `branding` feature). `menu_display`: the menu without prices, which every plan has.
+    pub target: Option<String>,
 }
 
 /// struct for passing parameters to the method [`org_loyalty_qr`]
@@ -1039,6 +1041,9 @@ pub async fn org_links_qr(
     }
     if let Some(ref param_value) = params.module_px {
         req_builder = req_builder.query(&[("module_px", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.target {
+        req_builder = req_builder.query(&[("target", &param_value.to_string())]);
     }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());

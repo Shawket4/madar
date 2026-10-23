@@ -14,7 +14,7 @@ Method | HTTP request | Description
 [**list_marketing_links**](QrApi.md#list_marketing_links) | **GET** /qr/links | 
 [**list_tables**](QrApi.md#list_tables) | **GET** /branches/{id}/tables | 
 [**org_booking_qr**](QrApi.md#org_booking_qr) | **GET** /orgs/{id}/booking-qr | 
-[**org_links_qr**](QrApi.md#org_links_qr) | **GET** /orgs/{id}/links-qr | The code for the shop's links page — the one address that leads to everything else (menu, ordering, rewards, bookings, socials).
+[**org_links_qr**](QrApi.md#org_links_qr) | **GET** /orgs/{id}/links-qr | The code for the shop's links page — the one address that leads to everything else (menu, ordering, rewards, bookings, socials) — or, with `target=menu_display`, for the menu without prices on the same editor.
 [**org_loyalty_qr**](QrApi.md#org_loyalty_qr) | **GET** /orgs/{id}/loyalty-qr | The shop's join QR: one code for the whole organisation.
 [**org_qr**](QrApi.md#org_qr) | **GET** /orgs/{id}/qr | 
 [**table_qr**](QrApi.md#table_qr) | **GET** /branches/{id}/tables/{tid}/qr | 
@@ -343,8 +343,8 @@ Name | Type | Description  | Required | Notes
 
 ## org_links_qr
 
-> models::QrResponse org_links_qr(id, card, caption, dpi, bleed_mm, crop_marks, svg, module_px)
-The code for the shop's links page — the one address that leads to everything else (menu, ordering, rewards, bookings, socials).
+> models::QrResponse org_links_qr(id, card, caption, dpi, bleed_mm, crop_marks, svg, module_px, target)
+The code for the shop's links page — the one address that leads to everything else (menu, ordering, rewards, bookings, socials) — or, with `target=menu_display`, for the menu without prices on the same editor.
 
 ### Parameters
 
@@ -359,6 +359,7 @@ Name | Type | Description  | Required | Notes
 **crop_marks** | Option<**bool**> | Draw crop marks (A6 card, only meaningful when `bleed_mm > 0`). |  |
 **svg** | Option<**bool**> | Return the A6 card as SVG (`data:image/svg+xml;base64,…`). Default false. |  |
 **module_px** | Option<**u32**> | Pixels per module for the plain receipt QR (1–40). Default 16. |  |
+**target** | Option<**String**> | Omitted: the links page itself (the paid `branding` feature). `menu_display`: the menu without prices, which every plan has. |  |
 
 ### Return type
 

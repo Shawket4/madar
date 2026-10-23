@@ -13,12 +13,36 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ItemSales {
+    /// Piastres per unit sold: `extras_total / quantity_sold`, rounded to the piastre (half away from zero). Additive.
+    #[serde(
+        rename = "avg_extra",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub avg_extra: Option<Option<i64>>,
+    /// Piastres charged on top of those size prices, before any discount: every add-on and swap on the lines (their charge, a staff comp added back) plus optional fields × quantity. `paid − menu price of the size`, summed; never below zero (see `order_line_extras` in migrations/20261023100000_rollup_item_extras.sql). Additive.
+    #[serde(
+        rename = "extras_total",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub extras_total: Option<Option<i64>>,
     #[serde(rename = "item_name")]
     pub item_name: String,
     #[serde(rename = "item_name_translations")]
     pub item_name_translations: serde_json::Value,
     #[serde(rename = "menu_item_id")]
     pub menu_item_id: uuid::Uuid,
+    /// Piastres: the menu price of the size each unit was sold in, AT SALE TIME, summed (`order_items.unit_price × quantity`; no add-ons, swaps, optional fields, discounts or rewards). Additive (2026-10-18): absent from older servers.
+    #[serde(
+        rename = "menu_total",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub menu_total: Option<Option<i64>>,
     #[serde(rename = "quantity_sold")]
     pub quantity_sold: i64,
     #[serde(rename = "revenue")]
@@ -34,9 +58,12 @@ impl ItemSales {
         revenue: i64,
     ) -> ItemSales {
         ItemSales {
+            avg_extra: None,
+            extras_total: None,
             item_name,
             item_name_translations,
             menu_item_id,
+            menu_total: None,
             quantity_sold,
             revenue,
         }

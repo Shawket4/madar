@@ -4,6 +4,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**archived_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | Set when the ingredient is archived: hidden from pickers, stock-count sheets (once no branch holds stock) and reorder suggestions, but kept for history and still deducted by any recipe that uses it. `null` = active. Independent of `is_active` (which the POS feed reads). | [optional]
+**archived_by** | Option<**uuid::Uuid**> | Who archived it; `null` when active. | [optional]
 **category_id** | **uuid::Uuid** |  | 
 **category_name** | **String** |  | 
 **category_slug** | **String** |  | 

@@ -5,6 +5,7 @@ All URIs are relative to *http://localhost:8080*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**accept_transfer**](InventoryApi.md#accept_transfer) | **POST** /inventory/transfers/{id}/accept | 
+[**archive_catalog_item**](InventoryApi.md#archive_catalog_item) | **POST** /inventory/orgs/{org_id}/catalog/{id}/archive | Archive an ingredient: it leaves pickers, reorder suggestions and (once no branch holds stock) stock-count sheets. Nothing else changes: recipes that use it keep deducting and costing it, every till keeps it in its mirror, history keeps showing it, no movement is posted and no balance moves.
 [**cancel_stock_transfer**](InventoryApi.md#cancel_stock_transfer) | **POST** /inventory/transfers/{id}/cancel | 
 [**create_catalog_item**](InventoryApi.md#create_catalog_item) | **POST** /inventory/orgs/{org_id}/catalog | 
 [**create_ingredient_category**](InventoryApi.md#create_ingredient_category) | **POST** /inventory/orgs/{org_id}/categories | 
@@ -14,6 +15,7 @@ Method | HTTP request | Description
 [**delete_catalog_item**](InventoryApi.md#delete_catalog_item) | **DELETE** /inventory/orgs/{org_id}/catalog/{id} | 
 [**delete_ingredient_category**](InventoryApi.md#delete_ingredient_category) | **DELETE** /inventory/orgs/{org_id}/categories/{id} | 
 [**dispatch_transfer**](InventoryApi.md#dispatch_transfer) | **POST** /inventory/transfers/{id}/dispatch | 
+[**get_catalog_item_usage**](InventoryApi.md#get_catalog_item_usage) | **GET** /inventory/orgs/{org_id}/catalog/{id}/usage | 
 [**get_inventory_settings**](InventoryApi.md#get_inventory_settings) | **GET** /inventory/orgs/{org_id}/settings | 
 [**get_transfer**](InventoryApi.md#get_transfer) | **GET** /inventory/transfers/{id} | 
 [**list_branch_stock**](InventoryApi.md#list_branch_stock) | **GET** /inventory/branches/{branch_id}/stock | 
@@ -28,6 +30,7 @@ Method | HTTP request | Description
 [**set_par_levels**](InventoryApi.md#set_par_levels) | **PUT** /inventory/branches/{branch_id}/stock/{org_ingredient_id}/par | 
 [**transfer_differences**](InventoryApi.md#transfer_differences) | **GET** /inventory/orgs/{org_id}/transfer-differences | 
 [**transfer_locations**](InventoryApi.md#transfer_locations) | **GET** /inventory/orgs/{org_id}/transfer-locations | Every live location of the org, for the other side of a transfer. Someone who works at one shop still sends to, and requests from, the rest; `GET /branches` lists only where the caller works.
+[**unarchive_catalog_item**](InventoryApi.md#unarchive_catalog_item) | **POST** /inventory/orgs/{org_id}/catalog/{id}/unarchive | Bring an archived ingredient back: pickers and counts list it again. Its name never left it, so this cannot conflict.
 [**update_catalog_item**](InventoryApi.md#update_catalog_item) | **PATCH** /inventory/orgs/{org_id}/catalog/{id} | 
 [**update_ingredient_category**](InventoryApi.md#update_ingredient_category) | **PATCH** /inventory/orgs/{org_id}/categories/{id} | 
 [**update_inventory_settings**](InventoryApi.md#update_inventory_settings) | **PUT** /inventory/orgs/{org_id}/settings | 
@@ -51,6 +54,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::StockTransfer**](StockTransfer.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## archive_catalog_item
+
+> models::OrgIngredient archive_catalog_item(org_id, id, archive_ingredient_request)
+Archive an ingredient: it leaves pickers, reorder suggestions and (once no branch holds stock) stock-count sheets. Nothing else changes: recipes that use it keep deducting and costing it, every till keeps it in its mirror, history keeps showing it, no movement is posted and no balance moves.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** | Organization ID | [required] |
+**id** | **uuid::Uuid** | Ingredient ID | [required] |
+**archive_ingredient_request** | Option<[**ArchiveIngredientRequest**](ArchiveIngredientRequest.md)> | `{confirm: true}` when the ingredient is still used or holds stock |  |
+
+### Return type
+
+[**models::OrgIngredient**](OrgIngredient.md)
 
 ### Authorization
 
@@ -324,6 +357,35 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## get_catalog_item_usage
+
+> models::IngredientUsage get_catalog_item_usage(org_id, id)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** | Organization ID | [required] |
+**id** | **uuid::Uuid** | Ingredient ID | [required] |
+
+### Return type
+
+[**models::IngredientUsage**](IngredientUsage.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## get_inventory_settings
 
 > models::OrgInventorySettings get_inventory_settings(org_id)
@@ -382,7 +444,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_branch_stock
 
-> Vec<models::BranchStockRow> list_branch_stock(branch_id)
+> Vec<models::BranchStockRow> list_branch_stock(branch_id, status)
 
 
 ### Parameters
@@ -391,6 +453,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **branch_id** | **uuid::Uuid** | Branch ID | [required] |
+**status** | Option<[**ArchiveFilter**](ArchiveFilter.md)> | `active` | `archived` | `all`. Omitted = `all`: every non-deleted ingredient, exactly the rows older dashboards and tills read (they look names and costs up in this list, so an archived ingredient a recipe still uses must stay in it). Pickers ask for `active`. |  |
 
 ### Return type
 
@@ -410,7 +473,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_catalog
 
-> Vec<models::OrgIngredient> list_catalog(org_id)
+> Vec<models::OrgIngredient> list_catalog(org_id, status)
 
 
 ### Parameters
@@ -419,6 +482,7 @@ Name | Type | Description  | Required | Notes
 Name | Type | Description  | Required | Notes
 ------------- | ------------- | ------------- | ------------- | -------------
 **org_id** | **uuid::Uuid** | Organization ID | [required] |
+**status** | Option<[**ArchiveFilter**](ArchiveFilter.md)> | `active` | `archived` | `all`. Omitted = `all`: every non-deleted ingredient, exactly the rows older dashboards and tills read (they look names and costs up in this list, so an archived ingredient a recipe still uses must stay in it). Pickers ask for `active`. |  |
 
 ### Return type
 
@@ -721,6 +785,35 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::TransferLocation>**](TransferLocation.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## unarchive_catalog_item
+
+> models::OrgIngredient unarchive_catalog_item(org_id, id)
+Bring an archived ingredient back: pickers and counts list it again. Its name never left it, so this cannot conflict.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** | Organization ID | [required] |
+**id** | **uuid::Uuid** | Ingredient ID | [required] |
+
+### Return type
+
+[**models::OrgIngredient**](OrgIngredient.md)
 
 ### Authorization
 

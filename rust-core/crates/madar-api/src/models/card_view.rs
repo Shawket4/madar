@@ -22,6 +22,14 @@ pub struct CardView {
     pub brand: Box<models::CardBrand>,
     #[serde(rename = "can_redeem")]
     pub can_redeem: bool,
+    /// The shop's card design (see [`JoinInfo::card`]); absent = classic.
+    #[serde(
+        rename = "card",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub card: Option<Option<Box<models::PublicCard>>>,
     /// They have asked this shop to stop sending them things.
     #[serde(rename = "marketing_opt_out")]
     pub marketing_opt_out: bool,
@@ -53,6 +61,14 @@ pub struct CardView {
     /// Rewards the balance has already earned — a card does not stop at full.
     #[serde(rename = "rewards_ready")]
     pub rewards_ready: i32,
+    /// Every stamp track of this member's card, when there is more than one.
+    #[serde(
+        rename = "tracks",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub tracks: Option<Option<Vec<models::MemberTrack>>>,
 }
 
 impl CardView {
@@ -76,6 +92,7 @@ impl CardView {
             balance,
             brand: Box::new(brand),
             can_redeem,
+            card: None,
             marketing_opt_out,
             member_token,
             mode,
@@ -87,6 +104,7 @@ impl CardView {
             progress_to_next,
             rewards,
             rewards_ready,
+            tracks: None,
         }
     }
 }

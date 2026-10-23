@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlanState {
+    /// Active add-on keys (Rewards by Madar: `[\"loyalty\"]`), already inside `entitlements.features`.
+    #[serde(rename = "addons", skip_serializing_if = "Option::is_none")]
+    pub addons: Option<Vec<String>>,
     /// The plan's branch limit, `null` for unlimited.
     #[serde(
         rename = "branch_limit",
@@ -57,6 +60,7 @@ impl PlanState {
         signup_source: String,
     ) -> PlanState {
         PlanState {
+            addons: None,
             branch_limit: None,
             branches,
             entitlements,

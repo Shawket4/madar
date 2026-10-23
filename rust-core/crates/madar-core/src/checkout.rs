@@ -395,6 +395,10 @@ pub struct CheckoutRedemption {
     pub ticket_line_id: Option<String>,
     /// How many of that line's units the reward covers.
     pub units: i32,
+    /// The stamp track (2-4) that pays; `None` = track 1. Left out of the
+    /// JSON when `None`, so a track-1 sale's bytes are what they always were.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub track: Option<u32>,
 }
 
 /// Everything the FFI needs to commit a checkout: the queued command + the
@@ -827,6 +831,8 @@ pub(crate) fn prepare(
                     item_index: Some(Some(r.item_index)),
                     ticket_line_id: None,
                     units: Some(Some(r.units)),
+                    // Absent for track 1: the request every released till sends.
+                    track: r.track.filter(|t| *t > 1).map(Some),
                 })
                 .collect(),
         );
@@ -2213,6 +2219,52 @@ mod tests {
 
     const CAKE: &str = "00000000-0000-0000-0000-0000000000a2";
 
+    /// A track-1 reward sends what every released till sends (no `track`, in
+    /// the request and in the queued op); a track 2-4 reward names its track.
+    #[test]
+    fn a_track_one_reward_is_byte_for_byte_todays_and_a_track_two_names_itself() {
+        let store = Store::open("").unwrap();
+        seed_methods(&store);
+        cart::add(&store, None, ITEM, "Latte", 1000).unwrap();
+        cart::add(&store, None, CAKE, "Cake", 2000).unwrap();
+        let mut input = mk_input(CASH, 5000);
+        input.loyalty_customer_id = Some("00000000-0000-0000-0000-00000000c0de".into());
+        let red = |track| CheckoutRedemption {
+            track,
+            item_index: 0,
+            ticket_line_id: None,
+            units: 1,
+        };
+        let run = |input: &CheckoutInput| {
+            prepare(
+                &store,
+                None,
+                "en",
+                BRANCH,
+                SHIFT,
+                input,
+                &tax_policy_at(0.14),
+                "2026-06-20T12:00:00+00:00".into(),
+            )
+            .unwrap()
+        };
+        input.loyalty_redemptions = vec![red(None)];
+        let one = run(&input);
+        assert_eq!(
+            serde_json::to_value(&one.command.request.loyalty_redemptions).unwrap(),
+            serde_json::json!([{ "item_index": 0, "units": 1 }])
+        );
+        assert!(!serde_json::to_string(&one.command).unwrap().contains("\"track\""));
+        // Track 1 named explicitly is still track 1 on the wire.
+        input.loyalty_redemptions = vec![red(Some(1))];
+        assert!(!serde_json::to_string(&run(&input).command).unwrap().contains("\"track\""));
+        input.loyalty_redemptions = vec![red(Some(2))];
+        assert_eq!(
+            serde_json::to_value(&run(&input).command.request.loyalty_redemptions).unwrap(),
+            serde_json::json!([{ "item_index": 0, "units": 1, "track": 2 }])
+        );
+    }
+
     /// Three lattes (two free) and a cake, 10% off, 14% on top. The till must
     /// send — and collect — what the server records: covered first, then the
     /// discount on what is left (the order `loyalty_reward_vectors.json` pins).
@@ -2228,6 +2280,7 @@ mod tests {
         let mut input = mk_input(CASH, 5000);
         input.loyalty_customer_id = Some("00000000-0000-0000-0000-00000000c0de".into());
         input.loyalty_redemptions = vec![CheckoutRedemption {
+            track: None,
             item_index: 0,
             ticket_line_id: None,
             units: 2,
@@ -2308,6 +2361,7 @@ mod tests {
         for (index, units) in [(0u32, 2), (3, 1), (0, 0)] {
             let mut input = mk_input(CASH, 5000);
             input.loyalty_redemptions = vec![CheckoutRedemption {
+                track: None,
                 item_index: index,
                 ticket_line_id: None,
                 units,

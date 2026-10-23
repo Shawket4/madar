@@ -76,6 +76,9 @@ pub struct OrderItemFull {
     /// Minor units the reward took off this line (0 for a paid line).
     #[serde(rename = "reward_covered", skip_serializing_if = "Option::is_none")]
     pub reward_covered: Option<i32>,
+    /// The stamp track (2–4) whose reward covered it; absent for track 1.
+    #[serde(rename = "reward_track", skip_serializing_if = "Option::is_none")]
+    pub reward_track: Option<i32>,
     /// How many of `quantity` the reward covered.
     #[serde(rename = "reward_units", skip_serializing_if = "Option::is_none")]
     pub reward_units: Option<i32>,
@@ -135,6 +138,7 @@ impl OrderItemFull {
             order_id,
             quantity,
             reward_covered: None,
+            reward_track: None,
             reward_units: None,
             size_label: None,
             staff_comp_minor: None,

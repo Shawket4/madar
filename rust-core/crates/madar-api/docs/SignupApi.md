@@ -6,6 +6,7 @@ Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**signup**](SignupApi.md#signup) | **POST** /public/signup | Make a shop on the Free plan.
 [**signup_otp**](SignupApi.md#signup_otp) | **POST** /public/signup/otp | Send a code by WhatsApp to prove the owner's phone.
+[**signup_verify**](SignupApi.md#signup_verify) | **POST** /public/signup/verify | Check the code at the code step.
 
 
 
@@ -56,6 +57,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::SignupOtpResponse**](SignupOtpResponse.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## signup_verify
+
+> models::SignupVerifyResponse signup_verify(signup_verify_request)
+Check the code at the code step.
+
+The server compares it (constant time, five attempts per code across every caller) and, when it is right, answers with a signup token for `POST /public/signup`. 400 `SIGNUP_CODE_WRONG` / `SIGNUP_CODE_EXPIRED` / `SIGNUP_CODE_LOCKED`; 409 `SIGNUP_PHONE_TAKEN` when the phone already owns a shop (said only to someone who proved it).
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**signup_verify_request** | [**SignupVerifyRequest**](SignupVerifyRequest.md) |  | [required] |
+
+### Return type
+
+[**models::SignupVerifyResponse**](SignupVerifyResponse.md)
 
 ### Authorization
 

@@ -984,6 +984,7 @@ mod tests {
         );
         user.org_id = org.map(|o| Some(uuid::Uuid::parse_str(o).unwrap()));
         models::LoginResponse {
+            addons: None,
             currency_code: "EGP".into(),
             open_till: None,
             plan: None,

@@ -21,6 +21,17 @@ pub struct AcceptTransferParams {
     pub accept_transfer_request: models::AcceptTransferRequest,
 }
 
+/// struct for passing parameters to the method [`archive_catalog_item`]
+#[derive(Clone, Debug)]
+pub struct ArchiveCatalogItemParams {
+    /// Organization ID
+    pub org_id: String,
+    /// Ingredient ID
+    pub id: String,
+    /// `{confirm: true}` when the ingredient is still used or holds stock
+    pub archive_ingredient_request: Option<models::ArchiveIngredientRequest>,
+}
+
 /// struct for passing parameters to the method [`cancel_stock_transfer`]
 #[derive(Clone, Debug)]
 pub struct CancelStockTransferParams {
@@ -94,6 +105,15 @@ pub struct DispatchTransferParams {
     pub id: String,
 }
 
+/// struct for passing parameters to the method [`get_catalog_item_usage`]
+#[derive(Clone, Debug)]
+pub struct GetCatalogItemUsageParams {
+    /// Organization ID
+    pub org_id: String,
+    /// Ingredient ID
+    pub id: String,
+}
+
 /// struct for passing parameters to the method [`get_inventory_settings`]
 #[derive(Clone, Debug)]
 pub struct GetInventorySettingsParams {
@@ -113,6 +133,8 @@ pub struct GetTransferParams {
 pub struct ListBranchStockParams {
     /// Branch ID
     pub branch_id: String,
+    /// `active` | `archived` | `all`. Omitted = `all`: every non-deleted ingredient, exactly the rows older dashboards and tills read (they look names and costs up in this list, so an archived ingredient a recipe still uses must stay in it). Pickers ask for `active`.
+    pub status: Option<models::ArchiveFilter>,
 }
 
 /// struct for passing parameters to the method [`list_catalog`]
@@ -120,6 +142,8 @@ pub struct ListBranchStockParams {
 pub struct ListCatalogParams {
     /// Organization ID
     pub org_id: String,
+    /// `active` | `archived` | `all`. Omitted = `all`: every non-deleted ingredient, exactly the rows older dashboards and tills read (they look names and costs up in this list, so an archived ingredient a recipe still uses must stay in it). Pickers ask for `active`.
+    pub status: Option<models::ArchiveFilter>,
 }
 
 /// struct for passing parameters to the method [`list_ingredient_categories`]
@@ -215,6 +239,15 @@ pub struct TransferLocationsParams {
     pub org_id: String,
 }
 
+/// struct for passing parameters to the method [`unarchive_catalog_item`]
+#[derive(Clone, Debug)]
+pub struct UnarchiveCatalogItemParams {
+    /// Organization ID
+    pub org_id: String,
+    /// Ingredient ID
+    pub id: String,
+}
+
 /// struct for passing parameters to the method [`update_catalog_item`]
 #[derive(Clone, Debug)]
 pub struct UpdateCatalogItemParams {
@@ -255,6 +288,19 @@ pub struct UpdateTransferParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum AcceptTransferError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`archive_catalog_item`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ArchiveCatalogItemError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -372,6 +418,19 @@ pub enum DeleteIngredientCategoryError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DispatchTransferError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_catalog_item_usage`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetCatalogItemUsageError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -563,6 +622,19 @@ pub enum TransferLocationsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`unarchive_catalog_item`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UnarchiveCatalogItemError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`update_catalog_item`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -657,6 +729,57 @@ pub async fn accept_transfer(
     } else {
         let content = resp.text().await?;
         let entity: Option<AcceptTransferError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn archive_catalog_item(
+    configuration: &configuration::Configuration,
+    params: ArchiveCatalogItemParams,
+) -> Result<models::OrgIngredient, Error<ArchiveCatalogItemError>> {
+    let uri_str = format!(
+        "{}/inventory/orgs/{org_id}/catalog/{id}/archive",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id),
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.archive_ingredient_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::OrgIngredient`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::OrgIngredient`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ArchiveCatalogItemError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1091,6 +1214,54 @@ pub async fn dispatch_transfer(
     }
 }
 
+pub async fn get_catalog_item_usage(
+    configuration: &configuration::Configuration,
+    params: GetCatalogItemUsageParams,
+) -> Result<models::IngredientUsage, Error<GetCatalogItemUsageError>> {
+    let uri_str = format!(
+        "{}/inventory/orgs/{org_id}/catalog/{id}/usage",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id),
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::IngredientUsage`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::IngredientUsage`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetCatalogItemUsageError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn get_inventory_settings(
     configuration: &configuration::Configuration,
     params: GetInventorySettingsParams,
@@ -1196,6 +1367,9 @@ pub async fn list_branch_stock(
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
+    if let Some(ref param_value) = params.status {
+        req_builder = req_builder.query(&[("status", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -1243,6 +1417,9 @@ pub async fn list_catalog(
     );
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
+    if let Some(ref param_value) = params.status {
+        req_builder = req_builder.query(&[("status", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -1788,6 +1965,56 @@ pub async fn transfer_locations(
     } else {
         let content = resp.text().await?;
         let entity: Option<TransferLocationsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn unarchive_catalog_item(
+    configuration: &configuration::Configuration,
+    params: UnarchiveCatalogItemParams,
+) -> Result<models::OrgIngredient, Error<UnarchiveCatalogItemError>> {
+    let uri_str = format!(
+        "{}/inventory/orgs/{org_id}/catalog/{id}/unarchive",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id),
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::OrgIngredient`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::OrgIngredient`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<UnarchiveCatalogItemError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

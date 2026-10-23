@@ -613,6 +613,8 @@ mod tests {
     #[test]
     fn line_view_reads_frozen_json() {
         let it = models::OpenTicketItemView {
+            item_name: None,
+            quantity: None,
             id: uuid::Uuid::new_v4(),
             line: Some(serde_json::json!({
                 "name": "Burger", "size_label": "Large", "qty": 3,
@@ -738,6 +740,8 @@ mod tests {
             timezone: None,
             items: vec![
                 models::OpenTicketItemView {
+                    item_name: None,
+                    quantity: None,
                     id: uuid::Uuid::from_u128(0xA),
                     line: Some(serde_json::json!({ "name": "Calamari", "qty": 1 })),
                     line_total: a,
@@ -747,6 +751,8 @@ mod tests {
                     voided: false,
                 },
                 models::OpenTicketItemView {
+                    item_name: None,
+                    quantity: None,
                     id: uuid::Uuid::from_u128(0xB),
                     line: Some(serde_json::json!({ "name": "Burger", "qty": 1 })),
                     line_total: b,

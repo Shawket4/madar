@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MeResponse {
+    /// Features the org has as add-ons beside its plan (Rewards by Madar: `[\"loyalty\"]`).
+    #[serde(rename = "addons", skip_serializing_if = "Option::is_none")]
+    pub addons: Option<Vec<String>>,
     /// Org currency code (e.g. \"EGP\").
     #[serde(rename = "currency_code")]
     pub currency_code: String,
@@ -43,6 +46,7 @@ impl MeResponse {
         user: models::UserPublic,
     ) -> MeResponse {
         MeResponse {
+            addons: None,
             currency_code,
             plan: None,
             require_table_for_orders: None,

@@ -120,15 +120,22 @@ class CheckoutRedemption {
   /// How many of that line's units the reward covers.
   final int units;
 
+  /// The stamp track (2-4) that pays; `None` = track 1.
+  final int? track;
+
   const CheckoutRedemption({
     required this.itemIndex,
     this.ticketLineId,
     required this.units,
+    this.track,
   });
 
   @override
   int get hashCode =>
-      itemIndex.hashCode ^ ticketLineId.hashCode ^ units.hashCode;
+      itemIndex.hashCode ^
+      ticketLineId.hashCode ^
+      units.hashCode ^
+      track.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -137,7 +144,8 @@ class CheckoutRedemption {
           runtimeType == other.runtimeType &&
           itemIndex == other.itemIndex &&
           ticketLineId == other.ticketLineId &&
-          units == other.units;
+          units == other.units &&
+          track == other.track;
 }
 
 /// One leg of a split payment (a method + the amount paid on it).

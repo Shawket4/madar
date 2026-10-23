@@ -12,6 +12,7 @@ Method | HTTP request | Description
 [**get_purchase_order**](PurchasingApi.md#get_purchase_order) | **GET** /purchasing/orders/{id} | 
 [**list_org_purchase_orders**](PurchasingApi.md#list_org_purchase_orders) | **GET** /purchasing/orgs/{org_id}/orders | 
 [**list_po_receipts**](PurchasingApi.md#list_po_receipts) | **GET** /purchasing/orders/{id}/receipts | Per-delivery goods-receipt records for a purchase order (multi-shipment audit trail, each with the actual received quantity + cost per line).
+[**list_purchase_last_prices**](PurchasingApi.md#list_purchase_last_prices) | **GET** /purchasing/orgs/{org_id}/last-prices | The last price paid per ingredient, to prefill a new purchase order line.
 [**list_purchase_orders**](PurchasingApi.md#list_purchase_orders) | **GET** /purchasing/branches/{branch_id}/orders | 
 [**list_suppliers**](PurchasingApi.md#list_suppliers) | **GET** /purchasing/orgs/{org_id}/suppliers | 
 [**receive_purchase_order**](PurchasingApi.md#receive_purchase_order) | **POST** /purchasing/orders/{id}/receive | 
@@ -237,6 +238,38 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**Vec<models::GoodsReceipt>**](GoodsReceipt.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## list_purchase_last_prices
+
+> Vec<models::LastPrice> list_purchase_last_prices(org_id, supplier_id, ingredient_ids)
+The last price paid per ingredient, to prefill a new purchase order line.
+
+For each ingredient: the most recent PO line from `supplier_id`, preferring a received line (at the price its delivery was invoiced at) over one only ordered, and either over a cancelled order's; failing that, the same pick over every supplier (`source = \"any\"`). Ingredients never purchased are absent. Read-only, derived from purchase orders and goods receipts.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** | Organization ID | [required] |
+**supplier_id** | Option<**uuid::Uuid**> | The supplier the order is for. Its own last price wins; when it never sold the ingredient (or none is given) the last price from any supplier is returned, with `source = \"any\"`. |  |
+**ingredient_ids** | Option<**String**> | Comma-separated ingredient ids. Omitted: every ingredient the org has ever put on a purchase order. |  |
+
+### Return type
+
+[**Vec<models::LastPrice>**](LastPrice.md)
 
 ### Authorization
 

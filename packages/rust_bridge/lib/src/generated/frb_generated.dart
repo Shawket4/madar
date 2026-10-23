@@ -91,7 +91,7 @@ class RustBridge
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -988627626;
+  int get rustContentHash => -495611902;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1773,6 +1773,15 @@ abstract class RustBridgeApi extends BaseApi {
     required LoyaltyScanView scan,
     required List<RewardPick> picks,
     required int line,
+  });
+
+  List<RewardPick> crateApiBridgeMadarBridgeToggleRewardOnTrack({
+    required MadarBridge that,
+    required List<RewardLineInput> lines,
+    required LoyaltyScanView scan,
+    required List<RewardPick> picks,
+    required int line,
+    required int track,
   });
 
   String crateApiBridgeMadarBridgeTr({
@@ -14076,6 +14085,51 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       );
 
   @override
+  List<RewardPick> crateApiBridgeMadarBridgeToggleRewardOnTrack({
+    required MadarBridge that,
+    required List<RewardLineInput> lines,
+    required LoyaltyScanView scan,
+    required List<RewardPick> picks,
+    required int line,
+    required int track,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMadarBridge(
+            that,
+            serializer,
+          );
+          sse_encode_list_reward_line_input(lines, serializer);
+          sse_encode_box_autoadd_loyalty_scan_view(scan, serializer);
+          sse_encode_list_reward_pick(picks, serializer);
+          sse_encode_u_32(line, serializer);
+          sse_encode_u_32(track, serializer);
+          return pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 308,
+          )!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_reward_pick,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiBridgeMadarBridgeToggleRewardOnTrackConstMeta,
+        argValues: [that, lines, scan, picks, line, track],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBridgeMadarBridgeToggleRewardOnTrackConstMeta =>
+      const TaskConstMeta(
+        debugName: "MadarBridge_toggle_reward_on_track",
+        argNames: ["that", "lines", "scan", "picks", "line", "track"],
+      );
+
+  @override
   String crateApiBridgeMadarBridgeTr({
     required MadarBridge that,
     required String key,
@@ -14092,7 +14146,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 308,
+            funcId: 309,
           )!;
         },
         codec: SseCodec(
@@ -14133,7 +14187,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 309,
+            funcId: 310,
             port: port_,
           );
         },
@@ -14173,7 +14227,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 310,
+            funcId: 311,
             port: port_,
           );
         },
@@ -14211,7 +14265,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 311,
+            funcId: 312,
             port: port_,
           );
         },
@@ -14247,7 +14301,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 312,
+            funcId: 313,
           )!;
         },
         codec: SseCodec(
@@ -14289,7 +14343,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 313,
+            funcId: 314,
             port: port_,
           );
         },
@@ -14323,7 +14377,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 314,
+            funcId: 315,
           )!;
         },
         codec: SseCodec(
@@ -14363,7 +14417,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 315,
+            funcId: 316,
             port: port_,
           );
         },
@@ -14409,7 +14463,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 316,
+            funcId: 317,
             port: port_,
           );
         },
@@ -14456,7 +14510,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 317,
+            funcId: 318,
             port: port_,
           );
         },
@@ -14498,7 +14552,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 318,
+            funcId: 319,
             port: port_,
           );
         },
@@ -14536,7 +14590,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 319,
+            funcId: 320,
           )!;
         },
         codec: SseCodec(
@@ -14573,7 +14627,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 320,
+            funcId: 321,
           )!;
         },
         codec: SseCodec(
@@ -14608,7 +14662,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 321,
+            funcId: 322,
           )!;
         },
         codec: SseCodec(
@@ -14646,7 +14700,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 322,
+              funcId: 323,
               port: port_,
             );
           },
@@ -14678,7 +14732,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 323,
+            funcId: 324,
           )!;
         },
         codec: SseCodec(
@@ -14704,7 +14758,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 324,
+            funcId: 325,
           )!;
         },
         codec: SseCodec(
@@ -14731,7 +14785,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 325,
+            funcId: 326,
           )!;
         },
         codec: SseCodec(
@@ -15573,12 +15627,13 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   CheckoutRedemption dco_decode_checkout_redemption(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return CheckoutRedemption(
       itemIndex: dco_decode_u_32(arr[0]),
       ticketLineId: dco_decode_opt_String(arr[1]),
       units: dco_decode_i_32(arr[2]),
+      track: dco_decode_opt_box_autoadd_u_32(arr[3]),
     );
   }
 
@@ -16807,6 +16862,34 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<LoyaltyTrackAfter> dco_decode_list_loyalty_track_after(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_loyalty_track_after).toList();
+  }
+
+  @protected
+  List<LoyaltyTrackAward> dco_decode_list_loyalty_track_award(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_loyalty_track_award).toList();
+  }
+
+  @protected
+  List<LoyaltyTrackRewardsView> dco_decode_list_loyalty_track_rewards_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_loyalty_track_rewards_view)
+        .toList();
+  }
+
+  @protected
+  List<LoyaltyTrackView> dco_decode_list_loyalty_track_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_loyalty_track_view).toList();
+  }
+
+  @protected
   List<ManagerActionView> dco_decode_list_manager_action_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_manager_action_view).toList();
@@ -16894,6 +16977,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   List<PaymentMethodView> dco_decode_list_payment_method_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_payment_method_view).toList();
+  }
+
+  @protected
+  Uint32List dco_decode_list_prim_u_32_strict(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as Uint32List;
   }
 
   @protected
@@ -17135,8 +17224,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   LoyaltyAwardOutcome dco_decode_loyalty_award_outcome(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return LoyaltyAwardOutcome(
       member: dco_decode_opt_box_autoadd_loyalty_member_view(arr[0]),
       queued: dco_decode_bool(arr[1]),
@@ -17144,6 +17233,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       pointsAwarded: dco_decode_i_64(arr[3]),
       headline: dco_decode_String(arr[4]),
       detail: dco_decode_String(arr[5]),
+      tracks: dco_decode_list_loyalty_track_award(arr[6]),
     );
   }
 
@@ -17168,8 +17258,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   LoyaltyMemberView dco_decode_loyalty_member_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 12)
-      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return LoyaltyMemberView(
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
@@ -17183,6 +17273,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       canRedeem: dco_decode_bool(arr[9]),
       progressLabel: dco_decode_String(arr[10]),
       balanceLabel: dco_decode_String(arr[11]),
+      tracks: dco_decode_list_loyalty_track_view(arr[12]),
     );
   }
 
@@ -17232,8 +17323,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   LoyaltyScanView dco_decode_loyalty_scan_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return LoyaltyScanView(
       member: dco_decode_loyalty_member_view(arr[0]),
       rewards: dco_decode_list_loyalty_reward_view(arr[1]),
@@ -17241,6 +17332,63 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       anyItem: dco_decode_bool(arr[3]),
       anyItemCost: dco_decode_i_64(arr[4]),
       maxRewardsPerOrder: dco_decode_opt_box_autoadd_i_64(arr[5]),
+      trackRewards: dco_decode_list_loyalty_track_rewards_view(arr[6]),
+    );
+  }
+
+  @protected
+  LoyaltyTrackAfter dco_decode_loyalty_track_after(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return LoyaltyTrackAfter(
+      position: dco_decode_u_32(arr[0]),
+      name: dco_decode_String(arr[1]),
+      balanceAfter: dco_decode_i_64(arr[2]),
+    );
+  }
+
+  @protected
+  LoyaltyTrackAward dco_decode_loyalty_track_award(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return LoyaltyTrackAward(
+      position: dco_decode_u_32(arr[0]),
+      name: dco_decode_String(arr[1]),
+      awarded: dco_decode_i_64(arr[2]),
+      balance: dco_decode_i_64(arr[3]),
+      size: dco_decode_i_64(arr[4]),
+    );
+  }
+
+  @protected
+  LoyaltyTrackRewardsView dco_decode_loyalty_track_rewards_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return LoyaltyTrackRewardsView(
+      position: dco_decode_u_32(arr[0]),
+      rewards: dco_decode_list_loyalty_reward_view(arr[1]),
+    );
+  }
+
+  @protected
+  LoyaltyTrackView dco_decode_loyalty_track_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return LoyaltyTrackView(
+      position: dco_decode_u_32(arr[0]),
+      name: dco_decode_String(arr[1]),
+      size: dco_decode_i_64(arr[2]),
+      balance: dco_decode_i_64(arr[3]),
+      rewardsReady: dco_decode_i_64(arr[4]),
+      colour: dco_decode_opt_String(arr[5]),
     );
   }
 
@@ -18190,8 +18338,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   RewardBoardView dco_decode_reward_board_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return RewardBoardView(
       lines: dco_decode_list_reward_line_state(arr[0]),
       picks: dco_decode_list_reward_pick(arr[1]),
@@ -18200,6 +18348,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       unitsClaimed: dco_decode_i_32(arr[4]),
       coveredMinor: dco_decode_i_64(arr[5]),
       adjustedReason: dco_decode_opt_String(arr[6]),
+      tracksAfter: dco_decode_list_loyalty_track_after(arr[7]),
     );
   }
 
@@ -18226,8 +18375,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   RewardLineState dco_decode_reward_line_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 10)
+      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
     return RewardLineState(
       line: dco_decode_u_32(arr[0]),
       claimable: dco_decode_bool(arr[1]),
@@ -18237,6 +18386,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       blockedReason: dco_decode_opt_String(arr[5]),
       coveredMinor: dco_decode_i_64(arr[6]),
       costLabel: dco_decode_String(arr[7]),
+      track: dco_decode_u_32(arr[8]),
+      trackChoices: dco_decode_list_prim_u_32_strict(arr[9]),
     );
   }
 
@@ -18244,11 +18395,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   RewardPick dco_decode_reward_pick(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return RewardPick(
       line: dco_decode_u_32(arr[0]),
       units: dco_decode_i_32(arr[1]),
+      track: dco_decode_u_32(arr[2]),
     );
   }
 
@@ -19998,10 +20150,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_itemIndex = sse_decode_u_32(deserializer);
     var var_ticketLineId = sse_decode_opt_String(deserializer);
     var var_units = sse_decode_i_32(deserializer);
+    var var_track = sse_decode_opt_box_autoadd_u_32(deserializer);
     return CheckoutRedemption(
       itemIndex: var_itemIndex,
       ticketLineId: var_ticketLineId,
       units: var_units,
+      track: var_track,
     );
   }
 
@@ -21806,6 +21960,62 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  List<LoyaltyTrackAfter> sse_decode_list_loyalty_track_after(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LoyaltyTrackAfter>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_loyalty_track_after(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<LoyaltyTrackAward> sse_decode_list_loyalty_track_award(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LoyaltyTrackAward>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_loyalty_track_award(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<LoyaltyTrackRewardsView> sse_decode_list_loyalty_track_rewards_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LoyaltyTrackRewardsView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_loyalty_track_rewards_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<LoyaltyTrackView> sse_decode_list_loyalty_track_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LoyaltyTrackView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_loyalty_track_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<ManagerActionView> sse_decode_list_manager_action_view(
     SseDeserializer deserializer,
   ) {
@@ -21999,6 +22209,13 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       ans_.add(sse_decode_payment_method_view(deserializer));
     }
     return ans_;
+  }
+
+  @protected
+  Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getUint32List(len_);
   }
 
   @protected
@@ -22470,6 +22687,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_pointsAwarded = sse_decode_i_64(deserializer);
     var var_headline = sse_decode_String(deserializer);
     var var_detail = sse_decode_String(deserializer);
+    var var_tracks = sse_decode_list_loyalty_track_award(deserializer);
     return LoyaltyAwardOutcome(
       member: var_member,
       queued: var_queued,
@@ -22477,6 +22695,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       pointsAwarded: var_pointsAwarded,
       headline: var_headline,
       detail: var_detail,
+      tracks: var_tracks,
     );
   }
 
@@ -22520,6 +22739,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_canRedeem = sse_decode_bool(deserializer);
     var var_progressLabel = sse_decode_String(deserializer);
     var var_balanceLabel = sse_decode_String(deserializer);
+    var var_tracks = sse_decode_list_loyalty_track_view(deserializer);
     return LoyaltyMemberView(
       id: var_id,
       name: var_name,
@@ -22533,6 +22753,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       canRedeem: var_canRedeem,
       progressLabel: var_progressLabel,
       balanceLabel: var_balanceLabel,
+      tracks: var_tracks,
     );
   }
 
@@ -22591,6 +22812,9 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_anyItem = sse_decode_bool(deserializer);
     var var_anyItemCost = sse_decode_i_64(deserializer);
     var var_maxRewardsPerOrder = sse_decode_opt_box_autoadd_i_64(deserializer);
+    var var_trackRewards = sse_decode_list_loyalty_track_rewards_view(
+      deserializer,
+    );
     return LoyaltyScanView(
       member: var_member,
       rewards: var_rewards,
@@ -22598,6 +22822,73 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       anyItem: var_anyItem,
       anyItemCost: var_anyItemCost,
       maxRewardsPerOrder: var_maxRewardsPerOrder,
+      trackRewards: var_trackRewards,
+    );
+  }
+
+  @protected
+  LoyaltyTrackAfter sse_decode_loyalty_track_after(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_position = sse_decode_u_32(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_balanceAfter = sse_decode_i_64(deserializer);
+    return LoyaltyTrackAfter(
+      position: var_position,
+      name: var_name,
+      balanceAfter: var_balanceAfter,
+    );
+  }
+
+  @protected
+  LoyaltyTrackAward sse_decode_loyalty_track_award(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_position = sse_decode_u_32(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_awarded = sse_decode_i_64(deserializer);
+    var var_balance = sse_decode_i_64(deserializer);
+    var var_size = sse_decode_i_64(deserializer);
+    return LoyaltyTrackAward(
+      position: var_position,
+      name: var_name,
+      awarded: var_awarded,
+      balance: var_balance,
+      size: var_size,
+    );
+  }
+
+  @protected
+  LoyaltyTrackRewardsView sse_decode_loyalty_track_rewards_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_position = sse_decode_u_32(deserializer);
+    var var_rewards = sse_decode_list_loyalty_reward_view(deserializer);
+    return LoyaltyTrackRewardsView(
+      position: var_position,
+      rewards: var_rewards,
+    );
+  }
+
+  @protected
+  LoyaltyTrackView sse_decode_loyalty_track_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_position = sse_decode_u_32(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_size = sse_decode_i_64(deserializer);
+    var var_balance = sse_decode_i_64(deserializer);
+    var var_rewardsReady = sse_decode_i_64(deserializer);
+    var var_colour = sse_decode_opt_String(deserializer);
+    return LoyaltyTrackView(
+      position: var_position,
+      name: var_name,
+      size: var_size,
+      balance: var_balance,
+      rewardsReady: var_rewardsReady,
+      colour: var_colour,
     );
   }
 
@@ -23920,6 +24211,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_unitsClaimed = sse_decode_i_32(deserializer);
     var var_coveredMinor = sse_decode_i_64(deserializer);
     var var_adjustedReason = sse_decode_opt_String(deserializer);
+    var var_tracksAfter = sse_decode_list_loyalty_track_after(deserializer);
     return RewardBoardView(
       lines: var_lines,
       picks: var_picks,
@@ -23928,6 +24220,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       unitsClaimed: var_unitsClaimed,
       coveredMinor: var_coveredMinor,
       adjustedReason: var_adjustedReason,
+      tracksAfter: var_tracksAfter,
     );
   }
 
@@ -23967,6 +24260,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_blockedReason = sse_decode_opt_String(deserializer);
     var var_coveredMinor = sse_decode_i_64(deserializer);
     var var_costLabel = sse_decode_String(deserializer);
+    var var_track = sse_decode_u_32(deserializer);
+    var var_trackChoices = sse_decode_list_prim_u_32_strict(deserializer);
     return RewardLineState(
       line: var_line,
       claimable: var_claimable,
@@ -23976,6 +24271,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
       blockedReason: var_blockedReason,
       coveredMinor: var_coveredMinor,
       costLabel: var_costLabel,
+      track: var_track,
+      trackChoices: var_trackChoices,
     );
   }
 
@@ -23984,7 +24281,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_line = sse_decode_u_32(deserializer);
     var var_units = sse_decode_i_32(deserializer);
-    return RewardPick(line: var_line, units: var_units);
+    var var_track = sse_decode_u_32(deserializer);
+    return RewardPick(line: var_line, units: var_units, track: var_track);
   }
 
   @protected
@@ -25828,6 +26126,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_u_32(self.itemIndex, serializer);
     sse_encode_opt_String(self.ticketLineId, serializer);
     sse_encode_i_32(self.units, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.track, serializer);
   }
 
   @protected
@@ -27174,6 +27473,54 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   }
 
   @protected
+  void sse_encode_list_loyalty_track_after(
+    List<LoyaltyTrackAfter> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_loyalty_track_after(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_loyalty_track_award(
+    List<LoyaltyTrackAward> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_loyalty_track_award(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_loyalty_track_rewards_view(
+    List<LoyaltyTrackRewardsView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_loyalty_track_rewards_view(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_loyalty_track_view(
+    List<LoyaltyTrackView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_loyalty_track_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_manager_action_view(
     List<ManagerActionView> self,
     SseSerializer serializer,
@@ -27339,6 +27686,16 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     for (final item in self) {
       sse_encode_payment_method_view(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_list_prim_u_32_strict(
+    Uint32List self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putUint32List(self);
   }
 
   @protected
@@ -27753,6 +28110,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_64(self.pointsAwarded, serializer);
     sse_encode_String(self.headline, serializer);
     sse_encode_String(self.detail, serializer);
+    sse_encode_list_loyalty_track_award(self.tracks, serializer);
   }
 
   @protected
@@ -27788,6 +28146,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self.canRedeem, serializer);
     sse_encode_String(self.progressLabel, serializer);
     sse_encode_String(self.balanceLabel, serializer);
+    sse_encode_list_loyalty_track_view(self.tracks, serializer);
   }
 
   @protected
@@ -27838,6 +28197,55 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self.anyItem, serializer);
     sse_encode_i_64(self.anyItemCost, serializer);
     sse_encode_opt_box_autoadd_i_64(self.maxRewardsPerOrder, serializer);
+    sse_encode_list_loyalty_track_rewards_view(self.trackRewards, serializer);
+  }
+
+  @protected
+  void sse_encode_loyalty_track_after(
+    LoyaltyTrackAfter self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.position, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_i_64(self.balanceAfter, serializer);
+  }
+
+  @protected
+  void sse_encode_loyalty_track_award(
+    LoyaltyTrackAward self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.position, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_i_64(self.awarded, serializer);
+    sse_encode_i_64(self.balance, serializer);
+    sse_encode_i_64(self.size, serializer);
+  }
+
+  @protected
+  void sse_encode_loyalty_track_rewards_view(
+    LoyaltyTrackRewardsView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.position, serializer);
+    sse_encode_list_loyalty_reward_view(self.rewards, serializer);
+  }
+
+  @protected
+  void sse_encode_loyalty_track_view(
+    LoyaltyTrackView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self.position, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_i_64(self.size, serializer);
+    sse_encode_i_64(self.balance, serializer);
+    sse_encode_i_64(self.rewardsReady, serializer);
+    sse_encode_opt_String(self.colour, serializer);
   }
 
   @protected
@@ -28865,6 +29273,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_i_32(self.unitsClaimed, serializer);
     sse_encode_i_64(self.coveredMinor, serializer);
     sse_encode_opt_String(self.adjustedReason, serializer);
+    sse_encode_list_loyalty_track_after(self.tracksAfter, serializer);
   }
 
   @protected
@@ -28898,6 +29307,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_opt_String(self.blockedReason, serializer);
     sse_encode_i_64(self.coveredMinor, serializer);
     sse_encode_String(self.costLabel, serializer);
+    sse_encode_u_32(self.track, serializer);
+    sse_encode_list_prim_u_32_strict(self.trackChoices, serializer);
   }
 
   @protected
@@ -28905,6 +29316,7 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.line, serializer);
     sse_encode_i_32(self.units, serializer);
+    sse_encode_u_32(self.track, serializer);
   }
 
   @protected
@@ -32223,6 +32635,23 @@ class MadarBridgeImpl extends RustOpaque implements MadarBridge {
     scan: scan,
     picks: picks,
     line: line,
+  );
+
+  /// The teller's answer to "which card pays?" for a line two tracks could
+  /// cover: one unit of it on `track`.
+  List<RewardPick> toggleRewardOnTrack({
+    required List<RewardLineInput> lines,
+    required LoyaltyScanView scan,
+    required List<RewardPick> picks,
+    required int line,
+    required int track,
+  }) => RustBridge.instance.api.crateApiBridgeMadarBridgeToggleRewardOnTrack(
+    that: this,
+    lines: lines,
+    scan: scan,
+    picks: picks,
+    line: line,
+    track: track,
   );
 
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).

@@ -13,6 +13,14 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`bulk_menu`]
+#[derive(Clone, Debug)]
+pub struct BulkMenuParams {
+    pub bulk_menu_request: models::BulkMenuRequest,
+    /// Check and write, then roll back: nothing is kept.
+    pub dry_run: Option<bool>,
+}
+
 /// struct for passing parameters to the method [`catalog_sync`]
 #[derive(Clone, Debug)]
 pub struct CatalogSyncParams {
@@ -430,6 +438,8 @@ pub struct ListMenuItemsParams {
     pub full: Option<bool>,
     /// When set, prices are branch-effective (branch override replaces base_price) and items disabled at this branch are excluded — the per-branch menu the POS consumes. Omitted → the plain org catalog (legacy behaviour).
     pub branch_id: Option<String>,
+    /// OPT-IN, with `full=true` only: `compact` answers an OBJECT `{shape: \"compact-1\", items, group_options}` instead of the array — every attached choice group's options once in `group_options` (keyed by group id) rather than copied into each item's `pricing.groups`, and without the fields no client reads (`org_id`, `image`, `created_at`, `updated_at`). See `menu::compact`. Any other value, or none, is the default array, unchanged.
+    pub shape: Option<String>,
 }
 
 /// struct for passing parameters to the method [`list_optional_fields`]
@@ -688,6 +698,21 @@ pub enum ApplyRulesError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`bulk_menu`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BulkMenuError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status422(),
+    Status429(),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`catalog_sync`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -723,6 +748,7 @@ pub enum CreateAddonItemError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -736,6 +762,7 @@ pub enum CreateAddonSlotError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -840,6 +867,7 @@ pub enum CreateOptionalFieldError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -866,6 +894,7 @@ pub enum DeleteAddonItemError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -879,6 +908,7 @@ pub enum DeleteAddonOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -892,6 +922,7 @@ pub enum DeleteAddonSlotError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -918,6 +949,7 @@ pub enum DeleteBranchAddonOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -944,6 +976,7 @@ pub enum DeleteBranchMenuOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1035,6 +1068,7 @@ pub enum DeleteOptionalFieldError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1269,6 +1303,7 @@ pub enum ListAddonOverridesError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1503,6 +1538,7 @@ pub enum PutAllowedAddonsError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1685,6 +1721,7 @@ pub enum UpdateAddonItemError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1698,6 +1735,7 @@ pub enum UpdateAddonSlotError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1763,6 +1801,7 @@ pub enum UpdateOptionalFieldError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1776,6 +1815,7 @@ pub enum UpsertAddonOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1789,6 +1829,7 @@ pub enum UpsertBranchAddonOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1802,6 +1843,7 @@ pub enum UpsertBranchMenuOverrideError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -1855,6 +1897,55 @@ pub async fn apply_rules(
     } else {
         let content = resp.text().await?;
         let entity: Option<ApplyRulesError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn bulk_menu(
+    configuration: &configuration::Configuration,
+    params: BulkMenuParams,
+) -> Result<models::BulkMenuResponse, Error<BulkMenuError>> {
+    let uri_str = format!("{}/menu/bulk", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref param_value) = params.dry_run {
+        req_builder = req_builder.query(&[("dry_run", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.bulk_menu_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BulkMenuResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BulkMenuResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<BulkMenuError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1962,7 +2053,7 @@ pub async fn combo_economics(
 pub async fn create_addon_item(
     configuration: &configuration::Configuration,
     params: CreateAddonItemParams,
-) -> Result<models::AddonItem, Error<CreateAddonItemError>> {
+) -> Result<(), Error<CreateAddonItemError>> {
     let uri_str = format!("{}/addon-items", configuration.base_path);
     let mut req_builder = configuration
         .client
@@ -1980,20 +2071,9 @@ pub async fn create_addon_item(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AddonItem`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AddonItem`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<CreateAddonItemError> = serde_json::from_str(&content).ok();
@@ -2008,7 +2088,7 @@ pub async fn create_addon_item(
 pub async fn create_addon_slot(
     configuration: &configuration::Configuration,
     params: CreateAddonSlotParams,
-) -> Result<models::AddonSlot, Error<CreateAddonSlotError>> {
+) -> Result<(), Error<CreateAddonSlotError>> {
     let uri_str = format!(
         "{}/menu-items/{id}/addon-slots",
         configuration.base_path,
@@ -2030,20 +2110,9 @@ pub async fn create_addon_slot(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AddonSlot`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AddonSlot`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<CreateAddonSlotError> = serde_json::from_str(&content).ok();
@@ -2384,7 +2453,7 @@ pub async fn create_option(
 pub async fn create_optional_field(
     configuration: &configuration::Configuration,
     params: CreateOptionalFieldParams,
-) -> Result<models::OptionalField, Error<CreateOptionalFieldError>> {
+) -> Result<(), Error<CreateOptionalFieldError>> {
     let uri_str = format!(
         "{}/menu-items/{id}/optionals",
         configuration.base_path,
@@ -2406,20 +2475,9 @@ pub async fn create_optional_field(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::OptionalField`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::OptionalField`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<CreateOptionalFieldError> = serde_json::from_str(&content).ok();
@@ -3814,7 +3872,7 @@ pub async fn list_addon_items(
 pub async fn list_addon_overrides(
     configuration: &configuration::Configuration,
     params: ListAddonOverridesParams,
-) -> Result<Vec<models::AddonOverride>, Error<ListAddonOverridesError>> {
+) -> Result<(), Error<ListAddonOverridesError>> {
     let uri_str = format!(
         "{}/menu-items/{id}/overrides",
         configuration.base_path,
@@ -3833,20 +3891,9 @@ pub async fn list_addon_overrides(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::AddonOverride&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::AddonOverride&gt;`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<ListAddonOverridesError> = serde_json::from_str(&content).ok();
@@ -4315,6 +4362,9 @@ pub async fn list_menu_items(
     if let Some(ref param_value) = params.branch_id {
         req_builder = req_builder.query(&[("branch_id", &param_value.to_string())]);
     }
+    if let Some(ref param_value) = params.shape {
+        req_builder = req_builder.query(&[("shape", &param_value.to_string())]);
+    }
     if let Some(ref user_agent) = configuration.user_agent {
         req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
     }
@@ -4693,7 +4743,7 @@ pub async fn preview_menu_item(
 pub async fn put_allowed_addons(
     configuration: &configuration::Configuration,
     params: PutAllowedAddonsParams,
-) -> Result<Vec<String>, Error<PutAllowedAddonsError>> {
+) -> Result<(), Error<PutAllowedAddonsError>> {
     let uri_str = format!(
         "{}/menu-items/{id}/allowed-addons",
         configuration.base_path,
@@ -4713,20 +4763,9 @@ pub async fn put_allowed_addons(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;String&gt;`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;String&gt;`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<PutAllowedAddonsError> = serde_json::from_str(&content).ok();
@@ -5321,7 +5360,7 @@ pub async fn reorder_categories(
 pub async fn update_addon_item(
     configuration: &configuration::Configuration,
     params: UpdateAddonItemParams,
-) -> Result<models::AddonItem, Error<UpdateAddonItemError>> {
+) -> Result<(), Error<UpdateAddonItemError>> {
     let uri_str = format!(
         "{}/addon-items/{id}",
         configuration.base_path,
@@ -5343,20 +5382,9 @@ pub async fn update_addon_item(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AddonItem`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AddonItem`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpdateAddonItemError> = serde_json::from_str(&content).ok();
@@ -5371,7 +5399,7 @@ pub async fn update_addon_item(
 pub async fn update_addon_slot(
     configuration: &configuration::Configuration,
     params: UpdateAddonSlotParams,
-) -> Result<models::AddonSlot, Error<UpdateAddonSlotError>> {
+) -> Result<(), Error<UpdateAddonSlotError>> {
     let uri_str = format!(
         "{}/menu-items/{id}/addon-slots/{slot_id}",
         configuration.base_path,
@@ -5394,20 +5422,9 @@ pub async fn update_addon_slot(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AddonSlot`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AddonSlot`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpdateAddonSlotError> = serde_json::from_str(&content).ok();
@@ -5618,7 +5635,7 @@ pub async fn update_menu_item(
 pub async fn update_optional_field(
     configuration: &configuration::Configuration,
     params: UpdateOptionalFieldParams,
-) -> Result<models::OptionalField, Error<UpdateOptionalFieldError>> {
+) -> Result<(), Error<UpdateOptionalFieldError>> {
     let uri_str = format!(
         "{}/menu-items/{id}/optionals/{field_id}",
         configuration.base_path,
@@ -5641,20 +5658,9 @@ pub async fn update_optional_field(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::OptionalField`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::OptionalField`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpdateOptionalFieldError> = serde_json::from_str(&content).ok();
@@ -5669,7 +5675,7 @@ pub async fn update_optional_field(
 pub async fn upsert_addon_override(
     configuration: &configuration::Configuration,
     params: UpsertAddonOverrideParams,
-) -> Result<models::AddonOverride, Error<UpsertAddonOverrideError>> {
+) -> Result<(), Error<UpsertAddonOverrideError>> {
     let uri_str = format!(
         "{}/menu-items/{id}/overrides",
         configuration.base_path,
@@ -5691,20 +5697,9 @@ pub async fn upsert_addon_override(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AddonOverride`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AddonOverride`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpsertAddonOverrideError> = serde_json::from_str(&content).ok();
@@ -5719,7 +5714,7 @@ pub async fn upsert_addon_override(
 pub async fn upsert_branch_addon_override(
     configuration: &configuration::Configuration,
     params: UpsertBranchAddonOverrideParams,
-) -> Result<models::BranchAddonOverride, Error<UpsertBranchAddonOverrideError>> {
+) -> Result<(), Error<UpsertBranchAddonOverrideError>> {
     let uri_str = format!("{}/branch-addon-overrides", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
 
@@ -5735,20 +5730,9 @@ pub async fn upsert_branch_addon_override(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BranchAddonOverride`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BranchAddonOverride`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpsertBranchAddonOverrideError> = serde_json::from_str(&content).ok();
@@ -5763,7 +5747,7 @@ pub async fn upsert_branch_addon_override(
 pub async fn upsert_branch_menu_override(
     configuration: &configuration::Configuration,
     params: UpsertBranchMenuOverrideParams,
-) -> Result<models::BranchMenuOverride, Error<UpsertBranchMenuOverrideError>> {
+) -> Result<(), Error<UpsertBranchMenuOverrideError>> {
     let uri_str = format!("{}/branch-menu-overrides", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
 
@@ -5779,20 +5763,9 @@ pub async fn upsert_branch_menu_override(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BranchMenuOverride`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BranchMenuOverride`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpsertBranchMenuOverrideError> = serde_json::from_str(&content).ok();

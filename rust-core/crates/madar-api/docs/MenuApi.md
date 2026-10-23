@@ -5,6 +5,7 @@ All URIs are relative to *http://localhost:8080*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**apply_rules**](MenuApi.md#apply_rules) | **POST** /packaging-rules/apply | 
+[**bulk_menu**](MenuApi.md#bulk_menu) | **POST** /menu/bulk | 
 [**catalog_sync**](MenuApi.md#catalog_sync) | **GET** /catalog/sync | 
 [**combo_economics**](MenuApi.md#combo_economics) | **POST** /combos/economics | 
 [**create_addon_item**](MenuApi.md#create_addon_item) | **POST** /addon-items | 
@@ -120,6 +121,35 @@ This endpoint does not need any parameter.
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## bulk_menu
+
+> models::BulkMenuResponse bulk_menu(bulk_menu_request, dry_run)
+
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**bulk_menu_request** | [**BulkMenuRequest**](BulkMenuRequest.md) |  | [required] |
+**dry_run** | Option<**bool**> | Check and write, then roll back: nothing is kept. |  |
+
+### Return type
+
+[**models::BulkMenuResponse**](BulkMenuResponse.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## catalog_sync
 
 > models::CatalogSyncResponse catalog_sync(branch_id, channel, since)
@@ -180,7 +210,7 @@ Name | Type | Description  | Required | Notes
 
 ## create_addon_item
 
-> models::AddonItem create_addon_item(create_addon_item_request)
+> create_addon_item(create_addon_item_request)
 
 
 ### Parameters
@@ -192,7 +222,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::AddonItem**](AddonItem.md)
+ (empty response body)
 
 ### Authorization
 
@@ -208,7 +238,7 @@ Name | Type | Description  | Required | Notes
 
 ## create_addon_slot
 
-> models::AddonSlot create_addon_slot(id, create_addon_slot_request)
+> create_addon_slot(id, create_addon_slot_request)
 
 
 ### Parameters
@@ -221,7 +251,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::AddonSlot**](AddonSlot.md)
+ (empty response body)
 
 ### Authorization
 
@@ -434,7 +464,7 @@ Name | Type | Description  | Required | Notes
 
 ## create_optional_field
 
-> models::OptionalField create_optional_field(id, create_optional_field_request)
+> create_optional_field(id, create_optional_field_request)
 
 
 ### Parameters
@@ -447,7 +477,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::OptionalField**](OptionalField.md)
+ (empty response body)
 
 ### Authorization
 
@@ -1377,7 +1407,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_addon_overrides
 
-> Vec<models::AddonOverride> list_addon_overrides(id)
+> list_addon_overrides(id)
 
 
 ### Parameters
@@ -1389,7 +1419,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**Vec<models::AddonOverride>**](AddonOverride.md)
+ (empty response body)
 
 ### Authorization
 
@@ -1667,7 +1697,7 @@ Name | Type | Description  | Required | Notes
 
 ## list_menu_items
 
-> Vec<models::MenuItem> list_menu_items(org_id, category_id, full, branch_id)
+> Vec<models::MenuItem> list_menu_items(org_id, category_id, full, branch_id, shape)
 
 
 ### Parameters
@@ -1679,6 +1709,7 @@ Name | Type | Description  | Required | Notes
 **category_id** | Option<**uuid::Uuid**> |  |  |
 **full** | Option<**bool**> | When true, embed sizes + addon slots + optionals + recipes per item (the shape the POS/teller consumes). Always returns a plain, unpaginated array — the POS depends on this contract. |  |
 **branch_id** | Option<**uuid::Uuid**> | When set, prices are branch-effective (branch override replaces base_price) and items disabled at this branch are excluded — the per-branch menu the POS consumes. Omitted → the plain org catalog (legacy behaviour). |  |
+**shape** | Option<**String**> | OPT-IN, with `full=true` only: `compact` answers an OBJECT `{shape: \"compact-1\", items, group_options}` instead of the array — every attached choice group's options once in `group_options` (keyed by group id) rather than copied into each item's `pricing.groups`, and without the fields no client reads (`org_id`, `image`, `created_at`, `updated_at`). See `menu::compact`. Any other value, or none, is the default array, unchanged. |  |
 
 ### Return type
 
@@ -1896,7 +1927,7 @@ Name | Type | Description  | Required | Notes
 
 ## put_allowed_addons
 
-> Vec<String> put_allowed_addons(id, put_allowed_addons_request)
+> put_allowed_addons(id, put_allowed_addons_request)
 
 
 ### Parameters
@@ -1909,7 +1940,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-**Vec<String>**
+ (empty response body)
 
 ### Authorization
 
@@ -2300,7 +2331,7 @@ Name | Type | Description  | Required | Notes
 
 ## update_addon_item
 
-> models::AddonItem update_addon_item(id, update_addon_item_request)
+> update_addon_item(id, update_addon_item_request)
 
 
 ### Parameters
@@ -2313,7 +2344,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::AddonItem**](AddonItem.md)
+ (empty response body)
 
 ### Authorization
 
@@ -2329,7 +2360,7 @@ Name | Type | Description  | Required | Notes
 
 ## update_addon_slot
 
-> models::AddonSlot update_addon_slot(id, slot_id, update_addon_slot_request)
+> update_addon_slot(id, slot_id, update_addon_slot_request)
 
 
 ### Parameters
@@ -2343,7 +2374,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::AddonSlot**](AddonSlot.md)
+ (empty response body)
 
 ### Authorization
 
@@ -2475,7 +2506,7 @@ Name | Type | Description  | Required | Notes
 
 ## update_optional_field
 
-> models::OptionalField update_optional_field(id, field_id, update_optional_field_request)
+> update_optional_field(id, field_id, update_optional_field_request)
 
 
 ### Parameters
@@ -2489,7 +2520,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::OptionalField**](OptionalField.md)
+ (empty response body)
 
 ### Authorization
 
@@ -2505,7 +2536,7 @@ Name | Type | Description  | Required | Notes
 
 ## upsert_addon_override
 
-> models::AddonOverride upsert_addon_override(id, upsert_addon_override_request)
+> upsert_addon_override(id, upsert_addon_override_request)
 
 
 ### Parameters
@@ -2518,7 +2549,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::AddonOverride**](AddonOverride.md)
+ (empty response body)
 
 ### Authorization
 
@@ -2534,7 +2565,7 @@ Name | Type | Description  | Required | Notes
 
 ## upsert_branch_addon_override
 
-> models::BranchAddonOverride upsert_branch_addon_override(branch_addon_override_input)
+> upsert_branch_addon_override(branch_addon_override_input)
 
 
 ### Parameters
@@ -2546,7 +2577,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::BranchAddonOverride**](BranchAddonOverride.md)
+ (empty response body)
 
 ### Authorization
 
@@ -2562,7 +2593,7 @@ Name | Type | Description  | Required | Notes
 
 ## upsert_branch_menu_override
 
-> models::BranchMenuOverride upsert_branch_menu_override(branch_menu_override_input)
+> upsert_branch_menu_override(branch_menu_override_input)
 
 
 ### Parameters
@@ -2574,7 +2605,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::BranchMenuOverride**](BranchMenuOverride.md)
+ (empty response body)
 
 ### Authorization
 

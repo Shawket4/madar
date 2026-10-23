@@ -30,6 +30,14 @@ pub struct LoyaltyRedemptionInput {
         skip_serializing_if = "Option::is_none"
     )]
     pub ticket_line_id: Option<Option<uuid::Uuid>>,
+    /// The stamp track (2–4) that pays for it; absent = track 1 (the programme's own card, as every released till sends).
+    #[serde(
+        rename = "track",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub track: Option<Option<u32>>,
     /// How many of that line's units the reward covers. Defaults to one.
     #[serde(
         rename = "units",
@@ -46,6 +54,7 @@ impl LoyaltyRedemptionInput {
         LoyaltyRedemptionInput {
             item_index: None,
             ticket_line_id: None,
+            track: None,
             units: None,
         }
     }

@@ -13,9 +13,21 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SignupRequest {
-    /// The six-digit code from WhatsApp.
-    #[serde(rename = "code")]
-    pub code: String,
+    /// The campaign tags the signup page was opened with, if any. Stored with the org for analysis only; a missing or odd value never refuses a signup.
+    #[serde(
+        rename = "attribution",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub attribution: Option<Option<Box<models::SignupAttribution>>>,
+    #[serde(
+        rename = "code",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub code: Option<Option<String>>,
     #[serde(rename = "email")]
     pub email: String,
     #[serde(rename = "owner_name")]
@@ -23,12 +35,25 @@ pub struct SignupRequest {
     /// At least 8 characters.
     #[serde(rename = "password")]
     pub password: String,
-    /// The phone the code went to.
-    #[serde(rename = "phone")]
-    pub phone: String,
+    /// Deprecated, for the dashboard build before the verify step: the phone and code checked here instead of by `/public/signup/verify`.
+    #[serde(
+        rename = "phone",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub phone: Option<Option<String>>,
     /// The shop's name. It names the organization and its first branch.
     #[serde(rename = "shop_name")]
     pub shop_name: String,
+    /// The token `POST /public/signup/verify` answered with: the proof that the owner holds the phone. The phone is the one it was issued for.
+    #[serde(
+        rename = "signup_token",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub signup_token: Option<Option<String>>,
     /// `cafe` | `restaurant`: the role template the roles start from.
     #[serde(rename = "template")]
     pub template: String,
@@ -39,22 +64,22 @@ pub struct SignupRequest {
 
 impl SignupRequest {
     pub fn new(
-        code: String,
         email: String,
         owner_name: String,
         password: String,
-        phone: String,
         shop_name: String,
         template: String,
         terms_version: String,
     ) -> SignupRequest {
         SignupRequest {
-            code,
+            attribution: None,
+            code: None,
             email,
             owner_name,
             password,
-            phone,
+            phone: None,
             shop_name,
+            signup_token: None,
             template,
             terms_version,
         }

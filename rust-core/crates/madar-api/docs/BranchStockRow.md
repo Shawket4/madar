@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**archived_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | The ingredient's archive time; `null` = active. An archived ingredient still holding stock here keeps appearing so it can be counted or wasted down. | [optional]
 **below_par** | **bool** |  | 
 **branch_id** | **uuid::Uuid** |  | 
 **category_id** | **uuid::Uuid** |  | 

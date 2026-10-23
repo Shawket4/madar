@@ -5,7 +5,7 @@
 /// answer; this table is for screens that render before a session exists.
 abstract final class PlanFeature {
   static const int specVersion = 1;
-  static const String specHash = 'f1e6e47ce5c40542';
+  static const String specHash = '2f9143884e3efa7a';
   static const String basira = 'basira';
   static const String bookings = 'bookings';
   static const String branding = 'branding';

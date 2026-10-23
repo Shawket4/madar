@@ -9567,6 +9567,7 @@ impl MadarCore {
                             .and_then(|s| uuid::Uuid::parse_str(s).ok())
                             .map(Some),
                         units: Some(Some(r.units)),
+                        track: r.track.filter(|t| *t > 1).map(Some),
                     })
                     .collect(),
             );
@@ -11654,6 +11655,7 @@ mod lifecycle_tests {
             in_deal: false,
         }];
         let asked = vec![checkout::CheckoutRedemption {
+            track: None,
             item_index: 0,
             ticket_line_id: None,
             units: 1,
@@ -11679,6 +11681,7 @@ mod lifecycle_tests {
                 None,
                 Some("00000000-0000-0000-0000-00000000c0de".into()),
                 vec![checkout::CheckoutRedemption {
+                    track: None,
                     item_index: 0,
                     ticket_line_id: Some("00000000-0000-0000-0000-0000000000f2".into()),
                     units: 1,

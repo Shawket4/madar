@@ -292,6 +292,8 @@ pub struct _CheckoutRedemption {
     pub ticket_line_id: Option<String>,
     /// How many of that line's units the reward covers.
     pub units: i32,
+    /// The stamp track (2-4) that pays; `None` = track 1.
+    pub track: Option<u32>,
 }
 
 // ── order view mirrors (madar-core/src/orders.rs) ───────────────────────────

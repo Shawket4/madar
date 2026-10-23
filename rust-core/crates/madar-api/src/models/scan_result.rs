@@ -20,6 +20,14 @@ pub struct ScanResult {
     /// What one line costs when `any_item` is on, in the branch's currency.
     #[serde(rename = "any_item_cost")]
     pub any_item_cost: i32,
+    /// The shop's card design for the teller's member card (absent = classic).
+    #[serde(
+        rename = "card",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub card: Option<Option<Box<models::PublicCard>>>,
     /// The shop's ceiling on reward ITEMS per order, if it set one. The till enforces it before Charge so the server's refusal is never the first the teller hears of it.
     #[serde(
         rename = "max_rewards_per_order",
@@ -36,6 +44,14 @@ pub struct ScanResult {
     /// What this member could claim at this branch right now. Empty until the balance reaches the threshold, so the screen cannot tempt a teller into handing over a reward that has not been earned.
     #[serde(rename = "rewards")]
     pub rewards: Vec<models::RewardItem>,
+    /// Tracks 2–4's rewards (each of a track's items at its size), when the card has more than one track. `rewards` stays track 1's only: a released till offers what is in it against the track-1 balance.
+    #[serde(
+        rename = "track_rewards",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub track_rewards: Option<Option<Vec<models::TrackRewards>>>,
 }
 
 impl ScanResult {
@@ -50,10 +66,12 @@ impl ScanResult {
         ScanResult {
             any_item,
             any_item_cost,
+            card: None,
             max_rewards_per_order: None,
             member: Box::new(member),
             recent,
             rewards,
+            track_rewards: None,
         }
     }
 }

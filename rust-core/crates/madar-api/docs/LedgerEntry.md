@@ -18,7 +18,8 @@ Name | Type | Description | Notes
 **points** | **i32** |  | 
 **reverses_id** | Option<**uuid::Uuid**> | For a reversal, the row it undoes. | [optional]
 **reward_name** | Option<**String**> |  | [optional]
-**source** | **String** | Why the row exists: `sale`, `redemption`, `void`, `refund`, `birthday`, `winback` or `manual`. What a till or a dashboard should print as the reason, instead of guessing from the kind and the note. | 
+**source** | **String** | Why the row exists: `sale`, `redemption`, `void`, `refund`, `birthday`, `winback`, `manual`, `merge` or `counter` (no order: the Rewards teller page). What a till or a dashboard should print as the reason, instead of guessing from the kind and the note. | 
+**track** | Option<**i32**> | The stamp track this row moved (2–4); absent for track 1. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

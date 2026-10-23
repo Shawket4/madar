@@ -11,8 +11,45 @@ use flutter_rust_bridge::frb;
 
 pub use madar_core::loyalty::{
     LoyaltyAwardOutcome, LoyaltyLedgerView, LoyaltyMemberView, LoyaltyProgrammeView,
-    LoyaltyRewardView, LoyaltyScanInput, LoyaltyScanView,
+    LoyaltyRewardView, LoyaltyScanInput, LoyaltyScanView, LoyaltyTrackAfter, LoyaltyTrackAward,
+    LoyaltyTrackRewardsView, LoyaltyTrackView,
 };
+
+/// One stamp track on a member's card.
+#[frb(mirror(LoyaltyTrackView))]
+pub struct _LoyaltyTrackView {
+    pub position: u32,
+    pub name: String,
+    pub size: i64,
+    pub balance: i64,
+    pub rewards_ready: i64,
+    pub colour: Option<String>,
+}
+
+/// What a track 2-4 offers at the till.
+#[frb(mirror(LoyaltyTrackRewardsView))]
+pub struct _LoyaltyTrackRewardsView {
+    pub position: u32,
+    pub rewards: Vec<LoyaltyRewardView>,
+}
+
+/// One track's share of an award.
+#[frb(mirror(LoyaltyTrackAward))]
+pub struct _LoyaltyTrackAward {
+    pub position: u32,
+    pub name: String,
+    pub awarded: i64,
+    pub balance: i64,
+    pub size: i64,
+}
+
+/// A track's balance once the ticked rewards are taken.
+#[frb(mirror(LoyaltyTrackAfter))]
+pub struct _LoyaltyTrackAfter {
+    pub position: u32,
+    pub name: String,
+    pub balance_after: i64,
+}
 
 /// The branch's programme, as the till needs it. Three facts, not the
 /// dashboard's forty — everything else on the settings decides what the SERVER
@@ -68,6 +105,9 @@ pub struct _LoyaltyMemberView {
     pub progress_label: String,
     /// What to call the balance on screen — "points" or "orders".
     pub balance_label: String,
+    /// Every stamp track, track 1 first, when the shop runs more than one;
+    /// empty otherwise (and then every screen is today's).
+    pub tracks: Vec<LoyaltyTrackView>,
 }
 
 /// One reward the member could claim right now. Empty until they can — the
@@ -112,6 +152,8 @@ pub struct _LoyaltyScanView {
     pub any_item_cost: i64,
     /// The shop's ceiling on reward items per order.
     pub max_rewards_per_order: Option<i64>,
+    /// Tracks 2-4's rewards; empty on a one-track card.
+    pub track_rewards: Vec<LoyaltyTrackRewardsView>,
 }
 
 pub use madar_core::loyalty::{RewardBoardView, RewardLineInput, RewardLineState, RewardPick};
@@ -135,6 +177,8 @@ pub struct _RewardLineInput {
 pub struct _RewardPick {
     pub line: u32,
     pub units: i32,
+    /// The track that pays (1 on a one-track card).
+    pub track: u32,
 }
 
 #[frb(mirror(RewardLineState))]
@@ -147,6 +191,10 @@ pub struct _RewardLineState {
     pub blocked_reason: Option<String>,
     pub covered_minor: i64,
     pub cost_label: String,
+    /// The track covering it; 0 when none.
+    pub track: u32,
+    /// Two or more: the till asks which track pays, nothing preselected.
+    pub track_choices: Vec<u32>,
 }
 
 /// The rewards section, decided by the core: see `madar_core::loyalty::reward_board`.
@@ -159,6 +207,8 @@ pub struct _RewardBoardView {
     pub units_claimed: i32,
     pub covered_minor: i64,
     pub adjusted_reason: Option<String>,
+    /// Each track's balance after the picks; empty on a one-track card.
+    pub tracks_after: Vec<LoyaltyTrackAfter>,
 }
 
 /// What came of pressing "add points" on a sale.
@@ -183,6 +233,8 @@ pub struct _LoyaltyAwardOutcome {
     pub headline: String,
     /// Ready-made line under it, localized.
     pub detail: String,
+    /// What each track earned, track 1 first; empty on a one-track card.
+    pub tracks: Vec<LoyaltyTrackAward>,
 }
 
 impl MadarBridge {
@@ -254,6 +306,27 @@ impl MadarBridge {
         line: u32,
     ) -> Vec<RewardPick> {
         madar_core::loyalty::toggle_reward(&lines, &scan, &picks, line, &self.inner.current_locale())
+    }
+
+    /// The teller's answer to "which card pays?" for a line two tracks could
+    /// cover: one unit of it on `track`.
+    #[frb(sync)]
+    pub fn toggle_reward_on_track(
+        &self,
+        lines: Vec<RewardLineInput>,
+        scan: LoyaltyScanView,
+        picks: Vec<RewardPick>,
+        line: u32,
+        track: u32,
+    ) -> Vec<RewardPick> {
+        madar_core::loyalty::toggle_reward_on_track(
+            &lines,
+            &scan,
+            &picks,
+            line,
+            track,
+            &self.inner.current_locale(),
+        )
     }
 
     /// The board's picks as the redemptions a checkout or settle sends.

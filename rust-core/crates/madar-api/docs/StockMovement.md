@@ -16,6 +16,7 @@ Name | Type | Description | Notes
 **device_id** | Option<**uuid::Uuid**> |  | [optional]
 **device_name** | Option<**String**> |  | [optional]
 **id** | **uuid::Uuid** |  | 
+**ingredient_archived_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | The ingredient's archive time (history keeps showing an archived ingredient, with a badge); `null` = active. | [optional]
 **ingredient_name** | **String** |  | 
 **movement_type** | **String** | inventory_movement_type: sale | void_restock | adjustment_add | adjustment_remove | waste | transfer_out | transfer_in | purchase_in | purchase_return | stock_count | 
 **note** | Option<**String**> |  | [optional]

@@ -10,6 +10,7 @@ Method | HTTP request | Description
 [**loyalty_card_qr**](LoyaltyPublicApi.md#loyalty_card_qr) | **GET** /public/loyalty/card/{token}/qr.png | The member's QR as a PNG.
 [**loyalty_join**](LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | Join a shop's rewards programme.
 [**loyalty_join_info**](LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | What a rewards programme's join page shows: its brand, rewards and what joining asks for.
+[**public_loyalty_card_hero**](LoyaltyPublicApi.md#public_loyalty_card_hero) | **GET** /public/loyalty/brand/{org_id}/card/{revision}/{state} | The designed Google hero at one progress state (public: Google fetches it). No member data: the org, the revision and each track's progress, every number checked against the shop's tracks.
 [**set_loyalty_card_preferences**](LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | Save a card holder's choices: no marketing messages, and the language to write in.
 
 
@@ -191,6 +192,36 @@ No authorization required
 
 - **Content-Type**: Not defined
 - **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## public_loyalty_card_hero
+
+> public_loyalty_card_hero(org_id, revision, state)
+The designed Google hero at one progress state (public: Google fetches it). No member data: the org, the revision and each track's progress, every number checked against the shop's tracks.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | **uuid::Uuid** |  | [required] |
+**revision** | **i32** |  | [required] |
+**state** | **String** | e.g. `3-0-en.png` | [required] |
+
+### Return type
+
+ (empty response body)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: image/png
 
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 

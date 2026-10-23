@@ -15,6 +15,14 @@ use serde::{Deserialize, Serialize};
 pub struct OpenTicketItemView {
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// The line's name and quantity from its relational columns (DB Phase 5.1). Additive: older tills keep reading them out of `line`.
+    #[serde(
+        rename = "item_name",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub item_name: Option<Option<String>>,
     /// The frozen priced SnapshotLine (name, size, addons, totals).
     #[serde(rename = "line", deserialize_with = "Option::deserialize")]
     pub line: Option<serde_json::Value>,
@@ -27,6 +35,13 @@ pub struct OpenTicketItemView {
         skip_serializing_if = "Option::is_none"
     )]
     pub menu_item_id: Option<Option<uuid::Uuid>>,
+    #[serde(
+        rename = "quantity",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub quantity: Option<Option<i32>>,
     /// When the round this line came in on was fired. A bill is read as a sequence of visits to the table — \"the drinks at seven, the food at half past\" — and without the clock a till can only show a flat list that says nothing about how the evening went.
     #[serde(rename = "round_fired_at")]
     pub round_fired_at: chrono::DateTime<chrono::FixedOffset>,
@@ -47,9 +62,11 @@ impl OpenTicketItemView {
     ) -> OpenTicketItemView {
         OpenTicketItemView {
             id,
+            item_name: None,
             line,
             line_total,
             menu_item_id: None,
+            quantity: None,
             round_fired_at,
             round_number,
             voided,

@@ -23,6 +23,14 @@ pub struct AwardResult {
     /// Points this sale earned. 0 when it was too small to reach one point.
     #[serde(rename = "points_awarded")]
     pub points_awarded: i32,
+    /// What each stamp track 2–4 earned on this press (0 for one already earned), when the card has more than one track. `points_awarded` and `member` stay track 1's.
+    #[serde(
+        rename = "tracks",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub tracks: Option<Option<Vec<models::TrackAward>>>,
 }
 
 impl AwardResult {
@@ -37,6 +45,7 @@ impl AwardResult {
             member: Box::new(member),
             order_id,
             points_awarded,
+            tracks: None,
         }
     }
 }

@@ -9,6 +9,7 @@ Name | Type | Description | Notes
 **branch_id** | Option<**uuid::Uuid**> | Absent for an org-wide code — the customer has not told us where they are, and nothing in the programme needs to know. | [optional]
 **branch_name** | Option<**String**> |  | [optional]
 **brand** | [**models::CardBrand**](CardBrand.md) | Whose programme this is, and how the page should look. | 
+**card** | Option<[**models::PublicCard**](PublicCard.md)> | The shop's card design, when it published one (or runs several stamp tracks): the page draws it with the `card` wasm package. Absent = the classic card, and the page loads nothing extra. | [optional]
 **earn_piastres_per_point** | **i32** | EGP that earns one point — the page's \"a point for every N EGP\" line. Piastres on the wire, as everywhere; the page divides by 100. Only meaningful when `mode` is `\"points\"`. | 
 **enabled** | **bool** | False when the program is off here — the page says so instead of taking a signup that would go nowhere. | 
 **mode** | **String** | `\"points\"` (earned on spend) or `\"visits\"` (a stamp per order) — which sentence the page writes. | 

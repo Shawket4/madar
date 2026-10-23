@@ -26,6 +26,7 @@ Name | Type | Description | Notes
 **order_id** | **uuid::Uuid** |  | 
 **quantity** | **i32** |  | 
 **reward_covered** | Option<**i32**> | Minor units the reward took off this line (0 for a paid line). | [optional]
+**reward_track** | Option<**i32**> | The stamp track (2–4) whose reward covered it; absent for track 1. | [optional]
 **reward_units** | Option<**i32**> | How many of `quantity` the reward covered. | [optional]
 **size_label** | Option<**String**> |  | [optional]
 **staff_comp_minor** | Option<**i32**> | A staff drink: what the branch's pool comped on this line, in minor units, size part and required-choice part together. ALREADY taken off `line_total` (the size part) and the add-ons' `line_total` (their part): print it as a line discount, never subtract it again. 0 on a paid line. | [optional]

@@ -1,0 +1,12 @@
+# StampStyle
+
+## Properties
+
+Name | Type | Description | Notes
+------------ | ------------- | ------------- | -------------
+**empty** | [**models::EmptyStyle**](EmptyStyle.md) |  | 
+**shape** | [**models::StampShape**](StampShape.md) |  | 
+
+[[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
+
+

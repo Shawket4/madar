@@ -1446,6 +1446,8 @@ fn en(key: &str) -> Option<&'static str> {
         // and the progress line once a reward is reached.
         "loyalty.unit_points" => "points",
         "loyalty.unit_orders" => "orders",
+        "loyalty.unit_stamps" => "stamps",
+        "loyalty.pick_track" => "Which card pays for it?",
         "loyalty.reward_earned" => "Reward earned",
         "loyalty.scan_hint" => "Hold their wallet pass to the scanner, or point the camera at it.",
         "loyalty.phone_hint" => "Look the customer up by the number they signed up with.",
@@ -3920,6 +3922,8 @@ fn ar(key: &str) -> Option<&'static str> {
         // (see the plurals note at the top of this file).
         "loyalty.unit_points" => "نقاط",
         "loyalty.unit_orders" => "طلبات",
+        "loyalty.unit_stamps" => "أختام",
+        "loyalty.pick_track" => "أي بطاقة تغطيها؟",
         "loyalty.reward_earned" => "المكافأة جاهزة",
         "loyalty.scan_hint" => "قرّب بطاقة العميل من الماسح، أو وجّه الكاميرا إليها.",
         "loyalty.phone_hint" => "ابحث عن العميل برقم الهاتف المسجّل به.",

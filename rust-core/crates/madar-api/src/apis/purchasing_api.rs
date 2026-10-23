@@ -76,6 +76,17 @@ pub struct ListPoReceiptsParams {
     pub id: String,
 }
 
+/// struct for passing parameters to the method [`list_purchase_last_prices`]
+#[derive(Clone, Debug)]
+pub struct ListPurchaseLastPricesParams {
+    /// Organization ID
+    pub org_id: String,
+    /// The supplier the order is for. Its own last price wins; when it never sold the ingredient (or none is given) the last price from any supplier is returned, with `source = \"any\"`.
+    pub supplier_id: Option<String>,
+    /// Comma-separated ingredient ids. Omitted: every ingredient the org has ever put on a purchase order.
+    pub ingredient_ids: Option<String>,
+}
+
 /// struct for passing parameters to the method [`list_purchase_orders`]
 #[derive(Clone, Debug)]
 pub struct ListPurchaseOrdersParams {
@@ -219,6 +230,19 @@ pub enum ListOrgPurchaseOrdersError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ListPoReceiptsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_purchase_last_prices`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListPurchaseLastPricesError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -682,6 +706,60 @@ pub async fn list_po_receipts(
     } else {
         let content = resp.text().await?;
         let entity: Option<ListPoReceiptsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// For each ingredient: the most recent PO line from `supplier_id`, preferring a received line (at the price its delivery was invoiced at) over one only ordered, and either over a cancelled order's; failing that, the same pick over every supplier (`source = \"any\"`). Ingredients never purchased are absent. Read-only, derived from purchase orders and goods receipts.
+pub async fn list_purchase_last_prices(
+    configuration: &configuration::Configuration,
+    params: ListPurchaseLastPricesParams,
+) -> Result<Vec<models::LastPrice>, Error<ListPurchaseLastPricesError>> {
+    let uri_str = format!(
+        "{}/purchasing/orgs/{org_id}/last-prices",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.supplier_id {
+        req_builder = req_builder.query(&[("supplier_id", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.ingredient_ids {
+        req_builder = req_builder.query(&[("ingredient_ids", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `Vec&lt;models::LastPrice&gt;`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `Vec&lt;models::LastPrice&gt;`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListPurchaseLastPricesError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

@@ -1655,6 +1655,16 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required int line,
   });
 
+  /// The teller's answer to "which card pays?" for a line two tracks could
+  /// cover: one unit of it on `track`.
+  List<RewardPick> toggleRewardOnTrack({
+    required List<RewardLineInput> lines,
+    required LoyaltyScanView scan,
+    required List<RewardPick> picks,
+    required int line,
+    required int track,
+  });
+
   /// Localized UI string for `key` (en/ar; falls back to en, then the key).
   String tr({required String key});
 

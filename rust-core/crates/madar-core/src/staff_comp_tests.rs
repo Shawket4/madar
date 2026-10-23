@@ -377,14 +377,14 @@ async fn a_staff_drink_is_never_a_reward_and_a_reward_never_a_staff_drink() {
 
     // Priced: a reward asked for on the marked line covers nothing.
     let with = core
-        .cart_totals_with_rewards(None, vec![checkout::CheckoutRedemption { item_index: 0, ticket_line_id: None, units: 1 }])
+        .cart_totals_with_rewards(None, vec![checkout::CheckoutRedemption { track: None, item_index: 0, ticket_line_id: None, units: 1 }])
         .unwrap();
     assert_eq!(with, core.cart_totals(None).unwrap());
 
     // Charged: refused before anything is queued.
     core.open_till(0, None).await.unwrap();
     let mut input = pay(0);
-    input.loyalty_redemptions = vec![checkout::CheckoutRedemption { item_index: 0, ticket_line_id: None, units: 1 }];
+    input.loyalty_redemptions = vec![checkout::CheckoutRedemption { track: None, item_index: 0, ticket_line_id: None, units: 1 }];
     let lines = core.cart_lines(None).unwrap();
     let err = checkout::reward_units_by_line(&lines, &input.loyalty_redemptions).unwrap_err();
     assert!(format!("{err:?}").contains(checkout::STAFF_DRINK_NOT_A_REWARD));

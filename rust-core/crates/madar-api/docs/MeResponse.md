@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**addons** | Option<**Vec<String>**> | Features the org has as add-ons beside its plan (Rewards by Madar: `[\"loyalty\"]`). | [optional]
 **currency_code** | **String** | Org currency code (e.g. \"EGP\"). | 
 **plan** | Option<**String**> | The organization's plan: `free` | `paid`. Re-read on every `/auth/me`. | [optional]
 **require_table_for_orders** | Option<**bool**> | Every dine-in sale belongs to a table. Re-read on every `/auth/me`, so switching it on reaches a till that has been running for weeks. | [optional]

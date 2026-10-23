@@ -49,6 +49,36 @@ pub struct LoyaltyMemberView {
     pub progress_label: String,
     /// What to call the balance on screen — "points" or "orders".
     pub balance_label: String,
+    /// Every stamp track on the card, track 1 first, when the shop runs more
+    /// than one; EMPTY otherwise (one track, a points programme, an older
+    /// server), and then every screen is exactly today's. The fields above
+    /// stay track 1's.
+    pub tracks: Vec<LoyaltyTrackView>,
+}
+
+/// One stamp track on a member's card (the server's `MemberTrack`).
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoyaltyTrackView {
+    /// 1 to 4; track 1 is the programme's own card.
+    pub position: u32,
+    /// In the till's language; track 1 unnamed reads as its balance word.
+    pub name: String,
+    /// Stamps that fill the card (the reward's cost on this track).
+    pub size: i64,
+    pub balance: i64,
+    /// Rewards already earned on this track.
+    pub rewards_ready: i64,
+    /// `#RRGGBB`, else the screen's own colour.
+    pub colour: Option<String>,
+}
+
+/// What a track 2-4 offers at the till: each of its items at its size.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoyaltyTrackRewardsView {
+    pub position: u32,
+    pub rewards: Vec<LoyaltyRewardView>,
 }
 
 /// One reward the member could claim right now. Empty until they can.
@@ -102,6 +132,9 @@ pub struct LoyaltyScanView {
     pub any_item_cost: i64,
     /// The shop's ceiling on reward ITEMS per order; `None` = no ceiling.
     pub max_rewards_per_order: Option<i64>,
+    /// Tracks 2-4's rewards (`rewards` stays track 1's). Empty unless the
+    /// card has more than one track.
+    pub track_rewards: Vec<LoyaltyTrackRewardsView>,
 }
 
 /// What came of pressing "add points" on a sale.
@@ -133,6 +166,22 @@ pub struct LoyaltyAwardOutcome {
     /// The line under it — where the customer now stands, or why there is no
     /// balance to show. Already localized and already filled in.
     pub detail: String,
+    /// What each track earned on this press, track 1 first, when the card has
+    /// more than one track; empty otherwise.
+    pub tracks: Vec<LoyaltyTrackAward>,
+}
+
+/// One track's share of an award.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoyaltyTrackAward {
+    pub position: u32,
+    pub name: String,
+    /// Stamps this press added on the track.
+    pub awarded: i64,
+    /// Where the track stands now.
+    pub balance: i64,
+    pub size: i64,
 }
 
 /// The outcome of a press the server answered.
@@ -159,7 +208,32 @@ pub fn award_outcome(locale: &str, r: &madar_api::models::AwardResult) -> Loyalt
         points_awarded: points,
         headline,
         detail,
+        tracks: track_awards(r, locale),
     }
+}
+
+/// Each track's share of an award: track 1 is `points_awarded`, tracks 2-4
+/// come from the result's `tracks`. Empty for a one-track card.
+fn track_awards(r: &madar_api::models::AwardResult, locale: &str) -> Vec<LoyaltyTrackAward> {
+    let earned = r.tracks.clone().flatten().unwrap_or_default();
+    member_view(&r.member, locale)
+        .tracks
+        .into_iter()
+        .map(|t| LoyaltyTrackAward {
+            awarded: if t.position == 1 {
+                r.points_awarded as i64
+            } else {
+                earned
+                    .iter()
+                    .find(|e| e.position == t.position)
+                    .map_or(0, |e| e.points_awarded as i64)
+            },
+            position: t.position,
+            name: t.name,
+            balance: t.balance,
+            size: t.size,
+        })
+        .collect()
 }
 
 /// The detail an award refused for want of a connection carries; the host maps
@@ -417,6 +491,36 @@ pub fn member_view(m: &madar_api::models::MemberView, locale: &str) -> LoyaltyMe
         can_redeem: m.can_redeem,
         progress_label: progress_label(balance, target, locale),
         balance_label: balance_label(&m.mode, locale),
+        tracks: m
+            .tracks
+            .clone()
+            .flatten()
+            .filter(|t| t.len() > 1)
+            .unwrap_or_default()
+            .iter()
+            .map(|t| LoyaltyTrackView {
+                position: t.position,
+                name: match crate::menu::pick_lang(&t.name_en, &t.name_ar, locale) {
+                    n if n.trim().is_empty() => balance_label(&m.mode, locale),
+                    n => n,
+                },
+                size: t.size as i64,
+                balance: t.balance as i64,
+                rewards_ready: t.rewards_ready as i64,
+                colour: t.colour.clone().flatten(),
+            })
+            .collect(),
+    }
+}
+
+fn reward_view(r: &madar_api::models::RewardItem, unit: &str) -> LoyaltyRewardView {
+    LoyaltyRewardView {
+        menu_item_id: r.menu_item_id.to_string(),
+        name: r.name.clone(),
+        price_minor: r.base_price as i64,
+        cost_currency: r.cost_currency.clone(),
+        cost_amount: r.cost_amount as i64,
+        cost_label: format!("{} {unit}", r.cost_amount),
     }
 }
 
@@ -426,17 +530,22 @@ pub fn scan_view(s: &madar_api::models::ScanResult, locale: &str) -> LoyaltyScan
         rewards: s
             .rewards
             .iter()
-            .map(|r| LoyaltyRewardView {
-                menu_item_id: r.menu_item_id.to_string(),
-                name: r.name.clone(),
-                price_minor: r.base_price as i64,
-                cost_currency: r.cost_currency.clone(),
-                cost_amount: r.cost_amount as i64,
-                cost_label: format!(
-                    "{} {}",
-                    r.cost_amount,
-                    balance_label(&r.cost_currency, locale)
-                ),
+            .map(|r| reward_view(r, &balance_label(&r.cost_currency, locale)))
+            .collect(),
+        track_rewards: s
+            .track_rewards
+            .clone()
+            .flatten()
+            .unwrap_or_default()
+            .iter()
+            .filter(|t| t.position > 1)
+            .map(|t| LoyaltyTrackRewardsView {
+                position: t.position,
+                rewards: t
+                    .rewards
+                    .iter()
+                    .map(|r| reward_view(r, &crate::i18n::tr(locale, "loyalty.unit_stamps")))
+                    .collect(),
             })
             .collect(),
         any_item: s.any_item,
@@ -497,6 +606,9 @@ pub struct RewardLineInput {
 pub struct RewardPick {
     pub line: u32,
     pub units: i32,
+    /// The stamp track that pays: 1 (the programme's own card) unless the
+    /// card has more than one track.
+    pub track: u32,
 }
 
 /// One line on the board.
@@ -519,6 +631,12 @@ pub struct RewardLineState {
     pub covered_minor: i64,
     /// Ready-made cost, e.g. "5 orders".
     pub cost_label: String,
+    /// The track covering it; 0 when nothing covers it.
+    pub track: u32,
+    /// The tracks a tap could cover it with. Two or more: the till asks
+    /// which, nothing preselected ([`toggle_reward_on_track`]). Empty on a
+    /// one-track card.
+    pub track_choices: Vec<u32>,
 }
 
 /// Everything the rewards section renders, and the picks to send.
@@ -538,6 +656,18 @@ pub struct RewardBoardView {
     pub covered_minor: i64,
     /// The asked picks did not all survive; says why, in the till's language.
     pub adjusted_reason: Option<String>,
+    /// Each track's balance after `picks`, track 1 first, on a card with more
+    /// than one track; empty otherwise (`balance_after` is track 1's).
+    pub tracks_after: Vec<LoyaltyTrackAfter>,
+}
+
+/// A track's balance once the ticked rewards are taken.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LoyaltyTrackAfter {
+    pub position: u32,
+    pub name: String,
+    pub balance_after: i64,
 }
 
 /// A cart's lines, in the order the server indexes them.
@@ -601,6 +731,7 @@ pub fn picks_from_redemptions(
             RewardPick {
                 line: found.unwrap_or(lines.len()) as u32,
                 units: r.units,
+                track: r.track.unwrap_or(1),
             }
         })
         .collect()
@@ -619,6 +750,8 @@ pub fn redemptions_from_picks(
                 item_index: l.cart_index.unwrap_or(0),
                 ticket_line_id: l.ticket_line_id.clone(),
                 units: p.units,
+                // Track 1 is named by saying nothing, as every released till does.
+                track: (p.track > 1).then_some(p.track),
             })
         })
         .collect()
@@ -686,6 +819,13 @@ pub fn reward_board(
     asked: &[RewardPick],
     locale: &str,
 ) -> RewardBoardView {
+    if scan.member.tracks.len() > 1 {
+        return tracks_board(lines, scan, asked, locale);
+    }
+    // One track: today's board, untouched (a pick on another track cannot
+    // exist without a multi-track card, and is dropped here if it does).
+    let asked: Vec<RewardPick> = asked.iter().filter(|p| p.track <= 1).cloned().collect();
+    let asked = &asked[..];
     let tr = |k: &str| crate::i18n::tr(locale, k);
     let balance = scan.member.balance.max(0);
     let cap = scan.max_rewards_per_order.filter(|c| *c > 0);
@@ -713,6 +853,7 @@ pub fn reward_board(
         .map(|p| RewardPick {
             line: p.line as u32,
             units: p.units as i32,
+            track: 1,
         })
         .collect();
     let cost = plan.cost;
@@ -760,6 +901,8 @@ pub fn reward_board(
                 cost_label: unit
                     .map(|u| format!("{u} {}", balance_label(&scan.member.mode, locale)))
                     .unwrap_or_default(),
+                track: if units > 0 { 1 } else { 0 },
+                track_choices: Vec::new(),
             }
         })
         .collect::<Vec<_>>();
@@ -772,6 +915,7 @@ pub fn reward_board(
         units_claimed: claimed as i32,
         covered_minor: covered,
         adjusted_reason: reason,
+        tracks_after: Vec::new(),
     }
 }
 
@@ -796,10 +940,225 @@ pub fn toggle_reward(
     match next.iter_mut().find(|p| p.line == line) {
         Some(p) if state.can_add => p.units += 1,
         Some(_) => next.retain(|p| p.line != line),
-        None if state.can_add => next.push(RewardPick { line, units: 1 }),
+        // Two tracks could pay: the till asks (toggle_reward_on_track).
+        None if state.track_choices.len() > 1 => {}
+        None if state.can_add => next.push(RewardPick {
+            line,
+            units: 1,
+            track: state.track_choices.first().copied().unwrap_or(1),
+        }),
         None => {}
     }
     next
+}
+
+/// The teller's answer to "which card pays?": cover one unit of an uncovered
+/// `line` on `track`, if that track may take it now.
+pub fn toggle_reward_on_track(
+    lines: &[RewardLineInput],
+    scan: &LoyaltyScanView,
+    picks: &[RewardPick],
+    line: u32,
+    track: u32,
+    locale: &str,
+) -> Vec<RewardPick> {
+    let board = reward_board(lines, scan, picks, locale);
+    let mut next = board.picks.clone();
+    let ok = board.lines.get(line as usize).is_some_and(|s| {
+        s.units == 0 && s.can_add && s.track_choices.contains(&track)
+    });
+    if ok {
+        next.push(RewardPick { line, units: 1, track });
+    }
+    next
+}
+
+/// Every track's programme as the shared planner reads it: track 1 is
+/// [`programme_of`], tracks 2-4 their rewards at their size, each with the
+/// member's balance on it.
+fn track_programmes(scan: &LoyaltyScanView) -> Vec<madar_loyalty::tracks::TrackProgramme> {
+    let balance = |pos: u32| {
+        scan.member
+            .tracks
+            .iter()
+            .find(|t| t.position == pos)
+            .map_or(0, |t| t.balance)
+    };
+    let mut out = vec![madar_loyalty::tracks::TrackProgramme {
+        track: 1,
+        programme: programme_of(scan),
+    }];
+    for t in &scan.track_rewards {
+        out.push(madar_loyalty::tracks::TrackProgramme {
+            track: t.position as u8,
+            programme: madar_loyalty::Programme {
+                rewards: t
+                    .rewards
+                    .iter()
+                    .map(|r| madar_loyalty::Reward {
+                        menu_item_id: r.menu_item_id.clone(),
+                        cost: r.cost_amount,
+                    })
+                    .collect(),
+                balance: balance(t.position),
+                ..Default::default()
+            },
+        });
+    }
+    out
+}
+
+/// The board on a card with several tracks: madar-shared's `plan_tracks`
+/// (one reward per line, each track its own balance, one shared cap).
+fn tracks_board(
+    lines: &[RewardLineInput],
+    scan: &LoyaltyScanView,
+    asked: &[RewardPick],
+    locale: &str,
+) -> RewardBoardView {
+    use madar_loyalty::tracks::{plan_tracks, TrackAsk};
+    let tr = |k: &str| crate::i18n::tr(locale, k);
+    let cap = scan.max_rewards_per_order.filter(|c| *c > 0);
+    let progs = track_programmes(scan);
+    let plan_lines: Vec<madar_loyalty::Line> = lines.iter().map(plan_line).collect();
+    let asks: Vec<TrackAsk> = asked
+        .iter()
+        .map(|p| TrackAsk {
+            line: Some(p.line as usize),
+            units: Some(i64::from(p.units)),
+            track: Some(p.track.max(1) as u8),
+        })
+        .collect();
+    let plan = plan_tracks(&plan_lines, &progs, &asks, cap, madar_loyalty::Mode::Till)
+        .unwrap_or_default();
+    // The surviving picks, in the order they were asked.
+    let mut picks: Vec<RewardPick> = Vec::new();
+    for p in asked {
+        if let Some((t, u)) = plan.cover(p.line as usize) {
+            if !picks.iter().any(|x| x.line == p.line) {
+                picks.push(RewardPick { line: p.line, units: u as i32, track: u32::from(t) });
+            }
+        }
+    }
+    let spent = |t: u8| {
+        plan.tracks
+            .iter()
+            .find(|x| x.track == t)
+            .map_or(0, |x| x.plan.cost)
+    };
+    let claimed = plan.units;
+    let at_cap = cap.is_some_and(|c| claimed >= c);
+    let name_of = |pos: u32| {
+        scan.member
+            .tracks
+            .iter()
+            .find(|t| t.position == pos)
+            .map(|t| t.name.clone())
+            .unwrap_or_default()
+    };
+    // "5 orders" on track 1, as today; "6 stamps · Sandwiches" on the others.
+    let cost_of = |t: u8, u: i64| {
+        if t == 1 {
+            format!("{u} {}", balance_label(&scan.member.mode, locale))
+        } else {
+            format!("{u} {} · {}", tr("loyalty.unit_stamps"), name_of(u32::from(t)))
+        }
+    };
+    let reason: Option<String> = plan.trimmed.map(|t| match t {
+        madar_loyalty::Trim::LineGone => tr("loyalty.reward_line_gone"),
+        madar_loyalty::Trim::NotOnOffer => tr("loyalty.reward_not_on_offer"),
+        madar_loyalty::Trim::LineShrank => tr("loyalty.reward_line_shrank"),
+        madar_loyalty::Trim::OverCap => cap_reason(cap.unwrap_or(0), locale),
+        madar_loyalty::Trim::BalanceShort => tr("loyalty.reward_balance_short"),
+        madar_loyalty::Trim::InCombo => tr("combo.reward"),
+    });
+    let states = lines
+        .iter()
+        .enumerate()
+        .map(|(i, line)| {
+            let pl = plan_line(line);
+            // (track, unit cost, balance left on it) for every track offering it.
+            let offers: Vec<(u8, i64, i64)> = progs
+                .iter()
+                .filter_map(|p| {
+                    madar_loyalty::unit_cost(&pl, &p.programme)
+                        .map(|u| (p.track, u, p.programme.balance.max(0) - spent(p.track)))
+                })
+                .collect();
+            let cover = plan.cover(i);
+            let units = cover.map_or(0, |(_, u)| u as i32);
+            let (unit, choices): (Option<(u8, i64)>, Vec<u32>) = match cover {
+                Some((t, _)) => (offers.iter().find(|o| o.0 == t).map(|o| (o.0, o.1)), Vec::new()),
+                None => {
+                    let c: Vec<u32> = offers
+                        .iter()
+                        .filter(|o| o.2 >= o.1)
+                        .map(|o| u32::from(o.0))
+                        .collect();
+                    let first = offers.iter().find(|o| o.2 >= o.1).or(offers.first());
+                    (first.map(|o| (o.0, o.1)), c)
+                }
+            };
+            let affordable = match cover {
+                Some((t, _)) => offers.iter().any(|o| o.0 == t && o.2 >= o.1),
+                None => !choices.is_empty(),
+            };
+            let blocked_reason = match unit {
+                None if line.is_staff_drink => Some(tr("loyalty.reward_no_staff_drink")),
+                None if line.in_combo => Some(tr("combo.reward")),
+                None if line.in_deal => Some(tr("deal.reward")),
+                None => None,
+                Some(_) if units >= line.qty => None,
+                Some(_) if at_cap => Some(cap_reason(cap.unwrap_or(0), locale)),
+                Some(_) if !affordable => Some(tr("loyalty.reward_balance_short")),
+                Some(_) => None,
+            };
+            let can_add = unit.is_some() && units < line.qty && blocked_reason.is_none();
+            // One offer: its cost. Several: each, so the teller sees both prices.
+            let cost_label = match (cover, offers.len()) {
+                (Some((t, _)), _) => unit.map(|(_, u)| cost_of(t, u)).unwrap_or_default(),
+                (None, 0) => String::new(),
+                (None, _) => offers
+                    .iter()
+                    .map(|o| cost_of(o.0, o.1))
+                    .collect::<Vec<_>>()
+                    .join(" / "),
+            };
+            RewardLineState {
+                line: i as u32,
+                claimable: unit.is_some(),
+                unit_cost: unit.map_or(0, |u| u.1),
+                units,
+                can_add,
+                blocked_reason,
+                covered_minor: covered_minor(line.line_total_minor, line.qty as i64, units as i64),
+                cost_label,
+                track: cover.map_or(0, |(t, _)| u32::from(t)),
+                track_choices: if units == 0 && can_add { choices } else { Vec::new() },
+            }
+        })
+        .collect::<Vec<_>>();
+    let covered = states.iter().map(|s| s.covered_minor).sum();
+    let tracks_after = scan
+        .member
+        .tracks
+        .iter()
+        .map(|t| LoyaltyTrackAfter {
+            position: t.position,
+            name: t.name.clone(),
+            balance_after: t.balance - spent(t.position as u8),
+        })
+        .collect();
+    RewardBoardView {
+        lines: states,
+        picks,
+        cost: plan.tracks.iter().map(|t| t.plan.cost).sum(),
+        balance_after: scan.member.balance.max(0) - spent(1),
+        units_claimed: claimed as i32,
+        covered_minor: covered,
+        adjusted_reason: reason,
+        tracks_after,
+    }
 }
 
 /// What the teller reads when a sale's rewards were recorded without points.
@@ -1088,6 +1447,7 @@ mod tests {
             any_item,
             any_item_cost: 8,
             max_rewards_per_order: cap,
+            track_rewards: vec![],
         }
     }
 
@@ -1106,7 +1466,7 @@ mod tests {
     }
 
     fn pick(line: u32, units: i32) -> RewardPick {
-        RewardPick { line, units }
+        RewardPick { line, units, track: 1 }
     }
 
     /// C7: a combo's items earn stamps (the server's), but no reward is taken
@@ -1308,4 +1668,279 @@ mod tests {
         }
         assert!(checked >= 20, "checked {checked}");
     }
+
+    // ── stamp tracks ─────────────────────────────────────────────────────────
+
+    fn api_track(pos: u32, en: &str, ar: &str, size: i32, balance: i32) -> madar_api::models::MemberTrack {
+        let card = madar_loyalty::card::card(balance, size);
+        madar_api::models::MemberTrack::new(
+            balance,
+            card.can_redeem,
+            ar.into(),
+            en.into(),
+            card.points_to_next_reward,
+            pos,
+            card.progress_to_next,
+            card.rewards_ready,
+            size,
+        )
+    }
+
+    fn api_reward(item: &str, cost: i32) -> madar_api::models::RewardItem {
+        madar_api::models::RewardItem {
+            menu_item_id: uuid::Uuid::parse_str(item).unwrap(),
+            name: item.into(),
+            base_price: 5_000,
+            cost_currency: "visits".into(),
+            cost_amount: cost,
+            ..Default::default()
+        }
+    }
+
+    const LATTE: &str = "00000000-0000-0000-0000-00000000000a";
+    const SANDWICH: &str = "00000000-0000-0000-0000-00000000000b";
+    const CAKE: &str = "00000000-0000-0000-0000-00000000000c";
+
+    /// Track 1 (unnamed, size 5, balance 5: latte), Sandwiches (size 6,
+    /// balance 7: sandwich, cake), Cakes (size 4, balance 4: cake).
+    fn three_tracks(locale: &str, cap: Option<i32>) -> LoyaltyScanView {
+        let mut m = member("Ali", 5, 5);
+        m.tracks = Some(Some(vec![
+            api_track(1, "", "", 5, 5),
+            api_track(2, "Sandwiches", "ساندويتشات", 6, 7),
+            api_track(3, "Cakes", "كيك", 4, 4),
+        ]));
+        let s = madar_api::models::ScanResult {
+            member: Box::new(m),
+            rewards: vec![api_reward(LATTE, 5)],
+            max_rewards_per_order: Some(cap),
+            track_rewards: Some(Some(vec![
+                madar_api::models::TrackRewards::new(2, vec![api_reward(SANDWICH, 6), api_reward(CAKE, 6)]),
+                madar_api::models::TrackRewards::new(3, vec![api_reward(CAKE, 4)]),
+            ])),
+            ..Default::default()
+        };
+        scan_view(&s, locale)
+    }
+
+    fn basket() -> Vec<RewardLineInput> {
+        [line(LATTE, 1, 5_000), line(SANDWICH, 1, 8_000), line(CAKE, 1, 6_000)]
+            .into_iter()
+            .enumerate()
+            .map(|(i, mut l)| {
+                l.cart_index = Some(i as u32);
+                l
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_one_track_card_has_no_tracks_and_an_older_server_none_either() {
+        let mut m = member("Ali", 3, 5);
+        assert!(member_view(&m, "en").tracks.is_empty(), "older server");
+        m.tracks = Some(Some(vec![api_track(1, "", "", 5, 3)]));
+        assert!(member_view(&m, "en").tracks.is_empty(), "one track = today's card");
+        let s = scan(10, None, false);
+        assert!(s.track_rewards.is_empty());
+    }
+
+    #[test]
+    fn a_member_shows_each_track_in_the_tills_language() {
+        let en = three_tracks("en", None);
+        let names: Vec<_> = en.member.tracks.iter().map(|t| t.name.as_str()).collect();
+        assert_eq!(names, ["orders", "Sandwiches", "Cakes"], "track 1 unnamed reads as its unit");
+        let ar = three_tracks("ar", None);
+        assert_eq!(ar.member.tracks[1].name, "ساندويتشات");
+        // size 6, balance 7: one ready, one towards the next.
+        assert_eq!((en.member.tracks[1].rewards_ready, en.member.tracks[1].balance), (1, 7));
+        assert_eq!(en.track_rewards.len(), 2);
+        assert_eq!(en.track_rewards[0].rewards[0].cost_label, "6 stamps");
+        assert_eq!(en.rewards.len(), 1, "rewards stays track 1's");
+    }
+
+    #[test]
+    fn each_line_offers_the_tracks_that_can_pay_and_two_ask() {
+        let s = three_tracks("en", None);
+        let b = reward_board(&basket(), &s, &[], "en");
+        assert_eq!(b.lines[0].track_choices, vec![1]);
+        assert_eq!(b.lines[0].cost_label, "5 orders");
+        assert_eq!(b.lines[1].track_choices, vec![2]);
+        assert_eq!(b.lines[1].cost_label, "6 stamps · Sandwiches");
+        assert_eq!(b.lines[2].track_choices, vec![2, 3], "the cake: two cards could pay");
+        assert_eq!(b.lines[2].cost_label, "6 stamps · Sandwiches / 4 stamps · Cakes");
+        // One choice: the tap uses it. Two: the tap does nothing, the till asks.
+        let one = toggle_reward(&basket(), &s, &[], 1, "en");
+        assert_eq!(one, vec![RewardPick { line: 1, units: 1, track: 2 }]);
+        assert!(toggle_reward(&basket(), &s, &[], 2, "en").is_empty(), "nothing preselected");
+        let asked = toggle_reward_on_track(&basket(), &s, &[], 2, 3, "en");
+        assert_eq!(asked, vec![RewardPick { line: 2, units: 1, track: 3 }]);
+        // Once the sandwich spent Sandwiches down to 1, only Cakes can pay.
+        let b = reward_board(&basket(), &s, &one, "en");
+        assert_eq!(b.lines[2].track_choices, vec![3]);
+        // A track that cannot pay is not an answer.
+        assert_eq!(toggle_reward_on_track(&basket(), &s, &one, 0, 3, "en"), one);
+    }
+
+    #[test]
+    fn a_mixed_basket_spends_each_tracks_own_balance() {
+        let s = three_tracks("en", None);
+        let picks = [
+            RewardPick { line: 0, units: 1, track: 1 },
+            RewardPick { line: 1, units: 1, track: 2 },
+            RewardPick { line: 2, units: 1, track: 3 },
+        ];
+        let b = reward_board(&basket(), &s, &picks, "en");
+        assert_eq!(b.picks, picks.to_vec());
+        assert_eq!(b.covered_minor, 19_000, "5,000 + 8,000 + 6,000");
+        assert_eq!(b.cost, 15, "5 + 6 + 4");
+        assert_eq!(b.balance_after, 0, "track 1: 5 - 5");
+        let after: Vec<_> = b.tracks_after.iter().map(|t| (t.position, t.balance_after)).collect();
+        assert_eq!(after, [(1, 0), (2, 1), (3, 0)]);
+        assert_eq!(b.lines[2].track, 3);
+        assert_eq!(b.lines[2].cost_label, "4 stamps · Cakes");
+        assert!(b.adjusted_reason.is_none());
+        // The redemptions name tracks 2-4 only; track 1 says nothing.
+        let r = redemptions_from_picks(&basket(), &b.picks);
+        assert_eq!(r.iter().map(|x| x.track).collect::<Vec<_>>(), [None, Some(2), Some(3)]);
+        assert_eq!(picks_from_redemptions(&basket(), &r), picks.to_vec());
+    }
+
+    #[test]
+    fn the_shared_cap_and_a_short_track_trim_and_say_why() {
+        let capped = three_tracks("en", Some(2));
+        let picks = [
+            RewardPick { line: 0, units: 1, track: 1 },
+            RewardPick { line: 1, units: 1, track: 2 },
+            RewardPick { line: 2, units: 1, track: 3 },
+        ];
+        let b = reward_board(&basket(), &capped, &picks, "en");
+        assert_eq!(b.picks, picks[..2].to_vec(), "one cap across all tracks");
+        assert_eq!(b.adjusted_reason.as_deref(), Some("Up to 2 rewards per order here"));
+        // Sandwich and cake both on Sandwiches: 12 against a balance of 7.
+        let s = three_tracks("en", None);
+        let short = reward_board(
+            &basket(),
+            &s,
+            &[RewardPick { line: 1, units: 1, track: 2 }, RewardPick { line: 2, units: 1, track: 2 }],
+            "en",
+        );
+        assert_eq!(short.picks, vec![RewardPick { line: 1, units: 1, track: 2 }]);
+        assert_eq!(short.adjusted_reason.as_deref(), Some("Not enough on the card for another"));
+        // The cake can still go on Cakes, and only there.
+        assert_eq!(short.lines[2].track_choices, vec![3]);
+    }
+
+    #[test]
+    fn an_award_names_what_each_track_earned() {
+        let mut m = member("Sara", 3, 5);
+        m.tracks = Some(Some(vec![api_track(1, "", "", 5, 3), api_track(2, "Sandwiches", "ساندويتشات", 6, 2)]));
+        let mut r = madar_api::models::AwardResult::new(false, m, Default::default(), 1);
+        r.tracks = Some(Some(vec![madar_api::models::TrackAward::new(2, 2)]));
+        let out = award_outcome("en", &r);
+        let got: Vec<_> = out.tracks.iter().map(|t| (t.name.as_str(), t.awarded, t.balance, t.size)).collect();
+        assert_eq!(got, [("orders", 1, 3, 5), ("Sandwiches", 2, 2, 6)]);
+        assert_eq!(out.detail, "Sara — 3 orders · 3 / 5", "the detail stays track 1's");
+        assert!(award_outcome("en", &result(1, false)).tracks.is_empty());
+    }
+
+
+    /// madar-loyalty's track vectors (the planner the server judges a sale
+    /// with) through this till's board: the same picks, cost, units and
+    /// trimming; and, before anything is ticked, the same choices per line.
+    #[test]
+    fn the_board_plans_tracks_as_the_shared_planner_does() {
+        use madar_loyalty::tracks::{TrackAsk, TrackProgramme, TracksPlan};
+        let v: serde_json::Value = serde_json::from_str(madar_loyalty::vectors::TRACKS).unwrap();
+        let mut checked = 0;
+        for c in v["cases"].as_array().unwrap() {
+            let name = c["name"].as_str().unwrap();
+            let lines: Vec<madar_loyalty::Line> = serde_json::from_value(c["lines"].clone()).unwrap();
+            let progs: Vec<TrackProgramme> = serde_json::from_value(c["programmes"].clone()).unwrap();
+            let asks: Vec<TrackAsk> = serde_json::from_value(c["asks"].clone()).unwrap();
+            let Ok(want) = serde_json::from_value::<TracksPlan>(c["till"]["Ok"].clone()) else {
+                continue;
+            };
+            let input: Vec<RewardLineInput> = lines
+                .iter()
+                .map(|l| RewardLineInput {
+                    name: "line".into(),
+                    cart_index: None,
+                    ticket_line_id: None,
+                    menu_item_id: l.menu_item_id.clone(),
+                    qty: l.quantity as i32,
+                    line_total_minor: 1_000 * l.quantity,
+                    is_staff_drink: l.is_staff_drink,
+                    in_combo: l.in_combo,
+                    in_deal: false,
+                })
+                .collect();
+            let p1 = progs.iter().find(|p| p.track == 1).map(|p| p.programme.clone()).unwrap_or_default();
+            let mut sc = scan(0, c["max_per_order"].as_i64(), p1.any_item);
+            sc.member.balance = p1.balance;
+            sc.any_item_cost = p1.any_item_cost;
+            let rv = |r: &madar_loyalty::Reward| LoyaltyRewardView {
+                menu_item_id: r.menu_item_id.clone(),
+                name: "reward".into(),
+                price_minor: 0,
+                cost_currency: "visits".into(),
+                cost_amount: r.cost,
+                cost_label: String::new(),
+            };
+            sc.rewards = p1.rewards.iter().map(rv).collect();
+            // Every track the case names is on the card (track 1 always).
+            let mut positions: Vec<u8> = progs.iter().map(|p| p.track).collect();
+            positions.extend(asks.iter().map(TrackAsk::track));
+            positions.push(1);
+            positions.sort_unstable();
+            positions.dedup();
+            sc.member.tracks = positions
+                .iter()
+                .map(|&t| LoyaltyTrackView {
+                    position: u32::from(t),
+                    name: format!("t{t}"),
+                    size: 1,
+                    balance: progs.iter().find(|p| p.track == t).map_or(0, |p| p.programme.balance),
+                    rewards_ready: 0,
+                    colour: None,
+                })
+                .collect();
+            sc.track_rewards = progs
+                .iter()
+                .filter(|p| p.track > 1)
+                .map(|p| LoyaltyTrackRewardsView {
+                    position: u32::from(p.track),
+                    rewards: p.programme.rewards.iter().map(rv).collect(),
+                })
+                .collect();
+            let asked: Vec<RewardPick> = asks
+                .iter()
+                .map(|a| RewardPick {
+                    line: a.line.unwrap() as u32,
+                    units: a.units.unwrap_or(1) as i32,
+                    track: u32::from(a.track()),
+                })
+                .collect();
+            let b = reward_board(&input, &sc, &asked, "en");
+            let mut got: Vec<(usize, i64, u8)> = b.picks.iter().map(|p| (p.line as usize, i64::from(p.units), p.track as u8)).collect();
+            let mut exp: Vec<(usize, i64, u8)> = want
+                .tracks
+                .iter()
+                .flat_map(|t| t.plan.lines.iter().map(move |l| (l.line, l.units, t.track)))
+                .collect();
+            got.sort_unstable();
+            exp.sort_unstable();
+            assert_eq!(got, exp, "{name}");
+            assert_eq!(b.cost, want.tracks.iter().map(|t| t.plan.cost).sum::<i64>(), "{name}");
+            assert_eq!(i64::from(b.units_claimed), want.units, "{name}");
+            assert_eq!(b.adjusted_reason.is_some(), want.trimmed.is_some(), "{name}");
+            if asks.is_empty() {
+                let choices: Vec<Vec<u32>> = serde_json::from_value(c["choices"].clone()).unwrap();
+                let mine: Vec<Vec<u32>> = b.lines.iter().map(|l| l.track_choices.clone()).collect();
+                assert_eq!(mine, choices, "{name}: choices");
+            }
+            checked += 1;
+        }
+        assert!(checked >= 8, "checked {checked}");
+    }
+
 }

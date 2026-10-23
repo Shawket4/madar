@@ -13,6 +13,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct LoginResponse {
+    /// Features the org has as add-ons beside its plan (Rewards by Madar: `[\"loyalty\"]` on Free). Additive: an old client ignores it and sees the plan alone.
+    #[serde(rename = "addons", skip_serializing_if = "Option::is_none")]
+    pub addons: Option<Vec<String>>,
     #[serde(rename = "currency_code")]
     pub currency_code: String,
     /// The person's open till at the branch they signed into (any device), so the device can resume it or show where it is open.
@@ -54,6 +57,7 @@ impl LoginResponse {
         user: models::UserPublic,
     ) -> LoginResponse {
         LoginResponse {
+            addons: None,
             currency_code,
             open_till: None,
             plan: None,

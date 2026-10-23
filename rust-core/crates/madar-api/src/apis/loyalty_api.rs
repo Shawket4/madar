@@ -13,6 +13,24 @@ use crate::{apis::ResponseContent, models};
 use reqwest;
 use serde::{de::Error as _, Deserialize, Serialize};
 
+/// struct for passing parameters to the method [`cancel_loyalty_broadcast`]
+#[derive(Clone, Debug)]
+pub struct CancelLoyaltyBroadcastParams {
+    pub id: String,
+}
+
+/// struct for passing parameters to the method [`count_loyalty_broadcast_audience`]
+#[derive(Clone, Debug)]
+pub struct CountLoyaltyBroadcastAudienceParams {
+    pub audience_request: models::AudienceRequest,
+}
+
+/// struct for passing parameters to the method [`create_loyalty_broadcast`]
+#[derive(Clone, Debug)]
+pub struct CreateLoyaltyBroadcastParams {
+    pub broadcast_input: models::BroadcastInput,
+}
+
 /// struct for passing parameters to the method [`delete_loyalty_member`]
 #[derive(Clone, Debug)]
 pub struct DeleteLoyaltyMemberParams {
@@ -47,6 +65,12 @@ pub struct GetLoyaltyBehaviorParams {
     pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
     /// Exclusive end of the range. Defaults to now.
     pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+}
+
+/// struct for passing parameters to the method [`get_loyalty_broadcast`]
+#[derive(Clone, Debug)]
+pub struct GetLoyaltyBroadcastParams {
+    pub id: String,
 }
 
 /// struct for passing parameters to the method [`get_loyalty_campaign_effectiveness`]
@@ -98,6 +122,13 @@ pub struct GetLoyaltyMemberParams {
     pub offset: Option<i64>,
 }
 
+/// struct for passing parameters to the method [`get_loyalty_member_wallet`]
+#[derive(Clone, Debug)]
+pub struct GetLoyaltyMemberWalletParams {
+    /// Member ID
+    pub id: String,
+}
+
 /// struct for passing parameters to the method [`get_loyalty_reward_items`]
 #[derive(Clone, Debug)]
 pub struct GetLoyaltyRewardItemsParams {
@@ -112,11 +143,27 @@ pub struct GetLoyaltySettingsParams {
     pub branch_id: Option<String>,
 }
 
+/// struct for passing parameters to the method [`get_loyalty_stats`]
+#[derive(Clone, Debug)]
+pub struct GetLoyaltyStatsParams {
+    /// Start of the range (an instant, like the other loyalty analytics); its day in the shop's time zone is the first day. Default: 29 days before `to`.
+    pub from: Option<chrono::DateTime<chrono::FixedOffset>>,
+    /// End of the range (inclusive); its day in the shop's zone is the last. Default: today.
+    pub to: Option<chrono::DateTime<chrono::FixedOffset>>,
+}
+
 /// struct for passing parameters to the method [`get_loyalty_wallet_status`]
 #[derive(Clone, Debug)]
 pub struct GetLoyaltyWalletStatusParams {
     /// Omit for the org-wide default; supply a branch for its override.
     pub branch_id: Option<String>,
+}
+
+/// struct for passing parameters to the method [`list_loyalty_broadcasts`]
+#[derive(Clone, Debug)]
+pub struct ListLoyaltyBroadcastsParams {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 /// struct for passing parameters to the method [`list_loyalty_members`]
@@ -142,6 +189,18 @@ pub struct LoyaltyAwardParams {
     pub award_request: models::AwardRequest,
 }
 
+/// struct for passing parameters to the method [`loyalty_counter_redeem`]
+#[derive(Clone, Debug)]
+pub struct LoyaltyCounterRedeemParams {
+    pub counter_redeem_request: models::CounterRedeemRequest,
+}
+
+/// struct for passing parameters to the method [`loyalty_counter_stamp`]
+#[derive(Clone, Debug)]
+pub struct LoyaltyCounterStampParams {
+    pub counter_stamp_request: models::CounterStampRequest,
+}
+
 /// struct for passing parameters to the method [`loyalty_lookup`]
 #[derive(Clone, Debug)]
 pub struct LoyaltyLookupParams {
@@ -152,6 +211,18 @@ pub struct LoyaltyLookupParams {
 #[derive(Clone, Debug)]
 pub struct PreviewLoyaltyBirthdayMessageParams {
     pub loyalty_settings: models::LoyaltySettings,
+}
+
+/// struct for passing parameters to the method [`preview_loyalty_card_design`]
+#[derive(Clone, Debug)]
+pub struct PreviewLoyaltyCardDesignParams {
+    pub card_preview_request: models::CardPreviewRequest,
+}
+
+/// struct for passing parameters to the method [`put_loyalty_card_design`]
+#[derive(Clone, Debug)]
+pub struct PutLoyaltyCardDesignParams {
+    pub put_card_design: models::PutCardDesign,
 }
 
 /// struct for passing parameters to the method [`put_loyalty_earning_items`]
@@ -172,11 +243,62 @@ pub struct PutLoyaltySettingsParams {
     pub loyalty_settings: models::LoyaltySettings,
 }
 
+/// struct for passing parameters to the method [`put_loyalty_tracks`]
+#[derive(Clone, Debug)]
+pub struct PutLoyaltyTracksParams {
+    pub put_tracks: models::PutTracks,
+}
+
+/// struct for passing parameters to the method [`query_loyalty_members`]
+#[derive(Clone, Debug)]
+pub struct QueryLoyaltyMembersParams {
+    pub members_query_request: models::MembersQueryRequest,
+}
+
 /// struct for passing parameters to the method [`refresh_loyalty_google_pass`]
 #[derive(Clone, Debug)]
 pub struct RefreshLoyaltyGooglePassParams {
     /// Loyalty member id
     pub id: String,
+}
+
+/// struct for typed errors of method [`cancel_loyalty_broadcast`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CancelLoyaltyBroadcastError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`count_loyalty_broadcast_audience`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CountLoyaltyBroadcastAudienceError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`create_loyalty_broadcast`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreateLoyaltyBroadcastError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
 }
 
 /// struct for typed errors of method [`delete_loyalty_member`]
@@ -231,10 +353,36 @@ pub enum GetLoyaltyBehaviorError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_loyalty_broadcast`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetLoyaltyBroadcastError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_loyalty_campaign_effectiveness`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetLoyaltyCampaignEffectivenessError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_loyalty_card_design`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetLoyaltyCardDesignError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -296,6 +444,19 @@ pub enum GetLoyaltyMemberError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_loyalty_member_wallet`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetLoyaltyMemberWalletError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_loyalty_reward_items`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -322,10 +483,49 @@ pub enum GetLoyaltySettingsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`get_loyalty_stats`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetLoyaltyStatsError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`get_loyalty_tracks`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum GetLoyaltyTracksError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`get_loyalty_wallet_status`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum GetLoyaltyWalletStatusError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`list_loyalty_broadcasts`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ListLoyaltyBroadcastsError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -374,6 +574,32 @@ pub enum LoyaltyAwardError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`loyalty_counter_redeem`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LoyaltyCounterRedeemError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`loyalty_counter_stamp`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LoyaltyCounterStampError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`loyalty_lookup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -391,6 +617,45 @@ pub enum LoyaltyLookupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum PreviewLoyaltyBirthdayMessageError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`preview_loyalty_card_design`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PreviewLoyaltyCardDesignError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`publish_loyalty_card_design`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PublishLoyaltyCardDesignError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`put_loyalty_card_design`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutLoyaltyCardDesignError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -439,6 +704,32 @@ pub enum PutLoyaltySettingsError {
     UnknownValue(serde_json::Value),
 }
 
+/// struct for typed errors of method [`put_loyalty_tracks`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PutLoyaltyTracksError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`query_loyalty_members`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum QueryLoyaltyMembersError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
 /// struct for typed errors of method [`refresh_loyalty_google_pass`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -450,6 +741,161 @@ pub enum RefreshLoyaltyGooglePassError {
     Status409(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`unpublish_loyalty_card_design`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum UnpublishLoyaltyCardDesignError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+pub async fn cancel_loyalty_broadcast(
+    configuration: &configuration::Configuration,
+    params: CancelLoyaltyBroadcastParams,
+) -> Result<models::Broadcast, Error<CancelLoyaltyBroadcastError>> {
+    let uri_str = format!(
+        "{}/loyalty/broadcasts/{id}/cancel",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Broadcast`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Broadcast`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CancelLoyaltyBroadcastError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn count_loyalty_broadcast_audience(
+    configuration: &configuration::Configuration,
+    params: CountLoyaltyBroadcastAudienceParams,
+) -> Result<models::AudienceCount, Error<CountLoyaltyBroadcastAudienceError>> {
+    let uri_str = format!("{}/loyalty/broadcasts/audience", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.audience_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AudienceCount`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AudienceCount`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CountLoyaltyBroadcastAudienceError> =
+            serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn create_loyalty_broadcast(
+    configuration: &configuration::Configuration,
+    params: CreateLoyaltyBroadcastParams,
+) -> Result<models::Broadcast, Error<CreateLoyaltyBroadcastError>> {
+    let uri_str = format!("{}/loyalty/broadcasts", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.broadcast_input);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Broadcast`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Broadcast`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<CreateLoyaltyBroadcastError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
 }
 
 /// This used to FORGET the person — it was written when the loyalty row was the only record of them. A membership is now a card under the customer's id, so ending it touches nothing but the card: the customer, their orders, their addresses and their bookings stay, and they can join again. Erasing a person's data is `POST /customers/{id}/erase`, which also ends the card. See [`model::leave`] for exactly what goes.  204 twice in a row: a card that is already gone is not a failure.
@@ -632,6 +1078,53 @@ pub async fn get_loyalty_behavior(
     }
 }
 
+pub async fn get_loyalty_broadcast(
+    configuration: &configuration::Configuration,
+    params: GetLoyaltyBroadcastParams,
+) -> Result<models::Broadcast, Error<GetLoyaltyBroadcastError>> {
+    let uri_str = format!(
+        "{}/loyalty/broadcasts/{id}",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::Broadcast`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::Broadcast`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetLoyaltyBroadcastError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn get_loyalty_campaign_effectiveness(
     configuration: &configuration::Configuration,
     params: GetLoyaltyCampaignEffectivenessParams,
@@ -677,6 +1170,48 @@ pub async fn get_loyalty_campaign_effectiveness(
         let content = resp.text().await?;
         let entity: Option<GetLoyaltyCampaignEffectivenessError> =
             serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_loyalty_card_design(
+    configuration: &configuration::Configuration,
+) -> Result<models::CardDesignView, Error<GetLoyaltyCardDesignError>> {
+    let uri_str = format!("{}/loyalty/card-design", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CardDesignView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CardDesignView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetLoyaltyCardDesignError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -890,6 +1425,53 @@ pub async fn get_loyalty_member(
     }
 }
 
+pub async fn get_loyalty_member_wallet(
+    configuration: &configuration::Configuration,
+    params: GetLoyaltyMemberWalletParams,
+) -> Result<models::MemberWallet, Error<GetLoyaltyMemberWalletError>> {
+    let uri_str = format!(
+        "{}/loyalty/members/{id}/wallet",
+        configuration.base_path,
+        id = crate::apis::urlencode(params.id)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::MemberWallet`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::MemberWallet`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetLoyaltyMemberWalletError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 pub async fn get_loyalty_reward_items(
     configuration: &configuration::Configuration,
     params: GetLoyaltyRewardItemsParams,
@@ -982,6 +1564,97 @@ pub async fn get_loyalty_settings(
     }
 }
 
+pub async fn get_loyalty_stats(
+    configuration: &configuration::Configuration,
+    params: GetLoyaltyStatsParams,
+) -> Result<models::RewardsStats, Error<GetLoyaltyStatsError>> {
+    let uri_str = format!("{}/loyalty/stats", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.from {
+        req_builder = req_builder.query(&[("from", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.to {
+        req_builder = req_builder.query(&[("to", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::RewardsStats`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::RewardsStats`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetLoyaltyStatsError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn get_loyalty_tracks(
+    configuration: &configuration::Configuration,
+) -> Result<models::TracksView, Error<GetLoyaltyTracksError>> {
+    let uri_str = format!("{}/loyalty/tracks", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TracksView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TracksView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<GetLoyaltyTracksError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Every failure in this feature has looked the same from the outside — a missing button, or a save that says \"something went wrong\" — while the cause was a variable nobody set, a key file the code never read, a service account Google had not been told about, or a link over a size limit. None of those reach a customer's screen, and only some reach a log.  This asks, on demand, and reports what it finds. It makes live calls to Google, so it is deliberately not part of any page load.
 pub async fn get_loyalty_wallet_status(
     configuration: &configuration::Configuration,
@@ -1021,6 +1694,55 @@ pub async fn get_loyalty_wallet_status(
     } else {
         let content = resp.text().await?;
         let entity: Option<GetLoyaltyWalletStatusError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn list_loyalty_broadcasts(
+    configuration: &configuration::Configuration,
+    params: ListLoyaltyBroadcastsParams,
+) -> Result<models::BroadcastsPage, Error<ListLoyaltyBroadcastsError>> {
+    let uri_str = format!("{}/loyalty/broadcasts", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref param_value) = params.limit {
+        req_builder = req_builder.query(&[("limit", &param_value.to_string())]);
+    }
+    if let Some(ref param_value) = params.offset {
+        req_builder = req_builder.query(&[("offset", &param_value.to_string())]);
+    }
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::BroadcastsPage`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::BroadcastsPage`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<ListLoyaltyBroadcastsError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1176,6 +1898,98 @@ pub async fn loyalty_award(
     }
 }
 
+pub async fn loyalty_counter_redeem(
+    configuration: &configuration::Configuration,
+    params: LoyaltyCounterRedeemParams,
+) -> Result<models::CounterResult, Error<LoyaltyCounterRedeemError>> {
+    let uri_str = format!("{}/loyalty/counter/redeem", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.counter_redeem_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CounterResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CounterResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<LoyaltyCounterRedeemError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn loyalty_counter_stamp(
+    configuration: &configuration::Configuration,
+    params: LoyaltyCounterStampParams,
+) -> Result<models::CounterResult, Error<LoyaltyCounterStampError>> {
+    let uri_str = format!("{}/loyalty/counter/stamp", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.counter_stamp_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CounterResult`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CounterResult`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<LoyaltyCounterStampError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// A POST rather than a GET because the member token is a bearer-ish secret: in a query string it would land in access logs, browser history and any proxy in between.
 pub async fn loyalty_lookup(
     configuration: &configuration::Configuration,
@@ -1263,6 +2077,129 @@ pub async fn preview_loyalty_birthday_message(
         let content = resp.text().await?;
         let entity: Option<PreviewLoyaltyBirthdayMessageError> =
             serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn preview_loyalty_card_design(
+    configuration: &configuration::Configuration,
+    params: PreviewLoyaltyCardDesignParams,
+) -> Result<(), Error<PreviewLoyaltyCardDesignError>> {
+    let uri_str = format!("{}/loyalty/card-design/preview", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.card_preview_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PreviewLoyaltyCardDesignError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn publish_loyalty_card_design(
+    configuration: &configuration::Configuration,
+) -> Result<models::CardDesignView, Error<PublishLoyaltyCardDesignError>> {
+    let uri_str = format!("{}/loyalty/card-design/publish", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CardDesignView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CardDesignView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PublishLoyaltyCardDesignError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn put_loyalty_card_design(
+    configuration: &configuration::Configuration,
+    params: PutLoyaltyCardDesignParams,
+) -> Result<models::CardDesignView, Error<PutLoyaltyCardDesignError>> {
+    let uri_str = format!("{}/loyalty/card-design", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.put_card_design);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CardDesignView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CardDesignView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutLoyaltyCardDesignError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,
@@ -1403,6 +2340,96 @@ pub async fn put_loyalty_settings(
     }
 }
 
+pub async fn put_loyalty_tracks(
+    configuration: &configuration::Configuration,
+    params: PutLoyaltyTracksParams,
+) -> Result<models::TracksView, Error<PutLoyaltyTracksError>> {
+    let uri_str = format!("{}/loyalty/tracks", configuration.base_path);
+    let mut req_builder = configuration.client.request(reqwest::Method::PUT, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.put_tracks);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::TracksView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::TracksView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PutLoyaltyTracksError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn query_loyalty_members(
+    configuration: &configuration::Configuration,
+    params: QueryLoyaltyMembersParams,
+) -> Result<models::CrmMembersPage, Error<QueryLoyaltyMembersError>> {
+    let uri_str = format!("{}/loyalty/members/query", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+    req_builder = req_builder.json(&params.members_query_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CrmMembersPage`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CrmMembersPage`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<QueryLoyaltyMembersError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
 /// Reading the object back says what Google HOLDS. It does not say why, and by the time you are reading it the write that mattered is over — a refused class refresh is deliberately only a warning, because a customer must keep the card they have, so the reason goes to a log rather than to the person asking the question.  This runs the real provisioning through the real code path, keeping a transcript: every request, its status, and Google's answer verbatim. Then it reads both resources back, so the transcript and the outcome sit together.  It WRITES, which is why it is a POST and why it is not part of any page load. Everything it does, opening a customer's card page does too.
 pub async fn refresh_loyalty_google_pass(
     configuration: &configuration::Configuration,
@@ -1445,6 +2472,50 @@ pub async fn refresh_loyalty_google_pass(
     } else {
         let content = resp.text().await?;
         let entity: Option<RefreshLoyaltyGooglePassError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn unpublish_loyalty_card_design(
+    configuration: &configuration::Configuration,
+) -> Result<models::CardDesignView, Error<UnpublishLoyaltyCardDesignError>> {
+    let uri_str = format!("{}/loyalty/card-design/published", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::DELETE, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    if let Some(ref token) = configuration.bearer_access_token {
+        req_builder = req_builder.bearer_auth(token.to_owned());
+    };
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::CardDesignView`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::CardDesignView`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<UnpublishLoyaltyCardDesignError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

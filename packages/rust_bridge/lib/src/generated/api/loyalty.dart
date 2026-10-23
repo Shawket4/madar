@@ -33,6 +33,9 @@ class LoyaltyAwardOutcome {
   /// Ready-made line under it, localized.
   final String detail;
 
+  /// What each track earned, track 1 first; empty on a one-track card.
+  final List<LoyaltyTrackAward> tracks;
+
   const LoyaltyAwardOutcome({
     this.member,
     required this.queued,
@@ -40,6 +43,7 @@ class LoyaltyAwardOutcome {
     required this.pointsAwarded,
     required this.headline,
     required this.detail,
+    required this.tracks,
   });
 
   @override
@@ -49,7 +53,8 @@ class LoyaltyAwardOutcome {
       alreadyCollected.hashCode ^
       pointsAwarded.hashCode ^
       headline.hashCode ^
-      detail.hashCode;
+      detail.hashCode ^
+      tracks.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -61,7 +66,8 @@ class LoyaltyAwardOutcome {
           alreadyCollected == other.alreadyCollected &&
           pointsAwarded == other.pointsAwarded &&
           headline == other.headline &&
-          detail == other.detail;
+          detail == other.detail &&
+          tracks == other.tracks;
 }
 
 /// One line of the member's recent history, already phrased for display.
@@ -148,6 +154,10 @@ class LoyaltyMemberView {
   /// What to call the balance on screen — "points" or "orders".
   final String balanceLabel;
 
+  /// Every stamp track, track 1 first, when the shop runs more than one;
+  /// empty otherwise (and then every screen is today's).
+  final List<LoyaltyTrackView> tracks;
+
   const LoyaltyMemberView({
     required this.id,
     required this.name,
@@ -161,6 +171,7 @@ class LoyaltyMemberView {
     required this.canRedeem,
     required this.progressLabel,
     required this.balanceLabel,
+    required this.tracks,
   });
 
   @override
@@ -176,7 +187,8 @@ class LoyaltyMemberView {
       pointsToNextReward.hashCode ^
       canRedeem.hashCode ^
       progressLabel.hashCode ^
-      balanceLabel.hashCode;
+      balanceLabel.hashCode ^
+      tracks.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -194,7 +206,8 @@ class LoyaltyMemberView {
           pointsToNextReward == other.pointsToNextReward &&
           canRedeem == other.canRedeem &&
           progressLabel == other.progressLabel &&
-          balanceLabel == other.balanceLabel;
+          balanceLabel == other.balanceLabel &&
+          tracks == other.tracks;
 }
 
 /// The branch's programme, as the till needs it. Three facts, not the
@@ -325,6 +338,9 @@ class LoyaltyScanView {
   /// The shop's ceiling on reward items per order.
   final PlatformInt64? maxRewardsPerOrder;
 
+  /// Tracks 2-4's rewards; empty on a one-track card.
+  final List<LoyaltyTrackRewardsView> trackRewards;
+
   const LoyaltyScanView({
     required this.member,
     required this.rewards,
@@ -332,6 +348,7 @@ class LoyaltyScanView {
     required this.anyItem,
     required this.anyItemCost,
     this.maxRewardsPerOrder,
+    required this.trackRewards,
   });
 
   @override
@@ -341,7 +358,8 @@ class LoyaltyScanView {
       recent.hashCode ^
       anyItem.hashCode ^
       anyItemCost.hashCode ^
-      maxRewardsPerOrder.hashCode;
+      maxRewardsPerOrder.hashCode ^
+      trackRewards.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -353,7 +371,131 @@ class LoyaltyScanView {
           recent == other.recent &&
           anyItem == other.anyItem &&
           anyItemCost == other.anyItemCost &&
-          maxRewardsPerOrder == other.maxRewardsPerOrder;
+          maxRewardsPerOrder == other.maxRewardsPerOrder &&
+          trackRewards == other.trackRewards;
+}
+
+/// A track's balance once the ticked rewards are taken.
+class LoyaltyTrackAfter {
+  final int position;
+  final String name;
+  final PlatformInt64 balanceAfter;
+
+  const LoyaltyTrackAfter({
+    required this.position,
+    required this.name,
+    required this.balanceAfter,
+  });
+
+  @override
+  int get hashCode => position.hashCode ^ name.hashCode ^ balanceAfter.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoyaltyTrackAfter &&
+          runtimeType == other.runtimeType &&
+          position == other.position &&
+          name == other.name &&
+          balanceAfter == other.balanceAfter;
+}
+
+/// One track's share of an award.
+class LoyaltyTrackAward {
+  final int position;
+  final String name;
+  final PlatformInt64 awarded;
+  final PlatformInt64 balance;
+  final PlatformInt64 size;
+
+  const LoyaltyTrackAward({
+    required this.position,
+    required this.name,
+    required this.awarded,
+    required this.balance,
+    required this.size,
+  });
+
+  @override
+  int get hashCode =>
+      position.hashCode ^
+      name.hashCode ^
+      awarded.hashCode ^
+      balance.hashCode ^
+      size.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoyaltyTrackAward &&
+          runtimeType == other.runtimeType &&
+          position == other.position &&
+          name == other.name &&
+          awarded == other.awarded &&
+          balance == other.balance &&
+          size == other.size;
+}
+
+/// What a track 2-4 offers at the till.
+class LoyaltyTrackRewardsView {
+  final int position;
+  final List<LoyaltyRewardView> rewards;
+
+  const LoyaltyTrackRewardsView({
+    required this.position,
+    required this.rewards,
+  });
+
+  @override
+  int get hashCode => position.hashCode ^ rewards.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoyaltyTrackRewardsView &&
+          runtimeType == other.runtimeType &&
+          position == other.position &&
+          rewards == other.rewards;
+}
+
+/// One stamp track on a member's card.
+class LoyaltyTrackView {
+  final int position;
+  final String name;
+  final PlatformInt64 size;
+  final PlatformInt64 balance;
+  final PlatformInt64 rewardsReady;
+  final String? colour;
+
+  const LoyaltyTrackView({
+    required this.position,
+    required this.name,
+    required this.size,
+    required this.balance,
+    required this.rewardsReady,
+    this.colour,
+  });
+
+  @override
+  int get hashCode =>
+      position.hashCode ^
+      name.hashCode ^
+      size.hashCode ^
+      balance.hashCode ^
+      rewardsReady.hashCode ^
+      colour.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoyaltyTrackView &&
+          runtimeType == other.runtimeType &&
+          position == other.position &&
+          name == other.name &&
+          size == other.size &&
+          balance == other.balance &&
+          rewardsReady == other.rewardsReady &&
+          colour == other.colour;
 }
 
 /// The rewards section, decided by the core: see `madar_core::loyalty::reward_board`.
@@ -366,6 +508,9 @@ class RewardBoardView {
   final PlatformInt64 coveredMinor;
   final String? adjustedReason;
 
+  /// Each track's balance after the picks; empty on a one-track card.
+  final List<LoyaltyTrackAfter> tracksAfter;
+
   const RewardBoardView({
     required this.lines,
     required this.picks,
@@ -374,6 +519,7 @@ class RewardBoardView {
     required this.unitsClaimed,
     required this.coveredMinor,
     this.adjustedReason,
+    required this.tracksAfter,
   });
 
   @override
@@ -384,7 +530,8 @@ class RewardBoardView {
       balanceAfter.hashCode ^
       unitsClaimed.hashCode ^
       coveredMinor.hashCode ^
-      adjustedReason.hashCode;
+      adjustedReason.hashCode ^
+      tracksAfter.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -397,7 +544,8 @@ class RewardBoardView {
           balanceAfter == other.balanceAfter &&
           unitsClaimed == other.unitsClaimed &&
           coveredMinor == other.coveredMinor &&
-          adjustedReason == other.adjustedReason;
+          adjustedReason == other.adjustedReason &&
+          tracksAfter == other.tracksAfter;
 }
 
 class RewardLineInput {
@@ -465,6 +613,12 @@ class RewardLineState {
   final PlatformInt64 coveredMinor;
   final String costLabel;
 
+  /// The track covering it; 0 when none.
+  final int track;
+
+  /// Two or more: the till asks which track pays, nothing preselected.
+  final Uint32List trackChoices;
+
   const RewardLineState({
     required this.line,
     required this.claimable,
@@ -474,6 +628,8 @@ class RewardLineState {
     this.blockedReason,
     required this.coveredMinor,
     required this.costLabel,
+    required this.track,
+    required this.trackChoices,
   });
 
   @override
@@ -485,7 +641,9 @@ class RewardLineState {
       canAdd.hashCode ^
       blockedReason.hashCode ^
       coveredMinor.hashCode ^
-      costLabel.hashCode;
+      costLabel.hashCode ^
+      track.hashCode ^
+      trackChoices.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -499,17 +657,26 @@ class RewardLineState {
           canAdd == other.canAdd &&
           blockedReason == other.blockedReason &&
           coveredMinor == other.coveredMinor &&
-          costLabel == other.costLabel;
+          costLabel == other.costLabel &&
+          track == other.track &&
+          trackChoices == other.trackChoices;
 }
 
 class RewardPick {
   final int line;
   final int units;
 
-  const RewardPick({required this.line, required this.units});
+  /// The track that pays (1 on a one-track card).
+  final int track;
+
+  const RewardPick({
+    required this.line,
+    required this.units,
+    required this.track,
+  });
 
   @override
-  int get hashCode => line.hashCode ^ units.hashCode;
+  int get hashCode => line.hashCode ^ units.hashCode ^ track.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -517,5 +684,6 @@ class RewardPick {
       other is RewardPick &&
           runtimeType == other.runtimeType &&
           line == other.line &&
-          units == other.units;
+          units == other.units &&
+          track == other.track;
 }

@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**addons** | Option<**Vec<String>**> | Features the org has as add-ons beside its plan (Rewards by Madar: `[\"loyalty\"]` on Free). Additive: an old client ignores it and sees the plan alone. | [optional]
 **currency_code** | **String** |  | 
 **open_till** | Option<[**models::TillBrief**](TillBrief.md)> | The person's open till at the branch they signed into (any device), so the device can resume it or show where it is open. | [optional]
 **plan** | Option<**String**> | The organization's plan: `free` | `paid` (`madar-plan`; an old client that does not read it behaves as before, and a missing value is `paid`). A till also learns it from the sync feed's branch settings. | [optional]

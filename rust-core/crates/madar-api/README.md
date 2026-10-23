@@ -160,6 +160,7 @@ Class | Method | HTTP request | Description
 *IntegrationsApi* | [**revoke_credential**](docs/IntegrationsApi.md#revoke_credential) | **DELETE** /integrations/credentials/{id} | 
 *IntegrationsApi* | [**rotate_credential**](docs/IntegrationsApi.md#rotate_credential) | **POST** /integrations/credentials/{id}/rotate | 
 *InventoryApi* | [**accept_transfer**](docs/InventoryApi.md#accept_transfer) | **POST** /inventory/transfers/{id}/accept | 
+*InventoryApi* | [**archive_catalog_item**](docs/InventoryApi.md#archive_catalog_item) | **POST** /inventory/orgs/{org_id}/catalog/{id}/archive | Archive an ingredient: it leaves pickers, reorder suggestions and (once no branch holds stock) stock-count sheets. Nothing else changes: recipes that use it keep deducting and costing it, every till keeps it in its mirror, history keeps showing it, no movement is posted and no balance moves.
 *InventoryApi* | [**cancel_stock_transfer**](docs/InventoryApi.md#cancel_stock_transfer) | **POST** /inventory/transfers/{id}/cancel | 
 *InventoryApi* | [**create_catalog_item**](docs/InventoryApi.md#create_catalog_item) | **POST** /inventory/orgs/{org_id}/catalog | 
 *InventoryApi* | [**create_ingredient_category**](docs/InventoryApi.md#create_ingredient_category) | **POST** /inventory/orgs/{org_id}/categories | 
@@ -169,6 +170,7 @@ Class | Method | HTTP request | Description
 *InventoryApi* | [**delete_catalog_item**](docs/InventoryApi.md#delete_catalog_item) | **DELETE** /inventory/orgs/{org_id}/catalog/{id} | 
 *InventoryApi* | [**delete_ingredient_category**](docs/InventoryApi.md#delete_ingredient_category) | **DELETE** /inventory/orgs/{org_id}/categories/{id} | 
 *InventoryApi* | [**dispatch_transfer**](docs/InventoryApi.md#dispatch_transfer) | **POST** /inventory/transfers/{id}/dispatch | 
+*InventoryApi* | [**get_catalog_item_usage**](docs/InventoryApi.md#get_catalog_item_usage) | **GET** /inventory/orgs/{org_id}/catalog/{id}/usage | 
 *InventoryApi* | [**get_inventory_settings**](docs/InventoryApi.md#get_inventory_settings) | **GET** /inventory/orgs/{org_id}/settings | 
 *InventoryApi* | [**get_transfer**](docs/InventoryApi.md#get_transfer) | **GET** /inventory/transfers/{id} | 
 *InventoryApi* | [**list_branch_stock**](docs/InventoryApi.md#list_branch_stock) | **GET** /inventory/branches/{branch_id}/stock | 
@@ -183,6 +185,7 @@ Class | Method | HTTP request | Description
 *InventoryApi* | [**set_par_levels**](docs/InventoryApi.md#set_par_levels) | **PUT** /inventory/branches/{branch_id}/stock/{org_ingredient_id}/par | 
 *InventoryApi* | [**transfer_differences**](docs/InventoryApi.md#transfer_differences) | **GET** /inventory/orgs/{org_id}/transfer-differences | 
 *InventoryApi* | [**transfer_locations**](docs/InventoryApi.md#transfer_locations) | **GET** /inventory/orgs/{org_id}/transfer-locations | Every live location of the org, for the other side of a transfer. Someone who works at one shop still sends to, and requests from, the rest; `GET /branches` lists only where the caller works.
+*InventoryApi* | [**unarchive_catalog_item**](docs/InventoryApi.md#unarchive_catalog_item) | **POST** /inventory/orgs/{org_id}/catalog/{id}/unarchive | Bring an archived ingredient back: pickers and counts list it again. Its name never left it, so this cannot conflict.
 *InventoryApi* | [**update_catalog_item**](docs/InventoryApi.md#update_catalog_item) | **PATCH** /inventory/orgs/{org_id}/catalog/{id} | 
 *InventoryApi* | [**update_ingredient_category**](docs/InventoryApi.md#update_ingredient_category) | **PATCH** /inventory/orgs/{org_id}/categories/{id} | 
 *InventoryApi* | [**update_inventory_settings**](docs/InventoryApi.md#update_inventory_settings) | **PUT** /inventory/orgs/{org_id}/settings | 
@@ -201,35 +204,54 @@ Class | Method | HTTP request | Description
 *KitchenApi* | [**set_routing_mode**](docs/KitchenApi.md#set_routing_mode) | **PUT** /kitchen/routing-mode | 
 *KitchenApi* | [**unbump**](docs/KitchenApi.md#unbump) | **POST** /kitchen/items/{item_id}/unbump | 
 *KitchenApi* | [**update_station**](docs/KitchenApi.md#update_station) | **PATCH** /kitchen/stations/{id} | 
+*LoyaltyApi* | [**cancel_loyalty_broadcast**](docs/LoyaltyApi.md#cancel_loyalty_broadcast) | **POST** /loyalty/broadcasts/{id}/cancel | Cancel a scheduled message (one already sending finishes).
+*LoyaltyApi* | [**count_loyalty_broadcast_audience**](docs/LoyaltyApi.md#count_loyalty_broadcast_audience) | **POST** /loyalty/broadcasts/audience | How many members an audience reaches, before sending.
+*LoyaltyApi* | [**create_loyalty_broadcast**](docs/LoyaltyApi.md#create_loyalty_broadcast) | **POST** /loyalty/broadcasts | Send now, or schedule.
 *LoyaltyApi* | [**delete_loyalty_member**](docs/LoyaltyApi.md#delete_loyalty_member) | **DELETE** /loyalty/members/{id} | Leave the programme: the card ends, the customer stays (design §2.8).
 *LoyaltyApi* | [**delete_loyalty_settings**](docs/LoyaltyApi.md#delete_loyalty_settings) | **DELETE** /loyalty/settings | 
 *LoyaltyApi* | [**get_loyalty_analytics**](docs/LoyaltyApi.md#get_loyalty_analytics) | **GET** /loyalty/analytics | 
 *LoyaltyApi* | [**get_loyalty_behavior**](docs/LoyaltyApi.md#get_loyalty_behavior) | **GET** /loyalty/behavior | 
+*LoyaltyApi* | [**get_loyalty_broadcast**](docs/LoyaltyApi.md#get_loyalty_broadcast) | **GET** /loyalty/broadcasts/{id} | 
 *LoyaltyApi* | [**get_loyalty_campaign_effectiveness**](docs/LoyaltyApi.md#get_loyalty_campaign_effectiveness) | **GET** /loyalty/campaign-effectiveness | 
+*LoyaltyApi* | [**get_loyalty_card_design**](docs/LoyaltyApi.md#get_loyalty_card_design) | **GET** /loyalty/card-design | 
 *LoyaltyApi* | [**get_loyalty_earning_items**](docs/LoyaltyApi.md#get_loyalty_earning_items) | **GET** /loyalty/earning-items | 
 *LoyaltyApi* | [**get_loyalty_google_object**](docs/LoyaltyApi.md#get_loyalty_google_object) | **GET** /loyalty/members/{id}/google-object | What Google is actually holding for one member's card. **Super admin only.**
 *LoyaltyApi* | [**get_loyalty_liability_trend**](docs/LoyaltyApi.md#get_loyalty_liability_trend) | **GET** /loyalty/liability-trend | 
 *LoyaltyApi* | [**get_loyalty_member**](docs/LoyaltyApi.md#get_loyalty_member) | **GET** /loyalty/members/{id} | 
+*LoyaltyApi* | [**get_loyalty_member_wallet**](docs/LoyaltyApi.md#get_loyalty_member_wallet) | **GET** /loyalty/members/{id}/wallet | 
 *LoyaltyApi* | [**get_loyalty_reward_items**](docs/LoyaltyApi.md#get_loyalty_reward_items) | **GET** /loyalty/reward-items | 
 *LoyaltyApi* | [**get_loyalty_settings**](docs/LoyaltyApi.md#get_loyalty_settings) | **GET** /loyalty/settings | 
+*LoyaltyApi* | [**get_loyalty_stats**](docs/LoyaltyApi.md#get_loyalty_stats) | **GET** /loyalty/stats | 
+*LoyaltyApi* | [**get_loyalty_tracks**](docs/LoyaltyApi.md#get_loyalty_tracks) | **GET** /loyalty/tracks | 
 *LoyaltyApi* | [**get_loyalty_wallet_status**](docs/LoyaltyApi.md#get_loyalty_wallet_status) | **GET** /loyalty/wallet-status | Why there is no \"Add to Wallet\" button. **Super admin only.**
+*LoyaltyApi* | [**list_loyalty_broadcasts**](docs/LoyaltyApi.md#list_loyalty_broadcasts) | **GET** /loyalty/broadcasts | 
 *LoyaltyApi* | [**list_loyalty_members**](docs/LoyaltyApi.md#list_loyalty_members) | **GET** /loyalty/members | 
 *LoyaltyApi* | [**loyalty_adjust**](docs/LoyaltyApi.md#loyalty_adjust) | **POST** /loyalty/adjust | 
 *LoyaltyApi* | [**loyalty_award**](docs/LoyaltyApi.md#loyalty_award) | **POST** /loyalty/award | The live route. Tellers press the button; the permission is the same `update` the redeem action needs.
+*LoyaltyApi* | [**loyalty_counter_redeem**](docs/LoyaltyApi.md#loyalty_counter_redeem) | **POST** /loyalty/counter/redeem | Complete a full card: deduct exactly the card's size; extra stamps stay.
+*LoyaltyApi* | [**loyalty_counter_stamp**](docs/LoyaltyApi.md#loyalty_counter_stamp) | **POST** /loyalty/counter/stamp | Stamp a member's card for a visit (no order).
 *LoyaltyApi* | [**loyalty_lookup**](docs/LoyaltyApi.md#loyalty_lookup) | **POST** /loyalty/lookup | Identify the member in front of the till.
 *LoyaltyApi* | [**preview_loyalty_birthday_message**](docs/LoyaltyApi.md#preview_loyalty_birthday_message) | **POST** /loyalty/birthday-preview | Render the greeting for settings that have NOT been saved yet.
+*LoyaltyApi* | [**preview_loyalty_card_design**](docs/LoyaltyApi.md#preview_loyalty_card_design) | **POST** /loyalty/card-design/preview | The strip (Apple @2x) or the hero (Google) exactly as the wallet will get it, for the designer's \"as the wallet renders it\" view. Not saved.
+*LoyaltyApi* | [**publish_loyalty_card_design**](docs/LoyaltyApi.md#publish_loyalty_card_design) | **POST** /loyalty/card-design/publish | 
+*LoyaltyApi* | [**put_loyalty_card_design**](docs/LoyaltyApi.md#put_loyalty_card_design) | **PUT** /loyalty/card-design | 
 *LoyaltyApi* | [**put_loyalty_earning_items**](docs/LoyaltyApi.md#put_loyalty_earning_items) | **PUT** /loyalty/earning-items | 
 *LoyaltyApi* | [**put_loyalty_reward_items**](docs/LoyaltyApi.md#put_loyalty_reward_items) | **PUT** /loyalty/reward-items | 
 *LoyaltyApi* | [**put_loyalty_settings**](docs/LoyaltyApi.md#put_loyalty_settings) | **PUT** /loyalty/settings | 
+*LoyaltyApi* | [**put_loyalty_tracks**](docs/LoyaltyApi.md#put_loyalty_tracks) | **PUT** /loyalty/tracks | 
+*LoyaltyApi* | [**query_loyalty_members**](docs/LoyaltyApi.md#query_loyalty_members) | **POST** /loyalty/members/query | Search, filter by a segment, sort and page the members.
 *LoyaltyApi* | [**refresh_loyalty_google_pass**](docs/LoyaltyApi.md#refresh_loyalty_google_pass) | **POST** /loyalty/members/{id}/google-refresh | Provision this member's Google card and report every word of it. **Super admin only.**
+*LoyaltyApi* | [**unpublish_loyalty_card_design**](docs/LoyaltyApi.md#unpublish_loyalty_card_design) | **DELETE** /loyalty/card-design/published | 
 *LoyaltyPublicApi* | [**loyalty_apple_pass**](docs/LoyaltyPublicApi.md#loyalty_apple_pass) | **GET** /public/loyalty/pass/{token}/apple.pkpass | Download the signed `.pkpass`.
 *LoyaltyPublicApi* | [**loyalty_card**](docs/LoyaltyPublicApi.md#loyalty_card) | **GET** /public/loyalty/card/{token} | A rewards card: the member's balance, progress to the next reward, rewards and wallet links.
 *LoyaltyPublicApi* | [**loyalty_card_orders**](docs/LoyaltyPublicApi.md#loyalty_card_orders) | **GET** /public/loyalty/card/{token}/orders | The member's own purchase history.
 *LoyaltyPublicApi* | [**loyalty_card_qr**](docs/LoyaltyPublicApi.md#loyalty_card_qr) | **GET** /public/loyalty/card/{token}/qr.png | The member's QR as a PNG.
 *LoyaltyPublicApi* | [**loyalty_join**](docs/LoyaltyPublicApi.md#loyalty_join) | **POST** /public/loyalty/join | Join a shop's rewards programme.
 *LoyaltyPublicApi* | [**loyalty_join_info**](docs/LoyaltyPublicApi.md#loyalty_join_info) | **GET** /public/loyalty/join-info | What a rewards programme's join page shows: its brand, rewards and what joining asks for.
+*LoyaltyPublicApi* | [**public_loyalty_card_hero**](docs/LoyaltyPublicApi.md#public_loyalty_card_hero) | **GET** /public/loyalty/brand/{org_id}/card/{revision}/{state} | The designed Google hero at one progress state (public: Google fetches it). No member data: the org, the revision and each track's progress, every number checked against the shop's tracks.
 *LoyaltyPublicApi* | [**set_loyalty_card_preferences**](docs/LoyaltyPublicApi.md#set_loyalty_card_preferences) | **POST** /public/loyalty/card/{token}/preferences | Save a card holder's choices: no marketing messages, and the language to write in.
 *MenuApi* | [**apply_rules**](docs/MenuApi.md#apply_rules) | **POST** /packaging-rules/apply | 
+*MenuApi* | [**bulk_menu**](docs/MenuApi.md#bulk_menu) | **POST** /menu/bulk | 
 *MenuApi* | [**catalog_sync**](docs/MenuApi.md#catalog_sync) | **GET** /catalog/sync | 
 *MenuApi* | [**combo_economics**](docs/MenuApi.md#combo_economics) | **POST** /combos/economics | 
 *MenuApi* | [**create_addon_item**](docs/MenuApi.md#create_addon_item) | **POST** /addon-items | 
@@ -344,7 +366,9 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**complete_onboarding**](docs/OrgsApi.md#complete_onboarding) | **POST** /orgs/{id}/onboarding/complete | 
 *OrgsApi* | [**create_org**](docs/OrgsApi.md#create_org) | **POST** /orgs | 
 *OrgsApi* | [**delete_org**](docs/OrgsApi.md#delete_org) | **DELETE** /orgs/{id} | 
+*OrgsApi* | [**end_org_addon**](docs/OrgsApi.md#end_org_addon) | **DELETE** /orgs/{id}/addons/{feature} | End an add-on (super admin). The row is kept, ended; a member's points, passes and history stay, the features just switch off.
 *OrgsApi* | [**get_links_page**](docs/OrgsApi.md#get_links_page) | **GET** /orgs/{id}/links-page | The links page, as the editor sees it.
+*OrgsApi* | [**get_menu_display**](docs/OrgsApi.md#get_menu_display) | **GET** /orgs/{id}/links-page/menu-display | The menu-without-prices settings.
 *OrgsApi* | [**get_onboarding**](docs/OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 *OrgsApi* | [**get_org**](docs/OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 *OrgsApi* | [**get_org_modules**](docs/OrgsApi.md#get_org_modules) | **GET** /orgs/{id}/modules | The org's modules, for anyone who works there: the dashboard routes by the server's answer (PS-3), and a branch manager cannot read the org itself (`orgs:read` is the owner's). Switching them is `PATCH /orgs/{id}`, a super admin's alone (SA-1).
@@ -354,12 +378,15 @@ Class | Method | HTTP request | Description
 *OrgsApi* | [**list_templates**](docs/OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 *OrgsApi* | [**offline_auth_bundle**](docs/OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
 *OrgsApi* | [**provision_org**](docs/OrgsApi.md#provision_org) | **POST** /orgs/provision | 
+*OrgsApi* | [**public_menu_display**](docs/OrgsApi.md#public_menu_display) | **GET** /public/menu-display | The shop's menu without prices.
 *OrgsApi* | [**public_org_brand**](docs/OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 *OrgsApi* | [**public_org_favicon**](docs/OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 *OrgsApi* | [**public_org_links**](docs/OrgsApi.md#public_org_links) | **GET** /public/orgs/links | The shop's links page, in one request.
 *OrgsApi* | [**public_tenant_shell**](docs/OrgsApi.md#public_tenant_shell) | **GET** /public/tenant-shell | A shop page's HTML: the app entry with the shop's head and noscript.
 *OrgsApi* | [**put_active_till**](docs/OrgsApi.md#put_active_till) | **PUT** /orgs/{id}/plan/active-till | Choose which till a branch sells on (Free plan). The chosen till is active, every other POS till of the branch is switched off. The org's owner, or a super admin; a paid org has no inactive tills (409 `PLAN_NOT_FREE`).
 *OrgsApi* | [**put_links_page**](docs/OrgsApi.md#put_links_page) | **PUT** /orgs/{id}/links-page | Save the links page.
+*OrgsApi* | [**put_menu_display**](docs/OrgsApi.md#put_menu_display) | **PUT** /orgs/{id}/links-page/menu-display | Save the menu-without-prices settings. Writes ONLY its own columns: a shop's links page (and a Free shop's lack of one) is left exactly as it was.
+*OrgsApi* | [**put_org_addon**](docs/OrgsApi.md#put_org_addon) | **PUT** /orgs/{id}/addons/{feature} | Switch an add-on on for an org (super admin). Loyalty on a Free org is Rewards by Madar: the loyalty programme, its card and the teller page, without the paid plan. On a paid org it changes nothing (paid has every feature) and is refused, so no row claims a sale that was not made. Repeating it keeps the first start date.
 *OrgsApi* | [**update_org**](docs/OrgsApi.md#update_org) | **PATCH** /orgs/{id} | Super admin only, except a body carrying nothing but `social_links` and/or `logo_url: null`: the org's own people with `org.settings.edit` may save that for their own org.
 *OrgsApi* | [**upload_org_card_image**](docs/OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 *OrgsApi* | [**upload_org_logo**](docs/OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
@@ -391,6 +418,7 @@ Class | Method | HTTP request | Description
 *PurchasingApi* | [**get_purchase_order**](docs/PurchasingApi.md#get_purchase_order) | **GET** /purchasing/orders/{id} | 
 *PurchasingApi* | [**list_org_purchase_orders**](docs/PurchasingApi.md#list_org_purchase_orders) | **GET** /purchasing/orgs/{org_id}/orders | 
 *PurchasingApi* | [**list_po_receipts**](docs/PurchasingApi.md#list_po_receipts) | **GET** /purchasing/orders/{id}/receipts | Per-delivery goods-receipt records for a purchase order (multi-shipment audit trail, each with the actual received quantity + cost per line).
+*PurchasingApi* | [**list_purchase_last_prices**](docs/PurchasingApi.md#list_purchase_last_prices) | **GET** /purchasing/orgs/{org_id}/last-prices | The last price paid per ingredient, to prefill a new purchase order line.
 *PurchasingApi* | [**list_purchase_orders**](docs/PurchasingApi.md#list_purchase_orders) | **GET** /purchasing/branches/{branch_id}/orders | 
 *PurchasingApi* | [**list_suppliers**](docs/PurchasingApi.md#list_suppliers) | **GET** /purchasing/orgs/{org_id}/suppliers | 
 *PurchasingApi* | [**receive_purchase_order**](docs/PurchasingApi.md#receive_purchase_order) | **POST** /purchasing/orders/{id}/receive | 
@@ -409,7 +437,7 @@ Class | Method | HTTP request | Description
 *QrApi* | [**list_marketing_links**](docs/QrApi.md#list_marketing_links) | **GET** /qr/links | 
 *QrApi* | [**list_tables**](docs/QrApi.md#list_tables) | **GET** /branches/{id}/tables | 
 *QrApi* | [**org_booking_qr**](docs/QrApi.md#org_booking_qr) | **GET** /orgs/{id}/booking-qr | 
-*QrApi* | [**org_links_qr**](docs/QrApi.md#org_links_qr) | **GET** /orgs/{id}/links-qr | The code for the shop's links page — the one address that leads to everything else (menu, ordering, rewards, bookings, socials).
+*QrApi* | [**org_links_qr**](docs/QrApi.md#org_links_qr) | **GET** /orgs/{id}/links-qr | The code for the shop's links page — the one address that leads to everything else (menu, ordering, rewards, bookings, socials) — or, with `target=menu_display`, for the menu without prices on the same editor.
 *QrApi* | [**org_loyalty_qr**](docs/QrApi.md#org_loyalty_qr) | **GET** /orgs/{id}/loyalty-qr | The shop's join QR: one code for the whole organisation.
 *QrApi* | [**org_qr**](docs/QrApi.md#org_qr) | **GET** /orgs/{id}/qr | 
 *QrApi* | [**table_qr**](docs/QrApi.md#table_qr) | **GET** /branches/{id}/tables/{tid}/qr | 
@@ -492,6 +520,7 @@ Class | Method | HTTP request | Description
 *ShiftsApi* | [**open_shift**](docs/ShiftsApi.md#open_shift) | **POST** /shifts/branches/{branch_id}/open | 
 *SignupApi* | [**signup**](docs/SignupApi.md#signup) | **POST** /public/signup | Make a shop on the Free plan.
 *SignupApi* | [**signup_otp**](docs/SignupApi.md#signup_otp) | **POST** /public/signup/otp | Send a code by WhatsApp to prove the owner's phone.
+*SignupApi* | [**signup_verify**](docs/SignupApi.md#signup_verify) | **POST** /public/signup/verify | Check the code at the code step.
 *StaffApi* | [**accept_staff_privacy**](docs/StaffApi.md#accept_staff_privacy) | **POST** /staff/me/privacy | The employee accepted the location notice on this phone (AT-5). Kept on the device row: a new phone asks again.
 *StaffApi* | [**advances**](docs/StaffApi.md#advances) | **GET** /staff/reports/advances | Advances given in range, and what is still owed.
 *StaffApi* | [**answer_swap**](docs/StaffApi.md#answer_swap) | **PATCH** /staff/me/swaps/{id} | The colleague agrees or declines.
@@ -639,6 +668,7 @@ Class | Method | HTTP request | Description
 *StocktakesApi* | [**upsert_items**](docs/StocktakesApi.md#upsert_items) | **PUT** /stocktakes/{id}/items | 
 *StocktakesApi* | [**variance_report**](docs/StocktakesApi.md#variance_report) | **GET** /stocktakes/{id}/variance-report | 
 *SyncApi* | [**pull**](docs/SyncApi.md#pull) | **POST** /sync/pull | 
+*SyncApi* | [**replay_batch**](docs/SyncApi.md#replay_batch) | **POST** /sync/replay/batch | POST /sync/replay/batch
 *TillsApi* | [**add_cash_movement**](docs/TillsApi.md#add_cash_movement) | **POST** /tills/{till_id}/cash-movements | 
 *TillsApi* | [**close_preview**](docs/TillsApi.md#close_preview) | **GET** /tills/{till_id}/close-preview | 
 *TillsApi* | [**close_till**](docs/TillsApi.md#close_till) | **POST** /tills/{till_id}/close | 
@@ -687,7 +717,7 @@ Class | Method | HTTP request | Description
  - [AddonInput](docs/AddonInput.md)
  - [AddonItem](docs/AddonItem.md)
  - [AddonItemIngredient](docs/AddonItemIngredient.md)
- - [AddonOverride](docs/AddonOverride.md)
+ - [AddonRequest](docs/AddonRequest.md)
  - [AddonSalesRow](docs/AddonSalesRow.md)
  - [AddonSlot](docs/AddonSlot.md)
  - [AdjustRequest](docs/AdjustRequest.md)
@@ -702,7 +732,10 @@ Class | Method | HTTP request | Description
  - [AllowList](docs/AllowList.md)
  - [AnalyticsOrder](docs/AnalyticsOrder.md)
  - [AnalyticsResponse](docs/AnalyticsResponse.md)
+ - [AppleFields](docs/AppleFields.md)
  - [ApplyPackagingRulesResult](docs/ApplyPackagingRulesResult.md)
+ - [ArchiveFilter](docs/ArchiveFilter.md)
+ - [ArchiveIngredientRequest](docs/ArchiveIngredientRequest.md)
  - [AskSwap](docs/AskSwap.md)
  - [AssetBundleRef](docs/AssetBundleRef.md)
  - [AssetGroupRef](docs/AssetGroupRef.md)
@@ -717,6 +750,9 @@ Class | Method | HTTP request | Description
  - [AttendanceSettings](docs/AttendanceSettings.md)
  - [AttendanceStatus](docs/AttendanceStatus.md)
  - [AttendanceSummary](docs/AttendanceSummary.md)
+ - [Audience](docs/Audience.md)
+ - [AudienceCount](docs/AudienceCount.md)
+ - [AudienceRequest](docs/AudienceRequest.md)
  - [AuditBreakdownEntry](docs/AuditBreakdownEntry.md)
  - [AuditReport](docs/AuditReport.md)
  - [AuditRow](docs/AuditRow.md)
@@ -754,9 +790,26 @@ Class | Method | HTTP request | Description
  - [BranchStockRow](docs/BranchStockRow.md)
  - [BranchTable](docs/BranchTable.md)
  - [BranchTarget](docs/BranchTarget.md)
+ - [Broadcast](docs/Broadcast.md)
+ - [BroadcastInput](docs/BroadcastInput.md)
+ - [BroadcastsPage](docs/BroadcastsPage.md)
+ - [BulkArchived](docs/BulkArchived.md)
+ - [BulkCategory](docs/BulkCategory.md)
+ - [BulkFamily](docs/BulkFamily.md)
+ - [BulkGroup](docs/BulkGroup.md)
+ - [BulkItem](docs/BulkItem.md)
+ - [BulkLink](docs/BulkLink.md)
+ - [BulkMenu](docs/BulkMenu.md)
+ - [BulkMenuRequest](docs/BulkMenuRequest.md)
+ - [BulkMenuResponse](docs/BulkMenuResponse.md)
+ - [BulkMode](docs/BulkMode.md)
+ - [BulkOption](docs/BulkOption.md)
+ - [BulkOptional](docs/BulkOptional.md)
  - [BulkReviewPending](docs/BulkReviewPending.md)
  - [BulkReviewRequest](docs/BulkReviewRequest.md)
  - [BulkReviewResult](docs/BulkReviewResult.md)
+ - [BulkSize](docs/BulkSize.md)
+ - [BulkSummary](docs/BulkSummary.md)
  - [BundlesReport](docs/BundlesReport.md)
  - [BundlesRow](docs/BundlesRow.md)
  - [BundlesTotals](docs/BundlesTotals.md)
@@ -766,7 +819,10 @@ Class | Method | HTTP request | Description
  - [CancelInput](docs/CancelInput.md)
  - [CapabilityAccess](docs/CapabilityAccess.md)
  - [CardBrand](docs/CardBrand.md)
+ - [CardDesign](docs/CardDesign.md)
+ - [CardDesignView](docs/CardDesignView.md)
  - [CardPreferences](docs/CardPreferences.md)
+ - [CardPreviewRequest](docs/CardPreviewRequest.md)
  - [CardView](docs/CardView.md)
  - [CartLineInput](docs/CartLineInput.md)
  - [CartQuote](docs/CartQuote.md)
@@ -779,6 +835,7 @@ Class | Method | HTTP request | Description
  - [CategoryRoute](docs/CategoryRoute.md)
  - [CategoryRouteInput](docs/CategoryRouteInput.md)
  - [CategorySales](docs/CategorySales.md)
+ - [Cell](docs/Cell.md)
  - [ChannelAddonOverride](docs/ChannelAddonOverride.md)
  - [ChannelAddonOverrideInput](docs/ChannelAddonOverrideInput.md)
  - [ChannelBreakdownRow](docs/ChannelBreakdownRow.md)
@@ -806,6 +863,7 @@ Class | Method | HTTP request | Description
  - [CloseTillRequest](docs/CloseTillRequest.md)
  - [CloseTillResponse](docs/CloseTillResponse.md)
  - [CloseTransferRequest](docs/CloseTransferRequest.md)
+ - [Colours](docs/Colours.md)
  - [Column](docs/Column.md)
  - [ColumnKind](docs/ColumnKind.md)
  - [CombinedItemSalesRow](docs/CombinedItemSalesRow.md)
@@ -835,6 +893,9 @@ Class | Method | HTTP request | Description
  - [ConversationList](docs/ConversationList.md)
  - [ConversationSummary](docs/ConversationSummary.md)
  - [CorrectRecordRequest](docs/CorrectRecordRequest.md)
+ - [CounterRedeemRequest](docs/CounterRedeemRequest.md)
+ - [CounterResult](docs/CounterResult.md)
+ - [CounterStampRequest](docs/CounterStampRequest.md)
  - [CoverableShift](docs/CoverableShift.md)
  - [CoverageNeed](docs/CoverageNeed.md)
  - [CoverageView](docs/CoverageView.md)
@@ -883,6 +944,9 @@ Class | Method | HTTP request | Description
  - [CreateWasteRequest](docs/CreateWasteRequest.md)
  - [CredentialSummary](docs/CredentialSummary.md)
  - [CredentialWithSecret](docs/CredentialWithSecret.md)
+ - [CrmMember](docs/CrmMember.md)
+ - [CrmMembersPage](docs/CrmMembersPage.md)
+ - [Ctx](docs/Ctx.md)
  - [CurrentPayroll](docs/CurrentPayroll.md)
  - [Customer](docs/Customer.md)
  - [CustomerAddress](docs/CustomerAddress.md)
@@ -935,8 +999,16 @@ Class | Method | HTTP request | Description
  - [DrinkRecipe](docs/DrinkRecipe.md)
  - [EarningItem](docs/EarningItem.md)
  - [EarningItemList](docs/EarningItemList.md)
+ - [Element](docs/Element.md)
+ - [ElementKind](docs/ElementKind.md)
+ - [ElementKindOneOf](docs/ElementKindOneOf.md)
+ - [ElementKindOneOf1](docs/ElementKindOneOf1.md)
+ - [ElementKindOneOf2](docs/ElementKindOneOf2.md)
+ - [ElementKindOneOf3](docs/ElementKindOneOf3.md)
+ - [ElementKindOneOf4](docs/ElementKindOneOf4.md)
  - [ElsewhereShift](docs/ElsewhereShift.md)
  - [Employee](docs/Employee.md)
+ - [EmptyStyle](docs/EmptyStyle.md)
  - [ErrorBody](docs/ErrorBody.md)
  - [ExpenseAdvance](docs/ExpenseAdvance.md)
  - [ExpenseAdvanceRow](docs/ExpenseAdvanceRow.md)
@@ -947,6 +1019,11 @@ Class | Method | HTTP request | Description
  - [FairnessRow](docs/FairnessRow.md)
  - [FairnessView](docs/FairnessView.md)
  - [FieldInfo](docs/FieldInfo.md)
+ - [FieldSource](docs/FieldSource.md)
+ - [FieldSourceOneOf](docs/FieldSourceOneOf.md)
+ - [FieldSourceOneOf1](docs/FieldSourceOneOf1.md)
+ - [FieldSourceOneOf2](docs/FieldSourceOneOf2.md)
+ - [FieldSourceOneOf3](docs/FieldSourceOneOf3.md)
  - [FilterInfo](docs/FilterInfo.md)
  - [FinalizeInput](docs/FinalizeInput.md)
  - [FinalizeResponse](docs/FinalizeResponse.md)
@@ -956,10 +1033,13 @@ Class | Method | HTTP request | Description
  - [FulfillTransferRequest](docs/FulfillTransferRequest.md)
  - [GoodsReceipt](docs/GoodsReceipt.md)
  - [GoodsReceiptLine](docs/GoodsReceiptLine.md)
+ - [GoogleFields](docs/GoogleFields.md)
  - [GoogleObjectDump](docs/GoogleObjectDump.md)
  - [GoogleRefreshReport](docs/GoogleRefreshReport.md)
  - [Grain](docs/Grain.md)
  - [GrantView](docs/GrantView.md)
+ - [Ground](docs/Ground.md)
+ - [GroundKind](docs/GroundKind.md)
  - [GroupAttachInput](docs/GroupAttachInput.md)
  - [GroupOptionOut](docs/GroupOptionOut.md)
  - [GroupOptionRecipeLine](docs/GroupOptionRecipeLine.md)
@@ -971,7 +1051,10 @@ Class | Method | HTTP request | Description
  - [HolidayDecision](docs/HolidayDecision.md)
  - [HolidayView](docs/HolidayView.md)
  - [HoursEntry](docs/HoursEntry.md)
+ - [IngredientBranchStock](docs/IngredientBranchStock.md)
  - [IngredientCategory](docs/IngredientCategory.md)
+ - [IngredientUsage](docs/IngredientUsage.md)
+ - [IngredientUsageRef](docs/IngredientUsageRef.md)
  - [InventoryValuationReport](docs/InventoryValuationReport.md)
  - [ItemCountInput](docs/ItemCountInput.md)
  - [ItemOptionInput](docs/ItemOptionInput.md)
@@ -990,7 +1073,10 @@ Class | Method | HTTP request | Description
  - [KitchenTicketView](docs/KitchenTicketView.md)
  - [LabourDay](docs/LabourDay.md)
  - [LabourWarning](docs/LabourWarning.md)
+ - [LastPrice](docs/LastPrice.md)
+ - [LastPriceSource](docs/LastPriceSource.md)
  - [LastTillWarning](docs/LastTillWarning.md)
+ - [LastUnitPrice](docs/LastUnitPrice.md)
  - [LateDeductionKind](docs/LateDeductionKind.md)
  - [LateTier](docs/LateTier.md)
  - [LeaveBalance](docs/LeaveBalance.md)
@@ -1000,6 +1086,7 @@ Class | Method | HTTP request | Description
  - [LegacyTill](docs/LegacyTill.md)
  - [LiabilityTrend](docs/LiabilityTrend.md)
  - [LiabilityTrendPoint](docs/LiabilityTrendPoint.md)
+ - [Limits](docs/Limits.md)
  - [LimitsView](docs/LimitsView.md)
  - [LinkableUser](docs/LinkableUser.md)
  - [LinksItemKind](docs/LinksItemKind.md)
@@ -1031,19 +1118,39 @@ Class | Method | HTTP request | Description
  - [MealLink](docs/MealLink.md)
  - [MealLinkWrite](docs/MealLinkWrite.md)
  - [MemberDetail](docs/MemberDetail.md)
+ - [MemberSort](docs/MemberSort.md)
+ - [MemberTrack](docs/MemberTrack.md)
  - [MemberView](docs/MemberView.md)
+ - [MemberWallet](docs/MemberWallet.md)
  - [MembersPage](docs/MembersPage.md)
+ - [MembersQueryRequest](docs/MembersQueryRequest.md)
+ - [MenuDisplayAddon](docs/MenuDisplayAddon.md)
+ - [MenuDisplayBranch](docs/MenuDisplayBranch.md)
+ - [MenuDisplayBranchOption](docs/MenuDisplayBranchOption.md)
+ - [MenuDisplayCombo](docs/MenuDisplayCombo.md)
+ - [MenuDisplayComboChoice](docs/MenuDisplayComboChoice.md)
+ - [MenuDisplayComboSlot](docs/MenuDisplayComboSlot.md)
+ - [MenuDisplayInput](docs/MenuDisplayInput.md)
+ - [MenuDisplayItem](docs/MenuDisplayItem.md)
+ - [MenuDisplayMenu](docs/MenuDisplayMenu.md)
+ - [MenuDisplayModifierGroup](docs/MenuDisplayModifierGroup.md)
+ - [MenuDisplayModifierOption](docs/MenuDisplayModifierOption.md)
+ - [MenuDisplayOptional](docs/MenuDisplayOptional.md)
+ - [MenuDisplaySettings](docs/MenuDisplaySettings.md)
+ - [MenuDisplaySize](docs/MenuDisplaySize.md)
  - [MenuItem](docs/MenuItem.md)
  - [MenuItemFull](docs/MenuItemFull.md)
  - [MenuItemRecipe](docs/MenuItemRecipe.md)
  - [MenuItemWithCosts](docs/MenuItemWithCosts.md)
  - [MergeCustomerRequest](docs/MergeCustomerRequest.md)
+ - [Message](docs/Message.md)
  - [MethodTotal](docs/MethodTotal.md)
  - [MetricResult](docs/MetricResult.md)
  - [MetricsQueryRequest](docs/MetricsQueryRequest.md)
  - [MetricsQueryResponse](docs/MetricsQueryResponse.md)
  - [MixPick](docs/MixPick.md)
  - [MixSlot](docs/MixSlot.md)
+ - [Mode](docs/Mode.md)
  - [ModifierGroupOut](docs/ModifierGroupOut.md)
  - [ModifierOptionOut](docs/ModifierOptionOut.md)
  - [MoveShiftRequest](docs/MoveShiftRequest.md)
@@ -1120,6 +1227,7 @@ Class | Method | HTTP request | Description
  - [PatchOptionRequest](docs/PatchOptionRequest.md)
  - [PatchPackagingRuleRequest](docs/PatchPackagingRuleRequest.md)
  - [PatchRecipeBaseRequest](docs/PatchRecipeBaseRequest.md)
+ - [Pattern](docs/Pattern.md)
  - [PauseInput](docs/PauseInput.md)
  - [PayEstimate](docs/PayEstimate.md)
  - [PaymentLeg](docs/PaymentLeg.md)
@@ -1167,6 +1275,7 @@ Class | Method | HTTP request | Description
  - [PresenceRow](docs/PresenceRow.md)
  - [PresetInfo](docs/PresetInfo.md)
  - [PreviewAddonInput](docs/PreviewAddonInput.md)
+ - [PreviewBalance](docs/PreviewBalance.md)
  - [PreviewCost](docs/PreviewCost.md)
  - [PreviewDeduction](docs/PreviewDeduction.md)
  - [PreviewIngredient](docs/PreviewIngredient.md)
@@ -1191,6 +1300,7 @@ Class | Method | HTTP request | Description
  - [PublicBookingView](docs/PublicBookingView.md)
  - [PublicBranch](docs/PublicBranch.md)
  - [PublicBrand](docs/PublicBrand.md)
+ - [PublicCard](docs/PublicCard.md)
  - [PublicCartQuoteRequest](docs/PublicCartQuoteRequest.md)
  - [PublicCombo](docs/PublicCombo.md)
  - [PublicComboChoice](docs/PublicComboChoice.md)
@@ -1199,6 +1309,7 @@ Class | Method | HTTP request | Description
  - [PublicLinksBranch](docs/PublicLinksBranch.md)
  - [PublicLinksItem](docs/PublicLinksItem.md)
  - [PublicLinksPage](docs/PublicLinksPage.md)
+ - [PublicMenuDisplay](docs/PublicMenuDisplay.md)
  - [PublicReward](docs/PublicReward.md)
  - [PublicSlot](docs/PublicSlot.md)
  - [PublicSlots](docs/PublicSlots.md)
@@ -1218,6 +1329,7 @@ Class | Method | HTTP request | Description
  - [PushToken](docs/PushToken.md)
  - [PutAllowedAddonsRequest](docs/PutAllowedAddonsRequest.md)
  - [PutAttendanceSettingsRequest](docs/PutAttendanceSettingsRequest.md)
+ - [PutCardDesign](docs/PutCardDesign.md)
  - [PutCoverage](docs/PutCoverage.md)
  - [PutDayRequest](docs/PutDayRequest.md)
  - [PutEarningItems](docs/PutEarningItems.md)
@@ -1233,6 +1345,7 @@ Class | Method | HTTP request | Description
  - [PutSizesRequest](docs/PutSizesRequest.md)
  - [PutTargetRequest](docs/PutTargetRequest.md)
  - [PutTimesRequest](docs/PutTimesRequest.md)
+ - [PutTracks](docs/PutTracks.md)
  - [QrResponse](docs/QrResponse.md)
  - [QuerySpec](docs/QuerySpec.md)
  - [QuoteResponse](docs/QuoteResponse.md)
@@ -1286,7 +1399,11 @@ Class | Method | HTTP request | Description
  - [ReplaceIdentityRequest](docs/ReplaceIdentityRequest.md)
  - [ReplaceIdentityResponse](docs/ReplaceIdentityResponse.md)
  - [ReplayApproval](docs/ReplayApproval.md)
+ - [ReplayBatchRequest](docs/ReplayBatchRequest.md)
+ - [ReplayBatchResponse](docs/ReplayBatchResponse.md)
+ - [ReplayBatchResult](docs/ReplayBatchResult.md)
  - [ReplayFlag](docs/ReplayFlag.md)
+ - [ReplayOutcome](docs/ReplayOutcome.md)
  - [ReplenishmentRow](docs/ReplenishmentRow.md)
  - [RepricingReport](docs/RepricingReport.md)
  - [RepricingSuggestion](docs/RepricingSuggestion.md)
@@ -1303,12 +1420,22 @@ Class | Method | HTTP request | Description
  - [RewardCatalogue](docs/RewardCatalogue.md)
  - [RewardItem](docs/RewardItem.md)
  - [RewardItemInput](docs/RewardItemInput.md)
+ - [RewardsStats](docs/RewardsStats.md)
  - [RolePermission](docs/RolePermission.md)
  - [RoleView](docs/RoleView.md)
  - [RosterPerson](docs/RosterPerson.md)
  - [RosterShift](docs/RosterShift.md)
  - [RosterView](docs/RosterView.md)
  - [RoutingModeResponse](docs/RoutingModeResponse.md)
+ - [Rule](docs/Rule.md)
+ - [RuleOneOf](docs/RuleOneOf.md)
+ - [RuleOneOf1](docs/RuleOneOf1.md)
+ - [RuleOneOf2](docs/RuleOneOf2.md)
+ - [RuleOneOf3](docs/RuleOneOf3.md)
+ - [RuleOneOf4](docs/RuleOneOf4.md)
+ - [RuleOneOf5](docs/RuleOneOf5.md)
+ - [RuleOneOf6](docs/RuleOneOf6.md)
+ - [RuleOneOf7](docs/RuleOneOf7.md)
  - [SalaryAdvance](docs/SalaryAdvance.md)
  - [SalaryAdvanceRow](docs/SalaryAdvanceRow.md)
  - [SaleWindow](docs/SaleWindow.md)
@@ -1336,10 +1463,13 @@ Class | Method | HTTP request | Description
  - [ShiftSummary](docs/ShiftSummary.md)
  - [ShrinkageRow](docs/ShrinkageRow.md)
  - [Signal](docs/Signal.md)
+ - [SignupAttribution](docs/SignupAttribution.md)
  - [SignupOtpRequest](docs/SignupOtpRequest.md)
  - [SignupOtpResponse](docs/SignupOtpResponse.md)
  - [SignupRequest](docs/SignupRequest.md)
  - [SignupResponse](docs/SignupResponse.md)
+ - [SignupVerifyRequest](docs/SignupVerifyRequest.md)
+ - [SignupVerifyResponse](docs/SignupVerifyResponse.md)
  - [SizeBaseResult](docs/SizeBaseResult.md)
  - [SizeCostOut](docs/SizeCostOut.md)
  - [SizeInput](docs/SizeInput.md)
@@ -1367,7 +1497,11 @@ Class | Method | HTTP request | Description
  - [StaffRequest](docs/StaffRequest.md)
  - [StaffSession](docs/StaffSession.md)
  - [StaffTokenRefresh](docs/StaffTokenRefresh.md)
+ - [StampShape](docs/StampShape.md)
+ - [StampStyle](docs/StampStyle.md)
  - [StationRoutes](docs/StationRoutes.md)
+ - [StatsDay](docs/StatsDay.md)
+ - [StatsTrack](docs/StatsTrack.md)
  - [StatusInput](docs/StatusInput.md)
  - [StockMovement](docs/StockMovement.md)
  - [StockRow](docs/StockRow.md)
@@ -1377,6 +1511,7 @@ Class | Method | HTTP request | Description
  - [StocktakeFull](docs/StocktakeFull.md)
  - [StocktakeItem](docs/StocktakeItem.md)
  - [StopAdjustment](docs/StopAdjustment.md)
+ - [Store](docs/Store.md)
  - [StoredTurn](docs/StoredTurn.md)
  - [StudioAggregate](docs/StudioAggregate.md)
  - [Suggestion](docs/Suggestion.md)
@@ -1399,6 +1534,8 @@ Class | Method | HTTP request | Description
  - [TaxReport](docs/TaxReport.md)
  - [TeamPresence](docs/TeamPresence.md)
  - [TellerStats](docs/TellerStats.md)
+ - [TextAlign](docs/TextAlign.md)
+ - [TextSize](docs/TextSize.md)
  - [TicketBill](docs/TicketBill.md)
  - [Till](docs/Till.md)
  - [TillBrief](docs/TillBrief.md)
@@ -1417,6 +1554,11 @@ Class | Method | HTTP request | Description
  - [TopPer](docs/TopPer.md)
  - [TopReward](docs/TopReward.md)
  - [TopUpRequest](docs/TopUpRequest.md)
+ - [Track](docs/Track.md)
+ - [TrackAward](docs/TrackAward.md)
+ - [TrackRef](docs/TrackRef.md)
+ - [TrackRewards](docs/TrackRewards.md)
+ - [TracksView](docs/TracksView.md)
  - [TransferDifferenceRow](docs/TransferDifferenceRow.md)
  - [TransferLineInput](docs/TransferLineInput.md)
  - [TransferLocation](docs/TransferLocation.md)
@@ -1477,6 +1619,7 @@ Class | Method | HTTP request | Description
  - [WaiterStats](docs/WaiterStats.md)
  - [WaiterStatsReport](docs/WaiterStatsReport.md)
  - [WaiveDeductionRequest](docs/WaiveDeductionRequest.md)
+ - [Wallet](docs/Wallet.md)
  - [WalletProvider](docs/WalletProvider.md)
  - [WalletStatus](docs/WalletStatus.md)
  - [WalletStep](docs/WalletStep.md)

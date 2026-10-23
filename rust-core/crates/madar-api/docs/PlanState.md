@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**addons** | Option<**Vec<String>**> | Active add-on keys (Rewards by Madar: `[\"loyalty\"]`), already inside `entitlements.features`. | [optional]
 **branch_limit** | Option<**u32**> | The plan's branch limit, `null` for unlimited. | [optional]
 **branches** | [**Vec<models::PlanBranch>**](PlanBranch.md) |  | 
 **entitlements** | **serde_json::Value** | What the plan allows: `{features: [..], limits: {branches, pos_devices_per_branch, kds_devices, waiter_devices}, realtime}` (madar-plan's `Entitlements`). A limit that is `null` is unlimited. | 

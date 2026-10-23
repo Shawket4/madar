@@ -14,6 +14,14 @@ use serde::{Deserialize, Serialize};
 /// BranchStockRow : One catalog ingredient as seen from a branch. Every live catalog ingredient appears exactly once; `has_activity = false` means the branch has never moved or counted it (on hand is 0 and every date is null).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BranchStockRow {
+    /// The ingredient's archive time; `null` = active. An archived ingredient still holding stock here keeps appearing so it can be counted or wasted down.
+    #[serde(
+        rename = "archived_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub archived_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "below_par")]
     pub below_par: bool,
     #[serde(rename = "branch_id")]
@@ -99,6 +107,7 @@ impl BranchStockRow {
         unit: String,
     ) -> BranchStockRow {
         BranchStockRow {
+            archived_at: None,
             below_par,
             branch_id,
             category_id,

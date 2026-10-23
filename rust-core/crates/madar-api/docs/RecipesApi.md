@@ -215,7 +215,7 @@ Name | Type | Description  | Required | Notes
 
 ## upsert_addon_ingredient
 
-> models::AddonIngredient upsert_addon_ingredient(addon_item_id, upsert_addon_ingredient_request)
+> upsert_addon_ingredient(addon_item_id, upsert_addon_ingredient_request)
 
 
 ### Parameters
@@ -228,7 +228,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::AddonIngredient**](AddonIngredient.md)
+ (empty response body)
 
 ### Authorization
 
@@ -244,7 +244,7 @@ Name | Type | Description  | Required | Notes
 
 ## upsert_drink_recipe
 
-> models::DrinkRecipe upsert_drink_recipe(menu_item_id, upsert_drink_recipe_request)
+> upsert_drink_recipe(menu_item_id, upsert_drink_recipe_request)
 
 
 ### Parameters
@@ -257,7 +257,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::DrinkRecipe**](DrinkRecipe.md)
+ (empty response body)
 
 ### Authorization
 

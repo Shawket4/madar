@@ -630,6 +630,20 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<LoyaltyRewardView> dco_decode_list_loyalty_reward_view(dynamic raw);
 
   @protected
+  List<LoyaltyTrackAfter> dco_decode_list_loyalty_track_after(dynamic raw);
+
+  @protected
+  List<LoyaltyTrackAward> dco_decode_list_loyalty_track_award(dynamic raw);
+
+  @protected
+  List<LoyaltyTrackRewardsView> dco_decode_list_loyalty_track_rewards_view(
+    dynamic raw,
+  );
+
+  @protected
+  List<LoyaltyTrackView> dco_decode_list_loyalty_track_view(dynamic raw);
+
+  @protected
   List<ManagerActionView> dco_decode_list_manager_action_view(dynamic raw);
 
   @protected
@@ -670,6 +684,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<PaymentMethodView> dco_decode_list_payment_method_view(dynamic raw);
+
+  @protected
+  Uint32List dco_decode_list_prim_u_32_strict(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
@@ -799,6 +816,18 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   LoyaltyScanView dco_decode_loyalty_scan_view(dynamic raw);
+
+  @protected
+  LoyaltyTrackAfter dco_decode_loyalty_track_after(dynamic raw);
+
+  @protected
+  LoyaltyTrackAward dco_decode_loyalty_track_award(dynamic raw);
+
+  @protected
+  LoyaltyTrackRewardsView dco_decode_loyalty_track_rewards_view(dynamic raw);
+
+  @protected
+  LoyaltyTrackView dco_decode_loyalty_track_view(dynamic raw);
 
   @protected
   MadarConfig dco_decode_madar_config(dynamic raw);
@@ -1936,6 +1965,26 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<LoyaltyTrackAfter> sse_decode_list_loyalty_track_after(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LoyaltyTrackAward> sse_decode_list_loyalty_track_award(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LoyaltyTrackRewardsView> sse_decode_list_loyalty_track_rewards_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<LoyaltyTrackView> sse_decode_list_loyalty_track_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<ManagerActionView> sse_decode_list_manager_action_view(
     SseDeserializer deserializer,
   );
@@ -2004,6 +2053,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<PaymentMethodView> sse_decode_list_payment_method_view(
     SseDeserializer deserializer,
   );
+
+  @protected
+  Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer);
 
   @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
@@ -2191,6 +2243,24 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   LoyaltyScanView sse_decode_loyalty_scan_view(SseDeserializer deserializer);
+
+  @protected
+  LoyaltyTrackAfter sse_decode_loyalty_track_after(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LoyaltyTrackAward sse_decode_loyalty_track_award(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LoyaltyTrackRewardsView sse_decode_loyalty_track_rewards_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LoyaltyTrackView sse_decode_loyalty_track_view(SseDeserializer deserializer);
 
   @protected
   MadarConfig sse_decode_madar_config(SseDeserializer deserializer);
@@ -3642,6 +3712,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_loyalty_track_after(
+    List<LoyaltyTrackAfter> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_loyalty_track_award(
+    List<LoyaltyTrackAward> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_loyalty_track_rewards_view(
+    List<LoyaltyTrackRewardsView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_loyalty_track_view(
+    List<LoyaltyTrackView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_manager_action_view(
     List<ManagerActionView> self,
     SseSerializer serializer,
@@ -3722,6 +3816,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_payment_method_view(
     List<PaymentMethodView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_prim_u_32_strict(
+    Uint32List self,
     SseSerializer serializer,
   );
 
@@ -3959,6 +4059,30 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_loyalty_scan_view(
     LoyaltyScanView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_loyalty_track_after(
+    LoyaltyTrackAfter self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_loyalty_track_award(
+    LoyaltyTrackAward self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_loyalty_track_rewards_view(
+    LoyaltyTrackRewardsView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_loyalty_track_view(
+    LoyaltyTrackView self,
     SseSerializer serializer,
   );
 

@@ -8,6 +8,7 @@ Name | Type | Description | Notes
 **device_id** | Option<**uuid::Uuid**> |  | [optional]
 **ledger_page_size** | Option<**i64**> | Opt-in paging of a FULL snapshot's ledger rows (tills, orders, cash, refunds), 100..10000 rows a page. Absent = the whole snapshot in one response (what every older client gets). | [optional]
 **limit** | Option<**i64**> | Page size for incremental pulls, 1..5000 (default 2000). | [optional]
+**protocol** | Option<**u32**> | The sync protocol the till speaks (`sync::protocol`). Absent = v1, and the response is exactly what v1 always got. | [optional]
 **snapshot_cursor** | Option<[**models::SnapshotCursor**](SnapshotCursor.md)> | The `snapshot_cursor` of the previous page of a paged full snapshot. | [optional]
 **types** | Option<**Vec<String>**> | Full-fetch ONLY these types (checksum self-heal). Invalid with `since`. | [optional]
 

@@ -7,7 +7,9 @@ Method | HTTP request | Description
 [**complete_onboarding**](OrgsApi.md#complete_onboarding) | **POST** /orgs/{id}/onboarding/complete | 
 [**create_org**](OrgsApi.md#create_org) | **POST** /orgs | 
 [**delete_org**](OrgsApi.md#delete_org) | **DELETE** /orgs/{id} | 
+[**end_org_addon**](OrgsApi.md#end_org_addon) | **DELETE** /orgs/{id}/addons/{feature} | End an add-on (super admin). The row is kept, ended; a member's points, passes and history stay, the features just switch off.
 [**get_links_page**](OrgsApi.md#get_links_page) | **GET** /orgs/{id}/links-page | The links page, as the editor sees it.
+[**get_menu_display**](OrgsApi.md#get_menu_display) | **GET** /orgs/{id}/links-page/menu-display | The menu-without-prices settings.
 [**get_onboarding**](OrgsApi.md#get_onboarding) | **GET** /orgs/{id}/onboarding | 
 [**get_org**](OrgsApi.md#get_org) | **GET** /orgs/{id} | 
 [**get_org_modules**](OrgsApi.md#get_org_modules) | **GET** /orgs/{id}/modules | The org's modules, for anyone who works there: the dashboard routes by the server's answer (PS-3), and a branch manager cannot read the org itself (`orgs:read` is the owner's). Switching them is `PATCH /orgs/{id}`, a super admin's alone (SA-1).
@@ -17,12 +19,15 @@ Method | HTTP request | Description
 [**list_templates**](OrgsApi.md#list_templates) | **GET** /orgs/templates | 
 [**offline_auth_bundle**](OrgsApi.md#offline_auth_bundle) | **GET** /orgs/{id}/offline-auth-bundle | 
 [**provision_org**](OrgsApi.md#provision_org) | **POST** /orgs/provision | 
+[**public_menu_display**](OrgsApi.md#public_menu_display) | **GET** /public/menu-display | The shop's menu without prices.
 [**public_org_brand**](OrgsApi.md#public_org_brand) | **GET** /public/orgs/brand | The shop behind a guest page.
 [**public_org_favicon**](OrgsApi.md#public_org_favicon) | **GET** /public/orgs/favicon | The shop's own logo, as a favicon.
 [**public_org_links**](OrgsApi.md#public_org_links) | **GET** /public/orgs/links | The shop's links page, in one request.
 [**public_tenant_shell**](OrgsApi.md#public_tenant_shell) | **GET** /public/tenant-shell | A shop page's HTML: the app entry with the shop's head and noscript.
 [**put_active_till**](OrgsApi.md#put_active_till) | **PUT** /orgs/{id}/plan/active-till | Choose which till a branch sells on (Free plan). The chosen till is active, every other POS till of the branch is switched off. The org's owner, or a super admin; a paid org has no inactive tills (409 `PLAN_NOT_FREE`).
 [**put_links_page**](OrgsApi.md#put_links_page) | **PUT** /orgs/{id}/links-page | Save the links page.
+[**put_menu_display**](OrgsApi.md#put_menu_display) | **PUT** /orgs/{id}/links-page/menu-display | Save the menu-without-prices settings. Writes ONLY its own columns: a shop's links page (and a Free shop's lack of one) is left exactly as it was.
+[**put_org_addon**](OrgsApi.md#put_org_addon) | **PUT** /orgs/{id}/addons/{feature} | Switch an add-on on for an org (super admin). Loyalty on a Free org is Rewards by Madar: the loyalty programme, its card and the teller page, without the paid plan. On a paid org it changes nothing (paid has every feature) and is refused, so no row claims a sale that was not made. Repeating it keeps the first start date.
 [**update_org**](OrgsApi.md#update_org) | **PATCH** /orgs/{id} | Super admin only, except a body carrying nothing but `social_links` and/or `logo_url: null`: the org's own people with `org.settings.edit` may save that for their own org.
 [**upload_org_card_image**](OrgsApi.md#upload_org_card_image) | **PUT** /orgs/{id}/card-image | The photograph across the loyalty card — Apple's strip, Google's hero image.
 [**upload_org_logo**](OrgsApi.md#upload_org_logo) | **PUT** /orgs/{id}/logo | 
@@ -124,6 +129,35 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## end_org_addon
+
+> models::PlanState end_org_addon(id, feature)
+End an add-on (super admin). The row is kept, ended; a member's points, passes and history stay, the features just switch off.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+**feature** | **String** | The add-on: `loyalty` | [required] |
+
+### Return type
+
+[**models::PlanState**](PlanState.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## get_links_page
 
 > models::LinksPageSettings get_links_page(id)
@@ -139,6 +173,36 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::LinksPageSettings**](LinksPageSettings.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## get_menu_display
+
+> models::MenuDisplaySettings get_menu_display(id)
+The menu-without-prices settings.
+
+Every plan: no `branding` or `online` check, so a Free shop can reach it. The organisation settings capabilities, as the links page.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+
+### Return type
+
+[**models::MenuDisplaySettings**](MenuDisplaySettings.md)
 
 ### Authorization
 
@@ -402,6 +466,37 @@ Name | Type | Description  | Required | Notes
 [[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
 
 
+## public_menu_display
+
+> models::PublicMenuDisplay public_menu_display(org_id, slug)
+The shop's menu without prices.
+
+`org_id` or `slug` names the shop. Every plan, Free included. A shop that has not switched the page on answers 404, exactly like a shop that does not exist. The answer carries no price, cost, surcharge, discount or deal field.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**org_id** | Option<**uuid::Uuid**> | The shop, when the page already knows which one it is. |  |
+**slug** | Option<**String**> | The first label of the hostname, when it does not — `rue` for `rue.madar-pos.cloud`. |  |
+
+### Return type
+
+[**models::PublicMenuDisplay**](PublicMenuDisplay.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
 ## public_org_brand
 
 > models::PublicBrand public_org_brand(org_id, slug)
@@ -574,6 +669,65 @@ Name | Type | Description  | Required | Notes
 ### Return type
 
 [**models::LinksPageSettings**](LinksPageSettings.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_menu_display
+
+> models::MenuDisplaySettings put_menu_display(id, menu_display_input)
+Save the menu-without-prices settings. Writes ONLY its own columns: a shop's links page (and a Free shop's lack of one) is left exactly as it was.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+**menu_display_input** | [**MenuDisplayInput**](MenuDisplayInput.md) |  | [required] |
+
+### Return type
+
+[**models::MenuDisplaySettings**](MenuDisplaySettings.md)
+
+### Authorization
+
+[bearer_jwt](../README.md#bearer_jwt)
+
+### HTTP request headers
+
+- **Content-Type**: application/json
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to Model list]](../README.md#documentation-for-models) [[Back to README]](../README.md)
+
+
+## put_org_addon
+
+> models::PlanState put_org_addon(id, feature, addon_request)
+Switch an add-on on for an org (super admin). Loyalty on a Free org is Rewards by Madar: the loyalty programme, its card and the teller page, without the paid plan. On a paid org it changes nothing (paid has every feature) and is refused, so no row claims a sale that was not made. Repeating it keeps the first start date.
+
+### Parameters
+
+
+Name | Type | Description  | Required | Notes
+------------- | ------------- | ------------- | ------------- | -------------
+**id** | **uuid::Uuid** | Organization ID | [required] |
+**feature** | **String** | The add-on: `loyalty` | [required] |
+**addon_request** | [**AddonRequest**](AddonRequest.md) |  | [required] |
+
+### Return type
+
+[**models::PlanState**](PlanState.md)
 
 ### Authorization
 

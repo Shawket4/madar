@@ -87,9 +87,17 @@ pub struct LedgerEntry {
         skip_serializing_if = "Option::is_none"
     )]
     pub reward_name: Option<Option<String>>,
-    /// Why the row exists: `sale`, `redemption`, `void`, `refund`, `birthday`, `winback` or `manual`. What a till or a dashboard should print as the reason, instead of guessing from the kind and the note.
+    /// Why the row exists: `sale`, `redemption`, `void`, `refund`, `birthday`, `winback`, `manual`, `merge` or `counter` (no order: the Rewards teller page). What a till or a dashboard should print as the reason, instead of guessing from the kind and the note.
     #[serde(rename = "source")]
     pub source: String,
+    /// The stamp track this row moved (2–4); absent for track 1.
+    #[serde(
+        rename = "track",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub track: Option<Option<i32>>,
 }
 
 impl LedgerEntry {
@@ -119,6 +127,7 @@ impl LedgerEntry {
             reverses_id: None,
             reward_name: None,
             source,
+            track: None,
         }
     }
 }

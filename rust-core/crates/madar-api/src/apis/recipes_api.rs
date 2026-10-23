@@ -82,6 +82,7 @@ pub enum DeleteAddonIngredientError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -95,6 +96,7 @@ pub enum DeleteDrinkRecipeError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -173,6 +175,7 @@ pub enum UpsertAddonIngredientError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -186,6 +189,7 @@ pub enum UpsertDrinkRecipeError {
     Status403(models::ErrorBody),
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
+    Status410(models::ErrorBody),
     Status500(models::ErrorBody),
     UnknownValue(serde_json::Value),
 }
@@ -503,7 +507,7 @@ pub async fn put_recipe_steps(
 pub async fn upsert_addon_ingredient(
     configuration: &configuration::Configuration,
     params: UpsertAddonIngredientParams,
-) -> Result<models::AddonIngredient, Error<UpsertAddonIngredientError>> {
+) -> Result<(), Error<UpsertAddonIngredientError>> {
     let uri_str = format!(
         "{}/recipes/addons/{addon_item_id}",
         configuration.base_path,
@@ -525,20 +529,9 @@ pub async fn upsert_addon_ingredient(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::AddonIngredient`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::AddonIngredient`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpsertAddonIngredientError> = serde_json::from_str(&content).ok();
@@ -553,7 +546,7 @@ pub async fn upsert_addon_ingredient(
 pub async fn upsert_drink_recipe(
     configuration: &configuration::Configuration,
     params: UpsertDrinkRecipeParams,
-) -> Result<models::DrinkRecipe, Error<UpsertDrinkRecipeError>> {
+) -> Result<(), Error<UpsertDrinkRecipeError>> {
     let uri_str = format!(
         "{}/recipes/drinks/{menu_item_id}",
         configuration.base_path,
@@ -575,20 +568,9 @@ pub async fn upsert_drink_recipe(
     let resp = configuration.client.execute(req).await?;
 
     let status = resp.status();
-    let content_type = resp
-        .headers()
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream");
-    let content_type = super::ContentType::from(content_type);
 
     if !status.is_client_error() && !status.is_server_error() {
-        let content = resp.text().await?;
-        match content_type {
-            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
-            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::DrinkRecipe`"))),
-            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::DrinkRecipe`")))),
-        }
+        Ok(())
     } else {
         let content = resp.text().await?;
         let entity: Option<UpsertDrinkRecipeError> = serde_json::from_str(&content).ok();

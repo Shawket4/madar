@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **balance** | **i32** | The live balance, in `mode`'s currency. | 
 **brand** | [**models::CardBrand**](CardBrand.md) | Whose card this is, and how it should look. | 
 **can_redeem** | **bool** |  | 
+**card** | Option<[**models::PublicCard**](PublicCard.md)> | The shop's card design (see [`JoinInfo::card`]); absent = classic. | [optional]
 **marketing_opt_out** | **bool** | They have asked this shop to stop sending them things. | 
 **member_token** | **String** |  | 
 **mode** | **String** |  | 
@@ -18,6 +19,7 @@ Name | Type | Description | Notes
 **progress_to_next** | **i32** | Progress towards the next one, after the earned ones are set aside. | 
 **rewards** | [**Vec<models::PublicReward>**](PublicReward.md) |  | 
 **rewards_ready** | **i32** | Rewards the balance has already earned — a card does not stop at full. | 
+**tracks** | Option<[**Vec<models::MemberTrack>**](MemberTrack.md)> | Every stamp track of this member's card, when there is more than one. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

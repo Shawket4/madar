@@ -548,7 +548,7 @@ Name | Type | Description  | Required | Notes
 
 ## upsert_channel_addon_override
 
-> models::ChannelAddonOverride upsert_channel_addon_override(channel_addon_override_input)
+> upsert_channel_addon_override(channel_addon_override_input)
 
 
 ### Parameters
@@ -560,7 +560,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::ChannelAddonOverride**](ChannelAddonOverride.md)
+ (empty response body)
 
 ### Authorization
 
@@ -576,7 +576,7 @@ Name | Type | Description  | Required | Notes
 
 ## upsert_channel_override
 
-> models::ChannelMenuOverride upsert_channel_override(channel_override_input)
+> upsert_channel_override(channel_override_input)
 
 
 ### Parameters
@@ -588,7 +588,7 @@ Name | Type | Description  | Required | Notes
 
 ### Return type
 
-[**models::ChannelMenuOverride**](ChannelMenuOverride.md)
+ (empty response body)
 
 ### Authorization
 

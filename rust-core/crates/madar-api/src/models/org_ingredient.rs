@@ -13,6 +13,22 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OrgIngredient {
+    /// Set when the ingredient is archived: hidden from pickers, stock-count sheets (once no branch holds stock) and reorder suggestions, but kept for history and still deducted by any recipe that uses it. `null` = active. Independent of `is_active` (which the POS feed reads).
+    #[serde(
+        rename = "archived_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub archived_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Who archived it; `null` when active.
+    #[serde(
+        rename = "archived_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub archived_by: Option<Option<uuid::Uuid>>,
     #[serde(rename = "category_id")]
     pub category_id: uuid::Uuid,
     #[serde(rename = "category_name")]
@@ -111,6 +127,8 @@ impl OrgIngredient {
         updated_at: chrono::DateTime<chrono::FixedOffset>,
     ) -> OrgIngredient {
         OrgIngredient {
+            archived_at: None,
+            archived_by: None,
             category_id,
             category_name,
             category_slug,

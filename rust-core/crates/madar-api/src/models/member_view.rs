@@ -53,6 +53,14 @@ pub struct MemberView {
     /// How many rewards the balance has ALREADY earned.  A card does not stop at full. Six stamps against a five-stamp reward is one reward earned and one stamp towards the next, not \"five and a bit wasted\" — and a customer who has been in eleven times is owed two rewards, whether or not they claimed the first.
     #[serde(rename = "rewards_ready")]
     pub rewards_ready: i32,
+    /// Every stamp track of the card (track 1 first, its figures equal to the fields above), present only when the shop runs more than one. The fields above stay track 1's for ever (released tills read them).
+    #[serde(
+        rename = "tracks",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub tracks: Option<Option<Vec<models::MemberTrack>>>,
     #[serde(rename = "visits_balance")]
     pub visits_balance: i32,
 }
@@ -95,6 +103,7 @@ impl MemberView {
             points_to_next_reward,
             progress_to_next,
             rewards_ready,
+            tracks: None,
             visits_balance,
         }
     }

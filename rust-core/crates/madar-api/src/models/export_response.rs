@@ -11,6 +11,7 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// ExportResponse : The export's body. Documented here and written by `export_orders` as a stream in exactly this shape (`ExportTail` is everything after `data`).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExportResponse {
     #[serde(rename = "data")]
@@ -26,6 +27,7 @@ pub struct ExportResponse {
 }
 
 impl ExportResponse {
+    /// The export's body. Documented here and written by `export_orders` as a stream in exactly this shape (`ExportTail` is everything after `data`).
     pub fn new(
         data: Vec<models::OrderExport>,
         generated_at: chrono::DateTime<chrono::FixedOffset>,

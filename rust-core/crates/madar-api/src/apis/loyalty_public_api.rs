@@ -56,6 +56,15 @@ pub struct LoyaltyJoinInfoParams {
     pub org_id: Option<String>,
 }
 
+/// struct for passing parameters to the method [`public_loyalty_card_hero`]
+#[derive(Clone, Debug)]
+pub struct PublicLoyaltyCardHeroParams {
+    pub org_id: String,
+    pub revision: i32,
+    /// e.g. `3-0-en.png`
+    pub state: String,
+}
+
 /// struct for passing parameters to the method [`set_loyalty_card_preferences`]
 #[derive(Clone, Debug)]
 pub struct SetLoyaltyCardPreferencesParams {
@@ -139,6 +148,14 @@ pub enum LoyaltyJoinInfoError {
     Status404(models::ErrorBody),
     Status409(models::ErrorBody),
     Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`public_loyalty_card_hero`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PublicLoyaltyCardHeroError {
+    Status404(),
     UnknownValue(serde_json::Value),
 }
 
@@ -396,6 +413,41 @@ pub async fn loyalty_join_info(
     } else {
         let content = resp.text().await?;
         let entity: Option<LoyaltyJoinInfoError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+pub async fn public_loyalty_card_hero(
+    configuration: &configuration::Configuration,
+    params: PublicLoyaltyCardHeroParams,
+) -> Result<(), Error<PublicLoyaltyCardHeroError>> {
+    let uri_str = format!(
+        "{}/public/loyalty/brand/{org_id}/card/{revision}/{state}",
+        configuration.base_path,
+        org_id = crate::apis::urlencode(params.org_id),
+        revision = params.revision,
+        state = crate::apis::urlencode(params.state)
+    );
+    let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+
+    if !status.is_client_error() && !status.is_server_error() {
+        Ok(())
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<PublicLoyaltyCardHeroError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

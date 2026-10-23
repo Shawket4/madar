@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -988627626;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -495611902;
 
 // Section: executor
 
@@ -16979,6 +16979,66 @@ fn wire__crate__api__bridge__MadarBridge_toggle_reward_impl(
         },
     )
 }
+fn wire__crate__api__bridge__MadarBridge_toggle_reward_on_track_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_toggle_reward_on_track",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            let api_lines =
+                <Vec<crate::api::loyalty::RewardLineInput>>::sse_decode(&mut deserializer);
+            let api_scan = <crate::api::loyalty::LoyaltyScanView>::sse_decode(&mut deserializer);
+            let api_picks = <Vec<crate::api::loyalty::RewardPick>>::sse_decode(&mut deserializer);
+            let api_line = <u32>::sse_decode(&mut deserializer);
+            let api_track = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok =
+                    Ok::<_, ()>(crate::api::bridge::MadarBridge::toggle_reward_on_track(
+                        &*api_that_guard,
+                        api_lines,
+                        api_scan,
+                        api_picks,
+                        api_line,
+                        api_track,
+                    ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__bridge__MadarBridge_tr_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -18191,6 +18251,7 @@ const _: fn() = || {
         let _: u32 = CheckoutRedemption.item_index;
         let _: Option<String> = CheckoutRedemption.ticket_line_id;
         let _: i32 = CheckoutRedemption.units;
+        let _: Option<u32> = CheckoutRedemption.track;
     }
     {
         let CheckoutSplit = None::<crate::api::orders::CheckoutSplit>.unwrap();
@@ -18723,6 +18784,7 @@ const _: fn() = || {
         let _: i64 = LoyaltyAwardOutcome.points_awarded;
         let _: String = LoyaltyAwardOutcome.headline;
         let _: String = LoyaltyAwardOutcome.detail;
+        let _: Vec<crate::api::loyalty::LoyaltyTrackAward> = LoyaltyAwardOutcome.tracks;
     }
     {
         let LoyaltyLedgerView = None::<crate::api::loyalty::LoyaltyLedgerView>.unwrap();
@@ -18748,6 +18810,7 @@ const _: fn() = || {
         let _: bool = LoyaltyMemberView.can_redeem;
         let _: String = LoyaltyMemberView.progress_label;
         let _: String = LoyaltyMemberView.balance_label;
+        let _: Vec<crate::api::loyalty::LoyaltyTrackView> = LoyaltyMemberView.tracks;
     }
     {
         let LoyaltyProgrammeView = None::<crate::api::loyalty::LoyaltyProgrammeView>.unwrap();
@@ -18778,6 +18841,35 @@ const _: fn() = || {
         let _: bool = LoyaltyScanView.any_item;
         let _: i64 = LoyaltyScanView.any_item_cost;
         let _: Option<i64> = LoyaltyScanView.max_rewards_per_order;
+        let _: Vec<crate::api::loyalty::LoyaltyTrackRewardsView> = LoyaltyScanView.track_rewards;
+    }
+    {
+        let LoyaltyTrackAfter = None::<crate::api::loyalty::LoyaltyTrackAfter>.unwrap();
+        let _: u32 = LoyaltyTrackAfter.position;
+        let _: String = LoyaltyTrackAfter.name;
+        let _: i64 = LoyaltyTrackAfter.balance_after;
+    }
+    {
+        let LoyaltyTrackAward = None::<crate::api::loyalty::LoyaltyTrackAward>.unwrap();
+        let _: u32 = LoyaltyTrackAward.position;
+        let _: String = LoyaltyTrackAward.name;
+        let _: i64 = LoyaltyTrackAward.awarded;
+        let _: i64 = LoyaltyTrackAward.balance;
+        let _: i64 = LoyaltyTrackAward.size;
+    }
+    {
+        let LoyaltyTrackRewardsView = None::<crate::api::loyalty::LoyaltyTrackRewardsView>.unwrap();
+        let _: u32 = LoyaltyTrackRewardsView.position;
+        let _: Vec<crate::api::loyalty::LoyaltyRewardView> = LoyaltyTrackRewardsView.rewards;
+    }
+    {
+        let LoyaltyTrackView = None::<crate::api::loyalty::LoyaltyTrackView>.unwrap();
+        let _: u32 = LoyaltyTrackView.position;
+        let _: String = LoyaltyTrackView.name;
+        let _: i64 = LoyaltyTrackView.size;
+        let _: i64 = LoyaltyTrackView.balance;
+        let _: i64 = LoyaltyTrackView.rewards_ready;
+        let _: Option<String> = LoyaltyTrackView.colour;
     }
     {
         let MadarConfig = None::<crate::api::types::MadarConfig>.unwrap();
@@ -19202,6 +19294,7 @@ const _: fn() = || {
         let _: i32 = RewardBoardView.units_claimed;
         let _: i64 = RewardBoardView.covered_minor;
         let _: Option<String> = RewardBoardView.adjusted_reason;
+        let _: Vec<crate::api::loyalty::LoyaltyTrackAfter> = RewardBoardView.tracks_after;
     }
     {
         let RewardLineInput = None::<crate::api::loyalty::RewardLineInput>.unwrap();
@@ -19225,11 +19318,14 @@ const _: fn() = || {
         let _: Option<String> = RewardLineState.blocked_reason;
         let _: i64 = RewardLineState.covered_minor;
         let _: String = RewardLineState.cost_label;
+        let _: u32 = RewardLineState.track;
+        let _: Vec<u32> = RewardLineState.track_choices;
     }
     {
         let RewardPick = None::<crate::api::loyalty::RewardPick>.unwrap();
         let _: u32 = RewardPick.line;
         let _: i32 = RewardPick.units;
+        let _: u32 = RewardPick.track;
     }
     {
         let SessionSnapshot = None::<crate::api::types::SessionSnapshot>.unwrap();
@@ -20353,10 +20449,12 @@ impl SseDecode for crate::api::orders::CheckoutRedemption {
         let mut var_itemIndex = <u32>::sse_decode(deserializer);
         let mut var_ticketLineId = <Option<String>>::sse_decode(deserializer);
         let mut var_units = <i32>::sse_decode(deserializer);
+        let mut var_track = <Option<u32>>::sse_decode(deserializer);
         return crate::api::orders::CheckoutRedemption {
             item_index: var_itemIndex,
             ticket_line_id: var_ticketLineId,
             units: var_units,
+            track: var_track,
         };
     }
 }
@@ -22177,6 +22275,62 @@ impl SseDecode for Vec<crate::api::loyalty::LoyaltyRewardView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::loyalty::LoyaltyTrackAfter> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::loyalty::LoyaltyTrackAfter>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::loyalty::LoyaltyTrackAward> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::loyalty::LoyaltyTrackAward>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::loyalty::LoyaltyTrackRewardsView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::loyalty::LoyaltyTrackRewardsView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::loyalty::LoyaltyTrackView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::loyalty::LoyaltyTrackView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::till_review::ManagerActionView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -22366,6 +22520,18 @@ impl SseDecode for Vec<crate::api::catalog::PaymentMethodView> {
             ans_.push(<crate::api::catalog::PaymentMethodView>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<u32>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -22837,6 +23003,8 @@ impl SseDecode for crate::api::loyalty::LoyaltyAwardOutcome {
         let mut var_pointsAwarded = <i64>::sse_decode(deserializer);
         let mut var_headline = <String>::sse_decode(deserializer);
         let mut var_detail = <String>::sse_decode(deserializer);
+        let mut var_tracks =
+            <Vec<crate::api::loyalty::LoyaltyTrackAward>>::sse_decode(deserializer);
         return crate::api::loyalty::LoyaltyAwardOutcome {
             member: var_member,
             queued: var_queued,
@@ -22844,6 +23012,7 @@ impl SseDecode for crate::api::loyalty::LoyaltyAwardOutcome {
             points_awarded: var_pointsAwarded,
             headline: var_headline,
             detail: var_detail,
+            tracks: var_tracks,
         };
     }
 }
@@ -22885,6 +23054,7 @@ impl SseDecode for crate::api::loyalty::LoyaltyMemberView {
         let mut var_canRedeem = <bool>::sse_decode(deserializer);
         let mut var_progressLabel = <String>::sse_decode(deserializer);
         let mut var_balanceLabel = <String>::sse_decode(deserializer);
+        let mut var_tracks = <Vec<crate::api::loyalty::LoyaltyTrackView>>::sse_decode(deserializer);
         return crate::api::loyalty::LoyaltyMemberView {
             id: var_id,
             name: var_name,
@@ -22898,6 +23068,7 @@ impl SseDecode for crate::api::loyalty::LoyaltyMemberView {
             can_redeem: var_canRedeem,
             progress_label: var_progressLabel,
             balance_label: var_balanceLabel,
+            tracks: var_tracks,
         };
     }
 }
@@ -22961,6 +23132,8 @@ impl SseDecode for crate::api::loyalty::LoyaltyScanView {
         let mut var_anyItem = <bool>::sse_decode(deserializer);
         let mut var_anyItemCost = <i64>::sse_decode(deserializer);
         let mut var_maxRewardsPerOrder = <Option<i64>>::sse_decode(deserializer);
+        let mut var_trackRewards =
+            <Vec<crate::api::loyalty::LoyaltyTrackRewardsView>>::sse_decode(deserializer);
         return crate::api::loyalty::LoyaltyScanView {
             member: var_member,
             rewards: var_rewards,
@@ -22968,6 +23141,72 @@ impl SseDecode for crate::api::loyalty::LoyaltyScanView {
             any_item: var_anyItem,
             any_item_cost: var_anyItemCost,
             max_rewards_per_order: var_maxRewardsPerOrder,
+            track_rewards: var_trackRewards,
+        };
+    }
+}
+
+impl SseDecode for crate::api::loyalty::LoyaltyTrackAfter {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_position = <u32>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_balanceAfter = <i64>::sse_decode(deserializer);
+        return crate::api::loyalty::LoyaltyTrackAfter {
+            position: var_position,
+            name: var_name,
+            balance_after: var_balanceAfter,
+        };
+    }
+}
+
+impl SseDecode for crate::api::loyalty::LoyaltyTrackAward {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_position = <u32>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_awarded = <i64>::sse_decode(deserializer);
+        let mut var_balance = <i64>::sse_decode(deserializer);
+        let mut var_size = <i64>::sse_decode(deserializer);
+        return crate::api::loyalty::LoyaltyTrackAward {
+            position: var_position,
+            name: var_name,
+            awarded: var_awarded,
+            balance: var_balance,
+            size: var_size,
+        };
+    }
+}
+
+impl SseDecode for crate::api::loyalty::LoyaltyTrackRewardsView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_position = <u32>::sse_decode(deserializer);
+        let mut var_rewards =
+            <Vec<crate::api::loyalty::LoyaltyRewardView>>::sse_decode(deserializer);
+        return crate::api::loyalty::LoyaltyTrackRewardsView {
+            position: var_position,
+            rewards: var_rewards,
+        };
+    }
+}
+
+impl SseDecode for crate::api::loyalty::LoyaltyTrackView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_position = <u32>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_size = <i64>::sse_decode(deserializer);
+        let mut var_balance = <i64>::sse_decode(deserializer);
+        let mut var_rewardsReady = <i64>::sse_decode(deserializer);
+        let mut var_colour = <Option<String>>::sse_decode(deserializer);
+        return crate::api::loyalty::LoyaltyTrackView {
+            position: var_position,
+            name: var_name,
+            size: var_size,
+            balance: var_balance,
+            rewards_ready: var_rewardsReady,
+            colour: var_colour,
         };
     }
 }
@@ -24345,6 +24584,8 @@ impl SseDecode for crate::api::loyalty::RewardBoardView {
         let mut var_unitsClaimed = <i32>::sse_decode(deserializer);
         let mut var_coveredMinor = <i64>::sse_decode(deserializer);
         let mut var_adjustedReason = <Option<String>>::sse_decode(deserializer);
+        let mut var_tracksAfter =
+            <Vec<crate::api::loyalty::LoyaltyTrackAfter>>::sse_decode(deserializer);
         return crate::api::loyalty::RewardBoardView {
             lines: var_lines,
             picks: var_picks,
@@ -24353,6 +24594,7 @@ impl SseDecode for crate::api::loyalty::RewardBoardView {
             units_claimed: var_unitsClaimed,
             covered_minor: var_coveredMinor,
             adjusted_reason: var_adjustedReason,
+            tracks_after: var_tracksAfter,
         };
     }
 }
@@ -24394,6 +24636,8 @@ impl SseDecode for crate::api::loyalty::RewardLineState {
         let mut var_blockedReason = <Option<String>>::sse_decode(deserializer);
         let mut var_coveredMinor = <i64>::sse_decode(deserializer);
         let mut var_costLabel = <String>::sse_decode(deserializer);
+        let mut var_track = <u32>::sse_decode(deserializer);
+        let mut var_trackChoices = <Vec<u32>>::sse_decode(deserializer);
         return crate::api::loyalty::RewardLineState {
             line: var_line,
             claimable: var_claimable,
@@ -24403,6 +24647,8 @@ impl SseDecode for crate::api::loyalty::RewardLineState {
             blocked_reason: var_blockedReason,
             covered_minor: var_coveredMinor,
             cost_label: var_costLabel,
+            track: var_track,
+            track_choices: var_trackChoices,
         };
     }
 }
@@ -24412,9 +24658,11 @@ impl SseDecode for crate::api::loyalty::RewardPick {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_line = <u32>::sse_decode(deserializer);
         let mut var_units = <i32>::sse_decode(deserializer);
+        let mut var_track = <u32>::sse_decode(deserializer);
         return crate::api::loyalty::RewardPick {
             line: var_line,
             units: var_units,
+            track: var_track,
         };
     }
 }
@@ -26567,52 +26815,52 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        309 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
+        310 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        310 => wire__crate__api__bridge__MadarBridge_unmark_staff_drink_impl(
+        311 => wire__crate__api__bridge__MadarBridge_unmark_staff_drink_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        311 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+        312 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        313 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        314 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        315 => {
+        316 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        316 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
+        317 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        317 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        318 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        318 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
+        319 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        322 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
+        323 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
             port,
             ptr,
             rust_vec_len,
@@ -26989,25 +27237,30 @@ fn pde_ffi_dispatcher_sync_impl(
         307 => {
             wire__crate__api__bridge__MadarBridge_toggle_reward_impl(ptr, rust_vec_len, data_len)
         }
-        308 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        312 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        308 => wire__crate__api__bridge__MadarBridge_toggle_reward_on_track_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        314 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        319 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
+        309 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        313 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        320 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
-        321 => {
+        315 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        320 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        321 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
+        322 => {
             wire__crate__api__bridge__MadarBridge_waste_reasons_impl(ptr, rust_vec_len, data_len)
         }
-        323 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        324 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        325 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        324 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        325 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        326 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -27853,6 +28106,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::CheckoutRe
             self.0.item_index.into_into_dart().into_dart(),
             self.0.ticket_line_id.into_into_dart().into_dart(),
             self.0.units.into_into_dart().into_dart(),
+            self.0.track.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -29287,6 +29541,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyAw
             self.0.points_awarded.into_into_dart().into_dart(),
             self.0.headline.into_into_dart().into_dart(),
             self.0.detail.into_into_dart().into_dart(),
+            self.0.tracks.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -29344,6 +29599,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyMe
             self.0.can_redeem.into_into_dart().into_dart(),
             self.0.progress_label.into_into_dart().into_dart(),
             self.0.balance_label.into_into_dart().into_dart(),
+            self.0.tracks.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -29438,6 +29694,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltySc
             self.0.any_item.into_into_dart().into_dart(),
             self.0.any_item_cost.into_into_dart().into_dart(),
             self.0.max_rewards_per_order.into_into_dart().into_dart(),
+            self.0.track_rewards.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -29450,6 +29707,98 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::loyalty::LoyaltySc
     for crate::api::loyalty::LoyaltyScanView
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::loyalty::LoyaltyScanView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyTrackAfter> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.position.into_into_dart().into_dart(),
+            self.0.name.into_into_dart().into_dart(),
+            self.0.balance_after.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::loyalty::LoyaltyTrackAfter>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::loyalty::LoyaltyTrackAfter>>
+    for crate::api::loyalty::LoyaltyTrackAfter
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::loyalty::LoyaltyTrackAfter> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyTrackAward> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.position.into_into_dart().into_dart(),
+            self.0.name.into_into_dart().into_dart(),
+            self.0.awarded.into_into_dart().into_dart(),
+            self.0.balance.into_into_dart().into_dart(),
+            self.0.size.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::loyalty::LoyaltyTrackAward>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::loyalty::LoyaltyTrackAward>>
+    for crate::api::loyalty::LoyaltyTrackAward
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::loyalty::LoyaltyTrackAward> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyTrackRewardsView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.position.into_into_dart().into_dart(),
+            self.0.rewards.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::loyalty::LoyaltyTrackRewardsView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::loyalty::LoyaltyTrackRewardsView>>
+    for crate::api::loyalty::LoyaltyTrackRewardsView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::loyalty::LoyaltyTrackRewardsView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyTrackView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.position.into_into_dart().into_dart(),
+            self.0.name.into_into_dart().into_dart(),
+            self.0.size.into_into_dart().into_dart(),
+            self.0.balance.into_into_dart().into_dart(),
+            self.0.rewards_ready.into_into_dart().into_dart(),
+            self.0.colour.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::loyalty::LoyaltyTrackView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::loyalty::LoyaltyTrackView>>
+    for crate::api::loyalty::LoyaltyTrackView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::loyalty::LoyaltyTrackView> {
         self.into()
     }
 }
@@ -30654,6 +31003,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::RewardBoa
             self.0.units_claimed.into_into_dart().into_dart(),
             self.0.covered_minor.into_into_dart().into_dart(),
             self.0.adjusted_reason.into_into_dart().into_dart(),
+            self.0.tracks_after.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -30709,6 +31059,8 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::RewardLin
             self.0.blocked_reason.into_into_dart().into_dart(),
             self.0.covered_minor.into_into_dart().into_dart(),
             self.0.cost_label.into_into_dart().into_dart(),
+            self.0.track.into_into_dart().into_dart(),
+            self.0.track_choices.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -30730,6 +31082,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::RewardPic
         [
             self.0.line.into_into_dart().into_dart(),
             self.0.units.into_into_dart().into_dart(),
+            self.0.track.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -32413,6 +32766,7 @@ impl SseEncode for crate::api::orders::CheckoutRedemption {
         <u32>::sse_encode(self.item_index, serializer);
         <Option<String>>::sse_encode(self.ticket_line_id, serializer);
         <i32>::sse_encode(self.units, serializer);
+        <Option<u32>>::sse_encode(self.track, serializer);
     }
 }
 
@@ -33606,6 +33960,46 @@ impl SseEncode for Vec<crate::api::loyalty::LoyaltyRewardView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::loyalty::LoyaltyTrackAfter> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::loyalty::LoyaltyTrackAfter>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::loyalty::LoyaltyTrackAward> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::loyalty::LoyaltyTrackAward>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::loyalty::LoyaltyTrackRewardsView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::loyalty::LoyaltyTrackRewardsView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::loyalty::LoyaltyTrackView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::loyalty::LoyaltyTrackView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::till_review::ManagerActionView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -33742,6 +34136,16 @@ impl SseEncode for Vec<crate::api::catalog::PaymentMethodView> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::catalog::PaymentMethodView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <u32>::sse_encode(item, serializer);
         }
     }
 }
@@ -34094,6 +34498,7 @@ impl SseEncode for crate::api::loyalty::LoyaltyAwardOutcome {
         <i64>::sse_encode(self.points_awarded, serializer);
         <String>::sse_encode(self.headline, serializer);
         <String>::sse_encode(self.detail, serializer);
+        <Vec<crate::api::loyalty::LoyaltyTrackAward>>::sse_encode(self.tracks, serializer);
     }
 }
 
@@ -34125,6 +34530,7 @@ impl SseEncode for crate::api::loyalty::LoyaltyMemberView {
         <bool>::sse_encode(self.can_redeem, serializer);
         <String>::sse_encode(self.progress_label, serializer);
         <String>::sse_encode(self.balance_label, serializer);
+        <Vec<crate::api::loyalty::LoyaltyTrackView>>::sse_encode(self.tracks, serializer);
     }
 }
 
@@ -34167,6 +34573,50 @@ impl SseEncode for crate::api::loyalty::LoyaltyScanView {
         <bool>::sse_encode(self.any_item, serializer);
         <i64>::sse_encode(self.any_item_cost, serializer);
         <Option<i64>>::sse_encode(self.max_rewards_per_order, serializer);
+        <Vec<crate::api::loyalty::LoyaltyTrackRewardsView>>::sse_encode(
+            self.track_rewards,
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::loyalty::LoyaltyTrackAfter {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.position, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <i64>::sse_encode(self.balance_after, serializer);
+    }
+}
+
+impl SseEncode for crate::api::loyalty::LoyaltyTrackAward {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.position, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <i64>::sse_encode(self.awarded, serializer);
+        <i64>::sse_encode(self.balance, serializer);
+        <i64>::sse_encode(self.size, serializer);
+    }
+}
+
+impl SseEncode for crate::api::loyalty::LoyaltyTrackRewardsView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.position, serializer);
+        <Vec<crate::api::loyalty::LoyaltyRewardView>>::sse_encode(self.rewards, serializer);
+    }
+}
+
+impl SseEncode for crate::api::loyalty::LoyaltyTrackView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u32>::sse_encode(self.position, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <i64>::sse_encode(self.size, serializer);
+        <i64>::sse_encode(self.balance, serializer);
+        <i64>::sse_encode(self.rewards_ready, serializer);
+        <Option<String>>::sse_encode(self.colour, serializer);
     }
 }
 
@@ -35092,6 +35542,7 @@ impl SseEncode for crate::api::loyalty::RewardBoardView {
         <i32>::sse_encode(self.units_claimed, serializer);
         <i64>::sse_encode(self.covered_minor, serializer);
         <Option<String>>::sse_encode(self.adjusted_reason, serializer);
+        <Vec<crate::api::loyalty::LoyaltyTrackAfter>>::sse_encode(self.tracks_after, serializer);
     }
 }
 
@@ -35121,6 +35572,8 @@ impl SseEncode for crate::api::loyalty::RewardLineState {
         <Option<String>>::sse_encode(self.blocked_reason, serializer);
         <i64>::sse_encode(self.covered_minor, serializer);
         <String>::sse_encode(self.cost_label, serializer);
+        <u32>::sse_encode(self.track, serializer);
+        <Vec<u32>>::sse_encode(self.track_choices, serializer);
     }
 }
 
@@ -35129,6 +35582,7 @@ impl SseEncode for crate::api::loyalty::RewardPick {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u32>::sse_encode(self.line, serializer);
         <i32>::sse_encode(self.units, serializer);
+        <u32>::sse_encode(self.track, serializer);
     }
 }
 

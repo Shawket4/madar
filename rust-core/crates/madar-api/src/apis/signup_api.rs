@@ -25,6 +25,12 @@ pub struct SignupOtpParams {
     pub signup_otp_request: models::SignupOtpRequest,
 }
 
+/// struct for passing parameters to the method [`signup_verify`]
+#[derive(Clone, Debug)]
+pub struct SignupVerifyParams {
+    pub signup_verify_request: models::SignupVerifyRequest,
+}
+
 /// struct for typed errors of method [`signup`]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -43,6 +49,20 @@ pub enum SignupError {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SignupOtpError {
+    Status400(models::ErrorBody),
+    Status401(models::ErrorBody),
+    Status403(models::ErrorBody),
+    Status404(models::ErrorBody),
+    Status409(models::ErrorBody),
+    Status429(),
+    Status500(models::ErrorBody),
+    UnknownValue(serde_json::Value),
+}
+
+/// struct for typed errors of method [`signup_verify`]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SignupVerifyError {
     Status400(models::ErrorBody),
     Status401(models::ErrorBody),
     Status403(models::ErrorBody),
@@ -133,6 +153,50 @@ pub async fn signup_otp(
     } else {
         let content = resp.text().await?;
         let entity: Option<SignupOtpError> = serde_json::from_str(&content).ok();
+        Err(Error::ResponseError(ResponseContent {
+            status,
+            content,
+            entity,
+        }))
+    }
+}
+
+/// The server compares it (constant time, five attempts per code across every caller) and, when it is right, answers with a signup token for `POST /public/signup`. 400 `SIGNUP_CODE_WRONG` / `SIGNUP_CODE_EXPIRED` / `SIGNUP_CODE_LOCKED`; 409 `SIGNUP_PHONE_TAKEN` when the phone already owns a shop (said only to someone who proved it).
+pub async fn signup_verify(
+    configuration: &configuration::Configuration,
+    params: SignupVerifyParams,
+) -> Result<models::SignupVerifyResponse, Error<SignupVerifyError>> {
+    let uri_str = format!("{}/public/signup/verify", configuration.base_path);
+    let mut req_builder = configuration
+        .client
+        .request(reqwest::Method::POST, &uri_str);
+
+    if let Some(ref user_agent) = configuration.user_agent {
+        req_builder = req_builder.header(reqwest::header::USER_AGENT, user_agent.clone());
+    }
+    req_builder = req_builder.json(&params.signup_verify_request);
+
+    let req = req_builder.build()?;
+    let resp = configuration.client.execute(req).await?;
+
+    let status = resp.status();
+    let content_type = resp
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream");
+    let content_type = super::ContentType::from(content_type);
+
+    if !status.is_client_error() && !status.is_server_error() {
+        let content = resp.text().await?;
+        match content_type {
+            ContentType::Json => serde_json::from_str(&content).map_err(Error::from),
+            ContentType::Text => return Err(Error::from(serde_json::Error::custom("Received `text/plain` content type response that cannot be converted to `models::SignupVerifyResponse`"))),
+            ContentType::Unsupported(unknown_type) => return Err(Error::from(serde_json::Error::custom(format!("Received `{unknown_type}` content type response that cannot be converted to `models::SignupVerifyResponse`")))),
+        }
+    } else {
+        let content = resp.text().await?;
+        let entity: Option<SignupVerifyError> = serde_json::from_str(&content).ok();
         Err(Error::ResponseError(ResponseContent {
             status,
             content,

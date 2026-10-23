@@ -74,6 +74,14 @@ pub struct StockMovement {
     pub device_name: Option<Option<String>>,
     #[serde(rename = "id")]
     pub id: uuid::Uuid,
+    /// The ingredient's archive time (history keeps showing an archived ingredient, with a badge); `null` = active.
+    #[serde(
+        rename = "ingredient_archived_at",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ingredient_archived_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
     #[serde(rename = "ingredient_name")]
     pub ingredient_name: String,
     /// inventory_movement_type: sale | void_restock | adjustment_add | adjustment_remove | waste | transfer_out | transfer_in | purchase_in | purchase_return | stock_count
@@ -250,6 +258,7 @@ impl StockMovement {
             device_id: None,
             device_name: None,
             id,
+            ingredient_archived_at: None,
             ingredient_name,
             movement_type,
             note: None,
