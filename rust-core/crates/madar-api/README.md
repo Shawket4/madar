@@ -27,6 +27,11 @@ All URIs are relative to *http://localhost:8080*
 
 Class | Method | HTTP request | Description
 ------------ | ------------- | ------------- | -------------
+*AdminApi* | [**get_session**](docs/AdminApi.md#get_session) | **GET** /admin/sessions/{id} | One session.
+*AdminApi* | [**list_sessions**](docs/AdminApi.md#list_sessions) | **GET** /admin/sessions | List sessions, newest first.
+*AdminApi* | [**revoke_org_sessions**](docs/AdminApi.md#revoke_org_sessions) | **POST** /admin/orgs/{id}/revoke-sessions | Sign out a whole org, or only its sessions of some kinds.
+*AdminApi* | [**revoke_session**](docs/AdminApi.md#revoke_session) | **POST** /admin/sessions/{id}/revoke | Revoke one session: its next request is refused (401 `SESSION_REVOKED`).
+*AdminApi* | [**revoke_user_sessions**](docs/AdminApi.md#revoke_user_sessions) | **POST** /admin/users/{id}/revoke-sessions | Sign a person out everywhere, including tokens of theirs from before sessions existed.
 *AiApi* | [**chat**](docs/AiApi.md#chat) | **POST** /ai/chat | 
 *AiApi* | [**chat_stream**](docs/AiApi.md#chat_stream) | **POST** /ai/chat/stream | 
 *AiApi* | [**delete_conversation**](docs/AiApi.md#delete_conversation) | **DELETE** /ai/conversations/{id} | 
@@ -37,11 +42,14 @@ Class | Method | HTTP request | Description
 *AssetsApi* | [**get_job**](docs/AssetsApi.md#get_job) | **GET** /assets/jobs/{id} | 
 *AssetsApi* | [**top_up**](docs/AssetsApi.md#top_up) | **POST** /sync/assets | 
 *AuthApi* | [**activate**](docs/AuthApi.md#activate) | **POST** /auth/activate-device | 
+*AuthApi* | [**adopt**](docs/AuthApi.md#adopt) | **GET** /auth/session | The browser's shared session, for an app that has none of its own.
 *AuthApi* | [**device_session**](docs/AuthApi.md#device_session) | **POST** /auth/device-session | A kitchen screen's sign-in: no person, no account (owner, 2026-10-11). The screen was activated once with a code from the dashboard's branch plan and keeps the credential activation handed it; with it, this mints the screen's session whenever the last one runs out, so the kitchen never signs in again.
+*AuthApi* | [**end**](docs/AuthApi.md#end) | **DELETE** /auth/session | Sign this browser out of every first-party app: the session behind the cookie, and behind the bearer token when one is sent, end on the server.
 *AuthApi* | [**get_my_permissions**](docs/AuthApi.md#get_my_permissions) | **GET** /auth/permissions | 
 *AuthApi* | [**login**](docs/AuthApi.md#login) | **POST** /auth/login | 
 *AuthApi* | [**me**](docs/AuthApi.md#me) | **GET** /auth/me | 
 *AuthApi* | [**resolve_branch**](docs/AuthApi.md#resolve_branch) | **POST** /auth/resolve-branch | 
+*AuthApi* | [**share**](docs/AuthApi.md#share) | **POST** /auth/session | Share the caller's session with the other first-party apps.
 *AuthzApi* | [**authz_keys**](docs/AuthzApi.md#authz_keys) | **GET** /auth/authz-keys | 
 *AuthzApi* | [**bulk_review_flags**](docs/AuthzApi.md#bulk_review_flags) | **POST** /authz/flags/bulk-review | Resolve many flags at once — \"select many\" or \"everything for this till or day\" from the dashboard's review queue (owner, 2026-09-17). Extends [`review_flag`] rather than duplicating it: same capability, same semantics (an acknowledgement, not an approval), now with an optional note and one id at a time so a bad id among many never loses the rest.
 *AuthzApi* | [**create_role**](docs/AuthzApi.md#create_role) | **POST** /authz/roles | 
@@ -1422,6 +1430,9 @@ Class | Method | HTTP request | Description
  - [ReturnLineInput](docs/ReturnLineInput.md)
  - [ReviewAdvance](docs/ReviewAdvance.md)
  - [ReviewedOut](docs/ReviewedOut.md)
+ - [RevokeOrgRequest](docs/RevokeOrgRequest.md)
+ - [RevokeRequest](docs/RevokeRequest.md)
+ - [RevokeResponse](docs/RevokeResponse.md)
  - [RewardCatalogue](docs/RewardCatalogue.md)
  - [RewardItem](docs/RewardItem.md)
  - [RewardItemInput](docs/RewardItemInput.md)
@@ -1454,6 +1465,10 @@ Class | Method | HTTP request | Description
  - [SeatBookingRequest](docs/SeatBookingRequest.md)
  - [SectionCount](docs/SectionCount.md)
  - [ServiceModeSales](docs/ServiceModeSales.md)
+ - [SessionCursor](docs/SessionCursor.md)
+ - [SessionPage](docs/SessionPage.md)
+ - [SessionRow](docs/SessionRow.md)
+ - [SessionTokenResponse](docs/SessionTokenResponse.md)
  - [SetAssignmentsRequest](docs/SetAssignmentsRequest.md)
  - [SetGrantRequest](docs/SetGrantRequest.md)
  - [SetOverrideRequest](docs/SetOverrideRequest.md)

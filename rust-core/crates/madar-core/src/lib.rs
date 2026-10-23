@@ -826,9 +826,10 @@ impl MadarCore {
         Ok(self.current_session().unwrap_or(snapshot))
     }
 
-    /// Sign out: clear the live session + token (the JWT is stateless — there is
-    /// no server-side logout endpoint, so clearing locally is the revocation) and
-    /// the host vault. Does NOT force-close the open shift, and KEEPS the cached
+    /// Sign out: clear the live session + token and the host vault. The server
+    /// session behind the token stays live until it expires or a super admin
+    /// revokes it (MadarRust `auth::sessions`); a revoked one answers 401
+    /// `SESSION_REVOKED`, which pauses the outbox like any 401. Does NOT force-close the open shift, and KEEPS the cached
     /// shift: the open drawer is DEVICE state, not session state — it stays so the
     /// next sign-in can enforce that only its owner resumes it (and route them
     /// straight into it). The in-progress carts are KEPT as the device's queue:
