@@ -21,6 +21,7 @@ docs/AddonSalesRow.md
 docs/AddonSlot.md
 docs/AdjustRequest.md
 docs/Adjustment.md
+docs/AdminApi.md
 docs/AdvancesReport.md
 docs/AiApi.md
 docs/AiChatKind.md
@@ -759,6 +760,9 @@ docs/ResultBlock.md
 docs/ReturnLineInput.md
 docs/ReviewAdvance.md
 docs/ReviewedOut.md
+docs/RevokeOrgRequest.md
+docs/RevokeRequest.md
+docs/RevokeResponse.md
 docs/RewardCatalogue.md
 docs/RewardItem.md
 docs/RewardItemInput.md
@@ -791,6 +795,10 @@ docs/ScopeInfo.md
 docs/SeatBookingRequest.md
 docs/SectionCount.md
 docs/ServiceModeSales.md
+docs/SessionCursor.md
+docs/SessionPage.md
+docs/SessionRow.md
+docs/SessionTokenResponse.md
 docs/SetAssignmentsRequest.md
 docs/SetGrantRequest.md
 docs/SetOverrideRequest.md
@@ -988,6 +996,7 @@ docs/WorkShift.md
 docs/WorkShiftBrief.md
 docs/ZoneInput.md
 git_push.sh
+src/apis/admin_api.rs
 src/apis/ai_api.rs
 src/apis/assets_api.rs
 src/apis/auth_api.rs
@@ -1759,6 +1768,9 @@ src/models/result_block.rs
 src/models/return_line_input.rs
 src/models/review_advance.rs
 src/models/reviewed_out.rs
+src/models/revoke_org_request.rs
+src/models/revoke_request.rs
+src/models/revoke_response.rs
 src/models/reward_catalogue.rs
 src/models/reward_item.rs
 src/models/reward_item_input.rs
@@ -1791,6 +1803,10 @@ src/models/scope_info.rs
 src/models/seat_booking_request.rs
 src/models/section_count.rs
 src/models/service_mode_sales.rs
+src/models/session_cursor.rs
+src/models/session_page.rs
+src/models/session_row.rs
+src/models/session_token_response.rs
 src/models/set_assignments_request.rs
 src/models/set_grant_request.rs
 src/models/set_override_request.rs
