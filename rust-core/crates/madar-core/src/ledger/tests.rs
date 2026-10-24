@@ -949,3 +949,36 @@ fn a_sale_this_device_never_rang_has_no_stashed_receipt() {
     assert!(local::queued_receipt(&store, key).unwrap().is_none());
     assert!(local::queued_receipt(&store, "nobody").unwrap().is_none());
 }
+
+/// A reprint after the sale's feed row arrived reads the feed's lines, not the
+/// create's answer kept as the detail (which has no `reward_track` /
+/// `reward_source`: the server fills those in after answering).
+#[test]
+fn the_feeds_order_row_refreshes_the_kept_detail() {
+    let store = Store::open("").unwrap();
+    let id = "00000000-0000-0000-0000-0000000000a1";
+    // A sale in the server's own shape (the generated model), one covered line.
+    let order = |track: Option<i32>, source: Option<&str>| {
+        let mut it = madar_api::models::OrderItemFull {
+            id: uuid::Uuid::from_u128(0xb1),
+            item_name: "Sandwich".into(),
+            quantity: 1,
+            is_reward: Some(true),
+            reward_units: Some(1),
+            reward_track: track,
+            ..Default::default()
+        };
+        it.reward_source = source.map(|s| Some(s.to_string()));
+        let o = madar_api::models::OrderFull { id: uuid::Uuid::parse_str(id).unwrap(), items: vec![it], ..Default::default() };
+        serde_json::to_value(o).unwrap()
+    };
+    store
+        .with_conn(|c| fold::put_order_detail(c, id, &order(None, None)))
+        .unwrap();
+    store
+        .with_tx(|tx| apply::upsert(tx, T_ORDER, &order(Some(2), Some("reward")), 50, &ctx_incr()))
+        .unwrap();
+    let full = views::order_full(&store, id).unwrap().expect("the sale");
+    assert_eq!(full.items[0].reward_track, Some(2));
+    assert_eq!(full.items[0].reward_source, Some(Some("reward".into())));
+}

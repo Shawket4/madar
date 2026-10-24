@@ -8308,7 +8308,7 @@ impl MadarCore {
         use madar_api::apis::loyalty_api;
         let branch = self.session_branch_id()?;
         let locale = self.current_locale();
-        let now = self.corrected_now();
+        let now = loyalty::award_pressed_at(self.corrected_now(), &order_created_at);
         if !loyalty::award_window_open(&order_created_at, &now.to_rfc3339()) {
             return Err(CoreError::Validation {
                 field: "order".into(),

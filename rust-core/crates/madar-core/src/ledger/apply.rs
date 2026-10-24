@@ -60,6 +60,14 @@ pub(crate) fn upsert(conn: &Connection, ty: &str, v: &Value, seq: i64, ctx: &Pag
     } else {
         write_row(conn, ty, &key, v, Origin::Feed(seq), None)?;
         changed = true;
+        // The feed's sale, lines and all, is newer than a detail kept from the
+        // create's answer (which lacks fields the server fills in after it, e.g.
+        // a covered line's `reward_track`): a reprint reads the detail first.
+        if ty == T_ORDER && v.get("items").is_some_and(Value::is_array) {
+            if let Some(id) = v.get("id").and_then(Value::as_str) {
+                super::fold::put_order_detail(conn, id, v)?;
+            }
+        }
         if protected {
             // The op's row was not on this device (a void of a sale this device
             // never held): put the teller's intent back over the server row.

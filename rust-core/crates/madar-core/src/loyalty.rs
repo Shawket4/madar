@@ -336,6 +336,20 @@ pub fn award_window_open(order_created_at: &str, now: &str) -> bool {
     age >= chrono::Duration::zero() && age <= chrono::Duration::hours(AWARD_WINDOW_HOURS)
 }
 
+/// The moment a press is stamped: the corrected clock, but never before the
+/// sale it is for. The clock is corrected in whole seconds and re-estimated on
+/// every answer, so a press a second after the sale could read as before it,
+/// and the server refuses that ("dated before the sale") — as it once refused
+/// a quick till close (`a_close_never_predates_its_open`).
+pub fn award_pressed_at(
+    now: chrono::DateTime<chrono::Utc>,
+    order_created_at: &str,
+) -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::parse_from_rfc3339(order_created_at)
+        .map(|c| now.max(c.with_timezone(&chrono::Utc)))
+        .unwrap_or(now)
+}
+
 /// The outbox payload of an award an EARLIER build queued (op_type
 /// `"award_loyalty_points"`). Nothing enqueues one any more; the drain keeps
 /// reading it so those ops still reach the server.
@@ -2345,6 +2359,18 @@ mod tests {
             checked += 1;
         }
         assert!(checked >= 5, "checked {checked}");
+    }
+
+
+    #[test]
+    fn a_press_is_never_stamped_before_its_sale() {
+        let sale = "2026-10-24T10:00:00.700+00:00";
+        // The corrected clock reads a second slow: the sale's own time.
+        let slow = "2026-10-24T10:00:00.200+00:00".parse().unwrap();
+        assert_eq!(award_pressed_at(slow, sale).to_rfc3339(), "2026-10-24T10:00:00.700+00:00");
+        let later = "2026-10-24T10:05:00+00:00".parse().unwrap();
+        assert_eq!(award_pressed_at(later, sale), later);
+        assert_eq!(award_pressed_at(later, "not a date"), later);
     }
 
 }

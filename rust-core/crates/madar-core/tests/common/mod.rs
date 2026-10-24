@@ -350,7 +350,7 @@ pub async fn settle(core: &MadarCore, max_secs: u64) {
     let mut s = core.sync_now().await.expect("sync");
     let mut last_kick = Instant::now();
     loop {
-        assert_eq!(s.dead_outbox, 0, "nothing dead-letters: {s:?}");
+        assert_eq!(s.dead_outbox, 0, "nothing dead-letters: {s:?}\n{:#?}", core.list_outbox());
         if s.pending_outbox == 0 && s.freshness.state == "fresh" {
             return;
         }

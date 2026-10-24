@@ -206,6 +206,10 @@ name = "discounts_backend"
 required-features = ["backend-tests"]
 
 [[test]]
+name = "loyalty_backend"
+required-features = ["backend-tests"]
+
+[[test]]
 name = "metrics_backend"
 required-features = ["backend-tests"]
 
