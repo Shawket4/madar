@@ -376,6 +376,9 @@ fn sale_lines(conn: &Connection, okey: &str, row: &Value, catalog: &mut Catalog)
         return Ok(Some(
             lines
                 .iter()
+                // A combo's header carries no money of its own (its parts are
+                // its items, C6): the server's top items leave it out too.
+                .filter(|l| s(l, "line_kind") != Some("combo"))
                 .map(|l| Line {
                     item_id: s(l, "menu_item_id").map(str::to_string),
                     item_name: s(l, "item_name").unwrap_or("").to_string(),
@@ -857,6 +860,31 @@ mod tests {
         // Saturday 00:45: a new week, holding only the Saturday sale.
         let saturday = week_of("2026-09-18T21:45:00Z");
         assert_eq!((saturday.order_count, saturday.net_sales), (1, 200));
+    }
+
+    /// A synced combo sale counts its parts, never the combo's header line
+    /// (`line_kind = 'combo'`), as the server's top items do.
+    #[test]
+    fn a_combo_header_is_not_a_top_item() {
+        let store = Store::open("").unwrap();
+        let row = serde_json::json!({
+            "id": "c1", "branch_id": "b1", "till_id": "t1", "status": "completed", "payment_method": "cash",
+            "total_amount": 15000, "created_at": "2026-09-17T10:00:00Z",
+            "payment_legs": [{"method": "cash", "amount": 15000, "is_cash": true}],
+            "items": [
+                {"menu_item_id": "lunch", "item_name": "Lunch", "quantity": 1, "line_total": 0, "line_kind": "combo"},
+                {"menu_item_id": "burger", "item_name": "Burger", "quantity": 1, "line_total": 10000, "line_kind": "combo_part"},
+                {"menu_item_id": "fries", "item_name": "Fries", "quantity": 1, "line_total": 5000, "line_kind": "combo_part"}
+            ]
+        });
+        store
+            .with_tx(|tx| crate::ledger::write_row(tx, T_ORDER, "c1", &row, crate::ledger::Origin::Local, None).map(|_| ()))
+            .unwrap();
+        let f = store
+            .with_conn(|c| local_figures(c, "b1", chrono_tz::UTC, instant("2026-09-17T00:00:00Z").unwrap(), instant("2026-09-18T00:00:00Z").unwrap()))
+            .unwrap();
+        let names: Vec<_> = f.top_items.iter().map(|i| i.item_name.as_str()).collect();
+        assert_eq!(names, ["Burger", "Fries"]);
     }
 
     fn queue(store: &Store, op_type: &str, id: &str, entity: Option<&str>, payload: serde_json::Value) {

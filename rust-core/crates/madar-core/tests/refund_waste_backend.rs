@@ -70,7 +70,7 @@ async fn after_replay_a_void_restocks_and_a_refund_is_waste() {
     fx.db
         .execute(
             "INSERT INTO inventory_movements (branch_id, org_ingredient_id, type, quantity, source_type)
-             VALUES ($1, $2, 'purchase_in', 1000, 'scenario')",
+             VALUES ($1, $2, 'purchase_in', 1000, 'seed')",
             &[&branch, &rice],
         )
         .await

@@ -48,7 +48,7 @@ async fn an_offline_waste_drains_and_moves_the_branch_stock() {
     fx.db
         .execute(
             "INSERT INTO inventory_movements (branch_id, org_ingredient_id, type, quantity, source_type)
-             VALUES ($1, $2, 'purchase_in', 1000, 'scenario')",
+             VALUES ($1, $2, 'purchase_in', 1000, 'seed')",
             &[&branch, &beans],
         )
         .await
