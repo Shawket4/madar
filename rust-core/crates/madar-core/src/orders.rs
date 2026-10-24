@@ -614,7 +614,8 @@ pub(crate) fn order_to_receipt_with(
                     crate::loyalty::cover_label(
                         it.reward_units.unwrap_or(0) as i64,
                         name.map(|(_, n)| n.as_str()),
-                        false,
+                        // api v1.24.0+ says which; an older server, a reward.
+                        it.reward_source.clone().flatten().as_deref() == Some("gift"),
                         locale,
                     )
                 }),
@@ -1596,6 +1597,45 @@ mod tests {
         assert_eq!(line.addons[1].name, "Caramel");
         assert_eq!(line.optionals[0].name, "No sugar");
         assert_eq!(line.optionals[1].price_minor, 700);
+    }
+
+    /// A covered line on a reprint says what covered it: the birthday gift
+    /// (`reward_source`, api v1.24.0+), a track's reward by the track's name,
+    /// or a plain reward; an older server sends no source and reads as today.
+    #[test]
+    fn a_reprint_names_the_gift_and_the_track() {
+        let mut gift = item("Cake", 1, 0);
+        gift.is_reward = Some(true);
+        gift.reward_units = Some(1);
+        gift.reward_source = Some(Some("gift".into()));
+        let mut track = item("Sandwich", 2, 0);
+        track.is_reward = Some(true);
+        track.reward_units = Some(2);
+        track.reward_track = Some(2);
+        track.reward_source = Some(Some("reward".into()));
+        let mut old = item("Latte", 1, 0);
+        old.is_reward = Some(true);
+        old.reward_units = Some(1);
+        let o = order_full(vec![gift, track, old, item("Tea", 1, 2000)]);
+        let names = [(2, "Sandwiches".to_string())];
+        let labels: Vec<_> = order_to_receipt_with(&o, "en", &names)
+            .lines
+            .into_iter()
+            .map(|l| l.reward_label)
+            .collect();
+        assert_eq!(
+            labels,
+            [
+                Some("Birthday gift".into()),
+                Some("Reward ×2 · Sandwiches".into()),
+                Some("Reward".into()),
+                None
+            ]
+        );
+        let ar = order_to_receipt_with(&o, "ar", &names);
+        assert_eq!(ar.lines[0].reward_label.as_deref(), Some("هدية عيد الميلاد"));
+        // No track names known (one-track card, older feed): a plain reward.
+        assert_eq!(order_to_receipt(&o, "en").lines[1].reward_label.as_deref(), Some("Reward ×2"));
     }
 
     #[test]

@@ -116,14 +116,27 @@ class LoyaltyGiftView {
   final String validUntil;
   final String untilLabel;
 
+  /// "Any item" may be the gift (api v1.24.0+; else the scan's).
+  final bool? anyItem;
+
+  /// The whole reward catalogue (api v1.24.0+; else the scan's rewards).
+  final List<String>? rewardItemIds;
+
   const LoyaltyGiftView({
     required this.open,
     required this.validUntil,
     required this.untilLabel,
+    this.anyItem,
+    this.rewardItemIds,
   });
 
   @override
-  int get hashCode => open.hashCode ^ validUntil.hashCode ^ untilLabel.hashCode;
+  int get hashCode =>
+      open.hashCode ^
+      validUntil.hashCode ^
+      untilLabel.hashCode ^
+      anyItem.hashCode ^
+      rewardItemIds.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -132,7 +145,9 @@ class LoyaltyGiftView {
           runtimeType == other.runtimeType &&
           open == other.open &&
           validUntil == other.validUntil &&
-          untilLabel == other.untilLabel;
+          untilLabel == other.untilLabel &&
+          anyItem == other.anyItem &&
+          rewardItemIds == other.rewardItemIds;
 }
 
 /// One line of the member's recent history, already phrased for display.

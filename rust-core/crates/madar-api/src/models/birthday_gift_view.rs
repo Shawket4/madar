@@ -14,6 +14,22 @@ use serde::{Deserialize, Serialize};
 /// BirthdayGiftView : The member's birthday gift, while it can be used or was used this time.
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct BirthdayGiftView {
+    /// The till's lookup only, while `open`: every line may be the gift (\"any item\" is a reward here). Absent elsewhere.
+    #[serde(
+        rename = "any_item",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub any_item: Option<Option<bool>>,
+    /// The till's lookup only, while `open`: the reward items the gift may be taken as, whatever each costs (the whole catalogue, not only what the balance affords). The till runs `madar_loyalty::gift_eligible` over these and `any_item`, the server's own claim rule. Absent elsewhere.
+    #[serde(
+        rename = "reward_item_ids",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reward_item_ids: Option<Option<Vec<uuid::Uuid>>>,
     /// `open` (ready to claim) or `claimed`.
     #[serde(rename = "status")]
     pub status: String,
@@ -29,6 +45,8 @@ impl BirthdayGiftView {
         valid_until: chrono::DateTime<chrono::FixedOffset>,
     ) -> BirthdayGiftView {
         BirthdayGiftView {
+            any_item: None,
+            reward_item_ids: None,
             status,
             valid_until,
         }

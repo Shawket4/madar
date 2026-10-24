@@ -99,6 +99,14 @@ pub struct OrderItemFull {
     pub addons: Vec<models::OrderItemAddon>,
     #[serde(rename = "optionals")]
     pub optionals: Vec<models::OrderItemOptional>,
+    /// Why a covered line was free: `reward` (paid for with points or stamps) or `gift` (the member's birthday gift), so a reprint and history can say which. Absent on a line nothing covered. Additive.
+    #[serde(
+        rename = "reward_source",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reward_source: Option<Option<String>>,
 }
 
 impl OrderItemFull {
@@ -147,6 +155,7 @@ impl OrderItemFull {
             unit_price,
             addons,
             optionals,
+            reward_source: None,
         }
     }
 }

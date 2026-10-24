@@ -6325,12 +6325,14 @@ impl MadarCore {
                 return Err(refuse("loyalty.gift_gone"));
             }
             let at = match &g.ticket_line_id {
-                Some(id) => lines.iter().find(|l| l.ticket_line_id.as_deref() == Some(id)),
-                None => lines.iter().find(|l| l.cart_index == Some(g.item_index)),
+                Some(id) => lines.iter().position(|l| l.ticket_line_id.as_deref() == Some(id)),
+                None => lines.iter().position(|l| l.cart_index == Some(g.item_index)),
             };
-            if !at.is_some_and(|l| loyalty::gift_eligible(l, &scan)) {
-                return Err(refuse("loyalty.gift_not_eligible"));
-            }
+            let covered: Vec<usize> = loyalty::picks_from_redemptions(lines, asked)
+                .iter()
+                .map(|p| p.line as usize)
+                .collect();
+            loyalty::gift_check(lines, &scan, at, &covered).map_err(refuse)?;
         }
         let picks = loyalty::picks_from_redemptions(lines, asked);
         let board = loyalty::reward_board(lines, &scan, &picks, &locale);

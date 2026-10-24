@@ -21,6 +21,10 @@ pub struct _LoyaltyGiftView {
     pub open: bool,
     pub valid_until: String,
     pub until_label: String,
+    /// "Any item" may be the gift (api v1.24.0+; else the scan's).
+    pub any_item: Option<bool>,
+    /// The whole reward catalogue (api v1.24.0+; else the scan's rewards).
+    pub reward_item_ids: Option<Vec<String>>,
 }
 
 /// The gift's part of the Charge screen.

@@ -35,6 +35,7 @@ Name | Type | Description | Notes
 **unit_price** | **i32** |  | 
 **addons** | [**Vec<models::OrderItemAddon>**](OrderItemAddon.md) |  | 
 **optionals** | [**Vec<models::OrderItemOptional>**](OrderItemOptional.md) |  | 
+**reward_source** | Option<**String**> | Why a covered line was free: `reward` (paid for with points or stamps) or `gift` (the member's birthday gift), so a reprint and history can say which. Absent on a line nothing covered. Additive. | [optional]
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
 

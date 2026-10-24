@@ -151,6 +151,13 @@ pub struct LoyaltyGiftView {
     pub valid_until: String,
     /// The last day it can be used ("21 Nov"), in the till's language.
     pub until_label: String,
+    /// "Any item" may be the gift here; `None` from a server older than
+    /// api v1.24.0, which then reads the scan's own `any_item`.
+    pub any_item: Option<bool>,
+    /// The branch's whole reward catalogue (item ids), whatever the balance;
+    /// `None` from an older server, which then reads the scan's `rewards`
+    /// (only what the balance affords: it offers fewer lines, never more).
+    pub reward_item_ids: Option<Vec<String>>,
 }
 
 /// The gift's part of the Charge screen: which lines may be the free item
@@ -631,25 +638,57 @@ pub fn gift_view(
             last.day(),
             crate::i18n::tr(locale, &format!("staff.month_{}", last.month()))
         ),
+        any_item: g.any_item.flatten(),
+        reward_item_ids: g
+            .reward_item_ids
+            .clone()
+            .flatten()
+            .map(|ids| ids.iter().map(ToString::to_string).collect()),
     }
 }
 
-/// May `line` be the birthday gift? A menu item, not a staff drink, not in a
-/// combo or a deal, and a reward here: in the catalogue, or any item when the
-/// programme rewards any item. The server's `loyalty::gifts` rule.
-///
-/// ponytail: `rewards` is the catalogue the member can AFFORD, so with "any
-/// item" off a gift is only offered on what the balance could buy anyway
-/// (never over-offers). Needs the full catalogue on `ScanResult` to offer the
-/// rest; the rule then moves to madar-shared beside `madar_loyalty::plan`.
-pub fn gift_eligible(line: &RewardLineInput, scan: &LoyaltyScanView) -> bool {
-    if line.is_staff_drink || line.in_combo || line.in_deal || line.qty < 1 {
-        return false;
+/// The gift's programme as madar-shared's rule reads it: the catalogue and
+/// "any item" the lookup sent with the gift (the whole catalogue, api
+/// v1.24.0+), else the scan's own (an older server: what the balance affords,
+/// so fewer lines, never more).
+pub fn gift_programme(scan: &LoyaltyScanView) -> madar_loyalty::GiftProgramme {
+    let g = scan.birthday_gift.as_ref();
+    madar_loyalty::GiftProgramme {
+        reward_items: g
+            .and_then(|g| g.reward_item_ids.clone())
+            .unwrap_or_else(|| scan.rewards.iter().map(|r| r.menu_item_id.clone()).collect()),
+        any_item: g.and_then(|g| g.any_item).unwrap_or(scan.any_item),
+        open: g.is_some_and(|g| g.open),
     }
-    let Some(item) = line.menu_item_id.as_deref() else {
-        return false;
-    };
-    scan.any_item || scan.rewards.iter().any(|r| r.menu_item_id == item)
+}
+
+/// The lines that may be the gift, `covered` (lines a reward takes) set
+/// aside: madar-shared's `gift_eligible`, the server's rule.
+pub fn gift_eligible_lines(lines: &[RewardLineInput], scan: &LoyaltyScanView, covered: &[usize]) -> Vec<u32> {
+    let programme = gift_programme(scan);
+    lines
+        .iter()
+        .enumerate()
+        .filter(|(i, l)| madar_loyalty::gift_eligible(&plan_line(l), covered.contains(i), &programme))
+        .map(|(i, _)| i as u32)
+        .collect()
+}
+
+/// Whether the gift may go on `line` (madar-shared's `plan_gift`), as the
+/// teller's words: `loyalty.gift_gone` (no open gift) or
+/// `loyalty.gift_not_eligible` (the line or the item).
+pub fn gift_check(
+    lines: &[RewardLineInput],
+    scan: &LoyaltyScanView,
+    line: Option<usize>,
+    covered: &[usize],
+) -> Result<(), &'static str> {
+    let plan_lines: Vec<madar_loyalty::Line> = lines.iter().map(plan_line).collect();
+    match madar_loyalty::plan_gift(&plan_lines, &gift_programme(scan), line, covered) {
+        Ok(_) => Ok(()),
+        Err(madar_loyalty::GiftRefusal::None) => Err("loyalty.gift_gone"),
+        Err(_) => Err("loyalty.gift_not_eligible"),
+    }
 }
 
 /// The gift section for these lines: what may be the gift once the rewards
@@ -672,13 +711,12 @@ pub fn gift_board(
             note: None,
         };
     };
-    let covered = reward_board(lines, scan, picks, locale).picks;
-    let eligible: Vec<u32> = lines
+    let covered: Vec<usize> = reward_board(lines, scan, picks, locale)
+        .picks
         .iter()
-        .enumerate()
-        .filter(|(i, l)| gift_eligible(l, scan) && !covered.iter().any(|p| p.line as usize == *i))
-        .map(|(i, _)| i as u32)
+        .map(|p| p.line as usize)
         .collect();
+    let eligible = gift_eligible_lines(lines, scan, &covered);
     let line = asked.filter(|a| eligible.contains(a));
     GiftBoardView {
         open: true,
@@ -2143,6 +2181,8 @@ mod tests {
             open: true,
             valid_until: "2026-11-22T00:00:00+02:00".into(),
             until_label: "21 Nov".into(),
+            any_item: None,
+            reward_item_ids: None,
         });
         s
     }
@@ -2227,6 +2267,84 @@ mod tests {
         assert!(g.open);
         assert_eq!(g.until_label, "22 Nov");
         assert!(scan_view(&gift, "en").member.tracks.is_empty());
+    }
+
+
+    /// The lookup's whole catalogue (api v1.24.0+) decides the gift's lines,
+    /// whatever the balance; an older server's `rewards` (what the balance
+    /// affords) is the fallback.
+    #[test]
+    fn the_gift_reads_the_whole_catalogue_from_the_lookup() {
+        let lines = [line("latte", 1, 5_000), line("cake", 1, 9_000), line("tea", 1, 2_000)];
+        // Balance 2: `rewards` lists nothing the member can afford.
+        let mut s = with_gift(false);
+        s.rewards.clear();
+        assert!(gift_board(&lines, &s, &[], None, "en").eligible.is_empty(), "older server");
+        let g = s.birthday_gift.as_mut().unwrap();
+        g.reward_item_ids = Some(vec!["latte".into(), "cake".into()]);
+        g.any_item = Some(false);
+        assert_eq!(gift_board(&lines, &s, &[], None, "en").eligible, vec![0, 1]);
+        s.birthday_gift.as_mut().unwrap().any_item = Some(true);
+        assert_eq!(gift_board(&lines, &s, &[], None, "en").eligible, vec![0, 1, 2]);
+        // The check before Charge says the same.
+        assert_eq!(gift_check(&lines, &s, Some(2), &[]), Ok(()));
+        s.birthday_gift.as_mut().unwrap().any_item = Some(false);
+        assert_eq!(gift_check(&lines, &s, Some(2), &[]), Err("loyalty.gift_not_eligible"));
+        assert_eq!(gift_check(&lines, &s, Some(0), &[0]), Err("loyalty.gift_not_eligible"), "a reward's line");
+        s.birthday_gift.as_mut().unwrap().open = false;
+        assert_eq!(gift_check(&lines, &s, Some(0), &[]), Err("loyalty.gift_gone"));
+    }
+
+    /// madar-shared's gift vectors (the rule the server claims with) through
+    /// the till: the same eligible lines, the same verdict on the chosen one.
+    #[test]
+    fn the_gift_follows_the_shared_vectors() {
+        let v: serde_json::Value = serde_json::from_str(madar_loyalty::vectors::GIFT).unwrap();
+        let mut checked = 0;
+        for c in v["cases"].as_array().unwrap() {
+            let name = c["name"].as_str().unwrap_or("case");
+            let lines: Vec<madar_loyalty::Line> = serde_json::from_value(c["lines"].clone()).unwrap();
+            let p: madar_loyalty::GiftProgramme = serde_json::from_value(c["programme"].clone()).unwrap();
+            let chosen: Option<usize> = serde_json::from_value(c["chosen"].clone()).unwrap();
+            let rewarded: Vec<usize> = serde_json::from_value(c["rewarded"].clone()).unwrap();
+            let input: Vec<RewardLineInput> = lines
+                .iter()
+                .map(|l| RewardLineInput {
+                    name: "line".into(),
+                    cart_index: None,
+                    ticket_line_id: None,
+                    menu_item_id: l.menu_item_id.clone(),
+                    qty: l.quantity as i32,
+                    line_total_minor: 1_000 * l.quantity.max(0),
+                    is_staff_drink: l.is_staff_drink,
+                    in_combo: l.in_combo,
+                    in_deal: false,
+                })
+                .collect();
+            let mut sc = with_gift(false);
+            let g = sc.birthday_gift.as_mut().unwrap();
+            g.open = p.open;
+            g.any_item = Some(p.any_item);
+            g.reward_item_ids = Some(p.reward_items.clone());
+            let want: Vec<u32> = c["eligible"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| e.as_bool() == Some(true))
+                .map(|(i, _)| i as u32)
+                .collect();
+            assert_eq!(gift_eligible_lines(&input, &sc, &rewarded), want, "{name}: eligible");
+            let got = gift_check(&input, &sc, chosen, &rewarded);
+            let want = match c["result"]["refused"].as_str() {
+                None => Ok(()),
+                Some("LOYALTY_GIFT_NONE") => Err("loyalty.gift_gone"),
+                Some(_) => Err("loyalty.gift_not_eligible"),
+            };
+            assert_eq!(got, want, "{name}: verdict");
+            checked += 1;
+        }
+        assert!(checked >= 5, "checked {checked}");
     }
 
 }

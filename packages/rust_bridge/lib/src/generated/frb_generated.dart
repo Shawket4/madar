@@ -17366,12 +17366,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   LoyaltyGiftView dco_decode_loyalty_gift_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return LoyaltyGiftView(
       open: dco_decode_bool(arr[0]),
       validUntil: dco_decode_String(arr[1]),
       untilLabel: dco_decode_String(arr[2]),
+      anyItem: dco_decode_opt_box_autoadd_bool(arr[3]),
+      rewardItemIds: dco_decode_opt_list_String(arr[4]),
     );
   }
 
@@ -17978,6 +17980,12 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
   BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
+  }
+
+  @protected
+  List<String>? dco_decode_opt_list_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_list_String(raw);
   }
 
   @protected
@@ -22895,10 +22903,14 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     var var_open = sse_decode_bool(deserializer);
     var var_validUntil = sse_decode_String(deserializer);
     var var_untilLabel = sse_decode_String(deserializer);
+    var var_anyItem = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_rewardItemIds = sse_decode_opt_list_String(deserializer);
     return LoyaltyGiftView(
       open: var_open,
       validUntil: var_validUntil,
       untilLabel: var_untilLabel,
+      anyItem: var_anyItem,
+      rewardItemIds: var_rewardItemIds,
     );
   }
 
@@ -23779,6 +23791,17 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_u_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  List<String>? sse_decode_opt_list_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_list_String(deserializer));
     } else {
       return null;
     }
@@ -28388,6 +28411,8 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self.open, serializer);
     sse_encode_String(self.validUntil, serializer);
     sse_encode_String(self.untilLabel, serializer);
+    sse_encode_opt_box_autoadd_bool(self.anyItem, serializer);
+    sse_encode_opt_list_String(self.rewardItemIds, serializer);
   }
 
   @protected
@@ -29115,6 +29140,19 @@ class RustBridgeApiImpl extends RustBridgeApiImplPlatform
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_u_64(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_list_String(
+    List<String>? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_list_String(self, serializer);
     }
   }
 

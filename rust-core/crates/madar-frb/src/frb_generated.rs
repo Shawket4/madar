@@ -18911,6 +18911,8 @@ const _: fn() = || {
         let _: bool = LoyaltyGiftView.open;
         let _: String = LoyaltyGiftView.valid_until;
         let _: String = LoyaltyGiftView.until_label;
+        let _: Option<bool> = LoyaltyGiftView.any_item;
+        let _: Option<Vec<String>> = LoyaltyGiftView.reward_item_ids;
     }
     {
         let LoyaltyLedgerView = None::<crate::api::loyalty::LoyaltyLedgerView>.unwrap();
@@ -23172,10 +23174,14 @@ impl SseDecode for crate::api::loyalty::LoyaltyGiftView {
         let mut var_open = <bool>::sse_decode(deserializer);
         let mut var_validUntil = <String>::sse_decode(deserializer);
         let mut var_untilLabel = <String>::sse_decode(deserializer);
+        let mut var_anyItem = <Option<bool>>::sse_decode(deserializer);
+        let mut var_rewardItemIds = <Option<Vec<String>>>::sse_decode(deserializer);
         return crate::api::loyalty::LoyaltyGiftView {
             open: var_open,
             valid_until: var_validUntil,
             until_label: var_untilLabel,
+            any_item: var_anyItem,
+            reward_item_ids: var_rewardItemIds,
         };
     }
 }
@@ -24068,6 +24074,17 @@ impl SseDecode for Option<u64> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<u64>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<Vec<String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<Vec<String>>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -29786,6 +29803,8 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::loyalty::LoyaltyGi
             self.0.open.into_into_dart().into_dart(),
             self.0.valid_until.into_into_dart().into_dart(),
             self.0.until_label.into_into_dart().into_dart(),
+            self.0.any_item.into_into_dart().into_dart(),
+            self.0.reward_item_ids.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -34766,6 +34785,8 @@ impl SseEncode for crate::api::loyalty::LoyaltyGiftView {
         <bool>::sse_encode(self.open, serializer);
         <String>::sse_encode(self.valid_until, serializer);
         <String>::sse_encode(self.until_label, serializer);
+        <Option<bool>>::sse_encode(self.any_item, serializer);
+        <Option<Vec<String>>>::sse_encode(self.reward_item_ids, serializer);
     }
 }
 
@@ -35405,6 +35426,16 @@ impl SseEncode for Option<u64> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <u64>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<Vec<String>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <Vec<String>>::sse_encode(value, serializer);
         }
     }
 }
