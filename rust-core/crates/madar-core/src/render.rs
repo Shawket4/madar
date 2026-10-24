@@ -1682,20 +1682,25 @@ mod tests {
 
     // Visual check of the loyalty lines: `MADAR_RENDER_DIR=<dir> cargo test
     // -p madar-core --features probes dump_loyalty_receipt_png -- --ignored`
-    // writes the printed receipt with a birthday gift and a track's reward, in
-    // the line words of each language (the probe's frame words stay English).
+    // writes the printed receipt with a birthday gift and a track's reward,
+    // in English and in Arabic.
     #[cfg(feature = "probes")]
     #[test]
     #[ignore]
     fn dump_loyalty_receipt_png() {
         let dir = std::env::var("MADAR_RENDER_DIR").unwrap_or_else(|_| "/tmp".into());
         for (locale, track) in [("en", "Sandwiches"), ("ar", "ساندويتشات")] {
-            let mut r = receipt();
-            r.lines.truncate(2);
+            let mut r = if locale == "ar" { ar_receipt() } else { receipt() };
+            r.lines.truncate(1);
+            let mut second = r.lines[0].clone();
+            second.name = track.into();
+            second.qty = 2;
+            r.lines.push(second);
             r.lines[0].reward_label = Some(crate::loyalty::cover_label(1, None, true, locale));
             r.lines[1].reward_label = Some(crate::loyalty::cover_label(2, Some(track), false, locale));
+            let frame = if locale == "ar" { ar_ctx() } else { ctx() };
             save_png(
-                &render_receipt(&r, &ctx(), None, PRINT_WIDTH),
+                &render_receipt(&r, &frame, None, PRINT_WIDTH),
                 &format!("{dir}/receipt-loyalty-print-{locale}.png"),
             );
         }
@@ -2272,6 +2277,8 @@ mod tests {
             note: "Note:".into(),
             recipe: "Recipe:".into(),
             steps: "Steps:".into(),
+            pickup: "Pickup".into(),
+            dine_in: "Dine in".into(),
         };
         let mut ar_report = till_report();
         ar_report.teller_name = "منى".into();
