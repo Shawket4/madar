@@ -380,6 +380,10 @@ async fn three_tracks_earn_redeem_and_void_per_track() {
     assert_eq!(balances(&s, &member).await, (5, 3, 2));
     let scan = core.loyalty_lookup(None, Some(phone_1.clone())).await.expect("lookup");
     capture("scan_result.json", &lookup_raw(&s, &tt, &member).await);
+    capture("member_detail.json", &{
+        let (_, v) = call(&s.fx.base, &s.owner, reqwest::Method::GET, &format!("/loyalty/members/{member}"), None).await;
+        v
+    });
     let tracks: Vec<_> = scan.member.tracks.iter().map(|t| (t.position, t.balance, t.size, t.rewards_ready)).collect();
     assert_eq!(tracks, [(1, 5, 5, 1), (2, 3, 3, 1), (3, 2, 2, 1)]);
     assert_eq!(scan.member.tracks[1].name, "Sandwiches");

@@ -1,5 +1,5 @@
 {
-  "about": "Responses of the Rewards-dashboard backend (MadarRust rewards-dashboard-api) for a member of a THREE-track stamp card, captured 2026-10-23. Every released POS (v0.13.0+) must decode them, and the fields it reads must keep track 1's meaning. gift_scan_result.json: a member with an open birthday gift (MadarRust main 5b5396a8), captured 2026-10-23.",
+  "about": "Responses of the Rewards-dashboard backend (MadarRust rewards-dashboard-api) for a member of a THREE-track stamp card, captured 2026-10-23. Every released POS (v0.13.0+) must decode them, and the fields it reads must keep track 1's meaning. gift_scan_result.json: a member with an open birthday gift (MadarRust main 5b5396a8), captured 2026-10-23. gift_scan_result_catalogue.json: the same from api v1.24.0 (MadarRust db0885c0), the gift carrying any_item and the whole catalogue (reward_item_ids), captured 2026-10-24 by rust-core's loyalty_backend.",
   "files": [
     {
       "file": "scan_result.json",
@@ -19,6 +19,10 @@
     },
     {
       "file": "gift_scan_result.json",
+      "model": "ScanResult"
+    },
+    {
+      "file": "gift_scan_result_catalogue.json",
       "model": "ScanResult"
     }
   ]

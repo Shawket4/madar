@@ -1,0 +1,247 @@
+{
+    "any_item": false,
+    "any_item_cost": 5,
+    "birthday_gift": {
+        "any_item": false,
+        "reward_item_ids": [
+            "28032467-562b-4723-9b5e-dbf7a2e74939"
+        ],
+        "status": "open",
+        "valid_until": "2026-11-03T09:32:09.436357Z"
+    },
+    "card": {
+        "design": {
+            "apple": {
+                "auxiliary": [],
+                "header": [
+                    {
+                        "track": 1,
+                        "type": "balance"
+                    }
+                ],
+                "primary": null,
+                "secondary": [
+                    {
+                        "track": 1,
+                        "type": "rewards"
+                    },
+                    {
+                        "track": 2,
+                        "type": "rewards"
+                    },
+                    {
+                        "track": 3,
+                        "type": "rewards"
+                    }
+                ]
+            },
+            "colours": {
+                "background": "#0D6273",
+                "foreground": "#EFF3F4",
+                "label": "#2E94A6"
+            },
+            "elements": [
+                {
+                    "cell": {
+                        "col": 3,
+                        "h": 1,
+                        "row": 0,
+                        "w": 9
+                    },
+                    "kind": {
+                        "track": 1,
+                        "type": "stamps"
+                    }
+                },
+                {
+                    "cell": {
+                        "col": 0,
+                        "h": 1,
+                        "row": 1,
+                        "w": 3
+                    },
+                    "kind": {
+                        "align": "start",
+                        "ar": "\u0633\u0627\u0646\u062f\u0648\u064a\u062a\u0634\u0627\u062a",
+                        "en": "Sandwiches",
+                        "size": "small",
+                        "type": "text"
+                    }
+                },
+                {
+                    "cell": {
+                        "col": 3,
+                        "h": 1,
+                        "row": 1,
+                        "w": 9
+                    },
+                    "kind": {
+                        "track": 2,
+                        "type": "stamps"
+                    }
+                },
+                {
+                    "cell": {
+                        "col": 0,
+                        "h": 1,
+                        "row": 2,
+                        "w": 3
+                    },
+                    "kind": {
+                        "align": "start",
+                        "ar": "\u0645\u062e\u0628\u0648\u0632\u0627\u062a",
+                        "en": "Pastries",
+                        "size": "small",
+                        "type": "text"
+                    }
+                },
+                {
+                    "cell": {
+                        "col": 3,
+                        "h": 1,
+                        "row": 2,
+                        "w": 9
+                    },
+                    "kind": {
+                        "track": 3,
+                        "type": "stamps"
+                    }
+                }
+            ],
+            "google": {
+                "points": {
+                    "track": 1,
+                    "type": "progress"
+                },
+                "secondary": {
+                    "track": 2,
+                    "type": "progress"
+                }
+            },
+            "ground": {
+                "kind": "colour",
+                "pattern": null
+            },
+            "stamp": {
+                "empty": "outline",
+                "shape": "circle"
+            },
+            "template": "multi",
+            "version": 1
+        },
+        "revision": 0,
+        "stamp_unit": "item",
+        "track_one_size": 5,
+        "tracks": [
+            {
+                "cap": null,
+                "colour": null,
+                "items": [],
+                "name_ar": "",
+                "name_en": "",
+                "per_item": true,
+                "position": 1,
+                "shape": null,
+                "size": null
+            },
+            {
+                "cap": null,
+                "colour": "#8D5524",
+                "items": [],
+                "name_ar": "\u0633\u0627\u0646\u062f\u0648\u064a\u062a\u0634\u0627\u062a",
+                "name_en": "Sandwiches",
+                "per_item": true,
+                "position": 2,
+                "shape": null,
+                "size": 3
+            },
+            {
+                "cap": null,
+                "colour": null,
+                "items": [],
+                "name_ar": "\u0645\u062e\u0628\u0648\u0632\u0627\u062a",
+                "name_en": "Pastries",
+                "per_item": false,
+                "position": 3,
+                "shape": null,
+                "size": 2
+            }
+        ]
+    },
+    "max_rewards_per_order": 2,
+    "member": {
+        "balance": 0,
+        "can_redeem": false,
+        "enrolled_at": "2026-10-24T08:32:09.425786Z",
+        "id": "12684bc1-3332-44ac-9367-fc126a96f06c",
+        "lifetime_points": 0,
+        "lifetime_visits": 0,
+        "locale": "en",
+        "mode": "visits",
+        "name": "E2E 201045615951",
+        "next_reward_cost": 5,
+        "org_id": "00000000-0000-0000-0000-000000000001",
+        "phone": "201045615951",
+        "points_balance": 0,
+        "points_to_next_reward": 5,
+        "progress_to_next": 0,
+        "rewards_ready": 0,
+        "tracks": [
+            {
+                "balance": 0,
+                "can_redeem": false,
+                "colour": null,
+                "earns_from_sales": true,
+                "name_ar": "",
+                "name_en": "",
+                "points_to_next_reward": 5,
+                "position": 1,
+                "progress_to_next": 0,
+                "rewards_ready": 0,
+                "shape": null,
+                "size": 5
+            },
+            {
+                "balance": 0,
+                "can_redeem": false,
+                "colour": "#8D5524",
+                "earns_from_sales": true,
+                "name_ar": "\u0633\u0627\u0646\u062f\u0648\u064a\u062a\u0634\u0627\u062a",
+                "name_en": "Sandwiches",
+                "points_to_next_reward": 3,
+                "position": 2,
+                "progress_to_next": 0,
+                "rewards_ready": 0,
+                "shape": null,
+                "size": 3
+            },
+            {
+                "balance": 0,
+                "can_redeem": false,
+                "colour": null,
+                "earns_from_sales": true,
+                "name_ar": "\u0645\u062e\u0628\u0648\u0632\u0627\u062a",
+                "name_en": "Pastries",
+                "points_to_next_reward": 2,
+                "position": 3,
+                "progress_to_next": 0,
+                "rewards_ready": 0,
+                "shape": null,
+                "size": 2
+            }
+        ],
+        "visits_balance": 0
+    },
+    "recent": [],
+    "rewards": [],
+    "track_rewards": [
+        {
+            "position": 2,
+            "rewards": []
+        },
+        {
+            "position": 3,
+            "rewards": []
+        }
+    ]
+}

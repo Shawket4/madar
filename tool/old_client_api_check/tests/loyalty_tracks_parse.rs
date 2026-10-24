@@ -8,7 +8,10 @@ use madar_api::models;
 use serde_json::Value;
 
 fn read(file: &str) -> Value {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/loyalty_tracks");
+    // `LOYALTY_DIR`: another set of answers in the same shape (a live run's
+    // captures, `MADAR_E2E_CAPTURES` in rust-core's loyalty_backend).
+    let dir = std::env::var("LOYALTY_DIR")
+        .unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/loyalty_tracks").to_string());
     serde_json::from_str(&std::fs::read_to_string(format!("{dir}/{file}")).unwrap()).unwrap()
 }
 

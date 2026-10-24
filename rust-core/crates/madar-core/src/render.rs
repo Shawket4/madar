@@ -1680,6 +1680,27 @@ mod tests {
         eprintln!("wrote {} ({}x{})", path, bmp.width, bmp.rows);
     }
 
+    // Visual check of the loyalty lines: `MADAR_RENDER_DIR=<dir> cargo test
+    // -p madar-core --features probes dump_loyalty_receipt_png -- --ignored`
+    // writes the printed receipt with a birthday gift and a track's reward, in
+    // the line words of each language (the probe's frame words stay English).
+    #[cfg(feature = "probes")]
+    #[test]
+    #[ignore]
+    fn dump_loyalty_receipt_png() {
+        let dir = std::env::var("MADAR_RENDER_DIR").unwrap_or_else(|_| "/tmp".into());
+        for (locale, track) in [("en", "Sandwiches"), ("ar", "ساندويتشات")] {
+            let mut r = receipt();
+            r.lines.truncate(2);
+            r.lines[0].reward_label = Some(crate::loyalty::cover_label(1, None, true, locale));
+            r.lines[1].reward_label = Some(crate::loyalty::cover_label(2, Some(track), false, locale));
+            save_png(
+                &render_receipt(&r, &ctx(), None, PRINT_WIDTH),
+                &format!("{dir}/receipt-loyalty-print-{locale}.png"),
+            );
+        }
+    }
+
     // Visual check: `cargo test -p madar-core --features probes
     // dump_receipt_png -- --ignored` writes the rendered receipt + shift
     // report to /tmp to be eyeballed.
