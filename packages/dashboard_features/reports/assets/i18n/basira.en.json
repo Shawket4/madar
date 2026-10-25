@@ -3,5 +3,8 @@
   "basira.provenanceBy": "by {{dims}}",
   "basira.minutesShort": "{{m}}m",
   "basira.hoursShort": "{{h}}h",
-  "basira.hoursMinutesShort": "{{h}}h {{m}}m"
+  "basira.hoursMinutesShort": "{{h}}h {{m}}m",
+  "basira.slice.hint": "Tap a slice to see its figures",
+  "basira.slice.share": "{{share}} of the total",
+  "basira.slice.aria": "{{label}}: {{value}}, {{share}} of the total"
 }

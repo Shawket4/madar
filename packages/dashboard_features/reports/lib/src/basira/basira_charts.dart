@@ -10,10 +10,13 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Geometry from the web's classes.
 abstract final class BasiraMetrics {
@@ -461,8 +464,60 @@ class BasiraBarChart extends StatelessWidget {
   }
 }
 
-/// A pie or donut on the first measure, with a legend (`pie` / `donut`).
-class BasiraPieChart extends StatelessWidget {
+/// One slice's reading: its figure in the column's format and its share of
+/// what the pie draws (the shares add up to the circle the merchant sees).
+/// A null figure is "unknown": shown as "—", drawn as nothing.
+@immutable
+class BasiraSliceReading {
+  const BasiraSliceReading({
+    required this.label,
+    required this.value,
+    required this.share,
+  });
+
+  final String label;
+  final String value;
+  final String share;
+}
+
+/// Every slice's reading, in [labels] order.
+List<BasiraSliceReading> basiraSliceReadings({
+  required List<String> labels,
+  required List<double?> values,
+  required String Function(double v) format,
+  required String Function(num ratio) percent,
+}) {
+  double drawn(int i) {
+    final v = i < values.length ? values[i] : null;
+    return v == null || !v.isFinite || v <= 0 ? 0 : v;
+  }
+
+  var total = 0.0;
+  for (var i = 0; i < labels.length; i++) {
+    total += drawn(i);
+  }
+  return [
+    for (final (i, l) in labels.indexed)
+      BasiraSliceReading(
+        label: l,
+        value: i < values.length && values[i] != null
+            ? format(values[i]!)
+            : '—',
+        share: percent(total <= 0 ? 0 : drawn(i) / total),
+      ),
+  ];
+}
+
+/// A pie or donut on the first measure (`pie` / `donut`) that answers when
+/// pressed: a tap on a slice or on its legend entry keeps it, pulls it out,
+/// fades the others and reads its label, figure and share of the total in
+/// the panel under the plot. A tap on it again, on the plot's empty space
+/// or anywhere outside lets it go; a mouse previews a slice on hover while
+/// nothing is kept. The legend entries are buttons carrying the whole
+/// reading, so a keyboard and a screen reader get the same. The plot reads
+/// left to right in Arabic like every Basira chart; the panel and the
+/// legend follow the language.
+class BasiraPieChart extends ConsumerStatefulWidget {
   const BasiraPieChart({
     required this.labels,
     required this.values,
@@ -473,20 +528,301 @@ class BasiraPieChart extends StatelessWidget {
   });
 
   final List<String> labels;
-  final List<double> values;
+
+  /// One figure per label as plotted (pounds for money); null is unknown.
+  final List<double?> values;
   final String Function(double v) format;
   final bool donut;
   final double height;
 
   @override
-  Widget build(BuildContext context) => DashDonutChart(
-    pie: !donut,
-    // Recharts' `outerRadius="80%"` of the 240 frame.
-    size: height * 0.8,
-    formatValue: format,
-    slices: [
-      for (final (i, l) in labels.indexed)
-        DashSlice(label: l, value: i < values.length ? values[i] : 0),
-    ],
-  );
+  ConsumerState<BasiraPieChart> createState() => _BasiraPieChartState();
+}
+
+class _BasiraPieChartState extends ConsumerState<BasiraPieChart> {
+  int? _kept;
+  int? _hovered;
+
+  /// A kept slice wins; a hover previews only while nothing is kept.
+  int? get _shown {
+    final i = _kept ?? _hovered;
+    return i != null && i < widget.labels.length ? i : null;
+  }
+
+  void _toggle(int? i) => setState(() {
+    _hovered = null;
+    _kept = i == null || i == _kept ? null : i;
+  });
+
+  @override
+  void didUpdateWidget(BasiraPieChart old) {
+    super.didUpdateWidget(old);
+    if (!listEquals(old.labels, widget.labels)) {
+      _kept = null;
+      _hovered = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ref.watch(tProvider);
+    final c = context.madarColors;
+    final readings = basiraSliceReadings(
+      labels: widget.labels,
+      values: widget.values,
+      format: widget.format,
+      percent: context.dashFormats.percent,
+    );
+    final drawn = [
+      for (var i = 0; i < widget.labels.length; i++)
+        switch (i < widget.values.length ? widget.values[i] : null) {
+          final v? when v.isFinite && v > 0 => v,
+          _ => 0.0,
+        },
+    ];
+    final total = drawn.fold<double>(0, (a, b) => a + b);
+    final colors = [
+      for (var i = 0; i < widget.labels.length; i++)
+        dashSeriesColor(context, i),
+    ];
+    final shown = _shown;
+    // Recharts' `outerRadius="78%"` of the frame, leaving room to pull out.
+    final size = widget.height * 0.8;
+    final radius = size / 2 - Space.sm;
+    final ring = widget.donut ? radius * 0.45 : radius;
+
+    final plot = Directionality(
+      textDirection: TextDirection.ltr,
+      child: ExcludeSemantics(
+        child: SizedBox(
+          height: widget.height * 0.9,
+          child: Center(
+            child: SizedBox.square(
+              dimension: size,
+              child: RepaintBoundary(
+                child: PieChart(
+                  duration: DashMotion.of(context, DashMotion.slow),
+                  PieChartData(
+                    sectionsSpace: widget.labels.length > 1 ? 1.5 : 0,
+                    centerSpaceRadius: widget.donut ? radius - ring : 0,
+                    startDegreeOffset: -90,
+                    pieTouchData: PieTouchData(
+                      touchCallback: (e, r) {
+                        final hit = switch (r?.touchedSection) {
+                          final s?
+                              when total > 0 && s.touchedSectionIndex >= 0 =>
+                            s.touchedSectionIndex,
+                          _ => null,
+                        };
+                        switch (e) {
+                          case FlPointerHoverEvent():
+                            if (hit != _hovered) {
+                              setState(() => _hovered = hit);
+                            }
+                          case FlPointerExitEvent():
+                            if (_hovered != null) {
+                              setState(() => _hovered = null);
+                            }
+                          case FlTapUpEvent():
+                            _toggle(hit);
+                          default:
+                        }
+                      },
+                    ),
+                    sections: [
+                      if (total <= 0)
+                        PieChartSectionData(
+                          value: 1,
+                          color: c.muted,
+                          radius: ring,
+                          showTitle: false,
+                        )
+                      else
+                        for (var i = 0; i < drawn.length; i++)
+                          PieChartSectionData(
+                            value: drawn[i],
+                            color: shown == null || shown == i
+                                ? colors[i]
+                                : colors[i].withValues(alpha: 0.35),
+                            radius: shown == i ? ring + Space.sm : ring,
+                            borderSide: shown == i
+                                ? BorderSide(color: c.card, width: 2)
+                                : const BorderSide(
+                                    width: 0,
+                                    color: Color(0x00000000),
+                                  ),
+                            showTitle: false,
+                          ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final focus = shown == null ? null : readings[shown];
+    final detail = Semantics(
+      liveRegion: true,
+      container: true,
+      child: Container(
+        key: const ValueKey('basira-pie-detail'),
+        constraints: const BoxConstraints(minHeight: Space.xxl + Space.md),
+        padding: const EdgeInsets.symmetric(
+          horizontal: BasiraMetrics.snug + DashMetrics.hair,
+          vertical: Space.sm,
+        ),
+        decoration: BoxDecoration(
+          color: c.muted.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(Radii.xs),
+          border: Border.all(color: c.hairline),
+        ),
+        child: focus == null
+            ? Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  t('basira.slice.hint'),
+                  style: DashType.small.copyWith(color: c.textSecondary),
+                ),
+              )
+            : Row(
+                spacing: Space.md - DashMetrics.hair,
+                children: [
+                  Container(
+                    width: BasiraMetrics.snug,
+                    height: BasiraMetrics.snug,
+                    decoration: BoxDecoration(
+                      color: colors[shown!],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      focus.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: DashType.smallMedium.copyWith(
+                        color: c.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        dashFigure(focus.value),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: DashType.monoMedium.copyWith(
+                          fontSize: DashType.small.fontSize,
+                          color: c.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        t('basira.slice.share', args: {'share': focus.share}),
+                        maxLines: 1,
+                        softWrap: false,
+                        style: DashType.small.copyWith(
+                          fontSize: BasiraMetrics.caption,
+                          color: c.textSecondary,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+      ),
+    );
+
+    final legend = Wrap(
+      spacing: BasiraMetrics.tight,
+      runSpacing: BasiraMetrics.tight,
+      children: [
+        for (final (i, r) in readings.indexed)
+          DashPressable(
+            key: ValueKey('basira-pie-legend-$i'),
+            onTap: () => _toggle(i),
+            selected: _kept == i,
+            semanticLabel: t(
+              'basira.slice.aria',
+              args: {'label': r.label, 'value': r.value, 'share': r.share},
+            ),
+            excludeChildSemantics: true,
+            pressScale: false,
+            builder: (context, s) => Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: BasiraMetrics.snug,
+                vertical: Space.xs,
+              ),
+              foregroundDecoration: dashFocusRing(
+                context,
+                s,
+                BorderRadius.circular(Radii.pill),
+              ),
+              decoration: BoxDecoration(
+                color: _kept == i
+                    ? c.hover
+                    : (s.highlighted ? c.hover.withValues(alpha: 0.6) : null),
+                borderRadius: BorderRadius.circular(Radii.pill),
+                border: Border.all(
+                  color: _kept == i ? c.textSecondary : const Color(0x00000000),
+                ),
+              ),
+              child: Opacity(
+                opacity: shown == null || shown == i ? 1 : 0.6,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: BasiraMetrics.tight,
+                  children: [
+                    Container(
+                      width: Space.sm,
+                      height: Space.sm,
+                      decoration: BoxDecoration(
+                        color: colors[i],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 160),
+                      child: Text(
+                        r.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: DashType.small.copyWith(
+                          fontSize: BasiraMetrics.caption,
+                          color: _kept == i ? c.textPrimary : c.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    return TapRegion(
+      // Anywhere outside the chart, its panel and its legend lets go.
+      onTapOutside: (_) {
+        if (_kept != null || _hovered != null) {
+          setState(() {
+            _kept = null;
+            _hovered = null;
+          });
+        }
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        spacing: Space.md - DashMetrics.hair,
+        children: [plot, detail, legend],
+      ),
+    );
+  }
 }
