@@ -372,7 +372,7 @@ class BasiraResultView extends ConsumerWidget {
       ),
       wire.Viz.pie || wire.Viz.donut when measures.isNotEmpty => BasiraPieChart(
         labels: labels,
-        values: [for (final v in series.first.values) v ?? 0],
+        values: series.first.values,
         format: series.first.format,
         donut: block.viz == wire.Viz.donut,
         height: basiraChartHeight,

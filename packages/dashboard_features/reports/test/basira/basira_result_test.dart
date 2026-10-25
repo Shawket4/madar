@@ -366,18 +366,19 @@ void main() {
         'legend; with no measure, a table', (tester) async {
       final h = await pumpBasira(tester);
       await askByTyping(h, 'Payment mix this month');
-      final donut = tester.widget<DashDonutChart>(
-        _inCard(find.byType(DashDonutChart)),
+      final donut = tester.widget<BasiraPieChart>(
+        _inCard(find.byType(BasiraPieChart)),
       );
-      expect(donut.pie, isFalse);
-      expect(donut.legend, isTrue);
+      expect(donut.donut, isTrue);
+      // The legend.
       expect(_inCard(find.text('Cash')), findsOneWidget);
       await _answer(h, [_block(viz: 'pie')]);
-      final pie = tester.widget<DashDonutChart>(
-        _inCard(find.byType(DashDonutChart), 1),
+      final pie = tester.widget<BasiraPieChart>(
+        _inCard(find.byType(BasiraPieChart), 1),
       );
-      expect(pie.pie, isTrue);
-      expect([for (final s in pie.slices) s.value], [1234.5, 0]);
+      expect(pie.donut, isFalse);
+      // An unknown figure stays unknown (drawn as nothing, read as "—").
+      expect(pie.values, [1234.5, null]);
       await _answer(h, [
         _block(
           viz: 'donut',
