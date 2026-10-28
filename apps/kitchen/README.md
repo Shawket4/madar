@@ -18,7 +18,7 @@ apps/kitchen (React Native)
 npm install
 npm run web            # http://localhost:8081 — always the mock
 npm test               # board rules + en/ar key parity (node --test)
-npm run typecheck
+npm run typecheck      # TypeScript 7's tsc; `typescript` stays the 6.0 API Expo loads
 ```
 
 Mock sign-in: any manager email/password; staff PINs `111111`, `222222`
