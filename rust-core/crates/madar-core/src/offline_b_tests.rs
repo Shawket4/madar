@@ -526,6 +526,33 @@ async fn arrivals_are_todays_on_the_corrected_clock_not_the_devices() {
     assert_eq!(arrivals.iter().map(|b| b.id.clone()).collect::<Vec<_>>(), vec![uid("b-branch-day")]);
 }
 
+/// The Metrics screen's "today" is the branch's today on the server-corrected
+/// clock, online (the day asked of the server) and on the device: a device
+/// clock two days behind still reads the day the branch is in.
+#[tokio::test]
+async fn metrics_today_is_the_branch_day_on_the_corrected_clock() {
+    let stub = Stub::start(|_| Some(StubResponse::json(503, serde_json::json!({})))).await;
+    let core = testkit::online_core(&stub.base, "").await;
+    core.set_online(true);
+    grant_customers(&core, &[crate::metrics::CAP]);
+    let tz = madar_time::DEFAULT_ZONE;
+    core.store.kv_put(crate::checkout::KEY_BRANCH_TZ, madar_time::DEFAULT_ZONE_NAME).unwrap();
+    core.clock_skew_secs.store(2 * 86_400, Ordering::Relaxed);
+    let device_day = madar_time::today_in(tz, chrono::Utc::now());
+    let branch_day = madar_time::today_in(tz, chrono::Utc::now() + chrono::Duration::days(2)).to_string();
+    assert_ne!(device_day.to_string(), branch_day);
+
+    let online = core.pos_metrics("today".into(), None, None).await.unwrap();
+    let asked = stub.requests("/reports/branches/");
+    assert_eq!(asked.len(), 1, "the server was asked once");
+    assert!(asked[0].path.contains(&format!("from={branch_day}")), "{}", asked[0].path);
+    assert!(asked[0].path.contains(&format!("to={branch_day}")), "{}", asked[0].path);
+    assert_eq!((online.from_date.as_str(), online.to_date.as_str()), (branch_day.as_str(), branch_day.as_str()));
+
+    let device = core.pos_metrics_on_device("today".into(), None, None).unwrap();
+    assert_eq!((device.from_date.as_str(), device.to_date.as_str()), (branch_day.as_str(), branch_day.as_str()));
+}
+
 /// The gaps the feed now carries reach the till: the person's grants, the
 /// branch-effective addons (a disabled one is not offered) and the prep minutes
 /// — and a server that does not send addons yet leaves the fetched list alone.
