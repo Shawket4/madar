@@ -225,9 +225,17 @@ class ReportLine extends StatelessWidget {
 }
 
 class _ReportCard extends StatelessWidget {
-  const _ReportCard({required this.children, this.title, super.key});
+  const _ReportCard({
+    required this.children,
+    this.title,
+    this.description,
+    super.key,
+  });
 
   final String? title;
+
+  /// A line under [title] saying what the card counts.
+  final String? description;
   final List<Widget> children;
 
   @override
@@ -247,6 +255,11 @@ class _ReportCard extends StatelessWidget {
                 title!,
                 style: DashType.bodyStrong.copyWith(color: c.textPrimary),
               ),
+            ),
+          if (description != null)
+            Text(
+              description!,
+              style: DashType.small.copyWith(color: c.textSecondary),
             ),
           ...children,
         ],
@@ -661,7 +674,8 @@ class TillByPerson extends ConsumerWidget {
     );
     return _ReportCard(
       key: const ValueKey('till-by-person'),
-      title: t('tills.byPerson'),
+      title: t('tills.byPerson.title'),
+      description: t('tills.byPerson.hint'),
       children: [
         LayoutBuilder(
           builder: (context, box) =>

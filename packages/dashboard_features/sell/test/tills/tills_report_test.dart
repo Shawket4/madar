@@ -504,6 +504,16 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      find.descendant(
+        of: _section('till-by-person'),
+        matching: find.text(
+          'Who served each sale: the person picked at checkout, or whoever '
+          'was signed in when nobody was picked.',
+        ),
+      ),
+      findsOneWidget,
+    );
     for (final header in ['Name', 'Orders', 'Total', 'Tips']) {
       expect(
         find.descendant(
@@ -643,6 +653,13 @@ void main() {
         db: s.db,
         size: size,
         locale: 'ar',
+      );
+      expect(
+        find.descendant(
+          of: _section('till-by-person'),
+          matching: find.text('حسب الشخص'),
+        ),
+        findsOneWidget,
       );
       for (var i = 0; i < 2; i++) {
         final text = tester.renderObject<RenderParagraph>(
