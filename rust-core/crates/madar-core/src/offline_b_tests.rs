@@ -450,6 +450,10 @@ async fn the_boards_read_offline_from_the_synced_rows() {
             "phone_verified": true, "source": "host", "table_ids": [], "table_labels": []})
     };
     core.store.kv_put(crate::checkout::KEY_BRANCH_TZ, "UTC").unwrap();
+    // Bookings at fixed hours of the branch's day, so the test reads the same
+    // at any time of day (an offset from now crosses midnight late at night).
+    let today = madar_time::today_in(chrono_tz::UTC, now);
+    let at = |day: chrono::NaiveDate, hm: &str| madar_time::testing::wall(chrono_tz::UTC, day, hm);
     seed_rows(
         &core,
         &[
@@ -459,9 +463,9 @@ async fn the_boards_read_offline_from_the_synced_rows() {
             ("kitchen_ticket", serde_json::to_value(&closed_kt).unwrap()),
             ("delivery", delivery("d-new", "received")),
             ("delivery", delivery("d-done", "delivered")),
-            ("booking", booking("b-today", "confirmed", now + chrono::Duration::minutes(5))),
-            ("booking", booking("b-no-show", "confirmed", now + chrono::Duration::minutes(10))),
-            ("booking", booking("b-tomorrow", "confirmed", now + chrono::Duration::days(2))),
+            ("booking", booking("b-today", "confirmed", at(today, "12:00"))),
+            ("booking", booking("b-no-show", "confirmed", at(today, "12:30"))),
+            ("booking", booking("b-tomorrow", "confirmed", at(today.succ_opt().unwrap(), "12:00"))),
             ("branch_settings", serde_json::json!({"id": testkit::BRANCH, "delivery_prep_minutes": 35})),
         ],
     );
