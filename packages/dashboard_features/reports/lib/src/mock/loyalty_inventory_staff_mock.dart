@@ -20,6 +20,7 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart'
     show allBranchesId, inZone, wallClock;
+import 'package:dashboard_kit/dashboard_kit.dart' show dashDefaultTimezone;
 
 import '../area_seed.dart';
 
@@ -51,7 +52,7 @@ String lisScopeZone(MockDb db, String? branchId, String? orgId) {
       ? null
       : db['branches'].find(branchId);
   final org = db['orgs'].find('${branch?['org_id'] ?? orgId}');
-  return zone(branch) ?? zone(org) ?? 'Africa/Cairo';
+  return zone(branch) ?? zone(org) ?? dashDefaultTimezone;
 }
 
 /// `require_org` (`reports/handlers.rs`): 403 "Not your org" for another

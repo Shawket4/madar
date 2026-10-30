@@ -34,6 +34,7 @@ import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart'
     show TransportRealtimeGateway;
+import 'package:dashboard_kit/dashboard_kit.dart' show dashDefaultTimezone;
 
 import '../area_seed.dart' show AdminTables;
 
@@ -87,7 +88,7 @@ void registerBranchesMocks(MockServer server, MockDb db) {
       'address': body.address,
       'phone': body.phone,
       'timezone': (tz == null || tz.isEmpty)
-          ? (org['timezone'] as String? ?? 'Africa/Cairo')
+          ? (org['timezone'] as String? ?? dashDefaultTimezone)
           : tz,
       'printer_brand': body.printerBrand?.toJson(),
       'printer_ip': ip,

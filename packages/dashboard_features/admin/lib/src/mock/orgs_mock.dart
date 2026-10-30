@@ -17,6 +17,7 @@ import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show dashDefaultTimezone;
 
 import '../area_seed.dart';
 
@@ -253,7 +254,7 @@ void registerOrgsMocks(MockServer server, MockDb db) {
       );
     }
     final tz = (b.timezone == null || b.timezone!.isEmpty)
-        ? 'Africa/Cairo'
+        ? dashDefaultTimezone
         : b.timezone!;
     if (!knownZone(tz)) req.badRequest("Unknown timezone '$tz'");
     final branchName = b.branch.name.trim();

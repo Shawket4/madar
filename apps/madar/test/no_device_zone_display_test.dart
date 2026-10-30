@@ -12,15 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// (`dashDay(… DateTime.now())`).
 void main() {
   test('no app or package formats a time in the device zone', () {
-    var root = Directory.current;
-    bool isWorkspace(Directory d) {
-      final f = File('${d.path}/pubspec.yaml');
-      return f.existsSync() && f.readAsStringSync().contains('melos:');
-    }
-
-    while (!isWorkspace(root)) {
-      root = root.parent;
-    }
+    final root = _workspaceRoot();
     final banned = <RegExp>[
       RegExp(r'\.toLocal\(\)'),
       RegExp(
@@ -55,35 +47,20 @@ void main() {
     };
     final bad = <String>[];
     final used = <(String, String)>{};
-    for (final top in ['apps', 'packages']) {
-      final dir = Directory('${root.path}/$top');
-      for (final f in dir.listSync(recursive: true).whereType<File>()) {
-        final p = f.path;
-        if (!p.endsWith('.dart') ||
-            p.contains('/generated/') ||
-            p.contains('/.dart_tool/') ||
-            p.contains('/build/') ||
-            p.contains('/test/') ||
-            p.endsWith('.g.dart')) {
-          continue;
-        }
-        final rel = p.substring(root.path.length + 1);
-        final lines = f.readAsLinesSync();
-        for (var i = 0; i < lines.length; i++) {
-          final code = lines[i].split('//').first;
-          for (final re in banned) {
-            if (!re.hasMatch(code)) continue;
-            // Elapsed time is zone-free: `now.difference(t.toLocal())` is fine.
-            if (re.pattern.contains('toLocal') &&
-                code.contains('.difference(')) {
-              continue;
-            }
-            if (allowed.containsKey((rel, re.pattern))) {
-              used.add((rel, re.pattern));
-              continue;
-            }
-            bad.add('$p:${i + 1}: ${lines[i].trim()}');
+    for (final (rel, lines) in _productSources(root)) {
+      for (var i = 0; i < lines.length; i++) {
+        final code = lines[i].split('//').first;
+        for (final re in banned) {
+          if (!re.hasMatch(code)) continue;
+          // Elapsed time is zone-free: `now.difference(t.toLocal())` is fine.
+          if (re.pattern.contains('toLocal') && code.contains('.difference(')) {
+            continue;
           }
+          if (allowed.containsKey((rel, re.pattern))) {
+            used.add((rel, re.pattern));
+            continue;
+          }
+          bad.add('$rel:${i + 1}: ${lines[i].trim()}');
         }
       }
     }
@@ -100,4 +77,78 @@ void main() {
       reason: 'unused allowances',
     );
   });
+
+  // A missing zone falls back to ONE constant, the kit's dashDefaultTimezone
+  // (dashboard_core's appTimezone is it), never a literal of its own.
+  test('the default zone is named once, as dashDefaultTimezone', () {
+    final root = _workspaceRoot();
+    final literal = RegExp('''['"]Africa/Cairo['"]''');
+    // Where the name is written out, and why.
+    const allowed = <String, String>{
+      'packages/dashboard_kit/lib/src/foundation/l10n.dart':
+          'the constant itself',
+      // dashboard_api runs without the kit and the native bridge; its clock is
+      // pinned to madar-time by mock_clock_parity_test.
+      'packages/dashboard_api/lib/src/mock/mock_clock.dart': "the mock's clock",
+      'packages/dashboard_api/lib/src/mock/handlers/core_handlers.dart':
+          'one of the zones the mock /timezones lists',
+      'packages/dashboard_features/setup/lib/src/integrations/handoff_content.dart':
+          "an integrator's example response",
+    };
+    final bad = <String>[];
+    final used = <String>{};
+    for (final (rel, lines) in _productSources(root)) {
+      for (var i = 0; i < lines.length; i++) {
+        if (!literal.hasMatch(lines[i].split('//').first)) continue;
+        if (allowed.containsKey(rel)) {
+          used.add(rel);
+          continue;
+        }
+        bad.add('$rel:${i + 1}: ${lines[i].trim()}');
+      }
+    }
+    expect(
+      bad,
+      isEmpty,
+      reason: 'use dashDefaultTimezone (dashboard_kit):\n${bad.join('\n')}',
+    );
+    expect(
+      allowed.keys.toSet().difference(used),
+      isEmpty,
+      reason: 'unused allowances',
+    );
+  });
+}
+
+Directory _workspaceRoot() {
+  var root = Directory.current;
+  bool isWorkspace(Directory d) {
+    final f = File('${d.path}/pubspec.yaml');
+    return f.existsSync() && f.readAsStringSync().contains('melos:');
+  }
+
+  while (!isWorkspace(root)) {
+    root = root.parent;
+  }
+  return root;
+}
+
+/// Every hand-written product source under apps/ and packages/ (no tests, no
+/// generated code), as its path from the workspace root and its lines.
+Iterable<(String, List<String>)> _productSources(Directory root) sync* {
+  for (final top in ['apps', 'packages']) {
+    final dir = Directory('${root.path}/$top');
+    for (final f in dir.listSync(recursive: true).whereType<File>()) {
+      final p = f.path;
+      if (!p.endsWith('.dart') ||
+          p.contains('/generated/') ||
+          p.contains('/.dart_tool/') ||
+          p.contains('/build/') ||
+          p.contains('/test/') ||
+          p.endsWith('.g.dart')) {
+        continue;
+      }
+      yield (p.substring(root.path.length + 1), f.readAsLinesSync());
+    }
+  }
 }
