@@ -708,7 +708,18 @@ class OpsOrderSheet extends ConsumerWidget {
               for (final l in o.paymentLegs) paymentMethodLabel(t, l.method),
             ].join(' + '),
           ),
-          DashSummaryLine(label: t('tills.teller'), value: o.tellerName),
+          // Who sold (teller pick), and who was signed in when it differs.
+          DashSummaryLine(
+            key: const ValueKey('ops-order-teller'),
+            label: t('tills.teller'),
+            value: o.seller.teller,
+          ),
+          if (o.seller.signedIn case final signedIn?)
+            DashSummaryLine(
+              key: const ValueKey('ops-order-signed-in'),
+              label: t('orders.signedIn'),
+              value: signedIn,
+            ),
         ],
       );
     }

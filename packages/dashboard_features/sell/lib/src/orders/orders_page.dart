@@ -631,7 +631,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage>
         id: 'teller',
         label: t('tills.teller'),
         // Who sold: the person picked at checkout, else the signed-in one.
-        text: (o) => o.soldByName ?? o.tellerName,
+        text: (o) => o.seller.teller,
         minWidth: Space.xxl * 3,
         flex: 2,
       ),

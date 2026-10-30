@@ -17,6 +17,7 @@ export 'src/data/core_api.dart';
 export 'src/data/excluded_items.dart';
 export 'src/data/models.dart';
 export 'src/data/offline.dart';
+export 'src/data/order_seller.dart';
 export 'src/data/query_cache.dart';
 export 'src/data/refusal_words.dart';
 export 'src/format/format.dart';

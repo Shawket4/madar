@@ -410,13 +410,13 @@ class _OrderBody extends ConsumerWidget {
       _Row.text(
         key: const ValueKey('order-sheet-teller'),
         label: t('tills.teller'),
-        value: o.soldByName ?? o.tellerName,
+        value: o.seller.teller,
       ),
-      if (o.soldBy != null && o.soldBy != o.tellerId)
+      if (o.seller.signedIn case final signedIn?)
         _Row.text(
           key: const ValueKey('order-sheet-signed-in'),
           label: t('orders.signedIn'),
-          value: o.tellerName,
+          value: signedIn,
         ),
       if (o.startedByName != null && o.startedBy != o.tellerId)
         _Row.text(label: t('orders.startedBy'), value: o.startedByName!),

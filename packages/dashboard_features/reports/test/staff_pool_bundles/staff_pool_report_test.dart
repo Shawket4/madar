@@ -877,6 +877,70 @@ void main() {
       expect(sheet, findsNothing);
     });
 
+    testWidgets('teller pick: the sale names who sold as the Teller and who '
+        'was signed in under it', (tester) async {
+      final s = reportsServer();
+      final first = StaffPoolMock.drinksIn(
+        s.db,
+        SeedIds.heliopolis,
+        defaultTo,
+        defaultTo,
+      ).first;
+      final order = s.db[StaffPoolMock.ordersTable].find(
+        first['order_id']! as String,
+      )!;
+      final signedIn = order['teller_name']! as String;
+      order
+        ..['sold_by'] = SeedIds.user('mona')
+        ..['sold_by_name'] = 'Mona Adel';
+      final h = await pumpPool(
+        tester,
+        s: s,
+        path: at(preset: 'today'),
+      );
+      await h.tap(inTable(find.text('View order')).first);
+      final sheet = find.byType(StaffDrinkOrderSheet);
+      Finder inLine(String key, String text) => find.descendant(
+        of: find.descendant(of: sheet, matching: find.byKey(ValueKey(key))),
+        matching: find.text(text),
+      );
+      expect(inLine('staff-order-teller', 'Teller'), findsOneWidget);
+      expect(inLine('staff-order-teller', 'Mona Adel'), findsOneWidget);
+      expect(inLine('staff-order-signed-in', 'Signed in'), findsOneWidget);
+      expect(inLine('staff-order-signed-in', signedIn), findsOneWidget);
+    });
+
+    testWidgets('teller pick: nobody picked: the Teller is the signed-in '
+        'person, no "Signed in" line', (tester) async {
+      final h = await pumpPool(tester, path: at(preset: 'today'));
+      final first = StaffPoolMock.drinksIn(
+        h.db!,
+        SeedIds.heliopolis,
+        defaultTo,
+        defaultTo,
+      ).first;
+      final order = h.db![StaffPoolMock.ordersTable].find(
+        first['order_id']! as String,
+      )!;
+      expect(order['sold_by'], isNull);
+      await h.tap(inTable(find.text('View order')).first);
+      final sheet = find.byType(StaffDrinkOrderSheet);
+      expect(
+        find.descendant(
+          of: find.descendant(
+            of: sheet,
+            matching: find.byKey(const ValueKey('staff-order-teller')),
+          ),
+          matching: find.text(order['teller_name']! as String),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('Signed in')),
+        findsNothing,
+      );
+    });
+
     testWidgets('REP-SPL-019 a record-only drink offers no link', (
       tester,
     ) async {
