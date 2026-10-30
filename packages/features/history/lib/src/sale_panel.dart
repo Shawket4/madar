@@ -30,12 +30,17 @@ import 'package:rust_bridge/rust_bridge.dart';
 /// The void and refund sheets' width cap.
 const double _sheetMaxWidth = 520;
 
-/// "19:31 · Dine-in · Sara · Cash" — the facts under a sale's title.
+/// "19:31 · Dine-in · Sara · Cash" — the facts under a sale's title. A sale
+/// whose server was picked at checkout names them ("Served by Mona"), as its
+/// receipt does, in place of whoever was signed in.
 String _saleMeta(MadarBridge bridge, OrderSummaryView o) => [
   MadarFormat.isolate(bridge.formatStamp(rfc3339: o.createdAt)),
   if (o.orderRef case final ref?) ltrIsland(ref),
   orderTypeLabel(bridge, o.orderType),
-  ?o.tellerName,
+  if (o.soldByName case final by?)
+    '${bridge.tr(key: 'receipt.served_by')} $by'
+  else
+    ?o.tellerName,
   bridge.paymentMethodLabel(code: o.paymentLabel),
   ?o.customerName,
 ].join(' · ');

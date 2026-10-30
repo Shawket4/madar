@@ -452,6 +452,53 @@ class _Report extends ConsumerWidget {
             empty: MadarEmptyContent(title: t('till.report_no_sales')),
           ),
         ),
+        // "Who's serving?": the till's sales by the person picked at checkout
+        // (else whoever was signed in) — only on a till where someone was.
+        // The drawer is shared; this splits the attribution, not the cash.
+        if (r.byPerson.isNotEmpty)
+          section(
+            t('till.z_by_person'),
+            MadarDataTable<TillPersonLineView>(
+              scrollable: false,
+              columns: [
+                MadarColumn(
+                  id: 'person',
+                  label: t('receipt.served_by'),
+                  text: (l) => l.name,
+                  flex: 3,
+                  emphasis: true,
+                  phone: MadarPhoneRole.title,
+                ),
+                MadarColumn(
+                  id: 'count',
+                  label: t('till.orders_col'),
+                  text: (l) => '${l.orderCount}',
+                  width: 96,
+                  align: MadarColumnAlign.end,
+                  mono: true,
+                  muted: true,
+                  phone: MadarPhoneRole.meta,
+                ),
+                MadarColumn.money(
+                  id: 'tips',
+                  label: t('order.tip'),
+                  minor: (l) => l.tipsMinor,
+                  currency: currency,
+                  width: 130,
+                ),
+                MadarColumn.money(
+                  id: 'total',
+                  label: t('order.total'),
+                  minor: (l) => l.totalMinor,
+                  currency: currency,
+                  width: 160,
+                ),
+              ],
+              state: MadarTableState.data(r.byPerson),
+              rowKey: (l) => l.personId ?? l.name,
+              empty: MadarEmptyContent(title: t('till.report_no_sales')),
+            ),
+          ),
         // Tax and service charge on the sales, net of what refunds took back
         // (a partial refund takes back its share), and the waived charges.
         if (r.totalTaxMinor != 0 ||

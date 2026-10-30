@@ -665,6 +665,8 @@ class HistoryNotifier extends Notifier<HistoryState> {
       }
       return (o.customerName?.toLowerCase().contains(ql) ?? false) ||
           (o.tellerName?.toLowerCase().contains(ql) ?? false) ||
+          // The person picked as serving ("Who's serving?"), as well.
+          (o.soldByName?.toLowerCase().contains(ql) ?? false) ||
           (o.orderRef?.toLowerCase().contains(ql) ?? false) ||
           o.paymentLabel.toLowerCase().contains(ql) ||
           // An amount typed the way it reads on the row: "196" or "196.00".

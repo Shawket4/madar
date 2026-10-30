@@ -238,6 +238,14 @@ class ReceiptPaper extends ConsumerWidget {
                   size: _metaSize,
                   weight: FontWeight.w700,
                 ),
+              // Who was picked as serving ("Served by Mona"), as the printed
+              // receipt has it (render.rs). Nobody picked: no line.
+              if ((r.servedByName ?? '').trim().isNotEmpty)
+                _Mono(
+                  '${tr('receipt.served_by')} ${r.servedByName!.trim()}',
+                  size: _metaSize,
+                  weight: FontWeight.w700,
+                ),
               // Pickup / Dine in, as printed (receipt.rs `service_word`); a
               // delivery says so above and prints neither.
               if (!r.isDelivery && _serviceWord(r.serviceMode) != null)

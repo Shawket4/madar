@@ -205,6 +205,7 @@ ReceiptView _r({
   int waived = 0,
   String? waivedBy,
   double rate = 0.14,
+  String? servedBy,
 }) => ReceiptView(
   deals: deals,
   payments: payments,
@@ -225,6 +226,7 @@ ReceiptView _r({
   isCash: cash,
   isDelivery: false,
   tellerName: 'Sara',
+  servedByName: servedBy,
   queuedOffline: false,
   createdAt: '2026-09-10T19:45:00Z',
   displayNumber: display,
@@ -279,6 +281,8 @@ final _cases = <String, ReceiptView>{
   'device': _r(display: '36B-12~AB12'),
   // The order's reference, under the time: one colon (the word has it).
   'ref': _r(orderRef: 'ARKAN-260926-E38-0001'),
+  // "Who's serving?": the person picked prints under the time, as on paper.
+  'served': _r(servedBy: 'Mona'),
   // A staff drink: see [_staffLines]. (Rebuilt per language in the loop.)
   'staff': _r(subtotal: 4500, total: 4500, tendered: 5000, change: 500),
   'combo': _r(
@@ -368,6 +372,8 @@ void main() {
             case 'cash':
               expect(find.text(w('receipt.cash')), findsOneWidget);
               expect(change, findsOneWidget);
+              // Nobody picked: no such line, exactly as before.
+              expect(find.textContaining(w('receipt.served_by')), findsNothing);
             case 'split':
               expect(find.text('Card'), findsOneWidget);
               expect(change, findsOneWidget);
@@ -438,6 +444,12 @@ void main() {
             case 'device':
               expect(find.textContaining('#36B-12~AB12'), findsOneWidget);
               expect(find.textContaining('#1042'), findsNothing);
+            case 'served':
+              expect(
+                find.text('${w('receipt.served_by')} Mona'),
+                findsOneWidget,
+              );
+              expect(find.textContaining('Sara'), findsNothing);
             case 'ref':
               expect(
                 find.text('${w('receipt.ref')} ARKAN-260926-E38-0001'),
