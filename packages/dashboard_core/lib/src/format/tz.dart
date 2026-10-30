@@ -3,10 +3,13 @@
 /// over the zone database the server and the POS read (chrono-tz).
 library;
 
+import 'package:dashboard_kit/dashboard_kit.dart' show dashDefaultTimezone;
 import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
-/// The web's `APP_TZ`: the zone used until the scope's own is known.
-const String appTimezone = 'Africa/Cairo';
+/// The web's `APP_TZ`: the zone used until the scope's own is known, and a new
+/// branch's or org's default. madar-time's `DEFAULT_ZONE_NAME` (the
+/// `organizations.timezone` column default), one constant with the kit's.
+const String appTimezone = dashDefaultTimezone;
 
 /// Whether [name] is a zone the database knows.
 bool isKnownTimezone(String name) =>

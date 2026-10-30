@@ -3,6 +3,7 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/rig.dart';
@@ -279,6 +280,38 @@ void main() {
       expect(find.text('ج.م'), findsOneWidget);
     });
 
+    // A date field's "today" is the scope zone's business date on the app's
+    // clock, never the device's date: at 12:00 UTC on 8 Oct it is already
+    // the 9th in Kiritimati (UTC+14), still the 8th in Cairo.
+    testWidgets('a date field\'s Today is the scope zone\'s date', (
+      tester,
+    ) async {
+      final rig = _ZoneRig('Pacific/Kiritimati');
+      rig.db.clock.set(DateTime.utc(2026, 10, 8, 12));
+      DateTime? picked;
+      await pumpCore(
+        tester,
+        rig,
+        StatefulBuilder(
+          builder: (context, set) => Center(
+            child: SizedBox(
+              width: 320,
+              child: DashDateField(
+                value: picked,
+                onChanged: (d) => set(() => picked = d),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text(_en('datePicker.pickDate')));
+      await tester.pumpAndSettle();
+      expect(find.text('October 2026'), findsOneWidget);
+      await tester.tap(find.text(_en('datePicker.today')));
+      await tester.pumpAndSettle();
+      expect(picked, DateTime(2026, 10, 9));
+    });
+
     test('plurals reach the kit through args[count]', () {
       final t = Translator(syncedStrings(), 'en');
       final k = dashKitStringsFrom(t);
@@ -304,4 +337,17 @@ void main() {
     expect(isStaleRefusal(StateError('ALREADY_DECIDED')), isFalse);
     expect(isStaleRefusal(null), isFalse);
   });
+}
+
+/// The mock rig with the scope's zone pinned to [zone].
+class _ZoneRig extends CoreRig {
+  _ZoneRig(this.zone);
+
+  final String zone;
+
+  @override
+  List<Override> overrides({String lang = 'en'}) => [
+    ...super.overrides(lang: lang),
+    activeTimezoneProvider.overrideWithValue(zone),
+  ];
 }

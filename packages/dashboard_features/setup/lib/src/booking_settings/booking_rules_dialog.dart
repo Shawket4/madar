@@ -340,7 +340,7 @@ class _BookingRulesDialogState extends ConsumerState<BookingRulesDialog> {
                     child: DashDateField(
                       key: const ValueKey('bkg-blackout-date'),
                       value: _blackout,
-                      today: ref.read(clockProvider)(),
+                      // Today is the branch zone's (the kit's default).
                       disablePast: true,
                       placeholder: t('bookings.addBlackout'),
                       semanticLabel: t('bookings.addBlackout'),

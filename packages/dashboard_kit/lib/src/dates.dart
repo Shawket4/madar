@@ -310,7 +310,8 @@ class DashDateField extends StatefulWidget {
   /// day makes (the list for the day shown, a neighbour). Never a write.
   final VoidCallback? onIntent;
 
-  /// The business's today (its timezone); defaults to the device's.
+  /// The business's today (its timezone); defaults to the scope zone's
+  /// ([DashKitFormats.today]), never the device's.
   final DateTime? today;
   final bool disableFuture;
   final bool disablePast;
@@ -324,9 +325,9 @@ class DashDateField extends StatefulWidget {
 }
 
 class _DashDateFieldState extends State<DashDateField> {
-  late DateTime _month = widget.value ?? widget.today ?? DateTime.now();
+  late DateTime _month = widget.value ?? _today;
 
-  DateTime get _today => dashDay(widget.today ?? DateTime.now());
+  DateTime get _today => dashDay(widget.today ?? context.dashFormats.today());
 
   /// [done] gets the day picked, or null for Clear.
   Widget _panel(BuildContext context, void Function(DateTime?) done) {
@@ -541,7 +542,7 @@ class _DashDateRangePickerState extends State<DashDateRangePicker> {
   DateTime? _hover;
   late DateTime _month;
 
-  DateTime get _today => dashDay(widget.today ?? DateTime.now());
+  DateTime get _today => dashDay(widget.today ?? context.dashFormats.today());
 
   void _seed() {
     _from = widget.from == null ? null : dashDay(widget.from!);
@@ -821,7 +822,7 @@ class DashDateRangeField extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.madarColors;
     final t = context.dashStrings;
-    final now = dashDay(today ?? DateTime.now());
+    final now = dashDay(today ?? context.dashFormats.today());
     final backwards = from != null && to != null && to!.isBefore(from!);
     final names = {
       DashQuickRange.thisPeriod: t.thisPeriod,

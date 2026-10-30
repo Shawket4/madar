@@ -869,5 +869,28 @@ void main() {
       expect(en.time('21:30'), '09:30 PM');
       expect(ar.time('09:05'), '09:05 ص');
     });
+
+    // A calendar's today is the business zone's date on the given clock
+    // (madar-time through the core), whatever the device's zone.
+    test('today is the zone\'s date, never the device\'s', () {
+      DashKitFormats at(String zone, DateTime utc) =>
+          DashKitFormats(timezone: zone, clock: () => utc);
+      final noonUtc = DateTime.utc(2026, 10, 8, 12);
+      expect(at('Pacific/Kiritimati', noonUtc).today(), DateTime(2026, 10, 9));
+      expect(at('Pacific/Pago_Pago', noonUtc).today(), DateTime(2026, 10, 8));
+      // 21:30Z is already 00:30 the next day in Cairo in summer (+03), still
+      // 23:30 the same day in winter (+02).
+      expect(
+        at(dashDefaultTimezone, DateTime.utc(2026, 7, 14, 21, 30)).today(),
+        DateTime(2026, 7, 15),
+      );
+      expect(
+        at(dashDefaultTimezone, DateTime.utc(2026, 1, 14, 21, 30)).today(),
+        DateTime(2026, 1, 14),
+      );
+      // An unknown zone (an offset is not one) reads as the default zone.
+      expect(at('+03:00', noonUtc).today(), DateTime(2026, 10, 8));
+      expect(const DashKitFormats().timezone, dashDefaultTimezone);
+    });
   });
 }
