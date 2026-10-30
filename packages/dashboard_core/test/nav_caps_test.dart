@@ -9,7 +9,11 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _webRoot = '/Users/shawket/Desktop/Madar/MadarDashboard';
+/// The web repo: MADAR_DASHBOARD_DIR, else the owner's checkout. The tools
+/// get it as `--web` so they read the same one.
+final _webRoot =
+    Platform.environment['MADAR_DASHBOARD_DIR'] ??
+    '/Users/shawket/Desktop/Madar/MadarDashboard';
 final _worktree = Directory.current.parent.parent.path;
 
 Authz _holding(
@@ -78,6 +82,8 @@ void main() {
       final r = Process.runSync('python3', [
         '$_worktree/tool/gen_dashboard_caps.py',
         '--check',
+        '--web',
+        _webRoot,
       ]);
       expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
     });
@@ -165,6 +171,8 @@ void main() {
       final r = Process.runSync('node', [
         '$_worktree/tool/gen_dashboard_nav.mjs',
         '--json',
+        '--web',
+        _webRoot,
       ]);
       if (r.exitCode != 0) {
         fail('gen_dashboard_nav.mjs --json failed: ${r.stderr}');
@@ -266,6 +274,8 @@ void main() {
       final r = Process.runSync('node', [
         '$_worktree/tool/gen_dashboard_nav.mjs',
         '--check',
+        '--web',
+        _webRoot,
       ]);
       expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
     });

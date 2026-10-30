@@ -9,6 +9,8 @@ class LoyaltySettings {
     this.balanceCap,
     this.balanceCapEnabled,
     this.birthdayEnabled,
+    this.birthdayGift,
+    this.birthdayGiftDays,
     this.birthdayMessage,
     this.birthdayMessageAr,
     this.birthdayRewardAmount,
@@ -50,6 +52,14 @@ class LoyaltySettings {
         birthdayEnabled: decBoolN(
           json['birthday_enabled'],
           'LoyaltySettings.birthday_enabled',
+        ),
+        birthdayGift: decStringN(
+          json['birthday_gift'],
+          'LoyaltySettings.birthday_gift',
+        ),
+        birthdayGiftDays: decIntN(
+          json['birthday_gift_days'],
+          'LoyaltySettings.birthday_gift_days',
         ),
         birthdayMessage: decStringN(
           json['birthday_message'],
@@ -169,6 +179,17 @@ class LoyaltySettings {
   /// birth is the most sensitive thing this feature collects, and a shop that
   /// does not run birthday rewards has no business holding one.
   final bool? birthdayEnabled;
+
+  /// What the birthday gives: `"none"` (a greeting only), `"amount"`
+  /// (`birthday_reward_amount` on the balance) or `"item"` (one free item
+  /// from the rewards, whatever it costs, valid `birthday_gift_days` days).
+  /// `None` on the way IN keeps the stored value, so a dashboard that has
+  /// never heard of it cannot switch it; always `Some` on the way out.
+  final String? birthdayGift;
+
+  /// How many days an `"item"` gift stays valid from the birthday, 7 to 60
+  /// (30 by default). `None` on the way IN keeps the stored value.
+  final int? birthdayGiftDays;
 
   /// Overrides the built-in greeting. `{name}` is substituted; nothing else is.
   final String? birthdayMessage;
@@ -325,6 +346,11 @@ class LoyaltySettings {
       'balance_cap_enabled': balanceCapEnabled,
     if (birthdayEnabled != null || explicitNulls.contains('birthday_enabled'))
       'birthday_enabled': birthdayEnabled,
+    if (birthdayGift != null || explicitNulls.contains('birthday_gift'))
+      'birthday_gift': birthdayGift,
+    if (birthdayGiftDays != null ||
+        explicitNulls.contains('birthday_gift_days'))
+      'birthday_gift_days': birthdayGiftDays,
     if (birthdayMessage != null || explicitNulls.contains('birthday_message'))
       'birthday_message': birthdayMessage,
     if (birthdayMessageAr != null ||

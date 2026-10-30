@@ -23,6 +23,34 @@ const _sheetVariants = [
 ];
 
 void main() {
+  for (final (size, locale) in [
+    (DashSize.desktop, 'en'),
+    (DashSize.desktop, 'ar'),
+    (DashSize.phone, 'en'),
+    (DashSize.phone, 'ar'),
+  ]) {
+    testWidgets('shots: the edit dialog asking who is serving '
+        '(${size.name} $locale)', (tester) async {
+      final s = branchesServer();
+      branchRow(s.db, SeedIds.zamalek)['pick_teller_at_checkout'] = true;
+      final h = await pumpBranches(
+        tester,
+        path: '/branches?edit=${SeedIds.zamalek}',
+        size: size,
+        locale: locale,
+        server: s.server,
+        db: s.db,
+      );
+      expect(find.text(h.t('branches.pickTeller')), findsOneWidget);
+      // The till settings at the top, the switch under them.
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('branch-old-bill-hours')),
+      );
+      await h.settle();
+      await h.shot('branches/edit-dialog-pick-teller');
+    });
+  }
+
   for (final v in _variants) {
     testWidgets(
       'shots: the page (${v.size.name} ${v.locale} ${v.dark ? 'dark' : 'light'})',

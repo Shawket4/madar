@@ -254,4 +254,74 @@ void main() {
     expect(spot, hasLength(2));
     expect(spot.last.approvedByName, isNotNull);
   });
+
+  test(
+    'teller pick: by_person is left out until someone on the till was '
+    'picked; then the sold sales by who served them (else whoever was '
+    'signed in), largest first, adding up to the payments and the tips',
+    () async {
+      final m = _api();
+      final id = TillIds.zamalekLastEvening;
+      expect((await m.api.tills.getTillReport(tillId: id)).byPerson, isNull);
+
+      final orders = m.db['orders'].where((o) => o['till_id'] == id).toList();
+      bool sold(MockRow o) =>
+          o['status'] != 'voided' && o['status'] != 'refunded';
+      final paid = orders.where(sold).toList();
+      expect(paid.length, greaterThan(3));
+      final mona = SeedIds.user('mona');
+      final gone = SeedIds.user('gone');
+      paid[0]
+        ..['sold_by'] = mona
+        ..['sold_by_name'] = 'Mona Adel'
+        ..['tip_amount'] = 1500;
+      paid[1]
+        ..['sold_by'] = mona
+        ..['sold_by_name'] = 'Mona Adel';
+      paid[2]['sold_by'] = gone;
+      // A void she served is not a sale.
+      orders.firstWhere((o) => o['status'] == 'voided')
+        ..['sold_by'] = mona
+        ..['sold_by_name'] = 'Mona Adel';
+
+      int tendered(MockRow o) {
+        final legs = o['payment_legs'];
+        if (legs is List && legs.isNotEmpty) {
+          return legs.fold(0, (a, l) => a + ((l as Map)['amount']! as int));
+        }
+        return (o['total_amount'] as int?) ?? 0;
+      }
+
+      int tip(MockRow o) => (o['tip_amount'] as int?) ?? 0;
+      final rest = paid.sublist(3);
+      final teller = paid.first['teller_id']! as String;
+      expect(rest.every((o) => o['teller_id'] == teller), isTrue);
+
+      final report = await m.api.tills.getTillReport(tillId: id);
+      final lines = report.byPerson!;
+      final want = {
+        teller: (
+          paid.first['teller_name'],
+          rest.length,
+          rest.fold<int>(0, (a, o) => a + tendered(o)),
+          rest.fold<int>(0, (a, o) => a + tip(o)),
+        ),
+        mona: (
+          'Mona Adel',
+          2,
+          tendered(paid[0]) + tendered(paid[1]),
+          1500 + tip(paid[1]),
+        ),
+        gone: (null, 1, tendered(paid[2]), tip(paid[2])),
+      };
+      expect({
+        for (final l in lines)
+          l.personId: (l.name, l.orderCount, l.total, l.tips),
+      }, want);
+      final totals = [for (final l in lines) l.total];
+      expect(totals, [...totals]..sort((a, b) => b.compareTo(a)));
+      expect(totals.fold<int>(0, (a, b) => a + b), report.totalPayments);
+      expect(lines.fold<int>(0, (a, l) => a + l.tips), report.totalTips);
+    },
+  );
 }

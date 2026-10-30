@@ -11,8 +11,8 @@
 ///   trigger does, and the till settings and tax overrides are NOT taken
 ///   (the client PATCHes them on afterwards);
 /// - update: `name`, `address`, `phone`, `timezone`, `is_active`,
-///   `geo_radius_meters` and `old_bill_hours` are `COALESCE`d (null or
-///   absent keeps the stored value); the printer, location, tax and float
+///   `geo_radius_meters`, `old_bill_hours` and `pick_teller_at_checkout`
+///   are `COALESCE`d (null or absent keeps the stored value); the printer, location, tax and float
 ///   fields take an explicit null (absent keeps, null clears); rates are
 ///   fractions 0..1, `old_bill_hours` 1..168, `standard_float` >= 0 (400 with
 ///   the backend's sentence); a changed `old_bill_hours` / `standard_float`
@@ -46,6 +46,7 @@ const List<String> _coalesced = [
   'is_active',
   'geo_radius_meters',
   'old_bill_hours',
+  'pick_teller_at_checkout',
 ];
 
 /// The double-option fields (absent keeps, an explicit null clears).
@@ -96,6 +97,7 @@ void registerBranchesMocks(MockServer server, MockDb db) {
       'longitude': body.longitude,
       'geo_radius_meters': body.geoRadiusMeters,
       'old_bill_hours': 3,
+      'pick_teller_at_checkout': false,
       'kind': kind,
       'created_at': now,
       'updated_at': now,

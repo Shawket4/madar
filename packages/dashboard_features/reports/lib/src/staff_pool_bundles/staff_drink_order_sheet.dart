@@ -194,7 +194,18 @@ class _OrderBody extends ConsumerWidget {
             t('common.date'),
             f.fmtDateTimeFull(order.createdAt.toIso8601String()),
           ),
-          _Row(t('tills.teller'), order.tellerName),
+          // Who sold (teller pick), and who was signed in when it differs.
+          _Row(
+            t('tills.teller'),
+            order.seller.teller,
+            key: const ValueKey('staff-order-teller'),
+          ),
+          if (order.seller.signedIn case final signedIn?)
+            _Row(
+              t('orders.signedIn'),
+              signedIn,
+              key: const ValueKey('staff-order-signed-in'),
+            ),
           if (order.startedByName != null && order.startedBy != order.tellerId)
             _Row(t('orders.startedBy'), order.startedByName!),
           if (order.waiterName != null)
@@ -479,6 +490,7 @@ class _Row extends StatelessWidget {
     this.strong = false,
     this.small = false,
     this.struck = false,
+    super.key,
   });
 
   final String label;

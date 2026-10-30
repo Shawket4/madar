@@ -21,6 +21,7 @@ class LedgerEntry {
     this.reversesId,
     this.rewardName,
     required this.source,
+    this.track,
     this.explicitNulls = const {},
   });
 
@@ -46,6 +47,7 @@ class LedgerEntry {
     reversesId: decStringN(json['reverses_id'], 'LedgerEntry.reverses_id'),
     rewardName: decStringN(json['reward_name'], 'LedgerEntry.reward_name'),
     source: decString(json['source'], 'LedgerEntry.source'),
+    track: decIntN(json['track'], 'LedgerEntry.track'),
   );
 
   /// Piastres the rule was applied to (earns only).
@@ -85,9 +87,12 @@ class LedgerEntry {
   final String? rewardName;
 
   /// Why the row exists: `sale`, `redemption`, `void`, `refund`, `birthday`,
-  /// `winback` or `manual`. What a till or a dashboard should print as the
+  /// `winback`, `manual`, `merge` or `counter` (no order: the Rewards teller page). What a till or a dashboard should print as the
   /// reason, instead of guessing from the kind and the note.
   final String source;
+
+  /// The stamp track this row moved (2–4); absent for track 1.
+  final int? track;
 
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
@@ -116,6 +121,7 @@ class LedgerEntry {
     if (rewardName != null || explicitNulls.contains('reward_name'))
       'reward_name': rewardName,
     'source': source,
+    if (track != null || explicitNulls.contains('track')) 'track': track,
   };
 
   @override

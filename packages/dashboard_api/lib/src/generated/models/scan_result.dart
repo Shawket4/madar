@@ -8,16 +8,25 @@ class ScanResult {
   const ScanResult({
     required this.anyItem,
     required this.anyItemCost,
+    this.birthdayGift,
+    this.card,
     this.maxRewardsPerOrder,
     required this.member,
     required this.recent,
     required this.rewards,
+    this.trackRewards,
     this.explicitNulls = const {},
   });
 
   factory ScanResult.fromJson(Map<String, Object?> json) => ScanResult(
     anyItem: decBool(json['any_item'], 'ScanResult.any_item'),
     anyItemCost: decInt(json['any_item_cost'], 'ScanResult.any_item_cost'),
+    birthdayGift: decObjectN(
+      json['birthday_gift'],
+      'ScanResult.birthday_gift',
+      BirthdayGiftView.fromJson,
+    ),
+    card: decObjectN(json['card'], 'ScanResult.card', PublicCard.fromJson),
     maxRewardsPerOrder: decIntN(
       json['max_rewards_per_order'],
       'ScanResult.max_rewards_per_order',
@@ -33,6 +42,11 @@ class ScanResult {
       'ScanResult.rewards',
       (e) => decObject(e, 'ScanResult.rewards[]', RewardItem.fromJson),
     ),
+    trackRewards: decListN<TrackRewards>(
+      json['track_rewards'],
+      'ScanResult.track_rewards',
+      (e) => decObject(e, 'ScanResult.track_rewards[]', TrackRewards.fromJson),
+    ),
   );
 
   /// The whole menu is claimable, not just `rewards`.
@@ -45,6 +59,10 @@ class ScanResult {
 
   /// What one line costs when `any_item` is on, in the branch's currency.
   final int anyItemCost;
+
+  final BirthdayGiftView? birthdayGift;
+
+  final PublicCard? card;
 
   /// The shop's ceiling on reward ITEMS per order, if it set one. The till
   /// enforces it before Charge so the server's refusal is never the first
@@ -61,6 +79,11 @@ class ScanResult {
   /// handing over a reward that has not been earned.
   final List<RewardItem> rewards;
 
+  /// Tracks 2–4's rewards (each of a track's items at its size), when the
+  /// card has more than one track. `rewards` stays track 1's only: a
+  /// released till offers what is in it against the track-1 balance.
+  final List<TrackRewards>? trackRewards;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
@@ -68,12 +91,17 @@ class ScanResult {
   Map<String, Object?> toJson() => <String, Object?>{
     'any_item': anyItem,
     'any_item_cost': anyItemCost,
+    if (birthdayGift != null || explicitNulls.contains('birthday_gift'))
+      'birthday_gift': birthdayGift?.toJson(),
+    if (card != null || explicitNulls.contains('card')) 'card': card?.toJson(),
     if (maxRewardsPerOrder != null ||
         explicitNulls.contains('max_rewards_per_order'))
       'max_rewards_per_order': maxRewardsPerOrder,
     'member': member.toJson(),
     'recent': recent.map((e) => e.toJson()).toList(),
     'rewards': rewards.map((e) => e.toJson()).toList(),
+    if (trackRewards != null || explicitNulls.contains('track_rewards'))
+      'track_rewards': trackRewards?.map((e) => e.toJson()).toList(),
   };
 
   @override

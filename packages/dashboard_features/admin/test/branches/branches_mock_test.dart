@@ -195,6 +195,30 @@ void main() {
     },
   );
 
+  test('teller pick: a PATCH stores pick_teller_at_checkout; absent or null '
+      'keeps it; a new branch starts off', () async {
+    final on = await api.branches.patchBranch(
+      id: SeedIds.zamalek,
+      body: const UpdateBranchRequest(pickTellerAtCheckout: true),
+    );
+    expect(on.pickTellerAtCheckout, isTrue);
+    final kept = await api.branches.patchBranch(
+      id: SeedIds.zamalek,
+      body: const UpdateBranchRequest(
+        name: 'Zamalek Nile',
+        explicitNulls: {'pick_teller_at_checkout'},
+      ),
+    );
+    expect(kept.pickTellerAtCheckout, isTrue);
+    final off = await api.branches.patchBranch(
+      id: SeedIds.zamalek,
+      body: const UpdateBranchRequest(pickTellerAtCheckout: false),
+    );
+    expect(off.pickTellerAtCheckout, isFalse);
+    final made = await api.branches.createBranch(body: _new('Sheikh Zayed'));
+    expect(made.pickTellerAtCheckout, isFalse);
+  });
+
   test(
     'ADM-BRA-017 a reader may not write: 403 on create, edit, delete',
     () async {

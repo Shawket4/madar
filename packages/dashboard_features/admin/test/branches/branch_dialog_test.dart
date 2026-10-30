@@ -15,6 +15,11 @@ Finder _inDialog(Finder f) =>
 
 Finder _dialogText(String s) => _inDialog(find.text(s));
 
+const _pickTeller = "Ask who's serving at checkout";
+const _pickTellerHint =
+    'Tills ask who is serving before taking payment. With Dawam on, people '
+    'clocked in come first.';
+
 Finder _switch(String label) =>
     find.byWidgetPredicate((w) => w is DashSwitch && w.semanticLabel == label);
 
@@ -584,6 +589,78 @@ void main() {
     await _submit(h);
     await h.expectToast('Branch updated');
     expect(_patch(h)['kind'], 'branch');
+  });
+
+  testWidgets('teller pick: the switch and its hint; it loads the stored '
+      'value (off, on) and Save sends pick_teller_at_checkout', (tester) async {
+    final s = branchesServer();
+    branchRow(s.db, SeedIds.maadi)['pick_teller_at_checkout'] = true;
+    final h = await _edit(tester, SeedIds.zamalek, s: s);
+    expect(_dialogText(_pickTeller), findsOneWidget);
+    expect(_dialogText(_pickTellerHint), findsOneWidget);
+    expect(tester.widget<DashSwitch>(_switch(_pickTeller)).value, isFalse);
+    await h.tap(_switch(_pickTeller));
+    await _submit(h);
+    await h.expectToast('Branch updated');
+    expect(_patch(h)['pick_teller_at_checkout'], isTrue);
+    expect(branchRow(s.db, SeedIds.zamalek)['pick_teller_at_checkout'], isTrue);
+
+    await h.go('$branchesPath?edit=${SeedIds.maadi}');
+    expect(tester.widget<DashSwitch>(_switch(_pickTeller)).value, isTrue);
+    await h.tap(_switch(_pickTeller));
+    await _submit(h);
+    await h.expectToast('Branch updated');
+    expect(_patch(h)['pick_teller_at_checkout'], isFalse);
+    expect(branchRow(s.db, SeedIds.maadi)['pick_teller_at_checkout'], isFalse);
+  });
+
+  testWidgets('teller pick: the switch in Arabic', (tester) async {
+    await pumpBranches(
+      tester,
+      path: '$branchesPath?edit=${SeedIds.zamalek}',
+      locale: 'ar',
+    );
+    expect(_dialogText('السؤال عمّن يخدم العميل عند الدفع'), findsOneWidget);
+    expect(
+      _dialogText(
+        'تسأل أجهزة الكاشير عمّن يخدم العميل قبل تحصيل الدفع. عند تفعيل '
+        'دوام، يظهر من سجّلوا حضورهم أولًا.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('teller pick: an untouched edit sends the stored value back', (
+    tester,
+  ) async {
+    final s = branchesServer();
+    branchRow(s.db, SeedIds.maadi)['pick_teller_at_checkout'] = true;
+    final h = await _edit(tester, SeedIds.maadi, s: s);
+    await _type(h, 'branch-name', 'Maadi Degla');
+    await _submit(h);
+    await h.expectToast('Branch updated');
+    expect(_patch(h)['pick_teller_at_checkout'], isTrue);
+    expect(branchRow(s.db, SeedIds.maadi)['pick_teller_at_checkout'], isTrue);
+  });
+
+  testWidgets('teller pick: a new branch sends it on the follow-up PATCH '
+      '(the POST takes none); a warehouse never shows it', (tester) async {
+    final h = await pumpBranches(tester, path: '$branchesPath?edit=new');
+    expect(tester.widget<DashSwitch>(_switch(_pickTeller)).value, isFalse);
+    await _type(h, 'branch-name', 'Sheikh Zayed');
+    await h.tap(_switch(_pickTeller));
+    await _submit(h);
+    await h.expectToast('Branch created');
+    expect(_post(h).containsKey('pick_teller_at_checkout'), isFalse);
+    expect(_patch(h)['pick_teller_at_checkout'], isTrue);
+    expect(
+      branchNamed(h.db!, 'Sheikh Zayed')['pick_teller_at_checkout'],
+      isTrue,
+    );
+
+    await h.go('$branchesPath?edit=new-warehouse');
+    expect(_switch(_pickTeller), findsNothing);
+    expect(_dialogText(_pickTellerHint), findsNothing);
   });
 
   testWidgets('an edit re-seeds from a refresh until it is changed', (

@@ -13,7 +13,8 @@
 ///   person (409 `TILL_OPEN_AT_OTHER_BRANCH`, resume at this branch), the
 ///   carryover rule (400 without an `edit_reason` when the float differs
 ///   from the last declared close);
-/// - `GET /tills/{tillId}/report`, `GET /reports/tills/{tillId}/summary`,
+/// - `GET /tills/{tillId}/report` (with `by_person` once someone on the till
+///   was picked at checkout), `GET /reports/tills/{tillId}/summary`,
 ///   `GET /reports/tills/{tillId}/deductions` (`inventory.read`),
 ///   `GET /tills/{tillId}/spot-views`;
 /// - `GET /tills/{tillId}/close-preview` and `POST /tills/{tillId}/close`
@@ -56,6 +57,7 @@ import 'package:dashboard_api/dashboard_api.dart'
         TillBrief,
         TillPreFill,
         TillReconciliationLine,
+        TillPersonLine,
         TillReportResponse,
         TillSpotView,
         TillStatus,
@@ -857,6 +859,48 @@ List<DeductionLogRow> _deductions(MockDb db, String tillId) {
   return out;
 }
 
+/// `madar_till::report::by_person`: the till's sold sales by who served them
+/// (the person picked at checkout, `sold_by`, else whoever was signed in),
+/// largest first; ties put a named person before nobody, then go by id. Null
+/// (the key left out) unless a sale on the till has a `sold_by`, so a till
+/// that never asked reports as before. A person's name is their
+/// `sold_by_name` / `teller_name` (null when the sale carries none).
+List<TillPersonLine>? _byPerson(List<MockRow> orders) {
+  if (orders.every((o) => o['sold_by'] == null)) return null;
+  final people = <String?, ({String? name, int n, int total, int tips})>{};
+  for (final o in orders.where(_sold)) {
+    final picked = o['sold_by'] as String?;
+    final who = picked ?? o['teller_id'] as String?;
+    final name =
+        (picked != null ? o['sold_by_name'] : o['teller_name']) as String?;
+    final cur = people[who];
+    people[who] = (
+      name: cur?.name ?? name,
+      n: (cur?.n ?? 0) + 1,
+      total: (cur?.total ?? 0) + _legs(o).fold<int>(0, (s, l) => s + l.amount),
+      tips: (cur?.tips ?? 0) + ((o['tip_amount'] as int?) ?? 0),
+    );
+  }
+  return [
+    for (final MapEntry(key: who, value: p) in people.entries)
+      TillPersonLine(
+        personId: who,
+        name: p.name,
+        orderCount: p.n,
+        total: p.total,
+        tips: p.tips,
+      ),
+  ]..sort((a, b) {
+    final byTotal = b.total.compareTo(a.total);
+    if (byTotal != 0) return byTotal;
+    final nobody = (a.personId == null ? 1 : 0).compareTo(
+      b.personId == null ? 1 : 0,
+    );
+    if (nobody != 0) return nobody;
+    return (a.personId ?? '').compareTo(b.personId ?? '');
+  });
+}
+
 TillReportResponse _report(MockDb db, MockRow till, DateTime now) {
   final id = till['id']! as String;
   final orders = _ordersOf(db, id);
@@ -964,6 +1008,7 @@ TillReportResponse _report(MockDb db, MockRow till, DateTime now) {
     heldOrdersLeftOpen: till['held_orders_left_open'] as int?,
     heldOrdersLeftOpenTotal: till['held_orders_left_open_total'] as int?,
     reconciliation: _linesOf(db, id),
+    byPerson: _byPerson(orders),
   );
 }
 

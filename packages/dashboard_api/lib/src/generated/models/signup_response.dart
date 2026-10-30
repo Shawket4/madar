@@ -7,6 +7,7 @@ part of '../models.dart';
 @immutable
 class SignupResponse {
   const SignupResponse({
+    this.addons,
     required this.currencyCode,
     this.openTill,
     this.plan,
@@ -21,6 +22,11 @@ class SignupResponse {
   });
 
   factory SignupResponse.fromJson(Map<String, Object?> json) => SignupResponse(
+    addons: decListN<String>(
+      json['addons'],
+      'SignupResponse.addons',
+      (e) => decString(e, 'SignupResponse.addons[]'),
+    ),
     currencyCode: decString(
       json['currency_code'],
       'SignupResponse.currency_code',
@@ -46,6 +52,10 @@ class SignupResponse {
     branchId: decString(json['branch_id'], 'SignupResponse.branch_id'),
     orgId: decString(json['org_id'], 'SignupResponse.org_id'),
   );
+
+  /// Features the org has as add-ons beside its plan (Rewards by Madar: `["loyalty"]` on
+  /// Free). Additive: an old client ignores it and sees the plan alone.
+  final List<String>? addons;
 
   final String currencyCode;
 
@@ -87,6 +97,7 @@ class SignupResponse {
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    if (addons != null || explicitNulls.contains('addons')) 'addons': addons,
     'currency_code': currencyCode,
     if (openTill != null || explicitNulls.contains('open_till'))
       'open_till': openTill?.toJson(),

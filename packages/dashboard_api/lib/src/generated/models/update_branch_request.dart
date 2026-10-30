@@ -23,6 +23,7 @@ class UpdateBranchRequest {
     this.name,
     this.oldBillHours,
     this.phone,
+    this.pickTellerAtCheckout,
     this.printerBrand,
     this.printerIp,
     this.printerPort,
@@ -58,6 +59,10 @@ class UpdateBranchRequest {
       'UpdateBranchRequest.old_bill_hours',
     ),
     phone: decStringN(json['phone'], 'UpdateBranchRequest.phone'),
+    pickTellerAtCheckout: decBoolN(
+      json['pick_teller_at_checkout'],
+      'UpdateBranchRequest.pick_teller_at_checkout',
+    ),
     printerBrand: decEnumN(
       json['printer_brand'],
       'UpdateBranchRequest.printer_brand',
@@ -111,6 +116,10 @@ class UpdateBranchRequest {
 
   final String? phone;
 
+  /// Ask who is serving at checkout (see [`Branch`]). Absent (or `null`)
+  /// leaves it as it is.
+  final bool? pickTellerAtCheckout;
+
   final PrinterBrand? printerBrand;
 
   final String? printerIp;
@@ -152,6 +161,9 @@ class UpdateBranchRequest {
     if (oldBillHours != null || explicitNulls.contains('old_bill_hours'))
       'old_bill_hours': oldBillHours,
     if (phone != null || explicitNulls.contains('phone')) 'phone': phone,
+    if (pickTellerAtCheckout != null ||
+        explicitNulls.contains('pick_teller_at_checkout'))
+      'pick_teller_at_checkout': pickTellerAtCheckout,
     if (printerBrand != null || explicitNulls.contains('printer_brand'))
       'printer_brand': printerBrand?.toJson(),
     if (printerIp != null || explicitNulls.contains('printer_ip'))

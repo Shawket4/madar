@@ -61,6 +61,15 @@ DART_CORE_TYPES = {"Map", "List", "Set", "Object", "Function", "Symbol", "Record
                    "Uri", "DateTime", "Iterable", "Iterator", "Stream", "Future", "Duration",
                    "Error", "Type", "Exception", "Pattern", "Match", "RegExp", "Comparable",
                    "String", "Never", "Sink", "StackTrace", "BigInt"}
+# dart:ui types Flutter code uses unqualified. A schema of the same name would not
+# clash loudly: a package import beats a dart: one, so every Flutter file importing
+# the client would silently get the model (`TextAlign.center` stops compiling).
+DART_UI_TYPES = {"TextAlign", "TextDirection", "TextBaseline", "TextDecoration", "TextStyle",
+                 "FontWeight", "FontStyle", "Color", "Offset", "Size", "Rect", "RRect", "Radius",
+                 "Image", "Paint", "Path", "Canvas", "Shadow", "Gradient", "Locale", "Brightness",
+                 "BlendMode", "Clip", "FilterQuality", "StrokeCap", "TileMode", "ColorFilter",
+                 "ImageFilter", "Shader", "TextPosition", "TextRange", "TextAffinity",
+                 "Paragraph", "ParagraphStyle", "AppLifecycleState"}
 RUNTIME_NAMES = {"ApiRequest", "ApiResponse", "ApiException", "ApiTransport", "ApiFilePart",
                  "ApiOperation", "DashboardApi", "MockCapability"}
 
@@ -271,10 +280,10 @@ class Gen:
                 for ct, c in (op.get("requestBody") or {}).get("content", {}).items():
                     if ct == "multipart/form-data" and "$ref" in c.get("schema", {}):
                         self.multipart.add(c["schema"]["$ref"].split("/")[-1])
-        taken = set(self.S) | DART_CORE_TYPES | RUNTIME_NAMES
+        taken = set(self.S) | DART_CORE_TYPES | DART_UI_TYPES | RUNTIME_NAMES
         for name in sorted(self.S):
             cls = name
-            if name in DART_CORE_TYPES or name in RUNTIME_NAMES:
+            if name in DART_CORE_TYPES or name in DART_UI_TYPES or name in RUNTIME_NAMES:
                 cls = name + "Model"
             self.schema_class[name] = cls
         self.taken = taken | set(self.schema_class.values())

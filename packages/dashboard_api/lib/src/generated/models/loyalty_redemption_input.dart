@@ -8,6 +8,7 @@ class LoyaltyRedemptionInput {
   const LoyaltyRedemptionInput({
     this.itemIndex,
     this.ticketLineId,
+    this.track,
     this.units,
     this.explicitNulls = const {},
   });
@@ -22,6 +23,7 @@ class LoyaltyRedemptionInput {
           json['ticket_line_id'],
           'LoyaltyRedemptionInput.ticket_line_id',
         ),
+        track: decIntN(json['track'], 'LoyaltyRedemptionInput.track'),
         units: decIntN(json['units'], 'LoyaltyRedemptionInput.units'),
       );
 
@@ -39,6 +41,10 @@ class LoyaltyRedemptionInput {
   /// Resolved to `item_index` by `settle_open_ticket` before pricing.
   final String? ticketLineId;
 
+  /// The stamp track (2–4) that pays for it; absent = track 1 (the
+  /// programme's own card, as every released till sends).
+  final int? track;
+
   /// How many of that line's units the reward covers. Defaults to one.
   final int? units;
 
@@ -51,6 +57,7 @@ class LoyaltyRedemptionInput {
       'item_index': itemIndex,
     if (ticketLineId != null || explicitNulls.contains('ticket_line_id'))
       'ticket_line_id': ticketLineId,
+    if (track != null || explicitNulls.contains('track')) 'track': track,
     if (units != null || explicitNulls.contains('units')) 'units': units,
   };
 

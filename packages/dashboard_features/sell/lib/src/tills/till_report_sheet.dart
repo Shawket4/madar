@@ -3,14 +3,16 @@
 /// SELL-TIL-045–054, -062): an end-side panel (full screen on a phone), held
 /// in the URL as `?report=<till id>`.
 ///
-/// Section order: info, Sales, Payment summary, Payment check, Cash
-/// reconciliation, Spot reports viewed, Stock used, Cash movements.
+/// Section order: info, Sales, Payment summary, By person (only when someone
+/// on the till was picked at checkout), Payment check, Cash reconciliation,
+/// Spot reports viewed, Stock used, Cash movements.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart'
     show
         DeductionLogRow,
         ShiftSummary,
+        TillPersonLine,
         TillReconciliationLine,
         TillReportResponse,
         TillSpotView;
@@ -149,6 +151,8 @@ class TillReportView extends ConsumerWidget {
           _InfoCard(report: data, onOpenTill: onOpenTill),
           if (summary.value case final s?) _SalesCard(summary: s),
           _PaymentsCard(report: data),
+          if (data.byPerson case final people? when people.isNotEmpty)
+            TillByPerson(lines: people),
           if (data.reconciliation.isNotEmpty)
             ReconciliationTable(lines: data.reconciliation),
           _CashCard(report: data),
@@ -221,9 +225,17 @@ class ReportLine extends StatelessWidget {
 }
 
 class _ReportCard extends StatelessWidget {
-  const _ReportCard({required this.children, this.title, super.key});
+  const _ReportCard({
+    required this.children,
+    this.title,
+    this.description,
+    super.key,
+  });
 
   final String? title;
+
+  /// A line under [title] saying what the card counts.
+  final String? description;
   final List<Widget> children;
 
   @override
@@ -243,6 +255,11 @@ class _ReportCard extends StatelessWidget {
                 title!,
                 style: DashType.bodyStrong.copyWith(color: c.textPrimary),
               ),
+            ),
+          if (description != null)
+            Text(
+              description!,
+              style: DashType.small.copyWith(color: c.textSecondary),
             ),
           ...children,
         ],
@@ -476,6 +493,194 @@ class _PaymentsCard extends ConsumerWidget {
             value: fmt.fmtMoney(report.voidedAmount),
             color: DashTone.danger.foreground(c),
           ),
+      ],
+    );
+  }
+}
+
+/// Below this the four By person columns are stacked per person.
+const double _byPersonMinWidth = 340;
+
+/// "By person" (teller pick): the till's sold sales by who served them, in
+/// the server's order (largest first), each with its orders, total and tips.
+/// The server sends the lines only once someone on the till was picked at
+/// checkout, and the report shows the section only then. A person the server
+/// cannot name reads "—".
+class TillByPerson extends ConsumerWidget {
+  const TillByPerson({required this.lines, super.key});
+
+  final List<TillPersonLine> lines;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(tProvider);
+    final fmt = ref.watch(formatProvider);
+    final c = context.madarColors;
+    final head = DashType.tableHeader.copyWith(color: c.textSecondary);
+    final figure = DashType.mono.copyWith(fontSize: 13, color: c.textPrimary);
+    String name(TillPersonLine l) => l.name ?? '—';
+    // A name reads in its own direction ("Mona Adel" in Arabic) but starts
+    // on the line's start side, as the kit's table cells do.
+    final start = Directionality.of(context) == TextDirection.rtl
+        ? TextAlign.right
+        : TextAlign.left;
+    Widget keyed(int i, String column, Widget child) =>
+        KeyedSubtree(key: ValueKey('by-person-$i-$column'), child: child);
+    Widget cell(Widget child, {bool end = false, bool first = false}) =>
+        Padding(
+          padding: EdgeInsetsDirectional.only(
+            start: first ? 0 : Space.md,
+            top: Space.xs + 2,
+            bottom: Space.xs + 2,
+          ),
+          child: Align(
+            alignment: end
+                ? AlignmentDirectional.topEnd
+                : AlignmentDirectional.topStart,
+            child: child,
+          ),
+        );
+    Widget table() => Table(
+      columnWidths: const {
+        0: FlexColumnWidth(),
+        1: IntrinsicColumnWidth(),
+        2: IntrinsicColumnWidth(),
+        3: IntrinsicColumnWidth(),
+      },
+      defaultVerticalAlignment: TableCellVerticalAlignment.top,
+      children: [
+        TableRow(
+          children: [
+            cell(Text(t('common.name'), style: head), first: true),
+            cell(Text(t('dashboard.orders'), style: head), end: true),
+            cell(Text(t('common.total'), style: head), end: true),
+            cell(Text(t('tills.tips'), style: head), end: true),
+          ],
+        ),
+        for (final (i, l) in lines.indexed)
+          TableRow(
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: c.hairline)),
+            ),
+            children: [
+              cell(
+                keyed(
+                  i,
+                  'name',
+                  Text(
+                    name(l),
+                    textDirection: dashTextDirectionOf(name(l)),
+                    textAlign: start,
+                    style: DashType.body.copyWith(color: c.textPrimary),
+                  ),
+                ),
+                first: true,
+              ),
+              cell(
+                keyed(i, 'orders', Text('${l.orderCount}', style: figure)),
+                end: true,
+              ),
+              cell(
+                keyed(
+                  i,
+                  'total',
+                  Text(dashFigure(fmt.fmtMoney(l.total)), style: figure),
+                ),
+                end: true,
+              ),
+              cell(
+                keyed(
+                  i,
+                  'tips',
+                  Text(dashFigure(fmt.fmtMoney(l.tips)), style: figure),
+                ),
+                end: true,
+              ),
+            ],
+          ),
+      ],
+    );
+    // Too narrow for four columns (a phone): one block per person.
+    Widget stacked() => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (i, l) in lines.indexed)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: Space.sm),
+            decoration: i == 0
+                ? null
+                : BoxDecoration(
+                    border: Border(top: BorderSide(color: c.hairline)),
+                  ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              spacing: DashMetrics.hair,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: Space.sm,
+                  children: [
+                    Expanded(
+                      child: keyed(
+                        i,
+                        'name',
+                        Text(
+                          name(l),
+                          textDirection: dashTextDirectionOf(name(l)),
+                          textAlign: start,
+                          style: DashType.bodyMedium.copyWith(
+                            color: c.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    keyed(
+                      i,
+                      'total',
+                      Text(
+                        dashFigure(fmt.fmtMoney(l.total)),
+                        style: DashType.monoMedium.copyWith(
+                          fontSize: 14,
+                          color: c.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                keyed(
+                  i,
+                  'orders',
+                  ReportLine(
+                    label: t('dashboard.orders'),
+                    value: '${l.orderCount}',
+                    small: true,
+                  ),
+                ),
+                keyed(
+                  i,
+                  'tips',
+                  ReportLine(
+                    label: t('tills.tips'),
+                    value: fmt.fmtMoney(l.tips),
+                    small: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+    return _ReportCard(
+      key: const ValueKey('till-by-person'),
+      title: t('tills.byPerson.title'),
+      description: t('tills.byPerson.hint'),
+      children: [
+        LayoutBuilder(
+          builder: (context, box) =>
+              box.maxWidth < _byPersonMinWidth ? stacked() : table(),
+        ),
       ],
     );
   }
