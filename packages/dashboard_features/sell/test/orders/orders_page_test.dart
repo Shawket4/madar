@@ -584,6 +584,44 @@ void main() {
     }
   });
 
+  testWidgets('teller pick: the Teller cell names who sold (the picked '
+      'person), else the signed-in person', (tester) async {
+    final s = ordersServer();
+    final date = MockClock.cairoDate(s.db.clock.now);
+    final sale = s.db['orders'].find(
+      OrderSeedIds.deliverySale('heliopolis', date, 8),
+    )!;
+    final signedIn = sale['teller_name']! as String;
+    sale
+      ..['sold_by'] = SeedIds.user('mona')
+      ..['sold_by_name'] = 'Mona Adel';
+    final other = s.db['orders'].find(
+      OrderSeedIds.deliverySale('heliopolis', date, 7),
+    )!;
+    await pumpOrders(tester, server: s.server, db: s.db);
+    Finder row(Map<String, Object?> o) => find
+        .ancestor(
+          of: inTable(find.text(_ref(o))),
+          matching: find.byType(DashPressable),
+        )
+        .first;
+    expect(
+      find.descendant(of: row(sale), matching: find.text('Mona Adel')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: row(sale), matching: find.text(signedIn)),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: row(other),
+        matching: find.text(other['teller_name']! as String),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('SELL-ORD-020/SELL-ALL-015 the customer name opens the customer, '
       'not the row', (tester) async {
     final h = await pumpOrders(tester);

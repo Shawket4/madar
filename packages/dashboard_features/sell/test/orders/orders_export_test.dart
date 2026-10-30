@@ -376,6 +376,29 @@ void main() {
     expect(qty, [...qty]..sort((a, b) => b.compareTo(a)));
   });
 
+  testWidgets('teller pick: the Orders sheet\'s Teller column names who '
+      'sold (the picked person), else the signed-in person', (tester) async {
+    final s = ordersServer();
+    final completed = todaysOrders(
+      s.db,
+      SeedIds.heliopolis,
+    ).where((o) => o['status'] == 'completed').toList();
+    final picked = completed[0];
+    final plain = completed[1];
+    picked
+      ..['sold_by'] = SeedIds.user('mona')
+      ..['sold_by_name'] = 'Mona Adel';
+    final h = await _openExport(tester, server: s.server, db: s.db);
+    await h.tap(_run);
+    await h.flushTimers();
+    final sheet = h.exports.built.single.sheets.single;
+    expect(sheet.columns[2].header, 'Teller');
+    List<Object?> rowOf(Map<String, Object?> o) =>
+        sheet.rows.firstWhere((r) => r[0] == o['order_ref']);
+    expect(rowOf(picked)[2], 'Mona Adel');
+    expect(rowOf(plain)[2], plain['teller_name']);
+  });
+
   testWidgets('SELL-ORD-079 nothing matched: the toast, the sheet stays', (
     tester,
   ) async {

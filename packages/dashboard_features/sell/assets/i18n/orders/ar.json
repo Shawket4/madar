@@ -2,5 +2,8 @@
   "orderStatus": {
     "cancelled": "ملغي",
     "rejected": "مرفوض"
+  },
+  "orders": {
+    "signedIn": "مسجّل الدخول"
   }
 }

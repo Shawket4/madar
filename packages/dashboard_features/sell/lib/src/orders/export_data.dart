@@ -274,7 +274,8 @@ List<ExcelSheet<Object?>> buildExportSheets({
         ),
         ExcelColumn(
           header: t('tills.teller'),
-          accessor: (o) => o.tellerName,
+          // Who sold: the person picked at checkout, else the signed-in one.
+          accessor: (o) => o.soldByName ?? o.tellerName,
           type: ExcelColumnType.text,
           width: 18,
         ),

@@ -2,5 +2,8 @@
   "orderStatus": {
     "cancelled": "Cancelled",
     "rejected": "Rejected"
+  },
+  "orders": {
+    "signedIn": "Signed in"
   }
 }
