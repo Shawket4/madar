@@ -552,7 +552,7 @@ pub(crate) fn mint_order_ref(
         .ok()
         .flatten()
         .filter(|s| !s.is_empty())?;
-    let tz: chrono_tz::Tz = store.kv_get(KEY_BRANCH_TZ).ok().flatten()?.parse().ok()?;
+    let tz = madar_time::parse_zone(&store.kv_get(KEY_BRANCH_TZ).ok().flatten()?)?;
     let device = device_code_or_default(store);
     let yymmdd = crate::timefmt::yymmdd_in(tz, now_rfc3339)?;
     // Per-shift display number = synced base + (still-queued for this shift) + 1,

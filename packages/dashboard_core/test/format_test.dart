@@ -245,6 +245,18 @@ void main() {
       expect(piastresToEgp(1999), 19.99);
       expect(egpToPiastres(-1.005), -100);
     });
+
+    // madar-time's `parse_zone` through the core: an IANA name is a zone; an
+    // offset or an abbreviation is not (it is wrong half the year).
+    test('a zone is an IANA name, never a fixed offset', () {
+      expect(appTimezone, 'Africa/Cairo');
+      for (final zone in [appTimezone, 'Asia/Beirut', 'UTC']) {
+        expect(isKnownTimezone(zone), isTrue, reason: zone);
+      }
+      for (final bad in ['', '+03:00', 'UTC+3', 'EEST', 'Mars/Base']) {
+        expect(isKnownTimezone(bad), isFalse, reason: bad);
+      }
+    });
   });
 
   group('the web vectors', () {

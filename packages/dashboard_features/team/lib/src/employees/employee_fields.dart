@@ -387,7 +387,7 @@ class EmployeeDateField extends StatelessWidget {
             builder: (_) => _MonthCard(
               title: label,
               selected: picked,
-              today: dashDay(today ?? DateTime.now()),
+              today: dashDay(today ?? context.dashFormats.today()),
             ),
           );
           if (r == null) return;

@@ -18,7 +18,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Utc};
 use madar_authz::Cap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -1334,7 +1334,7 @@ pub(crate) fn in_branch_zone(v: &mut Value, tz: &chrono_tz::Tz) {
     match v {
         Value::String(x) if x.len() >= 20 && x.as_bytes().get(10) == Some(&b'T') => {
             if let Ok(d) = DateTime::parse_from_rfc3339(x) {
-                *x = d.with_timezone(tz).to_rfc3339_opts(chrono::SecondsFormat::AutoSi, false);
+                *x = madar_time::to_rfc3339_in(*tz, d.with_timezone(&Utc));
             }
         }
         Value::Array(a) => a.iter_mut().for_each(|x| in_branch_zone(x, tz)),
@@ -1978,14 +1978,14 @@ impl MadarCore {
 
     /// Today in the branch's time zone (AT-1), from the server's clock.
     fn dawam_today(&self) -> NaiveDate {
-        let tz = self.dawam_tz();
-        Utc.timestamp_millis_opt(self.corrected_now_ms()).single().unwrap_or_else(Utc::now).with_timezone(&tz).date_naive()
+        let now = Utc.timestamp_millis_opt(self.corrected_now_ms()).single().unwrap_or_else(Utc::now);
+        madar_time::today_in(self.dawam_tz(), now)
     }
 
     /// The zone of the branch I work at (AT-1, audit 03 bug 12): my own
     /// first branch, not whichever branch the mirror happens to list first
     /// (an owner or a manager sees every branch). No branch of mine known
-    /// yet: the first one, then Cairo.
+    /// yet: the first one, then madar-time's default zone (Cairo), said once.
     fn dawam_tz(&self) -> chrono_tz::Tz {
         let me = self.dawam_me().unwrap_or_default();
         let (branches, people) = self
@@ -1997,11 +1997,11 @@ impl MadarCore {
             .find(|p| s(p, "employee_id") == me)
             .map(|p| arr(p, "branch_ids").iter().filter_map(Value::as_str).map(str::to_string).collect())
             .unwrap_or_default();
-        let zone_of = |b: &Value| so(b, "timezone").and_then(|t| t.parse::<chrono_tz::Tz>().ok());
+        let zone_of = |b: &Value| so(b, "timezone").and_then(|t| madar_time::parse_zone(&t));
         mine.iter()
             .find_map(|id| branches.iter().find(|b| s(b, "id") == *id).and_then(zone_of))
             .or_else(|| branches.first().and_then(zone_of))
-            .unwrap_or(chrono_tz::Africa::Cairo)
+            .unwrap_or_else(|| crate::timefmt::fallback_zone("dawam.fallback_tz", "no branch timezone in the Dawam mirror"))
     }
 
     /// The screens' whole picture. `refresh` asks the server first; offline,
@@ -2862,7 +2862,7 @@ impl MadarCore {
         let locale = self.current_locale();
         let now = Utc.timestamp_millis_opt(self.corrected_now_ms()).single().unwrap_or_else(Utc::now);
         let tz = self.dawam_tz();
-        let today = now.with_timezone(&tz).date_naive();
+        let today = madar_time::today_in(tz, now);
         let queued = self.dawam_queued()?;
         let (warn_rows, coverage, date_sets, board, loaded) = self.store.with_conn(|c| {
             Ok((read_meta(c, "warnings"), read_meta(c, "coverage"), read_meta(c, "date_sets"), read_meta(c, "presence"), read_meta(c, "loaded")))
@@ -3105,12 +3105,7 @@ impl MadarCore {
                 }
                 // The cover's own window: the record's scheduled instants at
                 // the branch's time, else the covered shift's, else the block's.
-                let wall = |x: Option<DateTime<Utc>>| {
-                    x.map(|t| {
-                        let l = t.with_timezone(&tz);
-                        i64::from(l.hour() * 60 + l.minute())
-                    })
-                };
+                let wall = |x: Option<DateTime<Utc>>| x.map(|t| i64::from(madar_time::minutes_of_day(tz, t)));
                 let (start, end) = match (wall(at(r, "scheduled_start_at")), wall(at(r, "scheduled_end_at"))) {
                     (Some(a), Some(z)) => (a, z),
                     _ => owner_ix.map_or_else(|| tp.times_on(d), |ix| (shifts[ix].start, shifts[ix].end)),
@@ -6035,8 +6030,9 @@ mod tests {
         (stub, core)
     }
 
+    /// Today in the fixtures' branch zone (Cairo), on the real clock.
     fn today_cairo() -> NaiveDate {
-        Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive()
+        madar_time::today_in(madar_time::DEFAULT_ZONE, Utc::now())
     }
 
     fn posted(stub: &crate::testkit::Stub, path: &str) -> Value {
@@ -6055,7 +6051,7 @@ mod tests {
         use std::sync::{Arc, Mutex};
         let today = today_cairo();
         let (before, after) = ((today - Duration::days(3)).to_string(), (today - Duration::days(1)).to_string());
-        let saved_at = format!("{}T10:00:00+03:00", today - Duration::days(2));
+        let saved_at = madar_time::testing::wall_rfc3339(madar_time::DEFAULT_ZONE, today - Duration::days(2), "10:00");
         let settings = Arc::new(Mutex::new(json!({ "period_start_day": 26, "rules_saved": true, "rules_saved_at": saved_at })));
         let answer = settings.clone();
         let (b, a) = (before.clone(), after.clone());
@@ -6233,13 +6229,16 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn a_cover_row_has_its_own_status_and_window() {
         use crate::testkit::{StubResponse, BRANCH, TELLER};
-        let d = today_cairo().to_string();
+        let day = today_cairo();
+        let d = day.to_string();
+        // On the branch's wall clock at its real offset today (+03 in summer, +02 in winter).
+        let wall = |hm: &str| madar_time::testing::wall_rfc3339(madar_time::DEFAULT_ZONE, day, hm);
         for status in ["pending", "confirmed", "rejected"] {
             // I covered e4's shift; e4's roster is not in my picture.
             let cov = json!({ "id": "cov", "employee_id": TELLER, "covered_employee_id": "e4", "business_date": d, "work_shift_id": "w1",
                 "branch_id": BRANCH, "status": "present", "cover_status": status, "check_in_method": "cover",
-                "scheduled_start_at": format!("{d}T07:40:00Z"), "scheduled_end_at": format!("{d}T08:00:00Z"),
-                "check_in_at": format!("{d}T07:41:00Z") });
+                "scheduled_start_at": wall("10:40"), "scheduled_end_at": wall("11:00"),
+                "check_in_at": wall("10:41") });
             let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
                 ("GET", "/staff/me/attendance") => Some(StubResponse::json(200, json!([cov.clone()]))),
                 _ => None,
@@ -6248,7 +6247,7 @@ mod tests {
             let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
             let cover = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == "cover|cov").cloned().expect("my cover row");
             assert_eq!(cover["cover_status"], json!(status), "the cover's own status");
-            // 07:40Z–08:00Z is 10:40–11:00 in Cairo: 20 minutes, not Morning's 4 h.
+            // 10:40–11:00 in Cairo: 20 minutes, not Morning's 4 h.
             assert_eq!((cover["start"].clone(), cover["end"].clone()), (json!(640), json!(660)), "{status}: the cover's own window");
         }
         assert_ne!(i18n::tr("en", "staff.cover_not_confirmed"), i18n::tr("ar", "staff.cover_not_confirmed"));
@@ -8174,11 +8173,12 @@ mod tests {
     async fn a_started_shift_is_not_turned_into_an_open_one() {
         use crate::testkit::StubResponse;
         let yesterday = today_cairo() - Duration::days(1);
+        let wall = move |hm: &str| madar_time::testing::wall_rfc3339(madar_time::DEFAULT_ZONE, yesterday, hm);
         let (stub, core) = cafe(MGR, move |m, p, _| match (m, p) {
             ("GET", "/staff/roster") => Some(StubResponse::json(200, json!({
                 "published_weeks": [week_start(yesterday).to_string()], "date_sets": [], "open_shifts": [],
                 "shifts": [{ "employee_id": "e4", "date": yesterday, "work_shift_id": "w1", "start_time": "08:00:00", "end_time": "12:00:00",
-                             "start_at": format!("{yesterday}T05:00:00Z"), "end_at": format!("{yesterday}T09:00:00Z") }],
+                             "start_at": wall("08:00"), "end_at": wall("12:00") }],
             }))),
             _ => None,
         })

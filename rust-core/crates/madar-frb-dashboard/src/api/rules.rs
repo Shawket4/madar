@@ -19,8 +19,10 @@ fn ymd(s: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
 }
 
+/// An IANA zone name as a zone (madar-time's `parse_zone`): an offset such as
+/// `+03:00` is not one, so it reads as unknown.
 fn zone(name: &str) -> Option<chrono_tz::Tz> {
-    name.parse().ok()
+    madar_time::parse_zone(name)
 }
 
 /// `x` as the decimal it prints as; `None` for NaN or an infinity.

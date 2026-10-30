@@ -132,14 +132,21 @@ void main() {
     expect(inKey('tills-table', find.text('Farida Wael')), findsNothing);
   });
 
-  testWidgets('SELL-TIL-006 Today → ?today=true → from = local midnight', (
-    tester,
-  ) async {
-    final h = await pumpTills(tester);
+  testWidgets('SELL-TIL-006 Today → ?today=true → from = the branch zone\'s '
+      'midnight, never the device\'s', (tester) async {
+    // A branch nine hours from this machine's zone: its day starts at ITS
+    // midnight (madar-time `day_bounds`), as the web's `startOfToday()`.
+    const zone = 'Asia/Tokyo';
+    final s = tillsServer();
+    s.db['branches'].get(_helio)['timezone'] = zone;
+    final h = await pumpTills(tester, server: s.server, db: s.db);
+    expect(h.container.read(activeTimezoneProvider), zone);
     await h.tap(inKey('filter-today', find.text('Today')));
     expect(h.location.queryParameters['today'], 'true');
-    final now = h.container.read(clockProvider)().toLocal();
-    final midnight = DateTime(now.year, now.month, now.day).toUtc();
+    final day = inZone(h.container.read(clockProvider)(), zone);
+    final midnight = DateTime.parse(
+      dayBoundaryISO(zone, day.year, day.month - 1, day.day),
+    );
     final from = pageReads(h).last.query['from']!.single;
     expect(DateTime.parse(from), midnight);
     // Only the tills opened since then.

@@ -334,7 +334,8 @@ impl MadarCore {
     pub fn list_arrivals(&self) -> Result<Vec<bookings::BookingView>, CoreError> {
         let branch = self.signed_in_branch()?;
         let tz = crate::timefmt::branch_tz(&self.store);
-        let today = chrono::Utc::now().with_timezone(&tz).date_naive();
+        // The branch's day on the server-corrected clock, not the device's.
+        let today = madar_time::today_in(tz, self.corrected_now());
         let (from, to) = crate::timefmt::local_day_bounds(tz, today);
         let mut list: Vec<bookings::BookingView> = sync_pull::rows_of_type(&self.store, &branch, "booking")
             .into_iter()

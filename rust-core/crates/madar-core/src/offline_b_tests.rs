@@ -450,6 +450,10 @@ async fn the_boards_read_offline_from_the_synced_rows() {
             "phone_verified": true, "source": "host", "table_ids": [], "table_labels": []})
     };
     core.store.kv_put(crate::checkout::KEY_BRANCH_TZ, "UTC").unwrap();
+    // Bookings at fixed hours of the branch's day, so the test reads the same
+    // at any time of day (an offset from now crosses midnight late at night).
+    let today = madar_time::today_in(chrono_tz::UTC, now);
+    let at = |day: chrono::NaiveDate, hm: &str| madar_time::testing::wall(chrono_tz::UTC, day, hm);
     seed_rows(
         &core,
         &[
@@ -459,9 +463,9 @@ async fn the_boards_read_offline_from_the_synced_rows() {
             ("kitchen_ticket", serde_json::to_value(&closed_kt).unwrap()),
             ("delivery", delivery("d-new", "received")),
             ("delivery", delivery("d-done", "delivered")),
-            ("booking", booking("b-today", "confirmed", now + chrono::Duration::minutes(5))),
-            ("booking", booking("b-no-show", "confirmed", now + chrono::Duration::minutes(10))),
-            ("booking", booking("b-tomorrow", "confirmed", now + chrono::Duration::days(2))),
+            ("booking", booking("b-today", "confirmed", at(today, "12:00"))),
+            ("booking", booking("b-no-show", "confirmed", at(today, "12:30"))),
+            ("booking", booking("b-tomorrow", "confirmed", at(today.succ_opt().unwrap(), "12:00"))),
             ("branch_settings", serde_json::json!({"id": testkit::BRANCH, "delivery_prep_minutes": 35})),
         ],
     );
@@ -498,6 +502,59 @@ async fn the_boards_read_offline_from_the_synced_rows() {
 
     let notice = core.open_bills_notice().await.unwrap().expect("one bill open");
     assert_eq!((notice.open_bills_count, notice.open_bills_amount_minor), (2, 8_400), "the notice counts the rows");
+}
+
+/// Today's arrivals are the branch's today on the till's server-corrected
+/// clock, like every other "today" the till reads: a device clock two days
+/// behind still lists the bookings of the day the branch is in, not the
+/// device's day.
+#[tokio::test]
+async fn arrivals_are_todays_on_the_corrected_clock_not_the_devices() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    let tz = madar_time::DEFAULT_ZONE;
+    core.store.kv_put(crate::checkout::KEY_BRANCH_TZ, madar_time::DEFAULT_ZONE_NAME).unwrap();
+    core.clock_skew_secs.store(2 * 86_400, Ordering::Relaxed);
+    let device_day = madar_time::today_in(tz, chrono::Utc::now());
+    let branch_day = madar_time::today_in(tz, chrono::Utc::now() + chrono::Duration::days(2));
+    assert_ne!(device_day, branch_day);
+    let booking = |label: &str, day: chrono::NaiveDate| {
+        let starts = madar_time::testing::wall(tz, day, "12:00");
+        serde_json::json!({"id": uid(label), "branch_id": testkit::BRANCH, "status": "confirmed", "party_size": 2,
+            "starts_at": starts.to_rfc3339(), "ends_at": (starts + chrono::Duration::hours(1)).to_rfc3339(),
+            "held_from": (starts - chrono::Duration::minutes(15)).to_rfc3339(), "guest_name": "G", "guest_phone": "0101",
+            "created_at": starts.to_rfc3339(), "updated_at": starts.to_rfc3339(), "locale": "en", "needs_table": false,
+            "phone_verified": true, "source": "host", "table_ids": [], "table_labels": []})
+    };
+    seed_rows(&core, &[("booking", booking("b-branch-day", branch_day)), ("booking", booking("b-device-day", device_day))]);
+    let arrivals = core.list_arrivals().unwrap();
+    assert_eq!(arrivals.iter().map(|b| b.id.clone()).collect::<Vec<_>>(), vec![uid("b-branch-day")]);
+}
+
+/// The Metrics screen's "today" is the branch's today on the server-corrected
+/// clock, online (the day asked of the server) and on the device: a device
+/// clock two days behind still reads the day the branch is in.
+#[tokio::test]
+async fn metrics_today_is_the_branch_day_on_the_corrected_clock() {
+    let stub = Stub::start(|_| Some(StubResponse::json(503, serde_json::json!({})))).await;
+    let core = testkit::online_core(&stub.base, "").await;
+    core.set_online(true);
+    grant_customers(&core, &[crate::metrics::CAP]);
+    let tz = madar_time::DEFAULT_ZONE;
+    core.store.kv_put(crate::checkout::KEY_BRANCH_TZ, madar_time::DEFAULT_ZONE_NAME).unwrap();
+    core.clock_skew_secs.store(2 * 86_400, Ordering::Relaxed);
+    let device_day = madar_time::today_in(tz, chrono::Utc::now());
+    let branch_day = madar_time::today_in(tz, chrono::Utc::now() + chrono::Duration::days(2)).to_string();
+    assert_ne!(device_day.to_string(), branch_day);
+
+    let online = core.pos_metrics("today".into(), None, None).await.unwrap();
+    let asked = stub.requests("/reports/branches/");
+    assert_eq!(asked.len(), 1, "the server was asked once");
+    assert!(asked[0].path.contains(&format!("from={branch_day}")), "{}", asked[0].path);
+    assert!(asked[0].path.contains(&format!("to={branch_day}")), "{}", asked[0].path);
+    assert_eq!((online.from_date.as_str(), online.to_date.as_str()), (branch_day.as_str(), branch_day.as_str()));
+
+    let device = core.pos_metrics_on_device("today".into(), None, None).unwrap();
+    assert_eq!((device.from_date.as_str(), device.to_date.as_str()), (branch_day.as_str(), branch_day.as_str()));
 }
 
 /// The gaps the feed now carries reach the till: the person's grants, the

@@ -17,6 +17,7 @@ library;
 
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart' show isoString, wallClock;
+import 'package:dashboard_kit/dashboard_kit.dart' show dashDefaultTimezone;
 
 import '../area_seed.dart';
 
@@ -211,7 +212,7 @@ void registerAttendanceMocks(MockServer server, MockDb db) {
   String zoneOf(String? branchId) =>
       (branchId == null ? null : db['branches'].find(branchId))?['timezone']
           as String? ??
-      'Africa/Cairo';
+      dashDefaultTimezone;
 
   // ── list_attendance ──────────────────────────────────────────────────
   server.on('GET', '/staff/attendance', (req) {

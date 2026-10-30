@@ -3,6 +3,8 @@ library;
 
 import 'package:dashboard_core/src/authz/gates.dart' show errorMessage;
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
+import 'package:dashboard_core/src/scope/scope.dart'
+    show activeTimezoneProvider;
 import 'package:dashboard_core/src/session/session.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
@@ -21,12 +23,16 @@ final dashKitStringsProvider = Provider<DashKitStrings>(
   (ref) => dashKitStringsFrom(ref.watch(tProvider)),
 );
 
+/// The kit's formats: the language, the org currency, and the scope's zone
+/// and the app's clock, so a calendar's "today" is the branch's.
 final dashKitFormatsProvider = Provider<DashKitFormats>(
   (ref) => DashKitFormats(
     languageCode: ref.watch(localeProvider),
     currency: ref.watch(
       currentSessionProvider.select((s) => s?.currencyCode ?? 'EGP'),
     ),
+    timezone: ref.watch(activeTimezoneProvider),
+    clock: ref.watch(clockProvider),
   ),
 );
 

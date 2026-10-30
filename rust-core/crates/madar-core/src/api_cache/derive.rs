@@ -300,7 +300,7 @@ fn timeseries(points: &[Value], want: &Want<'_>) -> Option<Vec<usize>> {
         return None;
     }
     // The zone the caller named for this path's branch; never guessed.
-    let tz: chrono_tz::Tz = want.zone?.parse().ok()?;
+    let tz = madar_time::parse_zone(want.zone?)?;
     let Range::Instant(from, to) = want.range else {
         return None;
     };

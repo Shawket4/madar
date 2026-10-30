@@ -57,7 +57,7 @@ class ProvisionForm {
   String slug = '';
   String template = '';
   String currency = 'EGP';
-  String timezone = 'Africa/Cairo';
+  String timezone = appTimezone;
 
   /// A PERCENT as typed; a fraction on the wire.
   String taxRate = '0';

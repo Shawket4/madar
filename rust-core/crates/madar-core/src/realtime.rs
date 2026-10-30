@@ -299,7 +299,7 @@ fn alert_memory_effects(event_type: &str, data: &str) -> (Vec<String>, Vec<Strin
 /// The 12-hour clock time of an RFC3339 instant in the branch zone, in
 /// `locale` (`None` when unparsable).
 fn local_hhmm(rfc3339: &str, tz: &str, locale: &str) -> Option<String> {
-    let zone: chrono_tz::Tz = tz.parse().unwrap_or(chrono_tz::Africa::Cairo);
+    let zone = crate::timefmt::zone_or_flag(Some(tz), "realtime.fallback_tz", "no branch timezone for an alert");
     crate::timefmt::hhmm_in(zone, rfc3339, locale)
 }
 

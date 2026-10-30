@@ -157,7 +157,6 @@ class _BookingSettingsDialogState extends ConsumerState<BookingSettingsDialog> {
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm;
     final muted = DashType.small.copyWith(color: c.textSecondary);
     final digits = [FilteringTextInputFormatter.digitsOnly];
-    final today = ref.read(clockProvider)();
 
     Widget number(String key, String label, {String? hint}) =>
         DashFormField<String>(
@@ -353,7 +352,7 @@ class _BookingSettingsDialogState extends ConsumerState<BookingSettingsDialog> {
                     child: DashDateField(
                       key: const ValueKey('settings-blackout-date'),
                       value: _blackout,
-                      today: today,
+                      // Today is the branch zone's (the kit's default).
                       disablePast: true,
                       placeholder: t('bookings.addBlackout'),
                       semanticLabel: t('bookings.addBlackout'),

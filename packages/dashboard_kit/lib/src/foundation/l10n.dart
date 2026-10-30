@@ -2,6 +2,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart' hide TextDirection;
+import 'package:rust_bridge_dashboard/rules.dart' as rules;
 
 part 'l10n_tables.dart';
 
@@ -168,17 +169,47 @@ class DashKitStrings {
   String get costMissingFix => _('menu.costMissingFix');
 }
 
+/// madar-time's `DEFAULT_ZONE_NAME`: the zone a business is in when nothing
+/// says otherwise (`organizations.timezone`'s column default).
+/// dashboard_core's `appTimezone` is this constant.
+const String dashDefaultTimezone = 'Africa/Cairo';
+
 /// How the kit writes figures, money and dates — the web's `lib/format.ts`
 /// shapes. dashboard_core may pass its own (the org currency, the branch
 /// timezone); [DashKitFormats.new] is the web's default for a language.
 @immutable
 class DashKitFormats {
-  const DashKitFormats({this.languageCode = 'en', this.currency = 'EGP'});
+  const DashKitFormats({
+    this.languageCode = 'en',
+    this.currency = 'EGP',
+    this.timezone = dashDefaultTimezone,
+    this.clock,
+  });
 
   final String languageCode;
 
   /// ISO code of the org currency.
   final String currency;
+
+  /// The scope's IANA zone: a calendar's "today" is ITS date, never the
+  /// device's.
+  final String timezone;
+
+  /// The app's clock (dashboard_core's `clockProvider`); null is the
+  /// system clock.
+  final DateTime Function()? clock;
+
+  /// Today on [timezone]'s wall clock (madar-time's `business_date_of`
+  /// through the core) as a calendar day, local midnight like `dashDay`. An
+  /// unknown zone reads as [dashDefaultTimezone].
+  DateTime today() {
+    final at = (clock ?? DateTime.now)().millisecondsSinceEpoch;
+    final ymd =
+        rules.businessDate(tzName: timezone, atMs: at) ??
+        rules.businessDate(tzName: dashDefaultTimezone, atMs: at)!;
+    final p = ymd.split('-').map(int.parse).toList();
+    return DateTime(p[0], p[1], p[2]);
+  }
 
   bool get arabic => languageCode == 'ar';
 

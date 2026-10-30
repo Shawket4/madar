@@ -125,7 +125,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     _name = b?.name ?? '';
     _phone = b?.phone ?? '';
     _address = b?.address ?? '';
-    _timezone = b?.timezone ?? 'Africa/Cairo';
+    _timezone = b?.timezone ?? appTimezone;
     _active = b?.isActive ?? true;
     final brand = b?.printerBrand?.toJson();
     _printer = branchPrinterModels.contains(brand) ? brand! : 'none';

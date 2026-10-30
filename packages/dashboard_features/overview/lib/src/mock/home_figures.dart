@@ -12,6 +12,7 @@ library;
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart' show inZone;
+import 'package:dashboard_kit/dashboard_kit.dart' show dashDefaultTimezone;
 
 import 'home_seed.dart';
 
@@ -253,7 +254,7 @@ String scopeZone(MockDb db, String branchId, String? orgId) {
 
   final branch = branchId == nilBranchId ? null : db['branches'].find(branchId);
   final org = db['orgs'].find('${branch?['org_id'] ?? orgId}');
-  return zone(branch) ?? zone(org) ?? 'Africa/Cairo';
+  return zone(branch) ?? zone(org) ?? dashDefaultTimezone;
 }
 
 /// The bucket an instant falls in, as the backend writes it: a naive
@@ -261,7 +262,7 @@ String scopeZone(MockDb db, String branchId, String? orgId) {
 String periodOf(
   DateTime utc,
   String granularity, [
-  String zone = 'Africa/Cairo',
+  String zone = dashDefaultTimezone,
 ]) {
   final w = inZone(utc, zone);
   final day = '${w.year}-${_two(w.month)}-${_two(w.day)}';
@@ -277,7 +278,7 @@ String periodOf(
 List<TimeseriesPoint> salesTimeseries(
   List<MockRow> orders,
   String granularity, [
-  String zone = 'Africa/Cairo',
+  String zone = dashDefaultTimezone,
 ]) {
   final buckets = <String, List<MockRow>>{};
   for (final o in orders) {

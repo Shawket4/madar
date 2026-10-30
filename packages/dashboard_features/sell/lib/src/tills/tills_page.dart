@@ -145,23 +145,26 @@ class _TillsPageState extends ConsumerState<TillsPage> {
 
   void _openReport(String id) => _setSearch({'report': id});
 
-  /// The device's local midnight today, as the web's `startOfToday()`
-  /// (SELL-TIL-006: the device's clock, not the branch zone).
-  DateTime _startOfToday() {
-    final now = ref.read(clockProvider)().toLocal();
-    return DateTime(now.year, now.month, now.day).toUtc();
+  /// The start of the branch's business day in the scope's zone (madar-time
+  /// `day_bounds`), as the web's `startOfToday()` (SELL-TIL-006): never the
+  /// device's midnight.
+  DateTime _startOfToday(Scope scope) {
+    final day = inZone(ref.read(clockProvider)(), scope.timezone);
+    return DateTime.parse(
+      dayBoundaryISO(scope.timezone, day.year, day.month - 1, day.day),
+    );
   }
 
   TillsListKey _listKey(Scope scope, TillsSearch s, {int? page}) =>
       tillsListKey(
         scope,
         s,
-        from: s.today ? _startOfToday() : null,
+        from: s.today ? _startOfToday(scope) : null,
         page: page,
       );
 
   TillsListKey _flaggedKey(Scope scope, TillsSearch s) =>
-      tillsFlaggedKey(scope, s, from: s.today ? _startOfToday() : null);
+      tillsFlaggedKey(scope, s, from: s.today ? _startOfToday(scope) : null);
 
   /// A filter change starts again at page 1; `?report=` keeps the page.
   void _setFilters(Map<String, String?> patch) =>
