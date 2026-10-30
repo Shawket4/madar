@@ -162,9 +162,17 @@ fn offline_the_later_saved_wins() {
     assert_eq!(saved(&c, "u1", &exact, None), Some((row("newest"), 30)));
 }
 
-/// The period picker's local-day bounds in Cairo (UTC+3 in October 2026).
-fn cairo(from: &str, to: &str) -> [(&'static str, String); 2] {
-    [("from", format!("{from}T21:00:00.000Z")), ("to", format!("{to}T20:59:59.999Z"))]
+/// The period picker's bounds for the Cairo days `first..=last`: madar-time's
+/// day bounds at Cairo's real offset on those days (+03 in summer, +02 in winter).
+fn cairo(first: &str, last: &str) -> [(&'static str, String); 2] {
+    let day = |s: &str| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap();
+    let (start, _) = madar_time::day_bounds(madar_time::DEFAULT_ZONE, day(first));
+    [("from", iso_ms(start)), ("to", iso_ms(madar_time::last_instant_of_day(madar_time::DEFAULT_ZONE, day(last))))]
+}
+
+/// `2026-10-01T21:00:00.000Z`, the shape the period picker sends.
+fn iso_ms(at: chrono::DateTime<chrono::Utc>) -> String {
+    at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
 fn series_req(id: &str, g: &str, from: &str, to: &str) -> CacheRequest {
@@ -175,24 +183,35 @@ fn series_req(id: &str, g: &str, from: &str, to: &str) -> CacheRequest {
 
 #[test]
 fn timeseries_points_of_whole_local_days_in_the_named_zone() {
+    // Summer days (UTC+3: 1 Oct starts at 30 Sep 21:00Z) and winter days
+    // (UTC+2: 14 Jan starts at 13 Jan 22:00Z) alike.
+    for [d1, d2, d3] in [["2026-01-14", "2026-01-15", "2026-01-16"], ["2026-10-01", "2026-10-02", "2026-10-03"]] {
+        let c = cache(DEFAULT_MAX_BYTES);
+        c.claim("u1").unwrap();
+        let points = json!([{"period": d1, "net": 1}, {"period": d2, "net": 2}, {"period": d3, "net": 3}]);
+        save(&c, "u1", &series_req(B, "daily", d1, d3), &points, 5);
+        assert_eq!(
+            saved(&c, "u1", &series_req(B, "daily", d2, d3), Some("Africa/Cairo")).map(|s| s.0),
+            Some(json!([{"period": d2, "net": 2}, {"period": d3, "net": 3}])),
+            "{d1}"
+        );
+    }
     let c = cache(DEFAULT_MAX_BYTES);
     c.claim("u1").unwrap();
     let points = json!([{"period": "2026-10-01", "net": 1}, {"period": "2026-10-02", "net": 2}, {"period": "2026-10-03", "net": 3}]);
-    // 1–3 Oct in Cairo: from 30 Sep 21:00Z to 3 Oct 20:59:59.999Z.
-    save(&c, "u1", &series_req(B, "daily", "2026-09-30", "2026-10-03"), &points, 5);
-    let sub = series_req(B, "daily", "2026-10-01", "2026-10-03"); // 2–3 Oct
-    assert_eq!(
-        saved(&c, "u1", &sub, Some("Africa/Cairo")).map(|s| s.0),
-        Some(json!([{"period": "2026-10-02", "net": 2}, {"period": "2026-10-03", "net": 3}]))
-    );
+    save(&c, "u1", &series_req(B, "daily", "2026-10-01", "2026-10-03"), &points, 5);
+    let sub = series_req(B, "daily", "2026-10-02", "2026-10-03");
     assert_eq!(saved(&c, "u1", &sub, None), None, "no zone: never guessed");
     assert_eq!(saved(&c, "u1", &sub, Some("UTC")), None, "not whole days there");
     let mut late = sub.clone();
-    late.query[1].1 = "2026-10-01T22:00:00.000Z".into(); // 01:00 on 2 Oct in Cairo
+    // 01:00 on 2 Oct in Cairo.
+    let second = chrono::NaiveDate::from_ymd_opt(2026, 10, 2).unwrap();
+    let one_am = madar_time::testing::wall(madar_time::DEFAULT_ZONE, second, "01:00");
+    late.query[1].1 = iso_ms(one_am);
     assert_eq!(saved(&c, "u1", &late, Some("Africa/Cairo")), None, "a range must start at a local midnight");
     // Monthly points are never cut by days.
-    save(&c, "u1", &series_req(B, "monthly", "2026-09-30", "2026-10-03"), &json!([]), 6);
-    assert_eq!(saved(&c, "u1", &series_req(B, "monthly", "2026-10-01", "2026-10-02"), Some("Africa/Cairo")), None);
+    save(&c, "u1", &series_req(B, "monthly", "2026-10-01", "2026-10-03"), &json!([]), 6);
+    assert_eq!(saved(&c, "u1", &series_req(B, "monthly", "2026-10-02", "2026-10-02"), Some("Africa/Cairo")), None);
     assert_eq!(zone_branch(&sub.path), Some(Some(B.to_string())));
     assert_eq!(zone_branch(&format!("/reports/branches/{ALL}/sales/timeseries", ALL = crate::reports::ALL_BRANCHES_ID)), Some(None));
     assert_eq!(zone_branch("/staff/attendance"), None);

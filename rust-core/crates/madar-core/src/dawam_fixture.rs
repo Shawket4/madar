@@ -23,9 +23,11 @@ impl World {
     fn d(&self, days: i64) -> String {
         (self.today + Duration::days(days)).to_string()
     }
+    /// `hm` on that day on the branch's wall clock, at Cairo's real offset
+    /// that day (+03 in summer, +02 in winter): the core reads it back in the
+    /// branch zone, so a fixed `+03:00` read an hour early all winter.
     fn at(&self, days: i64, hm: &str) -> String {
-        // Cairo is UTC+3 in the fixture's months; the value only has to be stable.
-        format!("{}T{}:00+03:00", self.d(days), hm)
+        madar_time::testing::wall_rfc3339(madar_time::DEFAULT_ZONE, self.today + Duration::days(days), hm)
     }
 
     fn context(&self, role: &str) -> Value {
@@ -248,8 +250,13 @@ fn with(mut base: Value, extra: Value) -> Value {
     base
 }
 
+/// Today in the fixture's branch zone (Cairo), on the real clock.
+fn today() -> NaiveDate {
+    madar_time::today_in(madar_time::DEFAULT_ZONE, Utc::now())
+}
+
 async fn snapshot_for(who: &str, role: &'static str) -> Value {
-    let world = World { today: Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive() };
+    let world = World { today: today() };
     let today = world.today;
     let stub = Stub::start(move |r| {
         let path = r.path.split('?').next().unwrap_or_default().to_string();
@@ -268,9 +275,7 @@ async fn snapshot_for(who: &str, role: &'static str) -> Value {
     let mut v: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
     // The app's clock is the snapshot's `now`: pin it to 09:30 in Cairo so the
     // morning shift is on whatever time of day the fixtures are written.
-    let nine = today.and_hms_opt(9, 30, 0).unwrap();
-    let at = chrono::TimeZone::from_local_datetime(&chrono_tz::Africa::Cairo, &nine).single().unwrap();
-    v["now"] = json!(at.to_rfc3339());
+    v["now"] = json!(madar_time::testing::wall_rfc3339(madar_time::DEFAULT_ZONE, today, "09:30"));
     v
 }
 
@@ -316,12 +321,12 @@ async fn dawam_fixture_three_people_see_their_own_picture() {
     // assignment's own times past midnight, a split day.
     let brunch = e2["templates"].as_array().unwrap().iter().find(|t| t["id"] == "zB").unwrap();
     assert_eq!(brunch["days"], json!([5]), "Friday only, in ISO");
-    let two = (Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive() + Duration::days(2)).to_string();
+    let two = (today() + Duration::days(2)).to_string();
     let late = e2["shifts"].as_array().unwrap().iter().find(|s| s["id"] == json!(format!("e4|{two}|zE"))).unwrap();
     assert_eq!((late["end"].as_i64(), late["next_day"].as_bool(), late["edited"].as_bool()), (Some(30), Some(true), Some(true)));
-    let three = (Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive() + Duration::days(3)).to_string();
+    let three = (today() + Duration::days(3)).to_string();
     assert_eq!(e1["shifts"].as_array().unwrap().iter().filter(|s| s["emp"] == "e1" && s["date"] == json!(three)).count(), 2, "a split day");
-    let six = (Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive() + Duration::days(6)).to_string();
+    let six = (today() + Duration::days(6)).to_string();
     assert_eq!(e2["days_off"], json!([format!("e1|{six}")]));
     // The owner: payroll, and the adjustment over the manager's limit.
     assert!(e3["can_payroll"].as_bool().unwrap());

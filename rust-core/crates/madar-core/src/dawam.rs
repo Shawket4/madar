@@ -6035,8 +6035,9 @@ mod tests {
         (stub, core)
     }
 
+    /// Today in the fixtures' branch zone (Cairo), on the real clock.
     fn today_cairo() -> NaiveDate {
-        Utc::now().with_timezone(&chrono_tz::Africa::Cairo).date_naive()
+        madar_time::today_in(madar_time::DEFAULT_ZONE, Utc::now())
     }
 
     fn posted(stub: &crate::testkit::Stub, path: &str) -> Value {
@@ -6055,7 +6056,7 @@ mod tests {
         use std::sync::{Arc, Mutex};
         let today = today_cairo();
         let (before, after) = ((today - Duration::days(3)).to_string(), (today - Duration::days(1)).to_string());
-        let saved_at = format!("{}T10:00:00+03:00", today - Duration::days(2));
+        let saved_at = madar_time::testing::wall_rfc3339(madar_time::DEFAULT_ZONE, today - Duration::days(2), "10:00");
         let settings = Arc::new(Mutex::new(json!({ "period_start_day": 26, "rules_saved": true, "rules_saved_at": saved_at })));
         let answer = settings.clone();
         let (b, a) = (before.clone(), after.clone());
@@ -6233,13 +6234,16 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn a_cover_row_has_its_own_status_and_window() {
         use crate::testkit::{StubResponse, BRANCH, TELLER};
-        let d = today_cairo().to_string();
+        let day = today_cairo();
+        let d = day.to_string();
+        // On the branch's wall clock at its real offset today (+03 in summer, +02 in winter).
+        let wall = |hm: &str| madar_time::testing::wall_rfc3339(madar_time::DEFAULT_ZONE, day, hm);
         for status in ["pending", "confirmed", "rejected"] {
             // I covered e4's shift; e4's roster is not in my picture.
             let cov = json!({ "id": "cov", "employee_id": TELLER, "covered_employee_id": "e4", "business_date": d, "work_shift_id": "w1",
                 "branch_id": BRANCH, "status": "present", "cover_status": status, "check_in_method": "cover",
-                "scheduled_start_at": format!("{d}T07:40:00Z"), "scheduled_end_at": format!("{d}T08:00:00Z"),
-                "check_in_at": format!("{d}T07:41:00Z") });
+                "scheduled_start_at": wall("10:40"), "scheduled_end_at": wall("11:00"),
+                "check_in_at": wall("10:41") });
             let (_stub, core) = cafe(&[], move |m, p, _| match (m, p) {
                 ("GET", "/staff/me/attendance") => Some(StubResponse::json(200, json!([cov.clone()]))),
                 _ => None,
@@ -6248,7 +6252,7 @@ mod tests {
             let snap: Value = serde_json::from_str(&core.dawam_snapshot(true).await.unwrap()).unwrap();
             let cover = snap["shifts"].as_array().unwrap().iter().find(|x| x["id"] == "cover|cov").cloned().expect("my cover row");
             assert_eq!(cover["cover_status"], json!(status), "the cover's own status");
-            // 07:40Z–08:00Z is 10:40–11:00 in Cairo: 20 minutes, not Morning's 4 h.
+            // 10:40–11:00 in Cairo: 20 minutes, not Morning's 4 h.
             assert_eq!((cover["start"].clone(), cover["end"].clone()), (json!(640), json!(660)), "{status}: the cover's own window");
         }
         assert_ne!(i18n::tr("en", "staff.cover_not_confirmed"), i18n::tr("ar", "staff.cover_not_confirmed"));
@@ -8174,11 +8178,12 @@ mod tests {
     async fn a_started_shift_is_not_turned_into_an_open_one() {
         use crate::testkit::StubResponse;
         let yesterday = today_cairo() - Duration::days(1);
+        let wall = move |hm: &str| madar_time::testing::wall_rfc3339(madar_time::DEFAULT_ZONE, yesterday, hm);
         let (stub, core) = cafe(MGR, move |m, p, _| match (m, p) {
             ("GET", "/staff/roster") => Some(StubResponse::json(200, json!({
                 "published_weeks": [week_start(yesterday).to_string()], "date_sets": [], "open_shifts": [],
                 "shifts": [{ "employee_id": "e4", "date": yesterday, "work_shift_id": "w1", "start_time": "08:00:00", "end_time": "12:00:00",
-                             "start_at": format!("{yesterday}T05:00:00Z"), "end_at": format!("{yesterday}T09:00:00Z") }],
+                             "start_at": wall("08:00"), "end_at": wall("12:00") }],
             }))),
             _ => None,
         })
