@@ -9,6 +9,7 @@ import '../codec.dart';
 import '../transport.dart';
 import 'models.dart';
 
+part 'apis/admin_api.dart';
 part 'apis/ai_api.dart';
 part 'apis/assets_api.dart';
 part 'apis/auth_api.dart';

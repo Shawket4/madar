@@ -14,6 +14,7 @@ class DashboardApi {
 
   final ApiTransport transport;
 
+  late final AdminApi admin = AdminApi(transport);
   late final AiApi ai = AiApi(transport);
   late final AssetsApi assets = AssetsApi(transport);
   late final AuthApi auth = AuthApi(transport);

@@ -117,6 +117,102 @@ class LoyaltyApi {
     );
   }
 
+  /// `GET /loyalty/broadcasts` (list_loyalty_broadcasts)
+  Future<BroadcastsPage> listLoyaltyBroadcasts({
+    int? limit,
+    int? offset,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/loyalty/broadcasts',
+        query: {
+          if (limit != null) 'limit': [queryValue(limit)],
+          if (offset != null) 'offset': [queryValue(offset)],
+        },
+      ),
+    );
+    return decodeResponse(
+      response,
+      'list_loyalty_broadcasts',
+      (json) =>
+          decObject(json, 'list_loyalty_broadcasts', BroadcastsPage.fromJson),
+    );
+  }
+
+  /// Send now, or schedule.
+  ///
+  /// `POST /loyalty/broadcasts` (create_loyalty_broadcast)
+  Future<Broadcast> createLoyaltyBroadcast({
+    required BroadcastInput body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/loyalty/broadcasts',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'create_loyalty_broadcast',
+      (json) => decObject(json, 'create_loyalty_broadcast', Broadcast.fromJson),
+    );
+  }
+
+  /// How many members an audience reaches, before sending.
+  ///
+  /// `POST /loyalty/broadcasts/audience` (count_loyalty_broadcast_audience)
+  Future<AudienceCount> countLoyaltyBroadcastAudience({
+    required AudienceRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/loyalty/broadcasts/audience',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'count_loyalty_broadcast_audience',
+      (json) => decObject(
+        json,
+        'count_loyalty_broadcast_audience',
+        AudienceCount.fromJson,
+      ),
+    );
+  }
+
+  /// `GET /loyalty/broadcasts/{id}` (get_loyalty_broadcast)
+  Future<Broadcast> getLoyaltyBroadcast({required String id}) async {
+    final response = await _transport.send(
+      ApiRequest(method: 'GET', path: '/loyalty/broadcasts/${pathSegment(id)}'),
+    );
+    return decodeResponse(
+      response,
+      'get_loyalty_broadcast',
+      (json) => decObject(json, 'get_loyalty_broadcast', Broadcast.fromJson),
+    );
+  }
+
+  /// Cancel a scheduled message (one already sending finishes).
+  ///
+  /// `POST /loyalty/broadcasts/{id}/cancel` (cancel_loyalty_broadcast)
+  Future<Broadcast> cancelLoyaltyBroadcast({required String id}) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/loyalty/broadcasts/${pathSegment(id)}/cancel',
+      ),
+    );
+    return decodeResponse(
+      response,
+      'cancel_loyalty_broadcast',
+      (json) => decObject(json, 'cancel_loyalty_broadcast', Broadcast.fromJson),
+    );
+  }
+
   /// `GET /loyalty/campaign-effectiveness` (get_loyalty_campaign_effectiveness)
   Future<CampaignEffectiveness> getLoyaltyCampaignEffectiveness({
     String? branchId,
@@ -142,6 +238,153 @@ class LoyaltyApi {
         'get_loyalty_campaign_effectiveness',
         CampaignEffectiveness.fromJson,
       ),
+    );
+  }
+
+  /// `GET /loyalty/card-design` (get_loyalty_card_design)
+  Future<CardDesignView> getLoyaltyCardDesign() async {
+    final response = await _transport.send(
+      ApiRequest(method: 'GET', path: '/loyalty/card-design'),
+    );
+    return decodeResponse(
+      response,
+      'get_loyalty_card_design',
+      (json) =>
+          decObject(json, 'get_loyalty_card_design', CardDesignView.fromJson),
+    );
+  }
+
+  /// `PUT /loyalty/card-design` (put_loyalty_card_design)
+  Future<CardDesignView> putLoyaltyCardDesign({
+    required PutCardDesign body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'PUT',
+        path: '/loyalty/card-design',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'put_loyalty_card_design',
+      (json) =>
+          decObject(json, 'put_loyalty_card_design', CardDesignView.fromJson),
+    );
+  }
+
+  /// The strip (Apple @2x) or the hero (Google) exactly as the wallet will get
+  /// it, for the designer's "as the wallet renders it" view. Not saved.
+  ///
+  /// `POST /loyalty/card-design/preview` (preview_loyalty_card_design)
+  Future<List<int>> previewLoyaltyCardDesign({
+    required CardPreviewRequest body,
+  }) async {
+    return (await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/loyalty/card-design/preview',
+        body: body.toJson(),
+      ),
+    )).bodyBytes;
+  }
+
+  /// `POST /loyalty/card-design/publish` (publish_loyalty_card_design)
+  Future<CardDesignView> publishLoyaltyCardDesign() async {
+    final response = await _transport.send(
+      ApiRequest(method: 'POST', path: '/loyalty/card-design/publish'),
+    );
+    return decodeResponse(
+      response,
+      'publish_loyalty_card_design',
+      (json) => decObject(
+        json,
+        'publish_loyalty_card_design',
+        CardDesignView.fromJson,
+      ),
+    );
+  }
+
+  /// `DELETE /loyalty/card-design/published` (unpublish_loyalty_card_design)
+  Future<CardDesignView> unpublishLoyaltyCardDesign() async {
+    final response = await _transport.send(
+      ApiRequest(method: 'DELETE', path: '/loyalty/card-design/published'),
+    );
+    return decodeResponse(
+      response,
+      'unpublish_loyalty_card_design',
+      (json) => decObject(
+        json,
+        'unpublish_loyalty_card_design',
+        CardDesignView.fromJson,
+      ),
+    );
+  }
+
+  /// Hand over the member's birthday gift at the counter: one free item, the
+  /// shop's pick. No balance moves.
+  ///
+  /// `POST /loyalty/counter/birthday-gift` (loyalty_counter_birthday_gift)
+  Future<CounterGiftResult> loyaltyCounterBirthdayGift({
+    required CounterGiftRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/loyalty/counter/birthday-gift',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'loyalty_counter_birthday_gift',
+      (json) => decObject(
+        json,
+        'loyalty_counter_birthday_gift',
+        CounterGiftResult.fromJson,
+      ),
+    );
+  }
+
+  /// Complete a full card: deduct exactly the card's size; extra stamps stay.
+  ///
+  /// `POST /loyalty/counter/redeem` (loyalty_counter_redeem)
+  Future<CounterResult> loyaltyCounterRedeem({
+    required CounterRedeemRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/loyalty/counter/redeem',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'loyalty_counter_redeem',
+      (json) =>
+          decObject(json, 'loyalty_counter_redeem', CounterResult.fromJson),
+    );
+  }
+
+  /// Stamp a member's card for a visit (no order).
+  ///
+  /// `POST /loyalty/counter/stamp` (loyalty_counter_stamp)
+  Future<CounterResult> loyaltyCounterStamp({
+    required CounterStampRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/loyalty/counter/stamp',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'loyalty_counter_stamp',
+      (json) =>
+          decObject(json, 'loyalty_counter_stamp', CounterResult.fromJson),
     );
   }
 
@@ -261,6 +504,27 @@ class LoyaltyApi {
     );
   }
 
+  /// Search, filter by a segment, sort and page the members.
+  ///
+  /// `POST /loyalty/members/query` (query_loyalty_members)
+  Future<CrmMembersPage> queryLoyaltyMembers({
+    required MembersQueryRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'POST',
+        path: '/loyalty/members/query',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'query_loyalty_members',
+      (json) =>
+          decObject(json, 'query_loyalty_members', CrmMembersPage.fromJson),
+    );
+  }
+
   /// Leave the programme: the card ends, the customer stays (design §2.8).
   ///
   /// This used to FORGET the person — it was written when the loyalty row was the
@@ -375,6 +639,22 @@ class LoyaltyApi {
     );
   }
 
+  /// `GET /loyalty/members/{id}/wallet` (get_loyalty_member_wallet)
+  Future<MemberWallet> getLoyaltyMemberWallet({required String id}) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/loyalty/members/${pathSegment(id)}/wallet',
+      ),
+    );
+    return decodeResponse(
+      response,
+      'get_loyalty_member_wallet',
+      (json) =>
+          decObject(json, 'get_loyalty_member_wallet', MemberWallet.fromJson),
+    );
+  }
+
   /// `GET /loyalty/reward-items` (get_loyalty_reward_items)
   Future<RewardCatalogue> getLoyaltyRewardItems({String? branchId}) async {
     final response = await _transport.send(
@@ -457,6 +737,49 @@ class LoyaltyApi {
       'put_loyalty_settings',
       (json) =>
           decObject(json, 'put_loyalty_settings', LoyaltySettings.fromJson),
+    );
+  }
+
+  /// `GET /loyalty/stats` (get_loyalty_stats)
+  Future<RewardsStats> getLoyaltyStats({DateTime? from, DateTime? to}) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/loyalty/stats',
+        query: {
+          if (from != null) 'from': [queryValue(from)],
+          if (to != null) 'to': [queryValue(to)],
+        },
+      ),
+    );
+    return decodeResponse(
+      response,
+      'get_loyalty_stats',
+      (json) => decObject(json, 'get_loyalty_stats', RewardsStats.fromJson),
+    );
+  }
+
+  /// `GET /loyalty/tracks` (get_loyalty_tracks)
+  Future<TracksView> getLoyaltyTracks() async {
+    final response = await _transport.send(
+      ApiRequest(method: 'GET', path: '/loyalty/tracks'),
+    );
+    return decodeResponse(
+      response,
+      'get_loyalty_tracks',
+      (json) => decObject(json, 'get_loyalty_tracks', TracksView.fromJson),
+    );
+  }
+
+  /// `PUT /loyalty/tracks` (put_loyalty_tracks)
+  Future<TracksView> putLoyaltyTracks({required PutTracks body}) async {
+    final response = await _transport.send(
+      ApiRequest(method: 'PUT', path: '/loyalty/tracks', body: body.toJson()),
+    );
+    return decodeResponse(
+      response,
+      'put_loyalty_tracks',
+      (json) => decObject(json, 'put_loyalty_tracks', TracksView.fromJson),
     );
   }
 

@@ -52,6 +52,8 @@ class OrderExport {
     this.serviceChargeWaivedByName,
     this.serviceMode,
     required this.shiftId,
+    this.soldBy,
+    this.soldByName,
     this.startedBy,
     this.startedByName,
     required this.status,
@@ -211,6 +213,8 @@ class OrderExport {
     ),
     serviceMode: decStringN(json['service_mode'], 'OrderExport.service_mode'),
     shiftId: decString(json['shift_id'], 'OrderExport.shift_id'),
+    soldBy: decStringN(json['sold_by'], 'OrderExport.sold_by'),
+    soldByName: decStringN(json['sold_by_name'], 'OrderExport.sold_by_name'),
     startedBy: decStringN(json['started_by'], 'OrderExport.started_by'),
     startedByName: decStringN(
       json['started_by_name'],
@@ -428,6 +432,15 @@ class OrderExport {
   /// DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0).
   final String shiftId;
 
+  /// Who was picked as serving at checkout, on a branch that asks
+  /// (`branches.pick_teller_at_checkout`). Attribution only: `teller_id`
+  /// stays the signed-in person (the drawer, the money permissions).
+  /// `null` when nobody was picked. Additive.
+  final String? soldBy;
+
+  /// That person's name. Additive.
+  final String? soldByName;
+
   /// Who started this sale's cart when it is not the person who rang it: a
   /// held order resumed after a teller switch on the till. `null` otherwise.
   /// Additive.
@@ -592,6 +605,9 @@ class OrderExport {
     if (serviceMode != null || explicitNulls.contains('service_mode'))
       'service_mode': serviceMode,
     'shift_id': shiftId,
+    if (soldBy != null || explicitNulls.contains('sold_by')) 'sold_by': soldBy,
+    if (soldByName != null || explicitNulls.contains('sold_by_name'))
+      'sold_by_name': soldByName,
     if (startedBy != null || explicitNulls.contains('started_by'))
       'started_by': startedBy,
     if (startedByName != null || explicitNulls.contains('started_by_name'))

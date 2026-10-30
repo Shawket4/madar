@@ -25,6 +25,7 @@ class CreateOrderRequest {
     this.idempotencyKey,
     required this.items,
     this.liveApproval,
+    this.loyaltyBirthdayGift,
     this.loyaltyCustomerId,
     this.loyaltyRedemptions,
     this.notes,
@@ -33,6 +34,7 @@ class CreateOrderRequest {
     required this.paymentMethod,
     this.paymentSplits,
     this.serviceMode,
+    this.soldBy,
     this.startedBy,
     this.subtotal,
     this.taxAmount,
@@ -129,6 +131,11 @@ class CreateOrderRequest {
       'CreateOrderRequest.live_approval',
       ReplayApproval.fromJson,
     ),
+    loyaltyBirthdayGift: decObjectN(
+      json['loyalty_birthday_gift'],
+      'CreateOrderRequest.loyalty_birthday_gift',
+      LoyaltyGiftInput.fromJson,
+    ),
     loyaltyCustomerId: decStringN(
       json['loyalty_customer_id'],
       'CreateOrderRequest.loyalty_customer_id',
@@ -165,6 +172,7 @@ class CreateOrderRequest {
       json['service_mode'],
       'CreateOrderRequest.service_mode',
     ),
+    soldBy: decStringN(json['sold_by'], 'CreateOrderRequest.sold_by'),
     startedBy: decStringN(json['started_by'], 'CreateOrderRequest.started_by'),
     subtotal: decIntN(json['subtotal'], 'CreateOrderRequest.subtotal'),
     taxAmount: decIntN(json['tax_amount'], 'CreateOrderRequest.tax_amount'),
@@ -239,6 +247,8 @@ class CreateOrderRequest {
 
   final ReplayApproval? liveApproval;
 
+  final LoyaltyGiftInput? loyaltyBirthdayGift;
+
   /// The loyalty member spending a balance on this sale. Required when
   /// `loyalty_redemptions` is non-empty, and ONLY for that: earning is a
   /// separate, later act (`POST /loyalty/award`), so a sale that redeems
@@ -279,6 +289,14 @@ class CreateOrderRequest {
   /// effect is that packaging (cups, lids, straws) is not deducted from
   /// stock. Absent ⇒ takeaway, which is what every client before this did.
   final String? serviceMode;
+
+  /// Who was picked as serving at checkout, on a branch that asks
+  /// (`branches.pick_teller_at_checkout`). Attribution only: `teller_id`
+  /// stays the signed-in person. Recorded when it names someone who can
+  /// ring sales at the branch (on replay: someone of the org); anything else
+  /// is recorded as nobody with a warning, never refused. Additive; older
+  /// tills omit it.
+  final String? soldBy;
 
   /// The person who started this sale's cart, when the till says it was not
   /// the person ringing it (a held order resumed after a teller switch).
@@ -347,6 +365,9 @@ class CreateOrderRequest {
     'items': items.map((e) => e.toJson()).toList(),
     if (liveApproval != null || explicitNulls.contains('live_approval'))
       'live_approval': liveApproval?.toJson(),
+    if (loyaltyBirthdayGift != null ||
+        explicitNulls.contains('loyalty_birthday_gift'))
+      'loyalty_birthday_gift': loyaltyBirthdayGift?.toJson(),
     if (loyaltyCustomerId != null ||
         explicitNulls.contains('loyalty_customer_id'))
       'loyalty_customer_id': loyaltyCustomerId,
@@ -365,6 +386,7 @@ class CreateOrderRequest {
       'payment_splits': paymentSplits?.map((e) => e.toJson()).toList(),
     if (serviceMode != null || explicitNulls.contains('service_mode'))
       'service_mode': serviceMode,
+    if (soldBy != null || explicitNulls.contains('sold_by')) 'sold_by': soldBy,
     if (startedBy != null || explicitNulls.contains('started_by'))
       'started_by': startedBy,
     if (subtotal != null || explicitNulls.contains('subtotal'))

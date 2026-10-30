@@ -20,6 +20,7 @@ class Branch {
     this.orgLogoUrl,
     this.orgReceiptFooter,
     this.phone,
+    this.pickTellerAtCheckout,
     this.printerBrand,
     this.printerIp,
     this.printerPort,
@@ -56,6 +57,10 @@ class Branch {
       'Branch.org_receipt_footer',
     ),
     phone: decStringN(json['phone'], 'Branch.phone'),
+    pickTellerAtCheckout: decBoolN(
+      json['pick_teller_at_checkout'],
+      'Branch.pick_teller_at_checkout',
+    ),
     printerBrand: decEnumN(
       json['printer_brand'],
       'Branch.printer_brand',
@@ -124,6 +129,11 @@ class Branch {
 
   final String? phone;
 
+  /// Ask who is serving at checkout: a till on this branch (POS builds that
+  /// know it) requires picking a person before taking payment and sends
+  /// them as `sold_by` on the sale. Off by default; not plan-gated. Additive.
+  final bool? pickTellerAtCheckout;
+
   final PrinterBrand? printerBrand;
 
   final String? printerIp;
@@ -188,6 +198,9 @@ class Branch {
         explicitNulls.contains('org_receipt_footer'))
       'org_receipt_footer': orgReceiptFooter,
     if (phone != null || explicitNulls.contains('phone')) 'phone': phone,
+    if (pickTellerAtCheckout != null ||
+        explicitNulls.contains('pick_teller_at_checkout'))
+      'pick_teller_at_checkout': pickTellerAtCheckout,
     if (printerBrand != null || explicitNulls.contains('printer_brand'))
       'printer_brand': printerBrand?.toJson(),
     if (printerIp != null || explicitNulls.contains('printer_ip'))

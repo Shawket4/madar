@@ -9,6 +9,7 @@ class AdjustRequest {
     required this.customerId,
     this.note,
     required this.points,
+    this.track,
     this.explicitNulls = const {},
   });
 
@@ -17,6 +18,7 @@ class AdjustRequest {
     customerId: decString(json['customer_id'], 'AdjustRequest.customer_id'),
     note: decStringN(json['note'], 'AdjustRequest.note'),
     points: decInt(json['points'], 'AdjustRequest.points'),
+    track: decIntN(json['track'], 'AdjustRequest.track'),
   );
 
   final String branchId;
@@ -28,6 +30,9 @@ class AdjustRequest {
   /// Signed. Negative takes points away.
   final int points;
 
+  /// The stamp track (2–4) to adjust; absent = track 1 (the balance above).
+  final int? track;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
@@ -37,6 +42,7 @@ class AdjustRequest {
     'customer_id': customerId,
     if (note != null || explicitNulls.contains('note')) 'note': note,
     'points': points,
+    if (track != null || explicitNulls.contains('track')) 'track': track,
   };
 
   @override

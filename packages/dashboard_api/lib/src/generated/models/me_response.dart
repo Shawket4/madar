@@ -5,6 +5,7 @@ part of '../models.dart';
 @immutable
 class MeResponse {
   const MeResponse({
+    this.addons,
     required this.currencyCode,
     this.plan,
     this.requireTableForOrders,
@@ -15,6 +16,11 @@ class MeResponse {
   });
 
   factory MeResponse.fromJson(Map<String, Object?> json) => MeResponse(
+    addons: decListN<String>(
+      json['addons'],
+      'MeResponse.addons',
+      (e) => decString(e, 'MeResponse.addons[]'),
+    ),
     currencyCode: decString(json['currency_code'], 'MeResponse.currency_code'),
     plan: decStringN(json['plan'], 'MeResponse.plan'),
     requireTableForOrders: decBoolN(
@@ -29,6 +35,9 @@ class MeResponse {
     taxRate: decDouble(json['tax_rate'], 'MeResponse.tax_rate'),
     user: decObject(json['user'], 'MeResponse.user', UserPublic.fromJson),
   );
+
+  /// Features the org has as add-ons beside its plan (Rewards by Madar: `["loyalty"]`).
+  final List<String>? addons;
 
   /// Org currency code (e.g. "EGP").
   final String currencyCode;
@@ -59,6 +68,7 @@ class MeResponse {
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    if (addons != null || explicitNulls.contains('addons')) 'addons': addons,
     'currency_code': currencyCode,
     if (plan != null || explicitNulls.contains('plan')) 'plan': plan,
     if (requireTableForOrders != null ||
