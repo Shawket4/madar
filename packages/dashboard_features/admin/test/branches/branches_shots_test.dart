@@ -3,6 +3,7 @@
 // at desktop-en-light and phone-ar-light. Written only with FDASH_SHOTS set;
 // every case also asserts what it shows, so it is a test either way.
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_core/dashboard_core.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -48,6 +49,32 @@ void main() {
       );
       await h.settle();
       await h.shot('branches/edit-dialog-pick-teller');
+    });
+  }
+
+  for (final locale in ['en', 'ar']) {
+    testWidgets('shots: the edit dialog asking who is serving, on a Free plan '
+        '(desktop $locale)', (tester) async {
+      final s = branchesServer();
+      branchRow(s.db, SeedIds.zamalek)['pick_teller_at_checkout'] = true;
+      final h = await pumpBranches(
+        tester,
+        path: '/branches?edit=${SeedIds.zamalek}',
+        locale: locale,
+        server: s.server,
+        db: s.db,
+      );
+      h.container.read(planFeaturesProvider.notifier).set(const {'floor'});
+      await h.settle();
+      expect(
+        find.textContaining(h.t('branches.pickTellerHintDawam')),
+        findsNothing,
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('branch-old-bill-hours')),
+      );
+      await h.settle();
+      await h.shot('branches/edit-dialog-pick-teller-free');
     });
   }
 
