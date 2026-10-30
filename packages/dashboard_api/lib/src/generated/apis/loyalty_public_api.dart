@@ -8,6 +8,25 @@ class LoyaltyPublicApi {
 
   final ApiTransport _transport;
 
+  /// The designed Google hero at one progress state (public: Google fetches it).
+  /// No member data: the org, the revision and each track's progress, every
+  /// number checked against the shop's tracks.
+  ///
+  /// `GET /public/loyalty/brand/{org_id}/card/{revision}/{state}` (public_loyalty_card_hero)
+  Future<List<int>> publicLoyaltyCardHero({
+    required String orgId,
+    required int revision,
+    required String state,
+  }) async {
+    return (await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path:
+            '/public/loyalty/brand/${pathSegment(orgId)}/card/${pathSegment(revision)}/${pathSegment(state)}',
+      ),
+    )).bodyBytes;
+  }
+
   /// A rewards card: the member's balance, progress to the next reward, rewards and wallet links.
   ///
   /// The token is the one on the card's barcode.

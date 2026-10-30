@@ -17,11 +17,13 @@ class SettleOpenTicketRequest {
     this.discountType,
     this.discountValue,
     this.liveApproval,
+    this.loyaltyBirthdayGift,
     this.loyaltyCustomerId,
     this.loyaltyRedemptions,
     required this.paymentMethod,
     this.paymentSplits,
     this.settledAt,
+    this.soldBy,
     required this.tillId,
     this.tipAmount,
     this.tipPaymentMethod,
@@ -81,6 +83,11 @@ class SettleOpenTicketRequest {
           'SettleOpenTicketRequest.live_approval',
           ReplayApproval.fromJson,
         ),
+        loyaltyBirthdayGift: decObjectN(
+          json['loyalty_birthday_gift'],
+          'SettleOpenTicketRequest.loyalty_birthday_gift',
+          LoyaltyGiftInput.fromJson,
+        ),
         loyaltyCustomerId: decStringN(
           json['loyalty_customer_id'],
           'SettleOpenTicketRequest.loyalty_customer_id',
@@ -111,6 +118,7 @@ class SettleOpenTicketRequest {
           json['settled_at'],
           'SettleOpenTicketRequest.settled_at',
         ),
+        soldBy: decStringN(json['sold_by'], 'SettleOpenTicketRequest.sold_by'),
         tillId: decString(json['till_id'], 'SettleOpenTicketRequest.till_id'),
         tipAmount: decIntN(
           json['tip_amount'],
@@ -180,6 +188,8 @@ class SettleOpenTicketRequest {
 
   final ReplayApproval? liveApproval;
 
+  final LoyaltyGiftInput? loyaltyBirthdayGift;
+
   /// The member spending a balance on this settle, when rewards are applied.
   final String? loyaltyCustomerId;
 
@@ -198,6 +208,11 @@ class SettleOpenTicketRequest {
   /// ticket's `settled_at`, one instant on both rows. Absent means now; a
   /// future clock is refused.
   final DateTime? settledAt;
+
+  /// Who was picked as serving at checkout, on a branch that asks
+  /// (`branches.pick_teller_at_checkout`). Same rule as `sold_by` on an
+  /// order: attribution only, never a reason to refuse the settle. Additive.
+  final String? soldBy;
 
   final String tillId;
 
@@ -252,6 +267,9 @@ class SettleOpenTicketRequest {
       'discount_value': discountValue,
     if (liveApproval != null || explicitNulls.contains('live_approval'))
       'live_approval': liveApproval?.toJson(),
+    if (loyaltyBirthdayGift != null ||
+        explicitNulls.contains('loyalty_birthday_gift'))
+      'loyalty_birthday_gift': loyaltyBirthdayGift?.toJson(),
     if (loyaltyCustomerId != null ||
         explicitNulls.contains('loyalty_customer_id'))
       'loyalty_customer_id': loyaltyCustomerId,
@@ -265,6 +283,7 @@ class SettleOpenTicketRequest {
       'payment_splits': paymentSplits?.map((e) => e.toJson()).toList(),
     if (settledAt != null || explicitNulls.contains('settled_at'))
       'settled_at': encDateTimeN(settledAt),
+    if (soldBy != null || explicitNulls.contains('sold_by')) 'sold_by': soldBy,
     'till_id': tillId,
     if (tipAmount != null || explicitNulls.contains('tip_amount'))
       'tip_amount': tipAmount,

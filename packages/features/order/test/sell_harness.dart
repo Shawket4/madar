@@ -427,8 +427,12 @@ class _FakeBridge implements MadarBridge {
     List<DraftView>? drafts,
     this.totals = _totals,
     this.discount = const CartDiscountView(kind: '', offMinor: 0),
+    this.pick = kTellerPickOff,
   }) : role = 'teller',
        drafts = drafts ?? _drafts;
+
+  /// "Who's serving?": off unless a scene says the branch asks.
+  final TellerPick pick;
 
   /// What the core sums the cart to (the cart-layout scenes carry a
   /// discount and four lines).
@@ -543,6 +547,8 @@ class _FakeBridge implements MadarBridge {
   dynamic noSuchMethod(Invocation invocation) {
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
+    final picker = fakeTellerPickInvocation(invocation, pick);
+    if (picker != null) return picker;
     final name = invocation.memberName;
     // Charge, drawn in Fast mode's panel: the core's tender figures restated
     // (checkout's own tests pin the real ones), cash only.

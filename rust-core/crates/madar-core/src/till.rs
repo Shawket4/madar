@@ -396,7 +396,29 @@ pub struct TillReportView {
     pub verification: String,
     /// Who viewed / printed the cash spot report, oldest first (Z report).
     pub spot_views: Vec<crate::cash_spot::SpotViewLineView>,
+    /// The till's sales by who served them ("By person"): the person picked
+    /// at checkout, else whoever was signed in, largest first. EMPTY unless
+    /// someone on this till was picked, so a till that never asked shows and
+    /// prints no such section.
+    pub by_person: Vec<TillPersonLineView>,
 }
+
+/// One person's share of a till's sold sales on the Z report. The lines add
+/// up to the till's payments; the drawer is shared and is not split.
+#[cfg_attr(feature = "uniffi-ffi", derive(uniffi::Record))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TillPersonLineView {
+    /// `None` for sales with nobody on them (an old row).
+    pub person_id: Option<String>,
+    /// From the teller rows (or the server's report); "—" when unknown.
+    pub name: String,
+    pub order_count: i64,
+    pub total_minor: i64,
+    pub tips_minor: i64,
+}
+
+/// What the Z report names someone it holds no name for.
+pub const UNKNOWN_PERSON: &str = "—";
 
 /// One itemised cash-drawer movement on the report. `amount_minor` is signed
 /// (positive = pay-in, negative = pay-out).
@@ -494,6 +516,23 @@ pub(crate) fn report_view(
                 viewed_at: v.viewed_at.to_rfc3339(),
                 printed: v.printed,
                 queued: false,
+            })
+            .collect(),
+        by_person: report
+            .by_person
+            .iter()
+            .flatten()
+            .map(|p| TillPersonLineView {
+                person_id: p.person_id.flatten().map(|u| u.to_string()),
+                name: p
+                    .name
+                    .clone()
+                    .flatten()
+                    .filter(|n| !n.trim().is_empty())
+                    .unwrap_or_else(|| UNKNOWN_PERSON.to_string()),
+                order_count: p.order_count,
+                total_minor: p.total,
+                tips_minor: p.tips,
             })
             .collect(),
     }
@@ -1982,6 +2021,28 @@ mod tests {
         assert_eq!(v.cash_movements[0].moved_by_name, "Mona");
         assert_eq!(v.cash_movements[1].amount_minor, -1800);
         assert_eq!(v.cash_movements[1].moved_by_name, "Ali");
+    }
+
+    /// The server's "by person" lines reach the Z report named; a person the
+    /// server could not name reads "—"; a report without the key (nobody
+    /// picked, or an older server) has no section.
+    #[test]
+    fn report_view_carries_the_servers_sales_by_person() {
+        let mona = uuid::Uuid::from_u128(0xa001);
+        let mut report = models::TillReportResponse::default();
+        assert!(report_view(&report, 0, &|m| m.to_string()).by_person.is_empty());
+        let mut named = models::TillPersonLine::new(2, 200, 1_596);
+        named.person_id = Some(Some(mona));
+        named.name = Some(Some("Mona".into()));
+        let nobody = models::TillPersonLine::new(1, 0, 228);
+        report.by_person = Some(vec![named, nobody]);
+        let v = report_view(&report, 0, &|m| m.to_string());
+        let lines: Vec<(Option<String>, &str, i64, i64, i64)> = v
+            .by_person
+            .iter()
+            .map(|p| (p.person_id.clone(), p.name.as_str(), p.order_count, p.total_minor, p.tips_minor))
+            .collect();
+        assert_eq!(lines, vec![(Some(mona.to_string()), "Mona", 2, 1_596, 200), (None, UNKNOWN_PERSON, 1, 228, 0)]);
     }
 
     #[test]

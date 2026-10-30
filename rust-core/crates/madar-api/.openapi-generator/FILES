@@ -896,6 +896,7 @@ docs/TextSize.md
 docs/TicketBill.md
 docs/Till.md
 docs/TillBrief.md
+docs/TillPersonLine.md
 docs/TillPreFill.md
 docs/TillPunch.md
 docs/TillPunchResult.md
@@ -1897,6 +1898,7 @@ src/models/text_size.rs
 src/models/ticket_bill.rs
 src/models/till.rs
 src/models/till_brief.rs
+src/models/till_person_line.rs
 src/models/till_pre_fill.rs
 src/models/till_punch.rs
 src/models/till_punch_result.rs

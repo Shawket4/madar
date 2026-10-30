@@ -183,51 +183,55 @@ const _till = TillView(
   openedWhileAnotherOpen: false,
 );
 
-TillReportView _report({required bool fromServer, int expected = 238000}) =>
-    TillReportView(
-      tellerName: 'Sara',
-      openedAt: _openedAt,
-      printedAt: '2026-09-12T19:40:00Z',
-      isOpen: true,
-      // float 850 + cash sales 1,420 + paid in 200 − paid out 90
-      expectedCashMinor: expected,
-      openingCashMinor: 85000,
-      openingCashWasEdited: false,
-      totalPaymentsMinor: 623000,
-      netPaymentsMinor: 623000,
-      voidedAmountMinor: 0,
-      refundsIssuedMinor: 0,
-      refundsIssuedCashMinor: 0,
-      refundsIssuedCount: 0,
-      cashInRefundedSalesMinor: 0,
-      cashMovementsNetMinor: 11000,
-      cashInMinor: 20000,
-      cashOutMinor: 9000,
-      paymentLines: const [
-        TillReportPaymentLine(
-          method: 'Cash',
-          isCash: true,
-          orderCount: 18,
-          totalMinor: 142000,
-        ),
-        TillReportPaymentLine(
-          method: 'Card',
-          isCash: false,
-          orderCount: 24,
-          totalMinor: 481000,
-        ),
-      ],
-      cashMovements: const [],
-      fromServer: fromServer,
-      reconciliation: const [],
-      verification: 'server',
-      spotViews: const [],
-      openedWhileAnotherOpen: false,
-      serviceChargeWaivedCount: 0,
-      serviceChargeWaivedMinor: 0,
-      totalServiceChargeMinor: 0,
-      totalTaxMinor: 0,
-    );
+TillReportView _report({
+  required bool fromServer,
+  int expected = 238000,
+  List<TillPersonLineView> byPerson = const [],
+}) => TillReportView(
+  tellerName: 'Sara',
+  openedAt: _openedAt,
+  printedAt: '2026-09-12T19:40:00Z',
+  isOpen: true,
+  // float 850 + cash sales 1,420 + paid in 200 − paid out 90
+  expectedCashMinor: expected,
+  openingCashMinor: 85000,
+  openingCashWasEdited: false,
+  totalPaymentsMinor: 623000,
+  netPaymentsMinor: 623000,
+  voidedAmountMinor: 0,
+  refundsIssuedMinor: 0,
+  refundsIssuedCashMinor: 0,
+  refundsIssuedCount: 0,
+  cashInRefundedSalesMinor: 0,
+  cashMovementsNetMinor: 11000,
+  cashInMinor: 20000,
+  cashOutMinor: 9000,
+  paymentLines: const [
+    TillReportPaymentLine(
+      method: 'Cash',
+      isCash: true,
+      orderCount: 18,
+      totalMinor: 142000,
+    ),
+    TillReportPaymentLine(
+      method: 'Card',
+      isCash: false,
+      orderCount: 24,
+      totalMinor: 481000,
+    ),
+  ],
+  cashMovements: const [],
+  fromServer: fromServer,
+  reconciliation: const [],
+  verification: 'server',
+  spotViews: const [],
+  byPerson: byPerson,
+  openedWhileAnotherOpen: false,
+  serviceChargeWaivedCount: 0,
+  serviceChargeWaivedMinor: 0,
+  totalServiceChargeMinor: 0,
+  totalTaxMinor: 0,
+);
 
 const _movements = <CashMovementView>[
   CashMovementView(
@@ -320,7 +324,12 @@ class _FakeBridge implements MadarBridge {
     this.preflight,
     this.figuresVisible = true,
     this.dawamOn = true,
+    this.byPerson = const [],
   });
+
+  /// The till's sales by who served them ("Who's serving?"); empty on a
+  /// till where nobody was picked.
+  final List<TillPersonLineView> byPerson;
 
   /// The org has Dawam switched on (minor #40).
   final bool dawamOn;
@@ -508,12 +517,12 @@ class _FakeBridge implements MadarBridge {
     if (name == #tillReport) {
       if (!figuresVisible) return Future<TillReportView>.error(hidden);
       return Future<TillReportView>.value(
-        _report(fromServer: online, expected: expectedCash),
+        _report(fromServer: online, expected: expectedCash, byPerson: byPerson),
       );
     }
     if (name == #tillReportFor) {
       return Future<TillReportView>.value(
-        _report(fromServer: true, expected: expectedCash),
+        _report(fromServer: true, expected: expectedCash, byPerson: byPerson),
       );
     }
     if (name == #listTillOrders) {
@@ -765,6 +774,74 @@ void main() {
     expect(bridge.syncNows, 1, reason: 'one manual sync per pull');
     expect(find.text('EGP 2,500.00'), findsWidgets);
     expect(find.text('EGP 2,380.00'), findsNothing);
+  });
+
+  // "Who's serving?": the Z report splits the sales by the person picked,
+  // and says nothing of it on a till where nobody was.
+  // "Who's serving?": the Z report splits the sales by the person picked,
+  // and says nothing of it on a till where nobody was.
+  testWidgets('a till where nobody was picked has no Sales by person', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      screen: const Scaffold(body: TillReportSheet()),
+      bridge: _FakeBridge(),
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'report-no-people',
+    );
+    expect(
+      find.text(coreWord('till.payment_methods').toUpperCase()),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        coreWord('till.z_by_person').toUpperCase(),
+        skipOffstage: false,
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('the report splits the sales by the person picked', (
+    tester,
+  ) async {
+    await _shoot(
+      tester,
+      screen: const Scaffold(body: TillReportSheet()),
+      bridge: _FakeBridge(
+        byPerson: const [
+          TillPersonLineView(
+            personId: 'u-mona',
+            name: 'Mona',
+            orderCount: 2,
+            totalMinor: 400000,
+            tipsMinor: 2000,
+          ),
+          TillPersonLineView(
+            personId: 'u-gone',
+            name: '—',
+            orderCount: 1,
+            totalMinor: 223000,
+            tipsMinor: 0,
+          ),
+        ],
+      ),
+      size: _ipad,
+      theme: MadarTheme.light(),
+      name: 'report-by-person',
+    );
+    expect(
+      find.text(
+        coreWord('till.z_by_person').toUpperCase(),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Mona', skipOffstage: false), findsOneWidget);
+    expect(find.text('—', skipOffstage: false), findsWidgets);
+    expect(find.text('EGP 4,000.00', skipOffstage: false), findsWidgets);
   });
 
   testWidgets('the Till on an iPad, mid-shift', (tester) async {

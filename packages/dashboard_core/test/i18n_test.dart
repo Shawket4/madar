@@ -8,7 +8,11 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _web = '/Users/shawket/Desktop/Madar/MadarDashboard/src/i18n/locales';
+/// The web repo: MADAR_DASHBOARD_DIR, else the owner's checkout.
+final _webRoot =
+    Platform.environment['MADAR_DASHBOARD_DIR'] ??
+    '/Users/shawket/Desktop/Madar/MadarDashboard';
+final _web = '$_webRoot/src/i18n/locales';
 
 Map<String, String> _asset(String lang) =>
     parseStringTable(File('assets/i18n/$lang.json').readAsStringSync());

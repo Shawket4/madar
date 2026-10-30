@@ -5,6 +5,7 @@ part of '../models.dart';
 @immutable
 class ShiftReportResponse {
   const ShiftReportResponse({
+    this.byPerson,
     required this.cashAdjustments,
     this.cashInRefundedSales,
     required this.cashMovements,
@@ -42,6 +43,15 @@ class ShiftReportResponse {
 
   factory ShiftReportResponse.fromJson(Map<String, Object?> json) =>
       ShiftReportResponse(
+        byPerson: decListN<TillPersonLine>(
+          json['by_person'],
+          'ShiftReportResponse.by_person',
+          (e) => decObject(
+            e,
+            'ShiftReportResponse.by_person[]',
+            TillPersonLine.fromJson,
+          ),
+        ),
         cashAdjustments: decInt(
           json['cash_adjustments'],
           'ShiftReportResponse.cash_adjustments',
@@ -173,6 +183,14 @@ class ShiftReportResponse {
         ),
       );
 
+  /// The till's sold sales by who served them: the person picked at
+  /// checkout (`orders.sold_by`), else whoever was signed in. Largest first;
+  /// the lines add up to `total_payments` and `total_tips` (the drawer is
+  /// shared and is not split). OMITTED unless someone on this till was
+  /// picked, so a till that never asked reports exactly as before.
+  /// `madar_till::report::by_person`. Additive.
+  final List<TillPersonLine>? byPerson;
+
   final int cashAdjustments;
 
   final int? cashInRefundedSales;
@@ -256,6 +274,8 @@ class ShiftReportResponse {
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    if (byPerson != null || explicitNulls.contains('by_person'))
+      'by_person': byPerson?.map((e) => e.toJson()).toList(),
     'cash_adjustments': cashAdjustments,
     if (cashInRefundedSales != null ||
         explicitNulls.contains('cash_in_refunded_sales'))

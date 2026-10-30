@@ -266,6 +266,7 @@ fn add(core: &MadarCore, id: &str, name: &str, price: i64, qty: usize) {
 
 fn input(core: &MadarCore, member: Option<&str>, redemptions: Vec<CheckoutRedemption>) -> CheckoutInput {
     CheckoutInput {
+        sold_by: None,
         payment_method_id: method(core, true).unwrap(),
         amount_tendered_minor: 1_000_000,
         tip_minor: 0,

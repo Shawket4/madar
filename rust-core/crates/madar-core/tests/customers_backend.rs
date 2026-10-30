@@ -107,6 +107,7 @@ async fn a_till_finds_adds_and_attaches_customers() {
         .checkout(
             None,
             madar_core::checkout::CheckoutInput {
+                sold_by: None,
                 payment_method_id: cash,
                 amount_tendered_minor: item.base_price_minor,
                 tip_minor: 0,
@@ -262,6 +263,7 @@ async fn a_bills_customer_reaches_the_other_till_and_its_sale_once() {
         vec![],
         vec![],
         false,
+        None,
         None,
         None,
     )

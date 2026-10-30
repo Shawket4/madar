@@ -27,7 +27,9 @@ class MemberView {
     required this.pointsToNextReward,
     required this.progressToNext,
     required this.rewardsReady,
+    this.tracks,
     required this.visitsBalance,
+    this.explicitNulls = const {},
   });
 
   factory MemberView.fromJson(Map<String, Object?> json) => MemberView(
@@ -62,6 +64,11 @@ class MemberView {
       'MemberView.progress_to_next',
     ),
     rewardsReady: decInt(json['rewards_ready'], 'MemberView.rewards_ready'),
+    tracks: decListN<MemberTrack>(
+      json['tracks'],
+      'MemberView.tracks',
+      (e) => decObject(e, 'MemberView.tracks[]', MemberTrack.fromJson),
+    ),
     visitsBalance: decInt(json['visits_balance'], 'MemberView.visits_balance'),
   );
 
@@ -113,7 +120,16 @@ class MemberView {
   /// rewards, whether or not they claimed the first.
   final int rewardsReady;
 
+  /// Every stamp track of the card (track 1 first, its figures equal to the
+  /// fields above), present only when the shop runs more than one. The
+  /// fields above stay track 1's for ever (released tills read them).
+  final List<MemberTrack>? tracks;
+
   final int visitsBalance;
+
+  /// Wire names of optional fields to send as an explicit `null` when unset
+  /// (a PATCH that clears a value). Unset optional fields are omitted.
+  final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
     'balance': balance,
@@ -132,6 +148,8 @@ class MemberView {
     'points_to_next_reward': pointsToNextReward,
     'progress_to_next': progressToNext,
     'rewards_ready': rewardsReady,
+    if (tracks != null || explicitNulls.contains('tracks'))
+      'tracks': tracks?.map((e) => e.toJson()).toList(),
     'visits_balance': visitsBalance,
   };
 

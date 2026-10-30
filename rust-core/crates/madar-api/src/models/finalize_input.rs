@@ -16,6 +16,14 @@ pub struct FinalizeInput {
     /// The actual method the customer paid (overrides the hint). Must be an org method.
     #[serde(rename = "payment_method")]
     pub payment_method: String,
+    /// Who was picked as serving at checkout, on a branch that asks (`branches.pick_teller_at_checkout`). Same rule as `sold_by` on an order: attribution only; someone who cannot ring sales at the branch is recorded as nobody, never refused. Additive.
+    #[serde(
+        rename = "sold_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub sold_by: Option<Option<uuid::Uuid>>,
     #[serde(rename = "till_id")]
     pub till_id: uuid::Uuid,
 }
@@ -24,6 +32,7 @@ impl FinalizeInput {
     pub fn new(payment_method: String, till_id: uuid::Uuid) -> FinalizeInput {
         FinalizeInput {
             payment_method,
+            sold_by: None,
             till_id,
         }
     }

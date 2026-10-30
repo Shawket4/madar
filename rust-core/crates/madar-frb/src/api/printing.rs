@@ -88,9 +88,12 @@ impl MadarBridge {
         dine_in: bool,
         width: u32,
         till_brand: PrinterBrand,
+        // The person picked as serving, when the caller holds one: the chit
+        // names them instead of the signed-in person. `None`: as before.
+        sold_by: Option<String>,
     ) -> Result<CartLineChit, MadarError> {
         self.inner
-            .cart_line_chit(table_id, line_key, table_label, ticket_ref, dine_in, width, till_brand)
+            .cart_line_chit(table_id, line_key, table_label, ticket_ref, dine_in, width, till_brand, sold_by)
             .map_err(MadarError::from)
     }
 
@@ -121,6 +124,10 @@ impl MadarBridge {
     /// note, plus the cart-level kitchen note. Always to the till printer —
     /// a whole-cart copy is a manual/backup pass, not per-station routing.
     /// Local only; marks nothing sent; checkout/fire printing is unchanged.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "a bridge signature: changing it means regenerating the bindings"
+    )]
     pub fn cart_kitchen_chit(
         &self,
         table_id: Option<String>,
@@ -129,9 +136,12 @@ impl MadarBridge {
         dine_in: bool,
         width: u32,
         till_brand: PrinterBrand,
+        // The person picked as serving, when the caller holds one: the slip
+        // names them instead of the signed-in person. `None`: as before.
+        sold_by: Option<String>,
     ) -> Result<CartKitchenChit, MadarError> {
         self.inner
-            .cart_kitchen_chit(table_id, table_label, ticket_ref, dine_in, width, till_brand)
+            .cart_kitchen_chit(table_id, table_label, ticket_ref, dine_in, width, till_brand, sold_by)
             .map_err(MadarError::from)
     }
 

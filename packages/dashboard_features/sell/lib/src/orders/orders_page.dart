@@ -630,7 +630,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage>
       DashColumn<Order>(
         id: 'teller',
         label: t('tills.teller'),
-        text: (o) => o.tellerName,
+        // Who sold: the person picked at checkout, else the signed-in one.
+        text: (o) => o.seller.teller,
         minWidth: Space.xxl * 3,
         flex: 2,
       ),

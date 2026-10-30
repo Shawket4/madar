@@ -321,6 +321,43 @@ void main() {
     ]);
   });
 
+  // "Who's serving?": a sale is found by the person picked for it as well as
+  // by whoever was signed in.
+  test('a search finds a sale by either person on it', () async {
+    bridge.rows = [
+      const OrderSummaryView(
+        id: 'picked',
+        orderNumber: 41,
+        subtotalMinor: 1000,
+        taxMinor: 0,
+        totalMinor: 1000,
+        paymentLabel: 'cash',
+        status: 'completed',
+        createdAt: '2026-09-12T19:00:00Z',
+        queued: false,
+        tellerName: 'Sara',
+        soldByName: 'Mona',
+        orderType: 'takeaway',
+        priceFlagged: false,
+        displayNumber: '',
+      ),
+      _o('plain', 42, '2026-09-12T19:05:00Z'),
+    ];
+    container.listen(historyProvider, (_, _) {});
+    await _settle();
+    final notifier = container.read(historyProvider.notifier)
+      ..setSearch('mona');
+    await _settle();
+    expect(container.read(historyProvider).filtered.map((o) => o.id), [
+      'picked',
+    ]);
+    notifier.setSearch('sara');
+    await _settle();
+    expect(container.read(historyProvider).filtered.map((o) => o.id), [
+      'picked',
+    ]);
+  });
+
   test('a search under All pages on until it finds the sale', () async {
     container.listen(historyProvider, (_, _) {});
     await _settle();

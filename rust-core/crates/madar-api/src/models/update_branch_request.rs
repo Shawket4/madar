@@ -79,6 +79,14 @@ pub struct UpdateBranchRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub phone: Option<Option<String>>,
+    /// Ask who is serving at checkout (see [`Branch`]). Absent (or `null`) leaves it as it is.
+    #[serde(
+        rename = "pick_teller_at_checkout",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pick_teller_at_checkout: Option<Option<bool>>,
     #[serde(
         rename = "printer_brand",
         default,
@@ -165,6 +173,7 @@ impl UpdateBranchRequest {
             name: None,
             old_bill_hours: None,
             phone: None,
+            pick_teller_at_checkout: None,
             printer_brand: None,
             printer_ip: None,
             printer_port: None,

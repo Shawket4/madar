@@ -83,6 +83,8 @@ fn order_summary(conn: &Connection, okey: &str, server_id: Option<String>, v: &V
         created_at: s(v, "created_at").unwrap_or("").to_string(),
         queued: unsent.is_some(),
         teller_name: if unsent.is_some() { None } else { s(v, "teller_name").map(str::to_string) },
+        // The picked person is this device's own word for a queued sale too.
+        sold_by_name: s(v, "sold_by_name").map(str::to_string),
         order_type: s(v, "order_type").unwrap_or("takeaway").to_string(),
         customer_name: s(v, "customer_name").map(str::to_string),
         price_flagged: v.get("price_flagged").and_then(Value::as_bool).unwrap_or(false),
@@ -307,6 +309,24 @@ pub(crate) fn till_report_rows(store: &Store, till_id: &str, label: &dyn Fn(&str
         opened_while_another_open: flag("opened_while_another_open"),
         verification: s(t, "verification").unwrap_or("legacy").to_string(),
         spot_views: f.spot_views.iter().map(crate::cash_spot::line_view).collect(),
+        // Named from the device's teller rows; someone it holds no row for
+        // (removed since) reads as "—".
+        by_person: store.with_conn(|c| {
+            Ok(f.by_person
+                .iter()
+                .map(|p| till::TillPersonLineView {
+                    person_id: p.person_id.clone(),
+                    name: p
+                        .person_id
+                        .as_deref()
+                        .and_then(|id| crate::teller_pick::name_from_rows(c, id))
+                        .unwrap_or_else(|| till::UNKNOWN_PERSON.to_string()),
+                    order_count: p.order_count,
+                    total_minor: p.total,
+                    tips_minor: p.tips,
+                })
+                .collect())
+        })?,
     }))
 }
 

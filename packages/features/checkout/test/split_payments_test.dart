@@ -158,6 +158,9 @@ class _Fake implements MadarBridge {
   dynamic noSuchMethod(Invocation invocation) {
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
+    // A branch that does not ask who's serving: the sheet as it always was.
+    final pick = fakeTellerPickInvocation(invocation);
+    if (pick != null) return pick;
     final name = invocation.memberName;
     final a = invocation.namedArguments;
     if (name == #tr) return coreWord(a[#key] as String);

@@ -19,11 +19,14 @@ class JoinResult {
     required this.balance,
     required this.brand,
     required this.cardLinkSent,
+    this.cardSize,
     this.memberToken,
     required this.mode,
     required this.name,
     required this.nextRewardCost,
     this.passes,
+    this.stampUnit,
+    this.tracks,
     required this.verifyRequired,
     this.explicitNulls = const {},
   });
@@ -33,6 +36,7 @@ class JoinResult {
     balance: decInt(json['balance'], 'JoinResult.balance'),
     brand: decObject(json['brand'], 'JoinResult.brand', CardBrand.fromJson),
     cardLinkSent: decBool(json['card_link_sent'], 'JoinResult.card_link_sent'),
+    cardSize: decIntN(json['card_size'], 'JoinResult.card_size'),
     memberToken: decStringN(json['member_token'], 'JoinResult.member_token'),
     mode: decString(json['mode'], 'JoinResult.mode'),
     name: decString(json['name'], 'JoinResult.name'),
@@ -41,6 +45,12 @@ class JoinResult {
       'JoinResult.next_reward_cost',
     ),
     passes: decObjectN(json['passes'], 'JoinResult.passes', PassLinks.fromJson),
+    stampUnit: decStringN(json['stamp_unit'], 'JoinResult.stamp_unit'),
+    tracks: decListN<MemberTrack>(
+      json['tracks'],
+      'JoinResult.tracks',
+      (e) => decObject(e, 'JoinResult.tracks[]', MemberTrack.fromJson),
+    ),
     verifyRequired: decBool(
       json['verify_required'],
       'JoinResult.verify_required',
@@ -63,6 +73,11 @@ class JoinResult {
   /// build a link on; the page then offers only the OTP.
   final bool cardLinkSent;
 
+  /// The card size: how many stamps (or points) fill one card, the cheapest
+  /// reward on offer (`model::card_size`), the same figure the till and the
+  /// passes count towards. Equal to `next_reward_cost`, under its own name.
+  final int? cardSize;
+
   /// Absent when `verify_required`: the page has nothing to show yet.
   final String? memberToken;
 
@@ -76,6 +91,15 @@ class JoinResult {
   final int nextRewardCost;
 
   final PassLinks? passes;
+
+  /// What one stamp stands for: `order`, `item` or `stamp` (a counter
+  /// shop); absent for points. The join info's rule (`earn::StampUnit`).
+  final String? stampUnit;
+
+  /// Every stamp track of the member's card, when there is more than one:
+  /// the card page's `CardView.tracks`, the same loader. Absent for a
+  /// one-track card or points, and while `verify_required`.
+  final List<MemberTrack>? tracks;
 
   /// This phone already has a card and the device has not proved it owns the
   /// phone. The page should run the ordinary OTP flow (`/public/otp/request`
@@ -92,6 +116,8 @@ class JoinResult {
     'balance': balance,
     'brand': brand.toJson(),
     'card_link_sent': cardLinkSent,
+    if (cardSize != null || explicitNulls.contains('card_size'))
+      'card_size': cardSize,
     if (memberToken != null || explicitNulls.contains('member_token'))
       'member_token': memberToken,
     'mode': mode,
@@ -99,6 +125,10 @@ class JoinResult {
     'next_reward_cost': nextRewardCost,
     if (passes != null || explicitNulls.contains('passes'))
       'passes': passes?.toJson(),
+    if (stampUnit != null || explicitNulls.contains('stamp_unit'))
+      'stamp_unit': stampUnit,
+    if (tracks != null || explicitNulls.contains('tracks'))
+      'tracks': tracks?.map((e) => e.toJson()).toList(),
     'verify_required': verifyRequired,
   };
 

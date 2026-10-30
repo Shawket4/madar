@@ -27,6 +27,7 @@ class OrderItem {
     required this.orderId,
     required this.quantity,
     this.rewardCovered,
+    this.rewardTrack,
     this.rewardUnits,
     this.sizeLabel,
     this.staffCompMinor,
@@ -74,6 +75,7 @@ class OrderItem {
     orderId: decString(json['order_id'], 'OrderItem.order_id'),
     quantity: decInt(json['quantity'], 'OrderItem.quantity'),
     rewardCovered: decIntN(json['reward_covered'], 'OrderItem.reward_covered'),
+    rewardTrack: decIntN(json['reward_track'], 'OrderItem.reward_track'),
     rewardUnits: decIntN(json['reward_units'], 'OrderItem.reward_units'),
     sizeLabel: decStringN(json['size_label'], 'OrderItem.size_label'),
     staffCompMinor: decIntN(
@@ -157,6 +159,9 @@ class OrderItem {
   /// Minor units the reward took off this line (0 for a paid line).
   final int? rewardCovered;
 
+  /// The stamp track (2–4) whose reward covered it; absent for track 1.
+  final int? rewardTrack;
+
   /// How many of `quantity` the reward covered.
   final int? rewardUnits;
 
@@ -217,6 +222,8 @@ class OrderItem {
     'quantity': quantity,
     if (rewardCovered != null || explicitNulls.contains('reward_covered'))
       'reward_covered': rewardCovered,
+    if (rewardTrack != null || explicitNulls.contains('reward_track'))
+      'reward_track': rewardTrack,
     if (rewardUnits != null || explicitNulls.contains('reward_units'))
       'reward_units': rewardUnits,
     if (sizeLabel != null || explicitNulls.contains('size_label'))

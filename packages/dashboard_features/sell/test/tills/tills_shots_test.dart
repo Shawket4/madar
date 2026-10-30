@@ -47,7 +47,60 @@ Future<void> shootScroll(DashHarness h, String name, {Finder? of}) async {
   return s;
 }
 
+/// Zamalek's last evening till shared at the counter: Mariam served about
+/// half its sales and Karim (the manager) two; the rest stay with whoever
+/// was signed in.
+({MockServer server, MockDb db}) _sharedTillServer() {
+  final s = tillsServer();
+  final paid = s.db['orders']
+      .where(
+        (o) =>
+            o['till_id'] == TillIds.zamalekLastEvening &&
+            o['status'] == 'completed',
+      )
+      .toList();
+  for (final (i, o) in paid.indexed) {
+    if (i.isEven) {
+      o
+        ..['sold_by'] = SeedIds.user('mariam')
+        ..['sold_by_name'] = 'Mariam Fathy';
+    } else if (i == 1 || i == 3) {
+      o
+        ..['sold_by'] = SeedIds.manager
+        ..['sold_by_name'] = 'Karim Adel'
+        ..['tip_amount'] = 2000
+        ..['tip_payment_method'] = 'cash';
+    }
+  }
+  return s;
+}
+
 void main() {
+  for (final (size, lang) in [
+    (DashSize.desktop, 'en'),
+    (DashSize.desktop, 'ar'),
+    (DashSize.phone, 'en'),
+    (DashSize.phone, 'ar'),
+  ]) {
+    testWidgets('report by person, ${size.name} $lang', (tester) async {
+      final s = _sharedTillServer();
+      final h = await pumpTills(
+        tester,
+        query: 'report=${TillIds.zamalekLastEvening}',
+        branchId: SeedIds.zamalek,
+        server: s.server,
+        db: s.db,
+        size: size,
+        locale: lang,
+      );
+      final section = find.byKey(const ValueKey('till-by-person'));
+      expect(section, findsOneWidget);
+      await tester.ensureVisible(section);
+      await h.settle();
+      await h.shot('tills/report-by-person');
+    });
+  }
+
   for (final size in DashSize.values) {
     for (final (lang, dark) in _modes) {
       final tag = '${size.name} $lang ${dark ? 'dark' : 'light'}';

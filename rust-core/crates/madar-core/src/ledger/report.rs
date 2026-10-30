@@ -43,7 +43,7 @@ impl Method {
 }
 
 // The report's row types are the fold's own.
-pub(crate) use madar_till::report::{MethodTotal, Movement, PaymentLine};
+pub(crate) use madar_till::report::{MethodTotal, Movement, PaymentLine, PersonLine};
 
 impl From<&Method> for madar_till::report::Method {
     fn from(m: &Method) -> Self {
@@ -91,6 +91,9 @@ pub(crate) struct TillFigures {
     pub service_charge_waived_count: i64,
     pub service_charge_waived_amount: i64,
     pub close_methods: Vec<MethodTotal>,
+    /// The till's sales by who served them (picked at checkout, else signed
+    /// in); empty unless someone was picked on this till.
+    pub by_person: Vec<PersonLine>,
     /// Who viewed / printed the spot report, oldest first (`report_figures`' `spot_views`).
     pub spot_views: Vec<super::spot::SpotRow>,
     /// Rows of this till a live outbox op still holds (queued / sending / failed).
@@ -226,6 +229,10 @@ fn sales(conn: &Connection, till_id: &str) -> CoreResult<Vec<Loaded>> {
                         // Filled in by `compute`, from the refunds of this sale.
                         refunded_tax: 0,
                         refunded_service_charge: 0,
+                        // Who was picked at checkout, and who was signed in:
+                        // the "by person" section folds on these.
+                        sold_by: s(&v, "sold_by").map(str::to_string),
+                        teller: s(&v, "teller_id").map(str::to_string),
                     },
                 }
             },
@@ -453,6 +460,7 @@ pub(crate) fn compute(
         service_charge_waived_amount: f.service_charge_waived_amount,
         payment_summary: f.payment_summary,
         close_methods: f.close_methods,
+        by_person: f.by_person,
         spot_views: super::spot::for_till(conn, till_id)?,
         unsynced: unsynced as u32,
         unconfirmed: unconfirmed as u32,

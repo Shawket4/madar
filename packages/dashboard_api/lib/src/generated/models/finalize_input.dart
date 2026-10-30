@@ -4,23 +4,40 @@ part of '../models.dart';
 
 @immutable
 class FinalizeInput {
-  const FinalizeInput({required this.paymentMethod, required this.tillId});
+  const FinalizeInput({
+    required this.paymentMethod,
+    this.soldBy,
+    required this.tillId,
+    this.explicitNulls = const {},
+  });
 
   factory FinalizeInput.fromJson(Map<String, Object?> json) => FinalizeInput(
     paymentMethod: decString(
       json['payment_method'],
       'FinalizeInput.payment_method',
     ),
+    soldBy: decStringN(json['sold_by'], 'FinalizeInput.sold_by'),
     tillId: decString(json['till_id'], 'FinalizeInput.till_id'),
   );
 
   /// The actual method the customer paid (overrides the hint). Must be an org method.
   final String paymentMethod;
 
+  /// Who was picked as serving at checkout, on a branch that asks
+  /// (`branches.pick_teller_at_checkout`). Same rule as `sold_by` on an
+  /// order: attribution only; someone who cannot ring sales at the branch is
+  /// recorded as nobody, never refused. Additive.
+  final String? soldBy;
+
   final String tillId;
+
+  /// Wire names of optional fields to send as an explicit `null` when unset
+  /// (a PATCH that clears a value). Unset optional fields are omitted.
+  final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
     'payment_method': paymentMethod,
+    if (soldBy != null || explicitNulls.contains('sold_by')) 'sold_by': soldBy,
     'till_id': tillId,
   };
 

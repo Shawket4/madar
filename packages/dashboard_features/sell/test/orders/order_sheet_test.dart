@@ -307,6 +307,61 @@ void main() {
     expect(h.server.callsTo(deliveryOrderRoute), isEmpty);
   });
 
+  testWidgets('teller pick: the Teller row names who was picked; "Signed in" '
+      'names who was signed in', (tester) async {
+    final s = ordersServer();
+    final id = OrderSeedIds.showcase('offline');
+    final o = s.db['orders'].find(id)!;
+    final signedIn = o['teller_name']! as String;
+    o
+      ..['sold_by'] = SeedIds.user('mona')
+      ..['sold_by_name'] = 'Mona Adel';
+    await _open(tester, id, server: s.server, db: s.db);
+    expect(inKey('order-sheet-teller', find.text('Teller')), findsOneWidget);
+    expect(inKey('order-sheet-teller', find.text('Mona Adel')), findsOneWidget);
+    expect(
+      inKey('order-sheet-signed-in', find.text('Signed in')),
+      findsOneWidget,
+    );
+    expect(inKey('order-sheet-signed-in', find.text(signedIn)), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('order-sheet-signed-in'))).dy,
+      greaterThan(
+        tester.getTopLeft(find.byKey(const ValueKey('order-sheet-teller'))).dy,
+      ),
+    );
+  });
+
+  testWidgets('teller pick: the signed-in person picked themself: no '
+      '"Signed in" row', (tester) async {
+    final s = ordersServer();
+    final id = OrderSeedIds.showcase('offline');
+    final o = s.db['orders'].find(id)!;
+    o
+      ..['sold_by'] = o['teller_id']
+      ..['sold_by_name'] = o['teller_name'];
+    await _open(tester, id, server: s.server, db: s.db);
+    expect(
+      inKey('order-sheet-teller', find.text(o['teller_name']! as String)),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('order-sheet-signed-in')), findsNothing);
+    expect(inSheet(find.text('Signed in')), findsNothing);
+  });
+
+  testWidgets('teller pick: nobody picked: the Teller row is the signed-in '
+      'person, as before; no "Signed in" row', (tester) async {
+    final h = await _open(tester, OrderSeedIds.showcase('offline'));
+    final o = h.db!['orders'].find(OrderSeedIds.showcase('offline'))!;
+    expect(o['sold_by'], isNull);
+    expect(
+      inKey('order-sheet-teller', find.text(o['teller_name']! as String)),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('order-sheet-signed-in')), findsNothing);
+    expect(inSheet(find.text('Signed in')), findsNothing);
+  });
+
   testWidgets('SELL-ORD-043/044/045 an outside delivery: the card, the note, '
       'Open in Maps, the progress', (tester) async {
     final s = ordersServer();

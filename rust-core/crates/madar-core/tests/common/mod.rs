@@ -322,6 +322,7 @@ pub async fn sell(core: &MadarCore, qty: usize, method_id: &str, tendered: i64) 
         .checkout(
             None,
             CheckoutInput {
+                sold_by: None,
                 payment_method_id: method_id.to_string(),
                 amount_tendered_minor: tendered,
                 tip_minor: 0,

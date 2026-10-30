@@ -200,6 +200,9 @@ impl MadarBridge {
         // Who the bill is for; rides the settle. `None` falls back to the
         // choice `set_ticket_customer` holds, then to the bill's own customer.
         customer_id: Option<String>,
+        // Who was picked as serving ("Who's serving?", `teller_pick`):
+        // required on a branch that asks, attribution only.
+        sold_by: Option<String>,
     ) -> Result<Option<String>, MadarError> {
         self.inner
             .settle_ticket(
@@ -218,6 +221,7 @@ impl MadarBridge {
                 waive_service,
                 discount_approval,
                 customer_id,
+                sold_by,
             )
             .await
             .map_err(MadarError::from)

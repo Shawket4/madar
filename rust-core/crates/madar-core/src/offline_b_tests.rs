@@ -196,6 +196,7 @@ async fn ring(core: &crate::MadarCore, price: i64, method_id: &str, tendered: i6
     core.checkout(
         None,
         crate::checkout::CheckoutInput {
+            sold_by: None,
             payment_method_id: method_id.into(),
             amount_tendered_minor: tendered,
             tip_minor: 0,
@@ -867,7 +868,7 @@ async fn the_parity_guard_compares_every_field_and_closed_unreviewed_tills() {
         cash_in_refunded_sales_minor: 0, total_tax_minor: 0, total_service_charge_minor: 0, service_charge_waived_count: 0, service_charge_waived_minor: 0, cash_movements_net_minor: 0, cash_in_minor: 0, cash_out_minor: 0,
         payment_lines: vec![], cash_movements: vec![], from_server: false, device_code: None, order_number_first: None,
         order_number_last: None, reconciliation: vec![], old_bills_count: None, open_bills_count: None, held_orders_left_open: None, held_orders_left_open_total_minor: None,
-        opened_while_another_open: false, verification: "server".into(), spot_views: vec![],
+        opened_while_another_open: false, verification: "server".into(), spot_views: vec![], by_person: vec![],
     };
     mk(&mut a);
     let mut b = a.clone();
@@ -1724,7 +1725,7 @@ async fn a_bill_fired_and_settled_offline_replays_under_the_servers_id() {
     core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 500).unwrap();
     let fired = core.fire_ticket(None, Some("walk-in".into()), None, None, None, None).await.unwrap();
     let settle = core
-        .settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+        .settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None, None)
         .await;
     assert!(settle.is_ok(), "{settle:?}");
 
@@ -1897,6 +1898,7 @@ async fn a_customer_added_offline_rides_ahead_of_the_sale_that_names_it() {
     core.checkout(
         None,
         crate::checkout::CheckoutInput {
+            sold_by: None,
             payment_method_id: CASH.into(),
             amount_tendered_minor: 1_000,
             tip_minor: 0,
@@ -1950,6 +1952,7 @@ fn seed_customer(core: &crate::MadarCore, row: serde_json::Value) {
 #[cfg(test)]
 fn sale_input(customer_id: Option<&str>, loyalty_customer_id: Option<&str>) -> crate::checkout::CheckoutInput {
     crate::checkout::CheckoutInput {
+        sold_by: None,
         payment_method_id: CASH.into(),
         amount_tendered_minor: 1_000,
         tip_minor: 0,
@@ -2093,7 +2096,7 @@ async fn a_customer_on_a_bill_settled_offline_reaches_the_servers_order() {
     seed_customer(&core, serde_json::json!({"id": MONA, "name": "Mona"}));
     core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 500).unwrap();
     let fired = core.fire_ticket(None, Some("walk-in".into()), None, None, None, None).await.unwrap();
-    core.settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+    core.settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None, None)
         .await
         .expect("settled offline");
     assert!(core.attach_customer(fired.ticket_id.clone(), Some(MONA.into())).unwrap());
@@ -2177,7 +2180,7 @@ async fn a_bills_customer_rides_its_fire_and_settle_and_a_later_choice_follows_o
     assert_eq!(core.get_ticket(ticket.clone()).await.unwrap().customer_id.as_deref(), Some(MONA));
 
     // The settle names nobody itself: the bill's standing choice rides it.
-    core.settle_ticket(ticket.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+    core.settle_ticket(ticket.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None, None)
         .await
         .expect("settled offline");
     let ops = core.store.list_active().unwrap();
@@ -2234,7 +2237,7 @@ async fn a_settle_answered_by_an_older_server_is_followed_by_one_attach() {
     seed_customer(&core, serde_json::json!({"id": MONA, "name": "Mona"}));
     core.cart_add(None, uuid::Uuid::new_v4().to_string(), "Latte".into(), 500).unwrap();
     let fired = core.fire_ticket(None, None, None, None, None, None).await.unwrap();
-    core.settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, Some(MONA.into()))
+    core.settle_ticket(fired.ticket_id.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, Some(MONA.into()), None)
         .await
         .expect("settled");
     for _ in 0..6 {
@@ -2281,7 +2284,7 @@ async fn a_customer_taken_off_a_bill_is_removed_after_its_settle() {
     assert_eq!(core.get_ticket(hers.clone()).await.unwrap().customer_id, None, "off the bill at once");
     assert_eq!(core.ticket_customer_choice(&nobodys), None, "nothing to remember");
     for t in [&hers, &nobodys] {
-        core.settle_ticket(t.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+        core.settle_ticket(t.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None, None)
             .await
             .expect("settled offline");
     }
@@ -2392,7 +2395,7 @@ async fn a_customer_picked_on_an_open_bill_reaches_the_other_tills() {
 
     // The settle says nothing of its own — the bill's customer is the server's
     // — and nothing is sent or attached beside it.
-    a.settle_ticket(ticket.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+    a.settle_ticket(ticket.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None, None)
         .await
         .expect("settled");
     drain(&a).await;
@@ -2453,7 +2456,7 @@ async fn a_bills_customer_changed_offline_is_sent_once_with_the_last_choice() {
     assert!(core.store.list_active().unwrap().iter().all(|o| o.id != format!("ticket-customer:{second}")));
     // Picked, then settled before it left: the settle carries it, the op goes.
     core.set_ticket_customer(second.clone(), Some(OMAR.into())).unwrap();
-    core.settle_ticket(second.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+    core.settle_ticket(second.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None, None)
         .await
         .expect("settled offline");
     assert!(core.store.list_active().unwrap().iter().all(|o| o.id != format!("ticket-customer:{second}")));
@@ -2538,7 +2541,7 @@ async fn an_older_server_refusing_the_bills_customer_loses_nothing() {
     pull_bill(&core, 12, open_bill(&ticket, None));
     assert_eq!(core.get_ticket(ticket.clone()).await.unwrap().customer_id.as_deref(), Some(MONA));
     // … and rides the settle.
-    core.settle_ticket(ticket.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+    core.settle_ticket(ticket.clone(), till.id.clone(), CASH.into(), Some(1_000), None, None, None, None, None, None, vec![], vec![], false, None, None, None)
         .await
         .expect("settled");
     let ops = core.store.list_active().unwrap();

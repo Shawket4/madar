@@ -5,6 +5,7 @@ part of '../models.dart';
 @immutable
 class PlanState {
   const PlanState({
+    this.addons,
     this.branchLimit,
     required this.branches,
     required this.entitlements,
@@ -18,6 +19,11 @@ class PlanState {
   });
 
   factory PlanState.fromJson(Map<String, Object?> json) => PlanState(
+    addons: decListN<String>(
+      json['addons'],
+      'PlanState.addons',
+      (e) => decString(e, 'PlanState.addons[]'),
+    ),
     branchLimit: decIntN(json['branch_limit'], 'PlanState.branch_limit'),
     branches: decList<PlanBranch>(
       json['branches'],
@@ -35,6 +41,10 @@ class PlanState {
     plan: decString(json['plan'], 'PlanState.plan'),
     signupSource: decString(json['signup_source'], 'PlanState.signup_source'),
   );
+
+  /// Active add-on keys (Rewards by Madar: `["loyalty"]`), already inside
+  /// `entitlements.features`.
+  final List<String>? addons;
 
   /// The plan's branch limit, `null` for unlimited.
   final int? branchLimit;
@@ -69,6 +79,7 @@ class PlanState {
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
+    if (addons != null || explicitNulls.contains('addons')) 'addons': addons,
     if (branchLimit != null || explicitNulls.contains('branch_limit'))
       'branch_limit': branchLimit,
     'branches': branches.map((e) => e.toJson()).toList(),

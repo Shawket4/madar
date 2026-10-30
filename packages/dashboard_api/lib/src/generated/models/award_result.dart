@@ -9,6 +9,8 @@ class AwardResult {
     required this.member,
     required this.orderId,
     required this.pointsAwarded,
+    this.tracks,
+    this.explicitNulls = const {},
   });
 
   factory AwardResult.fromJson(Map<String, Object?> json) => AwardResult(
@@ -23,6 +25,11 @@ class AwardResult {
     ),
     orderId: decString(json['order_id'], 'AwardResult.order_id'),
     pointsAwarded: decInt(json['points_awarded'], 'AwardResult.points_awarded'),
+    tracks: decListN<TrackAward>(
+      json['tracks'],
+      'AwardResult.tracks',
+      (e) => decObject(e, 'AwardResult.tracks[]', TrackAward.fromJson),
+    ),
   );
 
   /// True when this order had already earned — a double tap, a retry, or a
@@ -37,11 +44,22 @@ class AwardResult {
   /// Points this sale earned. 0 when it was too small to reach one point.
   final int pointsAwarded;
 
+  /// What each stamp track 2–4 earned on this press (0 for one already
+  /// earned), when the card has more than one track. `points_awarded` and
+  /// `member` stay track 1's.
+  final List<TrackAward>? tracks;
+
+  /// Wire names of optional fields to send as an explicit `null` when unset
+  /// (a PATCH that clears a value). Unset optional fields are omitted.
+  final Set<String> explicitNulls;
+
   Map<String, Object?> toJson() => <String, Object?>{
     'already_awarded': alreadyAwarded,
     'member': member.toJson(),
     'order_id': orderId,
     'points_awarded': pointsAwarded,
+    if (tracks != null || explicitNulls.contains('tracks'))
+      'tracks': tracks?.map((e) => e.toJson()).toList(),
   };
 
   @override

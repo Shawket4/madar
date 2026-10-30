@@ -113,6 +113,10 @@ pub struct OrderSummaryView {
     /// Teller who rang the order (the Teller column). `None` for queued orders
     /// (attributed to the current teller, not yet echoed by the server).
     pub teller_name: Option<String>,
+    /// Who was picked as serving at checkout (`sold_by_name`), on a branch
+    /// that asks — known for a queued sale too. `None` where nobody was.
+    #[serde(default)]
+    pub sold_by_name: Option<String>,
     /// Order origin: `dine_in` / `delivery` / … — drives the Dine-in/Delivery
     /// type filter. Queued orders default to `dine_in`.
     pub order_type: String,
@@ -690,6 +694,8 @@ pub(crate) fn order_to_receipt_with(
         is_cash: o.amount_tendered.is_some(),
         customer_name: o.customer_name.clone().filter(|s| !s.is_empty()),
         teller_name: Some(o.teller_name.clone()).filter(|s| !s.is_empty()),
+        // A reprint names who served it, as the first print did.
+        served_by_name: o.sold_by_name.clone().filter(|s| !s.is_empty()),
         is_delivery,
         delivery_channel: if is_delivery {
             o.delivery_channel.clone().filter(|s| !s.is_empty())
@@ -827,6 +833,7 @@ pub(crate) fn from_server(o: &models::Order) -> OrderSummaryView {
         created_at: o.created_at.to_rfc3339(),
         queued: false,
         teller_name: Some(o.teller_name.clone()).filter(|s| !s.is_empty()),
+        sold_by_name: o.sold_by_name.clone().flatten().filter(|s| !s.is_empty()),
         order_type: o.order_type.clone(),
         price_flagged: o.price_flagged.unwrap_or(false),
         customer_name: o.customer_name.clone().flatten().filter(|s| !s.is_empty()),
@@ -889,6 +896,7 @@ mod tests {
             created_at: "2026-06-21T10:00:00Z".into(),
             queued: status == "queued",
             teller_name: None,
+            sold_by_name: None,
             order_type: "dine_in".into(),
             price_flagged: false,
             customer_name: None,

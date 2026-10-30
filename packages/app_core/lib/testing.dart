@@ -140,6 +140,24 @@ bool? fakeCanInvocation(Invocation invocation, String? Function() role) {
   return null;
 }
 
+// ── "Who's serving?" in fakes ──────────────────────────────────────────────
+
+/// The picker of a branch that does not ask (`pick_teller_at_checkout` off):
+/// no section and no gate — what every fake written before it meant.
+const TellerPick kTellerPickOff = TellerPick(
+  required_: false,
+  mode: PickMode.all,
+  primary: [],
+  more: [],
+);
+
+/// `noSuchMethod` helper: [pick] (off unless given) for a `tellerPick`
+/// invocation, or null when the invocation is something else.
+TellerPick? fakeTellerPickInvocation(
+  Invocation invocation, [
+  TellerPick pick = kTellerPickOff,
+]) => invocation.memberName == #tellerPick ? pick : null;
+
 // ── the date-range picker's chrome in fakes ────────────────────────────────
 
 /// The core's `date_picker_chrome` as a fake bridge should answer it: a fixed

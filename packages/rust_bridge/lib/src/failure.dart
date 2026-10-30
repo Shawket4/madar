@@ -92,6 +92,10 @@ const Map<String, String> coreDetailKeys = {
       'err.no_offline_bundle',
   'cart is empty': 'err.cart_empty',
   'no open shift': 'err.no_shift',
+  // "Who's serving?" (`teller_pick::SOLD_BY_MISSING` / `SOLD_BY_NOT_ELIGIBLE`):
+  // a branch that asks refuses a sale without someone who can ring sales.
+  "pick who's serving before taking payment": 'err.sold_by_missing',
+  "the person picked can't ring sales here": 'err.sold_by_not_eligible',
   'no shift': 'err.no_shift',
   'held order is being edited on another till': 'err.held_elsewhere',
   'held order not found': 'err.parked_gone',

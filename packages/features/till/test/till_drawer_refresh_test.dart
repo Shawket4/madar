@@ -68,6 +68,7 @@ class _CoreBridge implements MadarBridge {
       reconciliation: const [],
       verification: 'server',
       spotViews: const [],
+      byPerson: const [],
       openedWhileAnotherOpen: false,
       serviceChargeWaivedCount: 0,
       serviceChargeWaivedMinor: 0,

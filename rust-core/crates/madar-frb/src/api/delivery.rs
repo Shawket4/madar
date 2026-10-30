@@ -149,13 +149,16 @@ impl MadarBridge {
     /// Finalize a delivery order into a real completed sale on the current open
     /// shift — replays the frozen snapshot. `payment_method_id` resolves to the
     /// raw wire method. Returns the new order id/ref + any oversold warnings.
+    /// `sold_by`: who was picked as serving ("Who's serving?"); required on a
+    /// branch that asks, attribution only.
     pub async fn delivery_finalize(
         &self,
         id: String,
         payment_method_id: String,
+        sold_by: Option<String>,
     ) -> Result<DeliveryFinalizeView, MadarError> {
         self.inner
-            .delivery_finalize(id, payment_method_id)
+            .delivery_finalize(id, payment_method_id, sold_by)
             .await
             .map_err(MadarError::from)
     }

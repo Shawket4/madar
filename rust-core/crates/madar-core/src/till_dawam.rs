@@ -12,7 +12,7 @@ const K_BRANCH_PEOPLE: &str = "till_dawam.branch_people";
 /// What the till still has to tell the teller about queued pay-outs.
 const K_PAY_OUT_NOTICES: &str = "till_dawam.pay_out_notices";
 /// The org's switched-on modules as the server last said (minor #40).
-const K_ORG_MODULES: &str = "till_dawam.org_modules";
+pub(crate) const K_ORG_MODULES: &str = "till_dawam.org_modules";
 
 /// Someone at this branch, for the pay-out's "who took it" picker.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

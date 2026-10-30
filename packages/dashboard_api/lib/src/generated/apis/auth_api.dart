@@ -121,4 +121,36 @@ class AuthApi {
           decObject(json, 'resolve_branch', ResolveBranchResponse.fromJson),
     );
   }
+
+  /// Sign this browser out of every first-party app: the session behind the
+  /// cookie, and behind the bearer token when one is sent, end on the server.
+  ///
+  /// `DELETE /auth/session` (end)
+  Future<void> end() async {
+    await _transport.send(ApiRequest(method: 'DELETE', path: '/auth/session'));
+  }
+
+  /// The browser's shared session, for an app that has none of its own.
+  ///
+  /// 401 `SESSION_NONE` when there is nothing live to share (the app shows its
+  /// sign-in); a dead cookie is forgotten on the way.
+  ///
+  /// `GET /auth/session` (adopt)
+  Future<SessionTokenResponse> adopt() async {
+    final response = await _transport.send(
+      ApiRequest(method: 'GET', path: '/auth/session'),
+    );
+    return decodeResponse(
+      response,
+      'adopt',
+      (json) => decObject(json, 'adopt', SessionTokenResponse.fromJson),
+    );
+  }
+
+  /// Share the caller's session with the other first-party apps.
+  ///
+  /// `POST /auth/session` (share)
+  Future<void> share() async {
+    await _transport.send(ApiRequest(method: 'POST', path: '/auth/session'));
+  }
 }

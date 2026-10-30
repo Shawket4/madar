@@ -405,7 +405,19 @@ class _OrderBody extends ConsumerWidget {
         label: t('common.date'),
         value: fmt.fmtDateTimeFull(o.createdAt),
       ),
-      _Row.text(label: t('tills.teller'), value: o.tellerName),
+      // Who sold: the person picked at checkout, else whoever was signed in;
+      // the signed-in person (the drawer's) shows when they differ.
+      _Row.text(
+        key: const ValueKey('order-sheet-teller'),
+        label: t('tills.teller'),
+        value: o.seller.teller,
+      ),
+      if (o.seller.signedIn case final signedIn?)
+        _Row.text(
+          key: const ValueKey('order-sheet-signed-in'),
+          label: t('orders.signedIn'),
+          value: signedIn,
+        ),
       if (o.startedByName != null && o.startedBy != o.tellerId)
         _Row.text(label: t('orders.startedBy'), value: o.startedByName!),
       if ((o.waiterName ?? '').isNotEmpty)
@@ -501,7 +513,7 @@ class _Card extends StatelessWidget {
 class _Row extends StatelessWidget {
   const _Row({required this.label, required this.child});
 
-  _Row.text({required this.label, required String value})
+  _Row.text({required this.label, required String value, super.key})
     : child = _EndText(value);
 
   final String label;

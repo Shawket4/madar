@@ -51,6 +51,8 @@ Name | Type | Description | Notes
 **service_charge_waived_by_name** | Option<**String**> |  | [optional]
 **service_mode** | Option<**String**> | How the customer takes the order: `takeaway` (Pickup) | `dine_in`. The cart's Pickup / Dine in toggle, stored on every order of every plan; a sale made on a till that never sent it is `takeaway`. Sales reports split by it (`GET /reports/sales` → `by_service_mode`). | [optional]
 **shift_id** | **uuid::Uuid** | DEPRECATED: same value as `till_id` (required by POS v0.5.1/v0.6.0). | 
+**sold_by** | Option<**uuid::Uuid**> | Who was picked as serving at checkout, on a branch that asks (`branches.pick_teller_at_checkout`). Attribution only: `teller_id` stays the signed-in person (the drawer, the money permissions). `null` when nobody was picked. Additive. | [optional]
+**sold_by_name** | Option<**String**> | That person's name. Additive. | [optional]
 **started_by** | Option<**uuid::Uuid**> | Who started this sale's cart when it is not the person who rang it: a held order resumed after a teller switch on the till. `null` otherwise. Additive. | [optional]
 **started_by_name** | Option<**String**> |  | [optional]
 **status** | **String** |  | 

@@ -188,6 +188,9 @@ pub struct _ReceiptView {
     pub customer_name: Option<String>,
     /// Teller who rang the sale; printed in the footer when present.
     pub teller_name: Option<String>,
+    /// Who was picked as serving at checkout; printed as "Served by" in place
+    /// of the teller. `None` on a branch that does not ask.
+    pub served_by_name: Option<String>,
     /// Delivery block — populated only for delivery orders.
     pub is_delivery: bool,
     pub delivery_channel: Option<String>,
@@ -276,6 +279,41 @@ pub struct _CheckoutInput {
     pub dine_in: bool,
     /// A manual customer attached to the sale.
     pub customer_id: Option<String>,
+    /// Who was picked as serving ("Who's serving?"), on a branch that asks.
+    /// Attribution only; required there, optional elsewhere.
+    pub sold_by: Option<String>,
+}
+
+pub use madar_core::teller_pick::{PickMode, PickPerson, TellerPick};
+
+/// How the "Who's serving?" section lays its people out.
+#[frb(mirror(PickMode))]
+pub enum _PickMode {
+    /// Clocked-in people first; the rest behind "+N more".
+    Focused,
+    /// Everyone at once.
+    All,
+}
+
+/// One person who can ring sales here.
+#[frb(mirror(PickPerson))]
+pub struct _PickPerson {
+    pub user_id: String,
+    pub name: String,
+    /// Their Dawam clock-in at this branch (RFC 3339) while clocked in.
+    pub on_shift_since: Option<String>,
+}
+
+/// What the Charge sheet shows above the tender.
+#[frb(mirror(TellerPick))]
+pub struct _TellerPick {
+    /// The branch asks: no tender until someone is picked.
+    pub required: bool,
+    pub mode: PickMode,
+    /// Focused: the people on shift; All: everyone.
+    pub primary: Vec<PickPerson>,
+    /// Focused: everyone else who can ring sales; All: empty.
+    pub more: Vec<PickPerson>,
 }
 
 pub use madar_core::checkout::CheckoutRedemption;
@@ -319,6 +357,9 @@ pub struct _OrderSummaryView {
     pub queued: bool,
     /// Teller who rang the order; `None` for queued orders.
     pub teller_name: Option<String>,
+    /// Who was picked as serving at checkout, queued or synced; `None` where
+    /// nobody was picked.
+    pub sold_by_name: Option<String>,
     /// Order origin: `dine_in` / `delivery` / … — drives the type filter.
     pub order_type: String,
     /// Optional customer name shown as a muted chip in the history row.
@@ -448,6 +489,15 @@ impl MadarBridge {
         input: CheckoutInput,
     ) -> Result<ReceiptView, MadarError> {
         self.inner.checkout(table_id, input).await.map_err(MadarError::from)
+    }
+
+    /// "Who's serving?" for the Charge sheet: whether this branch asks
+    /// (`pick_teller_at_checkout`) and whom to offer — people clocked in
+    /// first (Focused) when Dawam's data is good enough, else everyone (All).
+    /// Read from the device's own rows; never the network.
+    #[frb(sync)]
+    pub fn teller_pick(&self) -> TellerPick {
+        self.inner.teller_pick()
     }
 
     /// The current shift's orders — still-queued sales (offline-safe) plus

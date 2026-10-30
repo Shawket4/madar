@@ -13,6 +13,7 @@ Name | Type | Description | Notes
 **name** | Option<**String**> |  | [optional]
 **old_bill_hours** | Option<**u32**> | Hours after which an open bill counts as old (1..168). | [optional]
 **phone** | Option<**String**> |  | [optional]
+**pick_teller_at_checkout** | Option<**bool**> | Ask who is serving at checkout (see [`Branch`]). Absent (or `null`) leaves it as it is. | [optional]
 **printer_brand** | Option<[**models::PrinterBrand**](PrinterBrand.md)> |  | [optional]
 **printer_ip** | Option<**String**> |  | [optional]
 **printer_port** | Option<**i32**> |  | [optional]

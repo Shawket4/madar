@@ -27,6 +27,7 @@ class OrderItemFull {
     required this.orderId,
     required this.quantity,
     this.rewardCovered,
+    this.rewardTrack,
     this.rewardUnits,
     this.sizeLabel,
     this.staffCompMinor,
@@ -35,6 +36,7 @@ class OrderItemFull {
     required this.unitPrice,
     required this.addons,
     required this.optionals,
+    this.rewardSource,
     this.explicitNulls = const {},
   });
 
@@ -85,6 +87,7 @@ class OrderItemFull {
       json['reward_covered'],
       'OrderItemFull.reward_covered',
     ),
+    rewardTrack: decIntN(json['reward_track'], 'OrderItemFull.reward_track'),
     rewardUnits: decIntN(json['reward_units'], 'OrderItemFull.reward_units'),
     sizeLabel: decStringN(json['size_label'], 'OrderItemFull.size_label'),
     staffCompMinor: decIntN(
@@ -107,6 +110,10 @@ class OrderItemFull {
       'OrderItemFull.optionals',
       (e) =>
           decObject(e, 'OrderItemFull.optionals[]', OrderItemOptional.fromJson),
+    ),
+    rewardSource: decStringN(
+      json['reward_source'],
+      'OrderItemFull.reward_source',
     ),
   );
 
@@ -179,6 +186,9 @@ class OrderItemFull {
   /// Minor units the reward took off this line (0 for a paid line).
   final int? rewardCovered;
 
+  /// The stamp track (2–4) whose reward covered it; absent for track 1.
+  final int? rewardTrack;
+
   /// How many of `quantity` the reward covered.
   final int? rewardUnits;
 
@@ -201,6 +211,11 @@ class OrderItemFull {
   final List<OrderItemAddon> addons;
 
   final List<OrderItemOptional> optionals;
+
+  /// Why a covered line was free: `reward` (paid for with points or stamps)
+  /// or `gift` (the member's birthday gift), so a reprint and history can
+  /// say which. Absent on a line nothing covered. Additive.
+  final String? rewardSource;
 
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
@@ -243,6 +258,8 @@ class OrderItemFull {
     'quantity': quantity,
     if (rewardCovered != null || explicitNulls.contains('reward_covered'))
       'reward_covered': rewardCovered,
+    if (rewardTrack != null || explicitNulls.contains('reward_track'))
+      'reward_track': rewardTrack,
     if (rewardUnits != null || explicitNulls.contains('reward_units'))
       'reward_units': rewardUnits,
     if (sizeLabel != null || explicitNulls.contains('size_label'))
@@ -256,6 +273,8 @@ class OrderItemFull {
     'unit_price': unitPrice,
     'addons': addons.map((e) => e.toJson()).toList(),
     'optionals': optionals.map((e) => e.toJson()).toList(),
+    if (rewardSource != null || explicitNulls.contains('reward_source'))
+      'reward_source': rewardSource,
   };
 
   @override

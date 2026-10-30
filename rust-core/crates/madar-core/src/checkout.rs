@@ -274,6 +274,10 @@ pub struct ReceiptView {
     pub customer_name: Option<String>,
     /// Teller who rang the sale; printed in the footer when present.
     pub teller_name: Option<String>,
+    /// Who was picked as serving at checkout (`sold_by`), on a branch that
+    /// asks. Printed as "Served by", in place of the signed-in teller; `None`
+    /// everywhere else, and the receipt reads exactly as before.
+    pub served_by_name: Option<String>,
     /// Delivery block — populated only for delivery orders. When `is_delivery`,
     /// the header prints a `*** DELIVERY — {channel} ***` flag and the address
     /// block prints between the meta and item sections.
@@ -380,6 +384,11 @@ pub struct CheckoutInput {
     /// Rewards covering lines of the cart: which line, and how many of its
     /// units. The server prices them; the till only says which.
     pub loyalty_redemptions: Vec<CheckoutRedemption>,
+    /// Who was picked as serving ("Who's serving?"), a user id, on a branch
+    /// that asks (`pick_teller_at_checkout`). Attribution only: the signed-in
+    /// person stays the sale's teller. Required there — the core refuses a
+    /// sale without someone who can ring sales here — and optional elsewhere.
+    pub sold_by: Option<String>,
 }
 
 /// One reward applied to one cart line.
@@ -980,6 +989,7 @@ pub(crate) fn prepare(
         is_cash,
         customer_name: input.customer_name.clone().filter(|s| !s.trim().is_empty()),
         teller_name: None, // the FFI fills this from the session
+        served_by_name: None, // and this from the person picked
         is_delivery: false,
         delivery_channel: None,
         customer_phone: None,
@@ -1675,6 +1685,7 @@ mod tests {
 
     fn mk_input(method: &str, tendered: i64) -> CheckoutInput {
         CheckoutInput {
+            sold_by: None,
             payment_method_id: method.into(),
             amount_tendered_minor: tendered,
             tip_minor: 0,

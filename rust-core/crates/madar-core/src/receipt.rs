@@ -396,8 +396,15 @@ pub fn layout(receipt: &ReceiptView, ctx: &EscPosCtx) -> Vec<Line> {
             out.push(Line::plain(row(&lab.customer, v, w)));
         }
     }
-    if let Some(v) = &receipt.teller_name {
-        out.push(Line::plain(row(&lab.teller, v, w)));
+    // The person picked as serving, IN PLACE OF the signed-in teller: one
+    // person on the paper. Nobody picked: the teller row, as before.
+    match receipt.served_by_name.as_deref().filter(|n| !n.trim().is_empty()) {
+        Some(by) => out.push(Line::plain(row(&lab.served_by, by, w))),
+        None => {
+            if let Some(v) = &receipt.teller_name {
+                out.push(Line::plain(row(&lab.teller, v, w)));
+            }
+        }
     }
     if receipt.queued_offline {
         out.push(Line::centered(lab.queued.clone()));
@@ -953,6 +960,7 @@ mod tests {
             opened_while_another_open: false,
             verification: "server".into(),
             spot_views: Vec::new(),
+            by_person: Vec::new(),
         };
         let labels = z_labels();
         let lines = layout_till_report(&report, "Cafe Madar", "EGP", 32, &labels);
@@ -1054,6 +1062,7 @@ mod tests {
             opened_while_another_open: false,
             verification: "server".into(),
             spot_views: Vec::new(),
+            by_person: Vec::new(),
         }
     }
 
@@ -1197,6 +1206,7 @@ mod tests {
             is_cash: true,
             customer_name: None,
             teller_name: None,
+            served_by_name: None,
             is_delivery: false,
             delivery_channel: None,
             customer_phone: None,
@@ -1377,6 +1387,24 @@ mod tests {
             .expect("discount row");
         assert!(discount.text.ends_with("-12.50 EGP"));
         assert!(lines.iter().any(|l| l.text == "Saved - will sync"));
+    }
+
+    /// "Who's serving?": the picked person prints as "Served by", IN PLACE OF
+    /// the signed-in teller — one person on the paper. Nobody picked: exactly
+    /// the footer it always had.
+    #[test]
+    fn a_picked_person_prints_as_served_by_in_place_of_the_teller() {
+        let mut r = cash_receipt();
+        r.teller_name = Some("Sara".into());
+        r.served_by_name = Some("Mona".into());
+        let text: Vec<String> = layout(&r, &ctx()).into_iter().map(|l| l.text).collect();
+        assert!(text.iter().any(|l| l.starts_with("Served by") && l.ends_with("Mona")), "{text:?}");
+        assert!(!text.iter().any(|l| l.starts_with("Teller") || l.contains("Sara")), "{text:?}");
+
+        r.served_by_name = None;
+        let text: Vec<String> = layout(&r, &ctx()).into_iter().map(|l| l.text).collect();
+        assert!(text.iter().any(|l| l.starts_with("Teller") && l.ends_with("Sara")), "{text:?}");
+        assert!(!text.iter().any(|l| l.contains("Served by")), "{text:?}");
     }
 
     #[test]
@@ -2062,6 +2090,7 @@ mod tests {
             opened_while_another_open: false,
             verification: "server".into(),
             spot_views: Vec::new(),
+            by_person: Vec::new(),
         }
     }
 

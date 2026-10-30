@@ -692,6 +692,81 @@ void main() {
       );
     });
 
+    // "Who's serving?" as a page of the panel: Focused and All, both
+    // languages, locked until someone is picked.
+    for (final (mode, pick) in [
+      (
+        'focused',
+        const TellerPick(
+          required_: true,
+          mode: PickMode.focused,
+          primary: [
+            PickPerson(
+              userId: 'u-karim',
+              name: 'Karim Adel',
+              onShiftSince: '2026-10-30T08:02:00Z',
+            ),
+            PickPerson(
+              userId: 'u-mona',
+              name: 'Mona',
+              onShiftSince: '2026-10-30T07:58:00Z',
+            ),
+          ],
+          more: [
+            PickPerson(userId: 'u-aya', name: 'Aya'),
+            PickPerson(userId: 'u-sara', name: 'Sara'),
+          ],
+        ),
+      ),
+      (
+        'all',
+        const TellerPick(
+          required_: true,
+          mode: PickMode.all,
+          primary: [
+            PickPerson(userId: 'u-aya', name: 'Aya'),
+            PickPerson(userId: 'u-karim', name: 'Karim Adel'),
+            PickPerson(userId: 'u-mona', name: 'Mona'),
+            PickPerson(userId: 'u-sara', name: 'Sara'),
+          ],
+          more: [],
+        ),
+      ),
+    ]) {
+      for (final rtl in const [false, true]) {
+        final tag = 'fast-charge-pick-$mode-${rtl ? 'ar' : 'en'}';
+        testWidgets(tag, (tester) async {
+          await _mount(
+            tester,
+            screen: const TakeawaySellScreen(),
+            size: _ipad,
+            layout: SellLayout.fast,
+            bridge: _FakeBridge(rtl: rtl, pick: pick),
+          );
+          await tester.tap(
+            inCart(find.text(coreWord('sell.charge', arabic: rtl))).last,
+          );
+          await _settle(tester);
+          final charge = find.byType(ChargeSheet);
+          expect(
+            routeOf(tester, charge),
+            isA<MadarPanelRoute<ChargeOutcome>>(),
+          );
+          expect(
+            find.text(coreWord('charge.who_serving', arabic: rtl)),
+            findsOneWidget,
+          );
+          expect(
+            find.text(coreWord('charge.pick_hint', arabic: rtl)),
+            findsOneWidget,
+          );
+          await _capture(tester, tag);
+          MadarSheet.close<ChargeOutcome>(tester.element(charge));
+          await _settle(tester);
+        });
+      }
+    }
+
     testWidgets('a phone ignores the setting: the cart is still its bar', (
       tester,
     ) async {

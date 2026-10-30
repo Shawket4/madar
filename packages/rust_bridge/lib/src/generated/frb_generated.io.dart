@@ -693,6 +693,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   List<PaymentMethodView> dco_decode_list_payment_method_view(dynamic raw);
 
   @protected
+  List<PickPerson> dco_decode_list_pick_person(dynamic raw);
+
+  @protected
   Uint32List dco_decode_list_prim_u_32_strict(dynamic raw);
 
   @protected
@@ -770,6 +773,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<TicketView> dco_decode_list_ticket_view(dynamic raw);
+
+  @protected
+  List<TillPersonLineView> dco_decode_list_till_person_line_view(dynamic raw);
 
   @protected
   List<TillReportCashLine> dco_decode_list_till_report_cash_line(dynamic raw);
@@ -1019,6 +1025,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   PaymentMethodView dco_decode_payment_method_view(dynamic raw);
 
   @protected
+  PickMode dco_decode_pick_mode(dynamic raw);
+
+  @protected
+  PickPerson dco_decode_pick_person(dynamic raw);
+
+  @protected
   PosMetricsView dco_decode_pos_metrics_view(dynamic raw);
 
   @protected
@@ -1148,6 +1160,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   TableSittingView dco_decode_table_sitting_view(dynamic raw);
 
   @protected
+  TellerPick dco_decode_teller_pick(dynamic raw);
+
+  @protected
   TenderSummaryView dco_decode_tender_summary_view(dynamic raw);
 
   @protected
@@ -1170,6 +1185,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   TillOpenSyncView dco_decode_till_open_sync_view(dynamic raw);
+
+  @protected
+  TillPersonLineView dco_decode_till_person_line_view(dynamic raw);
 
   @protected
   TillPunchView dco_decode_till_punch_view(dynamic raw);
@@ -2089,6 +2107,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  List<PickPerson> sse_decode_list_pick_person(SseDeserializer deserializer);
+
+  @protected
   Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer);
 
   @protected
@@ -2200,6 +2221,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   List<TicketView> sse_decode_list_ticket_view(SseDeserializer deserializer);
+
+  @protected
+  List<TillPersonLineView> sse_decode_list_till_person_line_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<TillReportCashLine> sse_decode_list_till_report_cash_line(
@@ -2531,6 +2557,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  PickMode sse_decode_pick_mode(SseDeserializer deserializer);
+
+  @protected
+  PickPerson sse_decode_pick_person(SseDeserializer deserializer);
+
+  @protected
   PosMetricsView sse_decode_pos_metrics_view(SseDeserializer deserializer);
 
   @protected
@@ -2686,6 +2718,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   TableSittingView sse_decode_table_sitting_view(SseDeserializer deserializer);
 
   @protected
+  TellerPick sse_decode_teller_pick(SseDeserializer deserializer);
+
+  @protected
   TenderSummaryView sse_decode_tender_summary_view(
     SseDeserializer deserializer,
   );
@@ -2712,6 +2747,11 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
 
   @protected
   TillOpenSyncView sse_decode_till_open_sync_view(SseDeserializer deserializer);
+
+  @protected
+  TillPersonLineView sse_decode_till_person_line_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   TillPunchView sse_decode_till_punch_view(SseDeserializer deserializer);
@@ -3885,6 +3925,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_list_pick_person(
+    List<PickPerson> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_32_strict(
     Uint32List self,
     SseSerializer serializer,
@@ -4028,6 +4074,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_list_ticket_view(
     List<TicketView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_till_person_line_view(
+    List<TillPersonLineView> self,
     SseSerializer serializer,
   );
 
@@ -4452,6 +4504,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_pick_mode(PickMode self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_pick_person(PickPerson self, SseSerializer serializer);
+
+  @protected
   void sse_encode_pos_metrics_view(
     PosMetricsView self,
     SseSerializer serializer,
@@ -4683,6 +4741,9 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   );
 
   @protected
+  void sse_encode_teller_pick(TellerPick self, SseSerializer serializer);
+
+  @protected
   void sse_encode_tender_summary_view(
     TenderSummaryView self,
     SseSerializer serializer,
@@ -4721,6 +4782,12 @@ abstract class RustBridgeApiImplPlatform extends BaseApiImpl<RustBridgeWire> {
   @protected
   void sse_encode_till_open_sync_view(
     TillOpenSyncView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_till_person_line_view(
+    TillPersonLineView self,
     SseSerializer serializer,
   );
 

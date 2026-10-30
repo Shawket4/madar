@@ -289,6 +289,7 @@ async fn grant(fx: &Fixture, s: &Seed, teller: Uuid, effect: &str) {
 
 fn pay(method: &str, tendered: i64) -> CheckoutInput {
     CheckoutInput {
+        sold_by: None,
         payment_method_id: method.to_string(),
         amount_tendered_minor: tendered,
         tip_minor: 0,

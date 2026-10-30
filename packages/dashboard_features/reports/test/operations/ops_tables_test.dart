@@ -1066,6 +1066,99 @@ void main() {
       await h.shot('operations/order');
     });
 
+    testWidgets('teller pick: the order names who sold as the Teller and '
+        'who was signed in under it; nobody picked reads as before', (
+      tester,
+    ) async {
+      final s = opsServer();
+      final customer = MockSeed.instance.customers[0];
+      final theirs = s.db['orders']
+          .where((o) => o['customer_id'] == customer.id)
+          .toList();
+      expect(theirs, isNotEmpty);
+      for (final o in theirs) {
+        o
+          ..['sold_by'] = SeedIds.user('mona')
+          ..['sold_by_name'] = 'Mona Adel';
+      }
+      final h = await pumpOps(
+        tester,
+        branchId: SeedIds.heliopolis,
+        server: s.server,
+        db: s.db,
+      );
+      await _openRow(h, 'T1');
+      await h.tap(
+        find.descendant(
+          of: _sheet,
+          matching: find.widgetWithText(DashPressable, customer.name),
+        ),
+      );
+      await h.tap(
+        find
+            .descendant(
+              of: find.byType(OpsCustomerSheet),
+              matching: find.byType(DashButton),
+            )
+            .first,
+      );
+      final id = h.server
+          .callsTo('/orders/{order_id}')
+          .single
+          .path
+          .split('/')[2];
+      final signedIn = s.db['orders'].find(id)!['teller_name']! as String;
+      Finder line(String key) => find.descendant(
+        of: find.byType(OpsOrderSheet),
+        matching: find.byKey(ValueKey(key)),
+      );
+      DashSummaryLine at(String key) => tester.widget(line(key));
+      expect(at('ops-order-teller').label, 'Teller');
+      expect(at('ops-order-teller').value, 'Mona Adel');
+      expect(at('ops-order-signed-in').label, 'Signed in');
+      expect(at('ops-order-signed-in').value, signedIn);
+    });
+
+    testWidgets('teller pick: nobody picked: the Teller is the signed-in '
+        'person, no "Signed in" line', (tester) async {
+      final h = await pumpOps(tester, branchId: SeedIds.heliopolis);
+      await _openRow(h, 'T1');
+      final customer = MockSeed.instance.customers[0];
+      await h.tap(
+        find.descendant(
+          of: _sheet,
+          matching: find.widgetWithText(DashPressable, customer.name),
+        ),
+      );
+      await h.tap(
+        find
+            .descendant(
+              of: find.byType(OpsCustomerSheet),
+              matching: find.byType(DashButton),
+            )
+            .first,
+      );
+      final id = h.server
+          .callsTo('/orders/{order_id}')
+          .single
+          .path
+          .split('/')[2];
+      final o = h.db!['orders'].find(id)!;
+      expect(o['sold_by'], isNull);
+      final teller = tester.widget<DashSummaryLine>(
+        find.byKey(const ValueKey('ops-order-teller')),
+      );
+      expect(teller.value, o['teller_name']);
+      expect(find.byKey(const ValueKey('ops-order-signed-in')), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(OpsOrderSheet),
+          matching: find.text('Signed in'),
+        ),
+        findsNothing,
+      );
+    });
+
     testWidgets('REP-OPS-032 the customer could not be read: the error and '
         'Retry, spinning while it runs; the order\'s too', (tester) async {
       final s = opsServer();

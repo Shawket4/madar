@@ -7,16 +7,21 @@ part of '../models.dart';
 class JoinInfo {
   const JoinInfo({
     required this.birthdayEnabled,
+    this.birthdayGift,
     this.birthdayRewardAmount,
     this.branchId,
     this.branchName,
     required this.brand,
+    this.card,
+    this.cardSize,
     required this.earnPiastresPerPoint,
     required this.enabled,
+    this.memberCount,
     required this.mode,
     required this.nextRewardCost,
     required this.requireOtp,
     required this.rewards,
+    this.stampUnit,
     this.terms,
     this.termsAr,
     this.explicitNulls = const {},
@@ -27,6 +32,7 @@ class JoinInfo {
       json['birthday_enabled'],
       'JoinInfo.birthday_enabled',
     ),
+    birthdayGift: decStringN(json['birthday_gift'], 'JoinInfo.birthday_gift'),
     birthdayRewardAmount: decIntN(
       json['birthday_reward_amount'],
       'JoinInfo.birthday_reward_amount',
@@ -34,11 +40,14 @@ class JoinInfo {
     branchId: decStringN(json['branch_id'], 'JoinInfo.branch_id'),
     branchName: decStringN(json['branch_name'], 'JoinInfo.branch_name'),
     brand: decObject(json['brand'], 'JoinInfo.brand', CardBrand.fromJson),
+    card: decObjectN(json['card'], 'JoinInfo.card', PublicCard.fromJson),
+    cardSize: decIntN(json['card_size'], 'JoinInfo.card_size'),
     earnPiastresPerPoint: decInt(
       json['earn_piastres_per_point'],
       'JoinInfo.earn_piastres_per_point',
     ),
     enabled: decBool(json['enabled'], 'JoinInfo.enabled'),
+    memberCount: decIntN(json['member_count'], 'JoinInfo.member_count'),
     mode: decString(json['mode'], 'JoinInfo.mode'),
     nextRewardCost: decInt(
       json['next_reward_cost'],
@@ -50,6 +59,7 @@ class JoinInfo {
       'JoinInfo.rewards',
       (e) => decObject(e, 'JoinInfo.rewards[]', PublicReward.fromJson),
     ),
+    stampUnit: decStringN(json['stamp_unit'], 'JoinInfo.stamp_unit'),
     terms: decStringN(json['terms'], 'JoinInfo.terms'),
     termsAr: decStringN(json['terms_ar'], 'JoinInfo.terms_ar'),
   );
@@ -57,6 +67,11 @@ class JoinInfo {
   /// Ask for a date of birth. False means the form does not show the field —
   /// a shop that does not run birthday rewards is not given one to hold.
   final bool birthdayEnabled;
+
+  /// What the birthday gives here: `item` (one free item) or `amount`
+  /// (`birthday_reward_amount` on the card). Absent when birthdays are off
+  /// or give nothing.
+  final String? birthdayGift;
 
   /// What the birthday is worth here, so the page can say what it is FOR
   /// rather than asking for a date of birth and explaining nothing.
@@ -71,6 +86,13 @@ class JoinInfo {
   /// Whose programme this is, and how the page should look.
   final CardBrand brand;
 
+  final PublicCard? card;
+
+  /// The card size: how many stamps (or points) fill one card, the cheapest
+  /// reward on offer (`model::card_size`), the same figure the till and the
+  /// passes count towards. Equal to `next_reward_cost`, under its own name.
+  final int? cardSize;
+
   /// EGP that earns one point — the page's "a point for every N EGP" line.
   /// Piastres on the wire, as everywhere; the page divides by 100. Only
   /// meaningful when `mode` is `"points"`.
@@ -79,6 +101,11 @@ class JoinInfo {
   /// False when the program is off here — the page says so instead of taking
   /// a signup that would go nowhere.
   final bool enabled;
+
+  /// "N+ people already have this card": the programme's live members,
+  /// floored to a step (100, 150, 200, 250, 300, 400, 500, 750, 1000, ...;
+  /// `loyalty::social`). Absent at 100 members or fewer, and never exact.
+  final int? memberCount;
 
   /// `"points"` (earned on spend) or `"visits"` (a stamp per order) — which
   /// sentence the page writes.
@@ -93,6 +120,12 @@ class JoinInfo {
   /// The rewards on offer, each with what it costs.
   final List<PublicReward> rewards;
 
+  /// What one stamp stands for: `order` (one per sale), `item` (one per item
+  /// bought) or `stamp` (a Rewards by Madar counter shop: the teller stamps
+  /// the card). Absent for a points programme. The same rule the passes and
+  /// messages use (`earn::StampUnit`).
+  final String? stampUnit;
+
   final String? terms;
 
   final String? termsAr;
@@ -103,6 +136,8 @@ class JoinInfo {
 
   Map<String, Object?> toJson() => <String, Object?>{
     'birthday_enabled': birthdayEnabled,
+    if (birthdayGift != null || explicitNulls.contains('birthday_gift'))
+      'birthday_gift': birthdayGift,
     if (birthdayRewardAmount != null ||
         explicitNulls.contains('birthday_reward_amount'))
       'birthday_reward_amount': birthdayRewardAmount,
@@ -111,12 +146,19 @@ class JoinInfo {
     if (branchName != null || explicitNulls.contains('branch_name'))
       'branch_name': branchName,
     'brand': brand.toJson(),
+    if (card != null || explicitNulls.contains('card')) 'card': card?.toJson(),
+    if (cardSize != null || explicitNulls.contains('card_size'))
+      'card_size': cardSize,
     'earn_piastres_per_point': earnPiastresPerPoint,
     'enabled': enabled,
+    if (memberCount != null || explicitNulls.contains('member_count'))
+      'member_count': memberCount,
     'mode': mode,
     'next_reward_cost': nextRewardCost,
     'require_otp': requireOtp,
     'rewards': rewards.map((e) => e.toJson()).toList(),
+    if (stampUnit != null || explicitNulls.contains('stamp_unit'))
+      'stamp_unit': stampUnit,
     if (terms != null || explicitNulls.contains('terms')) 'terms': terms,
     if (termsAr != null || explicitNulls.contains('terms_ar'))
       'terms_ar': termsAr,

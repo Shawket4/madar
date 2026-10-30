@@ -1357,10 +1357,14 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
   /// Exact cash: fill the tendered amount with the due and charge in the
   /// same tap. The 3-tap counter sale is tile → Charge → Exact.
-  Future<void> chargeExact() async {
+  ///
+  /// [soldBy]: the person picked as serving, on a branch that asks ("Who's
+  /// serving?"). The sheet holds that pick; the core refuses a sale there
+  /// without one.
+  Future<void> chargeExact({String? soldBy}) async {
     if (!state.canChargeExact) return;
     setTendered(state.dueCashMinor);
-    await charge();
+    await charge(soldBy: soldBy);
   }
 
   /// The outcome of this session once any charge in flight has landed —
@@ -1377,18 +1381,21 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   /// .outcome] is set — carrying the receipt's print job, which runs in the
   /// background and never holds the sale up; on refusal the server's
   /// sentence lands in [CheckoutState.error] and the drawer stays open.
-  Future<void> charge() {
+  ///
+  /// [soldBy] rides whichever call takes the money (checkout, settle,
+  /// finalize) as the person picked as serving; attribution only.
+  Future<void> charge({String? soldBy}) {
     final running = _inFlight;
     if (running != null) return running;
     if (!state.canCharge) return Future.value();
-    final job = _charge();
+    final job = _charge(soldBy);
     _inFlight = job;
     return job.whenComplete(() {
       if (identical(_inFlight, job) && state.outcome == null) _inFlight = null;
     });
   }
 
-  Future<void> _charge() async {
+  Future<void> _charge(String? soldBy) async {
     final s = state;
     final method = s.splitMode ? s.splitPrimary : s.effectiveMethodId;
     if (method == null) return;
@@ -1404,14 +1411,20 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     _update((st) => st.copyWith(isPlacingOrder: true, error: null));
     try {
       final taken = await switch (s.target) {
-        OnlineChargeTarget(:final order) => _chargeOnline(s, order, method),
+        OnlineChargeTarget(:final order) => _chargeOnline(
+          s,
+          order,
+          method,
+          soldBy,
+        ),
         BillChargeTarget(:final ticket, :final tableLabel) => _chargeBill(
           s,
           ticket,
           method,
+          soldBy,
           tableLabel: tableLabel,
         ),
-        CartChargeTarget() || null => _chargeCart(s, method),
+        CartChargeTarget() || null => _chargeCart(s, method, soldBy),
       };
       // Auto-print — the Done card's Reprint is for REPRINTS. It runs in the
       // background with a timeout and reports a state; a slow or dead printer
@@ -1464,7 +1477,11 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
 
   /// Place the cart as an order via the core (online or queued offline).
   /// Split legs zero the tendered amount; a non-cash single payment tenders 0.
-  Future<ChargeOutcome> _chargeCart(CheckoutState s, String method) async {
+  Future<ChargeOutcome> _chargeCart(
+    CheckoutState s,
+    String method,
+    String? soldBy,
+  ) async {
     final receipt = await _bridge.checkout(
       tableId: s.cartTableId,
       input: CheckoutInput(
@@ -1483,6 +1500,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
             ? null
             : s.loyaltyMember?.id,
         loyaltyRedemptions: s.rewardRedemptions,
+        soldBy: soldBy,
       ),
     );
     // The sale is taken: the next one on this cart starts at its default.
@@ -1510,7 +1528,8 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
   Future<ChargeOutcome> _chargeBill(
     CheckoutState s,
     TicketView ticket,
-    String method, {
+    String method,
+    String? soldBy, {
     String? tableLabel,
   }) async {
     final bridge = _bridge;
@@ -1541,6 +1560,7 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
       discountApproval: s.billDiscountApproval,
       // The settle itself says who the bill is for — no attach follows it.
       customerId: s.customer?.id,
+      soldBy: soldBy,
     );
     ReceiptView? receipt;
     if (orderId != null) {
@@ -1575,11 +1595,13 @@ class CheckoutNotifier extends Notifier<CheckoutState> {
     CheckoutState s,
     DeliveryOrderView order,
     String method,
+    String? soldBy,
   ) async {
     final bridge = _bridge;
     final res = await bridge.deliveryFinalize(
       id: order.id,
       paymentMethodId: method,
+      soldBy: soldBy,
     );
     // Finalize carries the order's own customer. Only a CHANGE made on the
     // sheet follows it, as an attach (or a removal) queued behind the sale.

@@ -60,6 +60,10 @@ class CheckoutInput {
   /// A manual customer attached to the sale.
   final String? customerId;
 
+  /// Who was picked as serving ("Who's serving?"), on a branch that asks.
+  /// Attribution only; required there, optional elsewhere.
+  final String? soldBy;
+
   const CheckoutInput({
     required this.paymentMethodId,
     required this.amountTenderedMinor,
@@ -72,6 +76,7 @@ class CheckoutInput {
     required this.loyaltyRedemptions,
     required this.dineIn,
     this.customerId,
+    this.soldBy,
   });
 
   @override
@@ -86,7 +91,8 @@ class CheckoutInput {
       loyaltyCustomerId.hashCode ^
       loyaltyRedemptions.hashCode ^
       dineIn.hashCode ^
-      customerId.hashCode;
+      customerId.hashCode ^
+      soldBy.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -103,7 +109,8 @@ class CheckoutInput {
           loyaltyCustomerId == other.loyaltyCustomerId &&
           loyaltyRedemptions == other.loyaltyRedemptions &&
           dineIn == other.dineIn &&
-          customerId == other.customerId;
+          customerId == other.customerId &&
+          soldBy == other.soldBy;
 }
 
 /// One reward applied to one cart line.
@@ -409,6 +416,10 @@ class OrderSummaryView {
   /// Teller who rang the order; `None` for queued orders.
   final String? tellerName;
 
+  /// Who was picked as serving at checkout, queued or synced; `None` where
+  /// nobody was picked.
+  final String? soldByName;
+
   /// Order origin: `dine_in` / `delivery` / … — drives the type filter.
   final String orderType;
 
@@ -434,6 +445,7 @@ class OrderSummaryView {
     required this.createdAt,
     required this.queued,
     this.tellerName,
+    this.soldByName,
     required this.orderType,
     this.customerName,
     required this.priceFlagged,
@@ -453,6 +465,7 @@ class OrderSummaryView {
       createdAt.hashCode ^
       queued.hashCode ^
       tellerName.hashCode ^
+      soldByName.hashCode ^
       orderType.hashCode ^
       customerName.hashCode ^
       priceFlagged.hashCode ^
@@ -474,11 +487,48 @@ class OrderSummaryView {
           createdAt == other.createdAt &&
           queued == other.queued &&
           tellerName == other.tellerName &&
+          soldByName == other.soldByName &&
           orderType == other.orderType &&
           customerName == other.customerName &&
           priceFlagged == other.priceFlagged &&
           orderRef == other.orderRef &&
           displayNumber == other.displayNumber;
+}
+
+/// How the "Who's serving?" section lays its people out.
+enum PickMode {
+  /// Clocked-in people first; the rest behind "+N more".
+  focused,
+
+  /// Everyone at once.
+  all,
+}
+
+/// One person who can ring sales here.
+class PickPerson {
+  final String userId;
+  final String name;
+
+  /// Their Dawam clock-in at this branch (RFC 3339) while clocked in.
+  final String? onShiftSince;
+
+  const PickPerson({
+    required this.userId,
+    required this.name,
+    this.onShiftSince,
+  });
+
+  @override
+  int get hashCode => userId.hashCode ^ name.hashCode ^ onShiftSince.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PickPerson &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          name == other.name &&
+          onShiftSince == other.onShiftSince;
 }
 
 /// A deal row, printed under the subtotal.
@@ -728,6 +778,10 @@ class ReceiptView {
   /// Teller who rang the sale; printed in the footer when present.
   final String? tellerName;
 
+  /// Who was picked as serving at checkout; printed as "Served by" in place
+  /// of the teller. `None` on a branch that does not ask.
+  final String? servedByName;
+
   /// Delivery block — populated only for delivery orders.
   final bool isDelivery;
   final String? deliveryChannel;
@@ -785,6 +839,7 @@ class ReceiptView {
     required this.isCash,
     this.customerName,
     this.tellerName,
+    this.servedByName,
     required this.isDelivery,
     this.deliveryChannel,
     this.customerPhone,
@@ -828,6 +883,7 @@ class ReceiptView {
       isCash.hashCode ^
       customerName.hashCode ^
       tellerName.hashCode ^
+      servedByName.hashCode ^
       isDelivery.hashCode ^
       deliveryChannel.hashCode ^
       customerPhone.hashCode ^
@@ -873,6 +929,7 @@ class ReceiptView {
           isCash == other.isCash &&
           customerName == other.customerName &&
           tellerName == other.tellerName &&
+          servedByName == other.servedByName &&
           isDelivery == other.isDelivery &&
           deliveryChannel == other.deliveryChannel &&
           customerPhone == other.customerPhone &&
@@ -1055,6 +1112,40 @@ class RefundableLineView {
           soldQty == other.soldQty &&
           refundableQty == other.refundableQty &&
           unitShareMinor == other.unitShareMinor;
+}
+
+/// What the Charge sheet shows above the tender.
+class TellerPick {
+  /// The branch asks: no tender until someone is picked.
+  final bool required_;
+  final PickMode mode;
+
+  /// Focused: the people on shift; All: everyone.
+  final List<PickPerson> primary;
+
+  /// Focused: everyone else who can ring sales; All: empty.
+  final List<PickPerson> more;
+
+  const TellerPick({
+    required this.required_,
+    required this.mode,
+    required this.primary,
+    required this.more,
+  });
+
+  @override
+  int get hashCode =>
+      required_.hashCode ^ mode.hashCode ^ primary.hashCode ^ more.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TellerPick &&
+          runtimeType == other.runtimeType &&
+          required_ == other.required_ &&
+          mode == other.mode &&
+          primary == other.primary &&
+          more == other.more;
 }
 
 /// The tender screen's figures.

@@ -13,6 +13,7 @@ import 'package:feature_checkout/src/done_card.dart';
 import 'package:feature_checkout/src/loyalty_scan_sheet.dart';
 import 'package:feature_checkout/src/loyalty_words.dart';
 import 'package:feature_checkout/src/manager_approval_sheet.dart';
+import 'package:feature_checkout/src/who_serving.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rust_bridge/rust_bridge.dart';
@@ -224,6 +225,21 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
   bool _popped = false;
   final ScrollController _scroll = ScrollController();
 
+  /// "Who's serving?" on a branch that asks: who to offer, from the core's
+  /// local rows, read once as the sheet opens.
+  late final TellerPick _pick = ref.read(bridgeProvider).tellerPick();
+
+  /// The person picked in THIS sheet. Never preselected, never carried to
+  /// another sheet or sale: it lives and dies with this state.
+  String? _picked;
+
+  /// Focused: the rest of the people are shown.
+  bool _showMore = false;
+
+  /// No tender until someone is picked — the gate, here; the core holds the
+  /// same line again at checkout.
+  bool get _locked => _pick.required_ && _picked == null;
+
   @override
   void dispose() {
     _scroll.dispose();
@@ -259,8 +275,12 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
     if (_popped || !mounted) return;
     // A landed outcome still counts as "charging" (nothing else may close the
     // sheet), so the PopScope would refuse this close too. Mark it resolved,
-    // rebuild so the scope lets go, then close after that frame.
-    setState(() => _popped = true);
+    // rebuild so the scope lets go, then close after that frame. The sale is
+    // done: its person goes with it.
+    setState(() {
+      _popped = true;
+      _picked = null;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) MadarSheet.close(context, outcome);
     });
@@ -392,9 +412,40 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
           layout: layout,
           showChange: !wide,
           onTendered: notifier.setTendered,
-          onExact: () => unawaited(notifier.chargeExact()),
+          onExact: () => unawaited(notifier.chargeExact(soldBy: _picked)),
         ),
     ];
+    final locked = _locked;
+    // Until someone is picked every tender control is inert and dimmed —
+    // methods, cash, Exact, split — and the bar below stays dark. The line
+    // under the people says why.
+    Widget lockedTender(double spacing) => IgnorePointer(
+      ignoring: locked,
+      child: ExcludeSemantics(
+        excluding: locked,
+        child: AnimatedOpacity(
+          opacity: locked ? Opacities.disabled : 1,
+          duration: motionReduced(context)
+              ? Duration.zero
+              : MotionSpec.standardDuration,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: spacing,
+            children: tender,
+          ),
+        ),
+      ),
+    );
+    final who = _pick.required_
+        ? WhoServing(
+            pick: _pick,
+            picked: _picked,
+            expanded: _showMore,
+            tr: tr,
+            onPick: (id) => setState(() => _picked = id),
+            onToggleMore: () => setState(() => _showMore = !_showMore),
+          )
+        : null;
     final error = s.error == null
         ? null
         : NoticeBanner(
@@ -406,9 +457,12 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
       label: tr('charge.title'),
       amountMinor: s.chargeTotalMinor,
       currency: s.currency,
-      enabled: block == ChargeBlock.none,
+      enabled: block == ChargeBlock.none && !locked,
       loading: paying || block == ChargeBlock.loading,
-      reason: reason,
+      // Locked for a person: the figure stays on the bar (the total is still
+      // in view) and the section above says what is missing — unless the
+      // till itself cannot charge (no till, no methods), which still says so.
+      reason: locked && block == ChargeBlock.needTender ? null : reason,
       onTap: () => unawaited(_chargeGated(context, notifier)),
     );
     final oneMethod = s.paymentMethods.length == 1 && s.effectiveMethod != null
@@ -452,7 +506,11 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       spacing: Space.xl,
-                      children: [...tender, ?quiet],
+                      children: [
+                        ?who,
+                        if (tender.isNotEmpty) lockedTender(Space.xl),
+                        ?quiet,
+                      ],
                     ),
                   ),
                 ),
@@ -517,9 +575,10 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   spacing: Space.lg,
                   children: [
+                    ?who,
                     _Hero(state: s, tr: tr, bridge: bridge),
                     ?quiet,
-                    ...tender,
+                    if (tender.isNotEmpty) lockedTender(Space.lg),
                     ?error,
                   ],
                 ),
@@ -560,7 +619,7 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
       if (approval == null || !mounted) return;
       notifier.setBillDiscountApproval(approval);
     }
-    await notifier.charge();
+    await notifier.charge(soldBy: _picked);
   }
 
   /// The discount picker: No discount + every active discount as chips.

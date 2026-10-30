@@ -10,8 +10,11 @@ part of '../models.dart';
 class CardView {
   const CardView({
     required this.balance,
+    this.birthdayGift,
     required this.brand,
     required this.canRedeem,
+    this.card,
+    this.cardSize,
     required this.marketingOptOut,
     required this.memberToken,
     required this.mode,
@@ -23,13 +26,22 @@ class CardView {
     required this.progressToNext,
     required this.rewards,
     required this.rewardsReady,
+    this.stampUnit,
+    this.tracks,
     this.explicitNulls = const {},
   });
 
   factory CardView.fromJson(Map<String, Object?> json) => CardView(
     balance: decInt(json['balance'], 'CardView.balance'),
+    birthdayGift: decObjectN(
+      json['birthday_gift'],
+      'CardView.birthday_gift',
+      BirthdayGiftView.fromJson,
+    ),
     brand: decObject(json['brand'], 'CardView.brand', CardBrand.fromJson),
     canRedeem: decBool(json['can_redeem'], 'CardView.can_redeem'),
+    card: decObjectN(json['card'], 'CardView.card', PublicCard.fromJson),
+    cardSize: decIntN(json['card_size'], 'CardView.card_size'),
     marketingOptOut: decBool(
       json['marketing_opt_out'],
       'CardView.marketing_opt_out',
@@ -57,15 +69,30 @@ class CardView {
       (e) => decObject(e, 'CardView.rewards[]', PublicReward.fromJson),
     ),
     rewardsReady: decInt(json['rewards_ready'], 'CardView.rewards_ready'),
+    stampUnit: decStringN(json['stamp_unit'], 'CardView.stamp_unit'),
+    tracks: decListN<MemberTrack>(
+      json['tracks'],
+      'CardView.tracks',
+      (e) => decObject(e, 'CardView.tracks[]', MemberTrack.fromJson),
+    ),
   );
 
   /// The live balance, in `mode`'s currency.
   final int balance;
 
+  final BirthdayGiftView? birthdayGift;
+
   /// Whose card this is, and how it should look.
   final CardBrand brand;
 
   final bool canRedeem;
+
+  final PublicCard? card;
+
+  /// The card size: how many stamps (or points) fill one card, the cheapest
+  /// reward on offer (`model::card_size`), the same figure the till and the
+  /// passes count towards. Equal to `next_reward_cost`, under its own name.
+  final int? cardSize;
 
   /// They have asked this shop to stop sending them things.
   final bool marketingOptOut;
@@ -95,14 +122,26 @@ class CardView {
   /// Rewards the balance has already earned — a card does not stop at full.
   final int rewardsReady;
 
+  /// What one stamp stands for: `order`, `item` or `stamp` (a counter
+  /// shop); absent for points. The join info's rule (`earn::StampUnit`).
+  final String? stampUnit;
+
+  /// Every stamp track of this member's card, when there is more than one.
+  final List<MemberTrack>? tracks;
+
   /// Wire names of optional fields to send as an explicit `null` when unset
   /// (a PATCH that clears a value). Unset optional fields are omitted.
   final Set<String> explicitNulls;
 
   Map<String, Object?> toJson() => <String, Object?>{
     'balance': balance,
+    if (birthdayGift != null || explicitNulls.contains('birthday_gift'))
+      'birthday_gift': birthdayGift?.toJson(),
     'brand': brand.toJson(),
     'can_redeem': canRedeem,
+    if (card != null || explicitNulls.contains('card')) 'card': card?.toJson(),
+    if (cardSize != null || explicitNulls.contains('card_size'))
+      'card_size': cardSize,
     'marketing_opt_out': marketingOptOut,
     'member_token': memberToken,
     'mode': mode,
@@ -115,6 +154,10 @@ class CardView {
     'progress_to_next': progressToNext,
     'rewards': rewards.map((e) => e.toJson()).toList(),
     'rewards_ready': rewardsReady,
+    if (stampUnit != null || explicitNulls.contains('stamp_unit'))
+      'stamp_unit': stampUnit,
+    if (tracks != null || explicitNulls.contains('tracks'))
+      'tracks': tracks?.map((e) => e.toJson()).toList(),
   };
 
   @override

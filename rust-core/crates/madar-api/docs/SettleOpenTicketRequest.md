@@ -22,6 +22,7 @@ Name | Type | Description | Notes
 **payment_method** | **String** |  | 
 **payment_splits** | Option<[**Vec<models::PaymentSplitInput>**](PaymentSplitInput.md)> | Split tenders, when the party paid with more than one. Carried to the order's payment legs like a counter sale's; they must sum to the total. | [optional]
 **settled_at** | Option<**chrono::DateTime<chrono::FixedOffset>**> | When the bill was paid, as the till says. An offline settle replayed later keeps its real time — it becomes the order's `created_at` and the ticket's `settled_at`, one instant on both rows. Absent means now; a future clock is refused. | [optional]
+**sold_by** | Option<**uuid::Uuid**> | Who was picked as serving at checkout, on a branch that asks (`branches.pick_teller_at_checkout`). Same rule as `sold_by` on an order: attribution only, never a reason to refuse the settle. Additive. | [optional]
 **till_id** | **uuid::Uuid** |  | 
 **tip_amount** | Option<**i32**> |  | [optional]
 **tip_payment_method** | Option<**String**> |  | [optional]

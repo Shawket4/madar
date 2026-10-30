@@ -120,6 +120,53 @@ class OrgsApi {
     );
   }
 
+  /// End an add-on (super admin). The row is kept, ended; a member's points,
+  /// passes and history stay, the features just switch off.
+  ///
+  /// `DELETE /orgs/{id}/addons/{feature}` (end_org_addon)
+  Future<PlanState> endOrgAddon({
+    required String id,
+    required String feature,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'DELETE',
+        path: '/orgs/${pathSegment(id)}/addons/${pathSegment(feature)}',
+      ),
+    );
+    return decodeResponse(
+      response,
+      'end_org_addon',
+      (json) => decObject(json, 'end_org_addon', PlanState.fromJson),
+    );
+  }
+
+  /// Switch an add-on on for an org (super admin). Loyalty on a Free org is Rewards by Madar:
+  /// the loyalty programme, its card and the teller page, without the paid plan.
+  /// On a paid org it changes nothing (paid has every feature) and is refused,
+  /// so no row claims a sale that was not made. Repeating it keeps the first
+  /// start date.
+  ///
+  /// `PUT /orgs/{id}/addons/{feature}` (put_org_addon)
+  Future<PlanState> putOrgAddon({
+    required String id,
+    required String feature,
+    required AddonRequest body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'PUT',
+        path: '/orgs/${pathSegment(id)}/addons/${pathSegment(feature)}',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'put_org_addon',
+      (json) => decObject(json, 'put_org_addon', PlanState.fromJson),
+    );
+  }
+
   /// The photograph across the loyalty card — Apple's strip, Google's hero image.
   ///
   /// Own-org, like the logo: it is the shop's own picture of its own coffee, and
