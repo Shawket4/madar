@@ -587,11 +587,19 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       validator: _atLeastZero,
       onSubmitted: (_) => _submit(),
     );
+    // Dawam's sentence only where Dawam's own pages show (`ModuleGate`): the
+    // plan has the feature (or an add-on does) and the module is switched on.
+    final dawamOn =
+        planHasFeature(ref.watch(planFeaturesProvider), 'dawam') &&
+        ref.watch(orgModulesProvider).has(OrgModule.dawam);
     final pickTeller = muted(
       DashSwitchField(
         key: const ValueKey('branch-pick-teller'),
         label: t('branches.pickTeller'),
-        description: t('branches.pickTellerHint'),
+        description: dawamOn
+            ? '${t('branches.pickTellerHint')} '
+                  '${t('branches.pickTellerHintDawam')}'
+            : t('branches.pickTellerHint'),
         value: _pickTeller,
         onChanged: (v) => _set(() => _pickTeller = v),
       ),

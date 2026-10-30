@@ -17,8 +17,32 @@ Finder _dialogText(String s) => _inDialog(find.text(s));
 
 const _pickTeller = "Ask who's serving at checkout";
 const _pickTellerHint =
-    'Tills ask who is serving before taking payment. With Dawam on, people '
-    'clocked in come first.';
+    'Tills on POS 0.18 or newer ask who is serving before taking payment.';
+const _pickTellerHintDawam = 'People clocked in on Dawam come first.';
+
+/// What a paid plan has (`madar_plan::Feature`), and a Free one.
+const _paid = {
+  'inventory',
+  'loyalty',
+  'online',
+  'bookings',
+  'floor',
+  'kitchen',
+  'dawam',
+  'branding',
+  'basira',
+};
+const _free = {'floor'};
+
+/// The switch's hint, as the field gives it.
+String? _hint(WidgetTester tester) =>
+    tester.widget<DashSwitchField>(field('branch-pick-teller')).description;
+
+/// Puts the organisation on [features] (what the core's entitlements say).
+Future<void> _plan(DashHarness h, Set<String> features) async {
+  h.container.read(planFeaturesProvider.notifier).set(features);
+  await h.settle();
+}
 
 Finder _switch(String label) =>
     find.byWidgetPredicate((w) => w is DashSwitch && w.semanticLabel == label);
@@ -597,7 +621,7 @@ void main() {
     branchRow(s.db, SeedIds.maadi)['pick_teller_at_checkout'] = true;
     final h = await _edit(tester, SeedIds.zamalek, s: s);
     expect(_dialogText(_pickTeller), findsOneWidget);
-    expect(_dialogText(_pickTellerHint), findsOneWidget);
+    expect(_hint(tester), '$_pickTellerHint $_pickTellerHintDawam');
     expect(tester.widget<DashSwitch>(_switch(_pickTeller)).value, isFalse);
     await h.tap(_switch(_pickTeller));
     await _submit(h);
@@ -622,10 +646,38 @@ void main() {
     );
     expect(_dialogText('السؤال عمّن يخدم العميل عند الدفع'), findsOneWidget);
     expect(
-      _dialogText(
-        'تسأل أجهزة الكاشير عمّن يخدم العميل قبل تحصيل الدفع. عند تفعيل '
-        'دوام، يظهر من سجّلوا حضورهم أولًا.',
-      ),
+      _hint(tester),
+      'أجهزة الكاشير التي تعمل بالإصدار 0.18 أو أحدث من نقطة البيع تسأل عمّن '
+      'يخدم العميل قبل تحصيل الدفع. يظهر من سجّلوا حضورهم على دوام أولًا.',
+    );
+  });
+
+  testWidgets('teller pick: a Free org (no Dawam on its plan) reads the POS '
+      'sentence only, even with the module still listed', (tester) async {
+    final h = await _edit(tester, SeedIds.zamalek);
+    await _plan(h, _free);
+    expect(_hint(tester), _pickTellerHint);
+    expect(_inDialog(find.textContaining(_pickTellerHintDawam)), findsNothing);
+  });
+
+  testWidgets('teller pick: a paid org with the Dawam module off reads the '
+      'POS sentence only', (tester) async {
+    final s = branchesServer();
+    s.db['orgs'].get(SeedIds.sabahOrg)['modules'] = ['pos'];
+    final h = await _edit(tester, SeedIds.zamalek, s: s);
+    await _plan(h, _paid);
+    expect(_hint(tester), _pickTellerHint);
+    expect(_inDialog(find.textContaining(_pickTellerHintDawam)), findsNothing);
+  });
+
+  testWidgets('teller pick: a paid org with Dawam on reads both sentences', (
+    tester,
+  ) async {
+    final h = await _edit(tester, SeedIds.zamalek);
+    await _plan(h, _paid);
+    expect(_hint(tester), '$_pickTellerHint $_pickTellerHintDawam');
+    expect(
+      _inDialog(find.text('$_pickTellerHint $_pickTellerHintDawam')),
       findsOneWidget,
     );
   });
@@ -660,7 +712,7 @@ void main() {
 
     await h.go('$branchesPath?edit=new-warehouse');
     expect(_switch(_pickTeller), findsNothing);
-    expect(_dialogText(_pickTellerHint), findsNothing);
+    expect(_inDialog(find.textContaining(_pickTellerHint)), findsNothing);
   });
 
   testWidgets('an edit re-seeds from a refresh until it is changed', (
