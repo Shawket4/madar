@@ -262,6 +262,10 @@ name = "staff_drink_backend"
 required-features = ["backend-tests"]
 
 [[test]]
+name = "teller_pick_backend"
+required-features = ["backend-tests"]
+
+[[test]]
 name = "till_review_backend"
 required-features = ["backend-tests"]
 
