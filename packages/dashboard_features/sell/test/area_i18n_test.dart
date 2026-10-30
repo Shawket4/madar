@@ -16,6 +16,7 @@ void main() {
     'bookings.source': ('Source', 'المصدر'),
     'bookings.byPhone': ('Taken here', 'سُجّل هنا'),
     'orders.signedIn': ('Signed in', 'مسجّل الدخول'),
+    'tills.byPerson': ('By person', 'حسب الشخص'),
   };
 
   testWidgets('unit supplements load in English', (tester) async {

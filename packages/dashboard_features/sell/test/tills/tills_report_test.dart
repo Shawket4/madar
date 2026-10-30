@@ -5,7 +5,10 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_sell/src/tills/till_report_sheet.dart';
+import 'package:dashboard_sell/src/tills/tills_data.dart'
+    show tillReportProvider;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'tills_support.dart';
@@ -465,4 +468,198 @@ void main() {
     final sorted = [...ys]..sort();
     expect(ys, sorted);
   });
+
+  testWidgets('teller pick: "By person" after the payment summary: name, '
+      'orders, total and tips per person in the server\'s order; nobody known '
+      'reads "—"', (tester) async {
+    final s = tillsServer();
+    final id = TillIds.zamalekLastEvening;
+    final paid = s.db['orders']
+        .where(
+          (o) =>
+              o['till_id'] == id &&
+              o['status'] != 'voided' &&
+              o['status'] != 'refunded',
+        )
+        .toList();
+    paid[0]
+      ..['sold_by'] = SeedIds.user('mona')
+      ..['sold_by_name'] = 'Mona Adel'
+      ..['tip_amount'] = 1500;
+    paid[1]['sold_by'] = SeedIds.user('gone');
+    final h = await _report(
+      tester,
+      id,
+      branchId: SeedIds.zamalek,
+      server: s.server,
+      db: s.db,
+    );
+    final fmt = h.container.read(formatProvider);
+    final lines = h.container.read(tillReportProvider(id)).value!.byPerson!;
+    expect(lines, hasLength(3));
+    expect(
+      find.descendant(
+        of: _section('till-by-person'),
+        matching: find.text('By person'),
+      ),
+      findsOneWidget,
+    );
+    for (final header in ['Name', 'Orders', 'Total', 'Tips']) {
+      expect(
+        find.descendant(
+          of: _section('till-by-person'),
+          matching: find.text(header),
+        ),
+        findsOneWidget,
+        reason: header,
+      );
+    }
+    Finder cell(int i, String column) => _section('by-person-$i-$column');
+    for (final (i, l) in lines.indexed) {
+      expect(
+        find.descendant(
+          of: cell(i, 'name'),
+          matching: find.text(l.name ?? '—'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: cell(i, 'orders'),
+          matching: find.text('${l.orderCount}'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: cell(i, 'total'),
+          matching: find.text(dashFigure(fmt.fmtMoney(l.total))),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: cell(i, 'tips'),
+          matching: find.text(dashFigure(fmt.fmtMoney(l.tips))),
+        ),
+        findsOneWidget,
+      );
+    }
+    final ys = [
+      for (var i = 0; i < lines.length; i++)
+        tester.getTopLeft(cell(i, 'name')).dy,
+    ];
+    expect(ys, [...ys]..sort());
+    expect(lines.map((l) => l.name), contains('Mona Adel'));
+    expect(lines.map((l) => l.name), contains(isNull));
+    final mona = lines.indexWhere((l) => l.name == 'Mona Adel');
+    expect(lines[mona].tips, 1500);
+    expect(
+      find.descendant(
+        of: cell(mona, 'tips'),
+        matching: find.text(dashFigure(fmt.fmtMoney(1500))),
+      ),
+      findsOneWidget,
+    );
+    // Between the payment summary and the payment check.
+    final at = tester.getTopLeft(_section('till-by-person')).dy;
+    expect(at, greaterThan(tester.getTopLeft(_section('till-payments')).dy));
+    expect(
+      at,
+      lessThan(tester.getTopLeft(_section('reconciliation-table')).dy),
+    );
+  });
+
+  testWidgets('teller pick: nobody picked on the till: no "By person" section '
+      'and no empty header', (tester) async {
+    final h = await _report(
+      tester,
+      TillIds.zamalekLastEvening,
+      branchId: SeedIds.zamalek,
+    );
+    final report = h.container
+        .read(tillReportProvider(TillIds.zamalekLastEvening))
+        .value!;
+    expect(report.byPerson, isNull);
+    expect(_section('till-by-person'), findsNothing);
+    expect(
+      find.descendant(of: _panel, matching: find.text('By person')),
+      findsNothing,
+    );
+    expect(find.byType(TillByPerson), findsNothing);
+  });
+
+  testWidgets('teller pick: phone: "By person" stacks each person', (
+    tester,
+  ) async {
+    final s = tillsServer();
+    final id = TillIds.zamalekLastEvening;
+    s.db['orders']
+        .where((o) => o['till_id'] == id && o['status'] == 'completed')
+        .first
+      ..['sold_by'] = SeedIds.user('mona')
+      ..['sold_by_name'] = 'Mona Adel';
+    final h = await _report(
+      tester,
+      id,
+      branchId: SeedIds.zamalek,
+      server: s.server,
+      db: s.db,
+      size: DashSize.phone,
+    );
+    final lines = h.container.read(tillReportProvider(id)).value!.byPerson!;
+    expect(lines, hasLength(2));
+    expect(_section('by-person-0-name'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: _section('by-person-1-name'),
+        matching: find.text(lines[1].name ?? '—'),
+      ),
+      findsOneWidget,
+    );
+    // Stacked: each person's figures sit under the name, not beside it.
+    expect(
+      tester.getTopLeft(_section('by-person-0-tips')).dy,
+      greaterThan(tester.getTopLeft(_section('by-person-0-name')).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final size in [DashSize.desktop, DashSize.phone]) {
+    testWidgets('teller pick: Arabic, ${size.name}: a Latin name starts on '
+        'the start (right) side', (tester) async {
+      final s = tillsServer();
+      final id = TillIds.zamalekLastEvening;
+      s.db['orders']
+          .where((o) => o['till_id'] == id && o['status'] == 'completed')
+          .first
+        ..['sold_by'] = SeedIds.user('mona')
+        ..['sold_by_name'] = 'Mona Adel';
+      await pumpTills(
+        tester,
+        query: 'report=$id',
+        branchId: SeedIds.zamalek,
+        server: s.server,
+        db: s.db,
+        size: size,
+        locale: 'ar',
+      );
+      for (var i = 0; i < 2; i++) {
+        final text = tester.renderObject<RenderParagraph>(
+          find.descendant(
+            of: _section('by-person-$i-name'),
+            matching: find.byType(RichText),
+          ),
+        );
+        final boxes = text.getBoxesForSelection(
+          TextSelection(
+            baseOffset: 0,
+            extentOffset: text.text.toPlainText().length,
+          ),
+        );
+        final right = boxes.map((b) => b.right).reduce((a, b) => a > b ? a : b);
+        expect(right, closeTo(text.size.width, 1), reason: 'line $i');
+      }
+    });
+  }
 }
