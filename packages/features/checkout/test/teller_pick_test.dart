@@ -148,6 +148,9 @@ class _Fake implements MadarBridge {
 
   final TellerPick pick;
 
+  /// The core's till: open unless a test closes it.
+  bool tillOpen = true;
+
   /// Every money call, with the person it named.
   final List<(Symbol, String?)> charged = [];
   CheckoutInput? lastInput;
@@ -213,8 +216,10 @@ class _Fake implements MadarBridge {
       );
     }
     if (name == #cartLines) return Future<List<CartLineView>>.value(const []);
-    if (name == #ownOpenTill) return _openTill;
-    if (name == #currentTill) return Future<TillView?>.value(_openTill);
+    if (name == #ownOpenTill) return tillOpen ? _openTill : null;
+    if (name == #currentTill) {
+      return Future<TillView?>.value(tillOpen ? _openTill : null);
+    }
     if (name == #checkout) {
       lastInput = a[#input] as CheckoutInput;
       charged.add((name, lastInput!.soldBy));
@@ -441,6 +446,19 @@ void main() {
       await _tap(tester, _bar);
       expect(bridge.charged, [(#deliveryFinalize, 'u-mona')]);
     });
+  });
+
+  testWidgets('with no till open the bar still says so, person or not', (
+    tester,
+  ) async {
+    final bridge = _Fake(_all)..tillOpen = false;
+    await _mount(tester, bridge);
+    await _open(tester, const ChargeTarget.cart());
+    expect(_hint, findsOneWidget);
+    expect(
+      tester.widget<MadarMoneyBar>(_bar).reason,
+      coreWord('waiter.need_shift'),
+    );
   });
 
   testWidgets('Focused: the people on shift, and More reveals the rest', (

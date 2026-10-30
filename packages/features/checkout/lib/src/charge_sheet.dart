@@ -460,8 +460,9 @@ class _ChargeSheetState extends ConsumerState<ChargeSheet> {
       enabled: block == ChargeBlock.none && !locked,
       loading: paying || block == ChargeBlock.loading,
       // Locked for a person: the figure stays on the bar (the total is still
-      // in view), and the section above says what is missing.
-      reason: locked ? null : reason,
+      // in view) and the section above says what is missing — unless the
+      // till itself cannot charge (no till, no methods), which still says so.
+      reason: locked && block == ChargeBlock.needTender ? null : reason,
       onTap: () => unawaited(_chargeGated(context, notifier)),
     );
     final oneMethod = s.paymentMethods.length == 1 && s.effectiveMethod != null
