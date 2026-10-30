@@ -361,6 +361,7 @@ async fn till(tag: &str) -> Till {
 
 fn cash(core: &MadarCore, total: i64) -> CheckoutInput {
     CheckoutInput {
+        sold_by: None,
         payment_method_id: method(core, true).expect("cash"),
         amount_tendered_minor: total,
         tip_minor: 0,

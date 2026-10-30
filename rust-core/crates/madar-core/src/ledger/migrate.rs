@@ -330,6 +330,8 @@ fn outbox_ops(tx: &Connection, device_branch: &str, methods: &[Method], names: &
                             &super::local::Ringer {
                                 teller_id: op.user_id.as_deref().unwrap_or(""),
                                 teller_name: &name_of(&op.user_id),
+                                sold_by: None,
+                                sold_by_name: None,
                             },
                             methods,
                         );
@@ -372,7 +374,12 @@ fn outbox_ops(tx: &Connection, device_branch: &str, methods: &[Method], names: &
                             t,
                             device_branch,
                             s(req, "till_id").or(s(req, "shift_id")).or(op.till_id.as_deref()).unwrap_or(""),
-                            &super::local::Ringer { teller_id: op.user_id.as_deref().unwrap_or(""), teller_name: &name_of(&op.user_id) },
+                            &super::local::Ringer {
+                                teller_id: op.user_id.as_deref().unwrap_or(""),
+                                teller_name: &name_of(&op.user_id),
+                                sold_by: None,
+                                sold_by_name: None,
+                            },
                             s(req, "payment_method").unwrap_or(""),
                             &legs,
                             &bill_total,

@@ -129,6 +129,7 @@ async fn takeaway(core: &MadarCore, n: &BTreeMap<String, String>, discount: &str
         .checkout(
             None,
             CheckoutInput {
+                sold_by: None,
                 payment_method_id: splits[0].payment_method_id.clone(),
                 amount_tendered_minor: 0,
                 tip_minor: 0,
@@ -195,7 +196,7 @@ async fn settle_split(core: &MadarCore, n: &BTreeMap<String, String>, ticket: &s
     short[0].amount_minor -= 1;
     assert!(core
         .settle_ticket(ticket.into(), till.into(), methods[0].clone(), None, None, None, None,
-            Some("percentage".into()), Some(0.10), None, vec![], short, true, None, None)
+            Some("percentage".into()), Some(0.10), None, vec![], short, true, None, None, None)
         .await
         .is_err());
     core.settle_ticket(
@@ -212,6 +213,7 @@ async fn settle_split(core: &MadarCore, n: &BTreeMap<String, String>, ticket: &s
         vec![],
         splits.clone(),
         true,
+        None,
         None,
         None,
     )

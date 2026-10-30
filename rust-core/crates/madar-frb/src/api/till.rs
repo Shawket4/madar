@@ -38,7 +38,8 @@ pub use madar_core::till::{
     BranchOpenTillView, CashMovementView, CloseTillMethodView, CloseTillOutcomeView,
     CloseTillPreviewView, LastTillWarningView, OpenBillsNoticeView, OpenTillOutcome,
     ReconciliationInput, ReconciliationLineView, TillElsewhereView, TillLockView,
-    TillReportCashLine, TillReportPaymentLine, TillReportView, TillSummaryView,
+    TillPersonLineView, TillReportCashLine, TillReportPaymentLine, TillReportView,
+    TillSummaryView,
 };
 
 /// Is this device walled to the open-till screen, and why? ONE answer the
@@ -146,6 +147,21 @@ pub struct _TillReportView {
     pub opened_while_another_open: bool,
     pub verification: String,
     pub spot_views: Vec<SpotViewLineView>,
+    /// The till's sales by who served them ("Sales by person"); empty unless
+    /// someone on this till was picked at checkout.
+    pub by_person: Vec<TillPersonLineView>,
+}
+
+/// One person's share of a till's sold sales on the Z report.
+#[frb(mirror(TillPersonLineView))]
+pub struct _TillPersonLineView {
+    /// `None` for sales with nobody on them (an old row).
+    pub person_id: Option<String>,
+    /// From the teller rows (or the server's report); "—" when unknown.
+    pub name: String,
+    pub order_count: i64,
+    pub total_minor: i64,
+    pub tips_minor: i64,
 }
 
 #[frb(mirror(TillStatsView))]

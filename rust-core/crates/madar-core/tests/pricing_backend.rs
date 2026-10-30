@@ -313,6 +313,7 @@ async fn settle_bill(
         waive,
         None,
         None,
+        None,
     )
     .await
 }
@@ -426,6 +427,7 @@ async fn a_takeaway_carries_no_service_charge_and_the_server_accepts_it() {
         .checkout(
             None,
             CheckoutInput {
+                sold_by: None,
                 payment_method_id: cash,
                 amount_tendered_minor: 10_000_000,
                 tip_minor: 0,

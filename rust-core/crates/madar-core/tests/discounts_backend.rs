@@ -17,6 +17,7 @@ use madar_core::checkout::CheckoutInput;
 
 fn input(method_id: &str) -> CheckoutInput {
     CheckoutInput {
+        sold_by: None,
         payment_method_id: method_id.to_string(),
         amount_tendered_minor: 10_000_000,
         tip_minor: 0,
@@ -267,6 +268,7 @@ async fn a_table_bill_needs_a_manager_over_the_cap_and_a_dead_preset_still_lands
             None, Some("fixed".into()), Some(800.0),
             None, vec![], vec![], false, None,
             None,
+            None,
         )
         .await;
     assert!(refused.is_err(), "over the cap, no approval, no settle");
@@ -282,6 +284,7 @@ async fn a_table_bill_needs_a_manager_over_the_cap_and_a_dead_preset_still_lands
         cash.clone(), Some(10_000_000), None, None,
         None, Some("fixed".into()), Some(800.0),
         None, vec![], vec![], false, Some(approval.clone()),
+        None,
         None,
     )
     .await

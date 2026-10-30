@@ -1042,6 +1042,7 @@ mod tests {
         core.checkout(
             None,
             crate::checkout::CheckoutInput {
+                sold_by: None,
                 payment_method_id: "00000000-0000-0000-0000-0000000000e1".into(),
                 amount_tendered_minor: 10_000,
                 tip_minor: 0,
@@ -1101,6 +1102,7 @@ mod tests {
         core.checkout(
             None,
             crate::checkout::CheckoutInput {
+                sold_by: None,
                 payment_method_id: "00000000-0000-0000-0000-0000000000e1".into(),
                 amount_tendered_minor: 10_000,
                 tip_minor: 0,
@@ -1259,6 +1261,7 @@ mod tests {
 
     fn cash(tendered: i64) -> crate::checkout::CheckoutInput {
         crate::checkout::CheckoutInput {
+            sold_by: None,
             payment_method_id: CASH.into(),
             amount_tendered_minor: tendered,
             tip_minor: 0,

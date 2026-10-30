@@ -121,6 +121,7 @@ async fn a_held_order_started_by_one_teller_is_settled_by_the_next_and_names_bot
         .checkout(
             None,
             CheckoutInput {
+                sold_by: None,
                 payment_method_id: cash,
                 amount_tendered_minor: 1_000_000,
                 tip_minor: 0,
@@ -310,6 +311,7 @@ async fn a_teller_resumes_their_own_held_order_after_a_manager_used_the_till() {
         .checkout(
             None,
             CheckoutInput {
+                sold_by: None,
                 payment_method_id: cash,
                 amount_tendered_minor: 1_000_000,
                 tip_minor: 0,
@@ -430,7 +432,7 @@ async fn a_table_bill_is_shared_between_devices_and_people() {
     b.add_ticket_round(None, bill.id.clone()).await.expect("a round on someone else's table");
     settle(&b, 120).await;
     let cash = method(&b, true).expect("cash");
-    b.settle_ticket(bill.id.clone(), till, cash, Some(1_000_000), None, None, None, None, None, None, vec![], vec![], false, None, None)
+    b.settle_ticket(bill.id.clone(), till, cash, Some(1_000_000), None, None, None, None, None, None, vec![], vec![], false, None, None, None)
         .await
         .expect("settle someone else's table");
     settle(&b, 180).await;

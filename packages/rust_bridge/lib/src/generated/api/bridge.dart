@@ -295,6 +295,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
+    String? soldBy,
   });
 
   /// The cart's kitchen-only note, or `None`.
@@ -314,6 +315,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required bool dineIn,
     required int width,
     required PrinterBrand tillBrand,
+    String? soldBy,
   });
 
   /// ONE cart line's RECIPE CARD: the line's kitchen chit (same routing and
@@ -648,9 +650,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Finalize a delivery order into a real completed sale on the current open
   /// shift — replays the frozen snapshot. `payment_method_id` resolves to the
   /// raw wire method. Returns the new order id/ref + any oversold warnings.
+  /// `sold_by`: who was picked as serving ("Who's serving?"); required on a
+  /// branch that asks, attribution only.
   Future<DeliveryFinalizeView> deliveryFinalize({
     required String id,
     required String paymentMethodId,
+    String? soldBy,
   });
 
   /// A single delivery order by id.
@@ -1505,6 +1510,7 @@ abstract class MadarBridge implements RustOpaqueInterface {
     required bool waiveService,
     ApprovalView? discountApproval,
     String? customerId,
+    String? soldBy,
   });
 
   /// One-call sign-in: online first, offline PIN unlock fallback.
@@ -1610,6 +1616,12 @@ abstract class MadarBridge implements RustOpaqueInterface {
   /// Why marks left their lines since the last ask, each already a sentence
   /// in the till's language. Re-checks the cart first. Local; no network.
   List<String> takeStaffDrinkNotices({String? tableId});
+
+  /// "Who's serving?" for the Charge sheet: whether this branch asks
+  /// (`pick_teller_at_checkout`) and whom to offer — people clocked in
+  /// first (Focused) when Dawam's data is good enough, else everyone (All).
+  /// Read from the device's own rows; never the network.
+  TellerPick tellerPick();
 
   /// Price the tender in hand: the bar's total (tip included, split or not),
   /// the cash due, change / short, and what a split still has to allocate.

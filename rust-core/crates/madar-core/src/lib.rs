@@ -152,6 +152,7 @@ pub(crate) mod ledger;
 pub mod push;
 pub mod till_ops;
 pub mod till_dawam;
+pub mod teller_pick;
 pub mod plan;
 pub mod sync_pull;
 pub mod assets;
@@ -3671,8 +3672,19 @@ fn mirror_replay_op(store: &store::Store, envelope_json: &str) {
             .unwrap_or_default()
     };
     let teller_name = name_of(&teller_id);
-    let who = ledger::local::Ringer { teller_id: teller_id.as_deref().unwrap_or(""), teller_name: &teller_name };
     let request = env.get("request").cloned().unwrap_or(serde_json::Value::Null);
+    // The person the peer's cashier picked as serving rides inside its request;
+    // named from this device's teller rows.
+    let sold_by = request.get("sold_by").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(str::to_string);
+    let sold_by_name = sold_by
+        .as_deref()
+        .and_then(|id| store.with_conn(|c| Ok(teller_pick::name_from_rows(c, id))).ok().flatten());
+    let who = ledger::local::Ringer {
+        teller_id: teller_id.as_deref().unwrap_or(""),
+        teller_name: &teller_name,
+        sold_by: sold_by.as_deref(),
+        sold_by_name: sold_by_name.as_deref(),
+    };
     let str_of = |v: &serde_json::Value, k: &str| v.get(k).and_then(|x| x.as_str()).map(str::to_string);
     let _ = store.with_tx_touch(|tx, touched| {
         match op {
@@ -4297,6 +4309,9 @@ impl MadarCore {
     /// `till_brand` is the till printer's dialect, used when the chit falls
     /// back to the till; a station printer's own brand wins otherwise.
     #[allow(clippy::too_many_arguments, reason = "mirrored 1:1 by the generated host bindings")]
+    ///
+    /// `sold_by`: the person picked as serving, when the caller holds one —
+    /// the chit names them instead of the signed-in person.
     pub fn cart_line_chit(
         &self,
         table_id: Option<String>,
@@ -4306,12 +4321,24 @@ impl MadarCore {
         dine_in: bool,
         width: u32,
         till_brand: receipt::PrinterBrand,
+        sold_by: Option<String>,
     ) -> Result<receipt::CartLineChit, CoreError> {
         let line = cart::lines(&self.store, table_id.as_deref())?
             .into_iter()
             .find(|l| l.key == line_key)
             .ok_or_else(|| CoreError::Validation { field: "line_key".into(), detail: "cart line not found".into() })?;
-        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, service_mode_of(dine_in), width, till_brand, false)
+        let teller = self.chit_teller(sold_by.as_deref());
+        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, service_mode_of(dine_in), width, till_brand, false, teller)
+    }
+
+    /// The name at the foot of a counter chit: the person picked as serving,
+    /// else the signed-in person (as every chit printed before).
+    fn chit_teller(&self, sold_by: Option<&str>) -> Option<String> {
+        sold_by
+            .filter(|s| !s.trim().is_empty())
+            .and_then(|id| self.store.with_conn(|c| Ok(teller_pick::name_from_rows(c, id))).ok().flatten())
+            .or_else(|| self.current_session().map(|s| s.display_name))
+            .filter(|n| !n.trim().is_empty())
     }
 
     /// ONE cart line's RECIPE CARD for the kitchen: the line's own chit
@@ -4334,7 +4361,8 @@ impl MadarCore {
             .into_iter()
             .find(|l| l.key == line_key)
             .ok_or_else(|| CoreError::Validation { field: "line_key".into(), detail: "cart line not found".into() })?;
-        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, service_mode_of(dine_in), width, till_brand, true)
+        let teller = self.chit_teller(None);
+        self.build_line_chit(&line, table_id.as_deref(), table_label, ticket_ref, service_mode_of(dine_in), width, till_brand, true, teller)
     }
 
     /// One dish's recipe card lines: its ingredients for ONE (size, swaps and
@@ -4396,10 +4424,10 @@ impl MadarCore {
         width: u32,
         till_brand: receipt::PrinterBrand,
         with_recipe: bool,
+        teller: Option<String>,
     ) -> Result<receipt::CartLineChit, CoreError> {
         let loc = self.current_locale();
         let at = timefmt::format(&self.store, &self.corrected_now().to_rfc3339(), timefmt::TimeStyle::Time, &loc);
-        let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
         let order_note = cart::note(&self.store, table_id)?;
         let cart_kitchen_note = cart::kitchen_note(&self.store, table_id)?;
         let mut slip =
@@ -4466,6 +4494,10 @@ impl MadarCore {
     /// backup/manual pass, not a per-station routing decision, so it does
     /// not follow [`kds::resolve_chit_printer`] the way the per-line button
     /// does. ONE slip, ONE cut at the very end, however many lines are on it.
+    ///
+    /// `sold_by`: the person picked as serving, when the caller holds one —
+    /// the slip names them instead of the signed-in person.
+    #[allow(clippy::too_many_arguments, reason = "mirrored 1:1 by the generated host bindings")]
     pub fn cart_kitchen_chit(
         &self,
         table_id: Option<String>,
@@ -4474,11 +4506,12 @@ impl MadarCore {
         dine_in: bool,
         width: u32,
         till_brand: receipt::PrinterBrand,
+        sold_by: Option<String>,
     ) -> Result<receipt::CartKitchenChit, CoreError> {
         let lines = cart::lines(&self.store, table_id.as_deref())?;
         let loc = self.current_locale();
         let at = timefmt::format(&self.store, &self.corrected_now().to_rfc3339(), timefmt::TimeStyle::Time, &loc);
-        let teller = self.current_session().map(|s| s.display_name).filter(|n| !n.trim().is_empty());
+        let teller = self.chit_teller(sold_by.as_deref());
         let order_note = cart::note(&self.store, table_id.as_deref())?;
         let cart_note = cart::kitchen_note(&self.store, table_id.as_deref())?;
 
@@ -7660,6 +7693,9 @@ impl MadarCore {
                 field: "shift".into(),
                 detail: "no open shift".into(),
             })?;
+        // "Who's serving?": on a branch that asks, no sale without someone who
+        // can ring sales here. Before anything is checked online or queued.
+        let picked = self.resolve_sold_by(input.sold_by.as_deref())?;
 
         // One person per sale: the member spending a balance and the customer
         // it is for are never two people (see `one_person`).
@@ -7741,6 +7777,10 @@ impl MadarCore {
         // being replayed at all.
         let (started_by, resume_approval) = self.sale_started_by(table_id.as_deref());
         prepared.command.started_by = started_by;
+        // The picked person rides INSIDE the request (the replay envelope's
+        // `request` body), attribution only; `teller_id` stays the signed-in
+        // person. Nobody picked: the key is left out, as before.
+        prepared.command.request.sold_by = picked.as_ref().map(|p| Some(p.id));
         if resume_approval.is_some() {
             prepared.command.approval = resume_approval;
         }
@@ -7800,12 +7840,17 @@ impl MadarCore {
         };
         // The sale's row and its outbox op commit together (offline plan B §5):
         // the history, the drawer and the Z report see it the instant it is rung.
+        let picked_id = picked.as_ref().map(teller_pick::Picked::id_string);
+        // Printed as "Served by" in place of the signed-in teller.
+        prepared.receipt.served_by_name = picked.as_ref().and_then(|p| p.name.clone());
         let mut row = ledger::local::order_json(
             &prepared.command,
             &okey,
             &ledger::local::Ringer {
                 teller_id: user_id.as_deref().unwrap_or(""),
                 teller_name: &teller_name,
+                sold_by: picked_id.as_deref(),
+                sold_by_name: picked.as_ref().and_then(|p| p.name.as_deref()),
             },
             &ledger::views::payment_method_rows(&self.store),
         );
@@ -9445,7 +9490,11 @@ impl MadarCore {
         // carries the bill's own customer onto the sale. It rides the settle
         // itself — a queued `attach_customer` is only for a choice made later.
         customer_id: Option<String>,
+        // Who was picked as serving ("Who's serving?"); required on a branch
+        // that asks, attribution only. The signed-in cashier stays the teller.
+        sold_by: Option<String>,
     ) -> Result<Option<String>, CoreError> {
+        let picked = self.resolve_sold_by(sold_by.as_deref())?;
         if waive_service && !self.can_waive_service_charge() {
             return Err(CoreError::Validation {
                 field: "waive_service".into(),
@@ -9486,6 +9535,7 @@ impl MadarCore {
             .map(|p| p.name);
         let mut request =
             madar_api::models::SettleOpenTicketRequest::new(payment_method, shift_uuid);
+        request.sold_by = picked.as_ref().map(|p| Some(p.id));
         request.amount_tendered = amount_tendered_minor
             .map(|v| checkout::wire_i32(v, "amount_tendered").map(Some))
             .transpose()?;
@@ -9674,6 +9724,7 @@ impl MadarCore {
         });
         let (settle_user, _) = self.outbox_meta();
         let teller_name = self.current_session().map(|s| s.display_name).unwrap_or_default();
+        let picked_id = picked.as_ref().map(teller_pick::Picked::id_string);
         let settle_legs: Vec<(String, i64)> = request
             .payment_splits
             .clone()
@@ -9686,7 +9737,12 @@ impl MadarCore {
             &ticket_id,
             &self.session_branch_id().unwrap_or_default(),
             &till_id,
-            &ledger::local::Ringer { teller_id: settle_user.as_deref().unwrap_or(""), teller_name: &teller_name },
+            &ledger::local::Ringer {
+                teller_id: settle_user.as_deref().unwrap_or(""),
+                teller_name: &teller_name,
+                sold_by: picked_id.as_deref(),
+                sold_by_name: picked.as_ref().and_then(|p| p.name.as_deref()),
+            },
             &request.payment_method,
             &settle_legs,
             &settle_bill,
@@ -10012,8 +10068,12 @@ impl MadarCore {
         &self,
         id: String,
         payment_method_id: String,
+        // Who was picked as serving; required on a branch that asks (an online
+        // order charged at the till is money taken here too).
+        sold_by: Option<String>,
     ) -> Result<delivery::DeliveryFinalizeView, CoreError> {
         use madar_api::apis::delivery_api as d;
+        let picked = self.resolve_sold_by(sold_by.as_deref())?;
         let raw =
             checkout::raw_payment_method(&self.store, &payment_method_id)?.ok_or_else(|| {
                 CoreError::Validation {
@@ -10031,7 +10091,8 @@ impl MadarCore {
             field: "till_id".into(),
             detail: "bad shift id".into(),
         })?;
-        let input = madar_api::models::FinalizeInput::new(raw.name, shift_uuid);
+        let mut input = madar_api::models::FinalizeInput::new(raw.name, shift_uuid);
+        input.sold_by = picked.as_ref().map(|p| Some(p.id));
         let res = d::finalize_delivery_order(
             &self.api.config(),
             d::FinalizeDeliveryOrderParams {
@@ -11724,6 +11785,7 @@ mod lifecycle_tests {
                 }],
                 vec![],
                 false,
+                None,
                 None,
                 None,
             )

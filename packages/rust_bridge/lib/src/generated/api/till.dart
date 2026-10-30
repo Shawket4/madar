@@ -560,6 +560,45 @@ class TillLockView {
           elsewhere == other.elsewhere;
 }
 
+/// One person's share of a till's sold sales on the Z report.
+class TillPersonLineView {
+  /// `None` for sales with nobody on them (an old row).
+  final String? personId;
+
+  /// From the teller rows (or the server's report); "—" when unknown.
+  final String name;
+  final PlatformInt64 orderCount;
+  final PlatformInt64 totalMinor;
+  final PlatformInt64 tipsMinor;
+
+  const TillPersonLineView({
+    this.personId,
+    required this.name,
+    required this.orderCount,
+    required this.totalMinor,
+    required this.tipsMinor,
+  });
+
+  @override
+  int get hashCode =>
+      personId.hashCode ^
+      name.hashCode ^
+      orderCount.hashCode ^
+      totalMinor.hashCode ^
+      tipsMinor.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TillPersonLineView &&
+          runtimeType == other.runtimeType &&
+          personId == other.personId &&
+          name == other.name &&
+          orderCount == other.orderCount &&
+          totalMinor == other.totalMinor &&
+          tipsMinor == other.tipsMinor;
+}
+
 /// What a till PIN punch did, worded by the core.
 class TillPunchView {
   final String name;
@@ -695,6 +734,10 @@ class TillReportView {
   final String verification;
   final List<SpotViewLineView> spotViews;
 
+  /// The till's sales by who served them ("Sales by person"); empty unless
+  /// someone on this till was picked at checkout.
+  final List<TillPersonLineView> byPerson;
+
   const TillReportView({
     required this.tellerName,
     required this.openedAt,
@@ -735,6 +778,7 @@ class TillReportView {
     required this.openedWhileAnotherOpen,
     required this.verification,
     required this.spotViews,
+    required this.byPerson,
   });
 
   @override
@@ -777,7 +821,8 @@ class TillReportView {
       heldOrdersLeftOpenTotalMinor.hashCode ^
       openedWhileAnotherOpen.hashCode ^
       verification.hashCode ^
-      spotViews.hashCode;
+      spotViews.hashCode ^
+      byPerson.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -822,7 +867,8 @@ class TillReportView {
           heldOrdersLeftOpenTotalMinor == other.heldOrdersLeftOpenTotalMinor &&
           openedWhileAnotherOpen == other.openedWhileAnotherOpen &&
           verification == other.verification &&
-          spotViews == other.spotViews;
+          spotViews == other.spotViews &&
+          byPerson == other.byPerson;
 }
 
 class TillStatsView {

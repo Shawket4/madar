@@ -555,6 +555,11 @@ impl Renderer {
             // The label carries its own colon ("Ref:", "مرجع:").
             self.center(&format!("{} {}", lab.reference, rf), RS_SMALL, Weight::BOLD);
         }
+        // Who was picked as serving, on a branch that asks ("Served by Mona").
+        // The paper names no teller otherwise, as before.
+        if let Some(by) = r.served_by_name.as_deref().filter(|n| !n.trim().is_empty()) {
+            self.center(&format!("{} {}", lab.served_by, by.trim()), RS_SMALL, Weight::BOLD);
+        }
         self.rule();
 
         // ── delivery block ──
@@ -791,6 +796,21 @@ impl Renderer {
             Weight::NORMAL,
         );
         self.rule();
+
+        // ── by person ── only on a till where someone was picked at checkout.
+        if !r.by_person.is_empty() {
+            let tr = |k: &str| crate::i18n::tr(&lab.locale, k);
+            self.center(&tr("till.z_by_person").to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
+            for p in &r.by_person {
+                self.row(&p.name, &m(p.total_minor), RS_BODY, Weight::BOLD);
+                let mut sub = format!("{} {}", p.order_count, lab.orders);
+                if p.tips_minor > 0 {
+                    sub = format!("{sub} · {} {}", tr("order.tip"), m(p.tips_minor));
+                }
+                self.indented(&sub, RS_SMALL, 16);
+            }
+            self.rule();
+        }
 
         // ── drawer operations ──
         self.center(&lab.drawer_ops.to_uppercase(), RS_SMALL, Weight::SEMIBOLD);
@@ -1356,6 +1376,7 @@ mod tests {
             is_cash: true,
             customer_name: None,
             teller_name: Some("Mona".into()),
+            served_by_name: None,
             is_delivery: false,
             delivery_channel: None,
             customer_phone: None,
@@ -1587,6 +1608,7 @@ mod tests {
             opened_while_another_open: false,
             verification: "server".into(),
             spot_views: Vec::new(),
+            by_person: Vec::new(),
         }
     }
 
@@ -1635,6 +1657,55 @@ mod tests {
             "#36B-42",
             "Opened while another till was open",
         ] {
+            assert!(text.contains(want), "missing {want:?} in:\n{text}");
+        }
+    }
+
+    /// The printed (raster) receipt names no teller; a picked person prints
+    /// as "Served by" under the time, in either language.
+    #[test]
+    fn a_picked_person_prints_on_the_paper_receipt() {
+        let mut rc = receipt();
+        rc.teller_name = Some("Sara".into());
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build(&rc, &ctx(), None);
+        assert!(!r.shaped.iter().any(|l| l.contains("Served by") || l.contains("Sara")), "unchanged when nobody was picked");
+
+        rc.served_by_name = Some("Mona".into());
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build(&rc, &ctx(), None);
+        assert!(r.shaped.iter().any(|l| l.contains("Served by Mona")), "{:?}", r.shaped);
+        assert!(!r.shaped.iter().any(|l| l.contains("Sara")));
+    }
+
+    /// "Sales by person" on the printed Z: only where someone was picked.
+    #[test]
+    fn the_z_report_prints_sales_by_person_only_when_someone_was_picked() {
+        let mut report = till_report();
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build_till(&report, "Store", "EGP", &till_labels(), &[]);
+        assert!(!r.shaped.join("\n").contains("SALES BY PERSON"));
+
+        report.by_person = vec![
+            crate::till::TillPersonLineView {
+                person_id: Some("u-mona".into()),
+                name: "Mona".into(),
+                order_count: 2,
+                total_minor: 1_596,
+                tips_minor: 200,
+            },
+            crate::till::TillPersonLineView {
+                person_id: Some("u-gone".into()),
+                name: "—".into(),
+                order_count: 1,
+                total_minor: 228,
+                tips_minor: 0,
+            },
+        ];
+        let mut r = Renderer::new(PRINT_WIDTH);
+        r.build_till(&report, "Store", "EGP", &till_labels(), &[]);
+        let text = r.shaped.join("\n");
+        for want in ["SALES BY PERSON", "Mona", "15.96 EGP", "2 orders", "Tip 2.00 EGP", "—", "2.28 EGP"] {
             assert!(text.contains(want), "missing {want:?} in:\n{text}");
         }
     }
@@ -1771,6 +1842,7 @@ mod tests {
             created_at: at.into(),
             queued: false,
             teller_name: None,
+            sold_by_name: None,
             order_type: "dine_in".into(),
             customer_name: None,
             price_flagged: false,

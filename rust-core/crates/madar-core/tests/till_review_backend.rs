@@ -29,6 +29,7 @@ use madar_core::checkout::CheckoutInput;
 
 fn input(method_id: &str) -> CheckoutInput {
     CheckoutInput {
+        sold_by: None,
         payment_method_id: method_id.to_string(),
         amount_tendered_minor: 10_000_000,
         tip_minor: 0,

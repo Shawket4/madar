@@ -130,6 +130,7 @@ fn marked(core: &MadarCore) -> Vec<cart::CartLineView> {
 
 fn pay(amount: i64) -> checkout::CheckoutInput {
     checkout::CheckoutInput {
+        sold_by: None,
         payment_method_id: CASH.into(),
         amount_tendered_minor: amount,
         tip_minor: 0,

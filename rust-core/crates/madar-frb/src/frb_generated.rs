@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1097014820;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 976009449;
 
 // Section: executor
 
@@ -2585,6 +2585,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_kitchen_chit_impl(
             let api_width = <u32>::sse_decode(&mut deserializer);
             let api_till_brand =
                 <crate::api::printing::PrinterBrand>::sse_decode(&mut deserializer);
+            let api_sold_by = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, crate::api::error::MadarError>((move || {
@@ -2610,6 +2611,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_kitchen_chit_impl(
                         api_dine_in,
                         api_width,
                         api_till_brand,
+                        api_sold_by,
                     )?;
                     std::result::Result::Ok(output_ok)
                 })())
@@ -2703,6 +2705,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_line_chit_impl(
             let api_width = <u32>::sse_decode(&mut deserializer);
             let api_till_brand =
                 <crate::api::printing::PrinterBrand>::sse_decode(&mut deserializer);
+            let api_sold_by = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, crate::api::error::MadarError>((move || {
@@ -2729,6 +2732,7 @@ fn wire__crate__api__bridge__MadarBridge_cart_line_chit_impl(
                         api_dine_in,
                         api_width,
                         api_till_brand,
+                        api_sold_by,
                     )?;
                     std::result::Result::Ok(output_ok)
                 })())
@@ -6155,6 +6159,7 @@ fn wire__crate__api__bridge__MadarBridge_delivery_finalize_impl(
             >>::sse_decode(&mut deserializer);
             let api_id = <String>::sse_decode(&mut deserializer);
             let api_payment_method_id = <String>::sse_decode(&mut deserializer);
+            let api_sold_by = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -6180,6 +6185,7 @@ fn wire__crate__api__bridge__MadarBridge_delivery_finalize_impl(
                             &*api_that_guard,
                             api_id,
                             api_payment_method_id,
+                            api_sold_by,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -15261,6 +15267,7 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
             let api_discount_approval =
                 <Option<crate::api::approvals::ApprovalView>>::sse_decode(&mut deserializer);
             let api_customer_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_sold_by = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, crate::api::error::MadarError>(
@@ -15299,6 +15306,7 @@ fn wire__crate__api__bridge__MadarBridge_settle_ticket_impl(
                             api_waive_service,
                             api_discount_approval,
                             api_customer_id,
+                            api_sold_by,
                         )
                         .await?;
                         std::result::Result::Ok(output_ok)
@@ -16381,6 +16389,54 @@ fn wire__crate__api__bridge__MadarBridge_take_staff_drink_notices_impl(
                         &*api_that_guard,
                         api_table_id,
                     ))?;
+                std::result::Result::Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__bridge__MadarBridge_teller_pick_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "MadarBridge_teller_pick",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_that = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MadarBridge>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let mut api_that_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_that, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_that_guard = Some(api_that.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
+                    }
+                }
+                let api_that_guard = api_that_guard.unwrap();
+                let output_ok = Ok::<_, ()>(crate::api::bridge::MadarBridge::teller_pick(
+                    &*api_that_guard,
+                ))?;
                 std::result::Result::Ok(output_ok)
             })())
         },
@@ -18355,6 +18411,7 @@ const _: fn() = || {
         let _: Vec<crate::api::orders::CheckoutRedemption> = CheckoutInput.loyalty_redemptions;
         let _: bool = CheckoutInput.dine_in;
         let _: Option<String> = CheckoutInput.customer_id;
+        let _: Option<String> = CheckoutInput.sold_by;
     }
     {
         let CheckoutRedemption = None::<crate::api::orders::CheckoutRedemption>.unwrap();
@@ -19184,6 +19241,7 @@ const _: fn() = || {
         let _: String = OrderSummaryView.created_at;
         let _: bool = OrderSummaryView.queued;
         let _: Option<String> = OrderSummaryView.teller_name;
+        let _: Option<String> = OrderSummaryView.sold_by_name;
         let _: String = OrderSummaryView.order_type;
         let _: Option<String> = OrderSummaryView.customer_name;
         let _: bool = OrderSummaryView.price_flagged;
@@ -19213,6 +19271,12 @@ const _: fn() = || {
         let _: bool = PaymentMethodView.is_cash;
         let _: String = PaymentMethodView.icon;
         let _: String = PaymentMethodView.color;
+    }
+    {
+        let PickPerson = None::<crate::api::orders::PickPerson>.unwrap();
+        let _: String = PickPerson.user_id;
+        let _: String = PickPerson.name;
+        let _: Option<String> = PickPerson.on_shift_since;
     }
     {
         let PosMetricsView = None::<crate::api::metrics::PosMetricsView>.unwrap();
@@ -19306,6 +19370,7 @@ const _: fn() = || {
         let _: bool = ReceiptView.is_cash;
         let _: Option<String> = ReceiptView.customer_name;
         let _: Option<String> = ReceiptView.teller_name;
+        let _: Option<String> = ReceiptView.served_by_name;
         let _: bool = ReceiptView.is_delivery;
         let _: Option<String> = ReceiptView.delivery_channel;
         let _: Option<String> = ReceiptView.customer_phone;
@@ -19572,6 +19637,13 @@ const _: fn() = || {
         let _: Option<String> = SyncStatusView.repaired_at;
     }
     {
+        let TellerPick = None::<crate::api::orders::TellerPick>.unwrap();
+        let _: bool = TellerPick.required;
+        let _: crate::api::orders::PickMode = TellerPick.mode;
+        let _: Vec<crate::api::orders::PickPerson> = TellerPick.primary;
+        let _: Vec<crate::api::orders::PickPerson> = TellerPick.more;
+    }
+    {
         let TenderSummaryView = None::<crate::api::orders::TenderSummaryView>.unwrap();
         let _: i64 = TenderSummaryView.charge_total_minor;
         let _: i64 = TenderSummaryView.due_cash_minor;
@@ -19665,6 +19737,14 @@ const _: fn() = || {
         let _: bool = TillOpenSyncView.blocked_close;
     }
     {
+        let TillPersonLineView = None::<crate::api::till::TillPersonLineView>.unwrap();
+        let _: Option<String> = TillPersonLineView.person_id;
+        let _: String = TillPersonLineView.name;
+        let _: i64 = TillPersonLineView.order_count;
+        let _: i64 = TillPersonLineView.total_minor;
+        let _: i64 = TillPersonLineView.tips_minor;
+    }
+    {
         let TillPunchView = None::<crate::api::till::TillPunchView>.unwrap();
         let _: String = TillPunchView.name;
         let _: String = TillPunchView.punched;
@@ -19733,6 +19813,7 @@ const _: fn() = || {
         let _: bool = TillReportView.opened_while_another_open;
         let _: String = TillReportView.verification;
         let _: Vec<crate::api::cash_spot::SpotViewLineView> = TillReportView.spot_views;
+        let _: Vec<crate::api::till::TillPersonLineView> = TillReportView.by_person;
     }
     {
         let TillStatsView = None::<crate::api::till::TillStatsView>.unwrap();
@@ -20556,6 +20637,7 @@ impl SseDecode for crate::api::orders::CheckoutInput {
             <Vec<crate::api::orders::CheckoutRedemption>>::sse_decode(deserializer);
         let mut var_dineIn = <bool>::sse_decode(deserializer);
         let mut var_customerId = <Option<String>>::sse_decode(deserializer);
+        let mut var_soldBy = <Option<String>>::sse_decode(deserializer);
         return crate::api::orders::CheckoutInput {
             payment_method_id: var_paymentMethodId,
             amount_tendered_minor: var_amountTenderedMinor,
@@ -20568,6 +20650,7 @@ impl SseDecode for crate::api::orders::CheckoutInput {
             loyalty_redemptions: var_loyaltyRedemptions,
             dine_in: var_dineIn,
             customer_id: var_customerId,
+            sold_by: var_soldBy,
         };
     }
 }
@@ -22676,6 +22759,18 @@ impl SseDecode for Vec<crate::api::catalog::PaymentMethodView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::orders::PickPerson> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::orders::PickPerson>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -22997,6 +23092,20 @@ impl SseDecode for Vec<crate::api::tickets::TicketView> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::tickets::TicketView>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::till::TillPersonLineView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::till::TillPersonLineView>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -24223,6 +24332,7 @@ impl SseDecode for crate::api::orders::OrderSummaryView {
         let mut var_createdAt = <String>::sse_decode(deserializer);
         let mut var_queued = <bool>::sse_decode(deserializer);
         let mut var_tellerName = <Option<String>>::sse_decode(deserializer);
+        let mut var_soldByName = <Option<String>>::sse_decode(deserializer);
         let mut var_orderType = <String>::sse_decode(deserializer);
         let mut var_customerName = <Option<String>>::sse_decode(deserializer);
         let mut var_priceFlagged = <bool>::sse_decode(deserializer);
@@ -24239,6 +24349,7 @@ impl SseDecode for crate::api::orders::OrderSummaryView {
             created_at: var_createdAt,
             queued: var_queued,
             teller_name: var_tellerName,
+            sold_by_name: var_soldByName,
             order_type: var_orderType,
             customer_name: var_customerName,
             price_flagged: var_priceFlagged,
@@ -24298,6 +24409,32 @@ impl SseDecode for crate::api::catalog::PaymentMethodView {
             is_cash: var_isCash,
             icon: var_icon,
             color: var_color,
+        };
+    }
+}
+
+impl SseDecode for crate::api::orders::PickMode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::orders::PickMode::Focused,
+            1 => crate::api::orders::PickMode::All,
+            _ => unreachable!("Invalid variant for PickMode: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::orders::PickPerson {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_userId = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_onShiftSince = <Option<String>>::sse_decode(deserializer);
+        return crate::api::orders::PickPerson {
+            user_id: var_userId,
+            name: var_name,
+            on_shift_since: var_onShiftSince,
         };
     }
 }
@@ -24518,6 +24655,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
         let mut var_isCash = <bool>::sse_decode(deserializer);
         let mut var_customerName = <Option<String>>::sse_decode(deserializer);
         let mut var_tellerName = <Option<String>>::sse_decode(deserializer);
+        let mut var_servedByName = <Option<String>>::sse_decode(deserializer);
         let mut var_isDelivery = <bool>::sse_decode(deserializer);
         let mut var_deliveryChannel = <Option<String>>::sse_decode(deserializer);
         let mut var_customerPhone = <Option<String>>::sse_decode(deserializer);
@@ -24559,6 +24697,7 @@ impl SseDecode for crate::api::orders::ReceiptView {
             is_cash: var_isCash,
             customer_name: var_customerName,
             teller_name: var_tellerName,
+            served_by_name: var_servedByName,
             is_delivery: var_isDelivery,
             delivery_channel: var_deliveryChannel,
             customer_phone: var_customerPhone,
@@ -25260,6 +25399,22 @@ impl SseDecode for crate::api::floor::TableSittingView {
     }
 }
 
+impl SseDecode for crate::api::orders::TellerPick {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_required_ = <bool>::sse_decode(deserializer);
+        let mut var_mode = <crate::api::orders::PickMode>::sse_decode(deserializer);
+        let mut var_primary = <Vec<crate::api::orders::PickPerson>>::sse_decode(deserializer);
+        let mut var_more = <Vec<crate::api::orders::PickPerson>>::sse_decode(deserializer);
+        return crate::api::orders::TellerPick {
+            required: var_required_,
+            mode: var_mode,
+            primary: var_primary,
+            more: var_more,
+        };
+    }
+}
+
 impl SseDecode for crate::api::orders::TenderSummaryView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -25463,6 +25618,24 @@ impl SseDecode for crate::api::sync::TillOpenSyncView {
     }
 }
 
+impl SseDecode for crate::api::till::TillPersonLineView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_personId = <Option<String>>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_orderCount = <i64>::sse_decode(deserializer);
+        let mut var_totalMinor = <i64>::sse_decode(deserializer);
+        let mut var_tipsMinor = <i64>::sse_decode(deserializer);
+        return crate::api::till::TillPersonLineView {
+            person_id: var_personId,
+            name: var_name,
+            order_count: var_orderCount,
+            total_minor: var_totalMinor,
+            tips_minor: var_tipsMinor,
+        };
+    }
+}
+
 impl SseDecode for crate::api::till::TillPunchView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -25573,6 +25746,8 @@ impl SseDecode for crate::api::till::TillReportView {
         let mut var_verification = <String>::sse_decode(deserializer);
         let mut var_spotViews =
             <Vec<crate::api::cash_spot::SpotViewLineView>>::sse_decode(deserializer);
+        let mut var_byPerson =
+            <Vec<crate::api::till::TillPersonLineView>>::sse_decode(deserializer);
         return crate::api::till::TillReportView {
             teller_name: var_tellerName,
             opened_at: var_openedAt,
@@ -25613,6 +25788,7 @@ impl SseDecode for crate::api::till::TillReportView {
             opened_while_another_open: var_openedWhileAnotherOpen,
             verification: var_verification,
             spot_views: var_spotViews,
+            by_person: var_byPerson,
         };
     }
 }
@@ -26994,82 +27170,82 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        303 => {
+        304 => {
             wire__crate__api__bridge__MadarBridge_till_punch_impl(port, ptr, rust_vec_len, data_len)
         }
-        304 => wire__crate__api__bridge__MadarBridge_till_report_impl(
+        305 => wire__crate__api__bridge__MadarBridge_till_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        305 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
+        306 => wire__crate__api__bridge__MadarBridge_till_report_for_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        306 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
+        307 => wire__crate__api__bridge__MadarBridge_till_report_synced_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        307 => {
+        308 => {
             wire__crate__api__bridge__MadarBridge_till_stats_impl(port, ptr, rust_vec_len, data_len)
         }
-        308 => wire__crate__api__bridge__MadarBridge_till_stats_checked_impl(
+        309 => wire__crate__api__bridge__MadarBridge_till_stats_checked_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        312 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
+        313 => wire__crate__api__bridge__MadarBridge_unlock_offline_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        313 => wire__crate__api__bridge__MadarBridge_unmark_staff_drink_impl(
+        314 => wire__crate__api__bridge__MadarBridge_unmark_staff_drink_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        314 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
+        315 => wire__crate__api__bridge__MadarBridge_unseat_table_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        316 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
+        317 => wire__crate__api__bridge__MadarBridge_validate_item_selections_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        318 => {
+        319 => {
             wire__crate__api__bridge__MadarBridge_void_order_impl(port, ptr, rust_vec_len, data_len)
         }
-        319 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
+        320 => wire__crate__api__bridge__MadarBridge_void_order_approved_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        320 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
+        321 => wire__crate__api__bridge__MadarBridge_void_ticket_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        321 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
+        322 => wire__crate__api__bridge__MadarBridge_void_ticket_line_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        325 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
+        326 => wire__crate__api__bridge__MadarBridge_watch_tables_impl(
             port,
             ptr,
             rust_vec_len,
@@ -27425,55 +27601,56 @@ fn pde_ffi_dispatcher_sync_impl(
             rust_vec_len,
             data_len,
         ),
-        297 => {
+        297 => wire__crate__api__bridge__MadarBridge_teller_pick_impl(ptr, rust_vec_len, data_len),
+        298 => {
             wire__crate__api__bridge__MadarBridge_tender_summary_impl(ptr, rust_vec_len, data_len)
         }
-        298 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
+        299 => wire__crate__api__bridge__MadarBridge_ticket_reward_lines_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        299 => wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
+        300 => wire__crate__api__bridge__MadarBridge_till_cash_sales_minor_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        300 => {
+        301 => {
             wire__crate__api__bridge__MadarBridge_till_dawam_on_impl(ptr, rust_vec_len, data_len)
         }
-        301 => wire__crate__api__bridge__MadarBridge_till_figures_visible_impl(
+        302 => wire__crate__api__bridge__MadarBridge_till_figures_visible_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        302 => wire__crate__api__bridge__MadarBridge_till_lock_impl(ptr, rust_vec_len, data_len),
-        309 => {
+        303 => wire__crate__api__bridge__MadarBridge_till_lock_impl(ptr, rust_vec_len, data_len),
+        310 => {
             wire__crate__api__bridge__MadarBridge_toggle_reward_impl(ptr, rust_vec_len, data_len)
         }
-        310 => wire__crate__api__bridge__MadarBridge_toggle_reward_on_track_impl(
+        311 => wire__crate__api__bridge__MadarBridge_toggle_reward_on_track_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        311 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
-        315 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
+        312 => wire__crate__api__bridge__MadarBridge_tr_impl(ptr, rust_vec_len, data_len),
+        316 => wire__crate__api__bridge__MadarBridge_unsubscribe_realtime_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        317 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
-        322 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
+        318 => wire__crate__api__bridge__MadarBridge_version_impl(ptr, rust_vec_len, data_len),
+        323 => wire__crate__api__bridge__MadarBridge_waste_ingredients_impl(
             ptr,
             rust_vec_len,
             data_len,
         ),
-        323 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
-        324 => {
+        324 => wire__crate__api__bridge__MadarBridge_waste_items_impl(ptr, rust_vec_len, data_len),
+        325 => {
             wire__crate__api__bridge__MadarBridge_waste_reasons_impl(ptr, rust_vec_len, data_len)
         }
-        326 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
-        327 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
-        328 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
+        327 => wire__crate__api__bridge__core_version_impl(ptr, rust_vec_len, data_len),
+        328 => wire__crate__api__bridge__ffi_surface_version_impl(ptr, rust_vec_len, data_len),
+        329 => wire__crate__api__bridge__greet_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -28297,6 +28474,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::CheckoutIn
             self.0.loyalty_redemptions.into_into_dart().into_dart(),
             self.0.dine_in.into_into_dart().into_dart(),
             self.0.customer_id.into_into_dart().into_dart(),
+            self.0.sold_by.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -30617,6 +30795,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::OrderSumma
             self.0.created_at.into_into_dart().into_dart(),
             self.0.queued.into_into_dart().into_dart(),
             self.0.teller_name.into_into_dart().into_dart(),
+            self.0.sold_by_name.into_into_dart().into_dart(),
             self.0.order_type.into_into_dart().into_dart(),
             self.0.customer_name.into_into_dart().into_dart(),
             self.0.price_flagged.into_into_dart().into_dart(),
@@ -30706,6 +30885,49 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::catalog::PaymentMe
     for crate::api::catalog::PaymentMethodView
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::catalog::PaymentMethodView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::PickMode> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::orders::PickMode::Focused => 0.into_dart(),
+            crate::api::orders::PickMode::All => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::orders::PickMode>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::PickMode>>
+    for crate::api::orders::PickMode
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::orders::PickMode> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::PickPerson> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.user_id.into_into_dart().into_dart(),
+            self.0.name.into_into_dart().into_dart(),
+            self.0.on_shift_since.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::orders::PickPerson>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::PickPerson>>
+    for crate::api::orders::PickPerson
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::orders::PickPerson> {
         self.into()
     }
 }
@@ -30959,6 +31181,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::ReceiptVie
             self.0.is_cash.into_into_dart().into_dart(),
             self.0.customer_name.into_into_dart().into_dart(),
             self.0.teller_name.into_into_dart().into_dart(),
+            self.0.served_by_name.into_into_dart().into_dart(),
             self.0.is_delivery.into_into_dart().into_dart(),
             self.0.delivery_channel.into_into_dart().into_dart(),
             self.0.customer_phone.into_into_dart().into_dart(),
@@ -31840,6 +32063,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::floor::TableSittingView>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::TellerPick> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.required.into_into_dart().into_dart(),
+            self.0.mode.into_into_dart().into_dart(),
+            self.0.primary.into_into_dart().into_dart(),
+            self.0.more.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::orders::TellerPick>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::orders::TellerPick>>
+    for crate::api::orders::TellerPick
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::orders::TellerPick> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::orders::TenderSummaryView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -32064,6 +32310,30 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::sync::TillOpenSync
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillPersonLineView> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.person_id.into_into_dart().into_dart(),
+            self.0.name.into_into_dart().into_dart(),
+            self.0.order_count.into_into_dart().into_dart(),
+            self.0.total_minor.into_into_dart().into_dart(),
+            self.0.tips_minor.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::till::TillPersonLineView>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::till::TillPersonLineView>>
+    for crate::api::till::TillPersonLineView
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::till::TillPersonLineView> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillPunchView> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -32225,6 +32495,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::till::TillReportVi
                 .into_dart(),
             self.0.verification.into_into_dart().into_dart(),
             self.0.spot_views.into_into_dart().into_dart(),
+            self.0.by_person.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -33021,6 +33292,7 @@ impl SseEncode for crate::api::orders::CheckoutInput {
         );
         <bool>::sse_encode(self.dine_in, serializer);
         <Option<String>>::sse_encode(self.customer_id, serializer);
+        <Option<String>>::sse_encode(self.sold_by, serializer);
     }
 }
 
@@ -34417,6 +34689,16 @@ impl SseEncode for Vec<crate::api::catalog::PaymentMethodView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::orders::PickPerson> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::orders::PickPerson>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<u32> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -34653,6 +34935,16 @@ impl SseEncode for Vec<crate::api::tickets::TicketView> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::tickets::TicketView>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::till::TillPersonLineView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::till::TillPersonLineView>::sse_encode(item, serializer);
         }
     }
 }
@@ -35521,6 +35813,7 @@ impl SseEncode for crate::api::orders::OrderSummaryView {
         <String>::sse_encode(self.created_at, serializer);
         <bool>::sse_encode(self.queued, serializer);
         <Option<String>>::sse_encode(self.teller_name, serializer);
+        <Option<String>>::sse_encode(self.sold_by_name, serializer);
         <String>::sse_encode(self.order_type, serializer);
         <Option<String>>::sse_encode(self.customer_name, serializer);
         <bool>::sse_encode(self.price_flagged, serializer);
@@ -35559,6 +35852,31 @@ impl SseEncode for crate::api::catalog::PaymentMethodView {
         <bool>::sse_encode(self.is_cash, serializer);
         <String>::sse_encode(self.icon, serializer);
         <String>::sse_encode(self.color, serializer);
+    }
+}
+
+impl SseEncode for crate::api::orders::PickMode {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::orders::PickMode::Focused => 0,
+                crate::api::orders::PickMode::All => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::orders::PickPerson {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.user_id, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <Option<String>>::sse_encode(self.on_shift_since, serializer);
     }
 }
 
@@ -35709,6 +36027,7 @@ impl SseEncode for crate::api::orders::ReceiptView {
         <bool>::sse_encode(self.is_cash, serializer);
         <Option<String>>::sse_encode(self.customer_name, serializer);
         <Option<String>>::sse_encode(self.teller_name, serializer);
+        <Option<String>>::sse_encode(self.served_by_name, serializer);
         <bool>::sse_encode(self.is_delivery, serializer);
         <Option<String>>::sse_encode(self.delivery_channel, serializer);
         <Option<String>>::sse_encode(self.customer_phone, serializer);
@@ -36143,6 +36462,16 @@ impl SseEncode for crate::api::floor::TableSittingView {
     }
 }
 
+impl SseEncode for crate::api::orders::TellerPick {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.required, serializer);
+        <crate::api::orders::PickMode>::sse_encode(self.mode, serializer);
+        <Vec<crate::api::orders::PickPerson>>::sse_encode(self.primary, serializer);
+        <Vec<crate::api::orders::PickPerson>>::sse_encode(self.more, serializer);
+    }
+}
+
 impl SseEncode for crate::api::orders::TenderSummaryView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -36260,6 +36589,17 @@ impl SseEncode for crate::api::sync::TillOpenSyncView {
     }
 }
 
+impl SseEncode for crate::api::till::TillPersonLineView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.person_id, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <i64>::sse_encode(self.order_count, serializer);
+        <i64>::sse_encode(self.total_minor, serializer);
+        <i64>::sse_encode(self.tips_minor, serializer);
+    }
+}
+
 impl SseEncode for crate::api::till::TillPunchView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -36345,6 +36685,7 @@ impl SseEncode for crate::api::till::TillReportView {
         <bool>::sse_encode(self.opened_while_another_open, serializer);
         <String>::sse_encode(self.verification, serializer);
         <Vec<crate::api::cash_spot::SpotViewLineView>>::sse_encode(self.spot_views, serializer);
+        <Vec<crate::api::till::TillPersonLineView>>::sse_encode(self.by_person, serializer);
     }
 }
 

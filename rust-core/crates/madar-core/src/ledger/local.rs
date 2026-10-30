@@ -34,6 +34,22 @@ fn flat<T: Clone>(o: &Option<Option<T>>) -> Option<T> {
 pub(crate) struct Ringer<'a> {
     pub teller_id: &'a str,
     pub teller_name: &'a str,
+    /// Who was picked as serving (`sold_by`) and their name, on a branch that
+    /// asks; the row then names them the way the feed will (`sold_by`,
+    /// `sold_by_name`), so history, LAN peers and the local Z see it at once.
+    pub sold_by: Option<&'a str>,
+    pub sold_by_name: Option<&'a str>,
+}
+
+impl Ringer<'_> {
+    /// The picked person's two keys, only when someone was picked: a row with
+    /// nobody picked keeps exactly the keys it always had.
+    fn stamp(&self, row: &mut Value) {
+        if let (Some(id), Some(obj)) = (self.sold_by.filter(|s| !s.is_empty()), row.as_object_mut()) {
+            obj.insert("sold_by".into(), id.into());
+            obj.insert("sold_by_name".into(), self.sold_by_name.filter(|n| !n.is_empty()).into());
+        }
+    }
 }
 
 /// A queued sale as the changefeed will later project it. `is_cash` is resolved
@@ -60,7 +76,7 @@ pub(crate) fn order_json(cmd: &CheckoutCommand, okey: &str, who: &Ringer<'_>, me
         ),
         None => (flat(&r.order_number).map(i64::from), None, String::new()),
     };
-    json!({
+    let mut row = json!({
         "id": okey,
         "idempotency_key": okey,
         "branch_id": r.branch_id,
@@ -104,7 +120,9 @@ pub(crate) fn order_json(cmd: &CheckoutCommand, okey: &str, who: &Ringer<'_>, me
         // The lines as rung (ids, size, add-ons), until the feed's named
         // `items` supersede them: see [`LOCAL_ITEMS`].
         LOCAL_ITEMS: serde_json::to_value(&r.items).unwrap_or(Value::Null),
-    })
+    });
+    who.stamp(&mut row);
+    row
 }
 
 /// Where a queued sale keeps its lines AS RUNG: the command's items (menu item
@@ -275,7 +293,7 @@ pub(crate) fn settle_json(
     } else {
         splits.iter().map(|(m, a)| json!({ "method": m, "amount": a, "is_cash": is_cash_of(methods, m) })).collect()
     };
-    json!({
+    let mut row = json!({
         "id": ticket_id,
         "idempotency_key": ticket_id,
         "open_ticket_id": ticket_id,
@@ -308,7 +326,9 @@ pub(crate) fn settle_json(
         "price_flagged": false,
         "created_at": at,
         "items": [],
-    })
+    });
+    who.stamp(&mut row);
+    row
 }
 
 /// Queue a void: the op, and the order row reading `voided` (when this device

@@ -222,6 +222,7 @@ fn cash_checkout(core: &MadarCore) -> CheckoutInput {
         .find(|p| p.is_cash)
         .expect("a cash payment method");
     CheckoutInput {
+        sold_by: None,
         payment_method_id: pm.id,
         amount_tendered_minor: 4_000,
         tip_minor: 0,
