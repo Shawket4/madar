@@ -7,9 +7,10 @@
 /// - edit: one `PATCH /branches/{id}` with every field — name, address,
 ///   phone, timezone, the printer (explicit nulls with no model), the
 ///   location, the tax overrides (explicit nulls with the override off), the
-///   till settings and `is_active`;
+///   till settings (`old_bill_hours`, `standard_float`,
+///   `pick_teller_at_checkout`) and `is_active`;
 /// - create: `POST /branches` (which takes no till settings), then
-///   `PATCH /branches/{newId}` with `{old_bill_hours, standard_float}` — and,
+///   `PATCH /branches/{newId}` with the till settings — and,
 ///   for a platform admin who switched the override on, the four tax
 ///   overrides (the create call drops them; see the divergence log). A
 ///   warehouse is the POST alone, with `kind`; an edit sends `kind` only
@@ -102,6 +103,10 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
   late double? _oldBillHours;
   late double? _standardFloat;
 
+  /// "Ask who's serving at checkout": a till here asks who is serving before
+  /// taking payment and records them as the sale's `sold_by`.
+  late bool _pickTeller;
+
   /// The edited branch left the list; the editor is closing.
   bool _gone = false;
 
@@ -143,6 +148,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     _oldBillHours = (b?.oldBillHours ?? 3).toDouble();
     final float = b?.standardFloat;
     _standardFloat = float == null ? null : float / 100;
+    _pickTeller = b?.pickTellerAtCheckout ?? false;
   }
 
   /// A change by the person: from here on a refresh leaves the form alone.
@@ -250,6 +256,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       serviceChargeTaxable: tax.serviceTaxable,
       oldBillHours: _int(_oldBillHours),
       standardFloat: _floatPiastres,
+      pickTellerAtCheckout: _pickTeller,
       isActive: _editing ? _active : null,
       kind: _kind != (_branch ?? _created)?.kind ? _kind : null,
     );
@@ -277,6 +284,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
     final body = UpdateBranchRequest(
       oldBillHours: _int(_oldBillHours),
       standardFloat: _floatPiastres,
+      pickTellerAtCheckout: _pickTeller,
       taxRate: tax?.rate,
       taxInclusive: tax?.inclusive,
       serviceChargeRate: tax?.service,
@@ -302,6 +310,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       name: r.name,
       oldBillHours: r.oldBillHours,
       phone: r.phone,
+      pickTellerAtCheckout: r.pickTellerAtCheckout,
       printerBrand: r.printerBrand,
       printerIp: r.printerIp,
       printerPort: r.printerPort,
@@ -578,6 +587,15 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
       validator: _atLeastZero,
       onSubmitted: (_) => _submit(),
     );
+    final pickTeller = muted(
+      DashSwitchField(
+        key: const ValueKey('branch-pick-teller'),
+        label: t('branches.pickTeller'),
+        description: t('branches.pickTellerHint'),
+        value: _pickTeller,
+        onChanged: (v) => _set(() => _pickTeller = v),
+      ),
+    );
     final address = DashTextField(
       key: const ValueKey('branch-address'),
       label: t('branches.address'),
@@ -779,6 +797,7 @@ class _BranchDialogState extends ConsumerState<BranchDialog> {
             name,
             pair(phone, timezone),
             if (!_warehouse) pair(hours, float),
+            if (!_warehouse) pickTeller,
             address,
             if (!_warehouse) printer,
             location,

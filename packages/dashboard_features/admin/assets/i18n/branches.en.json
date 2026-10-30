@@ -1,1 +1,6 @@
-{}
+{
+  "branches": {
+    "pickTeller": "Ask who's serving at checkout",
+    "pickTellerHint": "Tills ask who is serving before taking payment. With Dawam on, people clocked in come first."
+  }
+}
