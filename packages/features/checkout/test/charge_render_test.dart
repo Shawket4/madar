@@ -308,6 +308,67 @@ const _session = SessionSnapshot(
   permissionsLoaded: true,
 );
 
+// ── "Who's serving?" ───────────────────────────────────────────────────────
+
+/// Karim and Mona clocked in; Aya, Hany and Sara behind More.
+const _pickFocused = TellerPick(
+  required_: true,
+  mode: PickMode.focused,
+  primary: [
+    PickPerson(
+      userId: 'u-karim',
+      name: 'Karim Adel',
+      onShiftSince: '2026-10-30T08:02:00Z',
+    ),
+    PickPerson(
+      userId: 'u-mona',
+      name: 'Mona',
+      onShiftSince: '2026-10-30T07:58:00Z',
+    ),
+  ],
+  more: [
+    PickPerson(userId: 'u-aya', name: 'Aya'),
+    PickPerson(userId: 'u-hany', name: 'Hany Mostafa'),
+    PickPerson(userId: 'u-sara', name: 'Sara'),
+  ],
+);
+
+/// No good Dawam data: everyone who can ring sales, at once.
+const _pickAll = TellerPick(
+  required_: true,
+  mode: PickMode.all,
+  primary: [
+    PickPerson(userId: 'u-aya', name: 'Aya'),
+    PickPerson(userId: 'u-hany', name: 'Hany Mostafa'),
+    PickPerson(userId: 'u-karim', name: 'Karim Adel'),
+    PickPerson(userId: 'u-mona', name: 'Mona'),
+    PickPerson(userId: 'u-sara', name: 'Sara'),
+  ],
+  more: [],
+);
+
+/// The same people, named in Arabic, for the mirrored boards.
+TellerPick _inArabic(TellerPick p) {
+  const names = {
+    'u-aya': 'آية',
+    'u-hany': 'هاني مصطفى',
+    'u-karim': 'كريم عادل',
+    'u-mona': 'منى',
+    'u-sara': 'سارة',
+  };
+  PickPerson ar(PickPerson x) => PickPerson(
+    userId: x.userId,
+    name: names[x.userId]!,
+    onShiftSince: x.onShiftSince,
+  );
+  return TellerPick(
+    required_: p.required_,
+    mode: p.mode,
+    primary: [for (final x in p.primary) ar(x)],
+    more: [for (final x in p.more) ar(x)],
+  );
+}
+
 class _FakeBridge implements MadarBridge {
   _FakeBridge({
     this.rtl = false,
@@ -316,8 +377,12 @@ class _FakeBridge implements MadarBridge {
     this.canWaive = false,
     this.tracks = false,
     this.gift = false,
+    this.pick = kTellerPickOff,
     List<PaymentMethodView>? methods,
   }) : methods = methods ?? _methods;
+
+  /// "Who's serving?": off unless a scene says the branch asks.
+  final TellerPick pick;
 
   /// The member has an open birthday gift (one free item).
   final bool gift;
@@ -346,6 +411,9 @@ class _FakeBridge implements MadarBridge {
   dynamic noSuchMethod(Invocation invocation) {
     final can = fakeCanInvocation(invocation, () => currentSession()?.role);
     if (can != null) return can;
+    // A branch that does not ask who's serving unless the scene says so.
+    final picker = fakeTellerPickInvocation(invocation, pick);
+    if (picker != null) return picker;
     final name = invocation.memberName;
     final a = invocation.namedArguments;
     if (name == #tr) {
@@ -1764,6 +1832,62 @@ void main() {
     expect(tester.takeException(), isNull);
     await _capture(tester, 'charge-cart-phone-many-methods');
   });
+
+  // "Who's serving?" on a branch that asks: the phone sheet and the tablet
+  // modal, Focused and All, in both languages — locked (nobody picked), then
+  // Focused with More open and a person picked (the tender unlocked).
+  for (final (device, size) in [('phone', _phone), ('tablet', _ipad)]) {
+    for (final (mode, base) in [('focused', _pickFocused), ('all', _pickAll)]) {
+      for (final rtl in const [false, true]) {
+        final tag = 'charge-pick-$mode-$device-${rtl ? 'ar' : 'en'}';
+        testWidgets(tag, (tester) async {
+          final pick = rtl ? _inArabic(base) : base;
+          await _mount(
+            tester,
+            size: size,
+            bridge: _FakeBridge(rtl: rtl, pick: pick),
+            rtl: rtl,
+            hostTitle: 'Sell',
+          );
+          final host = tester.element(find.byType(_Host));
+          unawaited(
+            showCharge(host, const ChargeTarget.cart(), presentDoneCard: false),
+          );
+          await _settle(tester);
+          expect(
+            find.text(coreWord('charge.who_serving', arabic: rtl)),
+            findsOneWidget,
+          );
+          expect(
+            find.text(coreWord('charge.pick_hint', arabic: rtl)),
+            findsOneWidget,
+          );
+          await _capture(tester, tag);
+          if (mode != 'focused') return;
+          // More, then a person from the rest: the tender unlocks.
+          await tester.tap(
+            find.text(
+              coreWord(
+                'charge.pick_more',
+                arabic: rtl,
+              ).replaceAll('{count}', '${pick.more.length}'),
+            ),
+          );
+          await _settle(tester);
+          await tester.tap(
+            find.byKey(ValueKey('teller-pick-${pick.more.last.userId}')),
+          );
+          await _settle(tester);
+          await _pickCash(tester);
+          expect(
+            find.text(coreWord('charge.pick_hint', arabic: rtl)),
+            findsNothing,
+          );
+          await _capture(tester, '$tag-picked');
+        });
+      }
+    }
+  }
 
   testWidgets('a cart on a phone with no shift open says so on the bar', (
     tester,

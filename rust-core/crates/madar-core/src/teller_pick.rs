@@ -648,6 +648,25 @@ mod core_tests {
         assert_eq!(core.teller_pick().mode, PickMode::Focused);
     }
 
+    /// The picker is a read: it answers from the device's rows and never
+    /// asks the server, online or not (the network rule).
+    #[tokio::test]
+    async fn the_picker_never_touches_the_network() {
+        let stub = Stub::start(|_| Some(StubResponse::json(500, json!({"error": "stub"})))).await;
+        let core = testkit::online_core(&stub.base, "").await;
+        seed_people(&core);
+        ask(&core, true);
+        core.store
+            .kv_put(crate::till_dawam::K_ORG_MODULES, r#"["dawam"]"#)
+            .unwrap();
+        let before = stub.requests("").len();
+        for _ in 0..5 {
+            assert!(core.teller_pick().required);
+        }
+        assert!(core.resolve_sold_by(Some(MONA)).unwrap().is_some());
+        assert_eq!(stub.requests("").len(), before, "no request for the picker");
+    }
+
     #[tokio::test]
     async fn a_branch_that_does_not_ask_sells_exactly_as_before() {
         for asks in [None, Some(false)] {
