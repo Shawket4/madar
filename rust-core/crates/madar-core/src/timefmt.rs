@@ -26,10 +26,6 @@ pub enum TimeStyle {
     Receipt,
 }
 
-/// The branch's IANA timezone (cached at login from `get_branch`, refreshed from
-/// every order/shift payload that carries `timezone`), or Cairo — the
-/// product-home default, matching Flutter's fallback. Falling back is flagged
-/// (once per process) so a till printing in the default zone is visible.
 /// The first day of a week, everywhere (owner rule, 2026-09-17): SATURDAY, and
 /// the branch-local day the week holding a day starts on. One copy with the
 /// backend, in madar-shared (`madar_time`); the dashboard (`lib/week.ts`)
@@ -50,24 +46,48 @@ pub(crate) fn local_day_bounds(
     (start.with_timezone(&tz).fixed_offset(), end.with_timezone(&tz).fixed_offset())
 }
 
+/// The branch's IANA timezone (cached at login from `get_branch`, refreshed from
+/// every order/shift payload that carries `timezone`), or
+/// [`madar_time::DEFAULT_ZONE`] (Cairo) — the product-home default, matching
+/// Flutter's fallback. Falling back is flagged (once per process) so a till
+/// printing in the default zone is visible.
 pub(crate) fn branch_tz(store: &Store) -> chrono_tz::Tz {
-    match store
-        .kv_get(KEY_BRANCH_TZ)
-        .ok()
-        .flatten()
-        .and_then(|s| s.parse::<chrono_tz::Tz>().ok())
-    {
-        Some(tz) => tz,
-        None => {
-            flag_fallback("no cached branch timezone");
-            chrono_tz::Africa::Cairo
-        }
+    let cached = store.kv_get(KEY_BRANCH_TZ).ok().flatten();
+    zone_or_flag(cached.as_deref(), "timefmt.fallback_tz", "no cached branch timezone")
+}
+
+/// `name` as a zone (madar-time's `zone_or_default`); when it is missing or
+/// not an IANA name, [`madar_time::DEFAULT_ZONE`] through [`fallback_zone`].
+pub(crate) fn zone_or_flag(name: Option<&str>, site: &'static str, why: &str) -> chrono_tz::Tz {
+    let zone = madar_time::zone_or_default(name);
+    if zone.fell_back {
+        fallback_zone(site, why)
+    } else {
+        zone.tz
     }
+}
+
+/// [`madar_time::DEFAULT_ZONE`] for a read that found no zone of its own, said
+/// once per process for each `site`: a till or a phone showing a branch in the
+/// default zone is otherwise invisible.
+pub(crate) fn fallback_zone(site: &'static str, why: &str) -> chrono_tz::Tz {
+    if first_fallback(site) {
+        crate::obs::capture_bg_warning(site, format!("{why}; using {}", madar_time::DEFAULT_ZONE_NAME));
+    }
+    madar_time::DEFAULT_ZONE
+}
+
+/// `true` the first time `site` falls back in this process.
+fn first_fallback(site: &'static str) -> bool {
+    use std::collections::HashSet;
+    use std::sync::{Mutex, OnceLock};
+    static FLAGGED: OnceLock<Mutex<HashSet<&'static str>>> = OnceLock::new();
+    FLAGGED.get_or_init(Default::default).lock().map(|mut f| f.insert(site)).unwrap_or(false)
 }
 
 /// Cache a server-sent effective timezone (ignored when not a valid IANA name).
 pub(crate) fn remember_tz(store: &Store, iana: &str) {
-    if iana.parse::<chrono_tz::Tz>().is_ok()
+    if madar_time::parse_zone(iana).is_some()
         && store.kv_get(KEY_BRANCH_TZ).ok().flatten().as_deref() != Some(iana)
     {
         let _ = store.kv_put(KEY_BRANCH_TZ, iana);
@@ -78,14 +98,6 @@ pub(crate) fn remember_tz(store: &Store, iana: &str) {
 pub(crate) fn remember_payload_tz(store: &Store, tz: &Option<Option<String>>) {
     if let Some(Some(name)) = tz {
         remember_tz(store, name);
-    }
-}
-
-fn flag_fallback(why: &str) {
-    use std::sync::atomic::{AtomicBool, Ordering};
-    static FLAGGED: AtomicBool = AtomicBool::new(false);
-    if !FLAGGED.swap(true, Ordering::Relaxed) {
-        crate::obs::capture_bg_warning("timefmt.fallback_tz", format!("{why}; using Africa/Cairo"));
     }
 }
 
@@ -182,13 +194,10 @@ where
 }
 
 /// A branch-local instant as the sale-window rule reads it: `YYYY-MM-DD` and
-/// `HH:MM:SS` on the branch's wall clock (madar-catalog `LocalNow`).
+/// `HH:MM:SS` on the branch's wall clock (madar-catalog `LocalNow`):
+/// madar-time's `wall_clock`.
 pub(crate) fn wall_clock_in(now: chrono::DateTime<chrono::Utc>, tz: chrono_tz::Tz) -> (String, String) {
-    let local = now.with_timezone(&tz);
-    (
-        local.format("%Y-%m-%d").to_string(),
-        local.format("%H:%M:%S").to_string(),
-    )
+    madar_time::wall_clock(tz, now)
 }
 
 
@@ -231,7 +240,7 @@ pub(crate) fn date_picker_chrome_in(
     let first = WEEK_START.num_days_from_sunday() as usize;
     let weekdays = if arabic { crate::display::AR_WEEKDAYS_SHORT } else { crate::display::EN_WEEKDAYS_SHORT };
     DatePickerChromeView {
-        today: now.with_timezone(&tz).date_naive().format("%Y-%m-%d").to_string(),
+        today: madar_time::today_in(tz, now).to_string(),
         week_start: WEEK_START.num_days_from_sunday() as i32,
         weekdays: (0..7).map(|i| weekdays[(first + i) % 7].to_string()).collect(),
         months: if arabic {
@@ -262,8 +271,9 @@ mod tests {
 
     #[test]
     fn date_picker_chrome_is_branch_local_and_starts_the_week_on_saturday() {
-        // 21:30 UTC on the 18th is already the 19th in Cairo (UTC+2) — the
-        // future-date guard must use the BRANCH's day, not the device's.
+        // 22:30 UTC on the 18th is already 01:30 on the 19th in Cairo (UTC+3
+        // in September) — the future-date guard must use the BRANCH's day,
+        // not the device's.
         let now = chrono::DateTime::parse_from_rfc3339("2026-09-18T22:30:00+00:00")
             .unwrap()
             .with_timezone(&chrono::Utc);
@@ -291,8 +301,10 @@ mod tests {
     #[test]
     fn formats_in_the_branch_timezone_not_utc() {
         let store = Store::open("").unwrap();
-        store.kv_put(KEY_BRANCH_TZ, "Africa/Cairo").unwrap(); // UTC+2 (no DST since 2015)
-                                                              // 10:00 UTC is 12:00 in Cairo — display must show the BRANCH wall-clock.
+        // Cairo is UTC+2 in January (UTC+3 from the last Friday of April to the
+        // last Thursday of October): 10:00 UTC is 12:00 in Cairo — display
+        // must show the BRANCH wall-clock.
+        store.kv_put(KEY_BRANCH_TZ, "Africa/Cairo").unwrap();
         let utc = "2026-01-20T10:00:00+00:00";
         assert_eq!(format(&store, utc, TimeStyle::Time, "en"), "12:00 PM");
         assert_eq!(
@@ -334,6 +346,8 @@ mod tests {
         remember_payload_tz(&store, &Some(Some("Asia/Dubai".into())));
         assert_eq!(branch_tz(&store), chrono_tz::Asia::Dubai);
         remember_payload_tz(&store, &Some(Some("Not/AZone".into())));
+        // An offset is not a zone: it is wrong half the year.
+        remember_payload_tz(&store, &Some(Some("+03:00".into())));
         remember_payload_tz(&store, &Some(None));
         remember_payload_tz(&store, &None);
         assert_eq!(branch_tz(&store), chrono_tz::Asia::Dubai);
@@ -342,7 +356,7 @@ mod tests {
     #[test]
     fn falls_back_to_cairo_and_passes_through_garbage() {
         let store = Store::open("").unwrap();
-        // No cached tz → Cairo (UTC+2): 10:00 UTC → 12:00.
+        // No cached tz → Cairo (UTC+2 in January): 10:00 UTC → 12:00.
         assert_eq!(branch_tz(&store), chrono_tz::Africa::Cairo);
         assert_eq!(
             format(&store, "2026-01-20T10:00:00+00:00", TimeStyle::Time, "en"),
@@ -353,6 +367,21 @@ mod tests {
             format(&store, "not-a-date", TimeStyle::Time, "ar"),
             "not-a-date"
         );
+    }
+
+    /// A zone that is missing or not an IANA name (an offset such as `+03:00`
+    /// is right half the year) reads as madar-time's default zone, and the
+    /// fallback is said once per process for each site.
+    #[test]
+    fn a_missing_or_offset_zone_is_the_default_zone_and_said_once() {
+        let site = "timefmt.test_fallback";
+        for bad in [None, Some(""), Some("+03:00"), Some("UTC+3"), Some("EEST"), Some("Mars/Base")] {
+            assert_eq!(zone_or_flag(bad, site, "a test"), madar_time::DEFAULT_ZONE, "{bad:?}");
+        }
+        assert_eq!(zone_or_flag(Some("Asia/Beirut"), site, "a test"), chrono_tz::Asia::Beirut);
+        assert!(!first_fallback(site), "said the first time only");
+        assert!(first_fallback("timefmt.test_fallback_elsewhere"), "each site says it once");
+        assert_eq!(madar_time::DEFAULT_ZONE, chrono_tz::Africa::Cairo);
     }
 
     #[test]
@@ -432,6 +461,89 @@ mod tests {
         assert!(
             bad.is_empty(),
             "format dates via timefmt only:\n{}",
+            bad.join("\n")
+        );
+    }
+
+    /// Guardrail: one zone rule. Product code never names Cairo itself (the
+    /// default zone is madar-time's `DEFAULT_ZONE` / `DEFAULT_ZONE_NAME`, one
+    /// place in madar-shared) and never writes a fixed offset (`+03:00`,
+    /// `UTC+3`): Cairo is +03 from the last Friday of April to the last
+    /// Thursday of October and +02 otherwise, so a fixed offset is wrong half
+    /// the year. Test code (`#[cfg(test)]` modules and files) may, to pin a
+    /// season; comments may say it.
+    #[test]
+    fn no_fixed_zone_or_offset_in_product_code() {
+        use std::path::{Path, PathBuf};
+        let banned = ["Africa::Cairo", "\"Africa/Cairo\"", "+03:00", "+02:00", "UTC+3", "UTC+2"];
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut files = Vec::new();
+        let mut stack = vec![root];
+        while let Some(d) = stack.pop() {
+            for e in std::fs::read_dir(&d).unwrap().flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    stack.push(p);
+                } else if p.extension().is_some_and(|x| x == "rs") {
+                    files.push(p);
+                }
+            }
+        }
+        let code = |line: &str| line.split("//").next().unwrap_or("").to_string();
+        let item_is_test = |lines: &[&str], i: usize| lines[i].trim() == "#[cfg(test)]";
+        // `#[cfg(test)] mod name;` makes `name.rs` (or `name/mod.rs`) test-only.
+        let mut test_files: Vec<PathBuf> = Vec::new();
+        for f in &files {
+            let src = std::fs::read_to_string(f).unwrap();
+            let lines: Vec<&str> = src.lines().collect();
+            let dir = match f.file_name().and_then(|n| n.to_str()) {
+                Some("lib.rs" | "mod.rs") => f.parent().unwrap().to_path_buf(),
+                _ => f.with_extension(""),
+            };
+            for i in 0..lines.len().saturating_sub(1) {
+                let next = lines[i + 1].trim();
+                let module = next.strip_prefix("mod ").and_then(|m| m.strip_suffix(';'));
+                if let Some(name) = module.filter(|_| item_is_test(&lines, i)) {
+                    test_files.push(dir.join(format!("{name}.rs")));
+                    test_files.push(dir.join(name).join("mod.rs"));
+                }
+            }
+        }
+        let mut bad = Vec::new();
+        for f in files.iter().filter(|f| !test_files.contains(f)) {
+            let src = std::fs::read_to_string(f).unwrap();
+            let lines: Vec<&str> = src.lines().collect();
+            let mut i = 0;
+            while i < lines.len() {
+                // A `#[cfg(test)]` item (a test module, a test-only fn or
+                // field): skip it whole, to its closing brace, `;` or `,`.
+                if item_is_test(&lines, i) {
+                    let mut depth = 0i64;
+                    let mut opened = false;
+                    i += 1;
+                    while i < lines.len() {
+                        let c = code(lines[i]);
+                        let open = c.matches(['{', '(', '[']).count() as i64;
+                        depth += open - c.matches(['}', ')', ']']).count() as i64;
+                        opened |= c.contains('{');
+                        i += 1;
+                        let end = c.trim_end().ends_with([';', ',']);
+                        if depth <= 0 && (opened || end) {
+                            break;
+                        }
+                    }
+                    continue;
+                }
+                let c = code(lines[i]);
+                if banned.iter().any(|b| c.contains(b)) {
+                    bad.push(format!("{}:{}: {}", f.display(), i + 1, lines[i].trim()));
+                }
+                i += 1;
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "use madar_time::DEFAULT_ZONE / DEFAULT_ZONE_NAME and the zone's real offset (madar_time::to_rfc3339_in):\n{}",
             bad.join("\n")
         );
     }

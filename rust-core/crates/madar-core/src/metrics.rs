@@ -676,8 +676,7 @@ impl crate::MadarCore {
         self.metrics_gate()?;
         let tz = crate::timefmt::branch_tz(&self.store);
         let now = Utc::now();
-        let (from, to) =
-            preset_days(&preset, now.with_timezone(&tz).date_naive(), custom_from.as_deref(), custom_to.as_deref())?;
+        let (from, to) = preset_days(&preset, madar_time::today_in(tz, now), custom_from.as_deref(), custom_to.as_deref())?;
         let online = self.current_session().map(|s| s.online).unwrap_or(false);
         if online {
             let branch = self.session_branch_id()?;
@@ -710,8 +709,7 @@ impl crate::MadarCore {
         self.metrics_gate()?;
         let tz = crate::timefmt::branch_tz(&self.store);
         let now = Utc::now();
-        let (from, to) =
-            preset_days(&preset, now.with_timezone(&tz).date_naive(), custom_from.as_deref(), custom_to.as_deref())?;
+        let (from, to) = preset_days(&preset, madar_time::today_in(tz, now), custom_from.as_deref(), custom_to.as_deref())?;
         let branch = self.session_branch_id()?;
         let window_from = crate::timefmt::local_day_bounds(tz, from).0.with_timezone(&Utc);
         let window_to = crate::timefmt::local_day_bounds(tz, to).1.with_timezone(&Utc);

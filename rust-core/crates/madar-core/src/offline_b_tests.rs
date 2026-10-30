@@ -500,6 +500,32 @@ async fn the_boards_read_offline_from_the_synced_rows() {
     assert_eq!((notice.open_bills_count, notice.open_bills_amount_minor), (2, 8_400), "the notice counts the rows");
 }
 
+/// Today's arrivals are the branch's today on the till's server-corrected
+/// clock, like every other "today" the till reads: a device clock two days
+/// behind still lists the bookings of the day the branch is in, not the
+/// device's day.
+#[tokio::test]
+async fn arrivals_are_todays_on_the_corrected_clock_not_the_devices() {
+    let core = testkit::offline_core("http://127.0.0.1:1", "").await;
+    let tz = madar_time::DEFAULT_ZONE;
+    core.store.kv_put(crate::checkout::KEY_BRANCH_TZ, madar_time::DEFAULT_ZONE_NAME).unwrap();
+    core.clock_skew_secs.store(2 * 86_400, Ordering::Relaxed);
+    let device_day = madar_time::today_in(tz, chrono::Utc::now());
+    let branch_day = madar_time::today_in(tz, chrono::Utc::now() + chrono::Duration::days(2));
+    assert_ne!(device_day, branch_day);
+    let booking = |label: &str, day: chrono::NaiveDate| {
+        let starts = madar_time::testing::wall(tz, day, "12:00");
+        serde_json::json!({"id": uid(label), "branch_id": testkit::BRANCH, "status": "confirmed", "party_size": 2,
+            "starts_at": starts.to_rfc3339(), "ends_at": (starts + chrono::Duration::hours(1)).to_rfc3339(),
+            "held_from": (starts - chrono::Duration::minutes(15)).to_rfc3339(), "guest_name": "G", "guest_phone": "0101",
+            "created_at": starts.to_rfc3339(), "updated_at": starts.to_rfc3339(), "locale": "en", "needs_table": false,
+            "phone_verified": true, "source": "host", "table_ids": [], "table_labels": []})
+    };
+    seed_rows(&core, &[("booking", booking("b-branch-day", branch_day)), ("booking", booking("b-device-day", device_day))]);
+    let arrivals = core.list_arrivals().unwrap();
+    assert_eq!(arrivals.iter().map(|b| b.id.clone()).collect::<Vec<_>>(), vec![uid("b-branch-day")]);
+}
+
 /// The gaps the feed now carries reach the till: the person's grants, the
 /// branch-effective addons (a disabled one is not offered) and the prep minutes
 /// — and a server that does not send addons yet leaves the fetched list alone.

@@ -18,7 +18,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, TimeZone, Utc};
 use madar_authz::Cap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -1334,7 +1334,7 @@ pub(crate) fn in_branch_zone(v: &mut Value, tz: &chrono_tz::Tz) {
     match v {
         Value::String(x) if x.len() >= 20 && x.as_bytes().get(10) == Some(&b'T') => {
             if let Ok(d) = DateTime::parse_from_rfc3339(x) {
-                *x = d.with_timezone(tz).to_rfc3339_opts(chrono::SecondsFormat::AutoSi, false);
+                *x = madar_time::to_rfc3339_in(*tz, d.with_timezone(&Utc));
             }
         }
         Value::Array(a) => a.iter_mut().for_each(|x| in_branch_zone(x, tz)),
@@ -1978,14 +1978,14 @@ impl MadarCore {
 
     /// Today in the branch's time zone (AT-1), from the server's clock.
     fn dawam_today(&self) -> NaiveDate {
-        let tz = self.dawam_tz();
-        Utc.timestamp_millis_opt(self.corrected_now_ms()).single().unwrap_or_else(Utc::now).with_timezone(&tz).date_naive()
+        let now = Utc.timestamp_millis_opt(self.corrected_now_ms()).single().unwrap_or_else(Utc::now);
+        madar_time::today_in(self.dawam_tz(), now)
     }
 
     /// The zone of the branch I work at (AT-1, audit 03 bug 12): my own
     /// first branch, not whichever branch the mirror happens to list first
     /// (an owner or a manager sees every branch). No branch of mine known
-    /// yet: the first one, then Cairo.
+    /// yet: the first one, then madar-time's default zone (Cairo), said once.
     fn dawam_tz(&self) -> chrono_tz::Tz {
         let me = self.dawam_me().unwrap_or_default();
         let (branches, people) = self
@@ -1997,11 +1997,11 @@ impl MadarCore {
             .find(|p| s(p, "employee_id") == me)
             .map(|p| arr(p, "branch_ids").iter().filter_map(Value::as_str).map(str::to_string).collect())
             .unwrap_or_default();
-        let zone_of = |b: &Value| so(b, "timezone").and_then(|t| t.parse::<chrono_tz::Tz>().ok());
+        let zone_of = |b: &Value| so(b, "timezone").and_then(|t| madar_time::parse_zone(&t));
         mine.iter()
             .find_map(|id| branches.iter().find(|b| s(b, "id") == *id).and_then(zone_of))
             .or_else(|| branches.first().and_then(zone_of))
-            .unwrap_or(chrono_tz::Africa::Cairo)
+            .unwrap_or_else(|| crate::timefmt::fallback_zone("dawam.fallback_tz", "no branch timezone in the Dawam mirror"))
     }
 
     /// The screens' whole picture. `refresh` asks the server first; offline,
@@ -2862,7 +2862,7 @@ impl MadarCore {
         let locale = self.current_locale();
         let now = Utc.timestamp_millis_opt(self.corrected_now_ms()).single().unwrap_or_else(Utc::now);
         let tz = self.dawam_tz();
-        let today = now.with_timezone(&tz).date_naive();
+        let today = madar_time::today_in(tz, now);
         let queued = self.dawam_queued()?;
         let (warn_rows, coverage, date_sets, board, loaded) = self.store.with_conn(|c| {
             Ok((read_meta(c, "warnings"), read_meta(c, "coverage"), read_meta(c, "date_sets"), read_meta(c, "presence"), read_meta(c, "loaded")))
@@ -3105,12 +3105,7 @@ impl MadarCore {
                 }
                 // The cover's own window: the record's scheduled instants at
                 // the branch's time, else the covered shift's, else the block's.
-                let wall = |x: Option<DateTime<Utc>>| {
-                    x.map(|t| {
-                        let l = t.with_timezone(&tz);
-                        i64::from(l.hour() * 60 + l.minute())
-                    })
-                };
+                let wall = |x: Option<DateTime<Utc>>| x.map(|t| i64::from(madar_time::minutes_of_day(tz, t)));
                 let (start, end) = match (wall(at(r, "scheduled_start_at")), wall(at(r, "scheduled_end_at"))) {
                     (Some(a), Some(z)) => (a, z),
                     _ => owner_ix.map_or_else(|| tp.times_on(d), |ix| (shifts[ix].start, shifts[ix].end)),
