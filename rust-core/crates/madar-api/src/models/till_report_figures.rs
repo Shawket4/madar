@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 /// TillReportFigures : The report figures shared by the new `TillReportResponse` and the legacy `ShiftReportResponse` (flattened into both).
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TillReportFigures {
+    /// The till's sold sales by who served them: the person picked at checkout (`orders.sold_by`), else whoever was signed in. Largest first; the lines add up to `total_payments` and `total_tips` (the drawer is shared and is not split). OMITTED unless someone on this till was picked, so a till that never asked reports exactly as before. `madar_till::report::by_person`. Additive.
+    #[serde(rename = "by_person", skip_serializing_if = "Option::is_none")]
+    pub by_person: Option<Vec<models::TillPersonLine>>,
     #[serde(rename = "cash_adjustments")]
     pub cash_adjustments: i64,
     #[serde(
@@ -147,6 +150,7 @@ impl TillReportFigures {
         voided_amount: i64,
     ) -> TillReportFigures {
         TillReportFigures {
+            by_person: None,
             cash_adjustments,
             cash_in_refunded_sales: None,
             cash_movements,

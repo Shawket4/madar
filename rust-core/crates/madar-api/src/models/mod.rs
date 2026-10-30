@@ -1690,6 +1690,8 @@ pub mod till;
 pub use self::till::Till;
 pub mod till_brief;
 pub use self::till_brief::TillBrief;
+pub mod till_person_line;
+pub use self::till_person_line::TillPersonLine;
 pub mod till_pre_fill;
 pub use self::till_pre_fill::TillPreFill;
 pub mod till_punch;

@@ -28,7 +28,12 @@ fn methods_of(rows: &[Value]) -> Vec<Method> {
 /// madar-shared (`madar_till::vectors`), through this device's ledger.
 #[test]
 fn till_report_matches_the_backend_vectors() {
-    check_till_vectors(madar_till::vectors::TILL_REPORT, 8);
+    check_till_vectors(madar_till::vectors::TILL_REPORT, 11);
+    let doc: Value = serde_json::from_str(madar_till::vectors::TILL_REPORT).unwrap();
+    assert!(
+        doc["scenarios"].as_array().unwrap().iter().any(|sc| sc["name"] == "picked_people_by_person"),
+        "v0.14.0's picked-people scenario is in the vectors"
+    );
 }
 
 /// The edges the fold takes the server's reading of (a method named with a
@@ -105,6 +110,17 @@ fn check_till_vectors(raw: &str, at_least: usize) {
                                 "order_count": m.order_count, "payment_method_id": m.payment_method_id}))
                 .collect();
             assert_eq!(Value::Array(close), want["close_methods"], "{ctxs}: close methods");
+            // The server omits `by_person` when nobody was picked on the till.
+            let people: Vec<Value> = got
+                .by_person
+                .iter()
+                .map(|p| json!({"person_id": p.person_id, "order_count": p.order_count, "total": p.total, "tips": p.tips}))
+                .collect();
+            assert_eq!(
+                Value::Array(people),
+                want.get("by_person").cloned().unwrap_or_else(|| json!([])),
+                "{ctxs}: by_person"
+            );
             let views: Vec<Value> = got
                 .spot_views
                 .iter()

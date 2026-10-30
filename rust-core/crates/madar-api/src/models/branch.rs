@@ -91,6 +91,12 @@ pub struct Branch {
         skip_serializing_if = "Option::is_none"
     )]
     pub phone: Option<Option<String>>,
+    /// Ask who is serving at checkout: a till on this branch (POS builds that know it) requires picking a person before taking payment and sends them as `sold_by` on the sale. Off by default; not plan-gated. Additive.
+    #[serde(
+        rename = "pick_teller_at_checkout",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pick_teller_at_checkout: Option<bool>,
     #[serde(
         rename = "printer_brand",
         default,
@@ -192,6 +198,7 @@ impl Branch {
             org_logo_url: None,
             org_receipt_footer: None,
             phone: None,
+            pick_teller_at_checkout: None,
             printer_brand: None,
             printer_ip: None,
             printer_port: None,

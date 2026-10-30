@@ -1559,6 +1559,7 @@ Class | Method | HTTP request | Description
  - [TicketBill](docs/TicketBill.md)
  - [Till](docs/Till.md)
  - [TillBrief](docs/TillBrief.md)
+ - [TillPersonLine](docs/TillPersonLine.md)
  - [TillPreFill](docs/TillPreFill.md)
  - [TillPunch](docs/TillPunch.md)
  - [TillPunchResult](docs/TillPunchResult.md)

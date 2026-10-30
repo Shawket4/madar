@@ -146,6 +146,14 @@ pub struct SettleOpenTicketRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub settled_at: Option<Option<chrono::DateTime<chrono::FixedOffset>>>,
+    /// Who was picked as serving at checkout, on a branch that asks (`branches.pick_teller_at_checkout`). Same rule as `sold_by` on an order: attribution only, never a reason to refuse the settle. Additive.
+    #[serde(
+        rename = "sold_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub sold_by: Option<Option<uuid::Uuid>>,
     #[serde(rename = "till_id")]
     pub till_id: uuid::Uuid,
     #[serde(
@@ -199,6 +207,7 @@ impl SettleOpenTicketRequest {
             payment_method,
             payment_splits: None,
             settled_at: None,
+            sold_by: None,
             till_id,
             tip_amount: None,
             tip_payment_method: None,

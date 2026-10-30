@@ -209,6 +209,14 @@ pub struct CreateOrderRequest {
         skip_serializing_if = "Option::is_none"
     )]
     pub service_mode: Option<Option<String>>,
+    /// Who was picked as serving at checkout, on a branch that asks (`branches.pick_teller_at_checkout`). Attribution only: `teller_id` stays the signed-in person. Recorded when it names someone who can ring sales at the branch (on replay: someone of the org); anything else is recorded as nobody with a warning, never refused. Additive; older tills omit it.
+    #[serde(
+        rename = "sold_by",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub sold_by: Option<Option<uuid::Uuid>>,
     /// The person who started this sale's cart, when the till says it was not the person ringing it (a held order resumed after a teller switch). Recorded when it names someone of the same org; anything else is dropped with a warning, never refused. Additive; older tills omit it.
     #[serde(
         rename = "started_by",
@@ -301,6 +309,7 @@ impl CreateOrderRequest {
             payment_method,
             payment_splits: None,
             service_mode: None,
+            sold_by: None,
             started_by: None,
             subtotal: None,
             tax_amount: None,

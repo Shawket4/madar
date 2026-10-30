@@ -19,6 +19,7 @@ Name | Type | Description | Notes
 **org_logo_url** | Option<**String**> | Convenience field — populated from the parent org's `logo_url`. | [optional]
 **org_receipt_footer** | Option<**String**> | Convenience field — the parent org's receipt footer text (dashboard org settings). `None` → the POS prints its default footer. | [optional]
 **phone** | Option<**String**> |  | [optional]
+**pick_teller_at_checkout** | Option<**bool**> | Ask who is serving at checkout: a till on this branch (POS builds that know it) requires picking a person before taking payment and sends them as `sold_by` on the sale. Off by default; not plan-gated. Additive. | [optional]
 **printer_brand** | Option<[**models::PrinterBrand**](PrinterBrand.md)> |  | [optional]
 **printer_ip** | Option<**String**> |  | [optional]
 **printer_port** | Option<**i32**> |  | [optional]

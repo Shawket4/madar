@@ -64,6 +64,14 @@ pub struct JoinResult {
         skip_serializing_if = "Option::is_none"
     )]
     pub stamp_unit: Option<Option<String>>,
+    /// Every stamp track of the member's card, when there is more than one: the card page's `CardView.tracks`, the same loader. Absent for a one-track card or points, and while `verify_required`.
+    #[serde(
+        rename = "tracks",
+        default,
+        with = "::serde_with::rust::double_option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub tracks: Option<Option<Vec<models::MemberTrack>>>,
     /// This phone already has a card and the device has not proved it owns the phone. The page should run the ordinary OTP flow (`/public/otp/request` then `/public/otp/verify`) and POST here again with the `device_token` it is handed; the card comes back on that call.
     #[serde(rename = "verify_required")]
     pub verify_required: bool,
@@ -93,6 +101,7 @@ impl JoinResult {
             next_reward_cost,
             passes: None,
             stamp_unit: None,
+            tracks: None,
             verify_required,
         }
     }

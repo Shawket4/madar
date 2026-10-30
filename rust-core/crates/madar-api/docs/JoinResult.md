@@ -15,6 +15,7 @@ Name | Type | Description | Notes
 **next_reward_cost** | **i32** |  | 
 **passes** | Option<[**models::PassLinks**](PassLinks.md)> | Absent when `verify_required`. | [optional]
 **stamp_unit** | Option<**String**> | What one stamp stands for: `order`, `item` or `stamp` (a counter shop); absent for points. The join info's rule (`earn::StampUnit`). | [optional]
+**tracks** | Option<[**Vec<models::MemberTrack>**](MemberTrack.md)> | Every stamp track of the member's card, when there is more than one: the card page's `CardView.tracks`, the same loader. Absent for a one-track card or points, and while `verify_required`. | [optional]
 **verify_required** | **bool** | This phone already has a card and the device has not proved it owns the phone. The page should run the ordinary OTP flow (`/public/otp/request` then `/public/otp/verify`) and POST here again with the `device_token` it is handed; the card comes back on that call. | 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)
