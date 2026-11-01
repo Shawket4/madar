@@ -40,7 +40,19 @@ pub struct MadarBridge {
 impl MadarBridge {
     /// Open the store (SQLite + migrations) + build the HTTP client. Session
     /// restore is a separate explicit step.
-    pub fn new(config: MadarConfig) -> Result<MadarBridge, MadarError> {
+    pub fn new(mut config: MadarConfig) -> Result<MadarBridge, MadarError> {
+        // The dashboard is not a till. Named as such in `X-Madar-Client`
+        // (`dashboard/<version>`), the server treats it exactly as it treats the
+        // web dashboard: combos on the menu, no POS version gate, no old-till
+        // shims. With a bare version it read as a POS (0.7.0 when the host
+        // passed none), which left combos off its menu.
+        let version = config
+            .app_version
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .unwrap_or("0.0.0");
+        config.app_version = Some(format!("dashboard/{version}"));
         Ok(MadarBridge {
             inner: MadarCore::new(config).map_err(MadarError::from)?,
             streams: Mutex::new(HashMap::new()),

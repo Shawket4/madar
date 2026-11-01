@@ -623,7 +623,10 @@ pub(crate) fn app_version(host: Option<&str>) -> String {
         .to_string()
 }
 
-/// `pos/<semver> (<platform>)` — the `X-Madar-Client` value.
+/// `<app>/<semver> (<platform>)` — the `X-Madar-Client` value. A bare version
+/// is a POS's (`pos/0.18.1`); a host that is not a till names its app in the
+/// version it passes (`dashboard/0.8.2`), so the server reads it as that app —
+/// the Flutter dashboard as the web dashboard is read, not as an old POS.
 pub(crate) fn client_header(host_version: Option<&str>) -> String {
     let platform = match std::env::consts::OS {
         "macos" => "macos",
@@ -633,7 +636,12 @@ pub(crate) fn client_header(host_version: Option<&str>) -> String {
         _ => "linux",
     };
     // The core crate's own version is not the app's: the host passes it.
-    format!("pos/{} ({platform})", app_version(host_version))
+    let version = app_version(host_version);
+    if version.contains('/') {
+        format!("{version} ({platform})")
+    } else {
+        format!("pos/{version} ({platform})")
+    }
 }
 
 /// Translate the generated client's transport/response error into the coarse,
@@ -1038,6 +1046,8 @@ mod tests {
             let h = client_header(host);
             assert!(!h.starts_with("pos/ ") && h.starts_with("pos/"), "{h}");
         }
+        // A host that names its app is that app, not a POS.
+        assert!(client_header(Some("dashboard/0.8.2")).starts_with("dashboard/0.8.2 ("));
     }
 
     #[test]

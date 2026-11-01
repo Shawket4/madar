@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:rust_bridge_dashboard/rust_bridge_dashboard.dart';
 
@@ -33,6 +34,18 @@ const String _environment = String.fromEnvironment(
   defaultValue: 'prod',
 );
 
+/// This build's version as the platform bundle reports it (the pubspec
+/// `version`). `null` when the platform cannot say; the bridge then sends
+/// `dashboard/0.0.0`.
+Future<String?> _appVersion() async {
+  try {
+    final version = (await PackageInfo.fromPlatform()).version;
+    return version.isEmpty ? null : version;
+  } on Object {
+    return null;
+  }
+}
+
 /// Boots the core and returns the app's provider container, with the kept
 /// session already restored.
 Future<ProviderContainer> bootReal() async {
@@ -51,6 +64,9 @@ Future<ProviderContainer> bootReal() async {
       environment: _environment,
       dbPath: '${dir.path}${sep}madar_dashboard.db',
       locale: lang,
+      // Sent as `X-Madar-Client: dashboard/<version>` (the bridge names the
+      // app), so the server serves this app as it serves the web dashboard.
+      appVersion: await _appVersion(),
     ),
   );
   // Every GET answer, for a relaunch with no network (wiped on sign-out), in
