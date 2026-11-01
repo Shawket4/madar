@@ -193,7 +193,8 @@ jobs:
         working-directory: apps/kitchen/android
         run: |
           set -euo pipefail
-          ./gradlew bundleRelease assembleRelease -PversionCode=${{ github.run_number }} --no-daemon
+          ./gradlew bundleRelease assembleRelease -PversionCode=${{ github.run_number }} --no-daemon \
+            -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1g"
           V=${{ needs.version.outputs.version }}
           mkdir -p "$GITHUB_WORKSPACE/out"
           cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/out/MadarKitchen-$V.aab"
