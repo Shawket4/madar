@@ -216,7 +216,14 @@ impl KitchenCore {
             environment,
             db_path,
             locale,
-            app_version: Some(format!("kitchen/{}", env!("CARGO_PKG_VERSION"))),
+            // `kds/<version>`: the server's name for a kitchen screen (combos
+            // on its menu reads, never an old POS). It was `kitchen/…`, which
+            // the core sent as `pos/kitchen/…`: a POS with no version. The
+            // release build compiles in the app's version (kitchen-release.yml).
+            app_version: Some(format!(
+                "kds/{}",
+                option_env!("MADAR_APP_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))
+            )),
         })
         .map_err(|e| internal(format!("{e:?}")))?;
         let _ = core.restore_session_cached();

@@ -7150,12 +7150,17 @@ impl MadarCore {
         if code.len() != 8 {
             return Err(activation_code_invalid());
         }
+        // The host's version as the header carries it, without the app's name
+        // (`kds/0.1.4` → `0.1.4`). It was the build-time variable alone, which
+        // no build set, so every activated device recorded none.
+        let version = net::app_version(self.config.app_version.as_deref());
+        let version = version.rsplit_once('/').map_or(version.as_str(), |(_, v)| v);
         let body = serde_json::json!({
             "code": code,
             "device_id": self.lan_device_id(),
             "device_code": self.device_code(),
             "platform": std::env::consts::OS,
-            "app_version": option_env!("MADAR_APP_VERSION"),
+            "app_version": version,
         });
         let text = match self.api.post_json("/auth/activate-device", &body).await {
             Ok(t) => t,

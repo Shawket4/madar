@@ -149,6 +149,10 @@ jobs:
 
       - name: Build the Rust core (release)
         working-directory: apps/kitchen/modules/madar-kitchen-core
+        # The app's version, compiled in: `X-Madar-Client: kds/<version>` and
+        # the device row's `app_version` at activation.
+        env:
+          MADAR_APP_VERSION: ${{ needs.version.outputs.version }}
         run: ../../node_modules/.bin/ubrn build android --config ubrn.config.yaml --release --and-generate
 
       - name: Prepare the Android project
@@ -316,6 +320,8 @@ jobs:
       - name: Build the Rust core (release, device)
         if: steps.asc.outputs.ready == 'true'
         working-directory: apps/kitchen/modules/madar-kitchen-core
+        env:
+          MADAR_APP_VERSION: ${{ needs.version.outputs.version }}
         run: ../../node_modules/.bin/ubrn build ios --config ubrn.config.yaml --release --no-sim --and-generate
 
       - name: Prepare the Xcode project
