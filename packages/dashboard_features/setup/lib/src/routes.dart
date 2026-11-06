@@ -45,7 +45,7 @@ import 'loyalty/loyalty_page.dart';
 import 'payment_methods/payment_methods_page.dart';
 import 'payment_methods/pm_data.dart' show paymentMethodsProvider;
 import 'qr/qr_output.dart' show qrOutputProvider;
-import 'qr/qr_output_panel.dart' show qrSampleKey;
+import 'qr/qr_output_panel.dart' show qrLinksHasAddress, qrSampleKey;
 import 'qr/qr_providers.dart' show qrCodeProvider, qrTablesProvider;
 import 'staff_pool/staff_pool_settings_page.dart';
 import 'whatsapp/whatsapp_page.dart';
@@ -220,30 +220,42 @@ Widget _whatsapp(BuildContext c, GoRouterState s) =>
 
 /// Links & QR codes: the editors' reads (the links page and its preview on
 /// a plan with `branding`, the menu without prices on every plan), the
-/// output panel's sample (the shop's main code at 150 DPI, under the output
+/// output panel's sample (the shop's main code at 150 DPI under the output
 /// this device remembers for the shop: exactly the panel's read), and the
-/// branch's tables for the table codes (`online`). The sample is read on
-/// every open anyway, so warming it mints nothing a visit would not; the
-/// codes a person asks for are never warmed with the page.
+/// branch's tables for the table codes (`online`). Which code the sample is
+/// hangs on the links page read (its links page where it has an address,
+/// else the menu), so on `branding` the sample is warmed once that read
+/// lands. The sample is read on every open anyway, so warming it mints
+/// nothing a visit would not; the codes a person asks for are never warmed
+/// with the page.
 void _prefetchLinksQr(DashPrefetcher warm, Scope s) {
   final orgId = s.orgId;
   if (orgId == null) return;
   final features = warm.read(planFeaturesProvider);
-  final branding = planHasFeature(features, 'branding');
-  warm(menuDisplayProvider(orgId));
-  if (branding) {
-    warm(linksPageProvider(orgId));
-    warm(publicLinksProvider(orgId));
-  }
-  warm(
+  void sample({required bool linksCode}) => warm(
     qrCodeProvider(
       qrSampleKey(
         orgId,
-        branding: branding,
+        linksCode: linksCode,
         output: warm.read(qrOutputProvider(orgId)),
       ),
     ),
   );
+  warm(menuDisplayProvider(orgId));
+  if (planHasFeature(features, 'branding')) {
+    final page = linksPageProvider(orgId);
+    warm(page);
+    warm(publicLinksProvider(orgId));
+    warm
+        .read(page.future)
+        .then(
+          (links) => sample(linksCode: qrLinksHasAddress(links)),
+          // Failed: the page reads it again on open, and decides then.
+          onError: (Object _) {},
+        );
+  } else {
+    sample(linksCode: false);
+  }
   final b = s.branchId;
   if (b != null && planHasFeature(features, 'online')) {
     warm(qrTablesProvider(b));

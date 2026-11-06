@@ -425,4 +425,88 @@ void main() {
     expect(inPanel(find.byKey(const ValueKey('qr-no-logo'))), findsOneWidget);
     expect(inPanel(find.text(h.t('qr.output.addLogo'))), findsNothing);
   });
+
+  group(
+    'SET-QR-041 the links page code only where the page has an address',
+    () {
+      List<Map<String, String>> codes(DashHarness h) => [
+        for (final c in h.server.callsTo(QrRoutes.linksQr)) queryOf(c),
+      ];
+
+      testWidgets('paid with its own address: the links page card, and the '
+          'sample is its code', (tester) async {
+        final h = await pumpQr(tester);
+        expect(find.byKey(const ValueKey('qr-kind-orgLinks')), findsOneWidget);
+        expect(_samples(h), [
+          {'card': 'true', 'dpi': '150'},
+        ]);
+        await h.tap(find.byKey(_sample));
+        expect(
+          _inDialog(find.text(h.t('links.editor.qrTitle'))),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('paid without its own address: no links page card (the '
+          'server refuses that code), the sample is the menu\'s', (
+        tester,
+      ) async {
+        final m = setupMockServer();
+        m.db['orgs'].update(SeedIds.sabahOrg, {'custom_branding': false});
+        final h = await pumpQr(tester, backend: m);
+        expect(find.byKey(const ValueKey('qr-kind-orgLinks')), findsNothing);
+        expect(
+          find.byKey(const ValueKey('qr-kind-orgMenuDisplay')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('qr-kind-orgOrder')), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('qr-kind-orgBooking')),
+          findsOneWidget,
+        );
+        expect(find.byKey(_sample), findsOneWidget);
+        // Never the links page's own code: only the menu's was asked for.
+        expect(codes(h), [
+          {'card': 'true', 'dpi': '150', 'target': 'menu_display'},
+        ]);
+        await h.tap(find.byKey(_sample));
+        expect(
+          _inDialog(find.text(h.t('menuDisplay.editor.qrTitle'))),
+          findsOneWidget,
+        );
+        expect(
+          codes(h).where((q) => q['target'] == null),
+          isEmpty,
+          reason: 'the 409 is never asked for',
+        );
+      });
+
+      testWidgets('paid: the sample waits for the links page read', (
+        tester,
+      ) async {
+        final m = setupMockServer();
+        final gate = m.server.hold('GET', '/orgs/{id}/links-page');
+        final h = await pumpQr(tester, backend: m);
+        expect(h.server.callsTo(QrRoutes.linksQr), isEmpty);
+        expect(find.byKey(_sample), findsNothing);
+        gate.release();
+        await h.settle();
+        expect(_samples(h), [
+          {'card': 'true', 'dpi': '150'},
+        ]);
+        expect(find.byKey(_sample), findsOneWidget);
+      });
+
+      testWidgets('Free: the menu\'s code; the links page is never read', (
+        tester,
+      ) async {
+        final h = await pumpQr(tester, overrides: [freePlan]);
+        expect(find.byKey(const ValueKey('qr-kind-orgLinks')), findsNothing);
+        expect(codes(h), [
+          {'card': 'true', 'dpi': '150', 'target': 'menu_display'},
+        ]);
+        expect(h.server.callsTo('/orgs/{id}/links-page'), isEmpty);
+      });
+    },
+  );
 }

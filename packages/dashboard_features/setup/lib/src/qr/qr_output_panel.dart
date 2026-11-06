@@ -3,42 +3,57 @@
 ///
 /// Nothing on the page has been generated when someone first flips
 /// Unbranded, so without a sample the switch would appear to do nothing. The
-/// sample is the shop's main code (its links page, or on Free the menu
-/// without prices), rendered small (150 DPI is plenty for a thumbnail) and
-/// re-rendered on every flip. Pressing it opens the real code at the chosen
-/// resolution, with Download, Print and Share.
+/// sample is the shop's main code (its links page when it has one, else the
+/// menu without prices), rendered small (150 DPI is plenty for a thumbnail)
+/// and re-rendered on every flip. Pressing it opens the real code at the
+/// chosen resolution, with Download, Print and Share.
+///
+/// "When it has one" is the links page's own `public_url`, not the plan: the
+/// links page lives at the shop's own address, which needs custom branding
+/// and a slug on top of the paid plan. A paid shop without them is refused
+/// that code (409), so it gets the menu's. On a plan with `branding` the
+/// sample waits for the links page read (the editor's, one request); on Free
+/// that read never runs.
 library;
 
-import 'package:dashboard_api/dashboard_api.dart' show QrResponse;
+import 'package:dashboard_api/dashboard_api.dart'
+    show LinksPageSettings, QrResponse;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../links/links_providers.dart' show linksPageProvider;
 import '../shared/qr_preview_dialog.dart';
 import 'live_qr_dialog.dart';
 import 'qr_output.dart';
 import 'qr_output_controls.dart';
 import 'qr_providers.dart';
 
-/// The shop's main code, the sample's subject: its links page on a plan with
-/// `branding`, else the menu without prices.
-QrCodeRef qrSampleCode(String orgId, {required bool branding}) => (
-  kind: branding ? QrKind.orgLinks : QrKind.orgMenuDisplay,
+/// Whether the links page has an address its code can open: a non-empty
+/// `public_url` on the links page settings ([linksPageProvider]).
+bool qrLinksHasAddress(LinksPageSettings? links) =>
+    (links?.publicUrl ?? '').isNotEmpty;
+
+/// The shop's main code, the sample's subject: its links page where it has
+/// an address ([linksCode]), else the menu without prices.
+QrCodeRef qrSampleCode(String orgId, {required bool linksCode}) => (
+  kind: linksCode ? QrKind.orgLinks : QrKind.orgMenuDisplay,
   orgId: orgId,
   scopeId: orgId,
   place: null,
 );
 
-/// The sample's exact read for [output]: what the panel watches on mount, so
-/// what the page's prefetch warms (a cache hit on open).
+/// The sample's exact read for [output]: what the panel watches once it
+/// knows which code it is, so what the page's prefetch warms (a cache hit on
+/// open).
 QrLiveKey qrSampleKey(
   String orgId, {
-  required bool branding,
+  required bool linksCode,
   required QrOutput output,
 }) => (
-  code: qrSampleCode(orgId, branding: branding),
+  code: qrSampleCode(orgId, linksCode: linksCode),
   params: qrAtDpi(qrRenderParams(output), QrOutputPanel.sampleDpi),
 );
 
@@ -80,13 +95,19 @@ class _QrOutputPanelState extends ConsumerState<QrOutputPanel> {
       ref.watch(planFeaturesProvider),
       'branding',
     );
-    final title = branding
+    // The same read the links editor makes; never on Free.
+    final links = branding ? ref.watch(linksPageProvider(widget.orgId)) : null;
+    final decided = links == null || !links.awaitingFirst;
+    final linksCode = qrLinksHasAddress(links?.value);
+    final title = linksCode
         ? t('links.editor.qrTitle')
         : t('menuDisplay.editor.qrTitle');
     final o = ref.watch(qrOutputProvider(widget.orgId));
-    final key = qrSampleKey(widget.orgId, branding: branding, output: o);
+    final key = qrSampleKey(widget.orgId, linksCode: linksCode, output: o);
     final code = key.code;
-    final live = _hold.view(ref.watch(qrCodeProvider(key)));
+    // Not asked for until the links page read has settled: the code it is
+    // depends on the answer.
+    final live = _hold.view(decided ? ref.watch(qrCodeProvider(key)) : null);
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm;
 
     final words = Column(

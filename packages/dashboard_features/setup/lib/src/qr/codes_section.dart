@@ -13,8 +13,9 @@
 /// code on screen, nor mints the new branch's unasked; switching back shows
 /// it again.
 ///
-/// Plans: the paid plan has every kind. A Free shop has the menu without
-/// prices; the ordering, booking and table codes are shown locked
+/// Plans: the paid plan has every kind, the links page's only where the page
+/// has an address (`public_url`). A Free shop has the menu without prices;
+/// the ordering, booking and table codes are shown locked
 /// ([PaidFeatureLock], `online`), and nothing behind the lock is fetched.
 library;
 
@@ -25,6 +26,7 @@ import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../links/links_providers.dart' show linksPageProvider;
 import 'live_qr_dialog.dart';
 import 'qr_output.dart';
 import 'qr_output_panel.dart';
@@ -83,8 +85,17 @@ class QrCodesSection extends ConsumerWidget {
     final t = ref.watch(tProvider);
     final branchId = ref.watch(scopeProvider.select((s) => s.branchId));
     final features = ref.watch(planFeaturesProvider);
+    // The links page's code exists only where the page has an address: the
+    // shop's own host, which takes custom branding and a slug on top of the
+    // plan (the server answers 409 otherwise). The links editor offers its
+    // code on the same condition, and so does this list. The read is the
+    // editor's own; never on Free.
+    final hasAddress =
+        planHasFeature(features, 'branding') &&
+        qrLinksHasAddress(ref.watch(linksPageProvider(orgId)).value);
     bool held(QrKind k) =>
-        k.feature == null || planHasFeature(features, k.feature!);
+        (k.feature == null || planHasFeature(features, k.feature!)) &&
+        (k != QrKind.orgLinks || hasAddress);
     final online = planHasFeature(features, 'online');
     final locked = [
       for (final k in QrKind.values)

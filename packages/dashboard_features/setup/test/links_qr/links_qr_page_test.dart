@@ -198,13 +198,25 @@ void main() {
     expect(h.server.callsTo(QrRoutes.tables), isEmpty);
   });
 
-  for (final free in [false, true]) {
+  for (final (free, address) in [
+    (false, true),
+    (false, false),
+    (true, false),
+  ]) {
+    final plan = free ? 'Free' : (address ? 'paid' : 'paid, no address');
     testWidgets('SET-LQR-007 SET-SHL-013 resting on the entry warms the '
         'editors\' reads, the tables and the output sample under the output '
         'this device remembers; opening asks nothing more '
-        '(${free ? 'Free' : 'paid'})', (tester) async {
+        '($plan)', (tester) async {
       const output = QrOutput(unbranded: true, centreLogo: false, dpi: 300);
+      final m = setupMockServer();
+      if (!address) {
+        // A paid shop without its own address: no links page code.
+        m.db['orgs'].update(SeedIds.sabahOrg, {'custom_branding': false});
+      }
       final h = await pumpSetup(
+        server: m.server,
+        db: m.db,
         tester,
         // A pane every plan has (Brand is paid).
         path: '/settings/payment-methods${atBranch(SeedIds.heliopolis)}',
@@ -232,8 +244,9 @@ void main() {
         reason: 'the links page is read on a plan with branding only',
       );
       expect(warmed.contains('GET ${QrRoutes.tables}'), !free);
-      // The sample, exactly as the panel reads it: the shop's main code at
-      // 150 DPI under the remembered output. No other code.
+      // The sample, exactly as the panel reads it: the shop's main code (its
+      // links page where it has an address, else the menu) at 150 DPI under
+      // the remembered output. No other code.
       expect(
         [for (final c in h.server.callsTo(QrRoutes.linksQr)) queryOf(c)],
         [
@@ -241,7 +254,7 @@ void main() {
             'unbranded': 'true',
             'centre_logo': 'false',
             'dpi': '150',
-            if (free) 'target': 'menu_display',
+            if (!address) 'target': 'menu_display',
           },
         ],
       );
