@@ -17,6 +17,7 @@ class PublicBranch {
     required this.pickupEnabled,
     required this.pickupOpenNow,
     required this.taxPolicy,
+    required this.timezone,
     required this.umbrellaEnabled,
     required this.umbrellaOpenNow,
   });
@@ -59,6 +60,7 @@ class PublicBranch {
       'PublicBranch.tax_policy',
       OnlineTaxPolicy.fromJson,
     ),
+    timezone: decString(json['timezone'], 'PublicBranch.timezone'),
     umbrellaEnabled: decBool(
       json['umbrella_enabled'],
       'PublicBranch.umbrella_enabled',
@@ -99,6 +101,11 @@ class PublicBranch {
   /// the same policy intake will freeze onto the order.
   final OnlineTaxPolicy taxPolicy;
 
+  /// The branch's effective IANA zone — its own, else its org's, else
+  /// `Africa/Cairo` (`effective_timezone`). The storefront writes dates and
+  /// times on this clock, never the device's.
+  final String timezone;
+
   final bool umbrellaEnabled;
 
   final bool umbrellaOpenNow;
@@ -116,6 +123,7 @@ class PublicBranch {
     'pickup_enabled': pickupEnabled,
     'pickup_open_now': pickupOpenNow,
     'tax_policy': taxPolicy.toJson(),
+    'timezone': timezone,
     'umbrella_enabled': umbrellaEnabled,
     'umbrella_open_now': umbrellaOpenNow,
   };

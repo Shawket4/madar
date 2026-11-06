@@ -149,6 +149,7 @@ class LegacyRedirect {
     required this.source,
     this.query = RedirectQuery.none,
     this.keys = const [],
+    this.set = const {},
     this.replace = false,
   });
 
@@ -159,18 +160,26 @@ class LegacyRedirect {
   final String source;
   final RedirectQuery query;
   final List<String> keys;
+
+  /// Query values the redirect sets itself, whatever the old URL had (the
+  /// old QR pages land on `?section=codes`).
+  final Map<String, String> set;
   final bool replace;
 
-  /// The target for [uri] (whose path is [from]), with the query it keeps.
+  /// The target for [uri] (whose path is [from]), with the query it keeps
+  /// and the values it [set]s.
   Uri apply(Uri uri) {
-    final kept = switch (query) {
-      RedirectQuery.none => const <String, List<String>>{},
-      RedirectQuery.all => uri.queryParametersAll,
-      RedirectQuery.keys => {
-        for (final k in keys)
-          if (uri.queryParametersAll.containsKey(k))
-            k: uri.queryParametersAll[k]!,
+    final kept = <String, List<String>>{
+      ...switch (query) {
+        RedirectQuery.none => const <String, List<String>>{},
+        RedirectQuery.all => uri.queryParametersAll,
+        RedirectQuery.keys => {
+          for (final k in keys)
+            if (uri.queryParametersAll.containsKey(k))
+              k: uri.queryParametersAll[k]!,
+        },
       },
+      for (final e in set.entries) e.key: [e.value],
     };
     return Uri(path: to, queryParameters: kept.isEmpty ? null : kept);
   }

@@ -18,6 +18,8 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    bool? unbranded,
+    bool? centreLogo,
     String? slug,
   }) async {
     final response = await _transport.send(
@@ -32,6 +34,8 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (unbranded != null) 'unbranded': [queryValue(unbranded)],
+          if (centreLogo != null) 'centre_logo': [queryValue(centreLogo)],
           if (slug != null) 'slug': [queryValue(slug)],
         },
       ),
@@ -58,6 +62,8 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    bool? unbranded,
+    bool? centreLogo,
     String? slug,
   }) async {
     final response = await _transport.send(
@@ -72,6 +78,8 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (unbranded != null) 'unbranded': [queryValue(unbranded)],
+          if (centreLogo != null) 'centre_logo': [queryValue(centreLogo)],
           if (slug != null) 'slug': [queryValue(slug)],
         },
       ),
@@ -93,6 +101,8 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    bool? unbranded,
+    bool? centreLogo,
     String? slug,
     String? placeName,
     String? floor,
@@ -110,6 +120,8 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (unbranded != null) 'unbranded': [queryValue(unbranded)],
+          if (centreLogo != null) 'centre_logo': [queryValue(centreLogo)],
           if (slug != null) 'slug': [queryValue(slug)],
           if (placeName != null) 'place_name': [queryValue(placeName)],
           if (floor != null) 'floor': [queryValue(floor)],
@@ -180,6 +192,8 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    bool? unbranded,
+    bool? centreLogo,
   }) async {
     final response = await _transport.send(
       ApiRequest(
@@ -193,6 +207,8 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (unbranded != null) 'unbranded': [queryValue(unbranded)],
+          if (centreLogo != null) 'centre_logo': [queryValue(centreLogo)],
         },
       ),
     );
@@ -213,6 +229,8 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    bool? unbranded,
+    bool? centreLogo,
   }) async {
     final response = await _transport.send(
       ApiRequest(
@@ -226,6 +244,8 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (unbranded != null) 'unbranded': [queryValue(unbranded)],
+          if (centreLogo != null) 'centre_logo': [queryValue(centreLogo)],
         },
       ),
     );
@@ -246,6 +266,8 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    bool? unbranded,
+    bool? centreLogo,
   }) async {
     final response = await _transport.send(
       ApiRequest(
@@ -259,6 +281,8 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (unbranded != null) 'unbranded': [queryValue(unbranded)],
+          if (centreLogo != null) 'centre_logo': [queryValue(centreLogo)],
         },
       ),
     );
@@ -283,6 +307,8 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    bool? unbranded,
+    bool? centreLogo,
     String? target,
   }) async {
     final response = await _transport.send(
@@ -297,6 +323,8 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (unbranded != null) 'unbranded': [queryValue(unbranded)],
+          if (centreLogo != null) 'centre_logo': [queryValue(centreLogo)],
           if (target != null) 'target': [queryValue(target)],
         },
       ),
@@ -325,6 +353,8 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    bool? unbranded,
+    bool? centreLogo,
     String? slug,
   }) async {
     final response = await _transport.send(
@@ -339,6 +369,8 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (unbranded != null) 'unbranded': [queryValue(unbranded)],
+          if (centreLogo != null) 'centre_logo': [queryValue(centreLogo)],
           if (slug != null) 'slug': [queryValue(slug)],
         },
       ),
@@ -360,6 +392,8 @@ class QrApi {
     bool? cropMarks,
     bool? svg,
     int? modulePx,
+    bool? unbranded,
+    bool? centreLogo,
   }) async {
     final response = await _transport.send(
       ApiRequest(
@@ -373,6 +407,8 @@ class QrApi {
           if (cropMarks != null) 'crop_marks': [queryValue(cropMarks)],
           if (svg != null) 'svg': [queryValue(svg)],
           if (modulePx != null) 'module_px': [queryValue(modulePx)],
+          if (unbranded != null) 'unbranded': [queryValue(unbranded)],
+          if (centreLogo != null) 'centre_logo': [queryValue(centreLogo)],
         },
       ),
     );

@@ -1,5 +1,5 @@
 // Intent warming on the links page: resting on "QR code" fetches the links
-// code, so the press asks the server nothing more. The page's other
+// code at the shop's output, so the press asks the server nothing more. The page's other
 // presses make no read (Copy, Open, the editor's own controls, Save).
 import 'package:dashboard_core/testing.dart';
 import 'package:flutter/gestures.dart';
@@ -25,13 +25,13 @@ void main() {
   testWidgets('SET-LNK-007 QR code warms the links code; the press asks '
       'nothing more', (tester) async {
     final h = await pumpLinks(tester);
-    expect(gets(h, LinksRoutes.qr), 0);
+    expect(linksCodeGets(h), 0);
     final m = await _mouse(tester);
     await _rest(h, m, byKey('links-qr'));
-    expect(gets(h, LinksRoutes.qr), 1);
+    expect(linksCodeGets(h), 1);
     await m.moveTo(Offset.zero);
     await h.tap(byKey('links-qr'));
-    expect(gets(h, LinksRoutes.qr), 1);
+    expect(linksCodeGets(h), 1);
     expect(find.text('Links page code'), findsOneWidget);
   });
 }

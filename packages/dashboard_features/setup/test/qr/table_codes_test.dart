@@ -1,12 +1,11 @@
-// The table codes card (SET-QR-019 – 024, 028): pick a branch, its tables,
-// one code per table made in sequence, the sheet, printing, and the branch
-// moving.
-import 'dart:typed_data';
+// The table codes card (SET-QR-019 – 024, 028, 036, 040): pick a branch,
+// its tables, one code per table made in sequence, the sheet, the output
+// switches re-making it, printing (labels and cut lines on a branded sheet,
+// the codes alone on an unbranded one), and the branch moving.
 
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
-import 'package:dashboard_setup/src/qr/table_codes.dart';
 import 'package:dashboard_setup/src/shared/qr_preview_dialog.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -163,13 +162,9 @@ void main() {
     expect(find.byKey(_print), findsNothing);
   });
 
-  testWidgets('SET-QR-023 "Print sheet" only once codes exist; it prints an '
-      'A4 sheet of them', (tester) async {
-    final printed = <(Uint8List, String)>[];
-    final real = qrPrintPdf;
-    qrPrintPdf = (pdf, name) async => printed.add((pdf, name));
-    addTearDown(() => qrPrintPdf = real);
-
+  testWidgets('SET-QR-023 "Print sheet" only once codes exist; a branded '
+      'sheet prints each card with its label and a cut line', (tester) async {
+    final printed = capturePrints();
     final h = await pumpQr(tester, query: atBranch(SeedIds.heliopolis));
     expect(find.byKey(_print), findsNothing);
     await h.tap(find.byKey(_make));
@@ -182,23 +177,115 @@ void main() {
     expect(printed, hasLength(1));
     expect(String.fromCharCodes(printed.single.$1.take(5)), '%PDF-');
     expect(printed.single.$2, 'Table codes');
+    final facts = pdfFacts(printed.single.$1);
+    expect(facts.images, 9);
+    expect(facts.text, isTrue, reason: 'each table\'s label');
+    expect(facts.dashed, isTrue, reason: 'the cut lines');
   });
 
-  testWidgets('SET-QR-024 moving the header branch drops the sheet', (
-    tester,
-  ) async {
+  testWidgets('SET-QR-036 an unbranded sheet prints the codes alone: no '
+      'label, no cut line, nothing else', (tester) async {
+    final printed = capturePrints();
+    final h = await pumpQr(
+      tester,
+      query: atBranch(SeedIds.heliopolis),
+      output: const QrOutput(unbranded: true),
+    );
+    await h.tap(find.byKey(_make));
+    // On screen the labels stay: thirty identical squares are unsortable.
+    expect(
+      find.descendant(of: find.byKey(_sheet), matching: find.text('T1')),
+      findsOneWidget,
+    );
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(_print));
+      await Future<void>.delayed(const Duration(seconds: 2));
+    });
+    await h.settle();
+    expect(pdfFacts(printed.single.$1), (
+      images: 9,
+      text: false,
+      dashed: false,
+      fonts: false,
+    ));
+  });
+
+  testWidgets('SET-QR-040 the sheet follows the switches: asked for as the '
+      'shop chose, made again on a flip with no second press', (tester) async {
+    final h = await pumpQr(
+      tester,
+      query: atBranch(SeedIds.heliopolis),
+      output: const QrOutput(unbranded: true, centreLogo: false, dpi: 300),
+    );
+    await h.tap(find.byKey(_make));
+    final calls = h.server.callsTo(QrRoutes.tableQr);
+    expect(calls, hasLength(9));
+    expect(queryOf(calls.first), {
+      'unbranded': 'true',
+      'centre_logo': 'false',
+      'dpi': '300',
+      'caption': 'T1',
+    });
+    final plain = tester
+        .widget<QrImage>(
+          find.descendant(
+            of: find.byKey(
+              ValueKey('qr-table-${qrTableId('heliopolis', 'T1')}'),
+            ),
+            matching: find.byType(QrImage),
+          ),
+        )
+        .dataUrl;
+
+    await h.tap(inPanel(find.byKey(const ValueKey('qr-unbranded'))));
+    expect(h.server.callsTo(QrRoutes.tableQr), hasLength(18));
+    expect(queryOf(h.server.callsTo(QrRoutes.tableQr).last), {
+      'card': 'true',
+      'dpi': '300',
+      'caption': 'T9',
+    });
+    final card = tester
+        .widget<QrImage>(
+          find.descendant(
+            of: find.byKey(
+              ValueKey('qr-table-${qrTableId('heliopolis', 'T1')}'),
+            ),
+            matching: find.byType(QrImage),
+          ),
+        )
+        .dataUrl;
+    expect(card, isNot(plain));
+
+    // A table's preview carries the switches too.
+    await h.tap(
+      find.descendant(of: find.byKey(_sheet), matching: find.text('T1')),
+    );
+    final dialog = find.byType(QrPreviewDialog);
+    expect(
+      find.descendant(
+        of: dialog,
+        matching: find.byKey(const ValueKey('qr-output-controls')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('SET-QR-024 moving the header branch drops the sheet; back '
+      'again, that room\'s own sheet', (tester) async {
     final h = await pumpQr(tester, query: atBranch(SeedIds.heliopolis));
     await h.tap(find.byKey(_make));
     expect(find.byKey(_sheet), findsOneWidget);
     await pickBranch(h, SeedIds.zamalek);
     expect(find.byKey(_sheet), findsNothing);
     expect(find.text('Make 10 codes'), findsOneWidget);
+    final made = h.server.callsTo(QrRoutes.tableQr).length;
     await pickBranch(h, SeedIds.heliopolis);
-    expect(find.byKey(_sheet), findsNothing);
+    expect(find.byKey(_sheet), findsOneWidget);
+    expect(h.server.callsTo(QrRoutes.tableQr), hasLength(made));
   });
 
-  testWidgets('SET-QR-021 (divergence) a run that lands after the branch '
-      'moved is dropped', (tester) async {
+  testWidgets('SET-QR-021 a run that lands after the branch moved is '
+      'dropped', (tester) async {
     final m = setupMockServer();
     final h = await pumpQr(
       tester,
@@ -235,8 +322,8 @@ void main() {
     expect(find.text('Make 9 codes'), findsOneWidget);
   });
 
-  testWidgets('SET-QR-028 a failure part-way discards that run and keeps '
-      'the sheet already made', (tester) async {
+  testWidgets('SET-QR-028 a failure part-way through making it again '
+      'keeps the sheet already made', (tester) async {
     final m = setupMockServer();
     final h = await pumpQr(
       tester,
@@ -246,10 +333,6 @@ void main() {
     await h.tap(find.byKey(_make));
     expect(find.byKey(_sheet), findsOneWidget);
 
-    // A table renamed: its code is asked again, and fails half-way.
-    m.db[qrTablesTable].find(qrTableId('heliopolis', 'T5'))!['label'] = 'T5b';
-    h.container.invalidate(qrTablesProvider);
-    await h.settle();
     m.server.fail(
       'GET',
       QrRoutes.tableQr,
@@ -258,15 +341,31 @@ void main() {
     );
     await h.tap(find.byKey(_make));
     await h.expectToast('Could not make the codes. Try again.');
-    final sheet = find.byKey(_sheet);
     expect(
-      find.descendant(of: sheet, matching: find.text('T5')),
+      find.descendant(of: find.byKey(_sheet), matching: find.text('T5')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('SET-QR-028 a table renamed: the sheet is made again with its '
+      'new label', (tester) async {
+    final m = setupMockServer();
+    final h = await pumpQr(
+      tester,
+      backend: m,
+      query: atBranch(SeedIds.heliopolis),
+    );
+    await h.tap(find.byKey(_make));
+    m.db[qrTablesTable].find(qrTableId('heliopolis', 'T5'))!['label'] = 'T5b';
+    h.container.invalidate(qrTablesProvider);
+    await h.settle();
+    final sheet = find.byKey(_sheet);
     expect(
       find.descendant(of: sheet, matching: find.text('T5b')),
-      findsNothing,
+      findsOneWidget,
     );
+    expect(find.descendant(of: sheet, matching: find.text('T5')), findsNothing);
+    expect(queryOf(h.server.callsTo(QrRoutes.tableQr).last)['caption'], 'T9');
   });
 
   testWidgets('refusal: another org\'s branch is refused in the error '

@@ -4,7 +4,7 @@
 //
 //   - src/config/nav.ts            NAV, the module-tagged extra routes
 //   - src/features/settings/settings-nav.ts   SETTINGS_NAV
-//   - the 25 redirect-only route files under src/routes/_app/**
+//   - the 28 redirect-only route files under src/routes/_app/**
 //
 // esbuild (from MadarDashboard/node_modules) bundles each into a temp dir with
 // the Lucide icon imports stubbed to their names and TanStack Router's
@@ -33,12 +33,109 @@ const JSON_MODE = argv.includes("--json");
 const CHECK = argv.includes("--check");
 
 /**
- * Web settings panes the Flutter dashboard has no page for yet: left out of
- * the generated nav, its module routes and the --json the parity test reads,
- * so the rail never offers a dead link. Remove an entry when its page lands.
+ * Web pages the Flutter dashboard has no page for yet: left out of the
+ * generated nav (sidebar leaves and settings panes, a path or everything under
+ * it), its module routes, the redirects that land on them and the --json the
+ * parity test reads, so the nav never offers a dead link. Remove an entry
+ * when its page lands.
  *   /settings/plan  Settings > Plan (web 2026-10-13, Free plan); owner call 2026-10-19.
+ *   /rewards        Rewards by Madar (web 656ef339, 2026-10-23): not ported yet.
  */
-const WEB_ONLY = ["/settings/plan"];
+const WEB_ONLY = ["/settings/plan", "/rewards"];
+const webOnly = (p) => WEB_ONLY.some((w) => p === w || p.startsWith(`${w}/`));
+
+/**
+ * Flutter pages the web has moved on from, kept in the Flutter nav where they
+ * were until what replaced them is ported: each entry as the web last had it,
+ * put back after `after` in its group, and its web redirect dropped (it would
+ * land on a WEB_ONLY page). Remove an entry when its replacement lands.
+ *   /settings/loyalty  the web moved Loyalty into Rewards by Madar (/rewards/*,
+ *                      656ef339, 2026-10-23); Flutter keeps its Loyalty pane.
+ */
+const FLUTTER_KEEPS = [
+  {
+    to: "/settings/loyalty",
+    nav: {
+      group: "nav.setup",
+      after: "/branch-setup",
+      leaf: { caps: ["loyalty.use", "loyalty.members.list"], module: "pos", to: "/settings/loyalty", labelKey: "nav.loyalty", fallback: "Loyalty", icon: "Star" },
+    },
+    settings: {
+      group: "settings.groupChannels",
+      after: "/settings/bookings",
+      item: {
+        to: "/settings/loyalty",
+        module: "pos",
+        caps: ["loyalty.use", "loyalty.members.list"],
+        labelKey: "nav.loyalty",
+        fallback: "Loyalty",
+        descKey: "settings.loyaltyDesc",
+        desc: "Points or stamps, the rewards they buy, and who has joined.",
+        icon: "Star",
+      },
+    },
+  },
+];
+const flutterKeeps = (p) => FLUTTER_KEEPS.some((k) => k.to === p);
+
+const navLeaves = (groups) => groups.flatMap((g) => g.entries.flatMap((e) => e.children ?? [e]));
+
+/** [items] with [item] put back after the one at [after] (which must exist). */
+function insertAfter(items, after, item, where) {
+  const at = items.findIndex((i) => i.to === after);
+  if (at < 0) throw new Error(`FLUTTER_KEEPS ${where}: no ${after} to put it after`);
+  return [...items.slice(0, at + 1), item, ...items.slice(at + 1)];
+}
+
+/** The web's evaluated nav with WEB_ONLY taken out and FLUTTER_KEEPS put back. */
+function forFlutter(web) {
+  for (const p of WEB_ONLY) {
+    const there =
+      web.settings.some((g) => g.items.some((i) => webOnly(i.to) && (i.to === p || i.to.startsWith(`${p}/`)))) ||
+      navLeaves(web.nav).some((l) => l.to === p || l.to.startsWith(`${p}/`));
+    if (!there) throw new Error(`WEB_ONLY ${p} is no longer a web page: drop it from the list`);
+  }
+  let nav = web.nav
+    .map((g) => ({
+      ...g,
+      entries: g.entries
+        .map((e) => (e.children ? { ...e, children: e.children.filter((c) => !webOnly(c.to)) } : e))
+        .filter((e) => (e.children ? e.children.length > 0 : !webOnly(e.to))),
+    }))
+    .filter((g) => g.entries.length > 0);
+  let settings = web.settings.map((g) => ({ ...g, items: g.items.filter((i) => !webOnly(i.to)) }));
+  for (const k of FLUTTER_KEEPS) {
+    if (navLeaves(web.nav).some((l) => l.to === k.to) || web.settings.some((g) => g.items.some((i) => i.to === k.to))) {
+      throw new Error(`FLUTTER_KEEPS ${k.to} is a web page again: drop it from the list`);
+    }
+    nav = nav.map((g) => (g.labelKey === k.nav.group ? { ...g, entries: insertAfter(g.entries, k.nav.after, k.nav.leaf, k.to) } : g));
+    settings = settings.map((g) =>
+      g.labelKey === k.settings.group ? { ...g, items: insertAfter(g.items, k.settings.after, k.settings.item, k.to) } : g,
+    );
+    if (!navLeaves(nav).some((l) => l.to === k.to)) throw new Error(`FLUTTER_KEEPS ${k.to}: no nav group ${k.nav.group}`);
+    if (!settings.some((g) => g.items.some((i) => i.to === k.to))) {
+      throw new Error(`FLUTTER_KEEPS ${k.to}: no settings group ${k.settings.group}`);
+    }
+  }
+  const extraModuleRoutes = web.extraModuleRoutes.filter(([p]) => !webOnly(p));
+  // The web's MODULE_ROUTES rule (nav.ts), over the nav Flutter shows.
+  const moduleRoutesOf = (groups, extra) => [
+    ...navLeaves(groups)
+      .filter((l) => l.module && l.to !== "/")
+      .map((l) => [l.to, l.module]),
+    ...extra,
+  ];
+  if (JSON.stringify(moduleRoutesOf(web.nav, web.extraModuleRoutes)) !== JSON.stringify(web.moduleRoutes)) {
+    throw new Error("the web's MODULE_ROUTES rule changed: update moduleRoutesOf in tool/gen_dashboard_nav.mjs");
+  }
+  return {
+    nav,
+    settings,
+    extraModuleRoutes,
+    moduleRoutes: moduleRoutesOf(nav, extraModuleRoutes),
+    redirects: web.redirects.filter((r) => !webOnly(r.to) && !flutterKeeps(r.from)),
+  };
+}
 
 const require = createRequire(join(WEB, "package.json"));
 const esbuild = require("esbuild");
@@ -137,6 +234,9 @@ async function bundle(contents, tmp, name) {
     platform: "node",
     outfile,
     logLevel: "error",
+    // Vite's env object: nav.ts reads `env` (the Rewards host), whose schema
+    // has a default for everything the nav needs.
+    define: { "import.meta.env": "{}" },
     plugins: [
       {
         name: "web-stubs",
@@ -199,31 +299,30 @@ async function evaluate() {
       if (!thrown || typeof thrown.to !== "string") throw new Error(`${rel}: beforeLoad did not redirect`);
       let query = "none";
       let keys = [];
+      // A search value that is the probe's came through from the old URL; any
+      // other value is the redirect's own (`search: { section: "codes" }`).
+      const set = {};
       if (thrown.search !== undefined) {
-        const kept = Object.keys(thrown.search).filter((k) => thrown.search[k] !== undefined);
+        const given = Object.keys(thrown.search).filter((k) => thrown.search[k] !== undefined);
+        const kept = given.filter((k) => thrown.search[k] === validated[k]);
+        for (const k of given) if (!kept.includes(k)) set[k] = String(thrown.search[k]);
         if (kept.length === Object.keys(PROBE).length) query = "all";
-        else {
+        else if (kept.length) {
           query = "keys";
           keys = kept;
         }
       }
       const from = path.replace(/^\/_app/, "").replace(/\/$/, "") || "/";
-      redirects.push({ from, to: thrown.to, query, keys, replace: !!thrown.replace, source: rel });
+      redirects.push({ from, to: thrown.to, query, keys, set, replace: !!thrown.replace, source: rel });
     }
-    if (redirects.length !== 25) throw new Error(`expected the web's 25 redirect-only routes, found ${redirects.length}`);
-    for (const p of WEB_ONLY) {
-      if (!nav.SETTINGS_NAV.some((g) => g.items.some((i) => i.to === p))) {
-        throw new Error(`WEB_ONLY ${p} is no longer a web settings pane: drop it from the list`);
-      }
-    }
-    const kept = (p) => !WEB_ONLY.includes(p);
-    return {
+    if (redirects.length !== 28) throw new Error(`expected the web's 28 redirect-only routes, found ${redirects.length}`);
+    return forFlutter({
       nav: nav.NAV,
-      settings: nav.SETTINGS_NAV.map((g) => ({ ...g, items: g.items.filter((i) => kept(i.to)) })),
-      extraModuleRoutes: nav.__EXTRA_MODULE_ROUTES.filter(([p]) => kept(p)),
-      moduleRoutes: nav.__MODULE_ROUTES.filter(([p]) => kept(p)),
+      settings: nav.SETTINGS_NAV,
+      extraModuleRoutes: nav.__EXTRA_MODULE_ROUTES,
+      moduleRoutes: nav.__MODULE_ROUTES,
       redirects,
-    };
+    });
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -317,6 +416,8 @@ function toDart(d) {
     const parts = [`from: ${dstr(r.from)}`, `to: ${dstr(r.to)}`, `source: ${dstr(r.source)}`];
     if (r.query !== "none") parts.push(`query: RedirectQuery.${r.query}`);
     if (r.keys.length) parts.push(`keys: ${dlist(r.keys)}`);
+    const fixed = Object.entries(r.set);
+    if (fixed.length) parts.push(`set: <String, String>{${fixed.map(([k, v]) => `${dstr(k)}: ${dstr(v)}`).join(", ")}}`);
     if (r.replace) parts.push("replace: true");
     w(`  LegacyRedirect(${parts.join(", ")}),`);
   }

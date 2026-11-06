@@ -1,28 +1,23 @@
-/// `/settings/links` Links page editor (`features/links/admin/
-/// links-pane.tsx`, SET-LNK-001..026): the shop's own address, the line
+/// The Links page section of Settings › Links & QR codes (`features/links/
+/// admin/links-pane.tsx`, SET-LNK-001..026): the shop's own address, the line
 /// under its name, the buttons and their order, its own links, the socials
 /// (one map with Brand), "Visit us", and beside it the public page as saved.
 ///
-/// Rendered inside the settings shell (`routes.dart`), so its
-/// [DashPageScaffold] draws as a pane. Module `pos` at the route; every plan
-/// opens it. A paid shop gets the links page editor and, under it, the menu
-/// without prices ([MenuDisplaySection]). A Free shop has no links page (the
-/// paid `branding` feature) but has the menu without prices: it gets that
-/// section, usable, and the links page's sections shown locked
-/// ([PaidFeatureLock]) — nothing behind them is fetched, and the server
-/// refuses the links page's own reads and writes (403).
+/// The first of the merged page's three sections (`links_qr_page.dart`); its
+/// [DashPageScaffold] draws as a pane heading there. A paid shop gets the
+/// editor. A Free shop has no links page (the paid `branding` feature): it
+/// sees the editor's sections locked ([PaidFeatureLock]); nothing behind
+/// them is fetched, and the server refuses the links page's own reads and
+/// writes (403). The menu without prices, which every plan has, is its own
+/// section on the same page. The address's "QR code" button opens the same
+/// live code, under the same output switches, as the codes section.
 library;
 
 import 'dart:async';
 
 import 'package:collection/collection.dart';
 import 'package:dashboard_api/dashboard_api.dart'
-    show
-        ApiException,
-        LinksItemKind,
-        LinksModuleStatus,
-        LinksPageItem,
-        LinksPageSettings;
+    show LinksItemKind, LinksModuleStatus, LinksPageItem, LinksPageSettings;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/shell.dart' show linkOpenerProvider;
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -31,13 +26,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/qr_preview_dialog.dart';
+import '../qr/live_qr_dialog.dart';
+import '../qr/qr_providers.dart' show QrCodeRef, QrKind;
 import '../shared/social_links.dart';
 import '../shared/sticky_beside.dart';
 import 'links_data.dart';
 import 'links_preview.dart';
 import 'links_providers.dart';
-import 'menu_display_section.dart';
 
 /// The pane's fixed sizes.
 abstract final class LinksMetrics {
@@ -56,66 +51,55 @@ abstract final class LinksMetrics {
   static const double tallBar = 256;
 }
 
-class LinksPage extends ConsumerWidget {
-  const LinksPage({super.key});
+class LinksPageSection extends ConsumerWidget {
+  const LinksPageSection({this.onReady, super.key});
+
+  /// Called once the section has its final height (the editor after its
+  /// read): the page scrolls past it to a section asked for.
+  final VoidCallback? onReady;
+
+  void _ready(bool ready) {
+    final cb = onReady;
+    if (!ready || cb == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => cb());
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final orgId = ref.watch(orgIdProvider);
     if (orgId == null) {
-      return DashPageScaffold(
-        title: t('links.editor.title'),
-        subtitle: t('links.editor.desc'),
-        width: DashPageWidth.reading,
-        body: DashEmptyState(icon: 'link-2', title: t('branches.pickOrg')),
-      );
+      _ready(true);
+      return const SizedBox.shrink();
     }
     if (!planHasFeature(ref.watch(planFeaturesProvider), 'branding')) {
+      _ready(true);
       return DashPageScaffold(
         key: const ValueKey('links-free'),
         title: t('links.editor.title'),
         subtitle: t('links.editor.desc'),
         width: DashPageWidth.reading,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.xl,
-          children: [
-            MenuDisplaySection(orgId: orgId),
-            PaidFeatureLock(
-              feature: 'branding',
-              title: t('links.editor.lockedTitle'),
-              preview: const _LockedSections(),
-            ),
-          ],
+        body: PaidFeatureLock(
+          feature: 'branding',
+          title: t('links.editor.lockedTitle'),
+          preview: const _LockedSections(),
         ),
       );
     }
     final q = ref.watch(linksPageProvider(orgId));
-    final menu = MenuDisplaySection(orgId: orgId);
-    if (q.awaitingFirst) return _LinksSkeleton(footer: menu);
+    _ready(!q.awaitingFirst);
+    if (q.awaitingFirst) return const _LinksSkeleton();
     if (q.failedFirst) {
       return DashPageScaffold(
         title: t('links.editor.title'),
         subtitle: t('links.editor.desc'),
         width: DashPageWidth.reading,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.xl,
-          children: [
-            DashErrorState(
-              title: t('common.loadFailed'),
-              message: errorMessage(q.error, t),
-              retryLabel: t('common.retry'),
-              retrying: q.isLoading,
-              onRetry: () => ref.invalidate(linksPageProvider(orgId)),
-            ),
-            // A refusal is the settings capability, which the section needs
-            // too: say it once.
-            if (!(q.error is ApiException &&
-                (q.error! as ApiException).status == 403))
-              menu,
-          ],
+        body: DashErrorState(
+          title: t('common.loadFailed'),
+          message: errorMessage(q.error, t),
+          retryLabel: t('common.retry'),
+          retrying: q.isLoading,
+          onRetry: () => ref.invalidate(linksPageProvider(orgId)),
         ),
       );
     }
@@ -124,7 +108,6 @@ class LinksPage extends ConsumerWidget {
       key: ValueKey(orgId),
       orgId: orgId,
       saved: q.requireValue,
-      footer: menu,
     );
   }
 }
@@ -180,53 +163,35 @@ class _LockedSections extends ConsumerWidget {
 
 /// The loading state (the web shows only these bars, no header).
 class _LinksSkeleton extends ConsumerWidget {
-  const _LinksSkeleton({required this.footer});
-
-  /// The menu without prices, which loads on its own.
-  final Widget footer;
+  const _LinksSkeleton();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    spacing: Space.xl,
-    children: [
-      Semantics(
-        key: const ValueKey('links-loading'),
-        label: ref.watch(tProvider)('common.loading'),
-        child: const Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: Space.md,
-          children: [
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: DashSkeleton(
-                width: LinksMetrics.titleBarWidth,
-                height: Space.xxl,
-              ),
-            ),
-            DashSkeleton(height: LinksMetrics.cardBar, radius: Radii.card),
-            DashSkeleton(height: LinksMetrics.tallBar, radius: Radii.card),
-          ],
+  Widget build(BuildContext context, WidgetRef ref) => Semantics(
+    key: const ValueKey('links-loading'),
+    label: ref.watch(tProvider)('common.loading'),
+    child: const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: Space.md,
+      children: [
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: DashSkeleton(
+            width: LinksMetrics.titleBarWidth,
+            height: Space.xxl,
+          ),
         ),
-      ),
-      footer,
-    ],
+        DashSkeleton(height: LinksMetrics.cardBar, radius: Radii.card),
+        DashSkeleton(height: LinksMetrics.tallBar, radius: Radii.card),
+      ],
+    ),
   );
 }
 
 class LinksEditor extends ConsumerStatefulWidget {
-  const LinksEditor({
-    required this.orgId,
-    required this.saved,
-    this.footer,
-    super.key,
-  });
+  const LinksEditor({required this.orgId, required this.saved, super.key});
 
   final String orgId;
   final LinksPageSettings saved;
-
-  /// Under the editor and its preview: the menu without prices.
-  final Widget? footer;
 
   @override
   ConsumerState<LinksEditor> createState() => _LinksEditorState();
@@ -363,25 +328,28 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
     if (mounted) DashToast.success(context, t('links.editor.copied'));
   }
 
+  /// The links page's code, live under the page's output switches.
   Future<void> _showQr() async {
     final t = ref.read(tProvider);
-    final container = ProviderScope.containerOf(context, listen: false);
-    final read = linksQrProvider(widget.orgId);
     setState(() => _qrBusy = true);
     try {
-      final qr = await container.read(read.future);
-      if (mounted) {
-        unawaited(
-          showQrPreview(context, qr: qr, title: t('links.editor.qrTitle')),
-        );
-      }
-    } on Object catch (e) {
-      container.invalidate(read);
-      if (mounted) DashToast.error(context, errorMessage(e, t));
+      await openLiveQr(
+        context,
+        ref,
+        code: _qrCode,
+        title: t('links.editor.qrTitle'),
+      );
     } finally {
       if (mounted) setState(() => _qrBusy = false);
     }
   }
+
+  QrCodeRef get _qrCode => (
+    kind: QrKind.orgLinks,
+    orgId: widget.orgId,
+    scopeId: widget.orgId,
+    place: null,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -440,7 +408,6 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
             form,
             preview,
           ],
-          ?widget.footer,
         ],
       ),
     );
@@ -518,7 +485,7 @@ class _LinksEditorState extends ConsumerState<LinksEditor> {
                 variant: DashButtonVariant.outline,
                 loading: _qrBusy,
                 onPressed: _qrBusy ? null : _showQr,
-                onIntent: () => ref.warm(linksQrProvider(widget.orgId)),
+                onIntent: () => ref.warm(qrCodeRead(ref, _qrCode)),
               ),
               DashButton(
                 key: const ValueKey('links-open'),

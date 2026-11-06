@@ -6,6 +6,7 @@ import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_setup/src/links/links_page.dart';
 import 'package:dashboard_setup/src/links/links_preview.dart';
+import 'package:dashboard_setup/src/links_qr/links_qr_page.dart';
 import 'package:dashboard_setup/src/mock/links_mock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -14,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../support.dart';
 
-const String linksPath = '/settings/links';
+const String linksPath = '/settings/links-qr';
 
 abstract final class LinksRoutes {
   static const String page = '/orgs/{id}/links-page';
@@ -59,7 +60,9 @@ Future<DashHarness> pumpLinks(
 );
 
 Finder inLinks(Finder f) =>
-    find.descendant(of: find.byType(LinksPage), matching: f);
+    find.descendant(of: find.byType(LinksPageSection), matching: f);
+Finder inPage(Finder f) =>
+    find.descendant(of: find.byType(LinksQrPage), matching: f);
 Finder inEditor(Finder f) =>
     find.descendant(of: find.byType(LinksEditor), matching: f);
 Finder inPreview(Finder f) =>
@@ -84,6 +87,19 @@ Map<String, Object?> lastBody(DashHarness h, String method, String template) =>
 
 int gets(DashHarness h, String template) =>
     h.server.callsTo(template, method: 'GET').length;
+
+/// The query [call] sent, one value per key.
+Map<String, String> queryOf(MockCall call) => {
+  for (final e in call.query.entries) e.key: e.value.single,
+};
+
+/// GETs of the links page's own code at the shop's output (the "QR code"
+/// button's read: today's card, 600 DPI), not the output panel's 150-DPI
+/// sample.
+int linksCodeGets(DashHarness h) => h.server
+    .callsTo(LinksRoutes.qr, method: 'GET')
+    .where((c) => c.query['target'] == null && c.query['dpi']?.single == '600')
+    .length;
 
 /// The system clipboard, answered in-process (`refuse` makes it fail).
 class FakeClipboard {

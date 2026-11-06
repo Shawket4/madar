@@ -36,6 +36,7 @@ class DeliveryTracking {
     required this.taxAmount,
     required this.taxInclusive,
     required this.taxRateApplied,
+    required this.timezone,
     required this.total,
     this.unitNumber,
     this.explicitNulls = const {},
@@ -116,6 +117,7 @@ class DeliveryTracking {
       json['tax_rate_applied'],
       'DeliveryTracking.tax_rate_applied',
     ),
+    timezone: decString(json['timezone'], 'DeliveryTracking.timezone'),
     total: decInt(json['total'], 'DeliveryTracking.total'),
     unitNumber: decStringN(json['unit_number'], 'DeliveryTracking.unit_number'),
   );
@@ -177,6 +179,11 @@ class DeliveryTracking {
 
   final double taxRateApplied;
 
+  /// The order's branch's effective IANA zone — its own, else its org's,
+  /// else `Africa/Cairo` (`effective_timezone`). The page writes the step
+  /// times on this clock, never the device's.
+  final String timezone;
+
   final int total;
 
   final String? unitNumber;
@@ -227,6 +234,7 @@ class DeliveryTracking {
     'tax_amount': taxAmount,
     'tax_inclusive': taxInclusive,
     'tax_rate_applied': taxRateApplied,
+    'timezone': timezone,
     'total': total,
     if (unitNumber != null || explicitNulls.contains('unit_number'))
       'unit_number': unitNumber,

@@ -455,6 +455,7 @@
    }
   ],
   "branch_booking_qr": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -540,6 +541,7 @@
    }
   ],
   "branch_loyalty_qr": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -621,6 +623,7 @@
    "window_to": "2026-10-08T07:00:00.000Z"
   },
   "branch_qr": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -2276,6 +2279,7 @@
    "worked_minutes": 7
   },
   "create_marketing_link": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -3619,6 +3623,7 @@
    "recipe_source_item_name": "text"
   },
   "delivery_order_qr": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -11041,6 +11046,7 @@
    "phone_hint": "text"
   },
   "org_booking_qr": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -11092,6 +11098,7 @@
    "unknown_cost_count": 7
   },
   "org_links_qr": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -11114,6 +11121,7 @@
    }
   ],
   "org_loyalty_qr": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -11149,6 +11157,7 @@
    "to": "2026-10-08T07:00:00.000Z"
   },
   "org_qr": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -11625,6 +11634,7 @@
      "tax_inclusive": true,
      "tax_rate": 1.5
     },
+    "timezone": "text",
     "umbrella_enabled": true,
     "umbrella_open_now": true
    }
@@ -14647,6 +14657,7 @@
    "turns_per_day_x100": 7
   },
   "table_qr": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",
@@ -14801,6 +14812,7 @@
    "tax_amount": 7,
    "tax_inclusive": true,
    "tax_rate_applied": 1.5,
+   "timezone": "text",
    "total": 7,
    "unit_number": "text"
   },
@@ -21037,6 +21049,7 @@
    "tax_amount": 7,
    "tax_inclusive": true,
    "tax_rate_applied": 1.5,
+   "timezone": "text",
    "total": 7,
    "unit_number": "text"
   },
@@ -26282,6 +26295,7 @@
     "tax_inclusive": true,
     "tax_rate": 1.5
    },
+   "timezone": "text",
    "umbrella_enabled": true,
    "umbrella_open_now": true
   },
@@ -27073,6 +27087,7 @@
    ]
   },
   "QrResponse": {
+   "centre_logo": true,
    "kind": "text",
    "long_url": "text",
    "qr_data_url": "text",

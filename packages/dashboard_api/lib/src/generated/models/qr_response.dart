@@ -6,20 +6,30 @@ part of '../models.dart';
 @immutable
 class QrResponse {
   const QrResponse({
+    this.centreLogo,
     required this.kind,
     required this.longUrl,
     required this.qrDataUrl,
     required this.shortCode,
     required this.shortUrl,
+    this.explicitNulls = const {},
   });
 
   factory QrResponse.fromJson(Map<String, Object?> json) => QrResponse(
+    centreLogo: decBoolN(json['centre_logo'], 'QrResponse.centre_logo'),
     kind: decString(json['kind'], 'QrResponse.kind'),
     longUrl: decString(json['long_url'], 'QrResponse.long_url'),
     qrDataUrl: decString(json['qr_data_url'], 'QrResponse.qr_data_url'),
     shortCode: decString(json['short_code'], 'QrResponse.short_code'),
     shortUrl: decString(json['short_url'], 'QrResponse.short_url'),
   );
+
+  /// Whether anything sits in the middle of the code: always on the card (the
+  /// shop's logo, or Madar's mark), never on the receipt QR, and on the
+  /// unbranded code only when `centre_logo` was asked for AND the shop has a
+  /// printable logo on the branding tier. `false` with `unbranded=true` and
+  /// `centre_logo=true` is how a client learns there was no logo to put there.
+  final bool? centreLogo;
 
   final String kind;
 
@@ -33,7 +43,13 @@ class QrResponse {
 
   final String shortUrl;
 
+  /// Wire names of optional fields to send as an explicit `null` when unset
+  /// (a PATCH that clears a value). Unset optional fields are omitted.
+  final Set<String> explicitNulls;
+
   Map<String, Object?> toJson() => <String, Object?>{
+    if (centreLogo != null || explicitNulls.contains('centre_logo'))
+      'centre_logo': centreLogo,
     'kind': kind,
     'long_url': longUrl,
     'qr_data_url': qrDataUrl,

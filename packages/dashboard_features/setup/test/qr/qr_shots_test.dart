@@ -4,7 +4,7 @@
 // desktop-en-light and phone-ar-light.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
-import 'package:dashboard_setup/src/qr/qr_page.dart';
+import 'package:dashboard_setup/src/links_qr/links_qr_page.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,7 +17,10 @@ Future<void> shootPage(DashHarness h, String name) async {
   ScrollableState? state;
   for (final e
       in find
-          .ancestor(of: find.byType(QrPage), matching: find.byType(Scrollable))
+          .ancestor(
+            of: find.byType(LinksQrPage),
+            matching: find.byType(Scrollable),
+          )
           .evaluate()) {
     final s = (e as StatefulElement).state as ScrollableState;
     if (s.position.axis == Axis.vertical) {

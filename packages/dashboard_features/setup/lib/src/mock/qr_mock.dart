@@ -1,5 +1,7 @@
-/// The mock backend for QR codes and print cards (`/settings/qr`, SET-QR rows),
-/// as MadarRust `qr_card/handlers.rs` answers:
+/// The mock backend for QR codes and print cards (Settings › Links & QR
+/// codes, SET-QR rows), as MadarRust `qr_card/handlers.rs` answers. Every
+/// code follows the render query (`unbranded`, `centre_logo`, `card`:
+/// [mockQrFor]):
 ///
 /// - `GET /orgs/{id}/qr`, `/branches/{id}/qr` (in-mall when `place_name`,
 ///   `floor` and `unit_number` are all non-empty), `/branches/{id}/tables`,
@@ -102,7 +104,10 @@ class _Qr {
     final org = req.param('id');
     req.requireSameOrg(org);
     return MockResponse.ok(
-      mockQrResponse(
+      mockQrFor(
+        req,
+        db,
+        orgId: org,
         kind: 'org_order',
         longUrl: '$mockOrderBase/order/$org',
         key: 'org_order:$org',
@@ -119,7 +124,10 @@ class _Qr {
     );
     if (!any) req.conflict('No branch in this organisation takes bookings yet');
     return MockResponse.ok(
-      mockQrResponse(
+      mockQrFor(
+        req,
+        db,
+        orgId: org,
         kind: 'org_booking',
         longUrl: '$mockReservationsBase/$org',
         key: 'org_booking:$org',
@@ -137,7 +145,10 @@ class _Qr {
     if (place.isNotEmpty && floor.isNotEmpty && unit.isNotEmpty) {
       final e = Uri.encodeComponent;
       return MockResponse.ok(
-        mockQrResponse(
+        mockQrFor(
+          req,
+          db,
+          orgId: org as String?,
           kind: 'branch_order_in_mall',
           longUrl:
               '$mockOrderBase/order/$org?branch=$id&channel=in_mall'
@@ -148,7 +159,10 @@ class _Qr {
       );
     }
     return MockResponse.ok(
-      mockQrResponse(
+      mockQrFor(
+        req,
+        db,
+        orgId: org as String?,
         kind: 'branch_order',
         longUrl: '$mockOrderBase/order/$org?branch=$id',
         key: 'branch_order:$id',
@@ -164,7 +178,10 @@ class _Qr {
       req.conflict('Bookings are switched off for this branch');
     }
     return MockResponse.ok(
-      mockQrResponse(
+      mockQrFor(
+        req,
+        db,
+        orgId: org as String?,
         kind: 'branch_booking',
         longUrl: '$mockReservationsBase/$org/$id',
         key: 'branch_booking:$id',
@@ -206,7 +223,10 @@ class _Qr {
       req.notFound('Table not found');
     }
     return MockResponse.ok(
-      mockQrResponse(
+      mockQrFor(
+        req,
+        db,
+        orgId: org as String?,
         kind: 'table_order',
         longUrl: '$mockOrderBase/order/$org?table=$tid',
         key: 'table_order:$tid',

@@ -42,7 +42,10 @@ void main() {
     final section = byKey('menu-display-section');
     await _show(h, section);
     expect(section, findsOneWidget);
-    expect(find.text(h.t('menuDisplay.editor.title')), findsOneWidget);
+    expect(
+      inKey('menu-display-section', find.text(h.t('menuDisplay.editor.title'))),
+      findsOneWidget,
+    );
     // Sabah has its own host: the page is its `/menu`.
     expect(
       inKey(
@@ -83,7 +86,10 @@ void main() {
     expect(byKey('paid-lock-branding'), findsOneWidget);
     expect(byKey('links-locked-sections'), findsOneWidget);
     expect(find.text(h.t('links.editor.lockedTitle')), findsOneWidget);
-    expect(find.text(h.t('plan.lock.badge')), findsOneWidget);
+    expect(
+      inKey('paid-lock-branding', find.text(h.t('plan.lock.badge'))),
+      findsOneWidget,
+    );
     expect(find.byType(LinksEditor), findsNothing);
     // The locked headings are not inputs.
     expect(
@@ -95,7 +101,13 @@ void main() {
     );
     expect(gets(h, LinksRoutes.page), 0);
     expect(gets(h, LinksRoutes.public), 0);
-    expect(gets(h, LinksRoutes.qr), 0);
+    // No links page code: the output panel's sample is the menu's.
+    expect(
+      h.server
+          .callsTo(LinksRoutes.qr)
+          .where((c) => c.query['target']?.single != 'menu_display'),
+      isEmpty,
+    );
     expect(gets(h, LinksRoutes.menuDisplay), 1);
   });
 
@@ -164,8 +176,13 @@ void main() {
     await h.expectToast(h.t('links.editor.copied'));
 
     await h.tap(byKey('menu-display-qr'));
+    // The page's output switches ride along (today's card by default).
     final call = h.server.callsTo(LinksRoutes.qr, method: 'GET').last;
-    expect(call.query['target'], ['menu_display']);
+    expect(queryOf(call), {
+      'card': 'true',
+      'dpi': '600',
+      'target': 'menu_display',
+    });
     expect(find.text(h.t('menuDisplay.editor.qrTitle')), findsOneWidget);
     await h.flushTimers();
   });

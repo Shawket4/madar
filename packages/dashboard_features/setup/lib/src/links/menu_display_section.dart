@@ -1,12 +1,14 @@
 /// "Menu (no prices)": the settings of the shop's menu without prices
 /// (`features/links/admin/menu-display-section.tsx`).
 ///
-/// Self-contained (its own read, draft and save), so it sits on the Links
-/// page for every plan: a Free shop has no links page, but it has this. It
-/// is NOT one of the links page's buttons; the page lives at its own address
-/// (`<slug>.madar-pos.cloud/menu`, else `loyalty.madar-pos.cloud/menu/<org>`,
-/// the server's `public_url`), shown here with Copy, Open and its QR code
-/// (the links page's own code endpoint, `target=menu_display`).
+/// Self-contained (its own read, draft and save), so it sits on Settings ›
+/// Links & QR codes for every plan: a Free shop has no links page, but it
+/// has this. It is NOT one of the links page's buttons; the page lives at its
+/// own address (`<slug>.madar-pos.cloud/menu`, else
+/// `loyalty.madar-pos.cloud/menu/<org>`, the server's `public_url`), shown
+/// here with Copy, Open and its QR code (the links page's own code endpoint,
+/// `target=menu_display`), live under the page's output switches like every
+/// other code there.
 library;
 
 import 'dart:async';
@@ -21,7 +23,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../shared/qr_preview_dialog.dart';
+import '../qr/live_qr_dialog.dart';
+import '../qr/qr_providers.dart' show QrCodeRef, QrKind;
 import 'links_data.dart' show codeUnitLimit;
 import 'links_providers.dart';
 
@@ -170,29 +173,28 @@ class _MenuDisplayFormState extends ConsumerState<MenuDisplayForm> {
     if (mounted) DashToast.success(context, t('links.editor.copied'));
   }
 
+  /// The menu's code, live under the page's output switches.
   Future<void> _showQr() async {
     final t = ref.read(tProvider);
-    final container = ProviderScope.containerOf(context, listen: false);
-    final read = menuDisplayQrProvider(widget.orgId);
     setState(() => _qrBusy = true);
     try {
-      final qr = await container.read(read.future);
-      if (mounted) {
-        unawaited(
-          showQrPreview(
-            context,
-            qr: qr,
-            title: t('menuDisplay.editor.qrTitle'),
-          ),
-        );
-      }
-    } on Object catch (e) {
-      container.invalidate(read);
-      if (mounted) DashToast.error(context, errorMessage(e, t));
+      await openLiveQr(
+        context,
+        ref,
+        code: _qrCode,
+        title: t('menuDisplay.editor.qrTitle'),
+      );
     } finally {
       if (mounted) setState(() => _qrBusy = false);
     }
   }
+
+  QrCodeRef get _qrCode => (
+    kind: QrKind.orgMenuDisplay,
+    orgId: widget.orgId,
+    scopeId: widget.orgId,
+    place: null,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -393,7 +395,7 @@ class _MenuDisplayFormState extends ConsumerState<MenuDisplayForm> {
                   variant: DashButtonVariant.outline,
                   loading: _qrBusy,
                   onPressed: _qrBusy ? null : _showQr,
-                  onIntent: () => ref.warm(menuDisplayQrProvider(widget.orgId)),
+                  onIntent: () => ref.warm(qrCodeRead(ref, _qrCode)),
                 ),
                 if (live)
                   DashButton(

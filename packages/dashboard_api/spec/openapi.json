@@ -7389,6 +7389,24 @@
             }
           },
           {
+            "name": "unbranded",
+            "in": "query",
+            "description": "`true` → the code and nothing else: a square QR, black on a white quiet\nzone, 70 mm a side at `dpi` (PNG, or SVG with `svg=true`). No card, no\nframe, no purpose line or caption, no \"Powered by\", no Madar mark and no\nshop name. Overrides `card`; `caption`, `bleed_mm`, `crop_marks` and\n`module_px` are ignored. Default false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "centre_logo",
+            "in": "query",
+            "description": "With `unbranded=true` only: put the shop's logo in the middle of the\ncode (default true). Only a shop on the branding tier with a printable\nlogo has one to put there; otherwise the code comes out plain, and the\nresponse's `centre_logo` says so. `false` → always a plain QR, at a\nlower error-correction level (bigger modules). The branded card ignores\nit.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "slug",
             "in": "query",
             "required": false,
@@ -7563,6 +7581,24 @@
             }
           },
           {
+            "name": "unbranded",
+            "in": "query",
+            "description": "`true` → the code and nothing else: a square QR, black on a white quiet\nzone, 70 mm a side at `dpi` (PNG, or SVG with `svg=true`). No card, no\nframe, no purpose line or caption, no \"Powered by\", no Madar mark and no\nshop name. Overrides `card`; `caption`, `bleed_mm`, `crop_marks` and\n`module_px` are ignored. Default false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "centre_logo",
+            "in": "query",
+            "description": "With `unbranded=true` only: put the shop's logo in the middle of the\ncode (default true). Only a shop on the branding tier with a printable\nlogo has one to put there; otherwise the code comes out plain, and the\nresponse's `centre_logo` says so. `false` → always a plain QR, at a\nlower error-correction level (bigger modules). The branded card ignores\nit.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "slug",
             "in": "query",
             "required": false,
@@ -7733,6 +7769,24 @@
               "type": "integer",
               "format": "int32",
               "minimum": 0
+            }
+          },
+          {
+            "name": "unbranded",
+            "in": "query",
+            "description": "`true` → the code and nothing else: a square QR, black on a white quiet\nzone, 70 mm a side at `dpi` (PNG, or SVG with `svg=true`). No card, no\nframe, no purpose line or caption, no \"Powered by\", no Madar mark and no\nshop name. Overrides `card`; `caption`, `bleed_mm`, `crop_marks` and\n`module_px` are ignored. Default false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "centre_logo",
+            "in": "query",
+            "description": "With `unbranded=true` only: put the shop's logo in the middle of the\ncode (default true). Only a shop on the branding tier with a printable\nlogo has one to put there; otherwise the code comes out plain, and the\nresponse's `centre_logo` says so. `false` → always a plain QR, at a\nlower error-correction level (bigger modules). The branded card ignores\nit.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -8248,6 +8302,24 @@
               "type": "integer",
               "format": "int32",
               "minimum": 0
+            }
+          },
+          {
+            "name": "unbranded",
+            "in": "query",
+            "description": "`true` → the code and nothing else: a square QR, black on a white quiet\nzone, 70 mm a side at `dpi` (PNG, or SVG with `svg=true`). No card, no\nframe, no purpose line or caption, no \"Powered by\", no Madar mark and no\nshop name. Overrides `card`; `caption`, `bleed_mm`, `crop_marks` and\n`module_px` are ignored. Default false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "centre_logo",
+            "in": "query",
+            "description": "With `unbranded=true` only: put the shop's logo in the middle of the\ncode (default true). Only a shop on the branding tier with a printable\nlogo has one to put there; otherwise the code comes out plain, and the\nresponse's `centre_logo` says so. `false` → always a plain QR, at a\nlower error-correction level (bigger modules). The branded card ignores\nit.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -11929,6 +12001,24 @@
               "type": "integer",
               "format": "int32",
               "minimum": 0
+            }
+          },
+          {
+            "name": "unbranded",
+            "in": "query",
+            "description": "`true` → the code and nothing else: a square QR, black on a white quiet\nzone, 70 mm a side at `dpi` (PNG, or SVG with `svg=true`). No card, no\nframe, no purpose line or caption, no \"Powered by\", no Madar mark and no\nshop name. Overrides `card`; `caption`, `bleed_mm`, `crop_marks` and\n`module_px` are ignored. Default false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "centre_logo",
+            "in": "query",
+            "description": "With `unbranded=true` only: put the shop's logo in the middle of the\ncode (default true). Only a shop on the branding tier with a printable\nlogo has one to put there; otherwise the code comes out plain, and the\nresponse's `centre_logo` says so. `false` → always a plain QR, at a\nlower error-correction level (bigger modules). The branded card ignores\nit.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -33289,6 +33379,24 @@
               "format": "int32",
               "minimum": 0
             }
+          },
+          {
+            "name": "unbranded",
+            "in": "query",
+            "description": "`true` → the code and nothing else: a square QR, black on a white quiet\nzone, 70 mm a side at `dpi` (PNG, or SVG with `svg=true`). No card, no\nframe, no purpose line or caption, no \"Powered by\", no Madar mark and no\nshop name. Overrides `card`; `caption`, `bleed_mm`, `crop_marks` and\n`module_px` are ignored. Default false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "centre_logo",
+            "in": "query",
+            "description": "With `unbranded=true` only: put the shop's logo in the middle of the\ncode (default true). Only a shop on the branding tier with a printable\nlogo has one to put there; otherwise the code comes out plain, and the\nresponse's `centre_logo` says so. `false` → always a plain QR, at a\nlower error-correction level (bigger modules). The branded card ignores\nit.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -33977,6 +34085,24 @@
             }
           },
           {
+            "name": "unbranded",
+            "in": "query",
+            "description": "`true` → the code and nothing else: a square QR, black on a white quiet\nzone, 70 mm a side at `dpi` (PNG, or SVG with `svg=true`). No card, no\nframe, no purpose line or caption, no \"Powered by\", no Madar mark and no\nshop name. Overrides `card`; `caption`, `bleed_mm`, `crop_marks` and\n`module_px` are ignored. Default false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "centre_logo",
+            "in": "query",
+            "description": "With `unbranded=true` only: put the shop's logo in the middle of the\ncode (default true). Only a shop on the branding tier with a printable\nlogo has one to put there; otherwise the code comes out plain, and the\nresponse's `centre_logo` says so. `false` → always a plain QR, at a\nlower error-correction level (bigger modules). The branded card ignores\nit.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "target",
             "in": "query",
             "description": "Omitted: the links page itself (the paid `branding` feature).\n`menu_display`: the menu without prices, which every plan has.",
@@ -34258,6 +34384,24 @@
               "type": "integer",
               "format": "int32",
               "minimum": 0
+            }
+          },
+          {
+            "name": "unbranded",
+            "in": "query",
+            "description": "`true` → the code and nothing else: a square QR, black on a white quiet\nzone, 70 mm a side at `dpi` (PNG, or SVG with `svg=true`). No card, no\nframe, no purpose line or caption, no \"Powered by\", no Madar mark and no\nshop name. Overrides `card`; `caption`, `bleed_mm`, `crop_marks` and\n`module_px` are ignored. Default false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "centre_logo",
+            "in": "query",
+            "description": "With `unbranded=true` only: put the shop's logo in the middle of the\ncode (default true). Only a shop on the branding tier with a printable\nlogo has one to put there; otherwise the code comes out plain, and the\nresponse's `centre_logo` says so. `false` → always a plain QR, at a\nlower error-correction level (bigger modules). The branded card ignores\nit.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           },
           {
@@ -35026,6 +35170,24 @@
               "type": "integer",
               "format": "int32",
               "minimum": 0
+            }
+          },
+          {
+            "name": "unbranded",
+            "in": "query",
+            "description": "`true` → the code and nothing else: a square QR, black on a white quiet\nzone, 70 mm a side at `dpi` (PNG, or SVG with `svg=true`). No card, no\nframe, no purpose line or caption, no \"Powered by\", no Madar mark and no\nshop name. Overrides `card`; `caption`, `bleed_mm`, `crop_marks` and\n`module_px` are ignored. Default false.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "centre_logo",
+            "in": "query",
+            "description": "With `unbranded=true` only: put the shop's logo in the middle of the\ncode (default true). Only a shop on the branding tier with a printable\nlogo has one to put there; otherwise the code comes out plain, and the\nresponse's `centre_logo` says so. `false` → always a plain QR, at a\nlower error-correction level (bigger modules). The branded card ignores\nit.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -82821,7 +82983,8 @@
           "tax_rate_applied",
           "tax_inclusive",
           "total",
-          "customer_name"
+          "customer_name",
+          "timezone"
         ],
         "properties": {
           "address_line": {
@@ -82961,6 +83124,11 @@
           "tax_rate_applied": {
             "type": "number",
             "format": "double"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "The order's branch's effective IANA zone — its own, else its org's,\nelse `Africa/Cairo` (`effective_timezone`). The page writes the step\ntimes on this clock, never the device's.",
+            "example": "Africa/Cairo"
           },
           "total": {
             "type": "integer",
@@ -97041,7 +97209,8 @@
           "pickup_open_now",
           "otp_required",
           "in_mall_require_location",
-          "tax_policy"
+          "tax_policy",
+          "timezone"
         ],
         "properties": {
           "code": {
@@ -97084,6 +97253,11 @@
           "tax_policy": {
             "$ref": "#/components/schemas/OnlineTaxPolicy",
             "description": "The tax this branch prices online orders under. The storefront renders\na tax line from it (exclusive) or an \"includes VAT\" note (inclusive) —\nthe same policy intake will freeze onto the order."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "The branch's effective IANA zone — its own, else its org's, else\n`Africa/Cairo` (`effective_timezone`). The storefront writes dates and\ntimes on this clock, never the device's.",
+            "example": "Africa/Cairo"
           },
           "umbrella_enabled": {
             "type": "boolean"
@@ -98909,6 +99083,10 @@
           "qr_data_url"
         ],
         "properties": {
+          "centre_logo": {
+            "type": "boolean",
+            "description": "Whether anything sits in the middle of the code: always on the card (the\nshop's logo, or Madar's mark), never on the receipt QR, and on the\nunbranded code only when `centre_logo` was asked for AND the shop has a\nprintable logo on the branding tier. `false` with `unbranded=true` and\n`centre_logo=true` is how a client learns there was no logo to put there."
+          },
           "kind": {
             "type": "string"
           },

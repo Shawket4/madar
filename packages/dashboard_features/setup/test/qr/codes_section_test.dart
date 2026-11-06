@@ -1,6 +1,7 @@
-// The QR page's single codes (SET-QR-001 – 018, 025 – 027): the header, the
-// render options, the org and branch cards, generating, the inline error,
-// the result card and the preview dialog.
+// The single codes of Settings › Links & QR codes (SET-QR-001 – 018,
+// 025 – 027): the codes section's heading, the output switches as each code
+// sends them, the org and branch cards, generating, the inline error, the
+// result card and the preview dialog.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
@@ -14,34 +15,33 @@ import 'qr_support.dart';
 DashButton _button(WidgetTester tester, Finder f) => tester.widget(f);
 
 void main() {
-  testWidgets('SET-QR-001 header and subtitle', (tester) async {
+  testWidgets('SET-QR-001 the codes section: "QR codes" and its line', (
+    tester,
+  ) async {
     final h = await pumpQr(tester);
-    expect(inQr(find.text('QR Codes')), findsOneWidget);
-    expect(inQr(find.text(h.t('qr.subtitle'))), findsOneWidget);
+    expect(inPage(find.text(h.t('linksQr.codes.title'))), findsWidgets);
+    expect(inPage(find.text(h.t('linksQr.codes.desc'))), findsOneWidget);
   });
 
   testWidgets('SET-QR-002 SET-SHL-020 no org in scope: "Select an '
       'organization", nothing asked', (tester) async {
     final h = await pumpQr(tester, persona: Persona.platform, pickOrg: false);
     h.allowUnmatched = true;
-    expect(inQr(find.text('QR Codes')), findsOneWidget);
-    expect(inQr(find.text('Select an organization')), findsOneWidget);
-    expect(inQr(find.byKey(const ValueKey('qr-options'))), findsNothing);
+    expect(inPage(find.text('Links & QR codes')), findsOneWidget);
+    expect(inPage(find.text('Select an organization')), findsOneWidget);
+    expect(find.byKey(const ValueKey('qr-output-panel')), findsNothing);
     expect(h.server.callsTo(QrRoutes.tables), isEmpty);
+    expect(h.server.callsTo(QrRoutes.linksQr), isEmpty);
   });
 
-  testWidgets('SET-QR-003 render options: branded card on, DPI 600, the '
-      'hint; both sent on org and branch codes', (tester) async {
+  testWidgets('SET-QR-003 SET-QR-030 the output switches: today\'s card at '
+      '600 DPI by default; every code sends what they say', (tester) async {
     final h = await pumpQr(tester);
-    final bar = find.byKey(const ValueKey('qr-options'));
-    Finder inBar(Finder f) => find.descendant(of: bar, matching: f);
-    expect(inBar(find.text('Branded card')), findsOneWidget);
-    expect(inBar(find.text('DPI')), findsOneWidget);
-    expect(inBar(find.text('600')), findsOneWidget);
-    expect(
-      inBar(find.text('Applies to every code on this page.')),
-      findsOneWidget,
-    );
+    expect(inPanel(find.text('Unbranded')), findsOneWidget);
+    expect(inPanel(find.text('A6 card')), findsOneWidget);
+    expect(inPanel(find.text('DPI')), findsOneWidget);
+    expect(inPanel(find.text('600')), findsOneWidget);
+    expect(inPanel(find.text(h.t('qr.output.hint'))), findsOneWidget);
 
     await h.tap(generateOf(QrKind.orgOrder));
     expect(queryOf(h.server.callsTo(QrRoutes.orgQr).single), {
@@ -49,63 +49,107 @@ void main() {
       'dpi': '600',
     });
 
-    // DPI 300.
-    await h.tap(find.byKey(const ValueKey('qr-dpi')));
+    // DPI 300: the code on screen is made again, no second press.
+    await h.tap(inPanel(find.byKey(const ValueKey('qr-dpi'))));
     await h.tap(find.text('300').last);
-    await h.tap(generateOf(QrKind.orgOrder));
     expect(queryOf(h.server.callsTo(QrRoutes.orgQr).last), {
       'card': 'true',
       'dpi': '300',
     });
 
     // Card off: the DPI select goes, the DPI still rides along.
-    await h.tap(inBar(find.text('Branded card')));
-    expect(inBar(find.text('DPI')), findsNothing);
-    await h.tap(generateOf(QrKind.orgOrder));
+    await h.tap(inPanel(find.byKey(const ValueKey('qr-card'))));
+    expect(inPanel(find.text('DPI')), findsNothing);
+    expect(inPanel(find.text(h.t('qr.output.cardOff'))), findsOneWidget);
     expect(queryOf(h.server.callsTo(QrRoutes.orgQr).last), {
       'card': 'false',
+      'dpi': '300',
+    });
+
+    // Unbranded: only what the plain code reads; the card switch steps
+    // aside and the DPI comes back.
+    await h.tap(inPanel(find.byKey(const ValueKey('qr-unbranded'))));
+    expect(inPanel(find.byKey(const ValueKey('qr-card'))), findsNothing);
+    expect(inPanel(find.text('DPI')), findsOneWidget);
+    expect(queryOf(h.server.callsTo(QrRoutes.orgQr).last), {
+      'unbranded': 'true',
+      'centre_logo': 'true',
+      'dpi': '300',
+    });
+    await h.tap(inPanel(find.byKey(const ValueKey('qr-centre-logo'))));
+    expect(queryOf(h.server.callsTo(QrRoutes.orgQr).last), {
+      'unbranded': 'true',
+      'centre_logo': 'false',
       'dpi': '300',
     });
 
     await pickBranch(h, SeedIds.heliopolis);
     await h.tap(generateOf(QrKind.branchOrder));
     expect(queryOf(h.server.callsTo(QrRoutes.branchQr).last), {
-      'card': 'false',
+      'unbranded': 'true',
+      'centre_logo': 'false',
       'dpi': '300',
     });
   });
 
-  testWidgets('SET-QR-004 SET-QR-006 the org section\'s two cards and the '
-      'branch section\'s three', (tester) async {
+  testWidgets('SET-QR-004 SET-QR-006 SET-QR-038 the whole-organization '
+      'section\'s four cards and the branch section\'s three', (tester) async {
     final h = await pumpQr(tester);
     expect(inQr(find.text('For the whole organization')), findsOneWidget);
     expect(inQr(find.text('For one branch')), findsOneWidget);
+    for (final (kind, title, description) in [
+      (QrKind.orgLinks, 'qr.links.title', 'qr.links.description'),
+      (
+        QrKind.orgMenuDisplay,
+        'qr.menuDisplay.title',
+        'qr.menuDisplay.description',
+      ),
+      (QrKind.orgOrder, 'qr.org.title', 'qr.org.description'),
+      (QrKind.orgBooking, 'qr.orgBooking.title', 'qr.orgBooking.description'),
+      (QrKind.branchOrder, 'qr.standard.title', 'qr.standard.description'),
+      (
+        QrKind.branchBooking,
+        'qr.branchBooking.title',
+        'qr.branchBooking.description',
+      ),
+      (QrKind.branchOrderInMall, 'qr.inMall.title', 'qr.inMall.description'),
+    ]) {
+      expect(inKind(kind, find.text(h.t(title))), findsOneWidget);
+      expect(inKind(kind, find.text(h.t(description))), findsOneWidget);
+    }
     expect(
       inKind(QrKind.orgOrder, find.text('All-branches QR')),
       findsOneWidget,
     );
+    // In the web's order: the shop's own codes first.
+    final tops = [
+      for (final k in QrKind.values)
+        tester.getTopLeft(find.byKey(ValueKey('qr-kind-${k.name}'))).dy,
+    ];
+    expect(tops, [...tops]..sort());
+  });
+
+  testWidgets('SET-QR-038 the links page and menu codes: any scope, the '
+      'links page\'s own endpoint', (tester) async {
+    final h = await pumpQr(tester, query: atBranch(SeedIds.maadi));
+    await h.tap(generateOf(QrKind.orgLinks));
+    await h.tap(generateOf(QrKind.orgMenuDisplay));
+    expect(resultOf(QrKind.orgLinks), findsOneWidget);
+    expect(resultOf(QrKind.orgMenuDisplay), findsOneWidget);
+    final full = h.server
+        .callsTo(QrRoutes.linksQr)
+        .where((c) => c.query['dpi']?.single == '600')
+        .map(queryOf)
+        .toList();
+    expect(full, [
+      {'card': 'true', 'dpi': '600'},
+      {'card': 'true', 'dpi': '600', 'target': 'menu_display'},
+    ]);
     expect(
-      inKind(QrKind.orgOrder, find.text(h.t('qr.org.description'))),
-      findsOneWidget,
-    );
-    expect(
-      inKind(QrKind.orgBooking, find.text('All-branches bookings')),
-      findsOneWidget,
-    );
-    expect(
-      inKind(QrKind.branchOrder, find.text('Branch menu QR')),
-      findsOneWidget,
-    );
-    expect(
-      inKind(QrKind.branchBooking, find.text('Branch bookings')),
-      findsOneWidget,
-    );
-    expect(
-      inKind(QrKind.branchOrderInMall, find.text('In-mall delivery QR')),
-      findsOneWidget,
-    );
-    expect(
-      inKind(QrKind.branchOrderInMall, find.text(h.t('qr.inMall.description'))),
+      find.descendant(
+        of: resultOf(QrKind.orgMenuDisplay),
+        matching: find.text('https://sabah-coffee.madar-pos.cloud/menu'),
+      ),
       findsOneWidget,
     );
   });
@@ -115,6 +159,7 @@ void main() {
     final h = await pumpQr(tester);
     // All branches: org cards on, branch cards dimmed and disabled.
     expect(_button(tester, generateOf(QrKind.orgOrder)).onPressed, isNotNull);
+    expect(_button(tester, generateOf(QrKind.orgLinks)).onPressed, isNotNull);
     for (final k in [
       QrKind.branchOrder,
       QrKind.branchBooking,
@@ -159,6 +204,14 @@ void main() {
       isNotNull,
     );
     expect(tester.widget<DashTextInput>(place).enabled, isTrue);
+    // The shop's own codes work in any scope.
+    for (final k in [QrKind.orgLinks, QrKind.orgMenuDisplay]) {
+      expect(
+        _button(tester, generateOf(k)).onPressed,
+        isNotNull,
+        reason: k.name,
+      );
+    }
   });
 
   testWidgets('SET-QR-008 SET-QR-016 Generate (All-branches QR) shows the '
@@ -281,8 +334,8 @@ void main() {
     );
   });
 
-  testWidgets('SET-QR-013 generating again clears the card\'s result and '
-      'error first; only that card is busy', (tester) async {
+  testWidgets('SET-QR-013 a failure clears on the next press; generating '
+      'again keeps the code up while it is made again', (tester) async {
     final m = setupMockServer();
     final h = await pumpQr(tester, backend: m);
     // `times: null`: the touch going down warms the read too.
@@ -299,7 +352,6 @@ void main() {
     final gate = m.server.hold('GET', QrRoutes.orgBooking);
     await tester.tap(generateOf(QrKind.orgBooking));
     await tester.pump();
-    expect(find.byKey(const ValueKey('qr-error-orgBooking')), findsNothing);
     expect(_button(tester, generateOf(QrKind.orgBooking)).loading, isTrue);
     expect(_button(tester, generateOf(QrKind.orgBooking)).onPressed, isNull);
     expect(_button(tester, generateOf(QrKind.orgOrder)).loading, isFalse);
@@ -307,18 +359,21 @@ void main() {
     gate.release();
     await h.settle();
     expect(resultOf(QrKind.orgBooking), findsOneWidget);
+    expect(find.byKey(const ValueKey('qr-error-orgBooking')), findsNothing);
 
-    // A second press: the old code goes while the new one is made.
-    // It asks the server again: the card is redrawn from the current brand.
+    // A second press asks the server again (the card is redrawn from the
+    // current brand); the code stays up, veiled, until the new one lands.
     final asked = m.server.callsTo(QrRoutes.orgBooking).length;
     final again = m.server.hold('GET', QrRoutes.orgBooking);
     await tester.tap(generateOf(QrKind.orgBooking));
     await tester.pump();
-    expect(resultOf(QrKind.orgBooking), findsNothing);
+    expect(resultOf(QrKind.orgBooking), findsOneWidget);
+    expect(veiled(tester, resultOf(QrKind.orgBooking)), isTrue);
     expect(m.server.callsTo(QrRoutes.orgBooking), hasLength(asked + 1));
     again.release();
     await h.settle();
     expect(resultOf(QrKind.orgBooking), findsOneWidget);
+    expect(veiled(tester, resultOf(QrKind.orgBooking)), isFalse);
   });
 
   testWidgets('SET-QR-014 a failure shows inline, in the server\'s words, '
@@ -412,16 +467,28 @@ void main() {
       ),
       findsOneWidget,
     );
+    // The output switches sit under the code.
+    expect(
+      inDialog(find.byKey(const ValueKey('qr-output-controls'))),
+      findsOneWidget,
+    );
+    expect(inDialog(find.text('Print')), findsOneWidget);
+    expect(inDialog(find.text('Share')), findsOneWidget);
     await h.tap(inDialog(find.text('Copy link')));
     expect(inDialog(find.text('Copied!')), findsOneWidget);
     await h.tap(inDialog(find.text('Download')));
     expect(h.files.saved.single.filename, 'qr-${qr.shortCode}.png');
+    await h.tap(inDialog(find.text('Share')));
+    expect(h.files.shared.single.filename, 'qr-${qr.shortCode}.png');
+    expect(h.files.shared.single.text, qr.shortUrl);
     await h.flushTimers();
     expect(inDialog(find.text('Copy link')), findsOneWidget);
   });
 
   testWidgets('SET-QR-015 SET-QR-018 below 1024 the result sits under the '
-      'controls; on a phone its buttons stack', (tester) async {
+      'controls; Copy link on its own row, Print and Download under it', (
+    tester,
+  ) async {
     final h = await pumpQr(tester, size: DashSize.phone);
     await h.tap(generateOf(QrKind.orgOrder));
     final result = resultOf(QrKind.orgOrder);
@@ -439,10 +506,15 @@ void main() {
       of: result,
       matching: find.byKey(const ValueKey('qr-download')),
     );
+    final print = find.descendant(
+      of: result,
+      matching: find.byKey(const ValueKey('qr-print')),
+    );
     expect(
       tester.getTopLeft(download).dy,
       greaterThan(tester.getBottomLeft(copy).dy),
     );
+    expect(tester.getTopLeft(print).dy, tester.getTopLeft(download).dy);
   });
 
   testWidgets('SET-QR-017 Copy link: "Copied" for 1.6 s; a failure toasts', (
@@ -513,10 +585,12 @@ void main() {
     await h.expectToast('Could not copy the link');
   });
 
-  testWidgets('SET-QR-018 Download saves qr-<code>.png', (tester) async {
+  testWidgets('SET-QR-018 Download saves qr-<code>.png, the server\'s '
+      'image untouched', (tester) async {
     final h = await pumpQr(tester, query: atBranch(SeedIds.zamalek));
     await h.tap(generateOf(QrKind.branchOrder));
     final qr = mockQrResponse(
+      look: MockQrLook.card,
       kind: 'branch_order',
       longUrl:
           '$mockOrderBase/order/${SeedIds.sabahOrg}'
@@ -543,15 +617,15 @@ void main() {
     expect(resultOf(QrKind.orgOrder), findsNothing);
   });
 
-  testWidgets('SET-QR-027 (divergence) moving the header branch drops the '
-      'branch cards\' codes and errors; org codes and typed fields stay', (
-    tester,
-  ) async {
+  testWidgets('SET-QR-027 moving the header branch drops the branch '
+      'cards\' codes and errors; back again, the code is shown again; org '
+      'codes and typed fields stay', (tester) async {
     final h = await pumpQr(tester);
     await h.tap(generateOf(QrKind.orgOrder));
     await pickBranch(h, SeedIds.zamalek);
-    // The org code stays (dimmed): it is still this organization's.
-    expect(resultOf(QrKind.orgOrder), findsOneWidget);
+    // The org code goes with All branches; the shop's own codes stay.
+    expect(resultOf(QrKind.orgOrder), findsNothing);
+    await h.tap(generateOf(QrKind.orgLinks));
     await h.tap(generateOf(QrKind.branchOrder));
     await h.tap(generateOf(QrKind.branchBooking)); // Zamalek: switched off
     expect(resultOf(QrKind.branchOrder), findsOneWidget);
@@ -570,11 +644,26 @@ void main() {
     await pickBranch(h, SeedIds.maadi);
     expect(resultOf(QrKind.branchOrder), findsNothing);
     expect(find.byKey(const ValueKey('qr-error-branchBooking')), findsNothing);
-    expect(resultOf(QrKind.orgOrder), findsOneWidget);
+    expect(resultOf(QrKind.orgLinks), findsOneWidget);
     expect(
       inKind(QrKind.branchOrderInMall, find.text('Ground Floor')),
       findsOneWidget,
     );
+    // Maadi's code is never made unasked.
+    expect(
+      h.server
+          .callsTo(QrRoutes.branchQr)
+          .where((c) => c.path.contains(SeedIds.maadi)),
+      isEmpty,
+    );
+
+    // Back on Zamalek, its code is Zamalek's: shown again, not made again.
+    final made = h.server.callsTo(QrRoutes.branchQr).length;
+    await pickBranch(h, SeedIds.zamalek);
+    expect(resultOf(QrKind.branchOrder), findsOneWidget);
+    expect(h.server.callsTo(QrRoutes.branchQr), hasLength(made));
+    await pickBranch(h, null);
+    expect(resultOf(QrKind.orgOrder), findsOneWidget);
   });
 
   testWidgets('refusal: the limited persona may not make booking codes '
@@ -644,8 +733,9 @@ void main() {
       'pos), nothing is asked', (tester) async {
     final h = await pumpQr(tester, persona: Persona.dawamOnly);
     h.allowUnmatched = true;
-    expect(find.byKey(const ValueKey('qr-options')), findsNothing);
+    expect(find.byKey(const ValueKey('qr-output-panel')), findsNothing);
     expect(h.server.callsTo(QrRoutes.tables), isEmpty);
     expect(h.server.callsTo(QrRoutes.orgQr), isEmpty);
+    expect(h.server.callsTo(QrRoutes.linksQr), isEmpty);
   });
 }

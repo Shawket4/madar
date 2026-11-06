@@ -1,16 +1,19 @@
-// Smoke test: the qr unit's page(s) open through the real
-// app shell on the mock server. The unit's builder replaces this with the
-// driven tests of its inventory rows.
+// Smoke test: the QR codes open through the real app shell on the mock
+// server, at their old addresses too: both redirect to Settings › Links & QR
+// codes, landing on the codes.
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support.dart';
 
 void main() {
-  testWidgets('/settings/qr opens in the settings shell', (tester) async {
-    final h = await pumpSetup(tester, path: '/settings/qr');
-    expect(h.location.path, '/settings/qr');
-    expect(find.text(h.t('nav.settings')), findsWidgets);
-    expect(find.text(h.t('qr.subtitle')), findsOneWidget);
-    await h.shot('smoke');
-  });
+  for (final old in ['/settings/qr', '/qr']) {
+    testWidgets('$old opens Links & QR codes on its codes', (tester) async {
+      final h = await pumpSetup(tester, path: old);
+      expect(h.location.path, '/settings/links-qr');
+      expect(h.location.queryParameters, {'section': 'codes'});
+      expect(find.text(h.t('nav.settings')), findsWidgets);
+      expect(find.text(h.t('qr.output.title')), findsOneWidget);
+      await h.shot('smoke');
+    });
+  }
 }
