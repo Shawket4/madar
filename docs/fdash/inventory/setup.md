@@ -1,8 +1,9 @@
 # Setup area: web parity inventory
 
 Area package: `packages/dashboard_features/setup` (`dashboard_setup`).
-Pages: `/settings` (Appearance), `/settings/brand`, `/settings/links` (admin editor only), `/settings/delivery`,
-`/settings/delivery-zones`, `/settings/bookings`, `/settings/loyalty`, `/settings/qr`, `/settings/combos`,
+Pages: `/settings` (Appearance), `/settings/brand`, `/settings/links-qr` (Links & QR codes: the links page editor, the
+menu without prices and every QR code; `/settings/links`, `/settings/qr` and `/qr` redirect to it since 2026-11-06),
+`/settings/delivery`, `/settings/delivery-zones`, `/settings/bookings`, `/settings/loyalty`, `/settings/combos`,
 `/settings/payment-methods`, `/settings/staff-pool`, `/settings/kitchen-stations`, `/settings/kitchen-routing`,
 `/settings/integrations`, `/settings/whatsapp`.
 
@@ -16,7 +17,7 @@ Every `web source` cell is relative to `MadarDashboard/src/`.
 - **id**: `SET-<PAGE>-NNN`. Page codes: `SHL` settings shell and area-wide, `APP` appearance, `BRD` brand, `LNK` links,
   `DLV` delivery, `DZN` delivery zones, `BKG` bookings, `LOY` loyalty, `QR` QR codes, `CMB` combos and deals,
   `PAY` payment methods, `SPL` staff drinks, `KST` kitchen stations, `KRT` order routing, `INT` integrations,
-  `WA` WhatsApp. One driven test per row.
+  `WA` WhatsApp, `LQR` Links & QR codes (the merged page). One driven test per row.
 - **API call**: `METHOD path operationName` (operationName = the Orval name = the `dashboard_api` method name).
   "—" = no request.
 - **gate**: capability (`Cap.*`, any-of), module (`pos`), `platform` (super admin, `authz.platform`), or "none"
@@ -34,12 +35,13 @@ Every `web source` cell is relative to `MadarDashboard/src/`.
 | 0 | Settings shell and area-wide | SET-SHL-001 – 021 |
 | 1 | `/settings` Appearance | SET-APP-001 – 009 |
 | 2 | `/settings/brand` Brand | SET-BRD-001 – 021 |
-| 3 | `/settings/links` Links page (admin editor) | SET-LNK-001 – 026 |
+| 3 | Links page (admin editor), a section of `/settings/links-qr` | SET-LNK-001 – 026 |
+| 3b | `/settings/links-qr` Links & QR codes (the merged page) | SET-LQR-001 – 008 |
 | 4 | `/settings/delivery` Delivery settings | SET-DLV-001 – 022 |
 | 5 | `/settings/delivery-zones` Delivery zones | SET-DZN-001 – 022 |
 | 6 | `/settings/bookings` Bookings | SET-BKG-001 – 021 |
 | 7 | `/settings/loyalty` Loyalty | SET-LOY-001 – 085 |
-| 8 | `/settings/qr` QR codes | SET-QR-001 – 028 |
+| 8 | QR codes, a section of `/settings/links-qr` | SET-QR-001 – 040 |
 | 9 | `/settings/combos` Combos and deals | SET-CMB-001 – 018 |
 | 10 | `/settings/payment-methods` Payment methods | SET-PAY-001 – 041 |
 | 11 | `/settings/staff-pool` Staff drinks | SET-SPL-001 – 022 |
@@ -80,7 +82,7 @@ Every `web source` cell is relative to `MadarDashboard/src/`.
 | SET-SHL-008 | Module refusal by URL: `/settings/{brand,links,delivery,delivery-zones,bookings,loyalty,qr,combos,payment-methods,staff-pool,kitchen-stations,kitchen-routing,integrations}` belong to `pos`. Typed in an org without POS → EmptyState (Blocks icon) "Not part of this business's plan" / "Madar POS is switched off for this business. Ask Madar to switch it on." Modules not yet known → nothing rendered. Modules read failed → ErrorState "Couldn't check what this business has switched on" + server message + Retry. `/settings` and `/settings/whatsapp` have no module. | GET org modules (shell) | module `pos` | `dawam.moduleOffTitle`, `dawam.modulePosOff`, `dawam.modulesLoadError`, `common.retry` | components/app/module-gate.tsx:17-52; config/nav.ts:253-295 |
 | SET-SHL-009 | Capability refusal by URL: only Combos (SET-CMB-001), Staff drinks (SET-SPL-001), Integrations (SET-INT-001) and WhatsApp (SET-WA-001) refuse in-page. Every other pane renders for anyone who types its URL and lets its reads 403 into that pane's error state (or, for Brand/Links, see SET-BRD-003 / SET-LNK-003). | — | as listed | — | per page |
 | SET-SHL-010 | App sidebar group "Setup" (`nav.setup`) carries three leaves: Settings (`/settings`, everyone), Loyalty (`/settings/loyalty`, pos + `loyaltyUse`/`loyaltyMembersList`), Staff drinks (`/settings/staff-pool`, pos + `orgSettingsRead`/`orgSettingsEdit`). (The leaf rendering itself is the shell's; listed so the setup routes register these caps/modules.) | — | as listed | `nav.setup` "Setup", `nav.settings`, `nav.loyalty`, `nav.staffPool` | config/nav.ts:175-188 |
-| SET-SHL-011 | Legacy redirects (deep links that must keep working): `/qr` → `/settings/qr`; `/delivery` and `/delivery/settings` → `/settings/delivery`; `/delivery/zones` → `/settings/delivery-zones`; `/kitchen/stations` → `/settings/kitchen-stations`; `/kitchen/routing` → `/settings/kitchen-routing`. (`/delivery/channels` → `/menu/pricing` belongs to catalog_menu.) | — | none | — | routes/_app/qr.tsx:4-8; routes/_app/delivery/index.tsx, settings.tsx, zones.tsx; routes/_app/kitchen/stations.tsx, routing.tsx |
+| SET-SHL-011 | Legacy redirects (deep links that must keep working): `/qr` and `/settings/qr` → `/settings/links-qr?section=codes`, `/settings/links` → `/settings/links-qr` (2026-11-06, SET-LQR-004); `/delivery` and `/delivery/settings` → `/settings/delivery`; `/delivery/zones` → `/settings/delivery-zones`; `/kitchen/stations` → `/settings/kitchen-stations`; `/kitchen/routing` → `/settings/kitchen-routing`. (`/delivery/channels` → `/menu/pricing` belongs to catalog_menu.) | — | none | — | routes/_app/qr.tsx:4-8; routes/_app/delivery/index.tsx, settings.tsx, zones.tsx; routes/_app/kitchen/stations.tsx, routing.tsx |
 | SET-SHL-012 | URL params: `/settings/payment-methods?edit=<id>|new` opens the payment-method editor (SET-PAY-012/013); `/settings/integrations?edit=new` opens the issue-credential dialog for a platform admin (SET-INT-014). Writing the param replaces history; branch/period scope params are preserved. | — | per page | — | routes/_app/settings/payment-methods.tsx:5-10; routes/_app/settings/integrations.tsx:4-10; data/scope/use-page-search.ts:14-22 |
 | SET-SHL-013 | Prefetch: navigating towards `/settings/payment-methods` warms `GET /payment-methods`. | GET /payment-methods listPaymentMethods | none | — | lib/route-prefetch.ts:142-144 |
 | SET-SHL-014 | Live updates (app-shell branch stream; panes never read payloads): `kitchen.*` → refetch every `/kitchen*` query (stations, routing mode, routes); `payment_methods.availability_changed` → `/payment-methods*`; `booking.*` → `/bookings*` and `/floor*` (booking settings); `branch.settings_changed` → `/branches*` (branch lists used by Bookings, Loyalty, Combos, Integrations); `resync` → everything. | realtime stream | none | — | data/realtime/use-branch-realtime.ts:51-62 |
@@ -154,7 +156,10 @@ Every `web source` cell is relative to `MadarDashboard/src/`.
 
 ---
 
-## 3. `/settings/links` Links page (admin editor)
+## 3. Links page (admin editor)
+
+*2026-11-06 (web da5faf63): the first section of `/settings/links-qr` (§3b); `/settings/links` redirects there. The
+"Menu (no prices)" section is the page's second section, no longer under the editor.*
 
 - Title: "Links page" (`links.editor.title`); description "The page your address opens on — for your Instagram bio, a QR on the counter, or a receipt." (`links.editor.desc`).
 - Web files: `routes/_app/settings/links.tsx`, `features/links/admin/links-pane.tsx`, `features/orgs/social-links.tsx`,
@@ -173,7 +178,7 @@ Every `web source` cell is relative to `MadarDashboard/src/`.
 | SET-LNK-004 | Layout: form column + preview column (≥ 1280 px: preview 400 px wide, sticky at the end side; below: preview stacked under the form). | — | pos | — | features/links/admin/links-pane.tsx:253, 543 |
 | SET-LNK-005 | "Your address" card: title + "Put it in your bio, on a counter card, or on a receipt."; when `public_url` exists, the URL in an LTR monospace box (wraps anywhere). | — | pos | `links.editor.address`, `links.editor.addressHint` | features/links/admin/links-pane.tsx:257-270 |
 | SET-LNK-006 | Copy the address: "Copy" → clipboard, toast "Address copied" (a clipboard failure is silent). | — | pos | `links.editor.copy` "Copy", `links.editor.copied` "Address copied" | features/links/admin/links-pane.tsx:272-283 |
-| SET-LNK-007 | QR code: "QR code" (spinner while loading) → fetch the links-page code (no render options) → opens the QR preview dialog titled "Links page code" (SET-QR-025 behaviours). Failure toast. | GET /orgs/{id}/links-qr orgLinksQr | pos | `links.editor.qr` "QR code", `links.editor.qrTitle` "Links page code" | features/links/admin/links-pane.tsx:221-230, 284-287, 553-558 |
+| SET-LNK-007 | QR code: "QR code" (spinner while loading) → the links page's LIVE code at the page's output (SET-QR-030; today's card `card=true&dpi=600` by default) → opens the live preview titled "Links page code", the output switches under the code (SET-QR-034). Failure toast. *(2026-11-06, web da5faf63: was a fetch with no render options.)* | GET /orgs/{id}/links-qr orgLinksQr | pos | `links.editor.qr` "QR code", `links.editor.qrTitle` "Links page code" | features/links/admin/links-pane.tsx; features/qr/qr-dialog.tsx |
 | SET-LNK-008 | Open: "Open" link opens `public_url` in a new tab. | — | pos | `links.editor.open` "Open" | features/links/admin/links-pane.tsx:288-293 |
 | SET-LNK-009 | No address yet: "Your own address comes with the branding plan. The page is ready — it goes live the moment you have one." (no buttons). | — | pos | `links.editor.noAddress` | features/links/admin/links-pane.tsx:296-303 |
 | SET-LNK-010 | "Under your name" card: title + hint; "Line under your name (English)" (LTR) and "Line under your name (Arabic)" (RTL), each max 160 characters (input stops at 160; zod `max(160)` with zod's default message). Empty = none. | — | pos | `links.editor.about`, `links.editor.aboutHint`, `links.editor.taglineEn`, `links.editor.taglineAr` | features/links/admin/links-pane.tsx:66, 69-76, 307-339 |
@@ -191,8 +196,34 @@ Every `web source` cell is relative to `MadarDashboard/src/`.
 | SET-LNK-022 | Enter inside a form field submits the same Save. | PUT /orgs/{id}/links-page | pos | — | features/links/admin/links-pane.tsx:255 |
 | SET-LNK-023 | Preview: label "Preview (as saved)"; a phone-shaped frame (720 px tall, scrolls) holding the public links page component for this org, reading what is SAVED (not the draft). | GET /public/orgs/links publicOrgLinks | pos | `links.editor.preview` | features/links/admin/links-pane.tsx:542-550 |
 | SET-LNK-024 | Org change remounts the editor (keyed by org). | — | pos | — | features/links/admin/links-pane.tsx:102 |
-| SET-LNK-025 | (critic) No org in scope: the settings read is never made and the pane shows its skeleton indefinitely (no "Select an organization", no error). | — | pos | — | features/links/admin/links-pane.tsx:90-101 |
+| SET-LNK-025 | (critic) No org in scope: the settings read is never made. *(2026-11-06: the merged page shows "Select an organization" for the whole page instead, SET-LQR-008.)* | — | pos | `branches.pickOrg` | features/links-qr/links-qr-page.tsx |
 | SET-LNK-026 | (critic) After a save only the Buttons list is re-synced from the server (so new custom links carry server ids); the taglines, cover, Visit-us branch rows and socials keep the values just typed (equal to what was saved). A module row that is unavailable is sent with its SAVED `visible` flag (its switch shows off and disabled, but the stored flag is not changed by saving). | PUT /orgs/{id}/links-page | pos | — | features/links/admin/links-pane.tsx:115-143, 188-197, 426-429 |
+
+---
+
+## 3b. `/settings/links-qr` Links & QR codes
+
+- Title: "Links & QR codes" (`linksQr.title`); description "Your shop's addresses, and the codes that open them: for your
+  bio, your tables, your counter and your posters." (`linksQr.desc`). Rail label "Links & QR codes" (`settings.linksAndQr`,
+  QrCode icon) in "Ways to sell", where QR codes was; no plan feature (every plan).
+- Web files: `routes/_app/settings/links-qr.tsx` (`?section=links|menu|codes`), `features/links-qr/links-qr-page.tsx`
+  (+ test), redirects `routes/_app/settings/links.tsx`, `routes/_app/settings/qr.tsx`, `routes/_app/qr.tsx`;
+  `features/settings/settings-nav.ts`, `config/nav.ts`, `lib/route-prefetch.ts`, `lib/prefetch/settings.ts`.
+- Gates: module `pos`; ungated by plan (`/settings/links-qr`, `/settings/links`, `/settings/qr`, `/qr` are in no
+  feature table). Each section locks what its plan lacks (`branding`, `online`).
+- Prefetch: `getMenuDisplay`; with `branding` `getLinksPage`; with a branch and `online` `listTables`. The codes are never
+  warmed with the page (each mints a short link).
+
+| id | behaviour | API call | gate | i18n keys | web source |
+|---|---|---|---|---|---|
+| SET-LQR-001 | Pane header + description; jump chips "Links page" (Link2), "Menu (no prices)" (BookOpen), "QR codes" (QrCode) in a nav labelled "On this page"; then the three sections in order: Links page (§3), Menu (no prices), QR codes (§8). | — | pos | `linksQr.title`, `linksQr.desc`, `linksQr.jump.*` | features/links-qr/links-qr-page.tsx |
+| SET-LQR-002 | A jump chip scrolls its section into view (smoothly). | — | pos | — | features/links-qr/links-qr-page.tsx |
+| SET-LQR-003 | `?section=menu|codes` lands on that section once the links section has its height (paid: after the editor's read; Free: at once); `links` or anything else: the top. | — | pos | — | features/links-qr/links-qr-page.tsx (useScrollToSection), routes/_app/settings/links-qr.tsx |
+| SET-LQR-004 | Old addresses redirect: `/settings/links` → `/settings/links-qr`; `/settings/qr` and `/qr` → `/settings/links-qr?section=codes`. | — | pos | — | routes/_app/settings/{links,qr}.tsx, routes/_app/qr.tsx |
+| SET-LQR-005 | Settings rail: ONE entry "Links & QR codes" in "Ways to sell" on every plan; "Links page" and "QR codes" are gone. | — | pos | `settings.linksAndQr`, `settings.linksAndQrDesc` | features/settings/settings-nav.ts |
+| SET-LQR-006 | Free: the page opens; the links page section locked (`branding`, never read), the menu section usable, the paid codes locked (SET-QR-039). | — | pos, plan | — | features/links/admin/links-pane.tsx, features/qr/codes-section.tsx |
+| SET-LQR-007 | Resting on the rail entry warms the editors' reads and the branch's tables; opening asks nothing more but the output sample (SET-QR-029). | GET /orgs/{id}/links-page/menu-display · /orgs/{id}/links-page · /branches/{id}/tables | pos | — | lib/prefetch/settings.ts |
+| SET-LQR-008 | No org in scope: header + EmptyState (QrCode) "Select an organization"; nothing asked. | — | pos | `branches.pickOrg` | features/links-qr/links-qr-page.tsx |
 
 ---
 
@@ -419,7 +450,12 @@ Every `web source` cell is relative to `MadarDashboard/src/`.
 
 ---
 
-## 8. `/settings/qr` QR codes
+## 8. QR codes
+
+*2026-11-06 (web da5faf63): the third section of `/settings/links-qr` (§3b); `/settings/qr` and `/qr` redirect there
+with `?section=codes`. Every code follows the output switches (SET-QR-029 – 040). New web files:
+`features/qr/{output.ts,output-controls.tsx,output-panel.tsx,live.ts,qr-dialog.tsx,codes-section.tsx,print.ts}`;
+`features/qr/qr-page.tsx` is gone. Codes are queries keyed by their params (`staleTime: Infinity`, `gcTime` 10 min).*
 
 - Title: "QR Codes" (`qr.title`); subtitle (en.json) "Generate scannable QR codes for your online ordering page" (`qr.subtitle`). Rail label "QR Codes" (`nav.qr`).
 - Web files: `routes/_app/settings/qr.tsx`, `features/qr/qr-page.tsx`, `features/qr/table-codes.tsx` (+ `table-codes.test.tsx`),
@@ -430,11 +466,11 @@ Every `web source` cell is relative to `MadarDashboard/src/`.
 
 | id | behaviour | API call | gate | i18n keys | web source |
 |---|---|---|---|---|---|
-| SET-QR-001 | Header "QR Codes" + subtitle (reading width). | — | pos | `qr.title`, `qr.subtitle` | features/qr/qr-page.tsx:494-501 |
-| SET-QR-002 | No org in scope: header + EmptyState (QrCode) "Select an organization". | — | pos | `qr.title`, `branches.pickOrg` | features/qr/qr-page.tsx:360-367 |
-| SET-QR-003 | Render options bar: switch "Branded card" (default on); when on, "DPI" select 150 / 300 / 600 (default 600); note "Applies to every code on this page." Both are sent as `card`, `dpi` on every org/branch code (not on table codes). | — | pos | `qr.opts.brandedCard`, `qr.opts.dpiLabel`, `qr.opts.hint` (missing, §B) | features/qr/qr-page.tsx:69-112, 255, 503 |
-| SET-QR-004 | Section "For the whole organization" with two cards: "All-branches QR" (Building2) + description; "All-branches bookings" (CalendarCheck) + description. | — | pos | `qr.section.org`, `qr.org.title`, `qr.org.description`, `qr.orgBooking.title`, `qr.orgBooking.description` (missing, §B) | features/qr/qr-page.tsx:272-294, 505-508 |
-| SET-QR-005 | Org cards are available only when the header scope is "All branches"; otherwise the card is dimmed (70 %), shows "Switch the scope bar to All branches to make this code." and its Generate button is disabled. | — | pos | `qr.needsAllBranches` (missing, §B) | features/qr/qr-page.tsx:370-374, 396, 406 |
+| SET-QR-001 | The codes section of `/settings/links-qr`: section header "QR codes" + "A code for every address: download it, print it or share it, branded or unbranded." *(2026-11-06: was its own page "QR Codes" + subtitle.)* | — | pos | `linksQr.codes.title`, `linksQr.codes.desc` | features/links-qr/links-qr-page.tsx |
+| SET-QR-002 | No org in scope: the page's EmptyState (QrCode) "Select an organization"; nothing asked. | — | pos | `linksQr.title`, `branches.pickOrg` | features/links-qr/links-qr-page.tsx |
+| SET-QR-003 | Output switches (SET-QR-029 – 032): "A6 card" (default on, branded mode only; off: "A small plain code, for receipts."); "DPI" select 150 / 300 / 600 (default 600; shown with the card or with Unbranded). Every code, table codes included, sends them: branded `card`, `dpi`; unbranded `unbranded=true`, `centre_logo`, `dpi`. A flip re-renders every code on screen (SET-QR-033). *(2026-11-06: was the "Branded card" bar; table codes now follow it too.)* | — | pos | `qr.output.card`, `qr.output.cardOff`, `qr.opts.dpiLabel` | features/qr/output-controls.tsx; features/qr/output.ts |
+| SET-QR-004 | Section "For the whole organization": "Links page" (Link2; paid `branding`), "Menu (no prices)" (BookOpen; every plan), "All-branches QR" (Building2; `online`), "All-branches bookings" (CalendarCheck; `bookings`), each with its description, in that order. | — | pos | `qr.section.org`, `qr.links.*`, `qr.menuDisplay.*`, `qr.org.*`, `qr.orgBooking.*` | features/qr/codes-section.tsx |
+| SET-QR-005 | The links page and menu codes work in any scope. The two all-branches cards only with "All branches"; otherwise dimmed (70 %), "Switch the scope bar to All branches to make this code.", Generate disabled. | — | pos | `qr.needsAllBranches` | features/qr/codes-section.tsx (KindCard) |
 | SET-QR-006 | Section "For one branch" with three cards: "Branch menu QR" (Store), "Branch bookings" (CalendarCheck), "In-mall delivery QR" (UtensilsCrossed), each with its description. | — | pos | `qr.section.branch`, `qr.standard.title/description`, `qr.branchBooking.title/description` (missing, §B), `qr.inMall.title/description` | features/qr/qr-page.tsx:295-330, 510-513 |
 | SET-QR-007 | Branch cards are available only with a branch selected; otherwise dimmed with "Select a branch in the scope bar to make this code." and disabled controls (in-mall inputs too). | — | pos | `qr.needsBranch` (missing, §B) | features/qr/qr-page.tsx:370-374, 422, 435, 448, 455 |
 | SET-QR-008 | Generate (All-branches QR): "Generate QR" (QrCode icon; a spinning RefreshCw while busy, not spinning under reduced motion) → result card. | GET /orgs/{id}/qr?card&dpi orgQr | pos | `qr.generate` | features/qr/qr-page.tsx:282, 332-358, 380-393 |
@@ -442,22 +478,34 @@ Every `web source` cell is relative to `MadarDashboard/src/`.
 | SET-QR-010 | Generate (Branch menu QR). | GET /branches/{id}/qr?card&dpi branchQr | pos | `qr.generate` | features/qr/qr-page.tsx:304 |
 | SET-QR-011 | Generate (Branch bookings). | GET /branches/{id}/booking-qr?card&dpi branchBookingQr | pos | `qr.generate` | features/qr/qr-page.tsx:315 |
 | SET-QR-012 | In-mall form (three columns from 640 px): "Shop / company name" (required, ≤ 80), "Floor" (required, ≤ 40), "Unit number" (required, ≤ 40); empty → "This field is required" (over-length → zod's default message); "Generate QR" submits the form. | GET /branches/{id}/qr?card&dpi&place_name&floor&unit_number branchQr | pos | `qr.inMall.placeName`, `qr.inMall.floor`, `qr.inMall.unitNumber` (missing, §B), `common.requiredField`, `qr.generate` | features/qr/qr-page.tsx:262-270, 318-329, 408-464 |
-| SET-QR-013 | Generating one card clears that card's previous result and error first; only one card is busy at a time (the busy card's button is disabled). | — | pos | — | features/qr/qr-page.tsx:336-345, 377-384 |
+| SET-QR-013 | Generate is a live code: the first press asks for it (spinning, disabled, until the first answer); a second press asks the server again with the code kept up, veiled, until the new one lands; a failure shows until the next answer. Only that card is busy. *(2026-11-06: was "clears the previous result first".)* | — | pos | — | features/qr/codes-section.tsx; features/qr/live.ts |
 | SET-QR-014 | Failure is shown INLINE in red under the card's button (server words, e.g. bookings switched off → 409), not as a toast. | — | pos | — | features/qr/qr-page.tsx:348-353, 469-473 |
-| SET-QR-015 | Result card (beside the form from 1024 px, 256 px wide; below it on smaller screens): the QR on a white quiet zone (square, scales with the card) as a button (aria "Enlarge QR code") → preview dialog titled with the card's title. | — | pos | `qr.enlarge`, `qr.imageAlt` | features/qr/qr-page.tsx:169-201, 476-484 |
+| SET-QR-015 | Result card (beside the form from 1024 px, 256 px wide; below it on smaller screens): the QR on a white quiet zone (square; veiled while re-rendering) as a button (aria "Enlarge QR code") → the live preview (SET-QR-025, SET-QR-034) titled with the card's title. | — | pos | `qr.enlarge`, `qr.imageAlt` | features/qr/codes-section.tsx (QrResult) |
 | SET-QR-016 | Result card: the short URL (link icon, wraps anywhere, opens in a new tab) and, under it, the long URL it lands on (small, centred). | — | pos | — | features/qr/qr-page.tsx:203-218 |
 | SET-QR-017 | Result card "Copy link": copies the short URL; label becomes "Copied" with a check for 1.6 s; failure toast "Could not copy the link". | — | pos | `qr.copyLink`, `qr.copied`, `qr.copyFailed` (all missing, §B), `common.copy` (aria) | features/qr/qr-page.tsx:116-134 |
-| SET-QR-018 | Result card "Download": saves the image as `qr-<short_code>.svg` (when the data URL is SVG) or `.png`. Phone: the two buttons stack. | — | pos | `common.download` | features/qr/qr-page.tsx:220-230; lib/download.ts:23-32 |
+| SET-QR-018 | Result card: "Copy link" on its own row, then "Print" (that code alone, SET-QR-036) and "Download" (`qr-<short_code>[-unbranded].svg|png`, the server's image untouched). | — | pos | `qr.print`, `common.download` | features/qr/codes-section.tsx; features/qr/live.ts (qrFileName) |
 | SET-QR-019 | Section "For each table" → "Table codes" card (Table2) + description. No branch: "Choose a branch to see its tables." | — | pos | `qr.section.tables`, `qr.tables.title`, `qr.tables.description`, `qr.tables.pickBranch` | features/qr/table-codes.tsx:77-96; qr-page.tsx:517-520 |
 | SET-QR-020 | Table codes loading: four skeleton tiles; a branch with no tables: "This branch has no tables yet. Add them on the floor plan first." | GET /branches/{id}/tables listTables | pos | `qr.tables.none` | features/qr/table-codes.tsx:44-47, 97-109 |
-| SET-QR-021 | "Make {{count}} codes" (plural; "Make 1 code") → one request per table, IN SEQUENCE, each with `caption=<table label>`; while running the label is "Making {{count}} codes…" and the button disabled; on success the sheet appears. Any failure → toast "Could not make the codes. Try again." | GET /branches/{id}/tables/{tid}/qr?caption tableQr | pos | `qr.tables.make_*`, `qr.tables.making_*`, `qr.tables.failed` | features/qr/table-codes.tsx:57-75, 112-122 |
+| SET-QR-021 | "Make {{count}} codes" (plural; "Make 1 code") → one request per table, IN SEQUENCE, each with the output's render query and `caption=<table label>`; while running "Making {{count}} codes…", disabled until the first sheet; a second press makes it again. Any failure → toast "Could not make the codes. Try again." A run that lands after the branch moved is not shown. | GET /branches/{id}/tables/{tid}/qr?caption&card&dpi&unbranded&centre_logo tableQr | pos | `qr.tables.make_*`, `qr.tables.making_*`, `qr.tables.failed` | features/qr/table-codes.tsx |
 | SET-QR-022 | Table sheet: grid (2 columns, 3 from 640 px, 4 from 1024 px) of tiles = QR on white + the table label in large type; tile tooltip "Open this table's code"; tap → preview dialog titled "Table {{label}}". | — | pos | `qr.tables.previewHint`, `qr.tables.imageAlt`, `qr.tables.previewTitle` | features/qr/table-codes.tsx:131-197 |
-| SET-QR-023 | "Print sheet" (only once codes exist) prints the page; print styling: chrome hidden, tiles dashed-bordered on white, never split across pages. | — | pos | `qr.tables.print` | features/qr/table-codes.tsx:123-128, 152-170 |
-| SET-QR-024 | Switching the header branch drops the previous branch's sheet. | — | pos | — | features/qr/table-codes.tsx:49-55; table-codes.test.tsx:91 |
-| SET-QR-025 | QR preview dialog (shared): title (QR icon + title, default "QR Code"), description = the long URL (wraps anywhere); the QR on white (max 224 px, square); the short URL as a link + the short code badge (mono); "Copy link" → "Copied!" with a check for 2 s (failure toast "Copy failed"); "Download" (`qr-<short_code>.svg|png`); buttons stack on phone; never wider than the viewport minus 32 px. | — | pos | `qr.preview.title`, `qr.imageAlt`, `common.copyLink`, `common.copied`, `common.copyFailed`, `common.download` | features/qr/qr-preview-dialog.tsx:40-129 |
+| SET-QR-023 | "Print sheet" (only once codes exist; disabled while making) prints ONLY the codes: a branded sheet each card with its table's label and a dashed cut line, on A4 (cards two a row at 92 mm, receipt codes three at 50 mm), a cell never split across pages. *(2026-11-06: was `window.print()` of the whole page.)* | — | pos | `qr.tables.print` | features/qr/print.ts; styles/globals.css (#qr-print-root) |
+| SET-QR-024 | Switching the header branch hides the previous branch's sheet (never minting the new one's unasked); back on that branch, its own sheet shows again. | — | pos | — | features/qr/table-codes.tsx |
+| SET-QR-025 | QR preview dialog (shared): title (QR icon + title, default "QR Code"), description = the long URL; the QR on white (max 224 px, 192 px unbranded; veiled with "Updating the code…" while re-rendering); the output switches under it when live; the short URL + short code badge; "Copy link" → "Copied!" 2 s (failure "Copy failed"), "Print", "Share" (where the platform can), "Download" (`qrFileName`); two a row on a phone, one row from 640; scrolls within the viewport. | — | pos | `qr.preview.title`, `qr.imageAlt`, `qr.updating`, `common.copyLink`, `common.copied`, `common.copyFailed`, `qr.print`, `qr.share`, `common.download` | features/qr/qr-preview-dialog.tsx |
 | SET-QR-026 | Results are not kept: leaving the page (or reloading) clears every generated code. | — | pos | — | features/qr/qr-page.tsx:255-259 |
-| SET-QR-027 | (critic) Results and inline errors are kept per CARD, not per scope: switching the header branch (or to/from "All branches") leaves every generated result on screen — a branch card keeps showing the PREVIOUS branch's code, and an org card's result stays visible while the card is dimmed. The in-mall form keeps its typed values too. (Table codes are the exception, SET-QR-024.) | — | pos | — | features/qr/qr-page.tsx:255-259, 336-347, 369-377, 476-484 |
-| SET-QR-028 | (critic) Table codes: a FAILED tables read shows the same "This branch has no tables yet…" sentence (no error state, no retry). A failure part-way through "Make codes" discards the codes already made in that run and leaves the previous sheet (if any) on screen. | GET /branches/{id}/tables listTables · GET …/tables/{tid}/qr tableQr | pos | `qr.tables.none`, `qr.tables.failed` | features/qr/table-codes.tsx:44-47, 57-75, 97-109 |
+| SET-QR-027 | A code belongs to the scope it was made for: switching the header branch (or to/from All branches) hides the codes and errors made for the other scope and never mints the new scope's unasked; switching back shows that scope's code again. The in-mall typed fields stay. *(2026-11-06: the web fixed its old keep-per-card behaviour.)* | — | pos | — | features/qr/codes-section.tsx (requestedFor) |
+| SET-QR-028 | (critic) Table codes: a FAILED tables read shows the same "This branch has no tables yet…" sentence (no error state, no retry). A failure while making the sheet again keeps the sheet already made; a table renamed re-makes the sheet with its new label. | GET /branches/{id}/tables listTables · GET …/tables/{tid}/qr tableQr | pos | `qr.tables.none`, `qr.tables.failed` | features/qr/table-codes.tsx |
+| SET-QR-029 | Output panel "How your codes come out" + "Every code on this page follows these switches, and so does every download and print. Remembered on this device."; beside it (first on a phone) a sample: the links page code on paid, the menu (no prices) code on Free, at 150 DPI, re-rendered on every flip (veiled meanwhile), "Preview: changes as you switch"; pressing it opens the full code at the chosen DPI (SET-QR-034). The sample is fetched with the page; a failed sample just is not shown. | GET /orgs/{id}/links-qr?…&dpi=150[&target=menu_display] orgLinksQr | pos | `qr.output.title`, `qr.output.hint`, `qr.output.preview`, `qr.output.openSample` | features/qr/output-panel.tsx |
+| SET-QR-030 | "Unbranded" (default off) + "Just the QR code: no card, no text, no frame, no Madar logo.": on, every code is the plain square QR; the card switch steps aside; DPI stays. Render params: unbranded → `{unbranded: true, centre_logo, dpi}`; branded → `{card, dpi}` exactly as before. | — | pos | `qr.output.unbranded`, `qr.output.unbrandedHint` | features/qr/output.ts (qrRenderParams), output-controls.tsx |
+| SET-QR-031 | "Logo in the middle" (default on), indented under Unbranded: disabled (60 %) with "Turn on Unbranded to choose." while Unbranded is off; on, "Your shop's logo in the centre of the code. Off: a plain QR." | — | pos | `qr.output.centreLogo`, `qr.output.centreLogoHint`, `qr.output.centreLogoOff` | features/qr/output-controls.tsx |
+| SET-QR-032 | The switches are remembered per shop on this device (`madar.qr.output.<orgId>`; no server field); a malformed stored value falls back field by field; another shop has its own. One value per shop: the panel and every preview's switches are the same switch. | — | pos | — | features/qr/output.ts |
+| SET-QR-033 | Live codes: every code is keyed by what it is AND the output, so a flip re-renders every code already on screen (the old image held, veiled, until the new one lands), no second press; codes are fetched only when asked for (each request mints a short link) and never refetch on their own. | (the code's GET with the new render query) | pos | — | features/qr/live.ts |
+| SET-QR-034 | The same switches sit inside each code's preview; flipping them there re-renders that code (and the page's, one switch). The links page and menu "QR code" buttons open that live preview. | — | pos | — | features/qr/qr-dialog.tsx |
+| SET-QR-035 | Asked for the logo (Unbranded + logo on) but `centre_logo` came back false: "Your shop has no logo for codes yet, so the code comes out plain." + on paid "Add one under Brand" (→ /settings/brand). | — | pos | `qr.output.noLogo`, `qr.output.addLogo` | features/qr/qr-dialog.tsx (missingLogo), output-controls.tsx |
+| SET-QR-036 | Print on every code prints ONLY the code(s), at a size that prints true: one code at its real size (A6 card 105 mm, unbranded 70 mm, receipt 50 mm); an unbranded print or download is the server's image and nothing else (no label, no title, no caption, no cut line, no frame); a sheet of many unbranded codes three a row at 60 mm. | — | pos | `qr.print` | features/qr/print.ts; styles/globals.css |
+| SET-QR-037 | "Share" where the platform can share: the image itself (with the short link as its text) where files can be shared, else the link; a failure toasts "Could not share the code" (closing the sheet is not a failure). | — | pos | `qr.share`, `qr.shareFailed` | features/qr/live.ts (shareCode) |
+| SET-QR-038 | The links page code (paid) and the menu (no prices) code (every plan) are cards here too, in any scope, from the links page's own endpoint (`target=menu_display` for the menu). | GET /orgs/{id}/links-qr[?target=menu_display] orgLinksQr | pos | `qr.links.*`, `qr.menuDisplay.*` | features/qr/codes-section.tsx |
+| SET-QR-039 | Free: the menu (no prices) card is usable; the ordering, booking and table codes are ONE PaidFeatureLock (`online`) "Ordering, booking and table codes" listing their names and "Table codes"; nothing behind it is fetched (no tables read, no code). The links page card is simply absent. | — | pos, plan | `qr.locked.title`, `qr.tables.title` | features/qr/codes-section.tsx (LockedKinds) |
+| SET-QR-040 | Table codes follow the switches: params + `caption: label`; a flip with a sheet on screen makes the sheet again (held up until complete); a table's preview carries the switches. On screen each code keeps its label; on paper only a branded sheet does (SET-QR-023, 036). | GET /branches/{id}/tables/{tid}/qr tableQr | pos | — | features/qr/table-codes.tsx |
 
 ---
 
@@ -815,6 +863,9 @@ Missing from BOTH `en.json` and `ar.json`; the web shows its inline default. Sug
 | `qr.needsAllBranches` | Switch the scope bar to All branches to make this code. | بدّل شريط النطاق إلى «كل الفروع» لإنشاء هذا الرمز. | features/qr/qr-page.tsx:373 |
 | `qr.needsBranch` | Select a branch in the scope bar to make this code. | اختر فرعًا من شريط النطاق لإنشاء هذا الرمز. | features/qr/qr-page.tsx:374 |
 | `qr.inMall.unitNumber` | Unit number | رقم الوحدة | features/qr/qr-page.tsx:446 |
+
+2026-11-06: every `qr.*` key above is in the web's own en.json / ar.json now (synced into dashboard_core); the QR
+supplement is empty. (`qr.opts.hint` left the web with the old page.)
 
 Notes: every other key used by these pages exists in both files (checked by script over every file in this inventory, including
 template keys `links.module.*`, `links.editor.off.*`, `kitchen.mode.*`, `orgs.social.*`, `customers.source.*`, `roles.*`,

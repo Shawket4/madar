@@ -1,42 +1,36 @@
 /// A code for every table in the room (`features/qr/table-codes.tsx`,
 /// SET-QR-019 – 024, 028): made together, one request at a time, laid out on
 /// one sheet with each table's label in large type (thirty identical squares
-/// are unsortable once off the printer), and printed together.
+/// are unsortable), and printed together.
+///
+/// The set follows the page's output switches like every other code: flip
+/// Unbranded and the sheet is made again, unbranded (a read keyed by the
+/// output, the old sheet held up until the new one is complete). On paper
+/// the label goes with the branded card, as it always has; an unbranded
+/// sheet prints the codes and nothing else ([printQrCodes]).
 ///
 /// The codes belong to the branch they were made for: moving the header to
-/// another branch drops the sheet.
+/// another branch drops the sheet, and a run that lands after the move is
+/// not shown.
 library;
 
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:dashboard_api/dashboard_api.dart' show BranchTable, QrResponse;
+import 'package:dashboard_api/dashboard_api.dart' show BranchTable;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:design_system/design_system.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../shared/qr_preview_dialog.dart';
+import 'live_qr_dialog.dart';
+import 'qr_output.dart';
+import 'qr_print.dart';
 import 'qr_providers.dart';
 
-/// One table's code on the sheet.
-typedef QrTableCode = (BranchTable table, QrResponse qr);
-
-/// Hands the sheet's PDF to the system print dialog (the web's
-/// `window.print()`).
-// ponytail: a seam tests replace; becomes a print gateway in dashboard_core
-// once a second page prints.
-@visibleForTesting
-Future<void> Function(Uint8List pdf, String name) qrPrintPdf = (pdf, name) =>
-    Printing.layoutPdf(onLayout: (_) async => pdf, name: name);
-
 class QrTableCodes extends ConsumerStatefulWidget {
-  const QrTableCodes({required this.branchId, super.key});
+  const QrTableCodes({required this.orgId, required this.branchId, super.key});
+
+  final String orgId;
 
   /// The header's branch; null asks for one.
   final String? branchId;
@@ -46,64 +40,44 @@ class QrTableCodes extends ConsumerStatefulWidget {
 }
 
 class _QrTableCodesState extends ConsumerState<QrTableCodes> {
-  List<QrTableCode> _codes = const [];
-  bool _busy = false;
+  /// The branch the sheet was asked for in (`requestedFor`).
+  String? _requestedFor;
   bool _printing = false;
+  final _hold = LiveQrHold<List<QrTableCode>>();
 
-  @override
-  void didUpdateWidget(QrTableCodes old) {
-    super.didUpdateWidget(old);
-    // Another branch's room is not this one's: a sheet left on screen would
-    // be printed and stuck to the wrong tables.
-    if (old.branchId != widget.branchId) _codes = const [];
-  }
+  QrTableSheetKey _key(String branchId, List<BranchTable> rows) =>
+      qrTableSheetKey(
+        branchId,
+        rows,
+        qrRenderParams(ref.read(qrOutputProvider(widget.orgId))),
+      );
 
-  Future<void> _makeAll(List<BranchTable> rows) async {
-    final branchId = widget.branchId;
-    if (branchId == null || rows.isEmpty) return;
-    final t = ref.read(tProvider);
-    final container = ProviderScope.containerOf(context, listen: false);
-    setState(() => _busy = true);
-    try {
-      final out = await readTableCodes(container, branchId, rows);
-      if (mounted && widget.branchId == branchId) {
-        setState(() => _codes = out);
-      }
-    } on Object {
-      if (mounted) DashToast.error(context, t('qr.tables.failed'));
-    } finally {
-      // The cache only bridges hover to press: each card is drawn from the
-      // org's current brand, so the next press asks again.
-      for (final row in rows) {
-        container.invalidate(
-          qrTableCodeProvider((
-            branchId: branchId,
-            tableId: row.id,
-            caption: row.label,
-          )),
-        );
-      }
-      if (mounted) setState(() => _busy = false);
+  void _makeAll(String branchId, List<BranchTable> rows) {
+    if (rows.isEmpty) return;
+    if (_requestedFor == branchId) {
+      // Asked again: every card is drawn again (a Brand edit since).
+      ref.invalidate(qrTableSheetProvider(_key(branchId, rows)));
+    } else {
+      setState(() => _requestedFor = branchId);
     }
   }
 
-  /// Warms the codes the press will read, one at a time like the press.
-  void _warmAll(List<BranchTable> rows) {
-    final branchId = widget.branchId;
-    if (branchId == null || rows.isEmpty) return;
-    readTableCodes(
-      ProviderScope.containerOf(context, listen: false),
-      branchId,
-      rows,
-    ).ignore();
+  /// Warms the sheet the press reads, one code at a time like the press.
+  void _warmAll(String branchId, List<BranchTable> rows) {
+    if (rows.isEmpty || _requestedFor == branchId) return;
+    ref.warm(qrTableSheetProvider(_key(branchId, rows)));
   }
 
-  Future<void> _print() async {
+  Future<void> _print(List<QrTableCode> codes, QrShape shape) async {
     final t = ref.read(tProvider);
     setState(() => _printing = true);
     try {
-      final pdf = await qrTableSheetPdf(_codes, rtl: t.isRtl);
-      await qrPrintPdf(pdf, t('qr.tables.title'));
+      await printQrCodes(
+        [for (final c in codes) (src: c.qr.qrDataUrl, label: c.label)],
+        shape,
+        name: t('qr.tables.title'),
+        rtl: t.isRtl,
+      );
     } on Object catch (e) {
       if (mounted) DashToast.error(context, errorMessage(e, t));
     } finally {
@@ -118,6 +92,28 @@ class _QrTableCodesState extends ConsumerState<QrTableCodes> {
     final branchId = widget.branchId;
     final q = branchId == null ? null : ref.watch(qrTablesProvider(branchId));
     final width = MediaQuery.sizeOf(context).width;
+    final o = ref.watch(qrOutputProvider(widget.orgId));
+    final shape = qrShape(o);
+
+    final rows = q?.value ?? const <BranchTable>[];
+    final enabled =
+        branchId != null && _requestedFor == branchId && rows.isNotEmpty;
+    final key = enabled
+        ? qrTableSheetKey(branchId, rows, qrRenderParams(o))
+        : null;
+    if (key != null) {
+      // Any failure, the first run's or a re-render's after a switch.
+      ref.listen(qrTableSheetProvider(key), (_, next) {
+        if (next.hasError && !next.isLoading && mounted) {
+          DashToast.error(context, t('qr.tables.failed'));
+        }
+      });
+    }
+    final sheet = _hold.view(
+      key == null ? null : ref.watch(qrTableSheetProvider(key)),
+    );
+    final codes = sheet.data ?? const <QrTableCode>[];
+    final making = enabled && sheet.busy;
 
     Widget quiet(String text) =>
         Text(text, style: DashType.body.copyWith(color: c.textSecondary));
@@ -144,10 +140,9 @@ class _QrTableCodesState extends ConsumerState<QrTableCodes> {
         retrying: q.isLoading,
         onRetry: () => ref.invalidate(qrTablesProvider(branchId!)),
       );
-    } else if ((q.value ?? const []).isEmpty) {
+    } else if (rows.isEmpty) {
       content = quiet(t('qr.tables.none'));
     } else {
-      final rows = q.value!;
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Space.lg,
@@ -158,25 +153,31 @@ class _QrTableCodesState extends ConsumerState<QrTableCodes> {
             children: [
               DashButton(
                 key: const ValueKey('qr-tables-make'),
-                label: _busy
+                // `count` picks the plural: Arabic has six forms.
+                label: making
                     ? t('qr.tables.making', count: rows.length)
                     : t('qr.tables.make', count: rows.length),
                 icon: 'qr-code',
-                onPressed: _busy ? null : () => _makeAll(rows),
-                onIntent: () => _warmAll(rows),
+                loading: making,
+                onPressed: making && codes.isEmpty
+                    ? null
+                    : () => _makeAll(branchId!, rows),
+                onIntent: () => _warmAll(branchId!, rows),
               ),
-              if (_codes.isNotEmpty)
+              if (codes.isNotEmpty)
                 DashButton(
                   key: const ValueKey('qr-tables-print'),
                   label: t('qr.tables.print'),
                   icon: 'printer',
                   variant: DashButtonVariant.outline,
                   loading: _printing,
-                  onPressed: _print,
+                  onPressed: making || _printing
+                      ? null
+                      : () => _print(codes, shape),
                 ),
             ],
           ),
-          if (_codes.isNotEmpty)
+          if (codes.isNotEmpty)
             _Grid(
               key: const ValueKey('qr-tables-sheet'),
               columns: width >= DashBreakpoints.lg
@@ -185,7 +186,14 @@ class _QrTableCodesState extends ConsumerState<QrTableCodes> {
                   ? 3
                   : 2,
               gap: Space.md,
-              children: [for (final code in _codes) _Tile(code: code)],
+              children: [
+                for (final code in codes)
+                  _Tile(
+                    code: code,
+                    busy: making,
+                    onPreview: () => _preview(code, rows),
+                  ),
+              ],
             ),
         ],
       );
@@ -224,6 +232,21 @@ class _QrTableCodesState extends ConsumerState<QrTableCodes> {
           content,
         ],
       ),
+    );
+  }
+
+  /// The table's code, live: the switches in the preview re-make the sheet.
+  void _preview(QrTableCode code, List<BranchTable> rows) {
+    final t = ref.read(tProvider);
+    final branchId = widget.branchId;
+    if (branchId == null) return;
+    showLiveQrPreview(
+      context,
+      orgId: widget.orgId,
+      title: t('qr.tables.previewTitle', args: {'label': code.label}),
+      watch: (ref, params) => ref
+          .watch(qrTableSheetProvider(qrTableSheetKey(branchId, rows, params)))
+          .whenData((codes) => codes.firstWhere((c) => c.id == code.id).qr),
     );
   }
 }
@@ -265,27 +288,28 @@ class _Grid extends StatelessWidget {
 
 /// One table's code: the code on white, its label large; press to enlarge.
 class _Tile extends ConsumerWidget {
-  const _Tile({required this.code});
+  const _Tile({
+    required this.code,
+    required this.busy,
+    required this.onPreview,
+  });
 
   final QrTableCode code;
+  final bool busy;
+  final VoidCallback onPreview;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
-    final (table, qr) = code;
     final radius = BorderRadius.circular(Radii.card);
     return DashPressable(
-      key: ValueKey('qr-table-${table.id}'),
+      key: ValueKey('qr-table-${code.id}'),
       tooltip: t('qr.tables.previewHint'),
-      semanticLabel: t('qr.tables.imageAlt', args: {'label': table.label}),
+      semanticLabel: t('qr.tables.imageAlt', args: {'label': code.label}),
       excludeChildSemantics: true,
       pressScale: false,
-      onTap: () => showQrPreview(
-        context,
-        qr: qr,
-        title: t('qr.tables.previewTitle', args: {'label': table.label}),
-      ),
+      onTap: onPreview,
       builder: (context, s) => Container(
         padding: const EdgeInsets.all(Space.md),
         foregroundDecoration: dashFocusRing(context, s, radius),
@@ -297,15 +321,21 @@ class _Tile extends ConsumerWidget {
         child: Column(
           spacing: Space.sm,
           children: [
-            QrImage(
-              dataUrl: qr.qrDataUrl,
-              semanticLabel: t(
-                'qr.tables.imageAlt',
-                args: {'label': table.label},
+            QrBusyVeil(
+              busy: busy,
+              child: QrImage(
+                dataUrl: code.qr.qrDataUrl,
+                semanticLabel: t(
+                  'qr.tables.imageAlt',
+                  args: {'label': code.label},
+                ),
               ),
             ),
+            // The label, large: thirty identical squares are unsortable. It
+            // prints under a branded card; an unbranded sheet prints the
+            // codes alone.
             Text(
-              table.label,
+              code.label,
               textAlign: TextAlign.center,
               style: MadarType.h3.copyWith(color: c.textPrimary, height: 1),
             ),
@@ -314,76 +344,4 @@ class _Tile extends ConsumerWidget {
       ),
     );
   }
-}
-
-Future<pw.Font> _font(String name) async => pw.Font.ttf(
-  await rootBundle.load('packages/design_system/assets/fonts/$name.ttf'),
-);
-
-/// The printable sheet as an A4 PDF: three codes a row, each on white with a
-/// dashed cut line and its label large, a row never split across pages.
-Future<Uint8List> qrTableSheetPdf(
-  List<QrTableCode> codes, {
-  bool rtl = false,
-}) async {
-  final bold = await _font('IBMPlexSansArabic-Bold');
-  final doc = pw.Document(
-    theme: pw.ThemeData.withFont(base: bold, bold: bold),
-  );
-  const columns = 3;
-  pw.Widget tile(QrTableCode code) {
-    final (table, qr) = code;
-    final data = UriData.parse(qr.qrDataUrl);
-    final pw.Widget image = data.mimeType.startsWith('image/svg')
-        ? pw.SvgImage(svg: utf8.decode(data.contentAsBytes()))
-        : pw.Image(pw.MemoryImage(data.contentAsBytes()));
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
-      decoration: pw.BoxDecoration(
-        color: PdfColors.white,
-        border: pw.Border.all(
-          color: PdfColors.grey600,
-          style: pw.BorderStyle.dashed,
-        ),
-        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-      ),
-      child: pw.Column(
-        children: [
-          pw.AspectRatio(aspectRatio: 1, child: image),
-          pw.SizedBox(height: 6),
-          pw.Text(
-            table.label,
-            textAlign: pw.TextAlign.center,
-            style: const pw.TextStyle(fontSize: 18, color: PdfColors.black),
-          ),
-        ],
-      ),
-    );
-  }
-
-  doc.addPage(
-    pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(12 * PdfPageFormat.mm),
-      textDirection: rtl ? pw.TextDirection.rtl : pw.TextDirection.ltr,
-      build: (context) => [
-        for (var i = 0; i < codes.length; i += columns)
-          pw.Padding(
-            padding: const pw.EdgeInsets.only(bottom: 10),
-            child: pw.Row(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                for (var j = i; j < i + columns; j++) ...[
-                  if (j > i) pw.SizedBox(width: 10),
-                  pw.Expanded(
-                    child: j < codes.length ? tile(codes[j]) : pw.SizedBox(),
-                  ),
-                ],
-              ],
-            ),
-          ),
-      ],
-    ),
-  );
-  return doc.save();
 }

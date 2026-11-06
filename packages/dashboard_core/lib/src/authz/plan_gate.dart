@@ -42,11 +42,11 @@ const List<(String, String)> featureRoutes = <(String, String)>[
   ('/delivery', 'online'),
   ('/settings/delivery', 'online'),
   ('/settings/delivery-zones', 'online'),
-  // NOT '/settings/links': every plan opens it, for its "Menu (no prices)"
-  // section; the links page's own sections lock themselves on Free
-  // (`PaidFeatureLock`, `branding`).
-  ('/settings/qr', 'online'),
-  ('/qr', 'online'),
+  // NOT '/settings/links-qr' (nor its old addresses '/settings/links',
+  // '/settings/qr' and '/qr'): every plan opens it, for its "Menu (no
+  // prices)" section and code; the links page and the ordering, booking and
+  // table codes lock themselves on Free (`PaidFeatureLock`, `branding` and
+  // `online`).
   ('/bookings', 'bookings'),
   ('/settings/bookings', 'bookings'),
   ('/floor', 'floor'),

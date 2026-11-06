@@ -254,20 +254,23 @@ void main() {
       expect(moduleRoutes, wr);
     });
 
-    test(
-      'ADM-APP-091..115: the 25 legacy redirects, each with the query it keeps',
-      () {
-        if (web == null) return markTestSkipped('web repo not on this machine');
-        final wr = (web!['redirects']! as List).cast<Map<String, Object?>>();
-        expect(legacyRedirects, hasLength(25));
-        expect(legacyRedirects.map((r) => r.from), wr.map((r) => r['from']));
-        expect(legacyRedirects.map((r) => r.to), wr.map((r) => r['to']));
-        expect(
-          legacyRedirects.map((r) => r.query.name),
-          wr.map((r) => r['query']),
-        );
-      },
-    );
+    test('ADM-APP-091..115: the 27 legacy redirects, each with the query it '
+        'keeps and the values it sets', () {
+      if (web == null) return markTestSkipped('web repo not on this machine');
+      final wr = (web!['redirects']! as List).cast<Map<String, Object?>>();
+      // The web's 28 less Settings › Loyalty's (FLUTTER_KEEPS: it lands on
+      // Rewards, which this app has no page for yet).
+      expect(legacyRedirects, hasLength(27));
+      expect(legacyRedirects.map((r) => r.from), wr.map((r) => r['from']));
+      expect(legacyRedirects.map((r) => r.to), wr.map((r) => r['to']));
+      expect(
+        legacyRedirects.map((r) => r.query.name),
+        wr.map((r) => r['query']),
+      );
+      expect(legacyRedirects.map((r) => r.set), [
+        for (final r in wr) (r['set']! as Map).cast<String, String>(),
+      ]);
+    });
 
     test('the generated file is current (gen_dashboard_nav.mjs --check)', () {
       if (web == null) return markTestSkipped('web repo not on this machine');
@@ -540,6 +543,19 @@ void main() {
         expect(
           legacyRedirects.firstWhere((r) => r.from == '/shifts').replace,
           isTrue,
+        );
+        // Links page and QR codes are one page: the QR ones land on its codes.
+        expect(
+          resolveLegacyRedirect(Uri.parse('/settings/links?x=1')),
+          Uri.parse('/settings/links-qr'),
+        );
+        expect(
+          resolveLegacyRedirect(Uri.parse('/settings/qr?branchId=b1')),
+          Uri.parse('/settings/links-qr?section=codes'),
+        );
+        expect(
+          resolveLegacyRedirect(Uri.parse('/qr')),
+          Uri.parse('/settings/links-qr?section=codes'),
         );
         expect(resolveLegacyRedirect(Uri.parse('/orders')), isNull);
         // A redirect never lands on another redirect.

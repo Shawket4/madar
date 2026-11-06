@@ -584,17 +584,6 @@ const List<SettingsNavGroup> settingsNav = <SettingsNavGroup>[
         lucide: 'image',
         module: 'pos',
       ),
-      SettingsNavLeaf(
-        to: '/settings/links',
-        labelKey: 'settings.linksPage',
-        fallback: 'Links page',
-        descKey: 'settings.linksPageDesc',
-        desc:
-            'The page your address opens on: order, menu, rewards, your socials.',
-        icon: 'link',
-        lucide: 'link-2',
-        module: 'pos',
-      ),
     ],
   ),
   SettingsNavGroup(
@@ -635,11 +624,12 @@ const List<SettingsNavGroup> settingsNav = <SettingsNavGroup>[
         module: 'pos',
       ),
       SettingsNavLeaf(
-        to: '/settings/qr',
-        labelKey: 'nav.qr',
-        fallback: 'QR codes',
-        descKey: 'settings.qrDesc',
-        desc: 'The codes on your tables, counters and receipts.',
+        to: '/settings/links-qr',
+        labelKey: 'settings.linksAndQr',
+        fallback: 'Links & QR codes',
+        descKey: 'settings.linksAndQrDesc',
+        desc:
+            'Your links page, your menu and every QR code: tables, counters, posters, receipts.',
         icon: 'qrcode',
         lucide: 'qr-code',
         module: 'pos',
@@ -765,6 +755,7 @@ const List<(String, String)> extraModuleRoutes = <(String, String)>[
   ('/settings/bookings', 'pos'),
   ('/settings/brand', 'pos'),
   ('/settings/links', 'pos'),
+  ('/settings/links-qr', 'pos'),
   ('/settings/combos', 'pos'),
   ('/settings/integrations', 'pos'),
   ('/settings/delivery', 'pos'),
@@ -877,7 +868,12 @@ const List<LegacyRedirect> legacyRedirects = <LegacyRedirect>[
     query: RedirectQuery.keys,
     keys: <String>['user'],
   ),
-  LegacyRedirect(from: '/qr', to: '/settings/qr', source: '_app/qr.tsx'),
+  LegacyRedirect(
+    from: '/qr',
+    to: '/settings/links-qr',
+    source: '_app/qr.tsx',
+    set: <String, String>{'section': 'codes'},
+  ),
   LegacyRedirect(
     from: '/reports/operations/profitability',
     to: '/reports/operations',
@@ -892,6 +888,17 @@ const List<LegacyRedirect> legacyRedirects = <LegacyRedirect>[
     from: '/reports/sales',
     to: '/reports/operations',
     source: '_app/reports/sales.tsx',
+  ),
+  LegacyRedirect(
+    from: '/settings/links',
+    to: '/settings/links-qr',
+    source: '_app/settings/links.tsx',
+  ),
+  LegacyRedirect(
+    from: '/settings/qr',
+    to: '/settings/links-qr',
+    source: '_app/settings/qr.tsx',
+    set: <String, String>{'section': 'codes'},
   ),
   LegacyRedirect(
     from: '/shifts',

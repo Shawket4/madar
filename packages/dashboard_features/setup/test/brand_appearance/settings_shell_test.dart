@@ -49,11 +49,11 @@ final String _helio = '?branchId=${SeedIds.heliopolis}';
 const List<String> _ownerPanes = [
   'Appearance',
   'Brand',
-  'Links page',
   'Delivery',
   'Bookings',
   'Loyalty',
-  'QR Codes',
+  // One pane for the links page, the menu and every code (2026-11-06).
+  'Links & QR codes',
   'Combos and deals',
   'Payment methods',
   'Staff drinks',
@@ -89,10 +89,10 @@ void main() {
       expect(_active(tester), 'Payment methods');
       final qr = settingsNav
           .expand((g) => g.items)
-          .firstWhere((i) => i.to == '/settings/qr');
+          .firstWhere((i) => i.to == '/settings/links-qr');
       final home = settingsNav.first.items.first;
-      expect(SettingsShell.isActive(qr, '/settings/qr/print'), isTrue);
-      expect(SettingsShell.isActive(qr, '/settings/qrx'), isFalse);
+      expect(SettingsShell.isActive(qr, '/settings/links-qr/print'), isTrue);
+      expect(SettingsShell.isActive(qr, '/settings/links-qrx'), isFalse);
       expect(SettingsShell.isActive(home, '/settings/'), isTrue);
       expect(SettingsShell.isActive(home, '/settings/brand'), isFalse);
     });
@@ -354,7 +354,9 @@ void main() {
       final h = await pumpBrand(tester, path: appearancePath);
       h.allowUnmatched = true;
       const legacy = {
-        '/qr': '/settings/qr',
+        '/qr': '/settings/links-qr',
+        '/settings/qr': '/settings/links-qr',
+        '/settings/links': '/settings/links-qr',
         '/delivery': '/settings/delivery',
         '/delivery/settings': '/settings/delivery',
         '/delivery/zones': '/settings/delivery-zones',
@@ -470,8 +472,9 @@ void main() {
       await h.settle();
       expect(bookings(), b + 1);
 
-      // QR reads /branches (the header's list and the branch's tables).
-      await h.go('/settings/qr$_helio');
+      // Links & QR codes reads /branches (the header's list and the
+      // branch's tables).
+      await h.go('/settings/links-qr$_helio');
       int branches() => h.server.callsTo('/branches', method: 'GET').length;
       final br = branches();
       h.realtime.current!.emit('branch.settings_changed', data: '{}');

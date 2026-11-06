@@ -512,7 +512,10 @@ void registerLinksMocks(MockServer server, MockDb db) {
         break;
       case 'menu_display':
         return MockResponse.ok(
-          mockQrResponse(
+          mockQrFor(
+            req,
+            db,
+            orgId: id,
             kind: 'org_menu_display',
             longUrl: menuDisplayUrl(org),
             key: 'org_menu_display:$id',
@@ -529,7 +532,10 @@ void registerLinksMocks(MockServer server, MockDb db) {
       );
     }
     return MockResponse.ok(
-      mockQrResponse(
+      mockQrFor(
+        req,
+        db,
+        orgId: id,
         kind: 'org_links',
         longUrl: '$origin/',
         key: 'org_links:$id',

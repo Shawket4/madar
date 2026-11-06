@@ -1,7 +1,9 @@
 /// What the setup area's mock handlers share: registering a route only when
 /// no other area answers it, seeding a table only when no other area has,
 /// and the QR answers (`QrResponse`) the QR, Links page and Loyalty units
-/// all hand out — with a real, scannable code image.
+/// all hand out — with a real, scannable code image that follows the render
+/// query ([mockQrFor]): the branded card, the receipt code, or the unbranded
+/// code with or without the shop's logo in the middle.
 library;
 
 import 'dart:convert';
@@ -9,7 +11,8 @@ import 'dart:typed_data';
 
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
-import 'package:pdf/widgets.dart' show Barcode, BarcodeBar;
+import 'package:pdf/widgets.dart'
+    show Barcode, BarcodeBar, BarcodeQRCorrectionLevel;
 
 /// Registers [handler] for `method template` unless another area already
 /// answers it. In the app every area shares one server and one database: a
@@ -41,13 +44,30 @@ void seedTableIfAbsent(
 /// Where the mock's short links live (the backend's Shlink domain).
 const String mockShortLinkBase = 'https://s.madar-pos.cloud';
 
+/// What a code's image looks like (the server's three renders).
+enum MockQrLook {
+  /// The branded A6 card: a frame, the code with Madar's mark (or the
+  /// shop's logo) in the middle, the purpose line and "Powered by" under it.
+  card,
+
+  /// The small plain receipt code: nothing in the middle.
+  receipt,
+
+  /// The unbranded code: the square QR and nothing else.
+  plain,
+}
+
 /// A `QrResponse` as the backend answers it: [kind] (`org_order`,
 /// `branch_booking`, `org_loyalty`, …), the page it lands on, a short link
-/// whose code is stable for [key], and the code itself as a PNG data URL.
+/// whose code is stable for [key], and the code itself as a PNG data URL in
+/// [look] (with the shop's logo in the middle when [logo]).
 QrResponse mockQrResponse({
   required String kind,
   required String longUrl,
   required String key,
+  MockQrLook look = MockQrLook.receipt,
+  bool logo = false,
+  bool? centreLogo,
 }) {
   final code = mockShortCode(key);
   final shortUrl = '$mockShortLinkBase/$code';
@@ -56,8 +76,62 @@ QrResponse mockQrResponse({
     longUrl: longUrl,
     shortUrl: shortUrl,
     shortCode: code,
-    qrDataUrl: qrPngDataUrl(shortUrl),
+    qrDataUrl: qrPngDataUrl(shortUrl, look: look, logo: logo),
+    centreLogo: centreLogo,
   );
+}
+
+/// The answer to [req]'s render query (`QrRenderQuery`), as the server draws
+/// it: `unbranded=true` the plain code (the shop's logo in the middle when
+/// `centre_logo` is not false AND [orgId]'s shop has a printable logo on a
+/// paid plan; `centre_logo` in the answer says which); else `card=false` the
+/// receipt code, else the branded card.
+QrResponse mockQrFor(
+  MockRequest req,
+  MockDb db, {
+  required String? orgId,
+  required String kind,
+  required String longUrl,
+  required String key,
+}) {
+  if (req.q('unbranded') == 'true') {
+    final wanted = req.q('centre_logo') != 'false';
+    final logo = wanted && mockHasPrintableLogo(db, orgId);
+    return mockQrResponse(
+      kind: kind,
+      longUrl: longUrl,
+      key: key,
+      look: MockQrLook.plain,
+      logo: logo,
+      centreLogo: logo,
+    );
+  }
+  if (req.q('card') == 'false') {
+    return mockQrResponse(
+      kind: kind,
+      longUrl: longUrl,
+      key: key,
+      centreLogo: false,
+    );
+  }
+  return mockQrResponse(
+    kind: kind,
+    longUrl: longUrl,
+    key: key,
+    look: MockQrLook.card,
+    logo: mockHasPrintableLogo(db, orgId),
+    centreLogo: true,
+  );
+}
+
+/// The shop has a logo the server can print in a code: a logo on file and
+/// a plan with `branding` (not Free).
+bool mockHasPrintableLogo(MockDb db, String? orgId) {
+  if (orgId == null) return false;
+  final org = db['orgs'].find(orgId);
+  if (org == null) return false;
+  final logo = (org['logo_url'] as String?)?.trim() ?? '';
+  return logo.isNotEmpty && org['plan'] != 'free';
 }
 
 /// A stable six-character short code for [key] (Shlink's alphabet: no
@@ -73,57 +147,142 @@ String mockShortCode(String key) {
   return out.toString();
 }
 
-/// [data] as a scannable QR code: a 1-bit PNG with a four-module quiet zone,
-/// eight pixels a module, as a `data:image/png;base64,…` URL.
-String qrPngDataUrl(String data) =>
-    'data:image/png;base64,${base64.encode(qrPng(data))}';
+/// [data] as a scannable QR code in [look]: a 1-bit PNG with a four-module
+/// quiet zone, eight pixels a module, as a `data:image/png;base64,…` URL.
+String qrPngDataUrl(
+  String data, {
+  MockQrLook look = MockQrLook.receipt,
+  bool logo = false,
+}) =>
+    'data:image/png;base64,${base64.encode(qrPng(data, look: look, logo: logo))}';
 
 /// [data] as a scannable QR code PNG (see [qrPngDataUrl]).
-Uint8List qrPng(String data, {int scale = 8, int quiet = 4}) {
-  final bars = Barcode.qrCode()
-      .make(data, width: 1, height: 1)
-      .whereType<BarcodeBar>()
-      .toList();
+Uint8List qrPng(
+  String data, {
+  int scale = 8,
+  int quiet = 4,
+  MockQrLook look = MockQrLook.receipt,
+  bool logo = false,
+}) {
+  // Something in the middle covers modules: the highest error correction
+  // then; a bare code keeps the lowest (bigger modules), as the server does.
+  final centre = look == MockQrLook.card || logo;
+  final level = centre
+      ? BarcodeQRCorrectionLevel.high
+      : BarcodeQRCorrectionLevel.low;
+  final bars = Barcode.qrCode(
+    errorCorrectLevel: level,
+  ).make(data, width: 1, height: 1).whereType<BarcodeBar>().toList();
   final n = (1 / bars.first.height).round();
-  final dark = List.generate(n, (_) => List.filled(n, false));
+  final side = (n + quiet * 2) * scale;
+  final card = look == MockQrLook.card;
+  // The card is A6 (105 x 148): the code at the top, its words under it.
+  final width = side;
+  final height = card ? (side * 148 / 105).round() : side;
+  final img = _Raster(width, height);
   for (final b in bars) {
     if (!b.black) continue;
     final row = (b.top * n).round();
     final from = (b.left * n).round();
     final to = ((b.left + b.width) * n).round();
-    for (var x = from; x < to && x < n; x++) {
-      dark[row][x] = true;
+    img.fill(
+      (quiet + from) * scale,
+      (quiet + row) * scale,
+      (to - from) * scale,
+      scale,
+    );
+  }
+  if (centre) {
+    // A white plaque over the middle fifth, with the mark on it: the shop's
+    // logo a round dot, Madar's mark a square ring.
+    final plaque = ((n * 0.22).round() | 1) * scale;
+    final at = (side - plaque) ~/ 2;
+    img.fill(at, at, plaque, plaque, dark: false);
+    final inset = scale;
+    if (logo) {
+      img.disc(side / 2, side / 2, plaque / 2 - inset);
+    } else {
+      img
+        ..fill(at + inset, at + inset, plaque - 2 * inset, plaque - 2 * inset)
+        ..fill(
+          at + 2 * inset,
+          at + 2 * inset,
+          plaque - 4 * inset,
+          plaque - 4 * inset,
+          dark: false,
+        );
     }
   }
-  final side = (n + quiet * 2) * scale;
-  final rowBytes = (side + 7) >> 3;
-  final raw = BytesBuilder();
-  for (var y = 0; y < side; y++) {
-    raw.addByte(0); // filter: none
-    final line = Uint8List(rowBytes)..fillRange(0, rowBytes, 0xFF);
-    final my = y ~/ scale - quiet;
-    for (var x = 0; x < side; x++) {
-      final mx = x ~/ scale - quiet;
-      if (my >= 0 && my < n && mx >= 0 && mx < n && dark[my][mx]) {
-        line[x >> 3] &= ~(0x80 >> (x & 7));
+  if (card) {
+    // The frame, the purpose line, the caption and "Powered by".
+    final t = scale ~/ 2;
+    img
+      ..fill(0, 0, width, t)
+      ..fill(0, height - t, width, t)
+      ..fill(0, 0, t, height)
+      ..fill(width - t, 0, t, height);
+    final words = side + scale;
+    img
+      ..fill(width * 2 ~/ 10, words, width * 6 ~/ 10, scale * 2)
+      ..fill(width * 3 ~/ 10, words + scale * 4, width * 4 ~/ 10, scale)
+      ..fill(width * 4 ~/ 10, height - scale * 4, width * 2 ~/ 10, scale);
+  }
+  return img.png();
+}
+
+/// A 1-bit image, white until drawn on.
+class _Raster {
+  _Raster(this.width, this.height)
+    : _dark = List.generate(height, (_) => List.filled(width, false));
+
+  final int width;
+  final int height;
+  final List<List<bool>> _dark;
+
+  void fill(int x, int y, int w, int h, {bool dark = true}) {
+    for (var yy = y.clamp(0, height); yy < (y + h).clamp(0, height); yy++) {
+      for (var xx = x.clamp(0, width); xx < (x + w).clamp(0, width); xx++) {
+        _dark[yy][xx] = dark;
       }
     }
-    raw.add(line);
   }
-  final ihdr = ByteData(13)
-    ..setUint32(0, side)
-    ..setUint32(4, side)
-    ..setUint8(8, 1) // bit depth
-    ..setUint8(9, 0) // greyscale
-    ..setUint8(10, 0)
-    ..setUint8(11, 0)
-    ..setUint8(12, 0);
-  final out = BytesBuilder()
-    ..add(const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
-    ..add(_chunk('IHDR', ihdr.buffer.asUint8List()))
-    ..add(_chunk('IDAT', _zlibStored(raw.takeBytes())))
-    ..add(_chunk('IEND', const []));
-  return out.takeBytes();
+
+  void disc(double cx, double cy, double r) {
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        final dx = x + 0.5 - cx;
+        final dy = y + 0.5 - cy;
+        if (dx * dx + dy * dy <= r * r) _dark[y][x] = true;
+      }
+    }
+  }
+
+  Uint8List png() {
+    final rowBytes = (width + 7) >> 3;
+    final raw = BytesBuilder();
+    for (var y = 0; y < height; y++) {
+      raw.addByte(0); // filter: none
+      final line = Uint8List(rowBytes)..fillRange(0, rowBytes, 0xFF);
+      for (var x = 0; x < width; x++) {
+        if (_dark[y][x]) line[x >> 3] &= ~(0x80 >> (x & 7));
+      }
+      raw.add(line);
+    }
+    final ihdr = ByteData(13)
+      ..setUint32(0, width)
+      ..setUint32(4, height)
+      ..setUint8(8, 1) // bit depth
+      ..setUint8(9, 0) // greyscale
+      ..setUint8(10, 0)
+      ..setUint8(11, 0)
+      ..setUint8(12, 0);
+    final out = BytesBuilder()
+      ..add(const [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+      ..add(_chunk('IHDR', ihdr.buffer.asUint8List()))
+      ..add(_chunk('IDAT', _zlibStored(raw.takeBytes())))
+      ..add(_chunk('IEND', const []));
+    return out.takeBytes();
+  }
 }
 
 List<int> _chunk(String type, List<int> data) {

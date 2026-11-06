@@ -1,8 +1,11 @@
 // The QR mock against hand-computed answers: the landing addresses, the
 // in-mall query, the tables in the backend's text order, the 404/403/409
-// refusals, and stable short codes.
+// refusals, stable short codes, and the render query (the card, the receipt
+// code, the unbranded code with and without the shop's logo).
 import 'package:dashboard_api/dashboard_api.dart';
 import 'package:dashboard_api/mock.dart';
+import 'package:dashboard_setup/src/shared/qr_preview_dialog.dart'
+    show qrImageBytes;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'qr_support.dart';
@@ -150,6 +153,71 @@ void main() {
     expect(
       (await _refusal(owner.listTables(id: mockUuid('branch:nowhere')))).status,
       404,
+    );
+  });
+
+  test('the render query: the card, the receipt code, the unbranded code; '
+      'centre_logo says whether anything sits in the middle', () async {
+    final m = setupMockServer();
+    final qr = DashboardApi(m.server).qr;
+    (int, int) size(QrResponse r) {
+      final png = qrImageBytes(r.qrDataUrl)!;
+      int u32(int at) =>
+          (png[at] << 24) |
+          (png[at + 1] << 16) |
+          (png[at + 2] << 8) |
+          png[at + 3];
+      return (u32(16), u32(20));
+    }
+
+    final card = await qr.orgQr(id: org);
+    expect(card.centreLogo, isTrue);
+    final (cw, ch) = size(card);
+    expect(ch, greaterThan(cw), reason: 'the A6 card is taller than wide');
+
+    final receipt = await qr.orgQr(id: org, card: false);
+    expect(receipt.centreLogo, isFalse);
+    expect(size(receipt).$1, size(receipt).$2);
+
+    // Sabah has no logo on file: asked for, the code comes out plain.
+    final noLogo = await qr.orgQr(id: org, unbranded: true, centreLogo: true);
+    expect(noLogo.centreLogo, isFalse);
+    expect(size(noLogo).$1, size(noLogo).$2, reason: 'a square code');
+    final plain = await qr.orgQr(id: org, unbranded: true, centreLogo: false);
+    expect(plain.centreLogo, isFalse);
+    expect(plain.qrDataUrl, noLogo.qrDataUrl);
+    expect(plain.qrDataUrl, isNot(card.qrDataUrl));
+    expect(plain.shortCode, card.shortCode, reason: 'the same short link');
+
+    m.db['orgs'].update(org, {'logo_url': 'https://cdn.example/logo.png'});
+    final logo = await qr.orgQr(id: org, unbranded: true);
+    expect(logo.centreLogo, isTrue);
+    expect(logo.qrDataUrl, isNot(plain.qrDataUrl));
+    expect(
+      (await qr.orgQr(id: org, unbranded: true, centreLogo: false)).centreLogo,
+      isFalse,
+    );
+    // Free: no branding tier, so no logo in the middle.
+    m.db['orgs'].update(org, {'plan': 'free'});
+    expect((await qr.orgQr(id: org, unbranded: true)).centreLogo, isFalse);
+
+    // Every code takes it: the table, the links page, the menu.
+    expect(
+      (await qr.tableQr(
+        id: helio,
+        tid: qrTableId('heliopolis', 'T1'),
+        unbranded: true,
+        caption: 'T1',
+      )).centreLogo,
+      isFalse,
+    );
+    expect(
+      (await qr.orgLinksQr(
+        id: org,
+        unbranded: true,
+        target: 'menu_display',
+      )).kind,
+      'org_menu_display',
     );
   });
 }

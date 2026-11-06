@@ -108,7 +108,6 @@ void main() {
       '/settings/brand',
       '/settings/delivery',
       '/settings/bookings',
-      '/settings/qr',
       '/settings/loyalty',
       '/settings/kitchen-stations',
       '/settings/kitchen-routing',
@@ -116,14 +115,28 @@ void main() {
       expect(free, isNot(contains(gone)), reason: gone);
     }
     expect(free, contains('/settings/payment-methods'));
-    // Every plan opens the links pane, for its "Menu (no prices)" section.
-    expect(free, contains('/settings/links'));
+    // Every plan opens Links & QR codes, for its "Menu (no prices)" section
+    // and that menu's code.
+    expect(free, contains('/settings/links-qr'));
     expect(panes(_paid), panes(null));
+    // Listed once, and neither page it replaced.
+    final all = panes(null);
+    expect(all.where((p) => p == '/settings/links-qr'), hasLength(1));
+    expect(all, isNot(contains('/settings/links')));
+    expect(all, isNot(contains('/settings/qr')));
   });
 
-  test('only /settings/links left the gate; every other gated route stays', () {
-    expect(featureOfPath('/settings/links'), isNull);
-    expect(planHasPath(_free, '/settings/links'), isTrue);
+  test('Links & QR codes and its old addresses are on every plan; every '
+      'other gated route stays', () {
+    for (final p in [
+      '/settings/links-qr',
+      '/settings/links',
+      '/settings/qr',
+      '/qr',
+    ]) {
+      expect(featureOfPath(p), isNull, reason: p);
+      expect(planHasPath(_free, p), isTrue, reason: p);
+    }
     expect(
       {for (final r in featureRoutes) r.$1: r.$2},
       {
@@ -136,8 +149,6 @@ void main() {
         '/delivery': 'online',
         '/settings/delivery': 'online',
         '/settings/delivery-zones': 'online',
-        '/settings/qr': 'online',
-        '/qr': 'online',
         '/bookings': 'bookings',
         '/settings/bookings': 'bookings',
         '/floor': 'floor',

@@ -1,6 +1,8 @@
-/// One generated code under its card (`QrResult` in `features/qr/qr-page.tsx`,
-/// SET-QR-015 – 018): the code on a white quiet zone (press to enlarge), the
-/// short link, the long address it lands on, "Copy link" and "Download".
+/// One generated code under its card (`QrResult` in `features/qr/
+/// codes-section.tsx`, SET-QR-015 – 018): the code on a white quiet zone
+/// (press to enlarge, the live preview), the short link, the long address it
+/// lands on, "Copy link", "Print" and "Download". While a flipped switch
+/// re-renders it, the old image stays up, dimmed ([QrBusyVeil]).
 ///
 /// URLs wrap at any character rather than truncate: a misconfigured public
 /// base URL is invisible until a printed card is scanned.
@@ -18,12 +20,24 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../shared/qr_preview_dialog.dart';
+import 'qr_output.dart';
 
 class QrResultCard extends ConsumerStatefulWidget {
-  const QrResultCard({required this.qr, required this.title, super.key});
+  const QrResultCard({
+    required this.qr,
+    required this.title,
+    required this.onPreview,
+    this.shape = QrShape.card,
+    this.busy = false,
+    super.key,
+  });
 
   /// The web's `max-w-52` on the code.
   static const double codeWidth = 208;
+
+  /// Below this, Print and Download stack (the 256-wide card beside the
+  /// controls from 1024 would cut "Download" short).
+  static const double pairWidth = 260;
 
   /// How long "Copied" shows.
   static const Duration copiedFor = Duration(milliseconds: 1600);
@@ -32,6 +46,15 @@ class QrResultCard extends ConsumerStatefulWidget {
 
   /// The card's title (the preview dialog's and the image's).
   final String title;
+
+  /// Opens the enlarged, live code.
+  final VoidCallback onPreview;
+
+  /// What the image is (Print sizes it true; Download names it).
+  final QrShape shape;
+
+  /// A new render is on its way.
+  final bool busy;
 
   @override
   ConsumerState<QrResultCard> createState() => _QrResultCardState();
@@ -63,25 +86,11 @@ class _QrResultCardState extends ConsumerState<QrResultCard> {
     });
   }
 
-  Future<void> _download() async {
-    final t = ref.read(tProvider);
-    try {
-      await saveDataUri(
-        ref.read(fileGatewayProvider),
-        widget.qr.qrDataUrl,
-        qrFileName(widget.qr),
-      );
-    } on Object catch (e) {
-      if (mounted) DashToast.error(context, errorMessage(e, t));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = ref.watch(tProvider);
     final c = context.madarColors;
     final qr = widget.qr;
-    final stacked = MediaQuery.sizeOf(context).width < DashBreakpoints.sm;
 
     final code = ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: QrResultCard.codeWidth),
@@ -90,16 +99,19 @@ class _QrResultCardState extends ConsumerState<QrResultCard> {
         semanticLabel: t('qr.enlarge'),
         excludeChildSemantics: true,
         pressScale: false,
-        onTap: () => showQrPreview(context, qr: qr, title: widget.title),
+        onTap: widget.onPreview,
         builder: (context, s) => Container(
           foregroundDecoration: dashFocusRing(
             context,
             s,
             BorderRadius.circular(Radii.xs),
           ),
-          child: QrImage(
-            dataUrl: qr.qrDataUrl,
-            semanticLabel: t('qr.imageAlt', args: {'title': widget.title}),
+          child: QrBusyVeil(
+            busy: widget.busy,
+            child: QrImage(
+              dataUrl: qr.qrDataUrl,
+              semanticLabel: t('qr.imageAlt', args: {'title': widget.title}),
+            ),
           ),
         ),
       ),
@@ -168,13 +180,28 @@ class _QrResultCardState extends ConsumerState<QrResultCard> {
       expand: true,
       onPressed: _copy,
     );
+    final print = DashButton(
+      key: const ValueKey('qr-print'),
+      label: t('qr.print'),
+      icon: 'printer',
+      variant: DashButtonVariant.outline,
+      size: DashButtonSize.compact,
+      expand: true,
+      onPressed: () =>
+          printQr(context, ref, qr, shape: widget.shape, title: widget.title),
+    );
     final download = DashButton(
       key: const ValueKey('qr-download'),
       label: t('common.download'),
       icon: 'download',
       size: DashButtonSize.compact,
       expand: true,
-      onPressed: _download,
+      onPressed: () => downloadQr(
+        context,
+        ref,
+        qr,
+        unbranded: widget.shape == QrShape.plain,
+      ),
     );
 
     return Container(
@@ -190,20 +217,20 @@ class _QrResultCardState extends ConsumerState<QrResultCard> {
           code,
           link,
           SizedBox(width: double.infinity, child: landing),
-          // Stacked on a phone, and in the 256-wide card beside the form
-          // where two would cut "Download" short.
+          // Copy link on its own row; Print and Download beside each other
+          // unless the card is too narrow for both labels.
+          SizedBox(width: double.infinity, child: copy),
           LayoutBuilder(
-            builder: (context, box) =>
-                stacked || box.maxWidth < QrResultCard.codeWidth + Space.xxl
+            builder: (context, box) => box.maxWidth < QrResultCard.pairWidth
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: Space.sm,
-                    children: [copy, download],
+                    children: [print, download],
                   )
                 : Row(
                     spacing: Space.sm,
                     children: [
-                      Expanded(child: copy),
+                      Expanded(child: print),
                       Expanded(child: download),
                     ],
                   ),

@@ -27,7 +27,7 @@ void main() {
         matching: find.text('Loyalty sign-up'),
       ),
     );
-    await h.go('/settings/qr');
+    await h.go('/settings/links-qr');
     await h.go(loyalty.loyaltyPath);
     expect(
       loyalty.inPage(find.byKey(const ValueKey('loyalty-members'))),
@@ -78,7 +78,7 @@ void main() {
       ),
     );
     expect(find.byType(AvailabilityTab), findsOneWidget);
-    await h.go('/settings/qr');
+    await h.go('/settings/links-qr');
     await h.go(pm.pmPath);
     expect(find.byType(AvailabilityTab), findsOneWidget);
   });

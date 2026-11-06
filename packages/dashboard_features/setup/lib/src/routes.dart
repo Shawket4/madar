@@ -1,6 +1,6 @@
-/// The setup area's pages (`/settings`, `/settings/brand`, `/settings/links`,
-/// `/settings/delivery`, `/settings/delivery-zones`, `/settings/bookings`,
-/// `/settings/loyalty`, `/settings/qr`, `/settings/combos`,
+/// The setup area's pages (`/settings`, `/settings/brand`,
+/// `/settings/links-qr`, `/settings/delivery`, `/settings/delivery-zones`,
+/// `/settings/bookings`, `/settings/loyalty`, `/settings/combos`,
 /// `/settings/payment-methods`, `/settings/staff-pool`,
 /// `/settings/kitchen-stations`, `/settings/kitchen-routing`,
 /// `/settings/integrations`, `/settings/whatsapp`), each inside the settings
@@ -14,7 +14,9 @@
 /// with their own words. A route-level `caps` would show the generic
 /// `Restricted` instead, so none is set. Modules: every pane but
 /// Appearance and WhatsApp belongs to `pos` (the shell's `ModuleGate` reads
-/// it from the path).
+/// it from the path). The old `/settings/links`, `/settings/qr` and `/qr`
+/// are the generated legacy redirects to `/settings/links-qr` (the core's
+/// router), not routes here.
 library;
 
 import 'package:dashboard_core/dashboard_core.dart';
@@ -36,13 +38,12 @@ import 'integrations/integrations_page.dart';
 import 'kitchen/kitchen_data.dart';
 import 'kitchen/kitchen_routing_page.dart';
 import 'kitchen/kitchen_stations_page.dart';
-import 'links/links_page.dart';
 import 'links/links_providers.dart';
+import 'links_qr/links_qr_page.dart';
 import 'loyalty/loyalty_data.dart' show loyaltySettingsProvider;
 import 'loyalty/loyalty_page.dart';
 import 'payment_methods/payment_methods_page.dart';
 import 'payment_methods/pm_data.dart' show paymentMethodsProvider;
-import 'qr/qr_page.dart';
 import 'qr/qr_providers.dart' show qrTablesProvider;
 import 'staff_pool/staff_pool_settings_page.dart';
 import 'whatsapp/whatsapp_page.dart';
@@ -63,12 +64,12 @@ const List<DashRoute> setupRoutes = [
     prefetch: prefetchBrand,
   ),
   DashRoute(
-    path: '/settings/links',
-    builder: _links,
-    titleKey: 'settings.linksPage',
-    titleFallback: 'Links page',
+    path: '/settings/links-qr',
+    builder: _linksQr,
+    titleKey: 'settings.linksAndQr',
+    titleFallback: 'Links & QR codes',
     module: OrgModule.pos,
-    prefetch: _prefetchLinks,
+    prefetch: _prefetchLinksQr,
   ),
   DashRoute(
     path: '/settings/delivery',
@@ -101,14 +102,6 @@ const List<DashRoute> setupRoutes = [
     titleFallback: 'Loyalty',
     module: OrgModule.pos,
     prefetch: _prefetchLoyalty,
-  ),
-  DashRoute(
-    path: '/settings/qr',
-    builder: _qr,
-    titleKey: 'nav.qr',
-    titleFallback: 'QR codes',
-    module: OrgModule.pos,
-    prefetch: _prefetchQr,
   ),
   DashRoute(
     path: '/settings/combos',
@@ -175,7 +168,10 @@ Widget _appearance(BuildContext c, GoRouterState s) =>
 
 Widget _brand(BuildContext c, GoRouterState s) => _shell(s, const BrandPage());
 
-Widget _links(BuildContext c, GoRouterState s) => _shell(s, const LinksPage());
+Widget _linksQr(BuildContext c, GoRouterState s) => _shell(
+  s,
+  LinksQrPage(section: LinksQrSection.parse(s.uri.queryParameters['section'])),
+);
 
 Widget _delivery(BuildContext c, GoRouterState s) =>
     _shell(s, const DeliverySettingsPage());
@@ -188,8 +184,6 @@ Widget _bookings(BuildContext c, GoRouterState s) =>
 
 Widget _loyalty(BuildContext c, GoRouterState s) =>
     _shell(s, const LoyaltyPage());
-
-Widget _qr(BuildContext c, GoRouterState s) => _shell(s, const QrPage());
 
 Widget _combos(BuildContext c, GoRouterState s) =>
     _shell(s, const ComboSettingsPage());
@@ -222,13 +216,24 @@ Widget _whatsapp(BuildContext c, GoRouterState s) =>
 // branch in scope), so a hover, focus or touch on its rail row (or any link
 // to it) makes the pane open from the cache.
 
-/// The links page's settings, its menu-display card and its live preview.
-void _prefetchLinks(DashPrefetcher warm, Scope s) {
+/// Links & QR codes: the editors' reads (the links page and its preview on
+/// a plan with `branding`, the menu without prices on every plan), and the
+/// branch's tables for the table codes (`online`). The codes themselves are
+/// never warmed with the page: each one mints a short link, which only a
+/// person asking for it should do.
+void _prefetchLinksQr(DashPrefetcher warm, Scope s) {
   final orgId = s.orgId;
   if (orgId == null) return;
-  warm(linksPageProvider(orgId));
+  final features = warm.read(planFeaturesProvider);
   warm(menuDisplayProvider(orgId));
-  warm(publicLinksProvider(orgId));
+  if (planHasFeature(features, 'branding')) {
+    warm(linksPageProvider(orgId));
+    warm(publicLinksProvider(orgId));
+  }
+  final b = s.branchId;
+  if (b != null && planHasFeature(features, 'online')) {
+    warm(qrTablesProvider(b));
+  }
 }
 
 /// The branch's delivery settings and the org's discounts (the form's
@@ -256,12 +261,6 @@ void _prefetchDeliveryZones(DashPrefetcher warm, Scope s) {
 /// org's) programme.
 void _prefetchLoyalty(DashPrefetcher warm, Scope s) {
   if (s.orgId != null) warm(loyaltySettingsProvider(s.branchId));
-}
-
-/// The branch's tables (the table codes section).
-void _prefetchQr(DashPrefetcher warm, Scope s) {
-  final b = s.branchId;
-  if (s.orgId != null && b != null) warm(qrTablesProvider(b));
 }
 
 /// The org's combo settings.

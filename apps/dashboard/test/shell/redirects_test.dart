@@ -36,7 +36,9 @@ void main() {
       );
       expect(r('/permissions?user=u1&role=r'), '/access/roles?user=u1');
       expect(r('/shifts?from=a&to=b'), '/tills?from=a&to=b');
-      expect(r('/qr?x=1'), '/settings/qr');
+      expect(r('/qr?x=1'), '/settings/links-qr?section=codes');
+      expect(r('/settings/qr'), '/settings/links-qr?section=codes');
+      expect(r('/settings/links'), '/settings/links-qr');
     });
 
     test('ADM-APP-017: signed out: every page goes to sign-in with the way '

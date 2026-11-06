@@ -170,10 +170,14 @@ void main() {
     expect(find.text('Links page code'), findsNothing);
 
     m.server.clearFailures();
-    final before = gets(h, LinksRoutes.qr);
+    final before = linksCodeGets(h);
     await h.tap(byKey('links-qr'));
-    expect(gets(h, LinksRoutes.qr), before + 1);
-    expect(h.server.callsTo(LinksRoutes.qr).last.query, isEmpty);
+    expect(linksCodeGets(h), before + 1);
+    // The page's output rides along: today's card by default.
+    expect(queryOf(h.server.callsTo(LinksRoutes.qr).last), {
+      'card': 'true',
+      'dpi': '600',
+    });
     expect(find.text('Links page code'), findsOneWidget);
   });
 
@@ -796,7 +800,8 @@ void main() {
     'SET-LNK-025 (divergence) no org: "Select an organization", no read',
     (tester) async {
       final h = await pumpLinks(tester, persona: Persona.platform);
-      expect(inLinks(find.text(h.t('branches.pickOrg'))), findsOneWidget);
+      expect(inPage(find.text(h.t('branches.pickOrg'))), findsOneWidget);
+      expect(find.byType(LinksPageSection), findsNothing);
       expect(gets(h, LinksRoutes.page), 0);
     },
   );
