@@ -22,6 +22,26 @@ import 'qr_output.dart';
 import 'qr_output_controls.dart';
 import 'qr_providers.dart';
 
+/// The shop's main code, the sample's subject: its links page on a plan with
+/// `branding`, else the menu without prices.
+QrCodeRef qrSampleCode(String orgId, {required bool branding}) => (
+  kind: branding ? QrKind.orgLinks : QrKind.orgMenuDisplay,
+  orgId: orgId,
+  scopeId: orgId,
+  place: null,
+);
+
+/// The sample's exact read for [output]: what the panel watches on mount, so
+/// what the page's prefetch warms (a cache hit on open).
+QrLiveKey qrSampleKey(
+  String orgId, {
+  required bool branding,
+  required QrOutput output,
+}) => (
+  code: qrSampleCode(orgId, branding: branding),
+  params: qrAtDpi(qrRenderParams(output), QrOutputPanel.sampleDpi),
+);
+
 class QrOutputPanel extends ConsumerStatefulWidget {
   const QrOutputPanel({required this.orgId, super.key});
 
@@ -43,13 +63,6 @@ class _QrOutputPanelState extends ConsumerState<QrOutputPanel> {
   final _hold = LiveQrHold<QrResponse>();
   bool _opening = false;
 
-  QrCodeRef _code(bool branding) => (
-    kind: branding ? QrKind.orgLinks : QrKind.orgMenuDisplay,
-    orgId: widget.orgId,
-    scopeId: widget.orgId,
-    place: null,
-  );
-
   Future<void> _open(QrCodeRef code, String title) async {
     setState(() => _opening = true);
     try {
@@ -67,15 +80,13 @@ class _QrOutputPanelState extends ConsumerState<QrOutputPanel> {
       ref.watch(planFeaturesProvider),
       'branding',
     );
-    final code = _code(branding);
     final title = branding
         ? t('links.editor.qrTitle')
         : t('menuDisplay.editor.qrTitle');
     final o = ref.watch(qrOutputProvider(widget.orgId));
-    final params = qrAtDpi(qrRenderParams(o), QrOutputPanel.sampleDpi);
-    final live = _hold.view(
-      ref.watch(qrCodeProvider((code: code, params: params))),
-    );
+    final key = qrSampleKey(widget.orgId, branding: branding, output: o);
+    final code = key.code;
+    final live = _hold.view(ref.watch(qrCodeProvider(key)));
     final wide = MediaQuery.sizeOf(context).width >= DashBreakpoints.sm;
 
     final words = Column(

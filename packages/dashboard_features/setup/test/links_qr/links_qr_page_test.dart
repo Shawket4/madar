@@ -2,6 +2,8 @@
 // page, the menu without prices and every QR code; its jump chips, landing
 // on a section, the old addresses redirecting here, the one settings entry,
 // what each plan sees, and what resting on its entry warms.
+import 'dart:convert';
+
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_setup/src/brand_appearance/settings_shell.dart';
@@ -196,43 +198,68 @@ void main() {
     expect(h.server.callsTo(QrRoutes.tables), isEmpty);
   });
 
-  testWidgets('SET-LQR-007 SET-SHL-013 resting on the entry warms the '
-      'editors\' reads and the tables; opening asks nothing more but the '
-      'output sample', (tester) async {
-    final h = await pumpSetup(
-      tester,
-      path: '/settings/brand${atBranch(SeedIds.heliopolis)}',
-    );
-    final entry = find.descendant(
-      of: find.byKey(const ValueKey('settings-rail')),
-      matching: find.text(h.t('settings.linksAndQr')),
-    );
-    int gets(String route) => h.server.callsTo(route, method: 'GET').length;
-    final page = gets('/orgs/{id}/links-page');
-    final menu = gets('/orgs/{id}/links-page/menu-display');
-    final tables = gets(QrRoutes.tables);
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    addTearDown(mouse.removePointer);
-    await mouse.moveTo(tester.getCenter(entry));
-    await h.settle();
-    await mouse.moveTo(Offset.zero);
-    // The codes themselves are never warmed with the page: each one mints
-    // a short link.
-    expect(h.server.callsTo(QrRoutes.linksQr), isEmpty);
-    await h.tap(entry);
-    expect(h.location.path, '/settings/links-qr');
-    expect(gets('/orgs/{id}/links-page'), page + 1);
-    expect(gets('/orgs/{id}/links-page/menu-display'), menu + 1);
-    expect(gets(QrRoutes.tables), tables + 1);
-    // Only the output sample was asked for on opening.
-    expect(
-      [for (final c in h.server.callsTo(QrRoutes.linksQr)) queryOf(c)],
-      [
-        {'card': 'true', 'dpi': '150'},
-      ],
-    );
-  });
+  for (final free in [false, true]) {
+    testWidgets('SET-LQR-007 SET-SHL-013 resting on the entry warms the '
+        'editors\' reads, the tables and the output sample under the output '
+        'this device remembers; opening asks nothing more '
+        '(${free ? 'Free' : 'paid'})', (tester) async {
+      const output = QrOutput(unbranded: true, centreLogo: false, dpi: 300);
+      final h = await pumpSetup(
+        tester,
+        // A pane every plan has (Brand is paid).
+        path: '/settings/payment-methods${atBranch(SeedIds.heliopolis)}',
+        prefs: {qrOutputPrefKey(SeedIds.sabahOrg): jsonEncode(output.toJson())},
+        overrides: [if (free) freePlan],
+      );
+      final entry = find.descendant(
+        of: find.byKey(const ValueKey('settings-rail')),
+        matching: find.text(h.t('settings.linksAndQr')),
+      );
+      final mark = h.server.calls.length;
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(entry));
+      await h.settle();
+      await mouse.moveTo(Offset.zero);
+      final warmed = [
+        for (final c in h.server.calls.skip(mark)) '${c.method} ${c.template}',
+      ];
+      expect(warmed, contains('GET /orgs/{id}/links-page/menu-display'));
+      expect(
+        warmed.contains('GET /orgs/{id}/links-page'),
+        !free,
+        reason: 'the links page is read on a plan with branding only',
+      );
+      expect(warmed.contains('GET ${QrRoutes.tables}'), !free);
+      // The sample, exactly as the panel reads it: the shop's main code at
+      // 150 DPI under the remembered output. No other code.
+      expect(
+        [for (final c in h.server.callsTo(QrRoutes.linksQr)) queryOf(c)],
+        [
+          {
+            'unbranded': 'true',
+            'centre_logo': 'false',
+            'dpi': '150',
+            if (free) 'target': 'menu_display',
+          },
+        ],
+      );
+
+      final opened = h.server.calls.length;
+      await h.tap(entry);
+      expect(h.location.path, '/settings/links-qr');
+      expect(
+        [
+          for (final c in h.server.calls.skip(opened))
+            if (c.method == 'GET') c.template,
+        ],
+        isEmpty,
+        reason: 'a warmed page asks nothing on open',
+      );
+      expect(find.byKey(const ValueKey('qr-sample')), findsOneWidget);
+    });
+  }
 
   testWidgets('SET-LQR-008 no org in scope: "Select an organization", '
       'nothing asked', (tester) async {

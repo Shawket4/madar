@@ -44,7 +44,9 @@ import 'loyalty/loyalty_data.dart' show loyaltySettingsProvider;
 import 'loyalty/loyalty_page.dart';
 import 'payment_methods/payment_methods_page.dart';
 import 'payment_methods/pm_data.dart' show paymentMethodsProvider;
-import 'qr/qr_providers.dart' show qrTablesProvider;
+import 'qr/qr_output.dart' show qrOutputProvider;
+import 'qr/qr_output_panel.dart' show qrSampleKey;
+import 'qr/qr_providers.dart' show qrCodeProvider, qrTablesProvider;
 import 'staff_pool/staff_pool_settings_page.dart';
 import 'whatsapp/whatsapp_page.dart';
 
@@ -217,19 +219,31 @@ Widget _whatsapp(BuildContext c, GoRouterState s) =>
 // to it) makes the pane open from the cache.
 
 /// Links & QR codes: the editors' reads (the links page and its preview on
-/// a plan with `branding`, the menu without prices on every plan), and the
-/// branch's tables for the table codes (`online`). The codes themselves are
-/// never warmed with the page: each one mints a short link, which only a
-/// person asking for it should do.
+/// a plan with `branding`, the menu without prices on every plan), the
+/// output panel's sample (the shop's main code at 150 DPI, under the output
+/// this device remembers for the shop: exactly the panel's read), and the
+/// branch's tables for the table codes (`online`). The sample is read on
+/// every open anyway, so warming it mints nothing a visit would not; the
+/// codes a person asks for are never warmed with the page.
 void _prefetchLinksQr(DashPrefetcher warm, Scope s) {
   final orgId = s.orgId;
   if (orgId == null) return;
   final features = warm.read(planFeaturesProvider);
+  final branding = planHasFeature(features, 'branding');
   warm(menuDisplayProvider(orgId));
-  if (planHasFeature(features, 'branding')) {
+  if (branding) {
     warm(linksPageProvider(orgId));
     warm(publicLinksProvider(orgId));
   }
+  warm(
+    qrCodeProvider(
+      qrSampleKey(
+        orgId,
+        branding: branding,
+        output: warm.read(qrOutputProvider(orgId)),
+      ),
+    ),
+  );
   final b = s.branchId;
   if (b != null && planHasFeature(features, 'online')) {
     warm(qrTablesProvider(b));
