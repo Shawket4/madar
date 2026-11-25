@@ -142,7 +142,10 @@ void main() {
       expect((j['sheets'] as List).single['totals_row'][1], {
         'formula': 'SUM(B8:B9)',
       });
-      expect(j['palette']['brand'], 'FF0D6273');
+      // Ink on paper (owner, 2026-11-25): every export token is ink.
+      expect(j['palette']['brand'], 'FF14181E');
+      expect(j['palette']['accent'], 'FF14181E');
+      expect(j['palette']['text'], 'FF14181E');
     });
 
     test('Arabic words in the generated sheet', () async {
@@ -192,6 +195,44 @@ void main() {
       expect(excelCellValue(0, ExcelColumnType.bool, 'UTC'), '—');
       expect(excelCellValue(3.0, null, 'UTC'), '3');
       expect(excelCellValue(null, ExcelColumnType.text, 'UTC'), isNull);
+    });
+  });
+
+  // excel.test.ts "stat pills": a recipe book with costs on a menu whose
+  // widest drink has one size is three columns and four pills. Shared out
+  // over the columns, two pills landed on one cell and the writer refused
+  // the merge ("Export failed"). They spread over at least as many columns
+  // as there are pills.
+  group('stat pills', () {
+    test('fit however few columns a sheet has', () {
+      final book = exporter().workbookSpec(
+        const ExcelConfig(
+          filename: 'x',
+          sheets: [
+            ExcelBlockSheet(
+              name: 'Recipes',
+              title: 'Recipes',
+              stats: [
+                ExcelStat(label: 'Items', value: 1, type: 'number'),
+                ExcelStat(label: 'With a recipe', value: 1, type: 'number'),
+                ExcelStat(label: 'No recipe yet', value: 0, type: 'number'),
+                ExcelStat(
+                  label: 'Sizes missing costs',
+                  value: 1,
+                  type: 'number',
+                ),
+              ],
+              widths: [34, 9, 15],
+              groups: [],
+            ),
+          ],
+        ),
+      );
+      final pills = (book.toJson()['sheets'] as List).single['stats'] as List;
+      expect(
+        [for (final p in pills) '${p['from_col']}:${p['to_col']}'],
+        ['A:A', 'B:B', 'C:C', 'D:D'],
+      );
     });
   });
 

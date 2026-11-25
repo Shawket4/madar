@@ -253,14 +253,27 @@ String? exportLogoUrl(PublicBrand? brand) {
   return brand?.customBranding == true && logo.isNotEmpty ? logo : null;
 }
 
-/// The workbook palette (`PALETTE`, ARGB).
+/// The workbook palette (`PALETTE`, ARGB): ink on paper (owner, 2026-11-25:
+/// "use ink for all export tokens"). Every band, title and figure is ink; the
+/// page is white with a cool tint for the zebra rows; secondary words slate.
 abstract final class ExcelPalette {
-  static const String brand = 'FF0D6273';
-  static const String accent = 'FF2E94A6';
+  /// The ink every export draws in.
+  static const String ink = 'FF14181E';
+
+  /// The one typeface (the web's `EXPORT_FONT`): the dashboard's own. The
+  /// core's writer sets every cell in it (`xlsx.rs` `FONT`). A spreadsheet
+  /// cannot embed a font, so a viewer without it sees their app's default.
+  static const String font = 'IBM Plex Sans Arabic';
+
+  /// The banner title, the header and totals bands.
+  static const String brand = ink;
+
+  /// Group bands and stat figures.
+  static const String accent = ink;
   static const String white = 'FFFFFFFF';
   static const String zebra = 'FFEDF2F3';
   static const String border = 'FFD7E0E1';
-  static const String text = 'FF14181E';
+  static const String text = ink;
   static const String muted = 'FF76828B';
 }
 
@@ -767,11 +780,15 @@ class DashExporter {
   }
 
   /// The stat pills of rows 4-5 (`drawHead`), sharing out the first
-  /// [columns] columns.
+  /// [columns] columns, and never fewer columns than there are pills: a recipe
+  /// book whose widest drink has one size is three columns and four pills,
+  /// and sharing three among four put two pills on one cell, which the writer
+  /// refused ("Export failed").
   static List<StatSpec> _stats(List<ExcelStat> stats, int columns) {
     final out = <StatSpec>[];
     if (stats.isEmpty) return out;
-    final span = columns ~/ stats.length;
+    final across = columns > stats.length ? columns : stats.length;
+    final span = across ~/ stats.length;
     final s = span < 1 ? 1 : span;
     for (var i = 0; i < stats.length; i++) {
       final stat = stats[i];
@@ -781,7 +798,7 @@ class DashExporter {
           label: stat.label,
           value: stat.value,
           fromCol: excelColumnLetter(i * s),
-          toCol: excelColumnLetter(last < columns - 1 ? last : columns - 1),
+          toCol: excelColumnLetter(last < across - 1 ? last : across - 1),
           numFmt: switch (stat.type) {
             'money' => '#,##0.00 "EGP"',
             'number' => '#,##0',
