@@ -253,14 +253,22 @@ String? exportLogoUrl(PublicBrand? brand) {
   return brand?.customBranding == true && logo.isNotEmpty ? logo : null;
 }
 
-/// The workbook palette (`PALETTE`, ARGB).
+/// The workbook palette (`PALETTE`, ARGB): ink on paper (owner, 2026-11-25:
+/// "use ink for all export tokens"). Every band, title and figure is ink; the
+/// page is white with a cool tint for the zebra rows; secondary words slate.
 abstract final class ExcelPalette {
-  static const String brand = 'FF0D6273';
-  static const String accent = 'FF2E94A6';
+  /// The ink every export draws in.
+  static const String ink = 'FF14181E';
+
+  /// The banner title, the header and totals bands.
+  static const String brand = ink;
+
+  /// Group bands and stat figures.
+  static const String accent = ink;
   static const String white = 'FFFFFFFF';
   static const String zebra = 'FFEDF2F3';
   static const String border = 'FFD7E0E1';
-  static const String text = 'FF14181E';
+  static const String text = ink;
   static const String muted = 'FF76828B';
 }
 

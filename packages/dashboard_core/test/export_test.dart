@@ -142,7 +142,10 @@ void main() {
       expect((j['sheets'] as List).single['totals_row'][1], {
         'formula': 'SUM(B8:B9)',
       });
-      expect(j['palette']['brand'], 'FF0D6273');
+      // Ink on paper (owner, 2026-11-25): every export token is ink.
+      expect(j['palette']['brand'], 'FF14181E');
+      expect(j['palette']['accent'], 'FF14181E');
+      expect(j['palette']['text'], 'FF14181E');
     });
 
     test('Arabic words in the generated sheet', () async {

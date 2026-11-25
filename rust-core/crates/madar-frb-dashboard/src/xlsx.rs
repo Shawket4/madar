@@ -11,7 +11,7 @@
 //!
 //! ```json
 //! { "creator": "Madar", "rtl": false,
-//!   "palette": { "brand": "FF0D6273", "accent": "FF2E94A6", "white": "FFFFFFFF",
+//!   "palette": { "brand": "FF14181E", "accent": "FF14181E", "white": "FFFFFFFF",
 //!                "zebra": "FFEDF2F3", "text": "FF14181E", "muted": "FF76828B" },
 //!   "sheets": [{ "name": "Orders", "title": "Orders", "subtitle": "… · Generated: …",
 //!     "columns": [{ "header": "Total", "width": 20, "num_fmt": "#,##0.00 \"EGP\"" }],
@@ -130,9 +130,10 @@ pub struct Palette {
 
 impl Default for Palette {
     fn default() -> Self {
+        // Ink on paper: every export token is ink (owner, 2026-11-25).
         Palette {
-            brand: "FF0D6273".into(),
-            accent: "FF2E94A6".into(),
+            brand: "FF14181E".into(),
+            accent: "FF14181E".into(),
             white: "FFFFFFFF".into(),
             zebra: "FFEDF2F3".into(),
             text: "FF14181E".into(),
@@ -286,7 +287,7 @@ impl From<XlsxError> for XlsxFailure {
     }
 }
 
-/// `FF0D6273` (ARGB) → the RGB colour.
+/// `FF14181E` (ARGB) → the RGB colour.
 fn color(argb: &str) -> Result<Color, XlsxFailure> {
     let hex = argb.trim().trim_start_matches('#');
     let rgb = if hex.len() == 8 { &hex[2..] } else { hex };
@@ -870,7 +871,7 @@ mod tests {
         json!({
             "creator": "Madar",
             "logo_url": null,
-            "palette": { "brand": "FF0D6273", "accent": "FF2E94A6", "white": "FFFFFFFF",
+            "palette": { "brand": "FF14181E", "accent": "FF14181E", "white": "FFFFFFFF",
                          "zebra": "FFEDF2F3", "border": "FFD7E0E1", "text": "FF14181E",
                          "muted": "FF76828B" },
             "sheets": [{
@@ -1016,7 +1017,8 @@ mod tests {
         let styles = part(&bytes, "xl/styles.xml");
         assert!(styles.contains("#,##0.00 &quot;EGP&quot;"));
         assert!(styles.contains("dd mmm yyyy hh:mm AM/PM"));
-        assert!(styles.contains("FF0D6273"), "the brand band");
+        assert!(styles.contains("FF14181E"), "the ink band");
+        assert!(!styles.contains("FF0D6273"), "no teal left");
         assert!(styles.contains("FFEDF2F3"), "the zebra rows");
         assert!(styles.contains("Calibri"));
         assert!(part(&bytes, "docProps/core.xml").contains("<dc:creator>Madar</dc:creator>"));
@@ -1113,7 +1115,7 @@ mod tests {
         json!({
             "creator": "Madar",
             "logo_url": null,
-            "palette": { "brand": "FF0D6273", "accent": "FF2E94A6", "white": "FFFFFFFF",
+            "palette": { "brand": "FF14181E", "accent": "FF14181E", "white": "FFFFFFFF",
                          "zebra": "FFEDF2F3", "border": "FFD7E0E1", "text": "FF14181E",
                          "muted": "FF76828B" },
             "sheets": [{
@@ -1262,7 +1264,7 @@ mod tests {
 
         // The group band.
         assert_eq!(at("A7"), s("Coffee"));
-        assert!(d("A7").fill.contains(r#"rgb="FF2E94A6""#), "{:?}", d("A7"));
+        assert!(d("A7").fill.contains(r#"rgb="FF14181E""#), "{:?}", d("A7"));
         assert!(d("A7").font.contains("<b/>") && d("A7").font.contains(r#"<sz val="12"/>"#));
         assert!(d("A7").font.contains(r#"rgb="FFFFFFFF""#));
 
@@ -1275,7 +1277,7 @@ mod tests {
             .find(|r| r.contains(">Latte</t>"))
             .expect("a run for the title");
         assert!(latte.contains("<b/>") && latte.contains(r#"<sz val="12"/>"#));
-        assert!(latte.contains(r#"rgb="FF0D6273""#));
+        assert!(latte.contains(r#"rgb="FF14181E""#));
         let note = runs
             .iter()
             .find(|r| r.contains("   Follows Flat white</t>"))
@@ -1286,7 +1288,7 @@ mod tests {
         // The header band.
         let header: Vec<_> = ["A10", "B10", "C10", "D10"].iter().map(|c| at(c)).collect();
         assert_eq!(header, [s("Ingredient"), s("Unit"), s("Small"), s("Large")]);
-        assert!(d("A10").fill.contains(r#"rgb="FF0D6273""#));
+        assert!(d("A10").fill.contains(r#"rgb="FF14181E""#));
         assert!(d("C10").xf.contains(r#"wrapText="1""#));
 
         // Body rows: quantities as they are, zebra from the first.
@@ -1315,7 +1317,7 @@ mod tests {
         assert!(
             d("C13")
                 .border
-                .contains(r#"<top style="thin"><color rgb="FF0D6273"/>"#),
+                .contains(r#"<top style="thin"><color rgb="FF14181E"/>"#),
             "{:?}",
             d("C13")
         );
