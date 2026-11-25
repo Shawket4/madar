@@ -196,7 +196,7 @@ class _TillsReportPageState extends ConsumerState<TillsReportPage>
     );
     setState(() => _exporting = true);
     try {
-      if (config.sheets.every((s) => s.rows.isEmpty)) {
+      if (config.sheets.every((s) => s.size == 0)) {
         DashToast.error(context, const ExportNothing().message(t));
         return;
       }

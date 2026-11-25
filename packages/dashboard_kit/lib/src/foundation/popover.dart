@@ -353,7 +353,8 @@ class DashMenuItem {
     this.checked,
     this.keepOpen = false,
     this.hint,
-  }) : divider = false;
+  }) : divider = false,
+       heading = false;
 
   /// A hairline between groups.
   const DashMenuItem.divider()
@@ -367,7 +368,23 @@ class DashMenuItem {
       checked = null,
       keepOpen = false,
       hint = null,
-      divider = true;
+      divider = true,
+      heading = false;
+
+  /// A group's name over its items (the web's `DropdownMenuLabel`): words,
+  /// not something to press.
+  const DashMenuItem.heading(this.label)
+    : onSelected = null,
+      onIntent = null,
+      to = null,
+      icon = null,
+      destructive = false,
+      enabled = false,
+      checked = null,
+      keepOpen = false,
+      hint = null,
+      divider = false,
+      heading = true;
 
   final String label;
   final VoidCallback? onSelected;
@@ -394,6 +411,7 @@ class DashMenuItem {
   /// A quiet word on the end side.
   final String? hint;
   final bool divider;
+  final bool heading;
 }
 
 /// A dropdown menu on a trigger — the web's `DropdownMenu`.
@@ -456,12 +474,32 @@ class _MenuListState extends State<_MenuList> {
                 padding: const EdgeInsets.symmetric(vertical: Space.xs),
                 child: Divider(height: 1, thickness: 1, color: colors.hairline),
               )
+            else if (widget.items[i].heading)
+              _heading(context, widget.items[i].label)
             else
               _row(context, i, widget.items[i]),
         ],
       ),
     );
   }
+
+  Widget _heading(BuildContext context, String label) => Semantics(
+    header: true,
+    child: Padding(
+      padding: const EdgeInsetsDirectional.symmetric(
+        horizontal: Space.sm,
+        vertical: Space.xs,
+      ),
+      child: MadarClippedText(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: DashType.bodyMedium.copyWith(
+          color: context.madarColors.textPrimary,
+        ),
+      ),
+    ),
+  );
 
   Widget _row(BuildContext context, int i, DashMenuItem item) {
     final colors = context.madarColors;

@@ -9,6 +9,7 @@ part of '../models.dart';
 class PublicCard {
   const PublicCard({
     required this.design,
+    required this.endorsement,
     required this.revision,
     required this.stampUnit,
     required this.trackOneSize,
@@ -17,6 +18,7 @@ class PublicCard {
 
   factory PublicCard.fromJson(Map<String, Object?> json) => PublicCard(
     design: decObject(json['design'], 'PublicCard.design', CardDesign.fromJson),
+    endorsement: decBool(json['endorsement'], 'PublicCard.endorsement'),
     revision: decInt(json['revision'], 'PublicCard.revision'),
     stampUnit: decString(json['stamp_unit'], 'PublicCard.stamp_unit'),
     trackOneSize: decInt(json['track_one_size'], 'PublicCard.track_one_size'),
@@ -28,6 +30,10 @@ class PublicCard {
   );
 
   final CardDesign design;
+
+  /// The card carries the "rewards by madar" footer. False when the shop
+  /// took it off: draw the card without it (madar-card: no `footer_href`).
+  final bool endorsement;
 
   /// The published revision (0: the automatic multi-track design).
   final int revision;
@@ -43,6 +49,7 @@ class PublicCard {
 
   Map<String, Object?> toJson() => <String, Object?>{
     'design': design.toJson(),
+    'endorsement': endorsement,
     'revision': revision,
     'stamp_unit': stampUnit,
     'track_one_size': trackOneSize,

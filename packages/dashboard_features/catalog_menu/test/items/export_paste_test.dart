@@ -12,7 +12,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
 
-Finder get _export => inPage(find.text('Export Excel'));
+/// The export control: with recipes.read it is a menu, "Export" (the Recipes
+/// section under the menu workbook).
+Finder get _export => inPage(find.text('Export'));
+
+/// The menu export: "Menu (Excel)" in that menu.
+Future<void> _exportMenu(DashHarness h) async {
+  await h.tap(_export);
+  await pickMenu(h, 'Menu (Excel)');
+}
 
 Future<void> _openPaste(DashHarness h) =>
     h.tap(inPage(find.text('Paste rows')));
@@ -31,7 +39,7 @@ void main() {
       expect(_export, findsOneWidget);
       final hold = Completer<void>();
       h.exports.hold = hold.future;
-      await h.tap(_export);
+      await _exportMenu(h);
       expect(find.text('Gathering data…'), findsWidgets);
       final button = tester.widget<DashButton>(
         find.ancestor(of: _export, matching: find.byType(DashButton)).first,
@@ -49,7 +57,7 @@ void main() {
       await h.tap(find.byKey(const ValueKey('filter-category')));
       await pickOption(h, 'Hot Coffee');
       final before = callsOf(h, 'GET', catalogPath).length;
-      await h.tap(_export);
+      await _exportMenu(h);
       await h.settle();
       final walk = callsOf(h, 'GET', catalogPath).sublist(before);
       expect(walk, hasLength(1), reason: 'the total is reached on page 1');
@@ -79,7 +87,7 @@ void main() {
           'total_pages': 120,
         }),
       );
-      await h.tap(_export);
+      await _exportMenu(h);
       await h.expectToast(
         'That is about 60,000 rows, and a spreadsheet built in the browser '
         'tops out around 50,000. Narrow the dates or the branch and try again.',
@@ -97,7 +105,7 @@ void main() {
       expect(lastCall(h, 'GET', '/public/orgs/brand').query['org_id'], [
         sabahOrg,
       ]);
-      await h.tap(_export);
+      await _exportMenu(h);
       await h.settle();
       final spec = h.exports.built.single;
       final saved = h.files.saved.single;
@@ -110,7 +118,7 @@ void main() {
       s.db['orgs'].update(sabahOrg, {'logo_url': '   '});
       h.container.invalidate(publicBrandProvider);
       await h.settle();
-      await h.tap(_export);
+      await _exportMenu(h);
       await h.settle();
       expect(h.exports.built.last.logoUrl, isNull);
       expect(
@@ -144,7 +152,8 @@ void main() {
 
     testWidgets('MENU-ITEMS-031 in Arabic: the Arabic names', (tester) async {
       final h = await pumpItems(tester, locale: 'ar');
-      await h.tap(inPage(find.text(h.t('common.export'))));
+      await h.tap(inPage(find.text(h.t('recipeBook.exportMenu'))));
+      await pickMenu(h, h.t('recipeBook.menuExcel'));
       await h.settle();
       final items = h.exports.built.single.sheets[0];
       expect(items.rows.first.first, 'كرواسون لوز');
@@ -157,7 +166,7 @@ void main() {
     ) async {
       final h = await pumpItems(tester);
       h.exports.failNext = StateError('disk full');
-      await h.tap(_export);
+      await _exportMenu(h);
       await h.settle();
       await h.expectToast('Export failed');
     });
@@ -176,7 +185,7 @@ void main() {
         g['legacy_addon_type'] = null;
       }
       final h = await pumpItems(tester, seeded: s);
-      await h.tap(_export);
+      await _exportMenu(h);
       await h.settle();
       await h.expectToast('Nothing to export');
       expect(h.exports.built, isEmpty);

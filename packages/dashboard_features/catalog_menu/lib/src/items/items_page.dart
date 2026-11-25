@@ -48,6 +48,8 @@ import 'items_data.dart';
 import 'items_export.dart';
 import 'items_providers.dart';
 import 'items_widgets.dart';
+import 'recipe_book.dart' show recipeBookMeta;
+import 'recipe_book_export.dart';
 
 class MenuItemsPage extends ConsumerStatefulWidget {
   const MenuItemsPage({this.recipe, super.key});
@@ -294,6 +296,43 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
         query: query,
         categories: categories,
         addons: addons,
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  /// The Recipes section of the export menu: each file, its words, its icon.
+  static const _recipeFiles = [
+    (RecipeExportKind.recipes, 'recipeBook.exportRecipes', 'file-spreadsheet'),
+    (RecipeExportKind.cards, 'recipeBook.exportCards', 'file-spreadsheet'),
+    (RecipeExportKind.csv, 'recipeBook.exportCsv', 'file-text'),
+  ];
+
+  /// The recipe files (`handleRecipeExport`): the book follows the grid's
+  /// own filters (category, search, recipe) and is read whole in one
+  /// request, so there is no walk.
+  Future<void> _exportRecipes(
+    RecipeExportKind kind,
+    CatalogQuery query,
+    List<Category> categories,
+  ) async {
+    final category = categories.where((c) => c.id == _category).firstOrNull;
+    setState(() => _exporting = true);
+    try {
+      await exportRecipeBook(
+        context,
+        ref,
+        kind: kind,
+        query: query,
+        meta: recipeBookMeta(
+          _t,
+          category: category == null
+              ? null
+              : _name(category.name, category.nameTranslations),
+          search: _itemsSearch,
+          recipe: _recipe,
+        ),
       );
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -716,6 +755,21 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
           DashExportButton(
             loading: _exporting,
             onExport: () => unawaited(_export(query, categories, addons)),
+            // Recipes are recipes.read (the plan ceiling included): the
+            // section is offered only to those who may open a recipe.
+            label: canRecipes ? t('recipeBook.exportMenu') : null,
+            excelLabel: canRecipes ? t('recipeBook.menuExcel') : null,
+            moreHeading: canRecipes ? t('nav.recipes') : null,
+            more: [
+              if (canRecipes)
+                for (final (kind, key, icon) in _recipeFiles)
+                  DashExportOption(
+                    label: t(key),
+                    icon: icon,
+                    onSelected: () =>
+                        unawaited(_exportRecipes(kind, query, categories)),
+                  ),
+            ],
           ),
         ],
       ),

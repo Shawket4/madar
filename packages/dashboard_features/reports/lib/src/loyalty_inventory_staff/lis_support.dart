@@ -50,7 +50,7 @@ Future<void> lisExportExcel(
 ) async {
   final t = ref.read(tProvider);
   final exporter = ref.read(exporterProvider);
-  if (config.sheets.every((s) => s.rows.isEmpty)) {
+  if (config.sheets.every((s) => s.size == 0)) {
     DashToast.error(context, const ExportNothing().message(t));
     return;
   }

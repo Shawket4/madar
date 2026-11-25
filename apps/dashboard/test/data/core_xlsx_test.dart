@@ -119,6 +119,101 @@ void main() {
     expect(sentLogo, isNull);
   });
 
+  // Through the real core: a sheet of tables (the recipe book) is laid out
+  // in Dart, drawn by the writer and reads back where the web puts it.
+  test(
+    'a recipe book goes through the core: the tables, then the lines',
+    () async {
+      final now = DateTime.utc(2026, 10, 8, 7, 30);
+      final files = RecordingFileGateway();
+      const xlsx = CoreXlsx();
+      final exporter = DashExporter(
+        exports: const CoreExportGateway(xlsx: xlsx),
+        files: files,
+        format: DashFormat(lang: 'en', clock: () => now),
+        t: Translator(Strings(const {}), 'en'),
+        clock: () => now,
+      );
+      final outcome = await exporter.exportToExcel(
+        ExcelConfig(
+          filename: 'Madar-Recipes',
+          doneMessage: 'Exported 1 recipe',
+          sheets: [
+            const ExcelBlockSheet(
+              name: 'Recipes',
+              title: 'Recipes',
+              stats: [ExcelStat(label: 'Items', value: 1, type: 'number')],
+              widths: [34, 9, 15],
+              groups: [
+                ExcelGroup(
+                  group: 'Coffee',
+                  blocks: [
+                    ExcelBlock(
+                      title: 'Latte',
+                      note: 'Inactive',
+                      header: ['Ingredient', 'Unit', 'Small'],
+                      rows: [
+                        [
+                          'Beans',
+                          'g',
+                          ExcelCell(18.5, ExcelColumnType.quantity),
+                        ],
+                      ],
+                      footer: [
+                        ['Cost', null, ExcelCell(205, ExcelColumnType.money)],
+                      ],
+                      caption: "How it's made\n1. Pull a shot",
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            ExcelSheet<(String, num)>(
+              name: 'Ingredient lines',
+              title: 'Ingredient lines',
+              rows: const [('Beans', 18.5)],
+              columns: [
+                ExcelColumn(header: 'Ingredient', accessor: (r) => r.$1),
+                ExcelColumn(
+                  header: 'Quantity',
+                  accessor: (r) => r.$2,
+                  type: ExcelColumnType.quantity,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      expect(
+        outcome,
+        isA<ExportDone>(),
+        reason: outcome is ExportFailed ? '${outcome.error}' : null,
+      );
+      expect(
+        outcome.message(Translator(Strings(const {}), 'en')),
+        'Exported 1 recipe',
+      );
+      final sheets = await xlsx.read(files.saved.single.bytes);
+      expect(sheets.map((s) => s.name), ['Recipes', 'Ingredient lines']);
+      expect(sheets.first.rows, [
+        ['Recipes'],
+        ['Generated: 08 Oct 2026, 10:30 AM'],
+        ['Items'],
+        [1],
+        ['Coffee'],
+        ['Latte   Inactive'],
+        ['Ingredient', 'Unit', 'Small'],
+        ['Beans', 'g', 18.5],
+        ['Cost', null, 2.05],
+        ["How it's made\n1. Pull a shot"],
+      ]);
+      expect(sheets.last.rows.sublist(2), [
+        ['Ingredient', 'Quantity'],
+        ['Beans', 18.5],
+      ]);
+    },
+  );
+
   // Through the real core: the writer used to refuse a WebP logo, so every
   // Excel export of a shop with its own logo said "Export failed" while the
   // web's went through.

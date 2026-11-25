@@ -8,10 +8,13 @@ class AnalyticsOrder {
   const AnalyticsOrder({
     required this.businessDate,
     required this.createdAt,
+    required this.deliveryFee,
     required this.discountAmount,
     required this.orderId,
     required this.orderNumber,
     this.orderRef,
+    required this.paymentMethod,
+    required this.payments,
     required this.serviceCharge,
     required this.status,
     required this.subtotal,
@@ -26,6 +29,7 @@ class AnalyticsOrder {
       'AnalyticsOrder.business_date',
     ),
     createdAt: decDateTime(json['created_at'], 'AnalyticsOrder.created_at'),
+    deliveryFee: decInt(json['delivery_fee'], 'AnalyticsOrder.delivery_fee'),
     discountAmount: decInt(
       json['discount_amount'],
       'AnalyticsOrder.discount_amount',
@@ -33,6 +37,16 @@ class AnalyticsOrder {
     orderId: decString(json['order_id'], 'AnalyticsOrder.order_id'),
     orderNumber: decInt(json['order_number'], 'AnalyticsOrder.order_number'),
     orderRef: decStringN(json['order_ref'], 'AnalyticsOrder.order_ref'),
+    paymentMethod: decString(
+      json['payment_method'],
+      'AnalyticsOrder.payment_method',
+    ),
+    payments: decList<AnalyticsPayment>(
+      json['payments'],
+      'AnalyticsOrder.payments',
+      (e) =>
+          decObject(e, 'AnalyticsOrder.payments[]', AnalyticsPayment.fromJson),
+    ),
     serviceCharge: decInt(
       json['service_charge'],
       'AnalyticsOrder.service_charge',
@@ -50,6 +64,11 @@ class AnalyticsOrder {
 
   final DateTime createdAt;
 
+  /// Delivery fee charged on this order, `0` for anything but delivery. Not
+  /// part of `total_amount` or any total; here so `payments` can be
+  /// reconciled.
+  final int deliveryFee;
+
   final int discountAmount;
 
   final String orderId;
@@ -61,6 +80,16 @@ class AnalyticsOrder {
   /// (`<BRANCHCODE>-<YYMMDD>-<NNNN>`). Null for orders predating it.
   final String? orderRef;
 
+  /// The order's NOMINAL payment label: the single method it was paid with,
+  /// or the literal `"mixed"` when it was split across several. Use
+  /// `payments` for the real methods and amounts.
+  final String paymentMethod;
+
+  /// What was actually paid, one entry per payment: a single-method order
+  /// has one, a split order one per part. The amounts add up to what the
+  /// customer was charged, which is `total_amount + delivery_fee`.
+  final List<AnalyticsPayment> payments;
+
   /// The service charge added to this order, `0` where the branch charges
   /// none. This was a hard-coded `0` for every order — the field was
   /// published as if it meant something while a service charge did not
@@ -69,15 +98,19 @@ class AnalyticsOrder {
 
   final String status;
 
-  /// Piastres. Sum of the line items before discount and tax.
+  /// Piastres. Sum of the line items before discount. On a branch whose
+  /// prices include tax this already contains the tax.
   final int subtotal;
 
   final int taxAmount;
 
-  /// `subtotal - discount_amount + service_charge + tax_amount`. Deliberately COMPUTED rather
-  /// than read from `orders.total_amount`, which also carries the delivery
-  /// fee — this figure is the order's own value and nothing else. Tips are
-  /// excluded too (they are not part of `total_amount` in the first place).
+  /// The order's own value: `subtotal - discount_amount + service_charge`,
+  /// plus `tax_amount` where tax is added on top of the prices (where prices
+  /// include tax it is already inside `subtotal`). This is what the customer
+  /// was charged less any delivery fee. Tips are not part of it.
+  ///
+  /// It used to be computed as `subtotal - discount + service_charge + tax`
+  /// on every order, which counted the tax twice on a tax-inclusive branch.
   final int totalAmount;
 
   /// Wire names of optional fields to send as an explicit `null` when unset
@@ -87,11 +120,14 @@ class AnalyticsOrder {
   Map<String, Object?> toJson() => <String, Object?>{
     'business_date': businessDate,
     'created_at': encDateTime(createdAt),
+    'delivery_fee': deliveryFee,
     'discount_amount': discountAmount,
     'order_id': orderId,
     'order_number': orderNumber,
     if (orderRef != null || explicitNulls.contains('order_ref'))
       'order_ref': orderRef,
+    'payment_method': paymentMethod,
+    'payments': payments.map((e) => e.toJson()).toList(),
     'service_charge': serviceCharge,
     'status': status,
     'subtotal': subtotal,

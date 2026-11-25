@@ -16,7 +16,7 @@ Future<void> inventoryExportExcel(
   ExcelConfig config,
 ) async {
   final t = ref.read(tProvider);
-  if (config.sheets.every((s) => s.rows.isEmpty)) {
+  if (config.sheets.every((s) => s.size == 0)) {
     DashToast.error(context, const ExportNothing().message(t));
     return;
   }

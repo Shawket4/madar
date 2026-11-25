@@ -60,6 +60,32 @@ class RecipesApi {
     );
   }
 
+  /// `GET /recipes/book` (get_recipe_book)
+  Future<RecipeBook> getRecipeBook({
+    required String orgId,
+    String? categoryId,
+    String? search,
+    bool? hasRecipe,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'GET',
+        path: '/recipes/book',
+        query: {
+          'org_id': [queryValue(orgId)],
+          if (categoryId != null) 'category_id': [queryValue(categoryId)],
+          if (search != null) 'search': [queryValue(search)],
+          if (hasRecipe != null) 'has_recipe': [queryValue(hasRecipe)],
+        },
+      ),
+    );
+    return decodeResponse(
+      response,
+      'get_recipe_book',
+      (json) => decObject(json, 'get_recipe_book', RecipeBook.fromJson),
+    );
+  }
+
   /// `GET /recipes/drinks/{menu_item_id}` (list_drink_recipes)
   Future<List<DrinkRecipe>> listDrinkRecipes({
     required String menuItemId,
