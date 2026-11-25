@@ -2401,6 +2401,18 @@ final List<OperationCall> operationCalls = [
     ),
   ),
   OperationCall(
+    'put_loyalty_card_endorsement',
+    'PUT',
+    '/loyalty/card-design/endorsement',
+    '/loyalty/card-design/endorsement',
+    [],
+    [],
+    'json',
+    (api, s) => api.loyalty.putLoyaltyCardEndorsement(
+      body: PutCardEndorsement.fromJson(s('PutCardEndorsement')),
+    ),
+  ),
+  OperationCall(
     'preview_loyalty_card_design',
     'POST',
     '/loyalty/card-design/preview',
@@ -5331,6 +5343,21 @@ final List<OperationCall> operationCalls = [
       body: UpsertAddonIngredientRequest.fromJson(
         s('UpsertAddonIngredientRequest'),
       ),
+    ),
+  ),
+  OperationCall(
+    'get_recipe_book',
+    'GET',
+    '/recipes/book',
+    '/recipes/book',
+    ['org_id', 'category_id', 'search', 'has_recipe'],
+    [],
+    'json',
+    (api, s) => api.recipes.getRecipeBook(
+      orgId: 'text',
+      categoryId: 'text',
+      search: 'text',
+      hasRecipe: true,
     ),
   ),
   OperationCall(

@@ -1254,6 +1254,13 @@ const List<ApiOperation> apiOperations = [
     'putLoyaltyCardDesign',
   ),
   ApiOperation(
+    'put_loyalty_card_endorsement',
+    'PUT',
+    '/loyalty/card-design/endorsement',
+    'loyalty',
+    'putLoyaltyCardEndorsement',
+  ),
+  ApiOperation(
     'preview_loyalty_card_design',
     'POST',
     '/loyalty/card-design/preview',
@@ -2651,6 +2658,13 @@ const List<ApiOperation> apiOperations = [
     '/recipes/addons/{addon_item_id}',
     'recipes',
     'upsertAddonIngredient',
+  ),
+  ApiOperation(
+    'get_recipe_book',
+    'GET',
+    '/recipes/book',
+    'recipes',
+    'getRecipeBook',
   ),
   ApiOperation(
     'list_drink_recipes',

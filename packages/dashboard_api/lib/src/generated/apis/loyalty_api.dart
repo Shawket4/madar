@@ -273,6 +273,37 @@ class LoyaltyApi {
     );
   }
 
+  /// Show or leave out the "rewards by madar" footer on the shop's card.
+  ///
+  /// The card only (Apple's strip, Google's hero, the designed card on the
+  /// web), classic or designed, and effective at once: no draft, no publish.
+  /// A card already in a wallet is a copy, so a change clears the stored passes
+  /// and marks every installed card stale, exactly as publishing a design does;
+  /// the refresh sweep then re-sends them (200 per tick). Sending the value the
+  /// shop already has changes nothing and re-sends nothing.
+  ///
+  /// `PUT /loyalty/card-design/endorsement` (put_loyalty_card_endorsement)
+  Future<CardDesignView> putLoyaltyCardEndorsement({
+    required PutCardEndorsement body,
+  }) async {
+    final response = await _transport.send(
+      ApiRequest(
+        method: 'PUT',
+        path: '/loyalty/card-design/endorsement',
+        body: body.toJson(),
+      ),
+    );
+    return decodeResponse(
+      response,
+      'put_loyalty_card_endorsement',
+      (json) => decObject(
+        json,
+        'put_loyalty_card_endorsement',
+        CardDesignView.fromJson,
+      ),
+    );
+  }
+
   /// The strip (Apple @2x) or the hero (Google) exactly as the wallet will get
   /// it, for the designer's "as the wallet renders it" view. Not saved.
   ///

@@ -211,10 +211,13 @@
     {
      "business_date": "2026-10-08",
      "created_at": "2026-10-08T07:00:00.000Z",
+     "delivery_fee": 7,
      "discount_amount": 7,
      "order_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "order_number": 7,
      "order_ref": "text",
+     "payment_method": "text",
+     "payments": [],
      "service_charge": 7,
      "status": "text",
      "subtotal": 7,
@@ -5300,6 +5303,7 @@
     "template": "text",
     "version": 7
    },
+   "endorsement": true,
    "logo_url": "text",
    "photo_url": "text",
    "programme_name": "text",
@@ -6243,6 +6247,28 @@
    "live": true,
    "org_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "ready": true
+  },
+  "get_recipe_book": {
+   "categories": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "name_translations": "any"
+    }
+   ],
+   "items": [
+    {
+     "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "follows_item_name": "text",
+     "is_active": true,
+     "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "name_translations": "any",
+     "rows": [],
+     "sizes": [],
+     "steps": []
+    }
+   ]
   },
   "get_recipe_link": {
    "in_sync": true,
@@ -9466,6 +9492,7 @@
      "template": "text",
      "version": 7
     },
+    "endorsement": true,
     "revision": 7,
     "stamp_unit": "text",
     "track_one_size": 7,
@@ -9741,6 +9768,7 @@
      "template": "text",
      "version": 7
     },
+    "endorsement": true,
     "revision": 7,
     "stamp_unit": "text",
     "track_one_size": 7,
@@ -9804,6 +9832,7 @@
      "template": "text",
      "version": 7
     },
+    "endorsement": true,
     "revision": 7,
     "stamp_unit": "text",
     "track_one_size": 7,
@@ -12170,6 +12199,7 @@
     "template": "text",
     "version": 7
    },
+   "endorsement": true,
    "logo_url": "text",
    "photo_url": "text",
    "programme_name": "text",
@@ -12748,6 +12778,196 @@
     "template": "text",
     "version": 7
    },
+   "endorsement": true,
+   "logo_url": "text",
+   "photo_url": "text",
+   "programme_name": "text",
+   "programme_name_ar": "text",
+   "published": {
+    "apple": {
+     "auxiliary": [],
+     "header": [],
+     "primary": {
+      "track": 7,
+      "type": "balance"
+     },
+     "secondary": []
+    },
+    "colours": {
+     "background": "text",
+     "foreground": "text",
+     "label": "text"
+    },
+    "elements": [
+     {
+      "cell": {
+       "col": 7,
+       "h": 7,
+       "row": 7,
+       "w": 7
+      },
+      "kind": {
+       "track": 7,
+       "type": "stamps"
+      }
+     }
+    ],
+    "google": {
+     "points": {
+      "track": 7,
+      "type": "balance"
+     },
+     "secondary": {
+      "track": 7,
+      "type": "balance"
+     }
+    },
+    "ground": {
+     "kind": "colour",
+     "pattern": "dots"
+    },
+    "stamp": {
+     "empty": "outline",
+     "shape": "circle"
+    },
+    "template": "text",
+    "version": 7
+   },
+   "published_at": "2026-10-08T07:00:00.000Z",
+   "revision": 7,
+   "stamp_unit": "text",
+   "tracks": [
+    {
+     "cap": 7,
+     "colour": "text",
+     "items": [],
+     "name_ar": "text",
+     "name_en": "text",
+     "per_item": true,
+     "position": 7,
+     "shape": "circle",
+     "size": 7
+    }
+   ]
+  },
+  "put_loyalty_card_endorsement": {
+   "colours": {
+    "background": "text",
+    "foreground": "text",
+    "label": "text"
+   },
+   "ctx": {
+    "has_photo": true,
+    "mode": "points",
+    "tracks": [
+     {
+      "position": 7,
+      "size": 7
+     }
+    ]
+   },
+   "custom_branding": true,
+   "default_design": {
+    "apple": {
+     "auxiliary": [],
+     "header": [],
+     "primary": {
+      "track": 7,
+      "type": "balance"
+     },
+     "secondary": []
+    },
+    "colours": {
+     "background": "text",
+     "foreground": "text",
+     "label": "text"
+    },
+    "elements": [
+     {
+      "cell": {
+       "col": 7,
+       "h": 7,
+       "row": 7,
+       "w": 7
+      },
+      "kind": {
+       "track": 7,
+       "type": "stamps"
+      }
+     }
+    ],
+    "google": {
+     "points": {
+      "track": 7,
+      "type": "balance"
+     },
+     "secondary": {
+      "track": 7,
+      "type": "balance"
+     }
+    },
+    "ground": {
+     "kind": "colour",
+     "pattern": "dots"
+    },
+    "stamp": {
+     "empty": "outline",
+     "shape": "circle"
+    },
+    "template": "text",
+    "version": 7
+   },
+   "draft": {
+    "apple": {
+     "auxiliary": [],
+     "header": [],
+     "primary": {
+      "track": 7,
+      "type": "balance"
+     },
+     "secondary": []
+    },
+    "colours": {
+     "background": "text",
+     "foreground": "text",
+     "label": "text"
+    },
+    "elements": [
+     {
+      "cell": {
+       "col": 7,
+       "h": 7,
+       "row": 7,
+       "w": 7
+      },
+      "kind": {
+       "track": 7,
+       "type": "stamps"
+      }
+     }
+    ],
+    "google": {
+     "points": {
+      "track": 7,
+      "type": "balance"
+     },
+     "secondary": {
+      "track": 7,
+      "type": "balance"
+     }
+    },
+    "ground": {
+     "kind": "colour",
+     "pattern": "dots"
+    },
+    "stamp": {
+     "empty": "outline",
+     "shape": "circle"
+    },
+    "template": "text",
+    "version": 7
+   },
+   "endorsement": true,
    "logo_url": "text",
    "photo_url": "text",
    "programme_name": "text",
@@ -14980,6 +15200,7 @@
     "template": "text",
     "version": 7
    },
+   "endorsement": true,
    "logo_url": "text",
    "photo_url": "text",
    "programme_name": "text",
@@ -16520,15 +16741,27 @@
   "AnalyticsOrder": {
    "business_date": "2026-10-08",
    "created_at": "2026-10-08T07:00:00.000Z",
+   "delivery_fee": 7,
    "discount_amount": 7,
    "order_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "order_number": 7,
    "order_ref": "text",
+   "payment_method": "text",
+   "payments": [
+    {
+     "amount": 7,
+     "method": "text"
+    }
+   ],
    "service_charge": 7,
    "status": "text",
    "subtotal": 7,
    "tax_amount": 7,
    "total_amount": 7
+  },
+  "AnalyticsPayment": {
+   "amount": 7,
+   "method": "text"
   },
   "AnalyticsResponse": {
    "avg_order_total": 7,
@@ -16542,10 +16775,13 @@
     {
      "business_date": "2026-10-08",
      "created_at": "2026-10-08T07:00:00.000Z",
+     "delivery_fee": 7,
      "discount_amount": 7,
      "order_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
      "order_number": 7,
      "order_ref": "text",
+     "payment_method": "text",
+     "payments": [],
      "service_charge": 7,
      "status": "text",
      "subtotal": 7,
@@ -18169,6 +18405,7 @@
     "template": "text",
     "version": 7
    },
+   "endorsement": true,
    "logo_url": "text",
    "photo_url": "text",
    "programme_name": "text",
@@ -18358,6 +18595,7 @@
      "template": "text",
      "version": 7
     },
+    "endorsement": true,
     "revision": 7,
     "stamp_unit": "text",
     "track_one_size": 7,
@@ -22055,6 +22293,7 @@
      "template": "text",
      "version": 7
     },
+    "endorsement": true,
     "revision": 7,
     "stamp_unit": "text",
     "track_one_size": 7,
@@ -26362,6 +26601,7 @@
     "template": "text",
     "version": 7
    },
+   "endorsement": true,
    "revision": 7,
    "stamp_unit": "text",
    "track_one_size": 7,
@@ -26919,6 +27159,9 @@
     "version": 7
    }
   },
+  "PutCardEndorsement": {
+   "shown": true
+  },
   "PutCoverage": {
    "branch_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "needs": [
@@ -27421,6 +27664,106 @@
    "menu_item_name": "text",
    "size_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "size_label": "text"
+  },
+  "RecipeBook": {
+   "categories": [
+    {
+     "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "name_translations": "any"
+    }
+   ],
+   "items": [
+    {
+     "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "follows_item_name": "text",
+     "is_active": true,
+     "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "name": "text",
+     "name_translations": "any",
+     "rows": [],
+     "sizes": [],
+     "steps": []
+    }
+   ]
+  },
+  "RecipeBookCategory": {
+   "id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "name": "text",
+   "name_translations": "any"
+  },
+  "RecipeCard": {
+   "category_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "follows_item_name": "text",
+   "is_active": true,
+   "menu_item_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "name": "text",
+   "name_translations": "any",
+   "rows": [
+    {
+     "cells": [],
+     "ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+     "ingredient_name": "text",
+     "source": "text",
+     "unit": "text"
+    }
+   ],
+   "sizes": [
+    {
+     "base_name": "text",
+     "cost_incomplete": true,
+     "cost_piastres": 7,
+     "food_cost_pct": 1.5,
+     "is_active": true,
+     "label": "text",
+     "margin_pct": 1.5,
+     "price": 7,
+     "size_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+    }
+   ],
+   "steps": [
+    {
+     "name": "text",
+     "name_ar": "text",
+     "note": "text",
+     "note_ar": "text",
+     "position": 7
+    }
+   ]
+  },
+  "RecipeCardCell": {
+   "line_cost_piastres": 7,
+   "quantity": 1.5
+  },
+  "RecipeCardRow": {
+   "cells": [
+    {
+     "line_cost_piastres": 7,
+     "quantity": 1.5
+    }
+   ],
+   "ingredient_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
+   "ingredient_name": "text",
+   "source": "text",
+   "unit": "text"
+  },
+  "RecipeCardSize": {
+   "base_name": "text",
+   "cost_incomplete": true,
+   "cost_piastres": 7,
+   "food_cost_pct": 1.5,
+   "is_active": true,
+   "label": "text",
+   "margin_pct": 1.5,
+   "price": 7,
+   "size_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f"
+  },
+  "RecipeCardStep": {
+   "name": "text",
+   "name_ar": "text",
+   "note": "text",
+   "note_ar": "text",
+   "position": 7
   },
   "RecipeCostResult": {
    "catalog_revision": 7,
@@ -28346,6 +28689,7 @@
      "template": "text",
      "version": 7
     },
+    "endorsement": true,
     "revision": 7,
     "stamp_unit": "text",
     "track_one_size": 7,

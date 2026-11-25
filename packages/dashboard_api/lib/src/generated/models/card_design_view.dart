@@ -11,6 +11,7 @@ class CardDesignView {
     required this.customBranding,
     required this.defaultDesign,
     this.draft,
+    required this.endorsement,
     this.logoUrl,
     this.photoUrl,
     required this.programmeName,
@@ -44,6 +45,7 @@ class CardDesignView {
       'CardDesignView.draft',
       CardDesign.fromJson,
     ),
+    endorsement: decBool(json['endorsement'], 'CardDesignView.endorsement'),
     logoUrl: decStringN(json['logo_url'], 'CardDesignView.logo_url'),
     photoUrl: decStringN(json['photo_url'], 'CardDesignView.photo_url'),
     programmeName: decString(
@@ -87,6 +89,11 @@ class CardDesignView {
 
   final CardDesign? draft;
 
+  /// The card carries the "rewards by madar" footer (true unless the shop
+  /// took it off with `PUT /loyalty/card-design/endorsement`). The card
+  /// only, classic or designed; nothing else on any page reads it.
+  final bool endorsement;
+
   final String? logoUrl;
 
   /// The shop's card photograph and logo (upload URLs) for the live preview.
@@ -119,6 +126,7 @@ class CardDesignView {
     'default_design': defaultDesign.toJson(),
     if (draft != null || explicitNulls.contains('draft'))
       'draft': draft?.toJson(),
+    'endorsement': endorsement,
     if (logoUrl != null || explicitNulls.contains('logo_url'))
       'logo_url': logoUrl,
     if (photoUrl != null || explicitNulls.contains('photo_url'))

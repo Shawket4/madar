@@ -100,9 +100,11 @@ class AnalyticsResponse {
 
   final int totalDiscount;
 
-  /// Orders in the window. Voided and refunded orders are excluded here and
-  /// everywhere below, as are orders tendered with a payment method the
-  /// merchant has hidden from partners — none are returned at all.
+  /// Orders in the window. Voided and fully refunded orders are excluded
+  /// here and everywhere below, as are orders tendered with a payment method
+  /// the merchant has hidden from partners — none are returned at all. An
+  /// order voided AFTER it was pulled keeps its original day, so pulling
+  /// that day again returns it no longer, and the totals drop by its value.
   final int totalOrders;
 
   /// Sum of the per-order `total_amount`.

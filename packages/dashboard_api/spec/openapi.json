@@ -23337,6 +23337,103 @@
         ]
       }
     },
+    "/loyalty/card-design/endorsement": {
+      "put": {
+        "tags": [
+          "loyalty"
+        ],
+        "summary": "Show or leave out the \"rewards by madar\" footer on the shop's card.",
+        "description": "The card only (Apple's strip, Google's hero, the designed card on the\nweb), classic or designed, and effective at once: no draft, no publish.\nA card already in a wallet is a copy, so a change clears the stored passes\nand marks every installed card stale, exactly as publishing a design does;\nthe refresh sweep then re-sends them (200 per tick). Sending the value the\nshop already has changes nothing and re-sends nothing.",
+        "operationId": "put_loyalty_card_endorsement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutCardEndorsement"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardDesignView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — validation failed or malformed input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — insufficient permission or wrong org",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — FK or domain invariant violation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_jwt": []
+          }
+        ]
+      }
+    },
     "/loyalty/card-design/preview": {
       "post": {
         "tags": [
@@ -44313,6 +44410,138 @@
           },
           "410": {
             "description": "Retired: in production this writes a read-only compat view. Answers 410 SHIM_WRITE_REMOVED.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_jwt": []
+          }
+        ]
+      }
+    },
+    "/recipes/book": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "operationId": "get_recipe_book",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "category_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive filter on the item name (as `/costing/catalog`).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "has_recipe",
+            "in": "query",
+            "description": "`true` → only items with a recipe on some size; `false` → only items\nwith none; absent → all.",
+            "required": false,
+            "schema": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every matching item's recipe as a table: sizes as columns, ingredients as rows, with costs and steps",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeBook"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — validation failed or malformed input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — insufficient permission or wrong org",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — FK or domain invariant violation",
             "content": {
               "application/json": {
                 "schema": {
@@ -71015,7 +71244,10 @@
           "discount_amount",
           "tax_amount",
           "service_charge",
-          "total_amount"
+          "total_amount",
+          "payment_method",
+          "payments",
+          "delivery_fee"
         ],
         "properties": {
           "business_date": {
@@ -71026,6 +71258,11 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "delivery_fee": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Delivery fee charged on this order, `0` for anything but delivery. Not\npart of `total_amount` or any total; here so `payments` can be\nreconciled."
           },
           "discount_amount": {
             "type": "integer",
@@ -71047,6 +71284,17 @@
             ],
             "description": "The human-readable reference printed on the receipt\n(`<BRANCHCODE>-<YYMMDD>-<NNNN>`). Null for orders predating it."
           },
+          "payment_method": {
+            "type": "string",
+            "description": "The order's NOMINAL payment label: the single method it was paid with,\nor the literal `\"mixed\"` when it was split across several. Use\n`payments` for the real methods and amounts."
+          },
+          "payments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsPayment"
+            },
+            "description": "What was actually paid, one entry per payment: a single-method order\nhas one, a split order one per part. The amounts add up to what the\ncustomer was charged, which is `total_amount + delivery_fee`."
+          },
           "service_charge": {
             "type": "integer",
             "format": "int32",
@@ -71058,7 +71306,7 @@
           "subtotal": {
             "type": "integer",
             "format": "int32",
-            "description": "Piastres. Sum of the line items before discount and tax."
+            "description": "Piastres. Sum of the line items before discount. On a branch whose\nprices include tax this already contains the tax."
           },
           "tax_amount": {
             "type": "integer",
@@ -71067,7 +71315,25 @@
           "total_amount": {
             "type": "integer",
             "format": "int32",
-            "description": "`subtotal - discount_amount + service_charge + tax_amount`. Deliberately COMPUTED rather\nthan read from `orders.total_amount`, which also carries the delivery\nfee — this figure is the order's own value and nothing else. Tips are\nexcluded too (they are not part of `total_amount` in the first place)."
+            "description": "The order's own value: `subtotal - discount_amount + service_charge`,\nplus `tax_amount` where tax is added on top of the prices (where prices\ninclude tax it is already inside `subtotal`). This is what the customer\nwas charged less any delivery fee. Tips are not part of it.\n\nIt used to be computed as `subtotal - discount + service_charge + tax`\non every order, which counted the tax twice on a tax-inclusive branch."
+          }
+        }
+      },
+      "AnalyticsPayment": {
+        "type": "object",
+        "description": "One payment against an order, in the merchant's own payment-method names\n(e.g. `cash`, `card`, `instapay`).",
+        "required": [
+          "method",
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Piastres."
+          },
+          "method": {
+            "type": "string"
           }
         }
       },
@@ -71159,7 +71425,7 @@
           "total_orders": {
             "type": "integer",
             "format": "int64",
-            "description": "Orders in the window. Voided and refunded orders are excluded here and\neverywhere below, as are orders tendered with a payment method the\nmerchant has hidden from partners — none are returned at all."
+            "description": "Orders in the window. Voided and fully refunded orders are excluded\nhere and everywhere below, as are orders tendered with a payment method\nthe merchant has hidden from partners — none are returned at all. An\norder voided AFTER it was pulled keeps its original day, so pulling\nthat day again returns it no longer, and the totals drop by its value."
           },
           "total_revenue": {
             "type": "integer",
@@ -75279,7 +75545,8 @@
           "colours",
           "custom_branding",
           "programme_name",
-          "stamp_unit"
+          "stamp_unit",
+          "endorsement"
         ],
         "properties": {
           "colours": {
@@ -75308,6 +75575,10 @@
                 "description": "The design being edited, if one was saved."
               }
             ]
+          },
+          "endorsement": {
+            "type": "boolean",
+            "description": "The card carries the \"rewards by madar\" footer (true unless the shop\ntook it off with `PUT /loyalty/card-design/endorsement`). The card\nonly, classic or designed; nothing else on any page reads it."
           },
           "logo_url": {
             "type": [
@@ -97335,11 +97606,16 @@
           "design",
           "tracks",
           "track_one_size",
-          "stamp_unit"
+          "stamp_unit",
+          "endorsement"
         ],
         "properties": {
           "design": {
             "$ref": "#/components/schemas/CardDesign"
+          },
+          "endorsement": {
+            "type": "boolean",
+            "description": "The card carries the \"rewards by madar\" footer. False when the shop\ntook it off: draw the card without it (madar-card: no `footer_href`)."
           },
           "revision": {
             "type": "integer",
@@ -98609,6 +98885,18 @@
         "properties": {
           "design": {
             "$ref": "#/components/schemas/CardDesign"
+          }
+        }
+      },
+      "PutCardEndorsement": {
+        "type": "object",
+        "description": "Show or leave out the \"rewards by madar\" footer on the shop's card.",
+        "required": [
+          "shown"
+        ],
+        "properties": {
+          "shown": {
+            "type": "boolean"
           }
         }
       },
@@ -99934,6 +100222,262 @@
           },
           "size_label": {
             "type": "string"
+          }
+        }
+      },
+      "RecipeBook": {
+        "type": "object",
+        "description": "`GET /recipes/book`.",
+        "required": [
+          "categories",
+          "items"
+        ],
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeBookCategory"
+            },
+            "description": "The categories the items sit in, in menu order."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCard"
+            },
+            "description": "Menu order: by category (display order, then name; uncategorised\nlast), then by item name."
+          }
+        }
+      },
+      "RecipeBookCategory": {
+        "type": "object",
+        "description": "A category the book's items sit in.",
+        "required": [
+          "id",
+          "name",
+          "name_translations"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "name_translations": {}
+        }
+      },
+      "RecipeCard": {
+        "type": "object",
+        "description": "An item's recipe, as one table.",
+        "required": [
+          "menu_item_id",
+          "name",
+          "name_translations",
+          "is_active",
+          "sizes",
+          "rows",
+          "steps"
+        ],
+        "properties": {
+          "category_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "`null` when the item has no (live) category."
+          },
+          "follows_item_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A linked copy: the name of the item whose recipe it follows."
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "menu_item_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "name_translations": {},
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCardRow"
+            },
+            "description": "Empty when the item has no recipe yet."
+          },
+          "sizes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCardSize"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCardStep"
+            }
+          }
+        }
+      },
+      "RecipeCardCell": {
+        "type": "object",
+        "description": "One cell: an ingredient's amount in one size.",
+        "properties": {
+          "line_cost_piastres": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "What the line costs in piastres; `null` = unknown (or no line)."
+          },
+          "quantity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "The usable amount in the row's unit; `null` = not in this size."
+          }
+        }
+      },
+      "RecipeCardRow": {
+        "type": "object",
+        "description": "One row: an ingredient, where it came from, and a cell per size.",
+        "required": [
+          "ingredient_id",
+          "ingredient_name",
+          "unit",
+          "source",
+          "cells"
+        ],
+        "properties": {
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCardCell"
+            },
+            "description": "One per entry of `sizes`, in the same order."
+          },
+          "ingredient_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredient_name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "`own` (typed on the item), `linked` (the item it follows), `base` (a\nrecipe base) or `rule` (a packaging rule)."
+          },
+          "unit": {
+            "type": "string",
+            "description": "The base unit the amounts are in (`g`, `ml`, `pcs`, …)."
+          }
+        }
+      },
+      "RecipeCardSize": {
+        "type": "object",
+        "description": "One column: a size of the item, with what its recipe costs.",
+        "required": [
+          "size_id",
+          "label",
+          "price",
+          "is_active",
+          "cost_incomplete"
+        ],
+        "properties": {
+          "base_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The recipe base this size expands, if any."
+          },
+          "cost_incomplete": {
+            "type": "boolean"
+          },
+          "cost_piastres": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The recipe's cost in piastres; `null` when there is no recipe or no\nline is costed. With `cost_incomplete` it is the sum of the known lines."
+          },
+          "food_cost_pct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "`cost / price` as a fraction (0–1), only for a complete cost and a\nprice above 0."
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string",
+            "description": "`one_size` for a single-price item."
+          },
+          "margin_pct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "`(price − cost) / price` as a fraction, on the same terms."
+          },
+          "price": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The org's price, in piastres."
+          },
+          "size_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RecipeCardStep": {
+        "type": "object",
+        "description": "One preparation step, both languages.",
+        "required": [
+          "position",
+          "name",
+          "name_ar"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "name_ar": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note_ar": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
