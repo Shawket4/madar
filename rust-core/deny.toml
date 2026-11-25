@@ -7,29 +7,24 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-# Each one with why it stays (2026-10-16):
+# Each one with why it stays. (The zip 8 entries went 2026-11-25: rust_xlsxwriter
+# 0.100+ takes zip 9, so zip 8 is out of the tree.)
 ignore = [
-    # zip 8: every 8.x release is yanked; calamine and rust_xlsxwriter (the
-    # dashboard's spreadsheet import/export) both require zip 8.
-    { crate = "zip@8.6.0", reason = "yanked, but every zip 8 is; calamine and rust_xlsxwriter pin 8" },
     # ttf-parser is unmaintained; cosmic-text (receipt rendering) depends on it
     # and has no release without it.
     { id = "RUSTSEC-2026-0192", reason = "transitive via cosmic-text; no maintained alternative release yet" },
-    # zip 8.6 advisories (2026-10-18), fixed only in zip 9, which calamine and
-    # rust_xlsxwriter do not accept yet. All three concern ZipArchive::extract;
-    # neither crate extracts archives to disk (they read and write workbook
-    # parts in memory). Drop these when both crates move to zip 9.
-    { id = "RUSTSEC-2026-0367", reason = "zip 8 ZipArchive::extract; never called (calamine/rust_xlsxwriter read/write in memory); fix needs zip 9" },
-    { id = "RUSTSEC-2026-0368", reason = "zip 8 ZipArchive::extract; never called (calamine/rust_xlsxwriter read/write in memory); fix needs zip 9" },
-    { id = "RUSTSEC-2026-0369", reason = "zip 8 ZipArchive::extract; never called (calamine/rust_xlsxwriter read/write in memory); fix needs zip 9" },
-    # The fourth (2026-11-06), the same function, the same reasoning. calamine
-    # moved to zip 9 with 0.38 (taken here for RUSTSEC-2026-0436); zip 8 stays
-    # only for rust_xlsxwriter, which writes in memory and never extracts.
-    { id = "RUSTSEC-2026-0429", reason = "zip 8 ZipArchive::extract; never called (rust_xlsxwriter writes in memory); fix needs zip 9" },
     # basic-toml is unmaintained (2026-10-23), with no replacement release. It
     # is build-time only: askama_derive reads its config with it, under
     # uniffi_bindgen. Drop this when uniffi moves to an askama without it.
     { id = "RUSTSEC-2026-0374", reason = "build-time only via uniffi -> askama_derive; no maintained release" },
+    # chrono and chrono-tz are unmaintained (2026-11-25), with no maintained
+    # release to move to. They are the date and zone layer of the whole system:
+    # madar-shared's madar-time (the one zone rule), madar-money, madar-till,
+    # madar-dawam and the core all build on them, and the backend shares them.
+    # Leaving them is a cross-repo migration of its own, not a version bump.
+    # No vulnerability is reported against either.
+    { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained; no successor release; the shared zone rule and the core build on it" },
+    { id = "RUSTSEC-2026-0555", reason = "chrono-tz unmaintained; no successor release; madar-time's zone database" },
 ]
 
 [licenses]

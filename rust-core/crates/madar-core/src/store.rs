@@ -298,7 +298,8 @@ impl Store {
         let was = f.kind.filter(|_| f.armed);
         *f = FaultState::default();
         drop(f);
-        let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        // rusqlite 0.41: setting the progress handler takes the connection mutably.
+        let mut conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         match was {
             Some(FaultKind::Interrupt { .. }) => {
                 let _ = conn.progress_handler(0, None::<fn() -> bool>);
@@ -333,12 +334,12 @@ impl Store {
     fn lock(&self) -> std::sync::MutexGuard<'_, Connection> {
         // Poisoning only happens if a holder panicked mid-write; recover the
         // guard rather than cascading the panic across the FFI.
-        let guard = self.conn.lock().unwrap_or_else(|e| e.into_inner());
-        self.maybe_arm_fault(&guard);
+        let mut guard = self.conn.lock().unwrap_or_else(|e| e.into_inner());
+        self.maybe_arm_fault(&mut guard);
         guard
     }
 
-    fn maybe_arm_fault(&self, conn: &Connection) {
+    fn maybe_arm_fault(&self, conn: &mut Connection) {
         let mut f = self.faults.lock().unwrap_or_else(|e| e.into_inner());
         let Some(n) = f.countdown else { return };
         if f.armed {
