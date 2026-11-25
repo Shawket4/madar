@@ -66,7 +66,9 @@ use rust_xlsxwriter::{
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-const FONT: &str = "Calibri";
+/// The one typeface every cell is set in: the dashboard's own (the web's
+/// `EXPORT_FONT`, dashboard_core's `ExcelPalette.font`).
+const FONT: &str = "IBM Plex Sans Arabic";
 /// A sheet is padded to at least this many columns (the banner's width).
 const MIN_COLUMNS: usize = 6;
 const DEFAULT_WIDTH: f64 = 20.0;
@@ -1020,7 +1022,7 @@ mod tests {
         assert!(styles.contains("FF14181E"), "the ink band");
         assert!(!styles.contains("FF0D6273"), "no teal left");
         assert!(styles.contains("FFEDF2F3"), "the zebra rows");
-        assert!(styles.contains("Calibri"));
+        assert!(styles.contains("IBM Plex Sans Arabic"));
         assert!(part(&bytes, "docProps/core.xml").contains("<dc:creator>Madar</dc:creator>"));
     }
 
@@ -1435,6 +1437,24 @@ mod tests {
 
     /// An import file someone made: two sheets, a gap before column A's
     /// data, a blank row, a date and a formula.
+    /// Every cell is set in the dashboard's typeface (owner, 2026-11-25), as
+    /// the web's EXPORT_FONT.
+    #[test]
+    fn every_cell_is_set_in_ibm_plex_sans_arabic() {
+        let spec: WorkbookSpec = serde_json::from_value(json!({
+            "sheets": [{ "name": "S", "title": "S", "subtitle": "s",
+                "columns": [{ "header": "A", "width": 20 }], "rows": [["x"]],
+                "header_row": 7, "first_data_row": 8 }]
+        }))
+        .unwrap();
+        let bytes = write_workbook(&spec, None).unwrap();
+        let styles = part(&bytes, "xl/styles.xml");
+        assert!(
+            styles.contains(r#"<name val="IBM Plex Sans Arabic"/>"#),
+            "{styles}"
+        );
+    }
+
     #[test]
     fn an_import_reads_like_the_webs_read_sheet() {
         let mut wb = Workbook::new();

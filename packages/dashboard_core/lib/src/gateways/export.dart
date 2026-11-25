@@ -260,6 +260,11 @@ abstract final class ExcelPalette {
   /// The ink every export draws in.
   static const String ink = 'FF14181E';
 
+  /// The one typeface (the web's `EXPORT_FONT`): the dashboard's own. The
+  /// core's writer sets every cell in it (`xlsx.rs` `FONT`). A spreadsheet
+  /// cannot embed a font, so a viewer without it sees their app's default.
+  static const String font = 'IBM Plex Sans Arabic';
+
   /// The banner title, the header and totals bands.
   static const String brand = ink;
 
@@ -775,11 +780,15 @@ class DashExporter {
   }
 
   /// The stat pills of rows 4-5 (`drawHead`), sharing out the first
-  /// [columns] columns.
+  /// [columns] columns, and never fewer columns than there are pills: a recipe
+  /// book whose widest drink has one size is three columns and four pills,
+  /// and sharing three among four put two pills on one cell, which the writer
+  /// refused ("Export failed").
   static List<StatSpec> _stats(List<ExcelStat> stats, int columns) {
     final out = <StatSpec>[];
     if (stats.isEmpty) return out;
-    final span = columns ~/ stats.length;
+    final across = columns > stats.length ? columns : stats.length;
+    final span = across ~/ stats.length;
     final s = span < 1 ? 1 : span;
     for (var i = 0; i < stats.length; i++) {
       final stat = stats[i];
@@ -789,7 +798,7 @@ class DashExporter {
           label: stat.label,
           value: stat.value,
           fromCol: excelColumnLetter(i * s),
-          toCol: excelColumnLetter(last < columns - 1 ? last : columns - 1),
+          toCol: excelColumnLetter(last < across - 1 ? last : across - 1),
           numFmt: switch (stat.type) {
             'money' => '#,##0.00 "EGP"',
             'number' => '#,##0',
