@@ -120,7 +120,7 @@ Future<void> runPayrollExcel(
   Translator t,
   ExcelConfig config,
 ) async {
-  if (config.sheets.every((s) => s.rowCount == 0)) {
+  if (config.sheets.every((s) => s.size == 0)) {
     DashToast.error(context, const ExportNothing().message(t));
     return;
   }

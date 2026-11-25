@@ -195,6 +195,263 @@ void main() {
     });
   });
 
+  // excel.test.ts "a sheet of tables": the same sheet, laid out into the
+  // spec the core's writer draws (rust-core xlsx.rs reads this layout back).
+  group('a sheet of tables (buildBlockSheet)', () {
+    const recipes = ExcelBlockSheet(
+      name: 'Recipes',
+      title: 'Recipes',
+      stats: [ExcelStat(label: 'Items', value: 1, type: 'number')],
+      widths: [30, 8, 14, 14],
+      groups: [
+        ExcelGroup(
+          group: 'Coffee',
+          blocks: [
+            ExcelBlock(
+              title: 'Latte',
+              note: 'Follows Flat white',
+              header: ['Ingredient', 'Unit', 'Small', 'Large'],
+              rows: [
+                [
+                  'Espresso beans',
+                  'g',
+                  ExcelCell(18, ExcelColumnType.quantity),
+                  ExcelCell(18.5, ExcelColumnType.quantity),
+                ],
+                [
+                  'Vanilla syrup',
+                  'ml',
+                  null,
+                  ExcelCell(20, ExcelColumnType.quantity),
+                ],
+              ],
+              footer: [
+                [
+                  'Cost',
+                  null,
+                  ExcelCell(205, ExcelColumnType.money),
+                  ExcelCell(285, ExcelColumnType.money),
+                ],
+              ],
+              caption: "How it's made: 1. Pull a double shot",
+            ),
+          ],
+        ),
+      ],
+    );
+    const egp = '#,##0.00 "EGP"';
+
+    test('every sheet\'s head, then the group band and each table in order, '
+        'from row 7', () async {
+      final out = await exporter().exportToExcel(
+        const ExcelConfig(
+          filename: 'recipes',
+          meta: 'Coffee',
+          sheets: [recipes],
+          doneMessage: 'Exported 1 recipe',
+        ),
+      );
+      expect(out, isA<ExportDone>());
+      expect(files.saved.single.filename, 'recipes-2026-10-08.xlsx');
+      final built = exports.built.single;
+      expect(built.sheets, isEmpty, reason: 'no table sheet in this book');
+      final s = built.allSheets.single as BlockSheetSpec;
+      expect(s.name, 'Recipes');
+      expect(s.title, 'Recipes');
+      expect(s.subtitle, 'Coffee  ·  Generated: 08 Oct 2026, 10:30 AM');
+      // Padded to six, like every sheet.
+      expect(s.widths, [30, 8, 14, 14, 18, 18]);
+      // The pills share out the table's own columns, not the padding.
+      expect(s.stats.single.label, 'Items');
+      expect('${s.stats.single.fromCol}:${s.stats.single.toCol}', 'A:D');
+      expect(s.stats.single.numFmt, '#,##0');
+
+      String line(BlockRowSpec r) =>
+          '${r.row} ${r.kind.name} ${r.height}'
+          '${r.text == null ? '' : ' "${r.text}"'}'
+          '${r.note == null ? '' : ' note "${r.note}"'}'
+          '${r.cells.isEmpty ? '' : ' ${r.cells}'}'
+          '${r.zebra ? ' zebra' : ''}${r.ruled ? ' ruled' : ''}';
+      expect(s.rows.map(line), [
+        '7 group 24 "Coffee"',
+        '8 gap 6',
+        '9 title 22 "Latte" note "   Follows Flat white"',
+        '10 header 22 [Ingredient, Unit, Small, Large]',
+        '11 body 20 [Espresso beans, g, 18, 18.5] zebra',
+        // A size without the line is a blank, still striped (white).
+        '12 body 20 [Vanilla syrup, ml, null, 20]',
+        // Money is piastres ÷ 100, bold, ruled above.
+        '13 footer 20 [Cost, null, 2.05, 2.85] ruled',
+        '14 caption 18 "How it\'s made: 1. Pull a double shot"',
+        '15 gap 10',
+      ]);
+      // No fixed decimals on a quantity (Excel's General); EGP on money.
+      expect(s.rows[4].numFmts, [null, null, null, null]);
+      expect(s.rows[6].numFmts, [null, null, egp, egp]);
+
+      final j = json.decode(json.encode(built.toJson())) as Map;
+      final sheet = (j['sheets'] as List).single as Map;
+      expect(sheet['kind'], 'blocks');
+      expect(sheet['widths'], [30, 8, 14, 14, 18, 18]);
+      expect((sheet['rows'] as List)[6], {
+        'kind': 'footer',
+        'row': 13,
+        'height': 20,
+        'cells': ['Cost', null, 2.05, 2.85],
+        'num_fmts': [null, null, egp, egp],
+        'ruled': true,
+      });
+      expect((sheet['rows'] as List)[2], {
+        'kind': 'title',
+        'row': 9,
+        'height': 22,
+        'text': 'Latte',
+        'note': '   Follows Flat white',
+      });
+    });
+
+    test('counts tables, not rows, and says what it was told to', () async {
+      final out = await exporter().exportToExcel(
+        const ExcelConfig(
+          filename: 'recipes',
+          sheets: [recipes],
+          doneMessage: 'Exported 1 recipe',
+        ),
+      );
+      expect((out as ExportDone).rows, 1);
+      expect(out.message(Translator(strings, 'en')), 'Exported 1 recipe');
+      final nothing = await exporter().exportToExcel(
+        const ExcelConfig(
+          filename: 'recipes',
+          sheets: [
+            ExcelBlockSheet(
+              name: 'Recipes',
+              title: 'Recipes',
+              widths: [30],
+              groups: [],
+            ),
+          ],
+        ),
+      );
+      expect(nothing, isA<ExportNothing>());
+    });
+
+    test('a table with no header, a note-less title, no caption', () {
+      final spec = exporter().workbookSpec(
+        const ExcelConfig(
+          filename: 'r',
+          sheets: [
+            ExcelBlockSheet(
+              name: 'R',
+              title: 'R',
+              widths: [34],
+              groups: [
+                ExcelGroup(
+                  group: 'No recipe yet',
+                  blocks: [
+                    ExcelBlock(
+                      title: '2 items',
+                      note: '',
+                      header: ['Item'],
+                      rows: [
+                        ['Water'],
+                        ['Tea  ·  Hot'],
+                      ],
+                    ),
+                    ExcelBlock(title: 'Bare', header: [], rows: []),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      final s = spec.allSheets.single as BlockSheetSpec;
+      expect(s.rows.map((r) => '${r.row} ${r.kind.name}'), [
+        '7 group',
+        '8 gap',
+        '9 title',
+        '10 header',
+        '11 body',
+        '12 body',
+        '13 gap',
+        '14 title',
+        '15 gap',
+      ]);
+      expect(s.rows[2].note, isNull, reason: 'an empty note is no note');
+      expect(s.stats, isEmpty);
+    });
+
+    test('a book and a table sheet in one workbook, in order; the table '
+        'sheet\'s JSON is unchanged', () async {
+      final spec = exporter().workbookSpec(
+        ExcelConfig(filename: 'r', sheets: [recipes, sheet]),
+      );
+      expect(spec.allSheets.map((s) => s.runtimeType), [
+        BlockSheetSpec,
+        SheetSpec,
+      ]);
+      expect(spec.sheets.single.title, 'Orders');
+      final j = json.decode(json.encode(spec.toJson())) as Map;
+      final sheets = j['sheets'] as List;
+      expect(sheets.first['kind'], 'blocks');
+      expect((sheets.last as Map).keys, [
+        'name',
+        'title',
+        'subtitle',
+        'columns',
+        'padding_widths',
+        'stats',
+        'rows',
+        'totals_row',
+        'header_row',
+        'first_data_row',
+      ]);
+    });
+
+    test('a CSV is the table sheets only: a sheet of tables has no flat '
+        'form', () async {
+      final out = await exporter().exportToCsv(
+        ExcelConfig(filename: 'lines', sheets: [recipes, sheet]),
+      );
+      expect(out, isA<ExportDone>());
+      expect(files.saved.single.asString, startsWith('Item,Total,At'));
+      final none = await exporter().exportToCsv(
+        const ExcelConfig(filename: 'lines', sheets: [recipes]),
+      );
+      expect(none, isA<ExportNothing>());
+    });
+
+    test('captionHeight: one 12 pt line per width-unit-and-a-tenth, at '
+        'least 18', () {
+      const widths = <double>[34, 9, 15, 15, 18, 18]; // 109 → 119 a line
+      expect(captionHeight('short', widths), 18);
+      expect(captionHeight('a\nb\nc', widths), 42);
+      expect(captionHeight('x' * 120, widths), 30);
+      expect(
+        captionHeight('x' * 10, const <double>[2]),
+        18,
+        reason: '20 a line',
+      );
+      expect(captionHeight('x' * 41, const <double>[2]), 42);
+    });
+
+    test('quantity: an amount as it is, in General', () {
+      expect(excelNumFmt(ExcelColumnType.quantity), isNull);
+      expect(excelCellValue(18.0, ExcelColumnType.quantity, 'UTC'), 18);
+      expect(excelCellValue('12.25', ExcelColumnType.quantity, 'UTC'), 12.25);
+      expect(excelCellValue('x', ExcelColumnType.quantity, 'UTC'), 0);
+      expect(
+        const ExcelCell(18, ExcelColumnType.quantity),
+        const ExcelCell(18.0, ExcelColumnType.quantity),
+      );
+      expect(
+        const ExcelCell(18, ExcelColumnType.quantity),
+        isNot(const ExcelCell(18, ExcelColumnType.money)),
+      );
+    });
+  });
+
   group('exportToCsv', () {
     test('RFC 4180 quoting, pounds, ISO dates, CRLF', () async {
       final out = await exporter().exportToCsv(

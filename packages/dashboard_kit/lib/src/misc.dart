@@ -10,12 +10,34 @@ import 'foundation/press.dart';
 import 'foundation/tokens.dart';
 import 'table.dart';
 
+/// One more file a [DashExportButton] offers, under the page's own Excel
+/// and CSV (the web's `ExportOption`).
+@immutable
+class DashExportOption {
+  const DashExportOption({
+    required this.label,
+    required this.onSelected,
+    this.icon = 'file-spreadsheet',
+  });
+
+  final String label;
+  final VoidCallback onSelected;
+
+  /// A `MadarIcon` name drawn before the label.
+  final String icon;
+}
+
 /// The shared "Export Excel" button (the web's `ExportButton`). With
-/// [onExportCsv] it becomes a menu offering Excel and CSV.
+/// [onExportCsv] it becomes a menu offering Excel and CSV; with [more] it
+/// becomes a menu with those files in their own section, under a rule and
+/// [moreHeading].
 class DashExportButton extends StatelessWidget {
   const DashExportButton({
     required this.onExport,
     this.onExportCsv,
+    this.excelLabel,
+    this.more = const [],
+    this.moreHeading,
     this.label,
     this.loading = false,
     this.enabled = true,
@@ -25,6 +47,15 @@ class DashExportButton extends StatelessWidget {
 
   final VoidCallback onExport;
   final VoidCallback? onExportCsv;
+
+  /// The menu's name for [onExport] (default "Export Excel").
+  final String? excelLabel;
+
+  /// Other files, in their own section of the menu (which it becomes).
+  final List<DashExportOption> more;
+
+  /// That section's heading.
+  final String? moreHeading;
   final String? label;
   final bool loading;
   final bool enabled;
@@ -34,7 +65,7 @@ class DashExportButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.dashStrings;
     final size = compact ? DashButtonSize.compact : DashButtonSize.regular;
-    if (onExportCsv == null) {
+    if (onExportCsv == null && more.isEmpty) {
       return DashButton(
         label: label ?? t.export,
         icon: 'download',
@@ -47,15 +78,26 @@ class DashExportButton extends StatelessWidget {
     return DashMenu(
       items: [
         DashMenuItem(
-          label: t.exportExcel,
+          label: excelLabel ?? t.exportExcel,
           icon: 'file-spreadsheet',
           onSelected: onExport,
         ),
-        DashMenuItem(
-          label: t.exportCsv,
-          icon: 'file-text',
-          onSelected: onExportCsv,
-        ),
+        if (onExportCsv != null)
+          DashMenuItem(
+            label: t.exportCsv,
+            icon: 'file-text',
+            onSelected: onExportCsv,
+          ),
+        if (more.isNotEmpty) ...[
+          const DashMenuItem.divider(),
+          if (moreHeading case final heading?) DashMenuItem.heading(heading),
+          for (final o in more)
+            DashMenuItem(
+              label: o.label,
+              icon: o.icon,
+              onSelected: o.onSelected,
+            ),
+        ],
       ],
       builder: (context, c) => DashButton(
         label: label ?? t.export,

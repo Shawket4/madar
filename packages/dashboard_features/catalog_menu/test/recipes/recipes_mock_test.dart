@@ -184,4 +184,137 @@ void main() {
       expect(e.status, 403);
     });
   });
+
+  // recipes::book::get_recipe_book: the Items page's filters, menu order, a
+  // column per size and a row per (source, ingredient, unit), the Studio's
+  // own figures.
+  group('GET /recipes/book', () {
+    test('every live non-combo item in menu order, its categories in '
+        'display order', () async {
+      final b = _boot();
+      final book = await b.api.recipes.getRecipeBook(orgId: _org);
+      final live = b.db[MenuTables.menuItems].where(
+        (m) =>
+            m['org_id'] == _org &&
+            m['deleted_at'] == null &&
+            m['kind'] != 'combo',
+      );
+      expect(book.items, hasLength(live.length));
+      final cats = b.db[MenuTables.categories].query(
+        filters: {'org_id': _org},
+        where: (c) => c['deleted_at'] == null,
+        sort: 'display_order',
+      );
+      final used = {for (final m in live) m['category_id']};
+      expect(book.categories.map((c) => c.id), [
+        for (final c in cats)
+          if (used.contains(c['id'])) c['id'],
+      ]);
+      // Grouped by category in that order, by name within one.
+      final order = [for (final c in book.categories) c.id];
+      for (var i = 1; i < book.items.length; i++) {
+        final a = book.items[i - 1];
+        final z = book.items[i];
+        final ai = order.indexOf(a.categoryId ?? '');
+        final zi = order.indexOf(z.categoryId ?? '');
+        if (ai == zi) {
+          expect(a.name.compareTo(z.name), lessThanOrEqualTo(0));
+        } else {
+          expect(zi == -1 || (ai != -1 && ai < zi), isTrue);
+        }
+      }
+    });
+
+    test("a drink's table: the Studio's sizes, usable amounts, costs and "
+        'steps', () async {
+      final b = _boot();
+      final book = await b.api.recipes.getRecipeBook(orgId: _org);
+      final latte = book.items.firstWhere((c) => c.name == 'Caffè Latte');
+      final studio = await b.api.menu.getStudio(id: latte.menuItemId);
+      expect(latte.sizes.map((s) => s.label), [
+        for (final s in studio.sizes) s.label,
+      ]);
+      expect(latte.rows, isNotEmpty);
+      for (final row in latte.rows) {
+        expect(row.cells, hasLength(latte.sizes.length));
+      }
+      for (final (col, size) in studio.sizes.indexed) {
+        final card = latte.sizes[col];
+        expect(card.price, size.price);
+        expect(card.costPiastres, size.costPiastres);
+        expect(card.costIncomplete, size.costIncomplete);
+        expect(
+          card.foodCostPct,
+          size.costPiastres != null && !size.costIncomplete && size.price > 0
+              ? size.costPiastres! / size.price
+              : null,
+        );
+        for (final line in size.recipe) {
+          final row = latte.rows.singleWhere(
+            (r) =>
+                r.ingredientId == line.ingredientId &&
+                r.unit == line.unit &&
+                r.source == (line.source ?? 'own'),
+          );
+          expect(row.cells[col].quantity, double.parse(line.usableQuantity));
+          expect(row.cells[col].lineCostPiastres, line.lineCostPiastres);
+        }
+      }
+      // The Studio grid's order: own lines, then a base's, then a rule's.
+      int rank(String s) => switch (s) {
+        'base' => 1,
+        'rule' => 2,
+        _ => 0,
+      };
+      final ranks = [for (final r in latte.rows) rank(r.source)];
+      expect(ranks, [...ranks]..sort());
+      expect(latte.steps.map((s) => s.name), [
+        for (final s in studio.recipeSteps) s.name,
+      ]);
+      expect(latte.steps, isNotEmpty);
+    });
+
+    test('follows the Items page filters', () async {
+      final b = _boot();
+      final all = await b.api.recipes.getRecipeBook(orgId: _org);
+      final cat = all.categories.first.id;
+      final inCat = await b.api.recipes.getRecipeBook(
+        orgId: _org,
+        categoryId: cat,
+      );
+      expect(inCat.items, isNotEmpty);
+      expect(inCat.items.every((c) => c.categoryId == cat), isTrue);
+      expect(inCat.categories.map((c) => c.id), [cat]);
+      final latte = await b.api.recipes.getRecipeBook(
+        orgId: _org,
+        search: '  LATTE ',
+      );
+      expect(latte.items, isNotEmpty);
+      expect(
+        latte.items.every((c) => c.name.toLowerCase().contains('latte')),
+        isTrue,
+      );
+      final has = await b.api.recipes.getRecipeBook(
+        orgId: _org,
+        hasRecipe: true,
+      );
+      final none = await b.api.recipes.getRecipeBook(
+        orgId: _org,
+        hasRecipe: false,
+      );
+      expect(has.items.every((c) => c.rows.isNotEmpty), isTrue);
+      expect(none.items.every((c) => c.rows.isEmpty), isTrue);
+      expect(has.items.length + none.items.length, all.items.length);
+    });
+
+    test('recipes.read, and the caller\'s own org', () async {
+      final limited = _boot(Persona.limited);
+      final e = await _refusal(limited.api.recipes.getRecipeBook(orgId: _org));
+      expect(e.status, 403);
+      final other = await _refusal(
+        _boot().api.recipes.getRecipeBook(orgId: SeedIds.nakhlaOrg),
+      );
+      expect(other.status, 403);
+    });
+  });
 }
