@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:design_system/design_system.dart';
-import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -162,16 +161,19 @@ class _DashPopoverState extends State<DashPopover> {
     const margin = Space.sm;
     final rtl = Directionality.of(this.context) == TextDirection.rtl;
 
-    var width = widget.width ?? DashMetrics.popover;
-    if (widget.matchAnchorWidth) width = math.max(width, anchor.width);
-    width = math.min(width, screen.width - Space.lg * 2);
-
     // The overlay the card is drawn (and clipped) in: the window, or a
-    // shell page's area under its header.
+    // shell page's area under its header and beside the sidebar.
     final host = Overlay.maybeOf(context)?.context.findRenderObject();
     final area = host is RenderBox && host.hasSize
         ? host.localToGlobal(Offset.zero) & host.size
         : Offset.zero & screen;
+
+    var width = widget.width ?? DashMetrics.popover;
+    if (widget.matchAnchorWidth) width = math.max(width, anchor.width);
+    width = math.max(
+      0.0,
+      math.min(width, math.min(screen.width, area.width) - Space.lg * 2),
+    );
     final top = math.max(area.top, pad.top);
     // Above the keyboard: a phone's searchable list opens over it, not under.
     final bottom = math.min(
@@ -190,17 +192,18 @@ class _DashPopoverState extends State<DashPopover> {
       math.min(widget.maxHeight, math.max(above, below)),
     );
 
-    // Line up with the trigger's start (or end) edge, then keep it inside.
+    // Line up with the trigger's start (or end) edge, then keep it inside
+    // the area: a card lined up with the end of a trigger at the page's
+    // start would run under the sidebar.
     final startAligned = (widget.align == DashPopoverAlign.start) != rtl;
     var left = widget.align == DashPopoverAlign.center
         ? anchor.center.dx - width / 2
         : startAligned
         ? anchor.left
         : anchor.right - width;
-    left = left.clamp(
-      Space.lg,
-      math.max(Space.lg, screen.width - Space.lg - width),
-    );
+    final from = math.max(area.left, 0.0) + Space.lg;
+    final to = math.min(area.right, screen.width) - Space.lg - width;
+    left = left.clamp(from, math.max(from, to));
     final dx = left - anchor.left;
 
     // A trigger on another surface (the shell's dark header) still opens a
@@ -353,7 +356,6 @@ class DashMenuItem {
     this.enabled = true,
     this.checked,
     this.keepOpen = false,
-    this.radio = false,
     this.hint,
   }) : divider = false,
        heading = false;
@@ -369,7 +371,6 @@ class DashMenuItem {
       enabled = false,
       checked = null,
       keepOpen = false,
-      radio = false,
       hint = null,
       divider = true,
       heading = false;
@@ -385,7 +386,6 @@ class DashMenuItem {
       enabled = false,
       checked = null,
       keepOpen = false,
-      radio = false,
       hint = null,
       divider = false,
       heading = true;
@@ -411,12 +411,6 @@ class DashMenuItem {
 
   /// Leaves the menu open after selecting (checkbox items).
   final bool keepOpen;
-
-  /// One of a set of [checked] items only one of which holds (the web's
-  /// `DropdownMenuRadioItem`: an export's format). Choosing it checks it and
-  /// unchecks the menu's other radio items; choosing it again keeps it
-  /// checked. With [keepOpen] the menu stays open on the new choice.
-  final bool radio;
 
   /// A quiet word on the end side.
   final String? hint;
@@ -465,31 +459,10 @@ class _MenuList extends StatefulWidget {
 }
 
 class _MenuListState extends State<_MenuList> {
-  late Map<int, bool> _checked = _checksOf(widget.items);
-
-  static Map<int, bool> _checksOf(List<DashMenuItem> items) => {
-    for (var i = 0; i < items.length; i++)
-      if (items[i].checked != null) i: items[i].checked!,
+  late final Map<int, bool> _checked = {
+    for (var i = 0; i < widget.items.length; i++)
+      if (widget.items[i].checked != null) i: widget.items[i].checked!,
   };
-
-  @override
-  void didUpdateWidget(_MenuList old) {
-    super.didUpdateWidget(old);
-    // The caller's answer wins when it changes under an open menu (a radio
-    // set rebuilt with the new choice).
-    final next = _checksOf(widget.items);
-    if (!mapEquals(next, _checksOf(old.items))) _checked = next;
-  }
-
-  void _toggle(int i, DashMenuItem item, bool checked) => setState(() {
-    if (!item.radio) {
-      _checked[i] = !checked;
-      return;
-    }
-    for (var k = 0; k < widget.items.length; k++) {
-      if (widget.items[k].radio) _checked[k] = k == i;
-    }
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -549,7 +522,7 @@ class _MenuListState extends State<_MenuList> {
       semanticLabel: item.label,
       excludeChildSemantics: true,
       onTap: () {
-        if (checked != null) _toggle(i, item, checked);
+        if (checked != null) setState(() => _checked[i] = !checked);
         // Close first, so a dialog the item opens keeps the focus (and its
         // Escape).
         if (!item.keepOpen) widget.controller.close();

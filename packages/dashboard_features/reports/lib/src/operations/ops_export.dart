@@ -298,8 +298,9 @@ Future<List<ExcelSheet<Object?>>> opsExportSheets({
   }
 }
 
-/// The header's Export Excel / Export CSV menu for [tab]. Disabled only
-/// when the scope is missing (no org on Branches).
+/// The header's Export panel for [tab] (Excel, or a PDF or CSV of one
+/// sheet: the Items tab's two). Disabled only when the scope is missing (no
+/// org on Branches).
 class OpsExportButton extends ConsumerStatefulWidget {
   const OpsExportButton({required this.tab, super.key});
 
@@ -322,7 +323,7 @@ class _OpsExportButtonState extends ConsumerState<OpsExportButton> {
     lang: ref.read(localeProvider),
   );
 
-  Future<void> _excel() async {
+  Future<void> _export(DashExportPick pick) async {
     final t = ref.read(tProvider);
     final exporter = ref.read(exporterProvider);
     final scope = ref.read(currentScopeProvider);
@@ -338,13 +339,14 @@ class _OpsExportButtonState extends ConsumerState<OpsExportButton> {
         context,
         t('excel.generating', defaultValue: 'Gathering data…'),
       );
-      final outcome = await exporter.exportToExcel(
+      final outcome = await exporter.exportFile(
         ExcelConfig(
           filename: _filename,
           logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
           meta: t(scope.preset.labelKey, defaultValue: scope.preset.fallback),
           sheets: sheets,
         ),
+        pick,
       );
       toast.update(
         outcome is ExportDone ? DashToastKind.success : DashToastKind.error,
@@ -357,33 +359,21 @@ class _OpsExportButtonState extends ConsumerState<OpsExportButton> {
     }
   }
 
-  Future<void> _csv() async {
-    final t = ref.read(tProvider);
-    final exporter = ref.read(exporterProvider);
-    try {
-      final sheets = await _sheets();
-      final outcome = await exporter.exportToCsv(
-        ExcelConfig(filename: _filename, sheets: sheets),
-      );
-      if (!mounted) return;
-      if (outcome is ExportDone) {
-        DashToast.success(context, outcome.message(t));
-      } else {
-        DashToast.error(context, outcome.message(t));
-      }
-    } on Object catch (e) {
-      if (mounted) DashToast.error(context, opsErrorText(e, t));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final scope = ref.watch(currentScopeProvider);
     final missing = widget.tab == 'branches' ? scope.orgId == null : false;
+    final t = ref.watch(tProvider);
     return DashExportButton(
       key: const ValueKey('ops-export'),
-      onExport: _excel,
-      onExportCsv: _csv,
+      // `opsExportSheets`' two for the Items tab, in its order.
+      sheets: widget.tab == 'items'
+          ? [
+              DashExportSheet(t('analytics.tabs.items')),
+              DashExportSheet(t('analytics.addonSales')),
+            ]
+          : const [],
+      onExport: _export,
       loading: _exporting,
       enabled: !missing,
     );

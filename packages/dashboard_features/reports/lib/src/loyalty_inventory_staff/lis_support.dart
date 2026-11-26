@@ -41,9 +41,9 @@ Widget? lisGate(
   return Restricted(title: title, who: t('reports.noAccess'));
 }
 
-/// `exportToExcel(config)`: "Nothing to export", or "Gathering data…"
+/// `exportFile(config)`: "Nothing to export", or "Gathering data…"
 /// turning into "Exported N rows" / "Export failed".
-Future<void> lisExportExcel(
+Future<void> lisExport(
   BuildContext context,
   WidgetRef ref,
   ExcelConfig config,
@@ -55,28 +55,9 @@ Future<void> lisExportExcel(
     return;
   }
   final toast = DashToast.loading(context, t('excel.generating'));
-  final outcome = await exporter.exportToExcel(config);
+  final outcome = await exporter.exportFile(config);
   toast.update(
     outcome is ExportDone ? DashToastKind.success : DashToastKind.error,
     outcome.message(t),
   );
-}
-
-/// `exportToCsv(config)`: the first sheet only; "Exported N rows", or
-/// "Nothing to export"; a failure toasts its words.
-Future<void> lisExportCsv(
-  BuildContext context,
-  WidgetRef ref,
-  ExcelConfig config,
-) async {
-  final t = ref.read(tProvider);
-  final outcome = await ref.read(exporterProvider).exportToCsv(config);
-  if (!context.mounted) return;
-  if (outcome is ExportDone) {
-    DashToast.success(context, outcome.message(t));
-  } else if (outcome is ExportFailed) {
-    DashToast.error(context, errorMessage(outcome.error, t));
-  } else {
-    DashToast.error(context, outcome.message(t));
-  }
 }

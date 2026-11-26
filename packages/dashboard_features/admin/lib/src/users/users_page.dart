@@ -102,7 +102,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
     String dash(String? s) => s ?? '—';
     final outcome = await ref
         .read(exporterProvider)
-        .exportToExcel(
+        .exportFile(
           ExcelConfig(
             filename: 'Madar-Users',
             logoUrl: exportLogoUrl(brand),
@@ -233,7 +233,7 @@ class _UsersPageState extends ConsumerState<UsersPage> {
       tabs: const AccessSectionTabs(),
       actions: [
         DashExportButton(
-          onExport: () => _export(users),
+          onExport: (_) => _export(users),
           loading: _exporting,
           enabled: users.isNotEmpty,
         ),

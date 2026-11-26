@@ -95,9 +95,9 @@ void main() {
     ],
   );
 
-  group('ADM-APP-126: exportToExcel', () {
+  group('ADM-APP-126: exportFile', () {
     test('builds the sheet exactly as buildSheet lays it out', () async {
-      final out = await exporter().exportToExcel(
+      final out = await exporter().exportFile(
         ExcelConfig(filename: 'orders', meta: 'Sabah Coffee', sheets: [sheet]),
       );
       expect(out, isA<ExportDone>());
@@ -163,7 +163,7 @@ void main() {
     test('Arabic words in the generated sheet', () async {
       await exporter(
         'ar',
-      ).exportToExcel(ExcelConfig(filename: 'o', sheets: [sheet]));
+      ).exportFile(ExcelConfig(filename: 'o', sheets: [sheet]));
       final s = exports.built.single.sheets.single;
       expect(s.totalsRow![0], strings.translate('ar', 'excel.totals'));
       expect(s.subtitle, contains(strings.translate('ar', 'excel.generated')));
@@ -176,14 +176,14 @@ void main() {
         rows: const [],
         columns: sheet.columns,
       );
-      final nothing = await exporter().exportToExcel(
+      final nothing = await exporter().exportFile(
         ExcelConfig(filename: 'x', sheets: [empty]),
       );
       expect(nothing, isA<ExportNothing>());
       expect(nothing.message(Translator(strings, 'en')), 'Nothing to export');
       expect(exports.built, isEmpty);
       exports.failNext = StateError('disk full');
-      final failed = await exporter().exportToExcel(
+      final failed = await exporter().exportFile(
         ExcelConfig(filename: 'x', sheets: [sheet]),
       );
       expect(failed, isA<ExportFailed>());
@@ -296,7 +296,7 @@ void main() {
 
     test('every sheet\'s head, then the group band and each table in order, '
         'from row 7', () async {
-      final out = await exporter().exportToExcel(
+      final out = await exporter().exportFile(
         const ExcelConfig(
           filename: 'recipes',
           meta: 'Coffee',
@@ -364,7 +364,7 @@ void main() {
     });
 
     test('counts tables, not rows, and says what it was told to', () async {
-      final out = await exporter().exportToExcel(
+      final out = await exporter().exportFile(
         const ExcelConfig(
           filename: 'recipes',
           sheets: [recipes],
@@ -373,7 +373,7 @@ void main() {
       );
       expect((out as ExportDone).rows, 1);
       expect(out.message(Translator(strings, 'en')), 'Exported 1 recipe');
-      final nothing = await exporter().exportToExcel(
+      final nothing = await exporter().exportFile(
         const ExcelConfig(
           filename: 'recipes',
           sheets: [
@@ -462,17 +462,20 @@ void main() {
       ]);
     });
 
-    test('a CSV is the table sheets only: a sheet of tables has no flat '
-        'form', () async {
-      final out = await exporter().exportToCsv(
+    test('a CSV is never a sheet of tables: the recipe book\'s CSV is its '
+        'flat sheet, without asking', () async {
+      final csv = exporter('en', DashExportFormat.csv);
+      final out = await csv.exportFile(
         ExcelConfig(filename: 'lines', sheets: [recipes, sheet]),
       );
       expect(out, isA<ExportDone>());
+      expect(files.saved.single.bytes.take(3), [0xEF, 0xBB, 0xBF]);
       expect(files.saved.single.asString, startsWith('Item,Total,At'));
-      final none = await exporter().exportToCsv(
+      final none = await csv.exportFile(
         const ExcelConfig(filename: 'lines', sheets: [recipes]),
       );
-      expect(none, isA<ExportNothing>());
+      expect(none, isA<ExportFailed>(), reason: 'it has no CSV');
+      expect(files.saved, hasLength(1));
     });
 
     test('captionHeight: one 12 pt line per width-unit-and-a-tenth, at '
@@ -505,7 +508,7 @@ void main() {
     });
   });
 
-  group('the PDF of an export (toPrintDoc, exportToPdf)', () {
+  group('the PDF of an export (toPrintDoc, exportFile as PDF)', () {
     // The web's "the PDF of an export" (excel.test.ts), over the same sheets.
     const book = ExcelBlockSheet(
       name: 'Recipes',
@@ -663,7 +666,7 @@ void main() {
       final out = await exporter(
         'en',
         DashExportFormat.pdf,
-      ).exportToExcel(ExcelConfig(filename: 'orders', sheets: [sheet]));
+      ).exportFile(ExcelConfig(filename: 'orders', sheets: [sheet]));
       expect(exports.built, isEmpty, reason: 'no workbook');
       final doc = pdfs.printed.single;
       expect(doc.rtl, isFalse);
@@ -687,12 +690,12 @@ void main() {
         columns: sheet.columns,
       );
       expect(
-        await pdf.exportToExcel(ExcelConfig(filename: 'x', sheets: [empty])),
+        await pdf.exportFile(ExcelConfig(filename: 'x', sheets: [empty])),
         isA<ExportNothing>(),
       );
       expect(pdfs.printed, isEmpty);
       expect(
-        (await pdf.exportToPdf(
+        (await pdf.exportFile(
           const ExcelConfig(filename: 'r', sheets: [book]),
         )).message(Translator(strings, 'en')),
         'Exported 1 row',
@@ -703,14 +706,14 @@ void main() {
           'That is about 10001 rows, and a PDF holds at most 10000. Narrow '
           'the dates or the branch, or export Excel.';
       pdfs.failNext = const ApiException(status: 400, message: words);
-      final refused = await pdf.exportToExcel(
+      final refused = await pdf.exportFile(
         ExcelConfig(filename: 'x', sheets: [sheet]),
       );
       expect(refused, isA<ExportFailed>());
       expect(refused.message(Translator(strings, 'en')), words);
 
       pdfs.failNext = StateError('socket closed');
-      final failed = await pdf.exportToExcel(
+      final failed = await pdf.exportFile(
         ExcelConfig(filename: 'x', sheets: [sheet]),
       );
       expect(failed.message(Translator(strings, 'en')), 'Export failed');
@@ -743,6 +746,7 @@ void main() {
       // The next start reads it back; anything else is the workbook.
       for (final (stored, format) in [
         ('pdf', DashExportFormat.pdf),
+        ('csv', DashExportFormat.csv),
         ('xlsx', DashExportFormat.xlsx),
         ('docx', DashExportFormat.xlsx),
       ]) {
@@ -770,19 +774,210 @@ void main() {
     });
   });
 
-  group('exportToCsv', () {
-    test('RFC 4180 quoting, pounds, ISO dates, CRLF', () async {
-      final out = await exporter().exportToCsv(
-        ExcelConfig(filename: 'orders', sheets: [sheet, sheet]),
-      );
+  group('the CSV (csv.ts): one flat sheet, for another program', () {
+    test('the mark, the header and the rows: RFC 4180, pounds, the shop\'s '
+        'clock, CRLF', () async {
+      final out = await exporter(
+        'en',
+        DashExportFormat.csv,
+      ).exportFile(ExcelConfig(filename: 'orders', sheets: [sheet]));
       expect(out, isA<ExportDone>());
+      expect(out.message(Translator(strings, 'en')), 'Exported 2 rows');
       final f = files.saved.single;
       expect(f.filename, 'orders-2026-10-08.csv');
+      expect(f.mimeType, MimeTypes.csv);
+      // The bytes open with UTF-8's mark: Excel reads Arabic as Arabic.
+      expect(f.bytes.take(3), [0xEF, 0xBB, 0xBF]);
+      // No banner, no totals; 21:30 UTC is 00:30 the next day in Cairo.
+      // (Reading the bytes back as UTF-8 drops the mark.)
       expect(
         f.asString,
         'Item,Total,At,Paid,Qty\r\n'
-        '"Latte, oat",65,2026-10-07T21:30:00.000Z,true,2\r\n'
-        '"Espresso ""double""",40,2026-10-08T06:15:00.000Z,false,1',
+        '"Latte, oat",65.00,2026-10-08 00:30,true,2\r\n'
+        '"Espresso ""double""",40.00,2026-10-08 09:15,false,1\r\n',
+      );
+      expect(exports.built, isEmpty, reason: 'no workbook');
+    });
+
+    test(
+      'named for the shop\'s today; nothing to export writes nothing',
+      () async {
+        // 22:30 UTC on the 7th is 01:30 on the 8th in Cairo.
+        final late = DateTime.utc(2026, 10, 7, 22, 30);
+        await exporter(
+          'en',
+          DashExportFormat.csv,
+          late,
+        ).exportFile(ExcelConfig(filename: 'orders', sheets: [sheet]));
+        expect(files.saved.single.filename, 'orders-2026-10-08.csv');
+        final empty = ExcelSheet<Row>(
+          name: 'x',
+          title: 'x',
+          rows: const [],
+          columns: sheet.columns,
+        );
+        expect(
+          await exporter(
+            'en',
+            DashExportFormat.csv,
+          ).exportFile(ExcelConfig(filename: 'x', sheets: [empty])),
+          isA<ExportNothing>(),
+        );
+        expect(files.saved, hasLength(1));
+      },
+    );
+
+    test('a workbook of several: the sheet picked, named past the first; '
+        'never a guess', () async {
+      final csv = exporter('en', DashExportFormat.csv);
+      final two = ExcelConfig(filename: 'orders', sheets: [sheet, sheet]);
+      expect(await csv.exportFile(two), isA<ExportFailed>());
+      expect(files.saved, isEmpty);
+      await csv.exportFile(two, const DashExportPick(sheet: 1));
+      expect(
+        files.saved.single.filename,
+        'orders-Orders-Oct2026-[Maadi]-2026-10-08.csv',
+      );
+      await csv.exportFile(two, const DashExportPick(sheet: 0));
+      expect(files.saved.last.filename, 'orders-2026-10-08.csv');
+    });
+
+    test('a field a spreadsheet would run is defused; a phone or a signed '
+        'amount is kept', () {
+      expect(csvField('=HYPERLINK("x")'), '"\'=HYPERLINK(""x"")"');
+      expect(csvField('@SUM(A1)'), "'@SUM(A1)");
+      expect(csvField('-x'), "'-x");
+      expect(csvField('+cmd'), "'+cmd");
+      expect(csvField('\tx'), "'\tx");
+      expect(csvField('+20 100 123 4567'), '+20 100 123 4567');
+      expect(csvField('-12.50'), '-12.50');
+      expect(csvField('-(5)'), '-(5)');
+      expect(csvField('a\nb'), '"a\nb"');
+      expect(csvField('لاتيه، حليب'), 'لاتيه، حليب');
+    });
+
+    test('values a program reads back', () {
+      String v(Object? raw, ExcelColumnType? type, [String zone = 'UTC']) =>
+          csvValue(raw, type, zone);
+      expect(v(null, ExcelColumnType.money), '');
+      expect(v('', ExcelColumnType.number), '');
+      expect(v(1620, ExcelColumnType.money), '16.20');
+      expect(v(-50, ExcelColumnType.money), '-0.50');
+      expect(v(0, ExcelColumnType.money), '0.00');
+      expect(v('n/a', ExcelColumnType.money), 'n/a');
+      expect(v(16.2, ExcelColumnType.moneyRaw), '16.20');
+      expect(v(0.1 + 0.2, ExcelColumnType.number), '0.3');
+      expect(v(1234.5, ExcelColumnType.number), '1234.5');
+      expect(v('12', ExcelColumnType.number), '12');
+      expect(v(3.6, ExcelColumnType.integer), '4');
+      expect(v(-2.5, ExcelColumnType.integer), '-2', reason: 'half up');
+      expect(v(0.12345, ExcelColumnType.quantity), '0.123');
+      expect(v(18.0, ExcelColumnType.quantity), '18');
+      expect(v(0.412, ExcelColumnType.percent), '41.2%');
+      expect(v(true, ExcelColumnType.bool), 'true');
+      expect(v(0, ExcelColumnType.bool), 'false');
+      expect(v(3.0, null), '3');
+      expect(v('Latte', ExcelColumnType.text), 'Latte');
+      // On the shop's clock, never the device's.
+      expect(
+        v('2026-10-07T21:30:00Z', ExcelColumnType.date, 'Africa/Cairo'),
+        '2026-10-08',
+      );
+      expect(
+        v(
+          DateTime.utc(2026, 10, 7, 21, 30),
+          ExcelColumnType.dateTime,
+          'Asia/Dubai',
+        ),
+        '2026-10-08 01:30',
+      );
+      // A calendar date is already the shop's: never moved through a zone.
+      expect(
+        v('2026-10-07', ExcelColumnType.date, 'America/New_York'),
+        '2026-10-07',
+      );
+      expect(v('not a date', ExcelColumnType.dateTime), '');
+    });
+  });
+
+  group('pickSheet: a PDF or CSV is one sheet', () {
+    const recipes = ExcelBlockSheet(
+      name: 'Recipes',
+      title: 'Recipes',
+      widths: [30],
+      groups: [
+        ExcelGroup(
+          group: 'Coffee',
+          blocks: [
+            ExcelBlock(title: 'Latte', header: ['Ingredient'], rows: []),
+          ],
+        ),
+      ],
+    );
+    const lines = ExcelConfig(filename: 'Madar-Recipes', sheets: [recipes]);
+    test('a PDF unpicked is the whole workbook; picked, the one sheet', () {
+      final two = ExcelConfig(filename: 'm', sheets: [recipes, sheet]);
+      expect(
+        identical(
+          pickSheet(two, const DashExportPick(), DashExportFormat.pdf),
+          two,
+        ),
+        isTrue,
+      );
+      final one = pickSheet(
+        two,
+        const DashExportPick(sheet: 1),
+        DashExportFormat.pdf,
+      );
+      expect(one.sheets.single, same(sheet));
+      expect(one.filename, 'm-Orders-Oct2026-[Maadi]');
+      final first = pickSheet(
+        two,
+        const DashExportPick(sheet: 0),
+        DashExportFormat.pdf,
+      );
+      expect(first.sheets.single, same(recipes));
+      expect(first.filename, 'm', reason: 'the first keeps the name');
+      expect(
+        pickSheet(
+          two,
+          const DashExportPick(sheet: 9),
+          DashExportFormat.pdf,
+        ).sheets.single,
+        same(sheet),
+        reason: 'clamped',
+      );
+    });
+
+    test('a CSV: the one flat sheet unasked; never tables, never a guess', () {
+      final book = ExcelConfig(filename: 'm', sheets: [recipes, sheet]);
+      expect(
+        pickSheet(
+          book,
+          const DashExportPick(),
+          DashExportFormat.csv,
+        ).sheets.single,
+        same(sheet),
+      );
+      expect(
+        () => pickSheet(
+          book,
+          const DashExportPick(sheet: 0),
+          DashExportFormat.csv,
+        ),
+        throwsStateError,
+      );
+      expect(
+        () => pickSheet(lines, const DashExportPick(), DashExportFormat.csv),
+        throwsStateError,
+      );
+      expect(
+        () => pickSheet(
+          ExcelConfig(filename: 'm', sheets: [sheet, sheet]),
+          const DashExportPick(),
+          DashExportFormat.csv,
+        ),
+        throwsStateError,
       );
     });
   });
@@ -865,7 +1060,7 @@ void main() {
 
     test('a cancelled save is not an error', () async {
       files.cancelNextSave = true;
-      final out = await exporter().exportToExcel(
+      final out = await exporter().exportFile(
         ExcelConfig(filename: 'o', sheets: [sheet]),
       );
       expect((out as ExportDone).savedTo, isNull);

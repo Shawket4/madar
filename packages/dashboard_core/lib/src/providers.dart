@@ -33,8 +33,8 @@ final pdfGatewayProvider = Provider<PdfGateway>(
   (ref) => ApiPdfGateway(DashboardApi(ref.watch(transportProvider))),
 );
 
-/// `exportToExcel` / `exportToPdf` / `exportToCsv` in the active language
-/// and zone, making the file chosen at the top of the Export menu.
+/// Every export's `exportFile`, in the active language and zone, making the
+/// file chosen at the top of the Export panel.
 final exporterProvider = Provider<DashExporter>(
   (ref) => DashExporter(
     exports: ref.watch(exportGatewayProvider),

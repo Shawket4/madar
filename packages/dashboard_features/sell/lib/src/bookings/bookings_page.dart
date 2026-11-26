@@ -293,7 +293,7 @@ class _BookingsPageState extends ConsumerState<BookingsPage>
       ).bookings.listBookings(branchId: branchId, date: date);
       if (!mounted) return;
       final toast = DashToast.loading(context, t('excel.generating'));
-      final outcome = await exporter.exportToExcel(
+      final outcome = await exporter.exportFile(
         ExcelConfig(
           filename: 'Madar-Bookings-$date',
           logoUrl: exportLogoUrl(brand),
@@ -393,7 +393,7 @@ class _BookingsPageState extends ConsumerState<BookingsPage>
       actions: [
         DashExportButton(
           key: const ValueKey('bookings-export'),
-          onExport: () => _export(branchId),
+          onExport: (_) => _export(branchId),
           loading: _exporting,
           enabled: all.isNotEmpty,
         ),

@@ -162,28 +162,13 @@ class _FinancialReportPageState extends ConsumerState<FinancialReportPage>
           DashExportButton(
             key: const ValueKey('fin-channel-export'),
             loading: _channelExporting,
-            onExport: _channelExcel,
-            onExportCsv: () => finCsv(
-              context,
-              ref,
-              filename: 'Madar-Analytics-channel',
-              sheets: _channelSheets,
-            ),
+            onExport: (_) => _channelExcel(),
           ),
         if (inventory)
           DashExportButton(
             key: const ValueKey('fin-inventory-export'),
             loading: _invExporting,
-            onExport: () => _inventoryExcel(tab),
-            onExportCsv: () {
-              final sheet = _inventorySheet(tab);
-              finCsv(
-                context,
-                ref,
-                filename: 'Madar-${sheet.title}',
-                sheets: () async => [sheet],
-              );
-            },
+            onExport: (_) => _inventoryExcel(tab),
           ),
       ],
       tabs: DashPageTabs<String>(

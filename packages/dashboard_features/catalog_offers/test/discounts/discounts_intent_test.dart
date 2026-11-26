@@ -2,6 +2,7 @@
 // dialog listens to, Export warms the brand it reads, so after the mouse
 // rests the press asks the server nothing more.
 import 'package:flutter/gestures.dart';
+import 'package:flutter/widgets.dart' show ValueKey;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
@@ -17,8 +18,9 @@ void main() {
           'Export',
           () => inPage(find.text('Export')),
           (h) async {
-            // The press opens the menu; the file is Excel or PDF.
+            // The press opens the panel; Download makes the file.
             await h.tapText('Excel');
+            await h.tapKey(const ValueKey('export-download'));
             await h.expectToast('Exported 7 rows');
           },
         ),

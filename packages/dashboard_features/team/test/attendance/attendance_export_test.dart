@@ -1,6 +1,6 @@
 // Export Excel on the Attendance page (TEAM-ATT-021, TEAM-ALL-024): the
 // page's query again with `X-Madar-Export: 1`, one branded sheet, and the
-// toasts of `exportToExcel`.
+// toasts of `exportFile`.
 import 'dart:async';
 
 import 'package:dashboard_api/mock.dart';

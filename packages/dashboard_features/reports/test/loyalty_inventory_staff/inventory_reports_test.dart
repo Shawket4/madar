@@ -44,11 +44,9 @@ bool exportEnabled(WidgetTester tester, Finder f) =>
         .onPressed !=
     null;
 
-/// Picks [item] ("Export" / "Export CSV") from [button]'s menu.
-Future<void> exportMenu(DashHarness h, Finder button, String item) async {
-  await h.tap(button);
-  await h.tap(find.text(item).last);
-}
+/// Exports from [button]'s panel in [format] ("Excel" / "CSV").
+Future<void> exportMenu(DashHarness h, Finder button, String format) =>
+    h.exportVia(format, button);
 
 Future<void> pickScope(DashHarness h, String label) => h.tap(
   find.descendant(
@@ -526,7 +524,7 @@ void main() {
         'the scope\'s words, the columns', (tester) async {
       final h = await pumpUnit(tester, path: inventoryPath);
       expect(exportEnabled(tester, headerExport), isTrue);
-      await exportMenu(h, headerExport, 'Export');
+      await exportMenu(h, headerExport, 'Excel');
       await h.settle();
       final rows = inventoryConsumption(
         SeedIds.sabahBranches,
@@ -562,10 +560,10 @@ void main() {
         branchId: SeedIds.zamalek,
       );
       await openTab(h, 'Shrinkage');
-      await exportMenu(h, headerExport, 'Export');
+      await exportMenu(h, headerExport, 'Excel');
       await h.settle();
       await openTab(h, 'Waste');
-      await exportMenu(h, headerExport, 'Export');
+      await exportMenu(h, headerExport, 'Excel');
       await h.settle();
       final shr = h.exports.built[0].sheets.single;
       expect(shr.title, 'Shrinkage');
@@ -601,15 +599,16 @@ void main() {
       await h.flushTimers();
     });
 
-    testWidgets('REP-INV-014 PO lead time to CSV: the first sheet, money-free '
+    testWidgets('REP-INV-014 PO lead time to CSV: the sheet as plain '
         'numbers', (tester) async {
       final h = await pumpUnit(tester, path: inventoryPath);
       await openTab(h, 'PO lead time');
-      await exportMenu(h, headerExport, 'Export CSV');
+      await exportMenu(h, headerExport, 'CSV');
       await h.settle();
       final file = h.files.saved.single;
       expect(file.filename, 'Madar-PO lead time-${exportStamp(h)}.csv');
-      final lines = file.asString.split('\r\n');
+      // Every record ends in CRLF, the last too.
+      final lines = file.asString.split('\r\n')..removeLast();
       expect(lines.first, 'Supplier,Orders received,Avg lead time (days)');
       final r = inventoryPoLeadTime(
         SeedIds.sabahBranches,
@@ -626,7 +625,7 @@ void main() {
       final h = await pumpUnit(tester, path: inventoryPath);
       final hold = Completer<void>();
       h.exports.hold = hold.future;
-      await exportMenu(h, headerExport, 'Export');
+      await exportMenu(h, headerExport, 'Excel');
       await h.settle();
       final button = tester.widget<DashButton>(
         find.descendant(of: headerExport, matching: find.byType(DashButton)),
@@ -639,7 +638,7 @@ void main() {
       await h.flushTimers();
       h.exports.hold = null;
       h.exports.failNext = StateError('disk full');
-      await exportMenu(h, headerExport, 'Export');
+      await exportMenu(h, headerExport, 'Excel');
       await h.settle();
       await h.expectToast('Export failed');
     });
@@ -756,7 +755,7 @@ void main() {
       );
       await openTab(h, 'Low stock');
       final export = find.byKey(const ValueKey('low-stock-export'));
-      await exportMenu(h, export, 'Export');
+      await exportMenu(h, export, 'Excel');
       await h.settle();
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.title, 'Low stock');
@@ -787,7 +786,7 @@ void main() {
         'Madar-Low stock-${exportStamp(h)}.xlsx',
       );
       await h.expectToast('Exported ${rows.length} rows');
-      await exportMenu(h, export, 'Export CSV');
+      await exportMenu(h, export, 'CSV');
       await h.settle();
       expect(
         h.files.saved.last.filename,

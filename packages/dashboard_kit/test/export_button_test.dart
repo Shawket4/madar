@@ -1,8 +1,8 @@
-// DashExportButton (the web's ExportButton): every export as Excel or PDF.
-// One file: the menu is the choice ("Export as Excel / PDF") and picking one
-// exports at once. Several files (a CSV, `more`): the format sits at the top,
-// keeping the menu open, and the files under it (`excelLabel`, CSV, `more`,
-// `moreHeading`).
+// DashExportButton (the web's ExportButton): one panel for every export.
+// Format (Excel / PDF / CSV) at the top, remembered; the File when the page
+// offers several; the Sheet when a PDF or CSV is asked of a workbook with
+// several (each is one sheet); then Download, which hands the export the
+// sheet picked.
 import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:dashboard_kit/testing.dart';
 import 'package:flutter/material.dart';
@@ -11,7 +11,10 @@ import 'package:flutter_test/flutter_test.dart';
 Widget _centered(Widget child) => Scaffold(body: Center(child: child));
 
 /// The button itself.
-Finder get _trigger => find.byType(DashButton);
+Finder get _trigger => find.byType(DashButton).first;
+
+/// The panel's Download button.
+Finder get _download => find.byKey(const ValueKey('export-download'));
 
 /// The format every export reads, as dashboard_core's provider holds it.
 class _Formats {
@@ -32,234 +35,241 @@ Widget _scoped(_Formats formats, Widget child) => StatefulBuilder(
   ),
 );
 
-/// The menu row reading [label] (the last one: the trigger may read the same).
-Finder _row(String label) => find
-    .ancestor(of: find.text(label).last, matching: find.byType(DashPressable))
-    .first;
+/// The pressable row or pill reading [label] (the last one: the trigger may
+/// read the same).
+DashPressable _choice(WidgetTester tester, String label) =>
+    tester.widget<DashPressable>(
+      find
+          .ancestor(
+            of: find.text(label).last,
+            matching: find.byType(DashPressable),
+          )
+          .first,
+    );
 
-/// Whether that row shows its check.
-bool _checked(String label) => find
-    .descendant(
-      of: _row(label),
-      matching: find.byWidgetPredicate(
-        (w) => w is DashIcon && w.name == 'check',
-      ),
-    )
-    .evaluate()
-    .isNotEmpty;
+bool _checked(WidgetTester tester, String label) =>
+    _choice(tester, label).checked ?? false;
+
+double _x(WidgetTester tester, String label) =>
+    tester.getTopLeft(find.text(label).last).dx;
 
 double _y(WidgetTester tester, Finder f) => tester.getTopLeft(f).dy;
 
+Future<void> _open(WidgetTester tester) async {
+  await tester.tap(_trigger);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tap(WidgetTester tester, String label) async {
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
+}
+
+String _downloadWords(WidgetTester tester) =>
+    tester.widget<DashButton>(_download).label;
+
 void main() {
-  testWidgets('one file: the menu is the choice, and picking a format '
-      'exports in it at once', (tester) async {
+  testWidgets('one file: the format, then Download in it; the format is '
+      'remembered', (tester) async {
     final formats = _Formats();
     // The export reads the format at the moment it runs.
-    final ran = <DashExportFormat>[];
+    final ran = <(DashExportFormat, DashExportPick)>[];
     await pumpDashApp(
       tester,
       _centered(
         _scoped(
           formats,
-          DashExportButton(onExport: () => ran.add(formats.format)),
+          DashExportButton(onExport: (p) => ran.add((formats.format, p))),
         ),
       ),
     );
-    // "Export", with the menu's chevron: no format in its words.
+    // "Export", with the panel's chevron: no format in its words.
     expect(find.text('Export'), findsOneWidget);
-    expect(find.text('Export Excel'), findsNothing);
-    await tester.tap(_trigger);
-    await tester.pumpAndSettle();
-    expect(find.text('Export as'), findsOneWidget);
-    expect(find.text('Excel'), findsOneWidget);
-    expect(find.text('PDF'), findsOneWidget);
-    expect(
-      _y(tester, find.text('Export as')),
-      lessThan(_y(tester, find.text('Excel'))),
-    );
-    expect(
-      _y(tester, find.text('Excel')),
-      lessThan(_y(tester, find.text('PDF'))),
-    );
-    // Plain items, not a choice that stays: no checks.
-    expect(_checked('Excel'), isFalse);
-    expect(_checked('PDF'), isFalse);
-    // The heading is words, not something to press.
-    await tester.tap(find.text('Export as'), warnIfMissed: false);
-    await tester.pumpAndSettle();
-    expect(ran, isEmpty);
+    await _open(tester);
+    expect(find.text('Format'), findsOneWidget);
+    // Every export offers all three, in a row.
+    expect(_x(tester, 'Excel'), lessThan(_x(tester, 'PDF')));
+    expect(_x(tester, 'PDF'), lessThan(_x(tester, 'CSV')));
+    expect(_checked(tester, 'Excel'), isTrue);
+    // No file list and no sheet: there is only the one.
+    expect(find.text('File'), findsNothing);
+    expect(find.text('Sheet'), findsNothing);
+    expect(_y(tester, find.text('CSV')), lessThan(_y(tester, _download)));
+    expect(_downloadWords(tester), 'Download Excel');
 
-    await tester.tap(find.text('PDF'));
-    await tester.pumpAndSettle();
-    expect(ran, [DashExportFormat.pdf]);
+    await _tap(tester, 'PDF');
     expect(formats.format, DashExportFormat.pdf, reason: 'remembered');
-    expect(find.text('PDF'), findsNothing, reason: 'the menu closed');
+    expect(ran, isEmpty, reason: 'choosing is not exporting');
+    expect(_downloadWords(tester), 'Download PDF');
+    await tester.tap(_download);
+    await tester.pumpAndSettle();
+    expect(ran, [(DashExportFormat.pdf, const DashExportPick())]);
+    expect(_download, findsNothing, reason: 'the panel closed');
 
-    await tester.tap(_trigger);
+    // Next time it opens on PDF, and CSV is remembered the same way.
+    await _open(tester);
+    expect(_checked(tester, 'PDF'), isTrue);
+    await _tap(tester, 'CSV');
+    expect(_downloadWords(tester), 'Download CSV');
+    await tester.tap(_download);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Excel'));
-    await tester.pumpAndSettle();
-    expect(ran, [DashExportFormat.pdf, DashExportFormat.xlsx]);
+    expect(ran.last.$1, DashExportFormat.csv);
+    expect(formats.changes, [DashExportFormat.pdf, DashExportFormat.csv]);
   });
 
-  testWidgets('several files: the format sits at the top, keeps the menu '
-      'open, and the file follows it', (tester) async {
+  testWidgets('a PDF or CSV of a workbook with several sheets asks which, '
+      'and hands the pick to the export', (tester) async {
     final formats = _Formats();
-    final picked = <String>[];
+    final picks = <DashExportPick>[];
     await pumpDashApp(
       tester,
       _centered(
         _scoped(
           formats,
           DashExportButton(
-            onExport: () => picked.add('menu ${formats.format.name}'),
-            excelLabel: 'Menu',
-            moreHeading: 'Recipes',
+            onExport: picks.add,
+            sheets: const [
+              DashExportSheet('Items'),
+              DashExportSheet('Categories'),
+              DashExportSheet('Addons'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await _open(tester);
+    // Excel is the whole workbook: no sheet to choose.
+    expect(find.text('Sheet'), findsNothing);
+    await _tap(tester, 'PDF');
+    expect(find.text('Sheet'), findsOneWidget);
+    expect(_x(tester, 'Items'), lessThan(_x(tester, 'Categories')));
+    expect(_x(tester, 'Categories'), lessThan(_x(tester, 'Addons')));
+    expect(_checked(tester, 'Items'), isTrue);
+    await _tap(tester, 'Categories');
+    await tester.tap(_download);
+    await tester.pumpAndSettle();
+    expect(picks.last, const DashExportPick(sheet: 1));
+
+    // A CSV asks the same, and keeps the sheet chosen.
+    await _open(tester);
+    await _tap(tester, 'CSV');
+    expect(_checked(tester, 'Categories'), isTrue);
+    await tester.tap(_download);
+    await tester.pumpAndSettle();
+    expect(picks.last, const DashExportPick(sheet: 1));
+
+    // In Excel the pick is empty: the workbook is every sheet.
+    await _open(tester);
+    await _tap(tester, 'Excel');
+    await tester.tap(_download);
+    await tester.pumpAndSettle();
+    expect(picks.last, const DashExportPick());
+  });
+
+  testWidgets('a sheet of tables has no CSV: the CSV is the other sheet, '
+      'without asking', (tester) async {
+    final formats = _Formats();
+    final picks = <DashExportPick>[];
+    await pumpDashApp(
+      tester,
+      _centered(
+        _scoped(
+          formats,
+          DashExportButton(
+            onExport: picks.add,
+            sheets: const [
+              DashExportSheet('Recipe tables', csv: false),
+              DashExportSheet('Ingredient lines'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await _open(tester);
+    await _tap(tester, 'PDF');
+    expect(find.text('Recipe tables'), findsOneWidget);
+    expect(find.text('Ingredient lines'), findsOneWidget);
+    await _tap(tester, 'CSV');
+    expect(find.text('Sheet'), findsNothing);
+    expect(find.text('Recipe tables'), findsNothing);
+    await tester.tap(_download);
+    await tester.pumpAndSettle();
+    expect(picks.last, const DashExportPick(sheet: 1));
+
+    await _open(tester);
+    await _tap(tester, 'PDF');
+    expect(_checked(tester, 'Recipe tables'), isTrue);
+    await tester.tap(_download);
+    await tester.pumpAndSettle();
+    expect(picks.last, const DashExportPick(sheet: 0));
+  });
+
+  testWidgets('several files: the panel lists them under the format, and '
+      'each runs like the page\'s own', (tester) async {
+    final formats = _Formats();
+    final ran = <String>[];
+    await pumpDashApp(
+      tester,
+      _centered(
+        _scoped(
+          formats,
+          DashExportButton(
+            onExport: (p) => ran.add('menu $p'),
+            fileLabel: 'Menu',
             more: [
-              DashExportOption(
+              DashExportFile(
+                key: 'recipes',
                 label: 'Recipes with costs',
-                onSelected: () => picked.add('recipes ${formats.format.name}'),
-              ),
-              DashExportOption(
-                label: 'Recipe lines (CSV)',
-                onSelected: () => picked.add('csv'),
+                sheets: const [
+                  DashExportSheet('Recipe tables', csv: false),
+                  DashExportSheet('Ingredient lines'),
+                ],
+                onExport: (p) => ran.add('recipes $p'),
               ),
             ],
           ),
         ),
       ),
     );
-    await tester.tap(_trigger);
-    await tester.pumpAndSettle();
-    // In order: the format's heading and choices, a rule, the page's file,
-    // a rule, the section's heading, its files.
-    final order = [
-      find.text('Format'),
-      find.text('Excel'),
-      find.text('PDF'),
-      find.byType(Divider).first,
-      find.text('Menu'),
-      find.byType(Divider).last,
-      find.text('Recipes'),
-      find.text('Recipes with costs'),
-      find.text('Recipe lines (CSV)'),
-    ];
-    for (final f in order) {
-      expect(f, findsOneWidget);
-    }
-    for (var i = 1; i < order.length; i++) {
-      expect(_y(tester, order[i - 1]), lessThan(_y(tester, order[i])));
-    }
-    expect(find.byType(Divider), findsNWidgets(2));
-    expect(_checked('Excel'), isTrue);
-    expect(_checked('PDF'), isFalse);
-
-    await tester.tap(find.text('PDF'));
-    await tester.pumpAndSettle();
-    expect(formats.format, DashExportFormat.pdf);
-    expect(picked, isEmpty, reason: 'choosing a format exports nothing');
-    // Still open: the file is picked next, and the check moved.
-    expect(find.text('Menu'), findsOneWidget);
-    expect(_checked('PDF'), isTrue);
-    expect(_checked('Excel'), isFalse);
-    // Choosing it again keeps it chosen (a radio, not a checkbox).
-    await tester.tap(find.text('PDF'));
-    await tester.pumpAndSettle();
-    expect(_checked('PDF'), isTrue);
-    expect(formats.format, DashExportFormat.pdf);
-
-    await tester.tap(find.text('Menu'));
-    await tester.pumpAndSettle();
-    expect(picked, ['menu pdf']);
-    expect(find.text('Menu'), findsNothing, reason: 'closed');
-
-    // The other files follow the format too; the heading presses nothing.
-    await tester.tap(_trigger);
-    await tester.pumpAndSettle();
-    expect(_checked('PDF'), isTrue, reason: 'the choice is remembered');
-    await tester.tap(find.text('Recipes'), warnIfMissed: false);
-    await tester.pumpAndSettle();
-    expect(picked, ['menu pdf']);
-    await tester.tap(find.text('Excel'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Recipes with costs'));
-    await tester.pumpAndSettle();
-    expect(picked, ['menu pdf', 'recipes xlsx']);
-    expect(formats.changes, [
-      DashExportFormat.pdf,
-      DashExportFormat.pdf,
-      DashExportFormat.xlsx,
-    ]);
-  });
-
-  testWidgets('with CSV: the format, the page\'s file, then CSV (its own '
-      'item, whatever the format)', (tester) async {
-    final formats = _Formats();
-    final picked = <String>[];
-    await pumpDashApp(
-      tester,
-      _centered(
-        _scoped(
-          formats,
-          DashExportButton(
-            onExport: () => picked.add('file'),
-            onExportCsv: () => picked.add('csv'),
-            more: [DashExportOption(label: 'Cards', onSelected: () {})],
-          ),
-        ),
-      ),
-    );
-    await tester.tap(_trigger);
-    await tester.pumpAndSettle();
-    // The trigger's words and the page's file's (`common.exportFile`).
-    expect(find.text('Export'), findsNWidgets(2));
-    final file = find.text('Export').last;
-    expect(_y(tester, find.text('PDF')), lessThan(_y(tester, file)));
-    expect(_y(tester, file), lessThan(_y(tester, find.text('Export CSV'))));
+    await _open(tester);
+    expect(find.text('File'), findsOneWidget);
     expect(
-      _y(tester, find.text('Export CSV')),
-      lessThan(_y(tester, find.text('Cards'))),
+      _y(tester, find.text('CSV')),
+      lessThan(_y(tester, find.text('Menu'))),
     );
-    expect(find.byType(Divider), findsNWidgets(2), reason: 'no heading given');
-    // The page's file wears the format's glyph.
-    bool glyph(String name) => find
-        .descendant(
-          of: _row('Export'),
-          matching: find.byWidgetPredicate(
-            (w) => w is DashIcon && w.name == name,
-          ),
-        )
-        .evaluate()
-        .isNotEmpty;
-    expect(glyph('file-spreadsheet'), isTrue);
-    await tester.tap(find.text('PDF'));
+    expect(
+      _y(tester, find.text('Menu')),
+      lessThan(_y(tester, find.text('Recipes with costs'))),
+    );
+    expect(_checked(tester, 'Menu'), isTrue);
+    await _tap(tester, 'Recipes with costs');
+    expect(_checked(tester, 'Recipes with costs'), isTrue);
+    expect(_checked(tester, 'Menu'), isFalse);
+    await tester.tap(_download);
     await tester.pumpAndSettle();
-    expect(glyph('file-text'), isTrue);
+    expect(ran, ['recipes ${const DashExportPick()}']);
 
-    await tester.tap(find.text('Export CSV'));
+    // The file stays picked for the next export.
+    await _open(tester);
+    expect(_checked(tester, 'Recipes with costs'), isTrue);
+    await _tap(tester, 'CSV');
+    await tester.tap(_download);
     await tester.pumpAndSettle();
-    expect(picked, ['csv']);
+    expect(ran.last, 'recipes ${const DashExportPick(sheet: 1)}');
   });
 
   testWidgets('without a format scope the button keeps its own choice', (
     tester,
   ) async {
-    await pumpDashApp(
-      tester,
-      _centered(DashExportButton(onExport: () {}, onExportCsv: () {})),
-    );
-    await tester.tap(_trigger);
-    await tester.pumpAndSettle();
-    expect(_checked('Excel'), isTrue);
-    await tester.tap(find.text('PDF'));
-    await tester.pumpAndSettle();
-    expect(_checked('PDF'), isTrue);
-    expect(_checked('Excel'), isFalse);
+    await pumpDashApp(tester, _centered(DashExportButton(onExport: (_) {})));
+    await _open(tester);
+    expect(_checked(tester, 'Excel'), isTrue);
+    await _tap(tester, 'PDF');
+    expect(_checked(tester, 'PDF'), isTrue);
+    expect(_checked(tester, 'Excel'), isFalse);
   });
 
-  testWidgets('a label of its own, loading and disabled, as before', (
-    tester,
-  ) async {
+  testWidgets('a label of its own, and disabled', (tester) async {
     var ran = 0;
     await pumpDashApp(
       tester,
@@ -267,11 +277,11 @@ void main() {
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DashExportButton(label: 'Pay lists', onExport: () => ran++),
+            DashExportButton(label: 'Pay lists', onExport: (_) => ran++),
             DashExportButton(
               label: 'Off',
               enabled: false,
-              onExport: () => ran++,
+              onExport: (_) => ran++,
             ),
           ],
         ),
@@ -284,8 +294,32 @@ void main() {
     expect(off.onPressed, isNull);
     await tester.tap(find.text('Pay lists'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Excel'));
+    await tester.tap(_download);
     await tester.pumpAndSettle();
     expect(ran, 1);
+  });
+
+  testWidgets('on a phone the panel stays clear of the screen\'s edges', (
+    tester,
+  ) async {
+    await pumpDashApp(
+      tester,
+      Scaffold(
+        body: Align(
+          alignment: AlignmentDirectional.topEnd,
+          child: DashExportButton(onExport: (_) {}),
+        ),
+      ),
+      size: DashSize.phone,
+    );
+    await _open(tester);
+    final card = tester.getRect(
+      find
+          .ancestor(of: find.text('Format'), matching: find.byType(Container))
+          .last,
+    );
+    final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+    expect(card.left, greaterThanOrEqualTo(16));
+    expect(card.right, lessThanOrEqualTo(screen.width - 16));
   });
 }

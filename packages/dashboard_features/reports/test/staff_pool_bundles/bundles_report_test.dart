@@ -149,11 +149,14 @@ void main() {
       );
       expect(find.text('Export'), findsOneWidget);
       await h.tap(find.text('Export'));
-      // One file: the menu is the format; no CSV entry appears.
+      // One file: the panel's format, and no file list.
       expect(find.text('Excel'), findsOneWidget);
       expect(find.text('PDF'), findsOneWidget);
-      expect(find.text('Export CSV'), findsNothing);
+      expect(find.text('CSV'), findsOneWidget);
+      expect(find.text('File'), findsNothing);
       await tester.tap(find.text('Excel'));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('export-download')));
       await tester.pump();
       await tester.pump(const Duration(seconds: 6));
     });
@@ -935,7 +938,7 @@ void main() {
       );
       expect(button.onPressed, isNull);
       await h.tap(find.text('Export'));
-      expect(find.text('Excel'), findsNothing, reason: 'no menu opens');
+      expect(find.text('Excel'), findsNothing, reason: 'no panel opens');
       expect(h.exports.built, isEmpty);
     });
 
@@ -957,7 +960,7 @@ void main() {
       final written = Completer<void>();
       h.exports.hold = written.future;
       await h.tap(find.text('Export'));
-      await tester.tap(find.text('Excel'));
+      await tester.tap(find.byKey(const ValueKey('export-download')));
       await tester.pump();
       expect(find.text('Gathering data…'), findsOneWidget);
       written.complete();

@@ -34,10 +34,8 @@ const _trend = 'reports.financial.tabs.materialCostTrend';
 
 Finder exportButton() => find.byKey(const ValueKey('fin-inventory-export'));
 
-Future<void> menu(DashHarness h, String item) async {
-  await h.tap(exportButton());
-  await h.tap(find.text(item).last);
-}
+Future<void> menu(DashHarness h, String format) =>
+    h.exportVia(format, exportButton());
 
 String stamp(DashHarness h) =>
     isoString(h.container.read(clockProvider)()).substring(0, 10);
@@ -291,7 +289,7 @@ void main() {
     testWidgets('REP-FIN-070 Valuation: "By category", "Total value", '
         'subtitled by the scope, Madar-Valuation', (t) async {
       final h = await openInv(t, _valuation);
-      await menu(h, 'Export');
+      await menu(h, 'Excel');
       final rows = finByCategory(
         finValuation(SeedIds.sabahBranches),
         finCatalog(SeedIds.sabahOrg),
@@ -313,20 +311,21 @@ void main() {
 
     testWidgets('REP-FIN-070 Supplier spend to CSV, "This branch"', (t) async {
       final h = await openInv(t, _spend, branchId: SeedIds.maadi);
-      await menu(h, 'Export CSV');
+      await menu(h, 'CSV');
       await h.flushTimers();
       expect(
         h.files.saved.single.filename,
         'Madar-Supplier spend-${stamp(h)}.csv',
       );
-      final text = String.fromCharCodes(h.files.saved.single.bytes);
-      expect(text.split('\n').first, startsWith('Supplier,Orders,Total spend'));
+      final file = h.files.saved.single;
+      expect(file.bytes.take(3), [0xEF, 0xBB, 0xBF], reason: 'UTF-8 mark');
+      expect(file.asString.split('\r\n').first, 'Supplier,Orders,Total spend');
     });
 
     testWidgets('REP-FIN-070 Material cost trend: the five columns, the rise '
         'as "+pct%" text', (t) async {
       final h = await openInv(t, _trend);
-      await menu(h, 'Export');
+      await menu(h, 'Excel');
       await h.flushTimers();
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.title, 'Material cost trend');
@@ -343,7 +342,7 @@ void main() {
       final h = await openInv(t, _spend);
       await pickSegment(h, 'fin-inv-scope', 'This branch');
       expect(t.widget<DashExportButton>(exportButton()).enabled, isTrue);
-      await menu(h, 'Export');
+      await menu(h, 'Excel');
       await h.expectToast('Nothing to export');
       expect(h.files.saved, isEmpty);
     });

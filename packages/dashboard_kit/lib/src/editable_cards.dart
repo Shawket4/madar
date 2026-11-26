@@ -218,7 +218,8 @@ class _DashEditableCardGridState<T> extends State<DashEditableCardGrid<T>> {
     ];
 
     final actions = [
-      if (widget.onExport != null) DashExportButton(onExport: widget.onExport!),
+      if (widget.onExport != null)
+        DashExportButton(onExport: (_) => widget.onExport!()),
       if (widget.onPasteRows != null)
         DashButton(
           label: t.pasteRows,

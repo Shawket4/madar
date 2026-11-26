@@ -239,16 +239,15 @@ class _InventoryReportsPageState extends ConsumerState<InventoryReportsPage>
             key: const ValueKey('inv-export'),
             loading: _exporting,
             enabled: !branchGate && count > 0,
-            onExport: () async {
+            onExport: (_) async {
               final c = config();
               setState(() => _exporting = true);
               try {
-                await lisExportExcel(context, ref, c);
+                await lisExport(context, ref, c);
               } finally {
                 if (mounted) setState(() => _exporting = false);
               }
             },
-            onExportCsv: () => lisExportCsv(context, ref, config()),
           ),
       ],
       tabs: DashPageTabs<String>(

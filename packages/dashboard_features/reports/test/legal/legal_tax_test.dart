@@ -16,10 +16,8 @@ Finder _inTax(Finder f) =>
 
 Finder get _export => _inTax(find.byType(DashExportButton));
 
-Future<void> _menu(DashHarness h, String item) async {
-  await h.tap(_export);
-  await h.tap(find.text(item).last);
-}
+Future<void> _menu(DashHarness h, String format) =>
+    h.exportVia(format, _export);
 
 String _stamp(DashHarness h) =>
     isoString(h.container.read(clockProvider)()).substring(0, 10);
@@ -236,7 +234,7 @@ void main() {
     final h = await pumpLegal(tester, server: s.server, db: s.db);
     final want = _expected(s.db);
     final asked = legalCalls(h).length;
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     final spec = h.exports.built.single;
     final sheet = spec.sheets.single;
     expect(sheet.name, 'Tax');
@@ -269,13 +267,15 @@ void main() {
   ) async {
     final s = legalServer();
     final h = await pumpLegal(tester, server: s.server, db: s.db);
-    await _menu(h, 'Export CSV');
+    await _menu(h, 'CSV');
     final file = h.files.saved.single;
     expect(file.filename, 'Tax-${_stamp(h)}.csv');
-    final lines = file.asString.split('\r\n');
+    // Every record ends in CRLF, the last too; money with two decimals.
+    final lines = file.asString.split('\r\n')..removeLast();
     expect(lines.first, 'Figure,Amount');
     expect(lines, hasLength(7));
     expect(lines[2], startsWith('Tax Collected,'));
+    expect(lines[3], 'Refunded Tax,0.00');
     expect(h.exports.built, isEmpty);
     await h.expectToast('Exported 6 rows');
   });
@@ -283,7 +283,7 @@ void main() {
   testWidgets('REP-LEG-012 (divergence) the Arabic export is Arabic: its '
       'file, sheet and column names', (tester) async {
     final h = await pumpLegal(tester, locale: 'ar');
-    await _menu(h, h.t('common.exportFile'));
+    await _menu(h, h.t('common.exportFormat.excel'));
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'الضريبة');
     expect(
@@ -302,7 +302,7 @@ void main() {
       const Duration(seconds: 2),
     );
     await h.tap(_export);
-    await tester.tap(find.text('Export').last);
+    await tester.tap(find.byKey(const ValueKey('export-download')));
     await tester.pump();
     await tester.pump();
     final button = tester.widget<DashButton>(
@@ -322,7 +322,7 @@ void main() {
   ) async {
     final h = await pumpLegal(tester);
     h.exports.failNext = StateError('disk full');
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     expect(h.files.saved, isEmpty);
     await h.expectToast('Export failed');
   });

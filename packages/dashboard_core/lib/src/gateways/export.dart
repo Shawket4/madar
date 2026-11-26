@@ -1,6 +1,7 @@
 /// Spreadsheet export and import: the web's `src/lib/excel.ts` (the branded
-/// workbook, the CSV sibling and the PDF of the same sheets),
-/// `src/lib/export-format.ts` (which of the two every export makes) and
+/// workbook, and a PDF or CSV of one of its sheets), `src/lib/csv.ts` (the
+/// CSV writer, `csv.dart`), `src/lib/export-format.ts` (which of the three
+/// every export makes) and
 /// `src/lib/export-all.ts` (walking a paged list to the end, with a hard
 /// ceiling).
 ///
@@ -38,11 +39,15 @@ import 'package:dashboard_core/src/format/tz.dart';
 import 'package:dashboard_core/src/gateways/files.dart';
 import 'package:dashboard_core/src/gateways/preferences.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
-import 'package:dashboard_kit/dashboard_kit.dart' show DashExportFormat;
+import 'package:dashboard_kit/dashboard_kit.dart'
+    show DashExportFormat, DashExportPick;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-export 'package:dashboard_kit/dashboard_kit.dart' show DashExportFormat;
+export 'package:dashboard_kit/dashboard_kit.dart'
+    show DashExportFormat, DashExportPick;
+
+part 'csv.dart';
 
 /// `ColumnType`.
 enum ExcelColumnType {
@@ -259,7 +264,8 @@ class ExcelConfig {
   /// The banner logo; null = Madar's.
   final String? logoUrl;
 
-  /// Sheets of either kind, in order. A CSV takes the first table sheet.
+  /// Sheets of either kind, in order. A PDF or a CSV is one of them
+  /// ([pickSheet]).
   final List<AnyExcelSheet> sheets;
 
   /// The success toast's words, when "Exported N rows" would miscount (a
@@ -758,18 +764,18 @@ final exportGatewayProvider = Provider<ExportGateway>(
 const String exportFormatPrefKey = 'madar.export.format';
 
 /// Which file every export makes (`getExportFormat` / `setExportFormat`):
-/// the workbook or a PDF of the same sheets. One choice for the whole
-/// dashboard, picked at the top of any Export menu and remembered on this
-/// device: someone who files PDFs wants every export as a PDF, not to be
-/// asked each time. [DashExporter.exportToExcel] follows it, so every export
-/// honours it without its page knowing; a CSV is its own format and ignores
-/// it.
+/// the workbook, or a PDF or CSV of one of its sheets. One choice for the
+/// whole dashboard, picked at the top of any Export panel and remembered on
+/// this device: someone who files PDFs wants every export as a PDF, not to be
+/// asked each time. [DashExporter.exportFile] follows it, so every export
+/// honours it without its page knowing.
 class ExportFormatNotifier extends Notifier<DashExportFormat> {
   @override
   DashExportFormat build() =>
-      ref.watch(preferencesProvider).getString(exportFormatPrefKey) == 'pdf'
-      ? DashExportFormat.pdf
-      : DashExportFormat.xlsx;
+      DashExportFormat.values.asNameMap()[ref
+          .watch(preferencesProvider)
+          .getString(exportFormatPrefKey)] ??
+      DashExportFormat.xlsx;
 
   Future<void> set(DashExportFormat format) async {
     state = format;
@@ -859,7 +865,55 @@ class ExportFailed extends ExportOutcome {
       words ?? t('excel.failed', defaultValue: 'Export failed');
 }
 
-/// `exportToExcel` / `exportToPdf` / `exportToCsv`, over the gateways.
+/// A PDF or a CSV is one sheet (the web's `pickSheet`): [config] cut down to
+/// the sheet the panel picked ([pick]), its file name the sheet's past the
+/// first (`Madar-Recipes-Ingredient-lines`). A PDF unpicked is the whole
+/// workbook. A CSV is never a sheet of tables, and never a guess among
+/// several: both throw (the export fails).
+ExcelConfig pickSheet(
+  ExcelConfig config,
+  DashExportPick pick,
+  DashExportFormat format,
+) {
+  if (config.sheets.isEmpty) return config;
+  final flat = [
+    for (final (i, s) in config.sheets.indexed)
+      if (s is! ExcelBlockSheet) i,
+  ];
+  final int at;
+  if (pick.sheet case final asked?) {
+    at = asked.clamp(0, config.sheets.length - 1);
+  } else if (format == DashExportFormat.pdf) {
+    return config;
+  } else if (flat.length == 1) {
+    at = flat.single;
+  } else {
+    throw StateError(
+      'A CSV is one flat sheet: "${config.filename}" has ${flat.length} '
+      'and no pick',
+    );
+  }
+  final sheet = config.sheets[at];
+  if (format == DashExportFormat.csv && sheet is ExcelBlockSheet) {
+    throw StateError('"${sheet.name}" is a sheet of tables: it has no CSV');
+  }
+  if (config.sheets.length < 2) return config;
+  final suffix = sheet.name
+      .trim()
+      .replaceAll(RegExp(r'[\\/:*?"<>|]+'), '')
+      .replaceAll(RegExp(r'\s+'), '-');
+  return ExcelConfig(
+    filename: at == 0 || suffix.isEmpty
+        ? config.filename
+        : '${config.filename}-$suffix',
+    sheets: [sheet],
+    meta: config.meta,
+    logoUrl: config.logoUrl,
+    doneMessage: config.doneMessage,
+  );
+}
+
+/// Every export's file, over the gateways ([exportFile]).
 class DashExporter {
   const DashExporter({
     required this.exports,
@@ -874,11 +928,11 @@ class DashExporter {
   final ExportGateway exports;
   final FileGateway files;
 
-  /// Where a PDF is printed; null: none can be ([exportToPdf] fails).
+  /// Where a PDF is printed; null: none can be (a PDF export fails).
   final PdfGateway? pdf;
 
-  /// The format chosen at the top of the Export menu
-  /// ([exportFormatProvider]): [exportToExcel] makes this file.
+  /// The format chosen at the top of the Export panel
+  /// ([exportFormatProvider]): [exportFile] makes this file.
   final DashExportFormat exportFormat;
 
   /// The active language and zone (dates in the sheet are on its clock).
@@ -891,7 +945,7 @@ class DashExporter {
   /// `-YYYY-MM-DD` (UTC, as `new Date().toISOString().slice(0, 10)`).
   String _stamp() => isoString(_now).substring(0, 10);
 
-  /// The spec `exportToExcel` would build for [config].
+  /// The spec [exportFile] builds for [config]'s workbook.
   WorkbookSpec workbookSpec(ExcelConfig config) =>
       WorkbookSpec.of(logoUrl: config.logoUrl, [
         for (final s in config.sheets)
@@ -1226,10 +1280,34 @@ class DashExporter {
     );
   }
 
+  /// Every export in the app (the web's `exportFile`): the file, in the
+  /// format chosen in the Export panel ([exportFormat]). Excel is the whole
+  /// workbook; a PDF or a CSV is the sheet the panel picked ([pick]), a PDF
+  /// unpicked the whole workbook.
+  Future<ExportOutcome> exportFile(
+    ExcelConfig config, [
+    DashExportPick pick = const DashExportPick(),
+  ]) async {
+    switch (exportFormat) {
+      case DashExportFormat.pdf:
+        final ExcelConfig one;
+        try {
+          one = pickSheet(config, pick, DashExportFormat.pdf);
+        } on Object catch (e, st) {
+          return _failed(e, st);
+        }
+        return _savePdf(one);
+      case DashExportFormat.csv:
+        return _saveCsv(config, pick);
+      case DashExportFormat.xlsx:
+        return _saveWorkbook(config);
+    }
+  }
+
   /// The PDF of [config]'s sheets, saved as `<filename>-<YYYY-MM-DD>.pdf`:
   /// the outcomes exactly as the workbook's, except that a refusal reads in
   /// the server's own words (a document too large to print).
-  Future<ExportOutcome> exportToPdf(ExcelConfig config) async {
+  Future<ExportOutcome> _savePdf(ExcelConfig config) async {
     if (config.sheets.every((s) => s.size == 0)) {
       return const ExportNothing();
     }
@@ -1260,11 +1338,39 @@ class DashExporter {
     }
   }
 
-  /// The export, in the format chosen at the top of the Export menu
-  /// ([exportFormat]): the branded `.xlsx`, saved as
-  /// `<filename>-<YYYY-MM-DD>.xlsx`, or [exportToPdf] of the same sheets.
-  Future<ExportOutcome> exportToExcel(ExcelConfig config) async {
-    if (exportFormat == DashExportFormat.pdf) return exportToPdf(config);
+  /// The CSV of the sheet [pick] names (`csv.dart`), saved as
+  /// `<filename>-<YYYY-MM-DD>.csv` on the shop's day.
+  Future<ExportOutcome> _saveCsv(
+    ExcelConfig config,
+    DashExportPick pick,
+  ) async {
+    final ExcelConfig one;
+    try {
+      one = pickSheet(config, pick, DashExportFormat.csv);
+    } on Object catch (e, st) {
+      return _failed(e, st);
+    }
+    final sheet = one.sheets.firstOrNull;
+    if (sheet is! ExcelSheet<Object?> || sheet.rows.isEmpty) {
+      return const ExportNothing();
+    }
+    try {
+      final name = '${one.filename}-${format.businessDate(_now)}.csv';
+      final saved = await saveText(files, toCsv(sheet, format.timezone), name);
+      return ExportDone(
+        rows: sheet.rows.length,
+        filename: name,
+        savedTo: saved,
+        doneMessage: config.doneMessage,
+      );
+    } on Object catch (e, st) {
+      return _failed(e, st);
+    }
+  }
+
+  /// The branded `.xlsx` of every sheet, saved as
+  /// `<filename>-<YYYY-MM-DD>.xlsx`.
+  Future<ExportOutcome> _saveWorkbook(ExcelConfig config) async {
     if (config.sheets.every((s) => s.size == 0)) {
       return const ExportNothing();
     }
@@ -1288,70 +1394,10 @@ class DashExporter {
     }
   }
 
-  /// The table sheets of [config]: a CSV's (`CsvConfig` holds only those; a
-  /// sheet of tables has no flat form).
-  static List<ExcelSheet<Object?>> _tables(ExcelConfig config) => [
-    for (final s in config.sheets)
-      if (s is ExcelSheet<Object?>) s,
-  ];
-
-  /// The CSV text `exportToCsv` writes for [config] (first table sheet only).
-  String csvText(ExcelConfig config) {
-    final sheet = _tables(config).first;
-    final header = [
-      for (final c in sheet.columns) _csvCell(c.header),
-    ].join(',');
-    final types = sheet.columnTypes;
-    final lines = [
-      for (final raw in sheet.rawRows())
-        [
-          for (var c = 0; c < raw.length; c++) _csvValue(raw[c], types[c]),
-        ].join(','),
-    ];
-    return [header, ...lines].join('\r\n');
-  }
-
-  /// The plain CSV sibling, saved as `<filename>-<YYYY-MM-DD>.csv`. A CSV is
-  /// one flat file: a multi-sheet config exports only the first sheet.
-  Future<ExportOutcome> exportToCsv(ExcelConfig config) async {
-    final tables = _tables(config);
-    if (tables.isEmpty || tables.every((s) => s.rows.isEmpty)) {
-      return const ExportNothing();
-    }
-    try {
-      final name = '${config.filename}-${_stamp()}.csv';
-      final saved = await saveText(files, csvText(config), name);
-      return ExportDone(
-        rows: tables.first.rows.length,
-        filename: name,
-        savedTo: saved,
-      );
-    } on Object catch (e, st) {
-      return _failed(e, st);
-    }
-  }
-
   /// The toast says only "Export failed": the cause goes to the log.
   static ExportFailed _failed(Object e, StackTrace st) {
     debugPrint('Export failed: $e\n$st');
     return ExportFailed(e);
-  }
-
-  static String _csvCell(String v) =>
-      RegExp('[",\n]').hasMatch(v) ? '"${v.replaceAll('"', '""')}"' : v;
-
-  static String _csvValue(Object? raw, ExcelColumnType? type) {
-    if (raw == null) return '';
-    switch (type) {
-      case ExcelColumnType.money:
-        return _csvCell(raw is num ? _jsString(raw / 100) : _jsString(raw));
-      case ExcelColumnType.date:
-      case ExcelColumnType.dateTime:
-        final d = parseJsDate(raw is DateTime ? raw : raw.toString());
-        return d == null ? '' : isoString(d);
-      default:
-        return _csvCell(raw is String ? raw : _jsString(raw));
-    }
   }
 }
 

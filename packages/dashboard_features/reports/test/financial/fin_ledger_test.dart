@@ -519,10 +519,8 @@ void main() {
 
   group('export', () {
     Finder exportButton() => find.byKey(const ValueKey('fin-ledger-export'));
-    Future<void> menu(DashHarness h, String item) async {
-      await h.tap(exportButton());
-      await h.tap(find.text(item).last);
-    }
+    Future<void> menu(DashHarness h, String format) =>
+        h.exportVia(format, exportButton());
 
     String stamp(DashHarness h) =>
         isoString(h.container.read(clockProvider)()).substring(0, 10);
@@ -534,7 +532,7 @@ void main() {
       final h = await pumpFin(tester);
       await h.tap(find.byKey(const ValueKey('fin-flagged-only')));
       final rows = finFilterRows(served(h).rows, flaggedOnly: true);
-      await menu(h, 'Export');
+      await menu(h, 'Excel');
       await h.expectToast('Exported ${rows.length} rows');
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'Menu profitability');
@@ -571,19 +569,22 @@ void main() {
       final h = await pumpFin(tester);
       await pickClass(h, 'Dog');
       final rows = finFilterRows(served(h).rows, klass: 'dog');
-      await menu(h, 'Export CSV');
+      await menu(h, 'CSV');
       await h.expectToast('Exported ${rows.length} rows');
       final f = h.files.saved.single;
       expect(f.filename, 'Madar-Menu profitability-${stamp(h)}.csv');
-      final text = String.fromCharCodes(f.bytes);
-      expect(text.split('\n').first, startsWith('Item,Size,All classes,Sold'));
+      expect(f.bytes.take(3), [0xEF, 0xBB, 0xBF], reason: 'UTF-8 mark');
+      expect(
+        f.asString.split('\r\n').first,
+        startsWith('Item,Size,All classes,Sold'),
+      );
     });
 
     testWidgets('REP-FIN-026 in Arabic the file name is Arabic', (
       tester,
     ) async {
       final h = await pumpFin(tester, locale: 'ar');
-      await menu(h, h.t('common.exportFile'));
+      await menu(h, h.t('common.exportFormat.excel'));
       await h.flushTimers();
       expect(
         h.files.saved.single.filename,

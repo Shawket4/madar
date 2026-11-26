@@ -259,7 +259,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
         ],
       );
       final toast = DashToast.loading(context, t('excel.generating'));
-      final outcome = await ref.read(exporterProvider).exportToExcel(config);
+      final outcome = await ref.read(exporterProvider).exportFile(config);
       toast.update(
         outcome is ExportDone ? DashToastKind.success : DashToastKind.error,
         outcome.message(t),
@@ -409,7 +409,7 @@ class _TillsPageState extends ConsumerState<TillsPage> {
           key: const ValueKey('tills-export'),
           loading: _exporting,
           enabled: (data?.total ?? 0) > 0 && !_exporting,
-          onExport: () => _export(key),
+          onExport: (_) => _export(key),
         ),
         if (branchId != null && myOpen == null)
           DashButton(

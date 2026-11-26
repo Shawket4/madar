@@ -488,7 +488,7 @@ void main() {
     final h = await pumpLegal(tester);
     await _open(h, LegalTab.deductionOverrides);
     final asked = legalCalls(h).length;
-    await auditMenu(h, 'Export');
+    await auditMenu(h, 'Excel');
     final spec = h.exports.built.single;
     expect(
       [for (final s in spec.sheets) s.name],
@@ -543,7 +543,7 @@ void main() {
   testWidgets('REP-LEG-026 points and attendance columns', (tester) async {
     final h = await pumpLegal(tester);
     await _open(h, LegalTab.loyaltyAdjustments);
-    await auditMenu(h, 'Export');
+    await auditMenu(h, 'Excel');
     var sheet = h.exports.built.last.sheets.first;
     expect(sheet.name, 'By branch');
     expect(
@@ -556,7 +556,7 @@ void main() {
     expect(h.exports.built.last.sheets, hasLength(2));
     await h.flushTimers();
     await _open(h, LegalTab.attendanceCorrections);
-    await auditMenu(h, 'Export');
+    await auditMenu(h, 'Excel');
     sheet = h.exports.built.last.sheets.first;
     expect([for (final c in sheet.columns) c.header], ['Label', 'Events']);
     expect([for (final st in sheet.stats) st.label], ['Events']);
@@ -564,16 +564,19 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('REP-LEG-026 audit to CSV: the first sheet only', (tester) async {
+  testWidgets('REP-LEG-026 audit to CSV: the first sheet, money in pounds', (
+    tester,
+  ) async {
     final h = await pumpLegal(tester);
     await _open(h, LegalTab.deductionOverrides);
-    await auditMenu(h, 'Export CSV');
+    await auditMenu(h, 'CSV');
     final file = h.files.saved.single;
     expect(file.filename, 'Madar-Deduction overrides-${exportStamp(h)}.csv');
     expect(file.asString.split('\r\n'), [
       'Label,Events,Amount',
-      'Overridden,3,265',
-      'Waived,2,70',
+      'Overridden,3,265.00',
+      'Waived,2,70.00',
+      '',
     ]);
     await h.expectToast('Exported 2 rows');
   });
@@ -582,7 +585,7 @@ void main() {
       'Arabic, names and file included', (tester) async {
     final h = await pumpLegal(tester, locale: 'ar');
     await _open(h, LegalTab.deductionOverrides);
-    await auditMenu(h, h.t('common.exportFile'));
+    await auditMenu(h, h.t('common.exportFormat.excel'));
     final spec = h.exports.built.single;
     final latin = RegExp('[A-Za-z]');
     for (final s in spec.sheets) {
@@ -670,7 +673,7 @@ void main() {
     );
     expect(reason.maxLines, isNull);
     await _open(h, LegalTab.discounts);
-    await auditMenu(h, 'Export');
+    await auditMenu(h, 'Excel');
     expect(
       [for (final x in h.exports.built.single.sheets) x.name],
       ['By discount', 'By staff member'],

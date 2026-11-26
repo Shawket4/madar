@@ -25,7 +25,7 @@ Widget _pageBoard(L l) => Builder(
       title: l.orders,
       subtitle: l.ordersSub,
       actions: [
-        DashExportButton(onExport: () {}, onExportCsv: () {}),
+        DashExportButton(onExport: (_) {}),
         DashButton(label: l.add, icon: 'plus', onPressed: () {}),
       ],
       tabs: DashPageTabs<int>(

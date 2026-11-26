@@ -6,6 +6,7 @@ import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/testing.dart';
 import 'package:dashboard_kit/dashboard_kit.dart';
+import 'package:dashboard_sell/src/orders/export_data.dart';
 import 'package:dashboard_sell/src/orders/export_sheet.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -29,7 +30,7 @@ Future<DashHarness> _openExport(
     size: size,
     locale: locale,
   );
-  await h.exportVia('Excel', find.byKey(const ValueKey('orders-export')));
+  await h.tapKey(const ValueKey('orders-export'));
   return h;
 }
 
@@ -179,7 +180,7 @@ void main() {
     await h.tap(find.byKey(const ValueKey('export-customize')));
     await h.tap(inExport(find.text('Cancel')));
     expect(find.byType(OrdersExportSheet), findsNothing);
-    await h.exportVia('Excel', find.byKey(const ValueKey('orders-export')));
+    await h.tapKey(const ValueKey('orders-export'));
     expect(
       find.byWidgetPredicate(
         (w) =>
@@ -477,4 +478,55 @@ void main() {
       expect(find.byType(OrdersExportSheet), findsNothing);
     },
   );
+
+  testWidgets('the format, remembered as every export\'s; a PDF or CSV of '
+      'several sheets asks which', (tester) async {
+    final h = await _openExport(tester);
+    // Excel, PDF or CSV; Excel is the whole workbook.
+    for (final f in ['Excel', 'PDF', 'CSV']) {
+      expect(inExport(find.text(f)), findsOneWidget, reason: f);
+    }
+    expect(find.byKey(const ValueKey('export-sheet')), findsNothing);
+    expect(tester.widget<DashButton>(_run).label, 'Download Excel');
+    // Till handoff is two sheets: a CSV asks which.
+    await h.tap(find.byKey(const ValueKey('preset-till_handoff')));
+    await h.tap(inExport(find.text('CSV')));
+    expect(h.container.read(exportFormatProvider), DashExportFormat.csv);
+    expect(find.byKey(const ValueKey('export-sheet')), findsOneWidget);
+    await h.tap(inExport(find.text('Payments')).last);
+    expect(tester.widget<DashButton>(_run).label, 'Download CSV');
+    await h.tap(_run);
+    await h.settle();
+    expect(h.exports.built, isEmpty, reason: 'no workbook');
+    final saved = h.files.saved.single;
+    expect(saved.filename, contains('-Payments-'));
+    expect(saved.filename, endsWith('.csv'));
+    expect(saved.bytes.take(3), [0xEF, 0xBB, 0xBF]);
+    await h.flushTimers();
+  });
+
+  testWidgets('orderSheetNames: buildExportSheets\' names, in its order', (
+    tester,
+  ) async {
+    final h = await pumpOrders(tester);
+    final t = h.container.read(tProvider);
+    for (final grains in <Set<ExportGrain>>[
+      {ExportGrain.order},
+      {ExportGrain.order, ExportGrain.payment},
+      {ExportGrain.deduction},
+      ExportGrain.values.toSet(),
+    ]) {
+      expect(
+        orderSheetNames(grains, t),
+        buildExportSheets(
+          orders: const [],
+          grains: grains,
+          t: t,
+          fmt: h.container.read(formatProvider),
+          lang: 'en',
+        ).map((s) => s.name),
+        reason: '$grains',
+      );
+    }
+  });
 }

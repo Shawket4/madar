@@ -134,7 +134,7 @@ void main() {
         t: Translator(Strings(const {}), 'en'),
         clock: () => now,
       );
-      final outcome = await exporter.exportToExcel(
+      final outcome = await exporter.exportFile(
         ExcelConfig(
           filename: 'Madar-Recipes',
           doneMessage: 'Exported 1 recipe',
@@ -227,7 +227,7 @@ void main() {
       t: Translator(Strings(const {}), 'en'),
       clock: () => now,
     );
-    final outcome = await exporter.exportToExcel(
+    final outcome = await exporter.exportFile(
       ExcelConfig(
         filename: 'Madar-Customers',
         logoUrl: 'https://api.madar-pos.cloud/uploads/org/logos/g.webp',

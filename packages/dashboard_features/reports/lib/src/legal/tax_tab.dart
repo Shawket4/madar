@@ -109,25 +109,15 @@ class _LegalTaxTabState extends ConsumerState<LegalTaxTab> {
     );
   }
 
-  Future<void> _excel(TaxReport d) async {
+  Future<void> _export(TaxReport d) async {
     final t = ref.read(tProvider);
     setState(() => _exporting = true);
     try {
-      await legalExportExcel(
-        context,
-        ref,
-        _config(t, ref.read(formatProvider), d),
-      );
+      await legalExport(context, ref, _config(t, ref.read(formatProvider), d));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
   }
-
-  Future<void> _csv(TaxReport d) => legalExportCsv(
-    context,
-    ref,
-    _config(ref.read(tProvider), ref.read(formatProvider), d),
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -179,8 +169,7 @@ class _LegalTaxTabState extends ConsumerState<LegalTaxTab> {
             DashExportButton(
               compact: true,
               loading: _exporting,
-              onExport: () => _excel(d),
-              onExportCsv: () => _csv(d),
+              onExport: (_) => _export(d),
             ),
           ],
         ),

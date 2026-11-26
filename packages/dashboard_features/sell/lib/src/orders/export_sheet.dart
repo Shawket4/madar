@@ -51,6 +51,9 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
   bool _busy = false;
   bool _customize = false;
 
+  /// The sheet a PDF or CSV is made of, by its index in the workbook.
+  int _sheet = 0;
+
   void _pick(ExportPreset p) => setState(() {
     _preset = p;
     _grains = p.grains.toSet();
@@ -112,6 +115,11 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
           meta: exportMeta(t: t, fmt: fmt, branchName: branchName, f: m),
           logoUrl: exportLogoUrl(brand),
         ),
+        DashSheetPick(
+          [for (final n in orderSheetNames(_grains, t)) DashExportSheet(n)],
+          ref.read(exportFormatProvider),
+          _sheet,
+        ).pick,
       );
       if (mounted) Navigator.of(context).pop();
     } on Object catch (e) {
@@ -140,6 +148,13 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
       from: m.from,
       to: m.to,
       now: ref.watch(clockProvider)(),
+    );
+    final kit = context.dashStrings;
+    final format = ref.watch(exportFormatProvider);
+    final sheet = DashSheetPick(
+      [for (final n in orderSheetNames(_grains, t)) DashExportSheet(n)],
+      format,
+      _sheet,
     );
     final phone = DashBreakpoints.isPhone(context);
     String or(String key, String raw) => t.exists(key) ? t(key) : raw;
@@ -343,6 +358,27 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
           ],
         ),
         snapshot,
+        // Format: the same choice, remembered, as every Export button's.
+        DashFormField<DashExportFormat>(
+          label: kit.exportFormatLabel,
+          value: format,
+          builder: (context, _) => DashExportFormatPicker(
+            key: const ValueKey('export-format'),
+            value: format,
+            onChanged: ref.read(exportFormatProvider.notifier).set,
+          ),
+        ),
+        if (sheet.asks)
+          DashFormField<int>(
+            label: kit.exportFormatSheet,
+            value: sheet.at!.index,
+            builder: (context, _) => DashSheetPicker(
+              key: const ValueKey('export-sheet'),
+              choices: sheet.choices,
+              at: sheet.at!.index,
+              onChanged: (i) => setState(() => _sheet = i),
+            ),
+          ),
         DashTextField(
           key: const ValueKey('export-filename'),
           label: t('ordersExport.filename'),
@@ -389,7 +425,9 @@ class _OrdersExportSheetState extends ConsumerState<OrdersExportSheet> {
             ),
             run: DashButton(
               key: const ValueKey('export-run'),
-              label: t('ordersExport.exportButton'),
+              label: kit.exportFormatDownload(
+                dashExportFormatName(kit, format).$2,
+              ),
               loading: _busy,
               onPressed: _grains.isEmpty || branchId == null
                   ? null

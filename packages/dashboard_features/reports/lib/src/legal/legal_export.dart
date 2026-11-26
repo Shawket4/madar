@@ -1,10 +1,10 @@
-/// The Legal exports' mechanics, as the web's `exportToExcel` /
-/// `exportToCsv` run them (`lib/excel.ts:316-391`, REP-ALL-011…013):
+/// The Legal exports' mechanics, as the web's `exportFile` runs them
+/// (REP-ALL-011…013):
 ///
 /// - nothing in any sheet → an error toast "Nothing to export", no file;
-/// - Excel: a loading toast "Gathering data…" that becomes "Exported
-///   {{count}} rows" (every sheet's rows) or "Export failed";
-/// - CSV: the first sheet only, then "Exported {{count}} rows".
+/// - otherwise a loading toast "Gathering data…" that becomes "Exported
+///   {{count}} rows" or "Export failed", for the file chosen in the Export
+///   panel (Excel, or a PDF or CSV of the sheet [DashExportPick] names).
 ///
 /// The Legal exports are built from data already on screen, so they make no
 /// request and are never throttled (REP-ALL-027).
@@ -15,37 +15,22 @@ import 'package:dashboard_kit/dashboard_kit.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// `exportToExcel(config)` with the web's toasts.
-Future<void> legalExportExcel(
+/// `exportFile(config, pick)` with the web's toasts.
+Future<void> legalExport(
   BuildContext context,
   WidgetRef ref,
-  ExcelConfig config,
-) async {
+  ExcelConfig config, [
+  DashExportPick pick = const DashExportPick(),
+]) async {
   final t = ref.read(tProvider);
   if (config.sheets.every((s) => s.size == 0)) {
     DashToast.error(context, const ExportNothing().message(t));
     return;
   }
   final toast = DashToast.loading(context, t('excel.generating'));
-  final outcome = await ref.read(exporterProvider).exportToExcel(config);
+  final outcome = await ref.read(exporterProvider).exportFile(config, pick);
   toast.update(
     outcome is ExportDone ? DashToastKind.success : DashToastKind.error,
     outcome.message(t),
   );
-}
-
-/// `exportToCsv(config)` with the web's toasts.
-Future<void> legalExportCsv(
-  BuildContext context,
-  WidgetRef ref,
-  ExcelConfig config,
-) async {
-  final t = ref.read(tProvider);
-  final outcome = await ref.read(exporterProvider).exportToCsv(config);
-  if (!context.mounted) return;
-  if (outcome is ExportDone) {
-    DashToast.success(context, outcome.message(t));
-  } else {
-    DashToast.error(context, outcome.message(t));
-  }
 }

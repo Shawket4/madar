@@ -104,16 +104,15 @@ class _InventoryLowStockTabState extends ConsumerState<InventoryLowStockTab> {
         compact: true,
         loading: _exporting,
         enabled: rows.isNotEmpty,
-        onExport: () async {
+        onExport: (_) async {
           final config = _config(rows, all);
           setState(() => _exporting = true);
           try {
-            await lisExportExcel(context, ref, config);
+            await lisExport(context, ref, config);
           } finally {
             if (mounted) setState(() => _exporting = false);
           }
         },
-        onExportCsv: () => lisExportCsv(context, ref, _config(rows, all)),
       ),
       empty: DashEmptyState(title: t('inventory.today.noLowStock')),
       columns: [

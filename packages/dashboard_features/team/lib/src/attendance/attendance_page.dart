@@ -152,7 +152,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage>
         return;
       }
       final toast = DashToast.loading(context, t('excel.generating'));
-      final outcome = await exporter.exportToExcel(
+      final outcome = await exporter.exportFile(
         attendanceExcel(
           t,
           rows: rows,
@@ -224,7 +224,7 @@ class _AttendancePageState extends ConsumerState<AttendancePage>
           busy: anyFetching([recordsQ, summaryQ, employeesQ, settingsQ]),
         ),
         DashExportButton(
-          onExport: _export,
+          onExport: (_) => _export(),
           loading: _exporting,
           enabled: records.isNotEmpty,
         ),

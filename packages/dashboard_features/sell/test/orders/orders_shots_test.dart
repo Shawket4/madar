@@ -181,9 +181,23 @@ void main() {
 
     testWidgets('export sheet, $tag', (tester) async {
       final h = await pumpOrders(tester, size: size, locale: lang, dark: dark);
-      await h.exportVia('Excel', find.byKey(const ValueKey('orders-export')));
+      await h.tapKey(const ValueKey('orders-export'));
       await h.tap(find.byKey(const ValueKey('export-customize')));
       await h.shot('orders/export');
+    });
+
+    testWidgets('export sheet as a CSV of two sheets, $tag', (tester) async {
+      final h = await pumpOrders(tester, size: size, locale: lang, dark: dark);
+      await h.tapKey(const ValueKey('orders-export'));
+      await h.tap(find.byKey(const ValueKey('preset-till_handoff')));
+      await h.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('export-format')),
+          matching: find.text(h.t('common.exportFormat.csv')),
+        ),
+      );
+      expect(find.byKey(const ValueKey('export-sheet')), findsOneWidget);
+      await h.shot('orders/export-csv');
     });
 
     testWidgets('exclude list and row menu, $tag', (tester) async {

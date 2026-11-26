@@ -12,15 +12,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support.dart';
 
-/// The export control: with recipes.read it is a menu, "Export" (the Recipes
-/// section under the menu workbook).
+/// The export control: "Export", opening the panel (the menu and, with
+/// recipes.read, the recipe files).
 Finder get _export => inPage(find.text('Export'));
 
-/// The menu export: "Menu" in that menu (the format chosen above it).
-Future<void> _exportMenu(DashHarness h) async {
-  await h.tap(_export);
-  await pickMenu(h, 'Menu');
-}
+/// The menu export: "Menu" in the panel, as Excel, then Download.
+Future<void> _exportMenu(DashHarness h) => h.exportVia('Excel', null, 'Menu');
 
 Future<void> _openPaste(DashHarness h) =>
     h.tap(inPage(find.text('Paste rows')));
@@ -152,8 +149,11 @@ void main() {
 
     testWidgets('MENU-ITEMS-031 in Arabic: the Arabic names', (tester) async {
       final h = await pumpItems(tester, locale: 'ar');
-      await h.tap(inPage(find.text(h.t('recipeBook.exportMenu'))));
-      await pickMenu(h, h.t('recipeBook.menuExcel'));
+      await h.exportVia(
+        h.t('common.exportFormat.excel'),
+        null,
+        h.t('recipeBook.menuFile'),
+      );
       await h.settle();
       final items = h.exports.built.single.sheets[0];
       expect(items.rows.first.first, 'كرواسون لوز');

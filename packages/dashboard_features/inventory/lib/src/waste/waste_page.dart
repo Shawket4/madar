@@ -230,7 +230,7 @@ class _WastePageState extends ConsumerState<WastePage> {
           key: const ValueKey('waste-export'),
           loading: _exporting,
           enabled: rows.isNotEmpty,
-          onExport: () => _export(logKey),
+          onExport: (_) => _export(logKey),
         ),
         if (branchId != null && canRecord)
           DashButton(

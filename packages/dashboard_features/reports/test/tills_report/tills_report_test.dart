@@ -969,8 +969,7 @@ void main() {
     ) async {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
-      await h.tap(exportButton);
-      await h.tap(find.text('Export').last);
+      await h.exportVia('Excel', exportButton);
       final spec = h.exports.built.single;
       final sheet = spec.sheets.single;
       expect(sheet.name, 'Till sessions');
@@ -1024,12 +1023,12 @@ void main() {
     ) async {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
-      await h.tap(exportButton);
-      await h.tap(find.text('Export CSV').last);
+      await h.exportVia('CSV', exportButton);
       final file = h.files.saved.single;
       expect(file.filename, startsWith('Madar-Till sessions-'));
       expect(file.filename, endsWith('.csv'));
-      final lines = file.asString.split('\r\n');
+      // Every record ends in CRLF, the last too.
+      final lines = file.asString.split('\r\n')..removeLast();
       expect(
         lines.first,
         'Business date,Branch,Branch ref.,User,Opened at,Opening,Net cash,'
@@ -1037,8 +1036,15 @@ void main() {
         'Orders,Net sales,Closed at,Status',
       );
       expect(lines, hasLength(5));
+      // Times on the shop's clock; money in pounds with two decimals.
       expect(lines[2], startsWith('2026-09-18,Maadi,MAD,Omar Fathy,'));
-      expect(lines[2], contains(',500,2689,0,120,2000,-5,1071.5,1064,7.5,96,'));
+      expect(lines[2], contains(',2026-09-18 09:10,'));
+      expect(
+        lines[2],
+        contains(
+          ',500.00,2689.00,0.00,120.00,2000.00,-5.00,1071.50,1064.00,7.50,96,',
+        ),
+      );
       expect(lines[4], endsWith(',,Open'));
       expect(h.exports.built, isEmpty);
       await h.expectToast('Exported 4 rows');
@@ -1051,8 +1057,7 @@ void main() {
       final h = await pumpTills(tester, server: s.server, db: s.db);
       final hold = Completer<void>();
       h.exports.hold = hold.future;
-      await h.tap(exportButton);
-      await h.tap(find.text('Export').last);
+      await h.exportVia('Excel', exportButton);
       expect(tester.widget<DashExportButton>(exportButton).loading, isTrue);
       expect(find.text('Gathering data…'), findsOneWidget);
       await h.shot('exporting');
@@ -1066,8 +1071,7 @@ void main() {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
       h.exports.failNext = StateError('disk full');
-      await h.tap(exportButton);
-      await h.tap(find.text('Export').last);
+      await h.exportVia('Excel', exportButton);
       await h.expectToast('Export failed');
       expect(h.files.saved, isEmpty);
       expect(tester.widget<DashExportButton>(exportButton).loading, isFalse);

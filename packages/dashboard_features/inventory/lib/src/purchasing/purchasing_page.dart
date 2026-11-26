@@ -221,7 +221,7 @@ class _PurchasingPageState extends ConsumerState<PurchasingPage>
           key: const ValueKey('purchasing-export'),
           loading: _exporting,
           enabled: exportable.isNotEmpty,
-          onExport: () => _export(
+          onExport: (_) => _export(
             view: view,
             orders: orders.value ?? const [],
             suppliers: suppliers.value ?? const [],

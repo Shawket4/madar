@@ -66,17 +66,14 @@ class _LegalAuditTabState extends ConsumerState<LegalAuditTab> {
     );
   }
 
-  Future<void> _excel(AuditReport d) async {
+  Future<void> _export(AuditReport d, DashExportPick pick) async {
     setState(() => _exporting = true);
     try {
-      await legalExportExcel(context, ref, _config(ref.read(tProvider), d));
+      await legalExport(context, ref, _config(ref.read(tProvider), d), pick);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
   }
-
-  Future<void> _csv(AuditReport d) =>
-      legalExportCsv(context, ref, _config(ref.read(tProvider), d));
 
   @override
   Widget build(BuildContext context) {
@@ -201,8 +198,15 @@ class _LegalAuditTabState extends ConsumerState<LegalAuditTab> {
             compact: true,
             loading: _exporting,
             enabled: !empty,
-            onExport: () => _excel(d!),
-            onExportCsv: () => _csv(d!),
+            // A PDF or CSV is one of the tab's sheets, named as the
+            // workbook's subtitles.
+            sheets: d == null
+                ? const []
+                : [
+                    for (final s in _config(t, d).sheets)
+                      DashExportSheet(s.subtitle ?? s.name),
+                  ],
+            onExport: (pick) => _export(d!, pick),
           ),
         ),
         LegalKpiStrip(items: kpis),

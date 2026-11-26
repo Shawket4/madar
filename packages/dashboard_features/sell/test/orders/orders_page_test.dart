@@ -182,7 +182,7 @@ void main() {
       final h = await pumpOrders(tester, query: '?till=$till');
       expect(h.server.callsTo(listRoute).last.query['till_id'], [till]);
       // The export reads the same till (no chip or label says so).
-      await h.exportVia('Excel', find.byKey(const ValueKey('orders-export')));
+      await h.tapKey(const ValueKey('orders-export'));
       await h.tap(find.byKey(const ValueKey('export-run')));
       expect(h.server.callsTo(exportRoute).single.query['till_id'], [till]);
       await h.flushTimers();
@@ -904,8 +904,8 @@ void main() {
     await h.settle();
     await _pickFilter(h, 'orders-payment', 'Card');
     final button = find.byKey(const ValueKey('orders-export'));
-    expect(tester.widget<DashExportButton>(button).enabled, isTrue);
-    await h.exportVia('Excel', button);
+    expect(tester.widget<DashButton>(button).onPressed, isNotNull);
+    await h.tap(button);
     expect(find.text('Export Orders'), findsOneWidget);
     // Custom forces nothing: the snapshot and the call carry the page's.
     await h.tap(find.byKey(const ValueKey('preset-custom')));

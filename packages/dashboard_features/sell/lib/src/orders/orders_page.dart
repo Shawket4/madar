@@ -512,23 +512,28 @@ class _OrdersPageState extends ConsumerState<OrdersPage>
           onIntent: scope.branchId == null || !enabled
               ? null
               : () => ref.warm(ordersExportBranchProvider(scope.branchId!)),
-          child: DashExportButton(
+          // A plain button: the export sheet asks the format itself.
+          child: DashButton(
             key: const ValueKey('orders-export'),
-            enabled: enabled,
-            onExport: () => showOrdersExport(
-              context,
-              listKey: key,
-              filters: OrdersExportFilters(
-                branchId: scope.branchId,
-                from: scope.from,
-                to: scope.to,
-                status: _status,
-                payment: _payment,
-                teller: key.teller,
-                waiter: key.waiter,
-                till: widget.tillId,
-              ),
-            ),
+            label: t('common.exportMenu'),
+            icon: 'download',
+            variant: DashButtonVariant.outline,
+            onPressed: !enabled
+                ? null
+                : () => showOrdersExport(
+                    context,
+                    listKey: key,
+                    filters: OrdersExportFilters(
+                      branchId: scope.branchId,
+                      from: scope.from,
+                      to: scope.to,
+                      status: _status,
+                      payment: _payment,
+                      teller: key.teller,
+                      waiter: key.waiter,
+                      till: widget.tillId,
+                    ),
+                  ),
           ),
         ),
       ],

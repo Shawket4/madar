@@ -15,10 +15,8 @@ import 'support.dart';
 
 Finder get _export => inPage(find.byType(DashExportButton));
 
-Future<void> _menu(DashHarness h, String item) async {
-  await h.tap(_export);
-  await h.tap(find.text(item).last);
-}
+Future<void> _menu(DashHarness h, String format) =>
+    h.exportVia(format, _export);
 
 /// The file name's UTC date stamp (the mock clock's).
 String _stamp(DashHarness h) =>
@@ -40,8 +38,8 @@ void _expectExportRead(MockCall c) {
 }
 
 void main() {
-  testWidgets('REP-ALL-010 the export is a menu: "Export" with a chevron, '
-      'the format (Excel or PDF) at the top, then the file and CSV', (
+  testWidgets('REP-ALL-010 the export is a panel: "Export" with a chevron, '
+      'the format (Excel, PDF or CSV) at the top, the Items tab\'s sheet', (
     tester,
   ) async {
     final h = await pumpOps(tester);
@@ -56,9 +54,12 @@ void main() {
     expect(find.text('Format'), findsOneWidget);
     expect(find.text('Excel'), findsOneWidget);
     expect(find.text('PDF'), findsOneWidget);
-    expect(find.text('Export CSV'), findsOneWidget);
-    // The trigger's words and the file's.
-    expect(find.text('Export'), findsNWidgets(2));
+    expect(find.text('CSV'), findsOneWidget);
+    // Excel is the whole workbook; a PDF or CSV asks which of the two.
+    expect(find.text('Sheet'), findsNothing);
+    await h.tap(find.text('CSV').last);
+    expect(find.text('Sheet'), findsOneWidget);
+    expect(find.text('Addon Sales'), findsWidgets);
     await h.shot('operations/export-menu');
   });
 
@@ -68,7 +69,7 @@ void main() {
     final h = await pumpOps(tester);
     await openTab(h, 'Items');
     final before = h.server.callsTo(itemsRoute).length;
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     final items = h.server.callsTo(itemsRoute);
     final addons = h.server.callsTo(addonsRoute);
     expect(items, hasLength(before + 1));
@@ -114,14 +115,15 @@ void main() {
     );
   });
 
-  testWidgets('REP-OPS-057 / REP-ALL-012 Items to CSV: the first sheet only, '
-      'Madar-Analytics-items-<date>.csv, no spinner', (tester) async {
+  testWidgets('REP-OPS-057 / REP-ALL-012 Items to CSV: the sheet picked '
+      '(Items, the first), Madar-Analytics-items-<date>.csv', (tester) async {
     final h = await pumpOps(tester);
     await openTab(h, 'Items');
-    await _menu(h, 'Export CSV');
+    await _menu(h, 'CSV');
     final file = h.files.saved.single;
     expect(file.filename, 'Madar-Analytics-items-${_stamp(h)}.csv');
-    final lines = file.asString.split('\r\n');
+    // Every record ends in CRLF, the last too.
+    final lines = file.asString.split('\r\n')..removeLast();
     expect(lines.first, 'Name,Total sold');
     final want = opsCombinedItems(_orders(h, SeedIds.sabahBranches));
     expect(lines, hasLength(want.length + 1));
@@ -133,7 +135,7 @@ void main() {
       'Revenue, AOV, Order voided, Tills', (tester) async {
     final h = await pumpOps(tester);
     await openTab(h, 'Tellers');
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     _expectExportRead(h.server.callsTo(tellersRoute).last);
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Teller Details');
@@ -161,7 +163,7 @@ void main() {
   ) async {
     final h = await pumpOps(tester);
     await openTab(h, 'Waiters');
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     _expectExportRead(h.server.callsTo(waitersRoute).last);
     final want = opsWaiterStats(_orders(h, SeedIds.sabahBranches));
     final sheet = h.exports.built.single.sheets.single;
@@ -196,7 +198,7 @@ void main() {
       'percent ratio', (tester) async {
     final h = await pumpOps(tester);
     await openTab(h, 'Branches');
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     _expectExportRead(h.server.callsTo(comparisonRoute).last);
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Branch Details');
@@ -221,7 +223,7 @@ void main() {
     await openTab(h, 'Tellers');
     final done = Completer<void>();
     h.exports.hold = done.future;
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     final button = tester.widget<DashButton>(
       find.descendant(of: _export, matching: find.byType(DashButton)),
     );
@@ -242,21 +244,20 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('REP-ALL-026 CSV: no spinner while the re-read runs', (
-    tester,
-  ) async {
+  testWidgets('REP-ALL-026 CSV spins while the re-read runs, as every '
+      'export does', (tester) async {
     final s = opsServer();
     final h = await pumpOps(tester, server: s.server, db: s.db);
     await openTab(h, 'Tellers');
     final gate = s.server.hold('GET', tellersRoute);
-    await _menu(h, 'Export CSV');
+    await _menu(h, 'CSV');
     expect(
       tester
           .widget<DashButton>(
             find.descendant(of: _export, matching: find.byType(DashButton)),
           )
           .loading,
-      isFalse,
+      isTrue,
     );
     gate.release();
     await h.settle();
@@ -267,7 +268,7 @@ void main() {
     final h = await pumpOps(tester);
     await openTab(h, 'Tellers');
     h.exports.failNext = StateError('disk full');
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     await h.expectToast('Export failed');
     expect(h.files.saved, isEmpty);
   });
@@ -280,9 +281,9 @@ void main() {
         .setCustomRange('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
     await h.settle();
     await openTab(h, 'Tellers');
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     await h.expectToast('Nothing to export');
-    await _menu(h, 'Export CSV');
+    await _menu(h, 'CSV');
     await h.expectToast('Nothing to export');
     expect(h.files.saved, isEmpty);
     expect(h.exports.built, isEmpty);
@@ -295,7 +296,7 @@ void main() {
     await openTab(h, 'Waiters');
     final refusal = MockResponse.error(500, 'The waiters report is down');
     s.server.fail('GET', waitersRoute, refusal);
-    await _menu(h, 'Export');
+    await _menu(h, 'Excel');
     await h.expectToast(h.refusalWords(refusal));
     expect(
       tester
@@ -306,7 +307,7 @@ void main() {
       isFalse,
     );
     s.server.fail('GET', waitersRoute, refusal);
-    await _menu(h, 'Export CSV');
+    await _menu(h, 'CSV');
     await h.expectToast(h.refusalWords(refusal));
     expect(h.files.saved, isEmpty);
   });
@@ -319,11 +320,11 @@ void main() {
     await openTab(h, 'Items');
     // Each Items export is two counted reads: five exports use the ten.
     for (var i = 0; i < 5; i++) {
-      await _menu(h, 'Export CSV');
+      await _menu(h, 'CSV');
       await h.flushTimers();
     }
     expect(h.files.saved, hasLength(5));
-    await _menu(h, 'Export CSV');
+    await _menu(h, 'CSV');
     await h.expectToast('Too many exports just now. Try again in a minute.');
     expect(h.files.saved, hasLength(5));
     // The page's own reads are never counted.
@@ -335,7 +336,7 @@ void main() {
     );
     // A minute later the budget is back.
     h.db!.clock.advance(const Duration(minutes: 1));
-    await _menu(h, 'Export CSV');
+    await _menu(h, 'CSV');
     await h.flushTimers();
     expect(h.files.saved, hasLength(6));
   });
@@ -361,7 +362,7 @@ void main() {
         code: 'EXPORT_RATE_LIMITED',
       ),
     );
-    await _menu(h, h.t('common.exportCsv'));
+    await _menu(h, h.t('common.exportFormat.csv'));
     await h.expectToast(h.t('errors.codes.EXPORT_RATE_LIMITED'));
   });
 }

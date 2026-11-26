@@ -287,6 +287,7 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
     CatalogQuery query,
     List<Category> categories,
     List<AddonItem> addons,
+    DashExportPick pick,
   ) async {
     setState(() => _exporting = true);
     try {
@@ -296,17 +297,17 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
         query: query,
         categories: categories,
         addons: addons,
+        pick: pick,
       );
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
   }
 
-  /// The Recipes section of the export menu: each file, its words, its icon.
+  /// The recipe files of the Export panel, and their words.
   static const _recipeFiles = [
-    (RecipeExportKind.recipes, 'recipeBook.exportRecipes', 'file-spreadsheet'),
-    (RecipeExportKind.cards, 'recipeBook.exportCards', 'file-spreadsheet'),
-    (RecipeExportKind.csv, 'recipeBook.exportCsv', 'file-text'),
+    (RecipeExportKind.recipes, 'recipeBook.exportRecipes'),
+    (RecipeExportKind.cards, 'recipeBook.exportCards'),
   ];
 
   /// The recipe files (`handleRecipeExport`): the book follows the grid's
@@ -316,6 +317,7 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
     RecipeExportKind kind,
     CatalogQuery query,
     List<Category> categories,
+    DashExportPick pick,
   ) async {
     final category = categories.where((c) => c.id == _category).firstOrNull;
     setState(() => _exporting = true);
@@ -333,6 +335,7 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
           search: _itemsSearch,
           recipe: _recipe,
         ),
+        pick: pick,
       );
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -754,20 +757,27 @@ class _MenuItemsPageState extends ConsumerState<MenuItemsPage>
             ),
           DashExportButton(
             loading: _exporting,
-            onExport: () => unawaited(_export(query, categories, addons)),
+            // The menu workbook's sheets, in `exportMenu`'s order.
+            sheets: [
+              DashExportSheet(t('nav.items')),
+              DashExportSheet(t('menu.categories')),
+              DashExportSheet(t('menu.addons')),
+            ],
+            onExport: (pick) =>
+                unawaited(_export(query, categories, addons, pick)),
             // Recipes are recipes.read (the plan ceiling included): the
-            // section is offered only to those who may open a recipe.
-            label: canRecipes ? t('recipeBook.exportMenu') : null,
-            excelLabel: canRecipes ? t('recipeBook.menuExcel') : null,
-            moreHeading: canRecipes ? t('nav.recipes') : null,
+            // files are offered only to those who may open a recipe.
+            fileLabel: canRecipes ? t('recipeBook.menuFile') : null,
             more: [
               if (canRecipes)
-                for (final (kind, key, icon) in _recipeFiles)
-                  DashExportOption(
+                for (final (kind, key) in _recipeFiles)
+                  DashExportFile(
+                    key: kind.name,
                     label: t(key),
-                    icon: icon,
-                    onSelected: () =>
-                        unawaited(_exportRecipes(kind, query, categories)),
+                    sheets: recipeBookSheetLabels(t),
+                    onExport: (pick) => unawaited(
+                      _exportRecipes(kind, query, categories, pick),
+                    ),
                   ),
             ],
           ),
