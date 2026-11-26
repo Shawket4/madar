@@ -62,7 +62,7 @@ void main() {
           matching: find.byType(DashButton),
         ),
       );
-      expect(export.label, 'Export Excel');
+      expect(export.label, 'Export');
       expect(export.onPressed, isNotNull);
       expect(inPage(find.text('Add')), findsOneWidget);
     });
@@ -725,7 +725,7 @@ void main() {
     testWidgets('SET-PAY-020 export: file, sheet, the four columns, the '
         'whole list', (tester) async {
       final h = await pumpPm(tester);
-      await h.tap(inPage(_key('pm-export')));
+      await h.exportVia('Excel', inPage(_key('pm-export')));
       await h.expectToast(h.t('excel.done', count: 8));
       final spec = h.exports.built.single;
       expect(
@@ -752,7 +752,7 @@ void main() {
     testWidgets('SET-PAY-020 an export failure toasts', (tester) async {
       final h = await pumpPm(tester);
       h.exports.failNext = StateError('disk full');
-      await h.tap(inPage(_key('pm-export')));
+      await h.exportVia('Excel', inPage(_key('pm-export')));
       await h.expectToast('Export failed');
       expect(h.files.saved, isEmpty);
     });

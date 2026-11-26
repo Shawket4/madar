@@ -40,40 +40,49 @@ void main() {
   ) async {
     final h = await pumpItems(tester);
     expect(_menuOf(_trigger), findsOneWidget);
-    expect(_triggerReading('Export Excel'), findsNothing);
     await h.tap(_trigger);
     for (final word in [
-      'Menu (Excel)',
+      // The format at the top, as every Export menu.
+      'Format',
+      'Excel',
+      'PDF',
+      'Menu',
       'Recipes',
-      'Recipes with costs (Excel)',
-      'Recipe cards, no costs (Excel)',
+      'Recipes with costs',
+      'Recipe cards, no costs',
       'Recipe lines (CSV)',
     ]) {
-      expect(find.text(word), findsOneWidget, reason: word);
+      expect(
+        find.descendant(of: _menuOf(_trigger), matching: find.text(word)),
+        findsOneWidget,
+        reason: word,
+      );
     }
     await h.flushTimers();
   });
 
-  testWidgets('without recipes.read: the one button, exporting the menu as '
-      'before', (tester) async {
+  testWidgets('without recipes.read: one file, the menu as before (Excel '
+      'or PDF)', (tester) async {
     final h = await pumpItems(tester, persona: Persona.limited);
-    final button = _triggerReading('Export Excel');
-    expect(button, findsOneWidget);
-    expect(_trigger, findsNothing);
-    expect(_menuOf(button), findsNothing);
     final control = tester.widget<DashExportButton>(
       find.byType(DashExportButton),
     );
     expect(control.more, isEmpty);
     expect(control.excelLabel, isNull);
     expect(control.label, isNull);
-    expect(find.text('Recipes with costs (Excel)'), findsNothing);
+    await h.tap(_trigger);
+    expect(find.text('Export as'), findsOneWidget);
+    expect(find.text('Recipes with costs'), findsNothing);
+    await pickMenu(h, 'Excel');
+    await h.settle();
+    expect(h.files.saved.single.filename, startsWith('Madar-Menu-'));
     expect(callsOf(h, 'GET', _bookPath), isEmpty);
+    await h.flushTimers();
   });
 
-  testWidgets('Menu (Excel) is the menu export, unchanged', (tester) async {
+  testWidgets('Menu is the menu export, unchanged', (tester) async {
     final h = await pumpItems(tester);
-    await _export(h, 'Menu (Excel)');
+    await _export(h, 'Menu');
     expect(h.files.saved.single.filename, startsWith('Madar-Menu-'));
     expect(callsOf(h, 'GET', _bookPath), isEmpty);
     await h.flushTimers();
@@ -87,7 +96,7 @@ void main() {
     await pickOption(h, 'Hot Coffee');
     await h.tap(find.byKey(const ValueKey('filter-recipe')));
     await pickOption(h, 'Has a recipe');
-    await _export(h, 'Recipes with costs (Excel)');
+    await _export(h, 'Recipes with costs');
 
     final read = callsOf(h, 'GET', _bookPath).single;
     expect(read.query, {
@@ -132,7 +141,7 @@ void main() {
 
   testWidgets('Recipe cards: the same tables, no money at all', (tester) async {
     final h = await pumpItems(tester);
-    await _export(h, 'Recipe cards, no costs (Excel)');
+    await _export(h, 'Recipe cards, no costs');
     final spec = h.exports.built.single;
     final tables = spec.allSheets.first as BlockSheetSpec;
     expect(tables.title, 'Recipe cards');
@@ -178,7 +187,7 @@ void main() {
         'Pick a category or search, and try again.',
       ),
     );
-    await _export(h, 'Recipes with costs (Excel)');
+    await _export(h, 'Recipes with costs');
     await h.expectToast(
       'That is 6000 items, and a recipe book holds at most 5000. '
       'Pick a category or search, and try again.',
@@ -197,7 +206,14 @@ void main() {
         ),
       ),
     );
-    expect(find.text(h.t('recipeBook.menuExcel')), findsOneWidget);
+    // "القائمة" names the page too: the menu's own item.
+    expect(
+      find.descendant(
+        of: find.byType(DashMenu),
+        matching: find.text(h.t('recipeBook.menuExcel')),
+      ),
+      findsOneWidget,
+    );
     await pickMenu(h, h.t('recipeBook.exportRecipes'));
     await h.settle();
     final tables = h.exports.built.single.allSheets.first as BlockSheetSpec;

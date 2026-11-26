@@ -534,7 +534,7 @@ void main() {
       final h = await pumpFin(tester);
       await h.tap(find.byKey(const ValueKey('fin-flagged-only')));
       final rows = finFilterRows(served(h).rows, flaggedOnly: true);
-      await menu(h, 'Export Excel');
+      await menu(h, 'Export');
       await h.expectToast('Exported ${rows.length} rows');
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'Menu profitability');
@@ -583,7 +583,7 @@ void main() {
       tester,
     ) async {
       final h = await pumpFin(tester, locale: 'ar');
-      await menu(h, h.t('common.exportExcel'));
+      await menu(h, h.t('common.exportFile'));
       await h.flushTimers();
       expect(
         h.files.saved.single.filename,

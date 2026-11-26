@@ -126,7 +126,7 @@ void main() {
     expect(pageText('Attendance'), findsOneWidget);
     expect(pageText(h.t('staff.attendanceSubtitle')), findsOneWidget);
     expect(inPage(find.bySemanticsLabel('Refresh')), findsOneWidget);
-    expect(pageText('Export Excel'), findsOneWidget);
+    expect(pageText('Export'), findsOneWidget);
     expect(pageText('Add record'), findsOneWidget);
   });
 

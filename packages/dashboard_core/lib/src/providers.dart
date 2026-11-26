@@ -4,7 +4,8 @@ library;
 
 import 'dart:async';
 
-import 'package:dashboard_api/dashboard_api.dart' show ApiTransport;
+import 'package:dashboard_api/dashboard_api.dart'
+    show ApiTransport, DashboardApi;
 import 'package:dashboard_core/src/data/core_api.dart';
 import 'package:dashboard_core/src/gateways/export.dart';
 import 'package:dashboard_core/src/gateways/files.dart';
@@ -25,11 +26,21 @@ final coreApiProvider = Provider<CoreApi>(
   (ref) => CoreApi(ref.watch(transportProvider)),
 );
 
-/// `exportToExcel` / `exportToCsv` in the active language and zone.
+/// Where an export's PDF is printed: the backend (`POST /exports/pdf`) over
+/// the active transport, so real mode reaches the server and mock mode the
+/// MockServer. Tests may record instead.
+final pdfGatewayProvider = Provider<PdfGateway>(
+  (ref) => ApiPdfGateway(DashboardApi(ref.watch(transportProvider))),
+);
+
+/// `exportToExcel` / `exportToPdf` / `exportToCsv` in the active language
+/// and zone, making the file chosen at the top of the Export menu.
 final exporterProvider = Provider<DashExporter>(
   (ref) => DashExporter(
     exports: ref.watch(exportGatewayProvider),
     files: ref.watch(fileGatewayProvider),
+    pdf: ref.watch(pdfGatewayProvider),
+    exportFormat: ref.watch(exportFormatProvider),
     format: ref.watch(formatProvider),
     t: ref.watch(tProvider),
     clock: ref.watch(clockProvider),

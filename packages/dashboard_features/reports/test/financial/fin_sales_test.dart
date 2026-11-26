@@ -431,7 +431,7 @@ void main() {
         t,
       ) async {
         final h = await openChannel(t);
-        await menu(h, 'Export Excel');
+        await menu(h, 'Export');
         final reread = callsTo(h, channelRoute).last;
         expect(callsTo(h, channelRoute), hasLength(2));
         expect(reread.headers['X-Madar-Export'], '1');
@@ -472,7 +472,7 @@ void main() {
         final h = await openChannel(t);
         final hold = Completer<void>();
         h.exports.hold = hold.future;
-        await menu(h, 'Export Excel');
+        await menu(h, 'Export');
         expect(t.widget<DashExportButton>(exportButton()).loading, isTrue);
         hold.complete();
         await h.settle();
@@ -490,7 +490,7 @@ void main() {
           code: 'EXPORT_RATE_LIMITED',
         );
         s.server.fail('GET', channelRoute, limited);
-        await menu(h, 'Export Excel');
+        await menu(h, 'Export');
         await h.expectToast(h.refusalWords(limited));
         expect(h.files.saved, isEmpty);
       });
@@ -501,7 +501,7 @@ void main() {
         final s = finServer();
         s.server.on('GET', channelRoute, (req) => MockResponse.ok(<Object?>[]));
         final h = await openChannel(t, s: s);
-        await menu(h, 'Export Excel');
+        await menu(h, 'Export');
         await h.expectToast('Nothing to export');
         expect(h.files.saved, isEmpty);
       });

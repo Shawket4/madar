@@ -2,11 +2,15 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dashboard_api/dashboard_api.dart' show PublicBrand;
+import 'package:dashboard_api/dashboard_api.dart'
+    show ApiException, PrintBlockGroup, PrintBlockTable, PublicBrand;
 import 'package:dashboard_api/mock.dart' show MockResponse, MockServer;
 import 'package:dashboard_core/dashboard_core.dart';
 import 'package:dashboard_core/mock.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/rig.dart';
 
 class Row {
   const Row(this.name, this.total, this.at, {this.paid = true, this.qty = 1});
@@ -28,17 +32,25 @@ void main() {
   final strings = _strings();
   late RecordingExportGateway exports;
   late RecordingFileGateway files;
-  DashExporter exporter([String lang = 'en']) => DashExporter(
+  late RecordingPdfGateway pdfs;
+  DashExporter exporter([
+    String lang = 'en',
+    DashExportFormat exportFormat = DashExportFormat.xlsx,
+    DateTime? at,
+  ]) => DashExporter(
     exports: exports,
     files: files,
-    format: DashFormat(lang: lang, clock: () => now),
+    pdf: pdfs,
+    exportFormat: exportFormat,
+    format: DashFormat(lang: lang, clock: () => at ?? now),
     t: Translator(strings, lang),
-    clock: () => now,
+    clock: () => at ?? now,
   );
 
   setUp(() {
     exports = RecordingExportGateway();
     files = RecordingFileGateway();
+    pdfs = RecordingPdfGateway();
   });
 
   final rows = [
@@ -490,6 +502,271 @@ void main() {
         const ExcelCell(18, ExcelColumnType.quantity),
         isNot(const ExcelCell(18, ExcelColumnType.money)),
       );
+    });
+  });
+
+  group('the PDF of an export (toPrintDoc, exportToPdf)', () {
+    // The web's "the PDF of an export" (excel.test.ts), over the same sheets.
+    const book = ExcelBlockSheet(
+      name: 'Recipes',
+      title: 'Recipes',
+      stats: [ExcelStat(label: 'Items', value: 8, type: 'number')],
+      widths: [34, 9, 15],
+      groups: [
+        ExcelGroup(
+          group: 'Hot drinks',
+          blocks: [
+            ExcelBlock(
+              title: 'Latte',
+              note: 'Follows Flat white',
+              header: ['Ingredient', 'Unit', 'One size'],
+              rows: [
+                [
+                  'Espresso beans',
+                  'g',
+                  ExcelCell(18.5, ExcelColumnType.quantity),
+                ],
+              ],
+              footer: [
+                ['Cost', null, ExcelCell(2470, ExcelColumnType.money)],
+                ['Food cost', null, ExcelCell(0.412, ExcelColumnType.percent)],
+              ],
+              caption: "How it's made",
+            ),
+          ],
+        ),
+      ],
+    );
+    final lines = ExcelSheet<(String, int)>(
+      name: 'Lines',
+      title: 'Lines',
+      totals: true,
+      columns: [
+        ExcelColumn(header: 'Item', accessor: (r) => r.$1),
+        ExcelColumn(
+          header: 'Line cost',
+          accessor: (r) => r.$2,
+          type: ExcelColumnType.money,
+          total: true,
+        ),
+      ],
+      rows: const [('Latte', 1620), ('Latte', 850)],
+    );
+    final config = ExcelConfig(
+      filename: 'Madar-Recipes',
+      meta: 'Coffee',
+      sheets: [book, lines],
+    );
+
+    test('is the same sheets, every value written out the way the '
+        'dashboard shows it', () {
+      final doc = exporter().printDoc(config);
+      expect(doc.filename, 'Madar-Recipes-2026-10-08');
+      expect(doc.rtl, isFalse);
+      final [b, l] = doc.sheets;
+      expect(b.title, 'Recipes');
+      expect(b.subtitle, 'Coffee  ·  Generated: 08 Oct 2026, 10:30 AM');
+      expect(b.stats!.map((s) => s.toJson()), [
+        {'label': 'Items', 'value': '8'},
+      ]);
+      expect(b.landscape, isFalse);
+      expect(b.blocks[0], isA<PrintBlockGroup>());
+      expect(b.blocks[0].toJson(), {'kind': 'group', 'text': 'Hot drinks'});
+      final latte = b.blocks[1] as PrintBlockTable;
+      expect(latte.toJson(), {
+        'kind': 'table',
+        'caption': "How it's made",
+        'columns': [
+          {'align': 'start', 'header': 'Ingredient', 'width': 34.0},
+          {'align': 'center', 'header': 'Unit', 'width': 9.0},
+          {'align': 'center', 'header': 'One size', 'width': 15.0},
+        ],
+        'footer': [
+          ['Cost', '', 'EGP 24.70'],
+          ['Food cost', '', '41.2%'],
+        ],
+        'note': 'Follows Flat white',
+        'rows': [
+          ['Espresso beans', 'g', '18.5'],
+        ],
+        'title': 'Latte',
+      });
+      expect(l.landscape, isTrue);
+      final table = l.blocks.single as PrintBlockTable;
+      expect(table.columns.map((c) => c.toJson()), [
+        {'align': 'center', 'header': 'Item', 'width': 20.0},
+        {'align': 'center', 'header': 'Line cost', 'width': 20.0},
+      ]);
+      expect(table.rows, [
+        ['Latte', 'EGP 16.20'],
+        ['Latte', 'EGP 8.50'],
+      ]);
+      // The totals band: a SUM of the `total` columns, TOTALS first.
+      expect(table.totals, ['TOTALS', 'EGP 24.70']);
+    });
+
+    test('Arabic: right to left, the Arabic words and money shape, Western '
+        'digits', () {
+      final doc = exporter('ar').printDoc(config);
+      expect(doc.rtl, isTrue);
+      final ar = DashFormat(lang: 'ar', clock: () => now);
+      final table = doc.sheets[1].blocks.single as PrintBlockTable;
+      expect(table.totals, [
+        strings.translate('ar', 'excel.totals'),
+        ar.fmtMoney(2470),
+      ]);
+      expect(table.totals![1], contains('24.70'));
+      expect(
+        doc.sheets[0].subtitle,
+        contains(strings.translate('ar', 'excel.generated')),
+      );
+    });
+
+    test('named for the shop\'s today, not UTC\'s', () {
+      // 22:30 UTC on the 7th is 01:30 on the 8th in Cairo.
+      final late = DateTime.utc(2026, 10, 7, 22, 30);
+      expect(
+        exporter('en', DashExportFormat.xlsx, late).printDoc(config).filename,
+        'Madar-Recipes-2026-10-08',
+      );
+    });
+
+    test('a cell as the person reads it (displayValue)', () {
+      const f = DashFormat(lang: 'en');
+      String v(Object? raw, ExcelColumnType? type) =>
+          excelDisplayValue(raw, type, f);
+      expect(v(null, ExcelColumnType.money), '');
+      expect(v('', ExcelColumnType.number), '');
+      expect(v(2470, ExcelColumnType.money), 'EGP 24.70');
+      expect(v('n/a', ExcelColumnType.money), 'n/a');
+      expect(v(16.2, ExcelColumnType.moneyRaw), 'EGP 16.20');
+      expect(v(1234.5, ExcelColumnType.number), '1,234.50');
+      expect(v('12', ExcelColumnType.number), '12.00');
+      expect(v(3.6, ExcelColumnType.integer), '4');
+      expect(v(-2, ExcelColumnType.integer), '−2');
+      expect(v(0.412, ExcelColumnType.percent), '41.2%');
+      expect(v(0.12345, ExcelColumnType.quantity), '0.123');
+      expect(v(18.0, ExcelColumnType.quantity), '18');
+      // Dates on the branch's clock: 21:30 UTC is past midnight in Cairo.
+      expect(v('2026-10-07T21:30:00Z', ExcelColumnType.date), '08 Oct 2026');
+      expect(
+        v(DateTime.utc(2026, 10, 7, 21, 30), ExcelColumnType.dateTime),
+        '08 Oct 2026, 12:30 AM',
+      );
+      expect(v(true, ExcelColumnType.bool), '✓');
+      expect(v(0, ExcelColumnType.bool), '—');
+      expect(v(3.0, null), '3');
+      expect(v('Latte', ExcelColumnType.text), 'Latte');
+    });
+
+    test('goes out as a PDF when PDF is the chosen format', () async {
+      final out = await exporter(
+        'en',
+        DashExportFormat.pdf,
+      ).exportToExcel(ExcelConfig(filename: 'orders', sheets: [sheet]));
+      expect(exports.built, isEmpty, reason: 'no workbook');
+      final doc = pdfs.printed.single;
+      expect(doc.rtl, isFalse);
+      expect(doc.sheets.single.title, 'Orders');
+      final saved = files.saved.single;
+      expect(saved.filename, 'orders-2026-10-08.pdf');
+      expect(saved.mimeType, MimeTypes.pdf);
+      expect(saved.asString, startsWith('%PDF-'));
+      expect(out, isA<ExportDone>());
+      expect((out as ExportDone).filename, 'orders-2026-10-08.pdf');
+      expect(out.message(Translator(strings, 'en')), 'Exported 2 rows');
+    });
+
+    test('the same toasts as the workbook; a refusal in the server\'s own '
+        'words', () async {
+      final pdf = exporter('en', DashExportFormat.pdf);
+      final empty = ExcelSheet<Row>(
+        name: 'x',
+        title: 'x',
+        rows: const [],
+        columns: sheet.columns,
+      );
+      expect(
+        await pdf.exportToExcel(ExcelConfig(filename: 'x', sheets: [empty])),
+        isA<ExportNothing>(),
+      );
+      expect(pdfs.printed, isEmpty);
+      expect(
+        (await pdf.exportToPdf(
+          const ExcelConfig(filename: 'r', sheets: [book]),
+        )).message(Translator(strings, 'en')),
+        'Exported 1 row',
+        reason: 'a sheet of tables counts its tables, as the workbook',
+      );
+
+      const words =
+          'That is about 10001 rows, and a PDF holds at most 10000. Narrow '
+          'the dates or the branch, or export Excel.';
+      pdfs.failNext = const ApiException(status: 400, message: words);
+      final refused = await pdf.exportToExcel(
+        ExcelConfig(filename: 'x', sheets: [sheet]),
+      );
+      expect(refused, isA<ExportFailed>());
+      expect(refused.message(Translator(strings, 'en')), words);
+
+      pdfs.failNext = StateError('socket closed');
+      final failed = await pdf.exportToExcel(
+        ExcelConfig(filename: 'x', sheets: [sheet]),
+      );
+      expect(failed.message(Translator(strings, 'en')), 'Export failed');
+    });
+
+    test('the choice is one for the whole dashboard, remembered on this '
+        'device (lib/export-format.ts), and the exporter follows it', () async {
+      final rig = CoreRig();
+      final container = ProviderContainer(
+        overrides: [
+          ...rig.overrides(),
+          pdfGatewayProvider.overrideWithValue(pdfs),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(container.read(exportFormatProvider), DashExportFormat.xlsx);
+      expect(
+        container.read(exporterProvider).exportFormat,
+        DashExportFormat.xlsx,
+      );
+      await container
+          .read(exportFormatProvider.notifier)
+          .set(DashExportFormat.pdf);
+      expect(rig.prefs.getString(exportFormatPrefKey), 'pdf');
+      expect(
+        container.read(exporterProvider).exportFormat,
+        DashExportFormat.pdf,
+      );
+
+      // The next start reads it back; anything else is the workbook.
+      for (final (stored, format) in [
+        ('pdf', DashExportFormat.pdf),
+        ('xlsx', DashExportFormat.xlsx),
+        ('docx', DashExportFormat.xlsx),
+      ]) {
+        final again = ProviderContainer(
+          overrides: CoreRig(prefs: {exportFormatPrefKey: stored}).overrides(),
+        );
+        addTearDown(again.dispose);
+        expect(again.read(exportFormatProvider), format, reason: stored);
+      }
+    });
+
+    test('the pages are the backend\'s: the generated client, '
+        'POST /exports/pdf', () async {
+      final rig = CoreRig();
+      final container = ProviderContainer(overrides: rig.overrides());
+      addTearDown(container.dispose);
+      final doc = exporter().printDoc(
+        ExcelConfig(filename: 'orders', sheets: [sheet]),
+      );
+      final bytes = await container.read(pdfGatewayProvider).renderPdf(doc);
+      expect(utf8.decode(bytes.take(5).toList()), '%PDF-');
+      final call = rig.server.calls.single;
+      expect('${call.method} ${call.path}', 'POST /exports/pdf');
+      expect((call.body! as Map)['filename'], 'orders-2026-10-08');
     });
   });
 

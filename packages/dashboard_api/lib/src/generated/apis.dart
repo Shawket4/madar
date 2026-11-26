@@ -24,6 +24,7 @@ part 'apis/delivery_api.dart';
 part 'apis/delivery_public_api.dart';
 part 'apis/devices_api.dart';
 part 'apis/discounts_api.dart';
+part 'apis/exports_api.dart';
 part 'apis/floor_api.dart';
 part 'apis/floor_transfers_api.dart';
 part 'apis/insights_api.dart';

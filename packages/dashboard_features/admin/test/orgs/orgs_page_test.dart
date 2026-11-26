@@ -98,7 +98,7 @@ void main() {
         find.text('Manage all coffee brands and franchises'),
         findsOneWidget,
       );
-      expect(find.text('Export Excel'), findsOneWidget);
+      expect(find.text('Export'), findsOneWidget);
       expect(find.text('New'), findsOneWidget);
       expect(h.t('orgs.subtitle'), 'Manage all coffee brands and franchises');
     });
@@ -356,7 +356,7 @@ void main() {
       expect(find.text('Organizations you add appear here'), findsOneWidget);
       expect(_stat('total', '0'), findsOneWidget);
       expect(_stat('avg-tax', '—'), findsOneWidget);
-      expect(_button(tester, 'Export Excel').onPressed, isNull);
+      expect(_button(tester, 'Export').onPressed, isNull);
       expect(h.t('orgs.empty'), 'Organizations you add appear here');
     });
 
@@ -544,7 +544,7 @@ void main() {
       final h = await pumpOrgs(tester);
       // Search narrows the table, never the file.
       await h.enterText(find.byType(DashSearchInput), 'qahwa');
-      await h.tapText('Export Excel');
+      await h.exportVia();
       await h.expectToast('Exported 4 rows');
       final spec = h.exports.built.single;
       expect(spec.logoUrl, isNull, reason: "no shop picked: Madar's logo");
@@ -587,7 +587,7 @@ void main() {
           .read(selectedOrgProvider.notifier)
           .select(SeedIds.sabahOrg);
       await h.settle();
-      await h.tapText('Export Excel');
+      await h.exportVia();
       await h.flushTimers();
       expect(
         h.exports.built.single.logoUrl,
@@ -600,7 +600,7 @@ void main() {
     ) async {
       final h = await pumpOrgs(tester);
       h.exports.failNext = Exception('disk full');
-      await h.tapText('Export Excel');
+      await h.exportVia();
       await h.expectToast('Export failed');
       expect(h.files.saved, isEmpty);
     });
@@ -608,7 +608,7 @@ void main() {
     testWidgets('ADM-ORG-022 Arabic: the file in Arabic, "Exported" in '
         'Arabic plurals', (tester) async {
       final h = await pumpOrgs(tester, locale: 'ar');
-      await h.tapText(h.t('common.export'));
+      await h.exportVia();
       await h.expectToast(h.t('excel.done', count: 4));
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, h.t('orgs.title'));

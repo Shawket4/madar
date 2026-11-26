@@ -3,12 +3,15 @@
 /// `hooks/use-org-modules.ts`, `components/layout/**` and the `/_app` route):
 /// sign-in, the current user, `/authz/me`, the org with its modules and
 /// its readiness, the org list for platform admins, branches, the public
-/// brand, timezones, the realtime stream, and the Dawam set-up progress reads
-/// (employees, work shifts, attendance settings) the sidebar asks for.
+/// brand, timezones, the realtime stream, the Dawam set-up progress reads
+/// (employees, work shifts, attendance settings) the sidebar asks for, and
+/// the PDF of an export (`POST /exports/pdf`), which every Export menu offers.
 ///
 /// Register these first; an area that needs richer behaviour for one of these
 /// routes registers it again (the later registration wins).
 library;
+
+import 'dart:convert';
 
 import '../../generated/models.dart';
 import '../mock_db.dart';
@@ -272,7 +275,54 @@ void registerCoreMocks(MockServer server, MockDb db) {
     }
     return MockResponse.ok(row);
   });
+
+  // ── exports ───────────────────────────────────────────────────────────
+  // POST /exports/pdf — render_pdf (src/exports/mod.rs): anyone signed in,
+  // the body a PrintDoc, refused past pdf.rs's row cap in its own words.
+  // The pages are the backend's to draw: the mock answers a tiny stand-in.
+  server.on('POST', '/exports/pdf', (req) {
+    final doc = req.bodyAs(PrintDoc.fromJson);
+    final rows = mockPrintRows(doc);
+    if (rows > mockPdfMaxRows) {
+      req.badRequest(
+        'That is about $rows rows, and a PDF holds at most $mockPdfMaxRows. '
+        'Narrow the dates or the branch, or export Excel.',
+      );
+    }
+    return MockResponse.bytes(
+      mockPdfBytes(doc.filename),
+      contentType: 'application/pdf',
+    );
+  });
 }
+
+/// The most rows one PDF may carry (pdf.rs `MAX_ROWS`).
+const int mockPdfMaxRows = 10000;
+
+/// What pdf.rs `row_count` counts: a band is one row; a table its body, its
+/// footer and its header.
+int mockPrintRows(PrintDoc doc) => doc.sheets
+    .expand((s) => s.blocks)
+    .map(
+      (b) => switch (b) {
+        PrintBlockTable(:final rows, :final footer) =>
+          (rows?.length ?? 0) + (footer?.length ?? 0) + 1,
+        _ => 1,
+      },
+    )
+    .fold(0, (a, n) => a + n);
+
+/// A minimal one-page PDF naming [title] (the mock's stand-in for the
+/// backend's pages).
+List<int> mockPdfBytes(String title) => utf8.encode(
+  '%PDF-1.7\n'
+  '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n'
+  '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n'
+  '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] >> endobj\n'
+  '% ${title.replaceAll(RegExp(r'[\r\n]'), ' ')}\n'
+  'trailer << /Root 1 0 R >>\n'
+  '%%EOF\n',
+);
 
 final TaxPolicyPublic _taxPolicy = TaxPolicyPublic(
   taxRate: MockSeed.taxRate,

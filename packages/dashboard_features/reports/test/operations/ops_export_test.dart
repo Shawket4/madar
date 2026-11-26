@@ -40,19 +40,25 @@ void _expectExportRead(MockCall c) {
 }
 
 void main() {
-  testWidgets('REP-ALL-010 the export is a menu: "Export Excel" with a '
-      'chevron, then Excel and CSV', (tester) async {
+  testWidgets('REP-ALL-010 the export is a menu: "Export" with a chevron, '
+      'the format (Excel or PDF) at the top, then the file and CSV', (
+    tester,
+  ) async {
     final h = await pumpOps(tester);
     await openTab(h, 'Items');
     final button = tester.widget<DashButton>(
       find.descendant(of: _export, matching: find.byType(DashButton)),
     );
-    expect(button.label, 'Export Excel');
+    expect(button.label, 'Export');
     expect(button.icon, 'download');
     expect(button.trailingIcon, 'chevron-down');
     await h.tap(_export);
+    expect(find.text('Format'), findsOneWidget);
+    expect(find.text('Excel'), findsOneWidget);
+    expect(find.text('PDF'), findsOneWidget);
     expect(find.text('Export CSV'), findsOneWidget);
-    expect(find.text('Export Excel'), findsNWidgets(2));
+    // The trigger's words and the file's.
+    expect(find.text('Export'), findsNWidgets(2));
     await h.shot('operations/export-menu');
   });
 
@@ -62,7 +68,7 @@ void main() {
     final h = await pumpOps(tester);
     await openTab(h, 'Items');
     final before = h.server.callsTo(itemsRoute).length;
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     final items = h.server.callsTo(itemsRoute);
     final addons = h.server.callsTo(addonsRoute);
     expect(items, hasLength(before + 1));
@@ -127,7 +133,7 @@ void main() {
       'Revenue, AOV, Order voided, Tills', (tester) async {
     final h = await pumpOps(tester);
     await openTab(h, 'Tellers');
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     _expectExportRead(h.server.callsTo(tellersRoute).last);
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Teller Details');
@@ -155,7 +161,7 @@ void main() {
   ) async {
     final h = await pumpOps(tester);
     await openTab(h, 'Waiters');
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     _expectExportRead(h.server.callsTo(waitersRoute).last);
     final want = opsWaiterStats(_orders(h, SeedIds.sabahBranches));
     final sheet = h.exports.built.single.sheets.single;
@@ -190,7 +196,7 @@ void main() {
       'percent ratio', (tester) async {
     final h = await pumpOps(tester);
     await openTab(h, 'Branches');
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     _expectExportRead(h.server.callsTo(comparisonRoute).last);
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Branch Details');
@@ -215,7 +221,7 @@ void main() {
     await openTab(h, 'Tellers');
     final done = Completer<void>();
     h.exports.hold = done.future;
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     final button = tester.widget<DashButton>(
       find.descendant(of: _export, matching: find.byType(DashButton)),
     );
@@ -261,7 +267,7 @@ void main() {
     final h = await pumpOps(tester);
     await openTab(h, 'Tellers');
     h.exports.failNext = StateError('disk full');
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     await h.expectToast('Export failed');
     expect(h.files.saved, isEmpty);
   });
@@ -274,7 +280,7 @@ void main() {
         .setCustomRange('2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
     await h.settle();
     await openTab(h, 'Tellers');
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     await h.expectToast('Nothing to export');
     await _menu(h, 'Export CSV');
     await h.expectToast('Nothing to export');
@@ -289,7 +295,7 @@ void main() {
     await openTab(h, 'Waiters');
     final refusal = MockResponse.error(500, 'The waiters report is down');
     s.server.fail('GET', waitersRoute, refusal);
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     await h.expectToast(h.refusalWords(refusal));
     expect(
       tester

@@ -62,7 +62,7 @@ void main() {
       final h = await pumpPurchasing(tester);
       expect(h.location.path, purchasingPath);
       expect(inPage(find.text('Purchasing')), findsOneWidget);
-      expect(inPage(find.text('Export Excel')), findsOneWidget);
+      expect(inPage(find.text('Export')), findsOneWidget);
       expect(inPage(find.text('New purchase order')), findsOneWidget);
       for (final tab in ['Purchase orders', 'Suppliers', 'Reorder']) {
         expect(
@@ -84,7 +84,7 @@ void main() {
       );
       expect(inPage(find.text('Purchasing')), findsOneWidget);
       expect(tabStrip, findsNothing);
-      expect(inPage(find.text('Export Excel')), findsNothing);
+      expect(inPage(find.text('Export')), findsNothing);
       expect(h.server.callsTo(PurT.suppliers), isEmpty);
       expect(h.server.callsTo(PurT.orders), isEmpty);
       expect(h.server.callsTo(PurT.catalog), isEmpty);
@@ -185,7 +185,7 @@ void main() {
       await openTab(h, 'Reorder');
       expect(byKey('purchasing-new-order'), findsNothing);
       expect(byKey('purchasing-new-supplier'), findsNothing);
-      expect(inPage(find.text('Export Excel')), findsOneWidget);
+      expect(inPage(find.text('Export')), findsOneWidget);
     });
 
     testWidgets('INV-PUR-022 / INV-PUR-058 Reorder is off with All branches; '
@@ -1067,7 +1067,7 @@ void main() {
       final h = await pumpPurchasing(tester, server: s.server, db: s.db);
       await h.tap(inPage(byKey('po-status-filter')));
       await pick(h, 'Ordered');
-      await h.tap(inPage(byKey('purchasing-export')));
+      await h.exportVia('Excel', inPage(byKey('purchasing-export')));
       await h.expectToast('Exported 3 rows');
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'Purchase orders');
@@ -1097,7 +1097,7 @@ void main() {
         'supplier_name': null,
       });
       final h = await pumpPurchasing(tester, server: s.server, db: s.db);
-      await h.tap(inPage(byKey('purchasing-export')));
+      await h.exportVia('Excel', inPage(byKey('purchasing-export')));
       await h.expectToast('Exported 9 rows');
       final row = h.exports.built.single.sheets.single.rows.first;
       expect(row[0], 'PO-1040');
@@ -1117,7 +1117,7 @@ void main() {
         path: purchasingAt(SeedIds.zamalek),
       );
       await openTab(h, 'Suppliers');
-      await h.tap(inPage(byKey('purchasing-export')));
+      await h.exportVia('Excel', inPage(byKey('purchasing-export')));
       final n = sabahSuppliers(s.db).length;
       await h.expectToast('Exported $n rows');
       var sheet = h.exports.built.last.sheets.single;
@@ -1141,7 +1141,7 @@ void main() {
       expect(h.files.saved.last.filename, 'Madar-Suppliers-2026-10-08.xlsx');
 
       await openTab(h, 'Reorder');
-      await h.tap(inPage(byKey('purchasing-export')));
+      await h.exportVia('Excel', inPage(byKey('purchasing-export')));
       await h.expectToast('Exported $n rows');
       sheet = h.exports.built.last.sheets.single;
       expect(sheet.name, 'Suppliers');
@@ -1158,7 +1158,7 @@ void main() {
       });
       final h = await pumpPurchasing(tester, server: s.server, db: s.db);
       await openTab(h, 'Suppliers');
-      await h.tap(inPage(byKey('purchasing-export')));
+      await h.exportVia('Excel', inPage(byKey('purchasing-export')));
       await h.flushTimers();
       final metro = h.exports.built.single.sheets.single.rows.firstWhere(
         (r) => r.first == 'Metro Wholesale',
@@ -1171,7 +1171,7 @@ void main() {
       final h = await pumpPurchasing(tester);
       final hold = Completer<void>();
       h.exports.hold = hold.future;
-      await h.tap(inPage(byKey('purchasing-export')));
+      await h.exportVia('Excel', inPage(byKey('purchasing-export')));
       expect(find.text('Gathering data…'), findsOneWidget);
       expect(
         tester
@@ -1184,7 +1184,7 @@ void main() {
       await h.settle();
       await h.flushTimers();
       h.exports.failNext = StateError('disk full');
-      await h.tap(inPage(byKey('purchasing-export')));
+      await h.exportVia('Excel', inPage(byKey('purchasing-export')));
       await h.expectToast('Export failed');
     });
   });

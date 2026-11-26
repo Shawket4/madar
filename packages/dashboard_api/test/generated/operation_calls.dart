@@ -1438,6 +1438,16 @@ final List<OperationCall> operationCalls = [
     ),
   ),
   OperationCall(
+    'render_pdf',
+    'POST',
+    '/exports/pdf',
+    '/exports/pdf',
+    [],
+    [],
+    'bytes',
+    (api, s) => api.exports.renderPdf(body: PrintDoc.fromJson(s('PrintDoc'))),
+  ),
+  OperationCall(
     'swap_tables',
     'POST',
     '/floor/tables/swap',

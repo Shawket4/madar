@@ -61,7 +61,7 @@ void main() {
       _pageText('Manage your branch locations and printer config'),
       findsOneWidget,
     );
-    expect(_pageText('Export Excel'), findsOneWidget);
+    expect(_pageText('Export'), findsOneWidget);
     final warehouse = button(tester, 'New warehouse');
     expect(warehouse.variant, DashButtonVariant.outline);
     expect(warehouse.icon, 'warehouse');
@@ -399,7 +399,7 @@ void main() {
     branchNamed(s.db, 'Obour Warehouse')['printer_brand'] = 'star';
     final h = await pumpBranches(tester, server: s.server, db: s.db);
     await h.enterText(find.byType(DashSearchInput), 'zama');
-    await h.tapText('Export Excel');
+    await h.exportVia();
     await h.expectToast('Exported 5 rows');
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'Branches');
@@ -432,7 +432,7 @@ void main() {
   testWidgets('ADM-BRA-018 a failed export: "Export failed"', (tester) async {
     final h = await pumpBranches(tester);
     h.exports.failNext = StateError('disk full');
-    await h.tapText('Export Excel');
+    await h.exportVia();
     await h.expectToast(h.t('excel.failed'));
   });
 

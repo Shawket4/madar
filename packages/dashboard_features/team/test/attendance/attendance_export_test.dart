@@ -57,7 +57,7 @@ void main() {
       'status as its subtitle, from → to, the totals', (tester) async {
     final h = await pumpAttendance(tester);
     final rows = windowRows(h.db!).length;
-    await h.tap(exportButton());
+    await h.exportVia('Excel', exportButton());
     final call = exportCalls(h).single;
     expect(call.query, {
       'from': [day(-6)],
@@ -114,7 +114,7 @@ void main() {
         onlyRecords(db, twoRows());
       },
     );
-    await h.tap(exportButton());
+    await h.exportVia('Excel', exportButton());
     await h.flushTimers();
     final rows = h.exports.built.single.sheets.single.rows;
     final laila = rows.firstWhere((r) => r.first == 'Laila Ehab');
@@ -144,7 +144,7 @@ void main() {
     final late = windowRows(h.db!).where((r) => r['status'] == 'late').length;
     await h.enterText(inPage(find.byType(DashSearchInput)), 'adham');
     await h.settle();
-    await h.tap(exportButton());
+    await h.exportVia('Excel', exportButton());
     expect(exportCalls(h).single.query['status'], ['late']);
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.subtitle, startsWith('Late  ·  '));
@@ -157,7 +157,7 @@ void main() {
   ) async {
     final h = await pumpAttendance(tester);
     onlyRecords(h.db!, []);
-    await h.tap(exportButton());
+    await h.exportVia('Excel', exportButton());
     await h.expectToast('Nothing to export');
     expect(h.exports.built, isEmpty);
     expect(h.files.saved, isEmpty);
@@ -170,7 +170,7 @@ void main() {
     h.exports
       ..hold = hold.future
       ..failNext = Exception('disk full');
-    await h.tap(exportButton());
+    await h.exportVia('Excel', exportButton());
     expect(tester.widget<DashExportButton>(exportButton()).loading, isTrue);
     expect(find.text('Gathering data…'), findsOneWidget);
     hold.complete();
@@ -186,7 +186,7 @@ void main() {
   ) async {
     final h = await pumpAttendance(tester);
     h.server.fail('GET', listT, MockResponse.error(429, 'Too many requests'));
-    await h.tap(exportButton());
+    await h.exportVia('Excel', exportButton());
     await h.expectToast(h.t('errors.tooManyRequests'));
     expect(h.exports.built, isEmpty);
     expect(tester.widget<DashExportButton>(exportButton()).loading, isFalse);

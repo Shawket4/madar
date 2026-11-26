@@ -29,6 +29,7 @@ class DashboardApi {
   late final DeliveryPublicApi deliveryPublic = DeliveryPublicApi(transport);
   late final DevicesApi devices = DevicesApi(transport);
   late final DiscountsApi discounts = DiscountsApi(transport);
+  late final ExportsApi exports = ExportsApi(transport);
   late final FloorApi floor = FloorApi(transport);
   late final FloorTransfersApi floorTransfers = FloorTransfersApi(transport);
   late final InsightsApi insights = InsightsApi(transport);

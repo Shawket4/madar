@@ -291,7 +291,7 @@ void main() {
     testWidgets('REP-FIN-070 Valuation: "By category", "Total value", '
         'subtitled by the scope, Madar-Valuation', (t) async {
       final h = await openInv(t, _valuation);
-      await menu(h, 'Export Excel');
+      await menu(h, 'Export');
       final rows = finByCategory(
         finValuation(SeedIds.sabahBranches),
         finCatalog(SeedIds.sabahOrg),
@@ -326,7 +326,7 @@ void main() {
     testWidgets('REP-FIN-070 Material cost trend: the five columns, the rise '
         'as "+pct%" text', (t) async {
       final h = await openInv(t, _trend);
-      await menu(h, 'Export Excel');
+      await menu(h, 'Export');
       await h.flushTimers();
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.title, 'Material cost trend');
@@ -343,7 +343,7 @@ void main() {
       final h = await openInv(t, _spend);
       await pickSegment(h, 'fin-inv-scope', 'This branch');
       expect(t.widget<DashExportButton>(exportButton()).enabled, isTrue);
-      await menu(h, 'Export Excel');
+      await menu(h, 'Export');
       await h.expectToast('Nothing to export');
       expect(h.files.saved, isEmpty);
     });

@@ -364,6 +364,53 @@ void main() {
     },
   );
 
+  group('POST /exports/pdf (render_pdf)', () {
+    PrintDoc doc(int rows) => PrintDoc(
+      filename: 'orders-2026-11-26',
+      sheets: [
+        PrintSheet(
+          title: 'Orders',
+          blocks: [
+            PrintBlockTable(
+              columns: const [PrintColumn(header: 'No', width: 20)],
+              rows: [
+                for (var i = 0; i < rows; i++) ['$i'],
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    test('any signed-in persona gets the document back as a PDF', () async {
+      for (final p in [Persona.owner, Persona.limited, Persona.dawamOnly]) {
+        final b = _boot(p);
+        final pdf = await b.api.exports.renderPdf(body: doc(2));
+        expect(utf8.decode(pdf.take(5).toList()), '%PDF-', reason: p.name);
+        final call = b.server.calls.single;
+        expect(call.status, 200);
+        expect((call.body! as Map)['filename'], 'orders-2026-11-26');
+      }
+    });
+
+    test('a document past the row cap is refused in the backend\'s words '
+        '(pdf.rs MAX_ROWS: a table counts its rows, its footer and its '
+        'header)', () async {
+      final b = _boot();
+      await b.api.exports.renderPdf(body: doc(9999));
+      await expectLater(
+        b.api.exports.renderPdf(body: doc(10000)),
+        throwsA(
+          _status(
+            400,
+            'Bad request: That is about 10001 rows, and a PDF holds at most '
+            '10000. Narrow the dates or the branch, or export Excel.',
+          ),
+        ),
+      );
+    });
+  });
+
   test('the shell start-up sequence hits no unmatched route', () async {
     for (final p in Persona.values) {
       final b = _boot(p);

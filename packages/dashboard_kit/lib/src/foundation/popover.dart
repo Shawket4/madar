@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:design_system/design_system.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -352,6 +353,7 @@ class DashMenuItem {
     this.enabled = true,
     this.checked,
     this.keepOpen = false,
+    this.radio = false,
     this.hint,
   }) : divider = false,
        heading = false;
@@ -367,6 +369,7 @@ class DashMenuItem {
       enabled = false,
       checked = null,
       keepOpen = false,
+      radio = false,
       hint = null,
       divider = true,
       heading = false;
@@ -382,6 +385,7 @@ class DashMenuItem {
       enabled = false,
       checked = null,
       keepOpen = false,
+      radio = false,
       hint = null,
       divider = false,
       heading = true;
@@ -407,6 +411,12 @@ class DashMenuItem {
 
   /// Leaves the menu open after selecting (checkbox items).
   final bool keepOpen;
+
+  /// One of a set of [checked] items only one of which holds (the web's
+  /// `DropdownMenuRadioItem`: an export's format). Choosing it checks it and
+  /// unchecks the menu's other radio items; choosing it again keeps it
+  /// checked. With [keepOpen] the menu stays open on the new choice.
+  final bool radio;
 
   /// A quiet word on the end side.
   final String? hint;
@@ -455,10 +465,31 @@ class _MenuList extends StatefulWidget {
 }
 
 class _MenuListState extends State<_MenuList> {
-  late final Map<int, bool> _checked = {
-    for (var i = 0; i < widget.items.length; i++)
-      if (widget.items[i].checked != null) i: widget.items[i].checked!,
+  late Map<int, bool> _checked = _checksOf(widget.items);
+
+  static Map<int, bool> _checksOf(List<DashMenuItem> items) => {
+    for (var i = 0; i < items.length; i++)
+      if (items[i].checked != null) i: items[i].checked!,
   };
+
+  @override
+  void didUpdateWidget(_MenuList old) {
+    super.didUpdateWidget(old);
+    // The caller's answer wins when it changes under an open menu (a radio
+    // set rebuilt with the new choice).
+    final next = _checksOf(widget.items);
+    if (!mapEquals(next, _checksOf(old.items))) _checked = next;
+  }
+
+  void _toggle(int i, DashMenuItem item, bool checked) => setState(() {
+    if (!item.radio) {
+      _checked[i] = !checked;
+      return;
+    }
+    for (var k = 0; k < widget.items.length; k++) {
+      if (widget.items[k].radio) _checked[k] = k == i;
+    }
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -518,7 +549,7 @@ class _MenuListState extends State<_MenuList> {
       semanticLabel: item.label,
       excludeChildSemantics: true,
       onTap: () {
-        if (checked != null) setState(() => _checked[i] = !checked);
+        if (checked != null) _toggle(i, item, checked);
         // Close first, so a dialog the item opens keeps the focus (and its
         // Escape).
         if (!item.keepOpen) widget.controller.close();

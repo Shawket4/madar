@@ -251,7 +251,7 @@ void main() {
     await h.tap(inPage(find.text('Incoming')));
     await h.tap(inPage(find.text('Requested')));
     final before = h.server.callsTo(listRoute).length;
-    await h.tap(inPage(byKey('transfers-export')));
+    await h.exportVia('Excel', inPage(byKey('transfers-export')));
     final walk = h.server.callsTo(listRoute).skip(before).toList();
     expect(walk, isNotEmpty);
     expect(walk.first.query['offset'], ['0']);
@@ -315,7 +315,7 @@ void main() {
     s.server.fail('GET', listRoute, boom);
     final hold = Completer<void>();
     h.exports.hold = hold.future;
-    await h.tap(inPage(byKey('transfers-export')));
+    await h.exportVia('Excel', inPage(byKey('transfers-export')));
     await h.expectToast(h.refusalWords(boom));
     expect(h.exports.built, isEmpty);
     expect(exportButton().loading, isFalse);

@@ -10,7 +10,34 @@ import 'foundation/press.dart';
 import 'foundation/tokens.dart';
 import 'table.dart';
 
-/// One more file a [DashExportButton] offers, under the page's own Excel
+/// Which file an export makes (the web's `ExportFormat`): the Excel
+/// workbook or a PDF of the same sheets.
+enum DashExportFormat { xlsx, pdf }
+
+/// The format every [DashExportButton] under it shows and sets: one choice
+/// for the whole dashboard (dashboard_core fills it from its remembered
+/// `exportFormatProvider`; the exporter reads the same). Without one, a
+/// button keeps its own.
+class DashExportFormatScope extends InheritedWidget {
+  const DashExportFormatScope({
+    required this.format,
+    required this.onChanged,
+    required super.child,
+    super.key,
+  });
+
+  final DashExportFormat format;
+  final ValueChanged<DashExportFormat> onChanged;
+
+  static DashExportFormatScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DashExportFormatScope>();
+
+  @override
+  bool updateShouldNotify(DashExportFormatScope oldWidget) =>
+      format != oldWidget.format || onChanged != oldWidget.onChanged;
+}
+
+/// One more file a [DashExportButton] offers, under the page's own export
 /// and CSV (the web's `ExportOption`).
 @immutable
 class DashExportOption {
@@ -27,11 +54,20 @@ class DashExportOption {
   final String icon;
 }
 
-/// The shared "Export Excel" button (the web's `ExportButton`). With
-/// [onExportCsv] it becomes a menu offering Excel and CSV; with [more] it
-/// becomes a menu with those files in their own section, under a rule and
-/// [moreHeading].
-class DashExportButton extends StatelessWidget {
+/// The shared Export button of every list and report (the web's
+/// `ExportButton`): Excel or PDF of the same sheets, the PDF in the
+/// dashboard's typeface, embedded.
+///
+/// - One file: the menu is the choice, "Export as Excel / PDF" (as Apex's
+///   export menu), and picking one exports at once.
+/// - Several files ([onExportCsv], or [more]): the format sits at the top,
+///   checked and keeping the menu open, then a rule and the files: the
+///   page's own ([excelLabel]), the CSV, and [more] in their own section
+///   under [moreHeading].
+///
+/// The format is the [DashExportFormatScope]'s, set here and read by the
+/// export itself, so [onExport] never asks which.
+class DashExportButton extends StatefulWidget {
   const DashExportButton({
     required this.onExport,
     this.onExportCsv,
@@ -45,68 +81,116 @@ class DashExportButton extends StatelessWidget {
     super.key,
   });
 
+  /// The export, made in the chosen format.
   final VoidCallback onExport;
+
+  /// A CSV as well: its own item, whatever the format.
   final VoidCallback? onExportCsv;
 
-  /// The menu's name for [onExport] (default "Export Excel").
+  /// The menu's name for [onExport] when it offers several files (default
+  /// "Export").
   final String? excelLabel;
 
-  /// Other files, in their own section of the menu (which it becomes).
+  /// Other files, in their own section of the menu.
   final List<DashExportOption> more;
 
   /// That section's heading.
   final String? moreHeading;
+
+  /// The button's words (default "Export").
   final String? label;
   final bool loading;
   final bool enabled;
   final bool compact;
 
   @override
+  State<DashExportButton> createState() => _DashExportButtonState();
+}
+
+class _DashExportButtonState extends State<DashExportButton> {
+  /// The choice when no [DashExportFormatScope] holds one.
+  DashExportFormat _own = DashExportFormat.xlsx;
+
+  void _set(DashExportFormatScope? scope, DashExportFormat format) {
+    if (scope != null) {
+      scope.onChanged(format);
+    } else {
+      setState(() => _own = format);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = context.dashStrings;
-    final size = compact ? DashButtonSize.compact : DashButtonSize.regular;
-    if (onExportCsv == null && more.isEmpty) {
-      return DashButton(
-        label: label ?? t.export,
-        icon: 'download',
-        variant: DashButtonVariant.outline,
-        size: size,
-        loading: loading,
-        onPressed: enabled ? onExport : null,
-      );
-    }
-    return DashMenu(
-      items: [
+    final w = widget;
+    final scope = DashExportFormatScope.maybeOf(context);
+    final format = scope?.format ?? _own;
+    final formats = [
+      (DashExportFormat.xlsx, t.exportFormatExcel, 'file-spreadsheet'),
+      (DashExportFormat.pdf, t.exportFormatPdf, 'file-text'),
+    ];
+    final List<DashMenuItem> items;
+    if (w.onExportCsv == null && w.more.isEmpty) {
+      items = [
+        DashMenuItem.heading(t.exportFormatAs),
+        for (final (value, text, icon) in formats)
+          DashMenuItem(
+            label: text,
+            icon: icon,
+            onSelected: () {
+              _set(scope, value);
+              w.onExport();
+            },
+          ),
+      ];
+    } else {
+      items = [
+        DashMenuItem.heading(t.exportFormatLabel),
+        // Choosing a format keeps the menu open: the file is picked next.
+        for (final (value, text, _) in formats)
+          DashMenuItem(
+            label: text,
+            checked: format == value,
+            radio: true,
+            keepOpen: true,
+            onSelected: () => _set(scope, value),
+          ),
+        const DashMenuItem.divider(),
         DashMenuItem(
-          label: excelLabel ?? t.exportExcel,
-          icon: 'file-spreadsheet',
-          onSelected: onExport,
+          label: w.excelLabel ?? t.exportFile,
+          icon: format == DashExportFormat.pdf
+              ? 'file-text'
+              : 'file-spreadsheet',
+          onSelected: w.onExport,
         ),
-        if (onExportCsv != null)
+        if (w.onExportCsv != null)
           DashMenuItem(
             label: t.exportCsv,
             icon: 'file-text',
-            onSelected: onExportCsv,
+            onSelected: w.onExportCsv,
           ),
-        if (more.isNotEmpty) ...[
+        if (w.more.isNotEmpty) ...[
           const DashMenuItem.divider(),
-          if (moreHeading case final heading?) DashMenuItem.heading(heading),
-          for (final o in more)
+          if (w.moreHeading case final heading?) DashMenuItem.heading(heading),
+          for (final o in w.more)
             DashMenuItem(
               label: o.label,
               icon: o.icon,
               onSelected: o.onSelected,
             ),
         ],
-      ],
+      ];
+    }
+    return DashMenu(
+      items: items,
       builder: (context, c) => DashButton(
-        label: label ?? t.export,
+        label: w.label ?? t.exportMenu,
         icon: 'download',
         trailingIcon: 'chevron-down',
         variant: DashButtonVariant.outline,
-        size: size,
-        loading: loading,
-        onPressed: enabled ? c.toggle : null,
+        size: w.compact ? DashButtonSize.compact : DashButtonSize.regular,
+        loading: w.loading,
+        onPressed: w.enabled ? c.toggle : null,
       ),
     );
   }

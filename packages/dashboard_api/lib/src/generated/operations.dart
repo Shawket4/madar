@@ -706,6 +706,7 @@ const List<ApiOperation> apiOperations = [
     'discounts',
     'updateDiscount',
   ),
+  ApiOperation('render_pdf', 'POST', '/exports/pdf', 'exports', 'renderPdf'),
   ApiOperation(
     'swap_tables',
     'POST',

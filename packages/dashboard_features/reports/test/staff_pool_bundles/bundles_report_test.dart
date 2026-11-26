@@ -57,7 +57,7 @@ void main() {
         expect(find.text('Not available on this account'), findsOneWidget);
         expect(find.text(h.t('reports.noAccess')), findsOneWidget);
         expect(h.server.callsTo(bundlesTpl), isEmpty);
-        expect(find.text('Export Excel'), findsNothing);
+        expect(find.text('Export'), findsNothing);
       },
     );
 
@@ -136,10 +136,9 @@ void main() {
   });
 
   group('the header and the request', () {
-    testWidgets('REP-BUN-002 title, description and one Export Excel button', (
-      tester,
-    ) async {
-      await pumpReports(tester, path: bundlesPath);
+    testWidgets('REP-BUN-002 title, description and one Export button: '
+        'Excel or PDF', (tester) async {
+      final h = await pumpReports(tester, path: bundlesPath);
       expect(find.text('Bundles'), findsWidgets);
       expect(
         find.text(
@@ -148,11 +147,14 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Export Excel'), findsOneWidget);
-      await tester.tap(find.text('Export Excel'));
-      await tester.pump();
-      // A single button, not a menu: no CSV entry appears.
+      expect(find.text('Export'), findsOneWidget);
+      await h.tap(find.text('Export'));
+      // One file: the menu is the format; no CSV entry appears.
+      expect(find.text('Excel'), findsOneWidget);
+      expect(find.text('PDF'), findsOneWidget);
       expect(find.text('Export CSV'), findsNothing);
+      await tester.tap(find.text('Excel'));
+      await tester.pump();
       await tester.pump(const Duration(seconds: 6));
     });
 
@@ -816,7 +818,7 @@ void main() {
         server: s.server,
         db: s.db,
       );
-      await h.tapText('Export Excel');
+      await h.exportVia();
       await h.settle();
       expect(h.exports.built, hasLength(1));
       final sheet = h.exports.built.single.sheets.single;
@@ -888,7 +890,7 @@ void main() {
     ) async {
       final h = await pumpReports(tester, path: bundlesPath);
       await h.tapText('Deals');
-      await h.tapText('Export Excel');
+      await h.exportVia();
       await h.settle();
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'Deals');
@@ -907,7 +909,7 @@ void main() {
         path: '$bundlesPath?branchId=${SeedIds.zamalek}',
         locale: 'ar',
       );
-      await h.tapText('تصدير إلى إكسل');
+      await h.exportVia();
       await h.settle();
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'الكومبو');
@@ -927,19 +929,20 @@ void main() {
       );
       final button = tester.widget<DashButton>(
         find.ancestor(
-          of: find.text('Export Excel'),
+          of: find.text('Export'),
           matching: find.byType(DashButton),
         ),
       );
       expect(button.onPressed, isNull);
-      await h.tapText('Export Excel');
+      await h.tap(find.text('Export'));
+      expect(find.text('Excel'), findsNothing, reason: 'no menu opens');
       expect(h.exports.built, isEmpty);
     });
 
     testWidgets('REP-BUN-019 a failed write says so', (tester) async {
       final h = await pumpReports(tester, path: bundlesPath);
       h.exports.failNext = StateError('disk full');
-      await h.tapText('Export Excel');
+      await h.exportVia();
       await h.settle();
       expect(find.text('Export failed'), findsOneWidget);
       expect(h.files.saved, isEmpty);
@@ -953,7 +956,8 @@ void main() {
       // Held: the recorded export answers at once otherwise.
       final written = Completer<void>();
       h.exports.hold = written.future;
-      await tester.tap(find.text('Export Excel'));
+      await h.tap(find.text('Export'));
+      await tester.tap(find.text('Excel'));
       await tester.pump();
       expect(find.text('Gathering data…'), findsOneWidget);
       written.complete();
