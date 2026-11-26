@@ -14706,6 +14706,107 @@
         ]
       }
     },
+    "/exports/pdf": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Print a dashboard's export as a PDF.",
+        "operationId": "render_pdf",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrintDoc"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The export as a PDF, in IBM Plex Sans Arabic",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — validation failed or malformed input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — insufficient permission or wrong org",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — FK or domain invariant violation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_jwt": []
+          }
+        ]
+      }
+    },
     "/floor/layout": {
       "put": {
         "tags": [
@@ -97039,6 +97140,219 @@
           "target_type": {
             "type": "string",
             "description": "'menu_item_size' | 'modifier_option'."
+          }
+        }
+      },
+      "PrintAlign": {
+        "type": "string",
+        "description": "Where a value sits in its cell. `start` is the reading side (left in\nEnglish, right in Arabic).",
+        "enum": [
+          "start",
+          "center",
+          "end"
+        ]
+      },
+      "PrintBlock": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "A band naming what the tables under it belong to (a category).",
+            "required": [
+              "text",
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "group"
+                ]
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PrintTable",
+                "description": "A table, with an optional title above it."
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "table"
+                    ]
+                  }
+                }
+              }
+            ],
+            "description": "A table, with an optional title above it."
+          }
+        ],
+        "description": "What a sheet is made of, top to bottom."
+      },
+      "PrintColumn": {
+        "type": "object",
+        "description": "A column: its header, its width relative to the others (a spreadsheet\ncolumn's width), and how its values sit.",
+        "required": [
+          "header",
+          "width"
+        ],
+        "properties": {
+          "align": {
+            "$ref": "#/components/schemas/PrintAlign"
+          },
+          "header": {
+            "type": "string"
+          },
+          "width": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "PrintDoc": {
+        "type": "object",
+        "description": "A document to print, every value already in words.",
+        "required": [
+          "filename",
+          "sheets"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "The file's name without its extension (`Madar-Recipes-2026-11-26`)."
+          },
+          "rtl": {
+            "type": "boolean",
+            "description": "Arabic: the pages run right to left."
+          },
+          "sheets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrintSheet"
+            }
+          }
+        }
+      },
+      "PrintSheet": {
+        "type": "object",
+        "description": "One sheet of the workbook, printed from a new page.",
+        "required": [
+          "title",
+          "blocks"
+        ],
+        "properties": {
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrintBlock"
+            }
+          },
+          "landscape": {
+            "type": "boolean",
+            "description": "Wide tables print across the page."
+          },
+          "stats": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrintStat"
+            }
+          },
+          "subtitle": {
+            "type": "string",
+            "description": "The line under the banner (filters, when it was made)."
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "PrintStat": {
+        "type": "object",
+        "description": "A figure above the tables.",
+        "required": [
+          "label",
+          "value"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "PrintTable": {
+        "type": "object",
+        "description": "A table: a header band, zebra rows, bold footer rows, a totals band, a\ncaption under it.",
+        "required": [
+          "columns"
+        ],
+        "properties": {
+          "caption": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A wrapped line under the table (how it's made)."
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrintColumn"
+            }
+          },
+          "footer": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Bold rows ruled off under the body (a recipe's cost, price, food cost)."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Muted words after the title."
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "totals": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "An ink band under the body (a list's totals)."
           }
         }
       },

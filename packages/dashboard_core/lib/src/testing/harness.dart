@@ -292,6 +292,19 @@ class DashHarness {
   /// Taps the widget with [key].
   Future<void> tapKey(Key key) => tap(find.byKey(key));
 
+  /// Opens an Export button ([button], else the only one on screen) and
+  /// picks [item] from its menu: a format of a one-file export ("Excel",
+  /// "PDF", which exports at once), or a file of several.
+  Future<void> exportVia([String item = 'Excel', Finder? button]) async {
+    await tap(
+      find.descendant(
+        of: button ?? find.byType(DashExportButton),
+        matching: find.byType(DashButton),
+      ),
+    );
+    await tap(find.text(item).last);
+  }
+
   /// Taps the control a screen reader calls [label].
   Future<void> tapLabel(String label) => tap(find.bySemanticsLabel(label));
 

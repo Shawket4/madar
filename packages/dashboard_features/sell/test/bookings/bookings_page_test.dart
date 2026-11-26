@@ -660,7 +660,7 @@ void main() {
     'SELL-BKG-033/034 export: the day re-read as an export, filtered, every column',
     (tester) async {
       final h = await pumpBookings(tester);
-      await h.tap(find.byKey(const ValueKey('bookings-export')));
+      await h.exportVia('Excel', find.byKey(const ValueKey('bookings-export')));
       final call = h.server.callsTo(dayTemplate).last;
       expect(call.headers['X-Madar-Export'], '1');
       expect(call.query['date'], [today]);
@@ -709,7 +709,7 @@ void main() {
       dayTemplate,
       MockResponse.error(429, 'Too many exports', code: 'EXPORT_RATE_LIMITED'),
     );
-    await h.tap(find.byKey(const ValueKey('bookings-export')));
+    await h.exportVia('Excel', find.byKey(const ValueKey('bookings-export')));
     await h.expectToast('Too many exports just now. Try again in a minute.');
     expect(h.files.saved, isEmpty);
     final export = tester.widget<DashExportButton>(
@@ -728,7 +728,7 @@ void main() {
         matching: find.text('No-show'),
       ),
     );
-    await h.tap(find.byKey(const ValueKey('bookings-export')));
+    await h.exportVia('Excel', find.byKey(const ValueKey('bookings-export')));
     await h.expectToast('Nothing to export');
     expect(h.files.saved, isEmpty);
   });

@@ -75,7 +75,7 @@ void main() {
       expect(inPage(find.text('Discounts')), findsOneWidget);
       expect(inPage(find.text('Select an organization')), findsOneWidget);
       expect(inPage(find.text('New discount')), findsNothing);
-      expect(inPage(find.text('Export Excel')), findsNothing);
+      expect(inPage(find.text('Export')), findsNothing);
       expect(lists(h), isEmpty);
     });
 
@@ -145,7 +145,7 @@ void main() {
         inPage(find.text('Percentage and fixed-amount discounts')),
         findsOneWidget,
       );
-      final export = tester.getCenter(inPage(find.text('Export Excel')));
+      final export = tester.getCenter(inPage(find.text('Export')));
       final create = tester.getCenter(inPage(find.text('New discount')));
       expect(export.dx, lessThan(create.dx));
     });
@@ -198,7 +198,7 @@ void main() {
       final h = await pumpDiscounts(tester);
       final wait = Completer<void>();
       h.exports.hold = wait.future;
-      await h.tap(inPage(find.text('Export Excel')));
+      await h.exportVia();
       expect(
         tester.widget<DashExportButton>(find.byType(DashExportButton)).loading,
         isTrue,
@@ -216,7 +216,7 @@ void main() {
     testWidgets('OFFR-DSC-007 the workbook: one sheet "Discounts", four '
         'typed columns, every discount, "Exported 7 rows"', (tester) async {
       final h = await pumpDiscounts(tester);
-      await h.tap(inPage(find.text('Export Excel')));
+      await h.exportVia();
       await h.expectToast('Exported 7 rows');
       final spec = h.exports.built.single;
       final sheet = spec.sheets.single;
@@ -255,7 +255,7 @@ void main() {
         'custom_branding': true,
       });
       final h = await pumpDiscounts(tester, server: s.server, db: s.db);
-      await h.tap(inPage(find.text('Export Excel')));
+      await h.exportVia();
       await h.flushTimers();
       expect(
         h.exports.built.single.logoUrl,
@@ -271,7 +271,7 @@ void main() {
         'custom_branding': true,
       });
       final h = await pumpDiscounts(tester, server: s.server, db: s.db);
-      await h.tap(inPage(find.text('Export Excel')));
+      await h.exportVia();
       await h.flushTimers();
       expect(
         h.exports.built.single.logoUrl,
@@ -288,7 +288,7 @@ void main() {
         'custom_branding': true,
       });
       final h = await pumpDiscounts(tester, server: s.server, db: s.db);
-      await h.tap(inPage(find.text('Export Excel')));
+      await h.exportVia();
       await h.flushTimers();
       expect(h.exports.built.single.logoUrl, isNull);
     });
@@ -298,7 +298,7 @@ void main() {
     ) async {
       final h = await pumpDiscounts(tester);
       h.exports.failNext = Exception('disk full');
-      await h.tap(inPage(find.text('Export Excel')));
+      await h.exportVia();
       await h.expectToast('Export failed');
       expect(h.files.saved, isEmpty);
     });
@@ -308,7 +308,7 @@ void main() {
       final h = await pumpDiscounts(tester);
       await h.enterText(search, 'staff');
       expect(inTable(find.text('Corporate: Vodafone')), findsNothing);
-      await h.tap(inPage(find.text('Export Excel')));
+      await h.exportVia();
       await h.expectToast('Exported 7 rows');
       expect(h.exports.built.single.sheets.single.rows, hasLength(7));
     });

@@ -2,6 +2,8 @@
 library;
 
 import 'package:dashboard_core/src/authz/gates.dart' show errorMessage;
+import 'package:dashboard_core/src/gateways/export.dart'
+    show exportFormatProvider;
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
 import 'package:dashboard_core/src/scope/scope.dart'
     show activeTimezoneProvider;
@@ -36,8 +38,10 @@ final dashKitFormatsProvider = Provider<DashKitFormats>(
   ),
 );
 
-/// Puts the kit's localizations above [child], from the live i18n. The shell
-/// mounts it once, beside [DashI18nScope].
+/// Puts the kit's localizations above [child], from the live i18n, and the
+/// export format every Export button shows and sets (the remembered
+/// [exportFormatProvider], which the exporter reads). The shell mounts it
+/// once, beside [DashI18nScope].
 class DashKitScope extends ConsumerWidget {
   const DashKitScope({required this.child, super.key});
 
@@ -50,7 +54,11 @@ class DashKitScope extends ConsumerWidget {
       strings: ref.watch(dashKitStringsProvider),
       formats: ref.watch(dashKitFormatsProvider),
       describeError: (e) => errorMessage(e, t),
-      child: child,
+      child: DashExportFormatScope(
+        format: ref.watch(exportFormatProvider),
+        onChanged: ref.read(exportFormatProvider.notifier).set,
+        child: child,
+      ),
     );
   }
 }

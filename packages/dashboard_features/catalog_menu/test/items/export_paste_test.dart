@@ -16,10 +16,10 @@ import 'support.dart';
 /// section under the menu workbook).
 Finder get _export => inPage(find.text('Export'));
 
-/// The menu export: "Menu (Excel)" in that menu.
+/// The menu export: "Menu" in that menu (the format chosen above it).
 Future<void> _exportMenu(DashHarness h) async {
   await h.tap(_export);
-  await pickMenu(h, 'Menu (Excel)');
+  await pickMenu(h, 'Menu');
 }
 
 Future<void> _openPaste(DashHarness h) =>

@@ -91,7 +91,7 @@ void main() {
       await pumpUsers(tester);
       expect(onPage('Users'), findsWidgets);
       expect(onPage('Manage staff accounts and access'), findsOneWidget);
-      expect(onPage('Export Excel'), findsOneWidget);
+      expect(onPage('Export'), findsOneWidget);
       expect(find.byKey(const ValueKey('users-new')), findsOneWidget);
     });
 
@@ -497,7 +497,7 @@ void main() {
     testWidgets('ADM-USR-017 the workbook: five columns, every account, the '
         'engine\'s toasts', (tester) async {
       final h = await pumpUsers(tester);
-      await h.tapText('Export Excel');
+      await h.exportVia();
       await h.expectToast('Exported 16 rows');
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, 'Users');
@@ -522,7 +522,7 @@ void main() {
     ) async {
       final h = await pumpUsers(tester);
       h.exports.failNext = Exception('disk full');
-      await h.tapText('Export Excel');
+      await h.exportVia();
       await h.expectToast('Export failed');
     });
 
@@ -530,7 +530,7 @@ void main() {
       tester,
     ) async {
       final h = await pumpUsers(tester, locale: 'ar');
-      await h.tapText(h.t('common.export'));
+      await h.exportVia();
       await h.expectToast(h.t('excel.done', count: 16));
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.name, h.t('users.title'));

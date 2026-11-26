@@ -5,7 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ApiException, ApiRequest, ApiResponse, ApiTransport;
+    show ApiException, ApiRequest, ApiResponse, ApiTransport, PrintDoc;
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_core/src/data/core_api.dart';
 import 'package:dashboard_core/src/data/models.dart';
@@ -289,6 +289,25 @@ class RecordingExportGateway implements ExportGateway {
   @override
   Future<List<SheetData>> readXlsx(List<int> bytes) async =>
       readQueue.isEmpty ? const [] : readQueue.removeAt(0);
+}
+
+/// Records every [PrintDoc] and answers a stand-in PDF naming it.
+class RecordingPdfGateway implements PdfGateway {
+  final List<PrintDoc> printed = [];
+
+  /// Throw this from the next [renderPdf] (a refusal, a dropped line).
+  Object? failNext;
+
+  @override
+  Future<List<int>> renderPdf(PrintDoc doc) async {
+    final f = failNext;
+    if (f != null) {
+      failNext = null;
+      throw f;
+    }
+    printed.add(doc);
+    return utf8.encode('%PDF-1.7 ${doc.filename}');
+  }
 }
 
 // ── Realtime ─────────────────────────────────────────────────────────────

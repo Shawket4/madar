@@ -29,7 +29,7 @@ Future<DashHarness> _openExport(
     size: size,
     locale: locale,
   );
-  await h.tap(find.byKey(const ValueKey('orders-export')));
+  await h.exportVia('Excel', find.byKey(const ValueKey('orders-export')));
   return h;
 }
 
@@ -179,7 +179,7 @@ void main() {
     await h.tap(find.byKey(const ValueKey('export-customize')));
     await h.tap(inExport(find.text('Cancel')));
     expect(find.byType(OrdersExportSheet), findsNothing);
-    await h.tap(find.byKey(const ValueKey('orders-export')));
+    await h.exportVia('Excel', find.byKey(const ValueKey('orders-export')));
     expect(
       find.byWidgetPredicate(
         (w) =>

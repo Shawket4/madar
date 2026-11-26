@@ -1,26 +1,48 @@
 /// Spreadsheet export and import: the web's `src/lib/excel.ts` (the branded
-/// workbook and the CSV sibling) and `src/lib/export-all.ts` (walking a paged
-/// list to the end, with a hard ceiling).
+/// workbook, the CSV sibling and the PDF of the same sheets),
+/// `src/lib/export-format.ts` (which of the two every export makes) and
+/// `src/lib/export-all.ts` (walking a paged list to the end, with a hard
+/// ceiling).
 ///
 /// Everything excel.ts decides (cell values, number formats, the banner,
 /// subtitle, stat pills, zebra rows, the SUM totals row; for a sheet of
 /// tables, which row is a band, a title, a header, a body or a footer row,
 /// and every row's height) is decided HERE, into a [WorkbookSpec];
 /// [ExportGateway.buildXlsx] only writes it to bytes (the core's xlsx writer
-/// in real mode, a recorder in tests).
+/// in real mode, a recorder in tests). A PDF is the same sheets as a
+/// [PrintDoc], every value already in words ([DashExporter.printDoc]); the
+/// backend draws the pages for both dashboards ([PdfGateway]).
 library;
 
 import 'dart:math' as math;
 
 import 'package:dashboard_api/dashboard_api.dart'
-    show ApiRequest, ApiResponse, ApiTransport, DashboardApi, PublicBrand;
+    show
+        ApiException,
+        ApiRequest,
+        ApiResponse,
+        ApiTransport,
+        DashboardApi,
+        PrintAlign,
+        PrintBlock,
+        PrintBlockGroup,
+        PrintBlockTable,
+        PrintColumn,
+        PrintDoc,
+        PrintSheet,
+        PrintStat,
+        PublicBrand;
 import 'package:dashboard_core/src/format/format.dart';
 import 'package:dashboard_core/src/format/icu_number.dart';
 import 'package:dashboard_core/src/format/tz.dart';
 import 'package:dashboard_core/src/gateways/files.dart';
+import 'package:dashboard_core/src/gateways/preferences.dart';
 import 'package:dashboard_core/src/i18n/i18n_providers.dart';
+import 'package:dashboard_kit/dashboard_kit.dart' show DashExportFormat;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+export 'package:dashboard_kit/dashboard_kit.dart' show DashExportFormat;
 
 /// `ColumnType`.
 enum ExcelColumnType {
@@ -361,6 +383,55 @@ Object? excelCellValue(Object? raw, ExcelColumnType? type, String zone) {
   }
 }
 
+/// JavaScript's `Number(raw)`: NaN for what is not a number.
+num _jsNumberOf(Object? raw) => switch (raw) {
+  null => 0,
+  final num n => n,
+  final bool b => b ? 1 : 0,
+  final DateTime d => d.millisecondsSinceEpoch,
+  final String s when s.trim().isEmpty => 0,
+  final String s => num.tryParse(s.trim()) ?? double.nan,
+  _ => double.nan,
+};
+
+/// A cell as the person reads it (`displayValue`): money in the dashboard's
+/// shape, Western digits, dates on [format]'s zone, ✓ / — for a yes or no.
+/// Blank for nothing.
+String excelDisplayValue(
+  Object? raw,
+  ExcelColumnType? type,
+  DashFormat format,
+) {
+  if (raw == null || raw == '') return '';
+  return switch (type) {
+    ExcelColumnType.money => raw is num ? format.fmtMoney(raw) : _jsString(raw),
+    ExcelColumnType.moneyRaw =>
+      // `Math.round(raw * 100)`: half up, as JavaScript rounds.
+      raw is num ? format.fmtMoney((raw * 100 + 0.5).floor()) : _jsString(raw),
+    ExcelColumnType.number => format.fmtNumber(
+      _jsNumberOf(raw),
+      const NumberOptions(minimumFractionDigits: 2, maximumFractionDigits: 2),
+    ),
+    ExcelColumnType.integer => format.fmtNumber(
+      _jsNumberOf(raw),
+      const NumberOptions(maximumFractionDigits: 0),
+    ),
+    ExcelColumnType.percent => format.fmtPercent(_jsNumberOf(raw)),
+    ExcelColumnType.quantity => format.fmtNumber(
+      _jsNumberOf(raw),
+      const NumberOptions(maximumFractionDigits: 3),
+    ),
+    ExcelColumnType.date => format.fmtDate(
+      raw is DateTime ? raw : _jsString(raw),
+    ),
+    ExcelColumnType.dateTime => format.fmtDateTimeFull(
+      raw is DateTime ? raw : _jsString(raw),
+    ),
+    ExcelColumnType.bool => _truthy(raw) ? '✓' : '—',
+    ExcelColumnType.text || null => raw is String ? raw : _jsString(raw),
+  };
+}
+
 String _jsString(Object raw) {
   if (raw is double &&
       raw.isFinite &&
@@ -681,6 +752,56 @@ final exportGatewayProvider = Provider<ExportGateway>(
   (ref) => throw StateError('exportGatewayProvider must be overridden at boot'),
 );
 
+// ── export-format.ts ──────────────────────────────────────────────────────
+
+/// Where the choice is kept on this device (`KEY`).
+const String exportFormatPrefKey = 'madar.export.format';
+
+/// Which file every export makes (`getExportFormat` / `setExportFormat`):
+/// the workbook or a PDF of the same sheets. One choice for the whole
+/// dashboard, picked at the top of any Export menu and remembered on this
+/// device: someone who files PDFs wants every export as a PDF, not to be
+/// asked each time. [DashExporter.exportToExcel] follows it, so every export
+/// honours it without its page knowing; a CSV is its own format and ignores
+/// it.
+class ExportFormatNotifier extends Notifier<DashExportFormat> {
+  @override
+  DashExportFormat build() =>
+      ref.watch(preferencesProvider).getString(exportFormatPrefKey) == 'pdf'
+      ? DashExportFormat.pdf
+      : DashExportFormat.xlsx;
+
+  Future<void> set(DashExportFormat format) async {
+    state = format;
+    await ref
+        .read(preferencesProvider)
+        .setString(exportFormatPrefKey, format.name);
+  }
+}
+
+final exportFormatProvider =
+    NotifierProvider<ExportFormatNotifier, DashExportFormat>(
+      ExportFormatNotifier.new,
+    );
+
+/// Prints a [PrintDoc] as a PDF: the backend's `POST /exports/pdf` in real
+/// and mock mode ([ApiPdfGateway]), a recorder in tests.
+abstract interface class PdfGateway {
+  /// The PDF's bytes.
+  Future<List<int>> renderPdf(PrintDoc doc);
+}
+
+/// The generated client's `renderPdf` (MadarRust `src/exports/pdf.rs`): the
+/// pages in IBM Plex Sans Arabic, embedded.
+class ApiPdfGateway implements PdfGateway {
+  const ApiPdfGateway(this.api);
+
+  final DashboardApi api;
+
+  @override
+  Future<List<int>> renderPdf(PrintDoc doc) => api.exports.renderPdf(body: doc);
+}
+
 /// What an export came to. [message] is the toast the web shows.
 sealed class ExportOutcome {
   const ExportOutcome();
@@ -723,29 +844,42 @@ class ExportDone extends ExportOutcome {
       t('excel.done', count: rows, defaultValue: 'Exported $rows rows');
 }
 
-/// It failed (`excel.failed`, an error toast).
+/// It failed (`excel.failed`, an error toast), or the server refused it in
+/// [words] of its own (a PDF too large to print).
 class ExportFailed extends ExportOutcome {
-  const ExportFailed(this.error);
+  const ExportFailed(this.error, [this.words]);
 
   final Object error;
 
+  /// The server's refusal, already in the active language.
+  final String? words;
+
   @override
   String message(Translator t) =>
-      t('excel.failed', defaultValue: 'Export failed');
+      words ?? t('excel.failed', defaultValue: 'Export failed');
 }
 
-/// `exportToExcel` / `exportToCsv`, over the gateways.
+/// `exportToExcel` / `exportToPdf` / `exportToCsv`, over the gateways.
 class DashExporter {
   const DashExporter({
     required this.exports,
     required this.files,
     required this.format,
     required this.t,
+    this.pdf,
+    this.exportFormat = DashExportFormat.xlsx,
     DateTime Function()? clock,
   }) : _clock = clock;
 
   final ExportGateway exports;
   final FileGateway files;
+
+  /// Where a PDF is printed; null: none can be ([exportToPdf] fails).
+  final PdfGateway? pdf;
+
+  /// The format chosen at the top of the Export menu
+  /// ([exportFormatProvider]): [exportToExcel] makes this file.
+  final DashExportFormat exportFormat;
 
   /// The active language and zone (dates in the sheet are on its clock).
   final DashFormat format;
@@ -962,8 +1096,175 @@ class DashExporter {
       ? excelCellValue(cell.value, cell.type, format.timezone)
       : excelCellValue(cell, null, format.timezone);
 
-  /// The branded `.xlsx`, saved as `<filename>-<YYYY-MM-DD>.xlsx`.
+  // ── The PDF of the same sheets ─────────────────────────────────────────
+  //
+  // A spreadsheet cannot carry its typeface; a PDF can. The backend draws the
+  // pages (`POST /exports/pdf`) for both dashboards, in IBM Plex Sans Arabic,
+  // embedded. This side turns the very sheets a workbook is built from into
+  // that document, every value written out the way the dashboard shows it,
+  // so a PDF and a workbook of one export always agree.
+
+  /// The whole export, as the document the backend prints (`toPrintDoc`):
+  /// named for the shop's today, right to left in Arabic.
+  PrintDoc printDoc(ExcelConfig config) => PrintDoc(
+    filename: '${config.filename}-${format.businessDate(_now)}',
+    rtl: format.isArabic,
+    sheets: [
+      for (final s in config.sheets)
+        switch (s) {
+          ExcelSheet() => _printTable(s, config.meta),
+          ExcelBlockSheet() => _printBlocks(s, config.meta),
+        },
+    ],
+  );
+
+  /// A stat pill's figure (`statValue`): money in pounds, a whole count.
+  String _statValue(ExcelStat s) => switch ((s.value, s.type)) {
+    (final num v, 'money') => format.fmtMoney(v * 100),
+    (final num v, 'number') => format.fmtNumber(
+      v,
+      const NumberOptions(maximumFractionDigits: 0),
+    ),
+    (final v, _) => _jsString(v),
+  };
+
+  List<PrintStat> _printStats(AnyExcelSheet sheet) => [
+    for (final s in sheet.stats)
+      PrintStat(label: s.label, value: _statValue(s)),
+  ];
+
+  /// A sheet of tables: a band per group, then each table, its first column
+  /// the row's label (from the start), the rest centred; portrait.
+  PrintSheet _printBlocks(ExcelBlockSheet sheet, String? meta) {
+    String cell(Object? c) => c is ExcelCell
+        ? excelDisplayValue(c.value, c.type, format)
+        : excelDisplayValue(c, null, format);
+    List<String> cells(List<Object?> row, int n) => [
+      for (var i = 0; i < n; i++) cell(i < row.length ? row[i] : null),
+    ];
+    final blocks = <PrintBlock>[];
+    for (final group in sheet.groups) {
+      blocks.add(PrintBlockGroup(text: group.group));
+      for (final b in group.blocks) {
+        final n = b.header.length;
+        blocks.add(
+          PrintBlockTable(
+            title: b.title,
+            note: b.note,
+            columns: [
+              for (final (i, header) in b.header.indexed)
+                PrintColumn(
+                  header: header,
+                  width: i < sheet.widths.length ? sheet.widths[i] : 15,
+                  align: i == 0 ? PrintAlign.start : PrintAlign.center,
+                ),
+            ],
+            rows: [for (final r in b.rows) cells(r, n)],
+            footer: [for (final r in b.footer ?? const []) cells(r, n)],
+            caption: b.caption,
+          ),
+        );
+      }
+    }
+    return PrintSheet(
+      title: sheet.title,
+      subtitle: _subtitle(sheet.subtitle, meta),
+      stats: _printStats(sheet),
+      landscape: false,
+      blocks: blocks,
+    );
+  }
+
+  /// A table sheet: one table across a landscape page, its values centred,
+  /// and the totals band (the SUM of the `total` columns, TOTALS first).
+  PrintSheet _printTable(ExcelSheet<Object?> sheet, String? meta) {
+    final cols = sheet.columns;
+    final types = sheet.columnTypes;
+    final raw = sheet.rawRows();
+    List<String>? totals;
+    if (sheet.totals && raw.isNotEmpty) {
+      totals = [
+        for (var i = 0; i < cols.length; i++)
+          if (cols[i].total)
+            excelDisplayValue(
+              raw.fold<num>(0, (sum, r) {
+                final v = _jsNumberOf(r[i]);
+                return sum + (v.isNaN ? 0 : v);
+              }),
+              types[i],
+              format,
+            )
+          else
+            i == 0 ? t('excel.totals', defaultValue: 'TOTALS') : '',
+      ];
+    }
+    return PrintSheet(
+      title: sheet.title,
+      subtitle: _subtitle(sheet.subtitle, meta),
+      stats: _printStats(sheet),
+      landscape: true,
+      blocks: [
+        PrintBlockTable(
+          columns: [
+            for (final c in cols)
+              PrintColumn(
+                header: c.header,
+                width: c.width ?? 20,
+                align: PrintAlign.center,
+              ),
+          ],
+          rows: [
+            for (final r in raw)
+              [
+                for (var i = 0; i < r.length; i++)
+                  excelDisplayValue(r[i], types[i], format),
+              ],
+          ],
+          totals: totals,
+        ),
+      ],
+    );
+  }
+
+  /// The PDF of [config]'s sheets, saved as `<filename>-<YYYY-MM-DD>.pdf`:
+  /// the outcomes exactly as the workbook's, except that a refusal reads in
+  /// the server's own words (a document too large to print).
+  Future<ExportOutcome> exportToPdf(ExcelConfig config) async {
+    if (config.sheets.every((s) => s.size == 0)) {
+      return const ExportNothing();
+    }
+    try {
+      final printer = pdf;
+      if (printer == null) throw StateError('no PDF gateway');
+      final doc = printDoc(config);
+      final bytes = await printer.renderPdf(doc);
+      final name = '${doc.filename}.pdf';
+      final saved = await files.saveBytes(
+        bytes,
+        filename: name,
+        mimeType: MimeTypes.pdf,
+      );
+      final total = config.sheets.fold<int>(0, (s, sh) => s + sh.size);
+      return ExportDone(
+        rows: total,
+        filename: name,
+        savedTo: saved,
+        doneMessage: config.doneMessage,
+      );
+    } on Object catch (e, st) {
+      final refused = e is ApiException && e.message.isNotEmpty
+          ? e.message
+          : null;
+      debugPrint('PDF export failed: $e\n$st');
+      return ExportFailed(e, refused);
+    }
+  }
+
+  /// The export, in the format chosen at the top of the Export menu
+  /// ([exportFormat]): the branded `.xlsx`, saved as
+  /// `<filename>-<YYYY-MM-DD>.xlsx`, or [exportToPdf] of the same sheets.
   Future<ExportOutcome> exportToExcel(ExcelConfig config) async {
+    if (exportFormat == DashExportFormat.pdf) return exportToPdf(config);
     if (config.sheets.every((s) => s.size == 0)) {
       return const ExportNothing();
     }

@@ -130,7 +130,7 @@ void main() {
       );
       await h.tap(find.byKey(const ValueKey('inv-export')));
       await h.shot('inventory/export-menu');
-      await h.tap(find.text(ar ? 'تصدير Excel' : 'Export Excel').last);
+      await h.tap(find.text(ar ? 'تصدير' : 'Export').last);
       await h.settle();
       await h.flushTimers();
     });

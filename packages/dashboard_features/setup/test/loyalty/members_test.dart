@@ -234,7 +234,7 @@ void main() {
       'the search, as "Members"', (tester) async {
     final m = loyaltyServer();
     final h = await _members(tester, backend: m);
-    await h.tap(pageText('Export Excel'));
+    await h.exportVia();
     await h.flushTimers();
     final walk = [
       for (final c in h.server.callsTo(LoyaltyRoutes.customers))
@@ -267,7 +267,7 @@ void main() {
     grantOnly(m.server, _loyaltyOnly);
     final h = await _members(tester, backend: m);
     await _search(h, 'Nada');
-    await h.tap(pageText('Export Excel'));
+    await h.exportVia();
     await h.flushTimers();
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.subtitle, startsWith('Nada'));
@@ -291,7 +291,7 @@ void main() {
     final h = await _members(tester, backend: m);
     final boom = MockResponse.error(500, 'Database error: timeout');
     m.server.fail('GET', LoyaltyRoutes.customers, boom);
-    await h.tap(pageText('Export Excel'));
+    await h.exportVia();
     await h.expectToast(h.refusalWords(boom));
     await _search(h, 'zzz');
     expect(
@@ -299,7 +299,7 @@ void main() {
           .widget<DashButton>(
             inPage(
               find.byWidgetPredicate(
-                (w) => w is DashButton && w.label == 'Export Excel',
+                (w) => w is DashButton && w.label == 'Export',
               ),
             ),
           )

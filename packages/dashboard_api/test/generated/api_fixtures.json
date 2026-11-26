@@ -26382,6 +26382,75 @@
    "target_id": "3f0c9d2e-5b7a-4c1d-8e9f-0a1b2c3d4e5f",
    "target_type": "text"
   },
+  "PrintAlign": "start",
+  "PrintBlock": {
+   "kind": "group",
+   "text": "text"
+  },
+  "PrintColumn": {
+   "align": "start",
+   "header": "text",
+   "width": 1.5
+  },
+  "PrintDoc": {
+   "filename": "text",
+   "rtl": true,
+   "sheets": [
+    {
+     "blocks": [],
+     "landscape": true,
+     "stats": [],
+     "subtitle": "text",
+     "title": "text"
+    }
+   ]
+  },
+  "PrintSheet": {
+   "blocks": [
+    {
+     "kind": "group",
+     "text": "text"
+    }
+   ],
+   "landscape": true,
+   "stats": [
+    {
+     "label": "text",
+     "value": "text"
+    }
+   ],
+   "subtitle": "text",
+   "title": "text"
+  },
+  "PrintStat": {
+   "label": "text",
+   "value": "text"
+  },
+  "PrintTable": {
+   "caption": "text",
+   "columns": [
+    {
+     "align": "start",
+     "header": "text",
+     "width": 1.5
+    }
+   ],
+   "footer": [
+    [
+     "text"
+    ]
+   ],
+   "note": "text",
+   "rows": [
+    [
+     "text"
+    ]
+   ],
+   "title": "text",
+   "totals": [
+    "text"
+   ]
+  },
   "PrinterBrand": "star",
   "PrivacyAccepted": {
    "accepted_at": "2026-10-08T07:00:00.000Z"

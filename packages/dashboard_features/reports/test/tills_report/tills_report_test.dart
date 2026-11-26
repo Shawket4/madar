@@ -970,7 +970,7 @@ void main() {
       final s = serverWith(webSessions());
       final h = await pumpTills(tester, server: s.server, db: s.db);
       await h.tap(exportButton);
-      await h.tap(find.text('Export Excel').last);
+      await h.tap(find.text('Export').last);
       final spec = h.exports.built.single;
       final sheet = spec.sheets.single;
       expect(sheet.name, 'Till sessions');
@@ -1052,7 +1052,7 @@ void main() {
       final hold = Completer<void>();
       h.exports.hold = hold.future;
       await h.tap(exportButton);
-      await h.tap(find.text('Export Excel').last);
+      await h.tap(find.text('Export').last);
       expect(tester.widget<DashExportButton>(exportButton).loading, isTrue);
       expect(find.text('Gathering data…'), findsOneWidget);
       await h.shot('exporting');
@@ -1067,7 +1067,7 @@ void main() {
       final h = await pumpTills(tester, server: s.server, db: s.db);
       h.exports.failNext = StateError('disk full');
       await h.tap(exportButton);
-      await h.tap(find.text('Export Excel').last);
+      await h.tap(find.text('Export').last);
       await h.expectToast('Export failed');
       expect(h.files.saved, isEmpty);
       expect(tester.widget<DashExportButton>(exportButton).loading, isFalse);

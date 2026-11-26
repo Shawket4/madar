@@ -407,7 +407,7 @@ void main() {
     testWidgets('INV-CNT-005 with a branch: its closed counts, six columns, '
         'the file name, the toasts', (tester) async {
       final h = await pumpCounts(tester, branch: SeedIds.zamalek);
-      await h.tap(inPage(byKey('counts-export')));
+      await h.exportVia('Excel', inPage(byKey('counts-export')));
       await h.expectToast('Exported 3 rows');
       final spec = h.exports.built.single;
       final sheet = spec.sheets.single;
@@ -439,7 +439,7 @@ void main() {
     testWidgets('INV-CNT-005 All branches: every closed count, no Branch '
         'column; disabled with nothing closed', (tester) async {
       final h = await pumpCounts(tester);
-      await h.tap(inPage(byKey('counts-export')));
+      await h.exportVia('Excel', inPage(byKey('counts-export')));
       await h.expectToast('Exported 6 rows');
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.columns, hasLength(6));
@@ -466,7 +466,7 @@ void main() {
       final h = await pumpCounts(tester, branch: SeedIds.zamalek);
       final hold = Completer<void>();
       h.exports.hold = hold.future;
-      await h.tap(inPage(byKey('counts-export')));
+      await h.exportVia('Excel', inPage(byKey('counts-export')));
       expect(find.text('Gathering data…'), findsOneWidget);
       expect(
         tester.widget<DashExportButton>(inPage(byKey('counts-export'))).loading,
@@ -477,7 +477,7 @@ void main() {
       await h.settle();
       await h.flushTimers();
       h.exports.failNext = StateError('disk full');
-      await h.tap(inPage(byKey('counts-export')));
+      await h.exportVia('Excel', inPage(byKey('counts-export')));
       await h.expectToast('Export failed');
     });
   });

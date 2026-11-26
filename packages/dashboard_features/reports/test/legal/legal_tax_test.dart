@@ -236,7 +236,7 @@ void main() {
     final h = await pumpLegal(tester, server: s.server, db: s.db);
     final want = _expected(s.db);
     final asked = legalCalls(h).length;
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     final spec = h.exports.built.single;
     final sheet = spec.sheets.single;
     expect(sheet.name, 'Tax');
@@ -283,7 +283,7 @@ void main() {
   testWidgets('REP-LEG-012 (divergence) the Arabic export is Arabic: its '
       'file, sheet and column names', (tester) async {
     final h = await pumpLegal(tester, locale: 'ar');
-    await _menu(h, h.t('common.exportExcel'));
+    await _menu(h, h.t('common.exportFile'));
     final sheet = h.exports.built.single.sheets.single;
     expect(sheet.name, 'الضريبة');
     expect(
@@ -302,7 +302,7 @@ void main() {
       const Duration(seconds: 2),
     );
     await h.tap(_export);
-    await tester.tap(find.text('Export Excel').last);
+    await tester.tap(find.text('Export').last);
     await tester.pump();
     await tester.pump();
     final button = tester.widget<DashButton>(
@@ -322,7 +322,7 @@ void main() {
   ) async {
     final h = await pumpLegal(tester);
     h.exports.failNext = StateError('disk full');
-    await _menu(h, 'Export Excel');
+    await _menu(h, 'Export');
     expect(h.files.saved, isEmpty);
     await h.expectToast('Export failed');
   });

@@ -56,7 +56,7 @@ void main() {
       find.descendant(of: auditExport, matching: find.byType(DashButton)),
     );
     expect(button.size, DashButtonSize.compact);
-    expect(button.label, 'Export Excel');
+    expect(button.label, 'Export');
   });
 
   testWidgets('REP-LEG-013 in Arabic the Export sits on the left', (
@@ -488,7 +488,7 @@ void main() {
     final h = await pumpLegal(tester);
     await _open(h, LegalTab.deductionOverrides);
     final asked = legalCalls(h).length;
-    await auditMenu(h, 'Export Excel');
+    await auditMenu(h, 'Export');
     final spec = h.exports.built.single;
     expect(
       [for (final s in spec.sheets) s.name],
@@ -543,7 +543,7 @@ void main() {
   testWidgets('REP-LEG-026 points and attendance columns', (tester) async {
     final h = await pumpLegal(tester);
     await _open(h, LegalTab.loyaltyAdjustments);
-    await auditMenu(h, 'Export Excel');
+    await auditMenu(h, 'Export');
     var sheet = h.exports.built.last.sheets.first;
     expect(sheet.name, 'By branch');
     expect(
@@ -556,7 +556,7 @@ void main() {
     expect(h.exports.built.last.sheets, hasLength(2));
     await h.flushTimers();
     await _open(h, LegalTab.attendanceCorrections);
-    await auditMenu(h, 'Export Excel');
+    await auditMenu(h, 'Export');
     sheet = h.exports.built.last.sheets.first;
     expect([for (final c in sheet.columns) c.header], ['Label', 'Events']);
     expect([for (final st in sheet.stats) st.label], ['Events']);
@@ -582,7 +582,7 @@ void main() {
       'Arabic, names and file included', (tester) async {
     final h = await pumpLegal(tester, locale: 'ar');
     await _open(h, LegalTab.deductionOverrides);
-    await auditMenu(h, h.t('common.exportExcel'));
+    await auditMenu(h, h.t('common.exportFile'));
     final spec = h.exports.built.single;
     final latin = RegExp('[A-Za-z]');
     for (final s in spec.sheets) {
@@ -670,7 +670,7 @@ void main() {
     );
     expect(reason.maxLines, isNull);
     await _open(h, LegalTab.discounts);
-    await auditMenu(h, 'Export Excel');
+    await auditMenu(h, 'Export');
     expect(
       [for (final x in h.exports.built.single.sheets) x.name],
       ['By discount', 'By staff member'],

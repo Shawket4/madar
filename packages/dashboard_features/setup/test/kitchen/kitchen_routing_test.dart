@@ -211,7 +211,7 @@ void main() {
           matching: find.byType(DashButton),
         ),
       );
-      expect(export.label, 'Export Excel');
+      expect(export.label, 'Export');
       expect(inRouting(byKey('routing-search')), findsNothing);
     });
   });
@@ -672,7 +672,7 @@ void main() {
       _moreItems(m.db, 15);
       final h = await pumpKitchen(tester, path: routingPath, backend: m);
       final before = _catalog(h).length;
-      await h.tap(inRouting(byKey('routing-export')));
+      await h.exportVia('Excel', inRouting(byKey('routing-export')));
       await h.expectToast('Exported 62 rows');
       final walk = _catalog(h).skip(before).toList();
       // 55 items arrive in one page of 500: the walk stops at the total.
@@ -741,7 +741,7 @@ void main() {
       await _perItem(h);
       await h.enterText(inRouting(byKey('routing-search')), 'Croissant');
       await h.flushTimers();
-      await h.tap(inRouting(byKey('routing-export')));
+      await h.exportVia('Excel', inRouting(byKey('routing-export')));
       await h.flushTimers();
       final walk = h.server
           .callsTo(KitchenRoutes.catalog)
@@ -765,7 +765,7 @@ void main() {
       final h = await pumpKitchen(tester, path: routingPath, backend: m);
       final boom = MockResponse.error(503, 'Try again later');
       m.server.fail('GET', KitchenRoutes.catalog, boom);
-      await h.tap(inRouting(byKey('routing-export')));
+      await h.exportVia('Excel', inRouting(byKey('routing-export')));
       await h.expectToast(h.refusalWords(boom));
       expect(h.files.saved, isEmpty);
       final export = tester.widget<DashButton>(
@@ -783,7 +783,7 @@ void main() {
       final gate = m.server.hold('GET', KitchenRoutes.categories);
       final h = await pumpKitchen(tester, path: routingPath, backend: m);
       expect(inRouting(byKey('routing-export')), findsOneWidget);
-      await h.tap(inRouting(byKey('routing-export')));
+      await h.exportVia('Excel', inRouting(byKey('routing-export')));
       await h.flushTimers();
       final book = h.exports.built.single;
       expect(book.sheets[0].rows, isEmpty);

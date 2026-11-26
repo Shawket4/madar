@@ -76,6 +76,17 @@ class DashKitStrings {
   String get export => _('common.export');
   String get exportExcel => _('common.exportExcel');
   String get exportCsv => _('common.exportCsv');
+
+  /// The Export button's own words (`common.exportMenu`): the format is
+  /// chosen in its menu.
+  String get exportMenu => _('common.exportMenu');
+
+  /// A menu's page file, when it offers several (`common.exportFile`).
+  String get exportFile => _('common.exportFile');
+  String get exportFormatLabel => _('common.exportFormat.label');
+  String get exportFormatAs => _('common.exportFormat.as');
+  String get exportFormatExcel => _('common.exportFormat.excel');
+  String get exportFormatPdf => _('common.exportFormat.pdf');
   String get moreActions => _('common.moreActions');
   String get optional => _('common.optional');
   String get requiredField => _('common.requiredField');

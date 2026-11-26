@@ -139,7 +139,7 @@ void main() {
     final export = find.byKey(const ValueKey('orders-export'));
     final mouse = await _rest(tester, h, export);
     expect(h.server.callsTo('/branches/{id}'), hasLength(branches + 1));
-    await h.tap(export);
+    await h.exportVia('Excel', export);
     expect(h.server.callsTo('/branches/{id}'), hasLength(branches + 1));
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await h.settle();

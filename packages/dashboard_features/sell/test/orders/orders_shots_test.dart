@@ -181,7 +181,7 @@ void main() {
 
     testWidgets('export sheet, $tag', (tester) async {
       final h = await pumpOrders(tester, size: size, locale: lang, dark: dark);
-      await h.tap(find.byKey(const ValueKey('orders-export')));
+      await h.exportVia('Excel', find.byKey(const ValueKey('orders-export')));
       await h.tap(find.byKey(const ValueKey('export-customize')));
       await h.shot('orders/export');
     });

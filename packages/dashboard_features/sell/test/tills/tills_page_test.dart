@@ -33,7 +33,7 @@ void main() {
       inPage(find.text("Each teller's sales session and cash drawer")),
       findsOneWidget,
     );
-    expect(inPage(find.text('Export Excel')), findsOneWidget);
+    expect(inPage(find.text('Export')), findsOneWidget);
     expect(inPage(find.text('Open till')), findsOneWidget);
     for (final w in [
       'All statuses',
@@ -650,7 +650,7 @@ void main() {
   testWidgets('SELL-TIL-058/059 Export: every till under the filters, one '
       'sheet "Tills", the web columns', (tester) async {
     final h = await pumpTills(tester, query: 'flagged=true');
-    await h.tap(find.byKey(const ValueKey('tills-export')));
+    await h.exportVia('Excel', find.byKey(const ValueKey('tills-export')));
     await h.expectToast('Exported 1 row');
     final wb = h.exports.built.single;
     final sheet = wb.sheets.single;
@@ -700,7 +700,7 @@ void main() {
     h.exports
       ..hold = gate.future
       ..failNext = StateError('disk full');
-    await h.tap(find.byKey(const ValueKey('tills-export')));
+    await h.exportVia('Excel', find.byKey(const ValueKey('tills-export')));
     expect(
       tester
           .widget<DashExportButton>(find.byKey(const ValueKey('tills-export')))

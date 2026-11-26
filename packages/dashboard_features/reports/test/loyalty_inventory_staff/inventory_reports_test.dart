@@ -44,7 +44,7 @@ bool exportEnabled(WidgetTester tester, Finder f) =>
         .onPressed !=
     null;
 
-/// Picks [item] ("Export Excel" / "Export CSV") from [button]'s menu.
+/// Picks [item] ("Export" / "Export CSV") from [button]'s menu.
 Future<void> exportMenu(DashHarness h, Finder button, String item) async {
   await h.tap(button);
   await h.tap(find.text(item).last);
@@ -526,7 +526,7 @@ void main() {
         'the scope\'s words, the columns', (tester) async {
       final h = await pumpUnit(tester, path: inventoryPath);
       expect(exportEnabled(tester, headerExport), isTrue);
-      await exportMenu(h, headerExport, 'Export Excel');
+      await exportMenu(h, headerExport, 'Export');
       await h.settle();
       final rows = inventoryConsumption(
         SeedIds.sabahBranches,
@@ -562,10 +562,10 @@ void main() {
         branchId: SeedIds.zamalek,
       );
       await openTab(h, 'Shrinkage');
-      await exportMenu(h, headerExport, 'Export Excel');
+      await exportMenu(h, headerExport, 'Export');
       await h.settle();
       await openTab(h, 'Waste');
-      await exportMenu(h, headerExport, 'Export Excel');
+      await exportMenu(h, headerExport, 'Export');
       await h.settle();
       final shr = h.exports.built[0].sheets.single;
       expect(shr.title, 'Shrinkage');
@@ -626,7 +626,7 @@ void main() {
       final h = await pumpUnit(tester, path: inventoryPath);
       final hold = Completer<void>();
       h.exports.hold = hold.future;
-      await exportMenu(h, headerExport, 'Export Excel');
+      await exportMenu(h, headerExport, 'Export');
       await h.settle();
       final button = tester.widget<DashButton>(
         find.descendant(of: headerExport, matching: find.byType(DashButton)),
@@ -639,7 +639,7 @@ void main() {
       await h.flushTimers();
       h.exports.hold = null;
       h.exports.failNext = StateError('disk full');
-      await exportMenu(h, headerExport, 'Export Excel');
+      await exportMenu(h, headerExport, 'Export');
       await h.settle();
       await h.expectToast('Export failed');
     });
@@ -756,7 +756,7 @@ void main() {
       );
       await openTab(h, 'Low stock');
       final export = find.byKey(const ValueKey('low-stock-export'));
-      await exportMenu(h, export, 'Export Excel');
+      await exportMenu(h, export, 'Export');
       await h.settle();
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.title, 'Low stock');

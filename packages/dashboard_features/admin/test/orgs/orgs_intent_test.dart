@@ -117,7 +117,7 @@ void main() {
       reason: 'the export read is warmed',
     );
     final warmed = brand().length;
-    await h.tap(export);
+    await h.exportVia('Excel', export);
     await h.expectToast(h.t('excel.done', count: 4));
     expect(brand(), hasLength(warmed), reason: 'the export read the cache');
   });

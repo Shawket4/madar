@@ -525,7 +525,7 @@ void main() {
         findsOneWidget,
       );
       // Nothing to export.
-      final export = pageButton('Export Excel');
+      final export = pageButton('Export');
       expect(tester.widget<DashButton>(export).onPressed, isNull);
     });
 
@@ -547,7 +547,7 @@ void main() {
         'header and the same filters', (tester) async {
       final h = await pumpCustomers(tester);
       await h.tap(pageText('Members only'));
-      await h.tap(pageText('Export Excel'));
+      await h.exportVia();
       await h.flushTimers();
       final walk = [
         for (final c in listCalls(h))
@@ -584,7 +584,7 @@ void main() {
       await h.enterText(inPage(find.byType(DashSearchInput)), 'Nada');
       await tester.pump(const Duration(milliseconds: 350));
       await h.settle();
-      await h.tap(pageText('Export Excel'));
+      await h.exportVia();
       await h.flushTimers();
       expect(h.exports.built.single.sheets.single.subtitle, startsWith('Nada'));
     });
@@ -592,8 +592,8 @@ void main() {
     testWidgets('SELL-CUS-019 spinner while it runs', (tester) async {
       final h = await pumpCustomers(tester);
       final gate = h.server.hold('GET', '/customers');
-      await h.tap(pageText('Export Excel'));
-      final export = pageButton('Export Excel');
+      await h.exportVia();
+      final export = pageButton('Export');
       expect(tester.widget<DashButton>(export).loading, isTrue);
       gate.release();
       h.server.clearFailures();
@@ -615,7 +615,7 @@ void main() {
           for (var i = 0; i < limit; i++) {...page.first, 'id': 'c$i'},
         ]);
       });
-      await h.tap(pageText('Export Excel'));
+      await h.exportVia();
       await h.expectToast(
         h.t('export.tooLarge', args: {'rows': '50,500', 'max': '50,000'}),
       );
@@ -634,10 +634,10 @@ void main() {
           code: 'EXPORT_RATE_LIMITED',
         ),
       );
-      await h.tap(pageText('Export Excel'));
+      await h.exportVia();
       await h.expectToast('Too many exports just now. Try again in a minute.');
       expect(h.files.saved, isEmpty);
-      final export = pageButton('Export Excel');
+      final export = pageButton('Export');
       expect(tester.widget<DashButton>(export).loading, isFalse);
     });
 
@@ -647,7 +647,7 @@ void main() {
       final s = customersServer();
       final name = nonMember(s.db)['name'];
       final h = await pumpCustomers(tester, server: s.server, db: s.db);
-      await h.tap(pageText('Export Excel'));
+      await h.exportVia();
       await h.flushTimers();
       final sheet = h.exports.built.single.sheets.single;
       expect(
@@ -680,7 +680,7 @@ void main() {
       tester,
     ) async {
       final h = await pumpCustomers(tester, persona: Persona.limited);
-      await h.tap(pageText('Export Excel'));
+      await h.exportVia();
       await h.flushTimers();
       final sheet = h.exports.built.single.sheets.single;
       expect(
@@ -740,7 +740,7 @@ void main() {
       );
       expect(pageText('Any source'), findsOneWidget);
       expect(pageText('Members only'), findsOneWidget);
-      expect(pageText('Export Excel'), findsOneWidget);
+      expect(pageText('Export'), findsOneWidget);
       await h.tap(card);
       expect(find.byType(CustomerSheet), findsOneWidget);
     });

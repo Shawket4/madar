@@ -367,6 +367,15 @@ class DashFormat {
   String cairoDateISO(int year, int month0, int day, {bool endOfDay = false}) =>
       dayBoundaryISO(timezone, year, month0, day, endOfDay: endOfDay);
 
+  /// The shop's calendar day at [at] (default now) as `YYYY-MM-DD`
+  /// (`businessDate`): madar-time's `business_date_of` on the active zone,
+  /// never UTC's or the device's.
+  String businessDate([DateTime? at]) {
+    final ms = (at ?? _now).millisecondsSinceEpoch;
+    return rules.businessDate(tzName: timezone, atMs: ms) ??
+        rules.businessDate(tzName: appTimezone, atMs: ms)!;
+  }
+
   /// Calendar parts of [iso] in the active zone (month 0-based): madar-time's
   /// `business_date_of` through the core.
   ({int y, int m, int d}) cairoParts(String iso) {

@@ -580,7 +580,7 @@ void main() {
     testWidgets('INV-WST-004 walks the whole log as an export and files it '
         'as Madar-Waste', (tester) async {
       final h = await pumpWaste(tester, branch: SeedIds.zamalek);
-      await h.tap(inPage(byKey('waste-export')));
+      await h.exportVia('Excel', inPage(byKey('waste-export')));
       final walk = h.server.callsTo(logRoute).skip(1).toList();
       expect([for (final c in walk) c.query['offset']!.single], ['0', '9']);
       for (final c in walk) {
@@ -635,7 +635,7 @@ void main() {
       final h = await pumpWaste(tester, server: s.server, db: s.db);
       final boom = MockResponse.error(500, 'Export throttled');
       s.server.fail('GET', logRoute, boom);
-      await h.tap(inPage(byKey('waste-export')));
+      await h.exportVia('Excel', inPage(byKey('waste-export')));
       expect(
         h.server.callsTo(logRoute).last.path,
         '/inventory/branches/$allBranches/waste',
@@ -652,7 +652,7 @@ void main() {
       final h = await pumpWaste(tester, branch: SeedIds.zamalek);
       final hold = Completer<void>();
       h.exports.hold = hold.future;
-      await h.tap(inPage(byKey('waste-export')));
+      await h.exportVia('Excel', inPage(byKey('waste-export')));
       expect(find.text('Gathering data…'), findsOneWidget);
       expect(
         tester.widget<DashExportButton>(inPage(byKey('waste-export'))).loading,

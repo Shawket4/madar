@@ -76,7 +76,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(inPage(find.text('Export Excel')), findsOneWidget);
+    expect(inPage(find.text('Export')), findsOneWidget);
     expect(inPage(find.text('New ingredient')), findsOneWidget);
   });
 
@@ -617,7 +617,7 @@ void main() {
       );
       await h.tap(inPage(find.text('Low stock')));
       final low = lowAt(s.db, SeedIds.zamalek);
-      await h.tap(inPage(byKey('ingredients-export')));
+      await h.exportVia('Excel', inPage(byKey('ingredients-export')));
       await h.expectToast('Exported ${low.length} rows');
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.title, 'Ingredients');
@@ -653,7 +653,7 @@ void main() {
         '"—"', (tester) async {
       final s = ingredientsServer();
       final h = await pumpIngredients(tester, server: s.server, db: s.db);
-      await h.tap(inPage(byKey('ingredients-export')));
+      await h.exportVia('Excel', inPage(byKey('ingredients-export')));
       await h.expectToast('Exported ${catalogNames(s.db).length} rows');
       final sheet = h.exports.built.single.sheets.single;
       expect(sheet.columns.length, 5);
@@ -674,7 +674,7 @@ void main() {
       final h = await pumpIngredients(tester);
       final hold = Completer<void>();
       h.exports.hold = hold.future;
-      await h.tap(inPage(byKey('ingredients-export')));
+      await h.exportVia('Excel', inPage(byKey('ingredients-export')));
       expect(find.text('Gathering data…'), findsOneWidget);
       expect(
         tester
@@ -687,7 +687,7 @@ void main() {
       await h.settle();
       await h.flushTimers();
       h.exports.failNext = StateError('disk full');
-      await h.tap(inPage(byKey('ingredients-export')));
+      await h.exportVia('Excel', inPage(byKey('ingredients-export')));
       await h.expectToast('Export failed');
     });
   });

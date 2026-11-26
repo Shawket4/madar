@@ -15,8 +15,12 @@ void main() {
         ('a row\'s pencil', () => labelled('Edit', of: table).first, editing),
         (
           'Export',
-          () => inPage(find.text('Export Excel')),
-          (h) => h.expectToast('Exported 7 rows'),
+          () => inPage(find.text('Export')),
+          (h) async {
+            // The press opens the menu; the file is Excel or PDF.
+            await h.tapText('Excel');
+            await h.expectToast('Exported 7 rows');
+          },
         ),
       ]) {
     testWidgets('intent: resting on $kind warms its read; the press asks '
