@@ -112,20 +112,21 @@ ExcelSheet<Object?> _erase<T>(ExcelSheet<T> s) => ExcelSheet<Object?>(
   ],
 );
 
-/// `exportToExcel`'s toasts: "Nothing to export" for no rows; otherwise a
+/// `exportFile`'s toasts: "Nothing to export" for no rows; otherwise a
 /// loading toast that becomes "Exported N rows" or "Export failed".
 Future<void> runPayrollExcel(
   BuildContext context,
   DashExporter exporter,
   Translator t,
-  ExcelConfig config,
-) async {
+  ExcelConfig config, [
+  DashExportPick pick = const DashExportPick(),
+]) async {
   if (config.sheets.every((s) => s.size == 0)) {
     DashToast.error(context, const ExportNothing().message(t));
     return;
   }
   final toast = DashToast.loading(context, t('excel.generating'));
-  final outcome = await exporter.exportToExcel(config);
+  final outcome = await exporter.exportFile(config, pick);
   toast.update(
     outcome is ExportDone ? DashToastKind.success : DashToastKind.error,
     outcome.message(t),

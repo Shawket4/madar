@@ -130,7 +130,7 @@ void main() {
       );
       await h.tap(find.byKey(const ValueKey('inv-export')));
       await h.shot('inventory/export-menu');
-      await h.tap(find.text(ar ? 'تصدير' : 'Export').last);
+      await h.tap(find.byKey(const ValueKey('export-download')));
       await h.settle();
       await h.flushTimers();
     });

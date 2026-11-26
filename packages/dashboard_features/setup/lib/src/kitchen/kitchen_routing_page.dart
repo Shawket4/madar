@@ -129,6 +129,7 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage>
     required String orgId,
     required KitchenRouting routing,
     required List<Category> categories,
+    DashExportPick pick = const DashExportPick(),
   }) async {
     final t = ref.read(tProvider);
     final lang = ref.read(localeProvider);
@@ -225,7 +226,7 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage>
       ],
     );
     final toast = DashToast.loading(context, t('excel.generating'));
-    final outcome = await exporter.exportToExcel(config);
+    final outcome = await exporter.exportFile(config, pick);
     toast.update(
       outcome is ExportDone ? DashToastKind.success : DashToastKind.error,
       outcome.message(t),
@@ -370,10 +371,20 @@ class _KitchenRoutingPageState extends ConsumerState<KitchenRoutingPage>
           DashExportButton(
             key: const ValueKey('routing-export'),
             loading: _exporting,
-            onExport: () {
+            // The two sheets, in the workbook's order (a PDF or CSV is one).
+            sheets: [
+              DashExportSheet(t('kitchen.byCategory')),
+              DashExportSheet(t('kitchen.byItem')),
+            ],
+            onExport: (pick) {
               // `handleExport` returns at once without an org.
               if (orgId == null) return;
-              _export(orgId: orgId, routing: routing, categories: categories);
+              _export(
+                orgId: orgId,
+                routing: routing,
+                categories: categories,
+                pick: pick,
+              );
             },
           ),
       ],

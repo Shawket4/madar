@@ -238,7 +238,7 @@ class _IngredientsPageState extends ConsumerState<IngredientsPage>
           key: const ValueKey('ingredients-export'),
           loading: _exporting,
           enabled: rows.isNotEmpty,
-          onExport: () => _export(rows, byId, hasBranch: hasBranch),
+          onExport: (_) => _export(rows, byId, hasBranch: hasBranch),
         ),
         DashButton(
           key: const ValueKey('ingredients-new'),

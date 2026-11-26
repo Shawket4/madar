@@ -1,6 +1,6 @@
 /// What the Staff drinks and Bundles pages share: the page's own
 /// `<Restricted>`, the spreadsheet a page exports
-/// (the web's `exportToExcel` with its three toasts) and
+/// (the web's `exportFile` with its three toasts) and
 /// the wire's rate decimals (`rateOf` / `fmtRate`).
 library;
 
@@ -35,7 +35,7 @@ Widget? reportRestricted(
   );
 }
 
-/// `exportToExcel` as the web runs it (REP-ALL-011/013): "Nothing to
+/// `exportFile` as the web runs it (REP-ALL-011/013): "Nothing to
 /// export" when every sheet is empty; otherwise "Gathering data…" turning
 /// into "Exported N rows" or "Export failed".
 Future<void> runExcelExport(
@@ -52,7 +52,7 @@ Future<void> runExcelExport(
     context,
     t('excel.generating', defaultValue: 'Generating spreadsheet…'),
   );
-  final outcome = await ref.read(exporterProvider).exportToExcel(config);
+  final outcome = await ref.read(exporterProvider).exportFile(config);
   switch (outcome) {
     case ExportDone():
       toast.update(DashToastKind.success, outcome.message(t));

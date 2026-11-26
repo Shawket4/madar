@@ -185,11 +185,9 @@ String userName(MockDb db, String key) =>
 String exportStamp(DashHarness h) =>
     isoString(h.container.read(clockProvider)()).substring(0, 10);
 
-/// Picks [item] from the open audit tab's export menu.
-Future<void> auditMenu(DashHarness h, String item) async {
-  await h.tap(auditExport);
-  await h.tap(find.text(item).last);
-}
+/// Exports the open audit tab in [format] ("Excel" / "CSV").
+Future<void> auditMenu(DashHarness h, String format) =>
+    h.exportVia(format, auditExport);
 
 /// A muted detail line as shown: each part in its own first-strong isolate
 /// (U+2068…U+2069), joined by " · ".

@@ -113,7 +113,7 @@ class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage>
     final toast = DashToast.loading(context, t('excel.generating'));
     final outcome = await ref
         .read(exporterProvider)
-        .exportToExcel(
+        .exportFile(
           ExcelConfig(
             filename: 'Madar-PaymentMethods',
             logoUrl: exportLogoUrl(brand),
@@ -206,7 +206,7 @@ class _PaymentMethodsPageState extends ConsumerState<PaymentMethodsPage>
       actions: [
         DashExportButton(
           key: const ValueKey('pm-export'),
-          onExport: () => _export(methods),
+          onExport: (_) => _export(methods),
           loading: _exporting,
           enabled: methods.isNotEmpty,
         ),

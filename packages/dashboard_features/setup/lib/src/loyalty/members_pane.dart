@@ -340,7 +340,7 @@ class _MembersPaneState extends ConsumerState<MembersPane>
           key: const ValueKey('loyalty-members-export'),
           loading: _exporting,
           enabled: rows.isNotEmpty && !_exporting,
-          onExport: () =>
+          onExport: (_) =>
               _export(source: source, mode: mode, showBalance: showBalance),
         ),
       ],
@@ -538,7 +538,7 @@ class _MembersPaneState extends ConsumerState<MembersPane>
         return;
       }
       final toast = DashToast.loading(context, t('excel.generating'));
-      final outcome = await exporter.exportToExcel(
+      final outcome = await exporter.exportFile(
         ExcelConfig(
           filename: 'Madar-Loyalty-Members',
           logoUrl: exportLogoUrl(brand),

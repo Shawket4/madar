@@ -98,7 +98,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
     String dash(String? s) => hasText(s) ? s! : '—';
     final outcome = await ref
         .read(exporterProvider)
-        .exportToExcel(
+        .exportFile(
           ExcelConfig(
             filename: 'Madar-Branches',
             logoUrl: exportLogoUrl(brand),
@@ -207,7 +207,7 @@ class _BranchesPageState extends ConsumerState<BranchesPage> {
       subtitle: t('branches.subtitle'),
       actions: [
         DashExportButton(
-          onExport: () => _export(branches),
+          onExport: (_) => _export(branches),
           loading: _exporting,
           enabled: branches.isNotEmpty,
         ),

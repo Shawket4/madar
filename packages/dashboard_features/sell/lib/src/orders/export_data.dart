@@ -235,6 +235,19 @@ class DeductionTotal {
   int occurrences = 1;
 }
 
+/// The names of the sheets [buildExportSheets] makes for [grains], in its
+/// order (the web's `orderSheetNames`): the export sheet's Sheet choice for
+/// a PDF or CSV, known before the orders are read.
+List<String> orderSheetNames(Set<ExportGrain> grains, Translator t) => [
+  if (grains.contains(ExportGrain.order)) t('ordersExport.sheets.orders'),
+  if (grains.contains(ExportGrain.lineItem)) t('ordersExport.sheets.lineItems'),
+  if (grains.contains(ExportGrain.payment)) t('ordersExport.sheets.payments'),
+  if (grains.contains(ExportGrain.deduction)) ...[
+    t('ordersExport.sheets.deductionsRaw'),
+    t('ordersExport.sheets.deductionsAgg'),
+  ],
+];
+
 /// `buildSheets`: the chosen sheets, in the workbook's order, each with a
 /// totals row.
 List<ExcelSheet<Object?>> buildExportSheets({

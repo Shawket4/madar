@@ -413,13 +413,7 @@ class _FinProfitabilityViewState extends ConsumerState<FinProfitabilityView>
           compact: true,
           loading: _exporting,
           enabled: rows.isNotEmpty,
-          onExport: () => _exportExcel(rows),
-          onExportCsv: () => finCsv(
-            context,
-            ref,
-            filename: 'Madar-${t('insights.profitability.title')}',
-            sheets: () async => [finLedgerSheet(t, rows)],
-          ),
+          onExport: (_) => _exportExcel(rows),
         ),
       ],
     );

@@ -121,7 +121,7 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
       final brand = await ref.read(publicBrandProvider.future);
       outcome = await ref
           .read(exporterProvider)
-          .exportToExcel(
+          .exportFile(
             ExcelConfig(
               filename: 'Madar-Organizations',
               logoUrl: exportLogoUrl(brand),
@@ -259,7 +259,7 @@ class _OrgsPageState extends ConsumerState<OrgsPage> {
           // The export reads the brand for its header logo.
           onIntent: () => ref.warm(publicBrandProvider),
           child: DashExportButton(
-            onExport: () => _export(orgs),
+            onExport: (_) => _export(orgs),
             loading: _exporting,
             enabled: orgs.isNotEmpty,
           ),

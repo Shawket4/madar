@@ -114,7 +114,7 @@ class _PayrollBodyState extends ConsumerState<_PayrollBody> {
   }
 
   /// TEAM-PAY-008 / TEAM-ALL-024: the pay lists workbook.
-  Future<void> _exportLists(PayrollShown s) async {
+  Future<void> _exportLists(PayrollShown s, DashExportPick pick) async {
     final t = ref.read(tProvider);
     setState(() => _exporting = true);
     try {
@@ -130,6 +130,7 @@ class _PayrollBodyState extends ConsumerState<_PayrollBody> {
           period: s.period,
           logoUrl: exportLogoUrl(ref.read(publicBrandProvider).value),
         ),
+        pick,
       );
     } on Object catch (e) {
       if (mounted) DashToast.error(context, _err(e));
@@ -225,7 +226,13 @@ class _PayrollBodyState extends ConsumerState<_PayrollBody> {
         DashExportButton(
           label: t('dawam.payLists'),
           loading: _exporting,
-          onExport: () => _exportLists(s),
+          // A PDF or CSV is one list (`payListsConfig`'s order).
+          sheets: [
+            DashExportSheet(t('dawam.pay_bank')),
+            DashExportSheet(t('dawam.pay_wallet')),
+            DashExportSheet(t('dawam.pay_cash')),
+          ],
+          onExport: (pick) => _exportLists(s, pick),
         ),
         DashButton(
           label: t('dawam.csv'),

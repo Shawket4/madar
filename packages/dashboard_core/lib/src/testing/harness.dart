@@ -292,17 +292,26 @@ class DashHarness {
   /// Taps the widget with [key].
   Future<void> tapKey(Key key) => tap(find.byKey(key));
 
-  /// Opens an Export button ([button], else the only one on screen) and
-  /// picks [item] from its menu: a format of a one-file export ("Excel",
-  /// "PDF", which exports at once), or a file of several.
-  Future<void> exportVia([String item = 'Excel', Finder? button]) async {
+  /// Opens an Export button ([button], else the only one on screen) as a
+  /// person does: chooses the [format] ("Excel", "PDF", "CSV"; null keeps
+  /// the remembered one), the [file] and [sheet] when the panel asks, and
+  /// presses Download.
+  Future<void> exportVia([
+    String? format = 'Excel',
+    Finder? button,
+    String? file,
+    String? sheet,
+  ]) async {
     await tap(
       find.descendant(
         of: button ?? find.byType(DashExportButton),
         matching: find.byType(DashButton),
       ),
     );
-    await tap(find.text(item).last);
+    if (file != null) await tap(find.text(file).last);
+    if (format != null) await tap(find.text(format).last);
+    if (sheet != null) await tap(find.text(sheet).last);
+    await tap(find.byKey(const ValueKey('export-download')));
   }
 
   /// Taps the control a screen reader calls [label].

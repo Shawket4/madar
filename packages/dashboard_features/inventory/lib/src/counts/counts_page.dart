@@ -137,7 +137,7 @@ class _CountsPageState extends ConsumerState<CountsPage> {
           key: const ValueKey('counts-export'),
           loading: _exporting,
           enabled: history.isNotEmpty,
-          onExport: () => _export(history),
+          onExport: (_) => _export(history),
         ),
         if (branchId != null && open == null)
           DashButton(

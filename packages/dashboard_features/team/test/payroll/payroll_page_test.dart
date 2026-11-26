@@ -292,9 +292,8 @@ void main() {
     (tester) async {
       final h = await pumpPayroll(tester);
       await approveMonth(h);
-      await h.tap(inPage(find.text(h.t('dawam.payLists'))));
-      // The Export menu: Excel or PDF of the same lists.
-      await h.tapText('Excel');
+      // The Export panel: Excel is every list.
+      await h.exportVia('Excel', inPage(find.byType(DashExportButton)));
       await h.settle();
       expect(h.exports.built, hasLength(1));
       final spec = h.exports.built.single;
@@ -326,9 +325,7 @@ void main() {
       s.db['payslips'].update(p['id']! as String, {'net_piastres': 0});
     }
     await h.tap(inPage(find.bySemanticsLabel('Refresh')));
-    await h.tap(inPage(find.text(h.t('dawam.payLists'))));
-    // The Export menu: Excel or PDF of the same lists.
-    await h.tapText('Excel');
+    await h.exportVia('Excel', inPage(find.byType(DashExportButton)));
     await h.expectToast(h.t('excel.nothingToExport'));
     expect(h.files.saved, isEmpty);
   });

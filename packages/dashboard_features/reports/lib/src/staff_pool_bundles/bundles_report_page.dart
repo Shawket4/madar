@@ -116,7 +116,7 @@ class _BundlesReportPageState extends ConsumerState<BundlesReportPage>
         DashExportButton(
           loading: _exporting,
           enabled: rows.isNotEmpty,
-          onExport: () => _export(query, rows, scope),
+          onExport: (_) => _export(query, rows, scope),
         ),
       ],
       filters: Align(

@@ -1,6 +1,6 @@
-// The Items page's export menu (menu-items-page.tsx `handleRecipeExport`):
-// the Recipes section only with recipes.read, one book read with the page's
-// own filters, the three files.
+// The Items page's Export panel (menu-items-page.tsx `handleRecipeExport`):
+// the recipe files only with recipes.read, one book read with the page's own
+// filters; Excel is the workbook, a PDF or CSV one sheet of it.
 import 'package:dashboard_api/mock.dart';
 import 'package:dashboard_catalog_menu/src/mock/recipes_mock.dart'
     show recipeBook;
@@ -14,66 +14,62 @@ import 'support.dart';
 
 const String _bookPath = '/recipes/book';
 
-/// The export control reading [words].
-Finder _triggerReading(String words) => inPage(
-  find.ancestor(of: find.text(words), matching: find.byType(DashButton)),
+/// The Export button.
+Finder get _trigger => inPage(
+  find.descendant(
+    of: find.byType(DashExportButton),
+    matching: find.byType(DashButton),
+  ),
 );
 
-/// The export control with the Recipes section: "Export"
-/// (`recipeBook.exportMenu`).
-Finder get _trigger => _triggerReading('Export');
-
-/// The menu the export control opens, when it is one.
-Finder _menuOf(Finder trigger) =>
-    find.ancestor(of: trigger, matching: find.byType(DashMenu));
-
-/// Opens the export menu and picks [file].
-Future<void> _export(DashHarness h, String file) async {
-  await h.tap(_trigger);
-  await pickMenu(h, file);
+/// Exports [file] in [format] (and [sheet], when the panel asks).
+Future<void> _export(
+  DashHarness h,
+  String file, {
+  String format = 'Excel',
+  String? sheet,
+}) async {
+  await h.exportVia(format, null, file, sheet);
   await h.settle();
 }
 
 void main() {
-  testWidgets('the Recipes section is offered only with recipes.read', (
+  testWidgets('the recipe files are offered only with recipes.read', (
     tester,
   ) async {
     final h = await pumpItems(tester);
-    expect(_menuOf(_trigger), findsOneWidget);
     await h.tap(_trigger);
     for (final word in [
-      // The format at the top, as every Export menu.
+      // The format at the top, as every Export panel.
       'Format',
       'Excel',
       'PDF',
-      'Menu',
-      'Recipes',
+      'CSV',
+      'File',
       'Recipes with costs',
       'Recipe cards, no costs',
-      'Recipe lines (CSV)',
     ]) {
-      expect(
-        find.descendant(of: _menuOf(_trigger), matching: find.text(word)),
-        findsOneWidget,
-        reason: word,
-      );
+      expect(find.text(word), findsOneWidget, reason: word);
     }
+    // "Menu" names the page's own file (the sidebar reads it too).
+    expect(find.text('Menu'), findsWidgets);
+    expect(find.text('Recipe lines (CSV)'), findsNothing);
     await h.flushTimers();
   });
 
-  testWidgets('without recipes.read: one file, the menu as before (Excel '
-      'or PDF)', (tester) async {
+  testWidgets('without recipes.read: one file, no file list', (tester) async {
     final h = await pumpItems(tester, persona: Persona.limited);
     final control = tester.widget<DashExportButton>(
       find.byType(DashExportButton),
     );
     expect(control.more, isEmpty);
-    expect(control.excelLabel, isNull);
+    expect(control.fileLabel, isNull);
     expect(control.label, isNull);
     await h.tap(_trigger);
-    expect(find.text('Export as'), findsOneWidget);
+    expect(find.text('Format'), findsOneWidget);
+    expect(find.text('File'), findsNothing);
     expect(find.text('Recipes with costs'), findsNothing);
-    await pickMenu(h, 'Excel');
+    await h.tap(find.byKey(const ValueKey('export-download')));
     await h.settle();
     expect(h.files.saved.single.filename, startsWith('Madar-Menu-'));
     expect(callsOf(h, 'GET', _bookPath), isEmpty);
@@ -158,19 +154,81 @@ void main() {
     await h.flushTimers();
   });
 
-  testWidgets('Recipe lines: the flat sheet as a CSV', (tester) async {
+  testWidgets('Recipes as CSV: the ingredient lines, without asking (the '
+      'tables have no CSV)', (tester) async {
     final h = await pumpItems(tester);
-    await _export(h, 'Recipe lines (CSV)');
+    await h.tap(_trigger);
+    await pickMenu(h, 'Recipes with costs');
+    await pickMenu(h, 'PDF');
+    expect(find.text('Recipe tables'), findsOneWidget);
+    await pickMenu(h, 'CSV');
+    expect(find.text('Sheet'), findsNothing);
+    await h.tap(find.byKey(const ValueKey('export-download')));
+    await h.settle();
     expect(h.exports.built, isEmpty, reason: 'no workbook for a CSV');
     final saved = h.files.saved.single;
     expect(
       saved.filename,
-      matches(RegExp(r'^Madar-Recipe-Lines-\d{4}-\d{2}-\d{2}\.csv$')),
+      matches(
+        RegExp(r'^Madar-Recipes-Ingredient-lines-\d{4}-\d{2}-\d{2}\.csv$'),
+      ),
     );
+    // UTF-8's mark first, so Excel opens Arabic as Arabic.
+    expect(saved.bytes.take(3), [0xEF, 0xBB, 0xBF]);
     expect(
       saved.asString.split('\r\n').first,
       'Category,Item,Size,Ingredient,From,Quantity,Unit,Line cost',
     );
+    await h.flushTimers();
+  });
+
+  testWidgets('Recipes as PDF: the sheet picked, the tables or the lines', (
+    tester,
+  ) async {
+    final h = await pumpItems(tester);
+    await _export(
+      h,
+      'Recipes with costs',
+      format: 'PDF',
+      sheet: 'Ingredient lines',
+    );
+    final printed = h.server.callsTo('/exports/pdf', method: 'POST').single;
+    final body = printed.body! as Map;
+    expect((body['sheets'] as List).single['title'], 'Ingredient lines');
+    expect(
+      h.files.saved.single.filename,
+      matches(
+        RegExp(r'^Madar-Recipes-Ingredient-lines-\d{4}-\d{2}-\d{2}\.pdf$'),
+      ),
+    );
+    await h.flushTimers();
+    await _export(
+      h,
+      'Recipes with costs',
+      format: 'PDF',
+      sheet: 'Recipe tables',
+    );
+    final tables = h.server.callsTo('/exports/pdf', method: 'POST').last;
+    expect(
+      ((tables.body! as Map)['sheets'] as List).single['title'],
+      'Recipes',
+    );
+    expect(
+      h.files.saved.last.filename,
+      matches(RegExp(r'^Madar-Recipes-\d{4}-\d{2}-\d{2}\.pdf$')),
+    );
+    await h.flushTimers();
+  });
+
+  testWidgets('the menu as CSV asks which sheet', (tester) async {
+    final h = await pumpItems(tester);
+    await _export(h, 'Menu', format: 'CSV', sheet: 'Categories');
+    final saved = h.files.saved.single;
+    expect(
+      saved.filename,
+      matches(RegExp(r'^Madar-Menu-Categories-\d{4}-\d{2}-\d{2}\.csv$')),
+    );
+    expect(saved.bytes.take(3), [0xEF, 0xBB, 0xBF]);
     await h.flushTimers();
   });
 
@@ -198,23 +256,12 @@ void main() {
 
   testWidgets('in Arabic: the menu and the book in Arabic', (tester) async {
     final h = await pumpItems(tester, locale: 'ar');
-    await h.tap(
-      inPage(
-        find.ancestor(
-          of: find.text(h.t('recipeBook.exportMenu')),
-          matching: find.byType(DashButton),
-        ),
-      ),
-    );
-    // "القائمة" names the page too: the menu's own item.
-    expect(
-      find.descendant(
-        of: find.byType(DashMenu),
-        matching: find.text(h.t('recipeBook.menuExcel')),
-      ),
-      findsOneWidget,
-    );
+    await h.tap(_trigger);
+    // "القائمة" names the page too: the panel's own file.
+    expect(find.text(h.t('common.exportFormat.file')), findsOneWidget);
+    expect(find.text(h.t('recipeBook.menuFile')), findsWidgets);
     await pickMenu(h, h.t('recipeBook.exportRecipes'));
+    await h.tap(find.byKey(const ValueKey('export-download')));
     await h.settle();
     final tables = h.exports.built.single.allSheets.first as BlockSheetSpec;
     expect(tables.title, h.t('recipeBook.title'));

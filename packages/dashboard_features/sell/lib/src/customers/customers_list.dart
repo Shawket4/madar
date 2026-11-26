@@ -267,7 +267,7 @@ class _CustomersListState extends ConsumerState<CustomersList>
         DashExportButton(
           loading: _exporting,
           enabled: rows.isNotEmpty && !_exporting,
-          onExport: () => _export(mode: mode, showBalance: showBalance),
+          onExport: (_) => _export(mode: mode, showBalance: showBalance),
         ),
       ],
       table: (toolbar) => DashDataTable<PersonRow>(
@@ -432,21 +432,22 @@ class _CustomersListState extends ConsumerState<CustomersList>
   }
 }
 
-/// `exportToExcel`'s toasts around the exporter: "Nothing to export" for no
+/// `exportFile`'s toasts around the exporter: "Nothing to export" for no
 /// rows; otherwise a loading toast that becomes "Exported N rows" or
 /// "Export failed".
 Future<void> runExcelExport(
   BuildContext context,
   DashExporter exporter,
   Translator t,
-  ExcelConfig config,
-) async {
+  ExcelConfig config, [
+  DashExportPick pick = const DashExportPick(),
+]) async {
   if (config.sheets.every((s) => s.size == 0)) {
     DashToast.error(context, const ExportNothing().message(t));
     return;
   }
   final toast = DashToast.loading(context, t('excel.generating'));
-  final outcome = await exporter.exportToExcel(config);
+  final outcome = await exporter.exportFile(config, pick);
   // The loading toast becomes the outcome, which then expires as any other.
   toast.update(
     outcome is ExportDone ? DashToastKind.success : DashToastKind.error,

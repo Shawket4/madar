@@ -16,7 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/menu_text.dart';
 import 'items_providers.dart';
 
-/// Builds and saves the workbook; toasts as `exportToExcel` does. A failed
+/// Builds and saves the workbook; toasts as `exportFile` does. A failed
 /// walk (or a too-large one) is an error toast with its words.
 Future<void> exportMenu(
   BuildContext context,
@@ -24,6 +24,7 @@ Future<void> exportMenu(
   required CatalogQuery query,
   required List<Category> categories,
   required List<AddonItem> addons,
+  DashExportPick pick = const DashExportPick(),
 }) async {
   final t = ref.read(tProvider);
   final api = apiWithHeaders(ref.read(transportProvider), exportRequestHeaders);
@@ -65,7 +66,7 @@ Future<void> exportMenu(
   final toast = DashToast.loading(context, t('excel.generating'));
   final outcome = await ref
       .read(exporterProvider)
-      .exportToExcel(
+      .exportFile(
         ExcelConfig(
           filename: 'Madar-Menu',
           logoUrl: exportLogoUrl(brand),
@@ -157,6 +158,7 @@ Future<void> exportMenu(
             ),
           ],
         ),
+        pick,
       );
   toast.update(
     outcome is ExportDone ? DashToastKind.success : DashToastKind.error,

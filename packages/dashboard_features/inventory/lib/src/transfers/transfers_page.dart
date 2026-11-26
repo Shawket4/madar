@@ -297,7 +297,7 @@ class _TransfersPageState extends ConsumerState<TransfersPage>
           key: const ValueKey('transfers-export'),
           loading: _exporting,
           enabled: !diffTab && rows.isNotEmpty,
-          onExport: () => _export(key),
+          onExport: (_) => _export(key),
         ),
         if (here != null &&
             here.kind == BranchKind.warehouse &&

@@ -160,8 +160,7 @@ class _TillsReportPageState extends ConsumerState<TillsReportPage>
           compact: true,
           loading: _exporting,
           enabled: load.rows.isNotEmpty,
-          onExport: () => _export(load.rows, excel: true),
-          onExportCsv: () => _export(load.rows, excel: false),
+          onExport: (_) => _export(load.rows),
         ),
       ],
       tabs: DashPageTabs<String>(
@@ -177,8 +176,8 @@ class _TillsReportPageState extends ConsumerState<TillsReportPage>
   }
 
   /// One sheet, "Till sessions": the figures the table shows, 18 columns,
-  /// no period line, no totals (REP-TIL-004, -024). Both paths spin.
-  Future<void> _export(List<TillSessionRow> rows, {required bool excel}) async {
+  /// no period line, no totals (REP-TIL-004, -024).
+  Future<void> _export(List<TillSessionRow> rows) async {
     final t = ref.read(tProvider);
     final exporter = ref.read(exporterProvider);
     final title = t('reports.tills.title');
@@ -200,32 +199,17 @@ class _TillsReportPageState extends ConsumerState<TillsReportPage>
         DashToast.error(context, const ExportNothing().message(t));
         return;
       }
-      if (excel) {
-        final toast = DashToast.loading(context, t('excel.generating'));
-        final out = await exporter.exportToExcel(config);
-        switch (out) {
-          case ExportDone(savedTo: null):
-            // The save was cancelled: nothing was written.
-            toast.dismiss();
-          case ExportDone():
-            toast.update(DashToastKind.success, out.message(t));
-          case ExportFailed():
-          case ExportNothing():
-            toast.update(DashToastKind.error, out.message(t));
-        }
-      } else {
-        final out = await exporter.exportToCsv(config);
-        if (!mounted) return;
-        switch (out) {
-          case ExportDone(savedTo: null):
-            break;
-          case ExportDone():
-            DashToast.success(context, out.message(t));
-          case ExportNothing():
-            DashToast.error(context, out.message(t));
-          case ExportFailed(:final error):
-            DashToast.error(context, errorMessage(error, t));
-        }
+      final toast = DashToast.loading(context, t('excel.generating'));
+      final out = await exporter.exportFile(config);
+      switch (out) {
+        case ExportDone(savedTo: null):
+          // The save was cancelled: nothing was written.
+          toast.dismiss();
+        case ExportDone():
+          toast.update(DashToastKind.success, out.message(t));
+        case ExportFailed():
+        case ExportNothing():
+          toast.update(DashToastKind.error, out.message(t));
       }
     } on Object catch (e) {
       if (mounted) DashToast.error(context, errorMessage(e, t));

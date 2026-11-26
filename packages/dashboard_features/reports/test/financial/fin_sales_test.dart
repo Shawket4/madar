@@ -418,10 +418,8 @@ void main() {
 
     group('export', () {
       Finder exportButton() => find.byKey(const ValueKey('fin-channel-export'));
-      Future<void> menu(DashHarness h, String item) async {
-        await h.tap(exportButton());
-        await h.tap(find.text(item).last);
-      }
+      Future<void> menu(DashHarness h, String format) =>
+          h.exportVia(format, exportButton());
 
       String stamp(DashHarness h) =>
           isoString(h.container.read(clockProvider)()).substring(0, 10);
@@ -431,7 +429,7 @@ void main() {
         t,
       ) async {
         final h = await openChannel(t);
-        await menu(h, 'Export');
+        await menu(h, 'Excel');
         final reread = callsTo(h, channelRoute).last;
         expect(callsTo(h, channelRoute), hasLength(2));
         expect(reread.headers['X-Madar-Export'], '1');
@@ -460,7 +458,7 @@ void main() {
         t,
       ) async {
         final h = await openChannel(t);
-        await menu(h, 'Export CSV');
+        await menu(h, 'CSV');
         await h.expectToast('Exported ${rows(h).length} rows');
         expect(
           h.files.saved.single.filename,
@@ -472,7 +470,7 @@ void main() {
         final h = await openChannel(t);
         final hold = Completer<void>();
         h.exports.hold = hold.future;
-        await menu(h, 'Export');
+        await menu(h, 'Excel');
         expect(t.widget<DashExportButton>(exportButton()).loading, isTrue);
         hold.complete();
         await h.settle();
@@ -490,7 +488,7 @@ void main() {
           code: 'EXPORT_RATE_LIMITED',
         );
         s.server.fail('GET', channelRoute, limited);
-        await menu(h, 'Export');
+        await menu(h, 'Excel');
         await h.expectToast(h.refusalWords(limited));
         expect(h.files.saved, isEmpty);
       });
@@ -501,7 +499,7 @@ void main() {
         final s = finServer();
         s.server.on('GET', channelRoute, (req) => MockResponse.ok(<Object?>[]));
         final h = await openChannel(t, s: s);
-        await menu(h, 'Export');
+        await menu(h, 'Excel');
         await h.expectToast('Nothing to export');
         expect(h.files.saved, isEmpty);
       });

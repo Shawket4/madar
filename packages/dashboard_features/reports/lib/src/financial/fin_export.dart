@@ -3,9 +3,9 @@
 /// loaded (no request, never throttled); Channel re-read with
 /// `X-Madar-Export: 1` (counted against the export budget, may 429).
 ///
-/// Excel shows "Gathering data…" then "Exported {{count}} rows" / "Export
-/// failed"; CSV writes the first sheet and toasts the count; empty sheets
-/// toast "Nothing to export" and write no file. Only Excel spins.
+/// Every file (Excel, PDF or CSV, chosen in the Export panel) shows
+/// "Gathering data…" then "Exported {{count}} rows" / "Export failed"; empty
+/// sheets toast "Nothing to export" and write no file.
 library;
 
 import 'package:dashboard_api/dashboard_api.dart';
@@ -18,7 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/report_shared.dart';
 import 'fin_data.dart';
 
-/// `exportToExcel` with the web's toasts. [sheets] may throw (a re-read):
+/// `exportFile` with the web's toasts. [sheets] may throw (a re-read):
 /// its words are the toast.
 Future<void> finExcel(
   BuildContext context,
@@ -38,7 +38,7 @@ Future<void> finExcel(
       return;
     }
     final toast = DashToast.loading(context, t('excel.generating'));
-    final outcome = await exporter.exportToExcel(
+    final outcome = await exporter.exportFile(
       ExcelConfig(filename: filename, logoUrl: logo, meta: meta, sheets: s),
     );
     toast.update(
@@ -50,33 +50,8 @@ Future<void> finExcel(
   }
 }
 
-/// `exportToCsv` (first sheet) with the web's toasts.
-Future<void> finCsv(
-  BuildContext context,
-  WidgetRef ref, {
-  required String filename,
-  required Future<List<ExcelSheet<Object?>>> Function() sheets,
-}) async {
-  final t = ref.read(tProvider);
-  final exporter = ref.read(exporterProvider);
-  try {
-    final s = await sheets();
-    final outcome = await exporter.exportToCsv(
-      ExcelConfig(filename: filename, sheets: s),
-    );
-    if (!context.mounted) return;
-    if (outcome is ExportDone) {
-      DashToast.success(context, outcome.message(t));
-    } else {
-      DashToast.error(context, outcome.message(t));
-    }
-  } on Object catch (e) {
-    if (context.mounted) DashToast.error(context, errorMessage(e, t));
-  }
-}
-
 /// REP-FIN-026/027 the ledger sheet ("Menu profitability"), the filtered
-/// rows (CSV ignores the widths).
+/// rows.
 ExcelSheet<MarginLedgerRow> finLedgerSheet(
   Translator t,
   List<MarginLedgerRow> rows,

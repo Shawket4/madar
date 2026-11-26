@@ -220,7 +220,7 @@ class _DiscountsPageState extends ConsumerState<DiscountsPage>
           : null;
       outcome = await ref
           .read(exporterProvider)
-          .exportToExcel(
+          .exportFile(
             ExcelConfig(
               filename: 'Madar-Discounts',
               logoUrl: logo,
@@ -463,7 +463,7 @@ class _DiscountsPageState extends ConsumerState<DiscountsPage>
           // The export reads the brand for its header logo.
           onIntent: () => ref.warm(publicBrandProvider),
           child: DashExportButton(
-            onExport: () => _export(discounts),
+            onExport: (_) => _export(discounts),
             loading: _exporting,
             enabled: discounts.isNotEmpty,
           ),
